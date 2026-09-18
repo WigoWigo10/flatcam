@@ -374,6 +374,11 @@ class MainGUI(QtWidgets.QMainWindow):
         self.menueditconvert_any2geo = self.menuedit_convert.addAction(
             QtGui.QIcon(self.app.resource_location + '/copy_geo.png'),
             '%s\t%s' % (_('Convert Any to Geo'), ''))
+        self.menueditconvert_outline2area = self.menuedit_convert.addAction(
+            QtGui.QIcon(self.app.resource_location + '/copy_geo.png'),
+            '%s\t%s' % (_('Convert Outline to Area'), ''))
+        self.menueditconvert_outline2area.setToolTip(
+            _("Create a filled Geometry area from a closed Gerber or Geometry outline."))
         self.menueditconvert_any2gerber = self.menuedit_convert.addAction(
             QtGui.QIcon(self.app.resource_location + '/copy_geo.png'),
             '%s\t%s' % (_('Convert Any to Gerber'), ''))

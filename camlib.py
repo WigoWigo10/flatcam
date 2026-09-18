@@ -1464,17 +1464,15 @@ class Geometry(object):
             # print("Area is None")
             return None
 
-        # current can be a MultiPolygon
-        try:
-            for p in current:
-                geoms.insert(p.exterior)
-                for i in p.interiors:
-                    geoms.insert(i)
-
-        # Not a Multipolygon. Must be a Polygon
-        except TypeError:
-            geoms.insert(current.exterior)
-            for i in current.interiors:
+        # Shapely 2.x multipart geometries are no longer directly iterable.
+        # Always expand them through ``geoms`` and keep atomic polygons as a
+        # one-element sequence.
+        current_parts = current.geoms if hasattr(current, 'geoms') else [current]
+        for p in current_parts:
+            if not isinstance(p, Polygon) or p.is_empty:
+                continue
+            geoms.insert(p.exterior)
+            for i in p.interiors:
                 geoms.insert(i)
 
         while True:
@@ -1489,21 +1487,14 @@ class Geometry(object):
             current = current.buffer(-tooldia * (1 - overlap), int(steps_per_circle))
             if current.area > 0:
 
-                # current can be a MultiPolygon
-                try:
-                    for p in current:
-                        geoms.insert(p.exterior)
-                        for i in p.interiors:
-                            geoms.insert(i)
-                            if prog_plot:
-                                self.plot_temp_shapes(p)
-
-                # Not a Multipolygon. Must be a Polygon
-                except TypeError:
-                    geoms.insert(current.exterior)
+                current_parts = current.geoms if hasattr(current, 'geoms') else [current]
+                for p in current_parts:
+                    if not isinstance(p, Polygon) or p.is_empty:
+                        continue
+                    geoms.insert(p.exterior)
                     if prog_plot:
-                        self.plot_temp_shapes(current.exterior)
-                    for i in current.interiors:
+                        self.plot_temp_shapes(p.exterior)
+                    for i in p.interiors:
                         geoms.insert(i)
                         if prog_plot:
                             self.plot_temp_shapes(i)

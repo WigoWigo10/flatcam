@@ -18,6 +18,7 @@ from copy import deepcopy
 
 import numpy as np
 from shapely.geometry import base
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union, nearest_points
 from shapely.geometry import MultiPolygon, Polygon, MultiLineString, LineString, LinearRing
 
@@ -861,17 +862,15 @@ class NonCopperClear(AppTool, Gerber):
         total_geo = MultiPolygon(total_geo)
         total_geo = total_geo.buffer(0)
 
-        try:
-            __ = iter(total_geo)
-            geo_len = len(total_geo)
-        except TypeError:
-            msg = ('[ERROR_NOTCL] %s' % _("The Gerber object has one Polygon as geometry.\n"
-                                          "There are no distances between geometry elements to be found."))
+        total_geo_parts = NonCopperClear.geometry_parts(total_geo)
+        geo_len = len(total_geo_parts)
+        if geo_len < 2:
+            return ('[ERROR_NOTCL] %s' % _("The Gerber object has one Polygon as geometry.\n"
+                                           "There are no distances between geometry elements to be found."), None)
 
         min_dict = {}
-        idx = 1
-        for geo in total_geo:
-            for s_geo in total_geo[idx:]:
+        for idx, geo in enumerate(total_geo_parts):
+            for s_geo in total_geo_parts[idx + 1:]:
                 # minimize the number of distances by not taking into considerations
                 # those that are too small
                 dist = geo.distance(s_geo)
@@ -888,9 +887,9 @@ class NonCopperClear(AppTool, Gerber):
                 else:
                     min_dict[dist] = [proc_loc]
 
-            idx += 1
-
         min_list = list(min_dict.keys())
+        if not min_list:
+            return ('[ERROR_NOTCL] %s' % _("No distances between Gerber geometry elements were found."), None)
         min_dist = min(min_list)
 
         return msg, min_dist
@@ -1003,20 +1002,17 @@ class NonCopperClear(AppTool, Gerber):
                     total_geo = MultiPolygon(total_geo)
                     total_geo = total_geo.buffer(0)
 
-                    try:
-                        __ = iter(total_geo)
-                        geo_len = len(total_geo)
-                        geo_len = (geo_len * (geo_len - 1)) / 2
-                    except TypeError:
+                    total_geo_parts = self.geometry_parts(total_geo)
+                    if len(total_geo_parts) < 2:
                         app_obj.inform.emit('[ERROR_NOTCL] %s' %
                                             _("The Gerber object has one Polygon as geometry.\n"
                                               "There are no distances between geometry elements to be found."))
                         return 'fail'
+                    geo_len = (len(total_geo_parts) * (len(total_geo_parts) - 1)) / 2
 
                     min_dict = {}
-                    idx = 1
-                    for geo in total_geo:
-                        for s_geo in total_geo[idx:]:
+                    for idx, geo in enumerate(total_geo_parts):
+                        for s_geo in total_geo_parts[idx + 1:]:
                             if self.app.abort_flag:
                                 # graceful abort requested by the user
                                 raise grace
@@ -1043,9 +1039,11 @@ class NonCopperClear(AppTool, Gerber):
                             if old_disp_number < disp_number <= 100:
                                 app_obj.proc_container.update_view_text(' %d%%' % disp_number)
                                 old_disp_number = disp_number
-                        idx += 1
-
                     min_list = list(min_dict.keys())
+                    if not min_list:
+                        app_obj.inform.emit('[ERROR_NOTCL] %s' %
+                                            _("No distances between Gerber geometry elements were found."))
+                        return 'fail'
                     min_dist = min(min_list)
 
                     min_dist_truncated = self.app.dec_format(float(min_dist), self.decimals)
@@ -1398,7 +1396,7 @@ class NonCopperClear(AppTool, Gerber):
 
         self.sel_rect = []
 
-        obj_type = self.ui.type_obj_radio.get_value
+        obj_type = self.ui.type_obj_radio.get_value()
         self.circle_steps = int(self.app.defaults["gerber_circle_steps"]) if obj_type == 'gerber' else \
             int(self.app.defaults["geometry_circle_steps"])
         self.obj_name = self.ui.object_combo.currentText()
@@ -1414,9 +1412,20 @@ class NonCopperClear(AppTool, Gerber):
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Object not found"), str(self.obj_name)))
             return
 
-        if self.ui.valid_cb.get_value() is True:
+        if self.ncc_obj.kind == 'geometry' and self.obj_name.lower().endswith('_area'):
+            self.app.inform.emit(
+                '[ERROR_NOTCL] %s' %
+                _("A filled outline area is a reference, not the NCC source. "
+                  "Select the Top or Bottom copper Gerber as Object, then use this area as Reference Object."))
+            return
+
+        if self.ui.valid_cb.get_value() is True and self.ncc_obj.kind == 'gerber':
             # this is done in another Process
             self.find_safe_tooldia_multiprocessing()
+        elif self.ui.valid_cb.get_value() is True:
+            self.app.inform.emit(
+                '[WARNING_NOTCL] %s' %
+                _("Tool validity checking is available only for Gerber source objects."))
 
         # use the selected tools in the tool table; get diameters for isolation
         self.iso_dia_list = []
@@ -2273,10 +2282,13 @@ class NonCopperClear(AppTool, Gerber):
                 ncc_offset = float(self.ncc_tools[tool_uid]["data"]["tools_ncc_offset_value"])
 
                 # Area to clear
-                area, warning_flag = self.get_tool_empty_area(name=name, ncc_obj=ncc_obj, geo_obj=geo_obj,
-                                                              isotooldia=isotooldia, ncc_margin=ncc_margin,
-                                                              has_offset=has_offset,  ncc_offset=ncc_offset,
-                                                              tools_storage=tools_storage, bounding_box=bbox)
+                area_result = self.get_tool_empty_area(name=name, ncc_obj=ncc_obj, geo_obj=geo_obj,
+                                                       isotooldia=isotooldia, ncc_margin=ncc_margin,
+                                                       has_offset=has_offset, ncc_offset=ncc_offset,
+                                                       tools_storage=tools_storage, bounding_box=bbox)
+                if area_result == 'fail':
+                    return 'fail'
+                area, warning_flag = area_result
 
                 # Transform area to MultiPolygon
                 if isinstance(area, Polygon):
@@ -2478,11 +2490,14 @@ class NonCopperClear(AppTool, Gerber):
             ncc_offset = self.ui.rest_ncc_offset_spinner.get_value()
 
             # Area to clear
-            area, warning_flag = self.get_tool_empty_area(name=name, ncc_obj=ncc_obj, geo_obj=geo_obj,
-                                                          isotooldia=isotooldia,
-                                                          has_offset=has_offset, ncc_offset=ncc_offset,
-                                                          ncc_margin=ncc_margin, tools_storage=tools_storage,
-                                                          bounding_box=bbox)
+            area_result = self.get_tool_empty_area(name=name, ncc_obj=ncc_obj, geo_obj=geo_obj,
+                                                   isotooldia=isotooldia,
+                                                   has_offset=has_offset, ncc_offset=ncc_offset,
+                                                   ncc_margin=ncc_margin, tools_storage=tools_storage,
+                                                   bounding_box=bbox)
+            if area_result == 'fail':
+                return 'fail'
+            area, warning_flag = area_result
 
             # for testing purposes ----------------------------------
             # for po in area.geoms:
@@ -2618,7 +2633,15 @@ class NonCopperClear(AppTool, Gerber):
 
                 area = area.difference(new_area)
 
-                new_area = [pol for pol in area if pol.is_valid and not pol.is_empty]
+                new_area = []
+                for pol in self.geometry_parts(area):
+                    if isinstance(pol, Polygon) and pol.is_valid and not pol.is_empty:
+                        new_area.append(pol)
+                    elif isinstance(pol, MultiPolygon):
+                        new_area.extend(
+                            sub_poly for sub_poly in pol.geoms
+                            if sub_poly.is_valid and not sub_poly.is_empty
+                        )
                 area = MultiPolygon(new_area)
 
                 # speedup the clearing by not trying to clear polygons that is clear they can't be
@@ -3720,15 +3743,30 @@ class NonCopperClear(AppTool, Gerber):
                             create a "negative" geometry (geometry to be emptied of copper)
         :return:
         """
-        if isinstance(target, Polygon):
-            geo_len = 1
-        elif isinstance(target, MultiPolygon):
+        if isinstance(target, list):
+            target = unary_union(target)
+
+        if not isinstance(target, BaseGeometry) or target.is_empty or target.area <= 0:
+            self.app.inform.emit(
+                '[ERROR_NOTCL] %s' %
+                _("The selected object is an outline and has no filled area. "
+                  "Use Edit -> Conversion -> Convert Outline to Area first."))
+            return 'fail'
+
+        if isinstance(target, MultiPolygon):
+            geo_len = len(target.geoms)
+        elif hasattr(target, 'geoms'):
             geo_len = len(target.geoms)
         else:
-            geo_len = len(target)
+            geo_len = 1
 
-        if isinstance(target, list):
-            target = MultiPolygon(target)
+        if boundary is not None and (
+                not isinstance(boundary, BaseGeometry) or boundary.is_empty or boundary.area <= 0):
+            self.app.inform.emit(
+                '[ERROR_NOTCL] %s' %
+                _("The reference object has no filled area. "
+                  "Use Edit -> Conversion -> Convert Outline to Area first."))
+            return 'fail'
 
         pol_nr = 0
         old_disp_number = 0
@@ -3765,6 +3803,17 @@ class NonCopperClear(AppTool, Gerber):
                 return 'fail'
 
         return ret_val
+
+    @staticmethod
+    def geometry_parts(geometry):
+        """Return Shapely multipart members on both Shapely 1.x and 2.x."""
+        if geometry is None:
+            return []
+        if isinstance(geometry, (list, tuple)):
+            return list(geometry)
+        if isinstance(geometry, BaseGeometry) and hasattr(geometry, 'geoms'):
+            return list(geometry.geoms)
+        return [geometry]
 
     @staticmethod
     def poly2rings(poly):

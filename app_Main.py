@@ -21,8 +21,9 @@ import time
 import ctypes
 import traceback
 
-from shapely.geometry import Point, MultiPolygon
-from shapely.ops import unary_union
+from shapely.geometry import Point, MultiPolygon, Polygon, LineString, LinearRing
+from shapely.geometry.base import BaseGeometry
+from shapely.ops import unary_union, polygonize_full
 from io import StringIO
 
 from reportlab.graphics import renderPDF
@@ -1428,6 +1429,7 @@ class App(QtCore.QObject):
 
         self.ui.menueditcopyobject.triggered.connect(self.on_copy_command)
         self.ui.menueditconvert_any2geo.triggered.connect(self.convert_any2geo)
+        self.ui.menueditconvert_outline2area.triggered.connect(self.convert_outline2area)
         self.ui.menueditconvert_any2gerber.triggered.connect(self.convert_any2gerber)
         self.ui.menueditconvert_any2excellon.triggered.connect(self.convert_any2excellon)
 
@@ -5443,6 +5445,109 @@ class App(QtCore.QObject):
                     self.app_obj.new_object("geometry", str(obj_name) + "_conv", initialize)
             except Exception as e:
                 return "Operation failed: %s" % str(e)
+
+    @staticmethod
+    def _outline_linework(geometry):
+        """Return linework suitable for polygonizing an outline."""
+        linework = []
+
+        def collect(element):
+            if element is None:
+                return
+            if isinstance(element, (list, tuple, set)):
+                for geo in element:
+                    collect(geo)
+                return
+            if isinstance(element, (LineString, LinearRing)):
+                linework.append(element)
+                return
+            if isinstance(element, Polygon):
+                linework.append(element.exterior)
+                linework.extend(element.interiors)
+                return
+            if isinstance(element, BaseGeometry) and hasattr(element, 'geoms'):
+                for geo in element.geoms:
+                    collect(geo)
+
+        collect(geometry)
+        return linework
+
+    def convert_outline2area(self):
+        """Create a filled Geometry object from a closed Gerber/Geometry outline."""
+        self.defaults.report_usage("convert_outline2area()")
+
+        selected = self.collection.get_selected()
+        if not selected:
+            self.inform.emit('[WARNING_NOTCL] %s' % _("No object is selected."))
+            return
+
+        for obj in selected:
+            if obj.kind not in ('gerber', 'geometry'):
+                self.inform.emit(
+                    '[ERROR_NOTCL] %s' %
+                    _("Only Gerber or Geometry objects can be converted from outline to area."))
+                continue
+
+            # Gerber follow geometry is the aperture centreline and therefore
+            # preserves the exact Edge.Cuts dimensions.  Its solid geometry is
+            # only the stroked aperture and would create a narrow frame.
+            source_geometry = getattr(obj, 'follow_geometry', None) if obj.kind == 'gerber' else None
+            if not source_geometry:
+                source_geometry = obj.solid_geometry
+
+            linework = self._outline_linework(source_geometry)
+            if not linework:
+                self.inform.emit(
+                    '[ERROR_NOTCL] %s: %s' %
+                    (_("The selected object contains no outline linework"), obj.options['name']))
+                continue
+
+            try:
+                merged = unary_union(linework)
+                polygons, cuts, dangles, invalid = polygonize_full(merged)
+                candidates = list(polygons.geoms) if hasattr(polygons, 'geoms') else list(polygons)
+                candidates = [poly for poly in candidates if not poly.is_empty and poly.area > 0]
+            except Exception as e:
+                log.error("App.convert_outline2area() --> %s", str(e))
+                self.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Could not polygonize the outline"), str(e)))
+                continue
+
+            if not candidates:
+                self.inform.emit(
+                    '[ERROR_NOTCL] %s' %
+                    _("The outline is open or invalid. Close all outline segments and try again."))
+                continue
+
+            # A board outline with internal cut-outs may yield more than one
+            # polygon.  The largest polygon is the board body and retains its
+            # interior rings as holes.
+            board_area = max(candidates, key=lambda poly: poly.area)
+            if not board_area.is_valid:
+                board_area = board_area.buffer(0)
+            if board_area.is_empty or not isinstance(board_area, (Polygon, MultiPolygon)):
+                self.inform.emit('[ERROR_NOTCL] %s' % _("The generated board area is invalid."))
+                continue
+
+            obj_name = "%s_area" % obj.options['name']
+
+            def initialize(obj_init, app_obj, area=deepcopy(board_area)):
+                obj_init.solid_geometry = [area]
+                obj_init.multigeo = False
+                obj_init.tools = {}
+
+            created = self.app_obj.new_object("geometry", obj_name, initialize)
+            if created == 'fail':
+                continue
+
+            if len(candidates) > 1:
+                self.inform.emit(
+                    '[WARNING_NOTCL] %s' %
+                    _("Multiple closed areas were found. The largest one was used as the board area."))
+
+            self.inform.emit(
+                '[success] %s: %s (%.4f %s^2)' %
+                (_("Filled outline area created"), created.options['name'], board_area.area,
+                 self.defaults.get('units', 'MM').lower()))
 
     def convert_any2gerber(self):
         """
