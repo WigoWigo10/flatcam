@@ -1,3 +1,4 @@
+import importlib
 import pkgutil
 import sys
 
@@ -71,9 +72,14 @@ import tclCommands.TclCommandWriteGCode
 
 __all__ = []
 
-for loader, name, is_pkg in pkgutil.walk_packages(__path__):
-    module = loader.find_module(name).load_module(name)
-    __all__.append(name)
+for _finder, name, is_pkg in pkgutil.walk_packages(__path__, prefix=__name__ + '.'):
+    # NOTE (local patch): loader.find_module()/load_module() was removed in
+    # Python 3.12 (PEP 451's find_spec/exec_module has been the only path
+    # for years). Every command module is already explicitly imported above,
+    # so this loop only needs to catch modules added without updating that
+    # list, and to keep populating __all__.
+    importlib.import_module(name)
+    __all__.append(name.rpartition('.')[2])
 
 
 def register_all_commands(app, commands):

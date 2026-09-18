@@ -404,7 +404,11 @@ class AppObject(QtCore.QObject):
         # ############################################################################################################
         # Set the colors for the objects that have geometry
         # ############################################################################################################
-        if obj.kind != 'document' and obj.kind != 'script':
+        # Objects restored from a project already carry their serialized
+        # fill/outline colors.  Apply defaults only to newly created or
+        # individually imported objects.
+        if obj.kind != 'document' and obj.kind != 'script' and \
+                not getattr(obj, '_restored_from_project', False):
             try:
                 if obj.kind == 'excellon':
                     obj.fill_color = self.app.defaults["excellon_plot_fill"]

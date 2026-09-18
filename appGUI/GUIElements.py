@@ -1136,13 +1136,13 @@ class FCDoubleSlider(QtWidgets.QSlider):
         return self.value()
 
     def setMinimum(self, value):
-        return super(FCDoubleSlider, self).setMinimum(value * self._multi)
+        return super(FCDoubleSlider, self).setMinimum(int(value * self._multi))
 
     def setMaximum(self, value):
-        return super(FCDoubleSlider, self).setMaximum(value * self._multi)
+        return super(FCDoubleSlider, self).setMaximum(int(value * self._multi))
 
     def setSingleStep(self, value):
-        return super(FCDoubleSlider, self).setSingleStep(value * self._multi)
+        return super(FCDoubleSlider, self).setSingleStep(int(value * self._multi))
 
     def singleStep(self):
         return float(super(FCDoubleSlider, self).singleStep()) / self._multi
@@ -1155,7 +1155,7 @@ class FCDoubleSlider(QtWidgets.QSlider):
 
     def set_range(self, min, max):
         self.blockSignals(True)
-        self.setRange(min * self._multi, max * self._multi)
+        self.setRange(int(min * self._multi), int(max * self._multi))
         self.blockSignals(False)
 
 
@@ -4159,14 +4159,19 @@ class FCTextAreaLineNumber(QtWidgets.QFrame):
                         painter.setFont(font)
 
                     # Draw the line number right justified at the position of the line.
-                    paint_rect = QtCore.QRect(0, block_top, number_bar.width(), font_metrics.height())
+                    paint_rect = QtCore.QRect(
+                        0,
+                        int(block_top),
+                        int(number_bar.width()),
+                        int(font_metrics.height())
+                    )
                     # I add some spaces to the line_count to prettify; make sure to remember adjust the width in the
                     # NumberBar() class above
                     painter.drawText(paint_rect, Qt.AlignRight, ' ' + str(line_count) + '  ')
 
                 block = block.next()
-                block_top = block_bottom
-                block_bottom = block_top + self.blockBoundingRect(block).height()
+                block_top = int(block_bottom)
+                block_bottom = block_top + int(self.blockBoundingRect(block).height())
 
             painter.end()
 

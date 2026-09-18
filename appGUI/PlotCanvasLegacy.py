@@ -1109,7 +1109,7 @@ class PlotCanvasLegacy(QtCore.QObject):
         """
 
         snap_x, snap_y = (x, y)
-        snap_distance = np.Inf
+        snap_distance = np.inf
 
         # ### Grid snap
         if self.app.grid_status():
@@ -1359,7 +1359,11 @@ class ShapeCollectionLegacy:
         # if we don't use this then when adding each new shape, the old ones will be added again, too
         # if obj_type == 'utility':
         #     self.axes.patches.clear()
-        self.axes.patches.clear()
+        # Matplotlib 3.7+ exposes ``Axes.patches`` as an ArtistList without
+        # ``clear()``.  Remove artists through their public API so the legacy
+        # canvas works with both old and current Matplotlib releases.
+        for patch in list(self.axes.patches):
+            patch.remove()
 
         for element in local_shapes:
             if local_shapes[element]['visible'] is True:

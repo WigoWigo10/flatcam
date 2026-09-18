@@ -21,6 +21,7 @@ from appGUI.GUIElements import OptionalInputSection, FCCheckBox, FCLabel, FCComb
 from appParsers.ParseFont import *
 
 from shapely.geometry import LineString, LinearRing, MultiLineString, Polygon, MultiPolygon, Point
+from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union, linemerge
 import shapely.affinity as affinity
 from shapely.geometry.polygon import orient
@@ -1535,10 +1536,10 @@ class TransformEditorTool(AppTool):
         """
 
         def bounds_rec(lst):
-            minx = np.Inf
-            miny = np.Inf
-            maxx = -np.Inf
-            maxy = -np.Inf
+            minx = np.inf
+            miny = np.inf
+            maxx = -np.inf
+            maxy = -np.inf
 
             try:
                 for shape in lst:
@@ -1592,9 +1593,11 @@ class DrawToolShape(object):
                     pts += DrawToolShape.get_pts(o.exterior)
                     for i in o.interiors:
                         pts += DrawToolShape.get_pts(i)
-                elif type(o) == MultiLineString:
-                    for line in o:
-                        pts += DrawToolShape.get_pts(line)
+                elif hasattr(o, 'geoms'):
+                    # Shapely 2.x multipart geometries are no longer directly
+                    # iterable; their components are exposed through .geoms.
+                    for geometry in o.geoms:
+                        pts += DrawToolShape.get_pts(geometry)
                 # Has .coords: list them.
                 else:
                     if DrawToolShape.tolerance is not None:
@@ -1623,10 +1626,10 @@ class DrawToolShape(object):
         # now it can get bounds for nested lists of objects
         def bounds_rec(shape_el):
             if type(shape_el) is list:
-                minx = np.Inf
-                miny = np.Inf
-                maxx = -np.Inf
-                maxy = -np.Inf
+                minx = np.inf
+                miny = np.inf
+                maxx = -np.inf
+                maxy = -np.inf
 
                 for k in shape_el:
                     minx_, miny_, maxx_, maxy_ = bounds_rec(k)
@@ -1898,10 +1901,10 @@ class DrawTool(object):
     def bounds(obj):
         def bounds_rec(o):
             if type(o) is list:
-                minx = np.Inf
-                miny = np.Inf
-                maxx = -np.Inf
-                maxy = -np.Inf
+                minx = np.inf
+                miny = np.inf
+                maxx = -np.inf
+                maxy = -np.inf
 
                 for k in o:
                     try:
@@ -4339,7 +4342,7 @@ class AppGeoEditor(QtCore.QObject):
             # this case is for the Font Parse
             for el in list(geo.geo):
                 if type(el) == MultiPolygon:
-                    for poly in el:
+                    for poly in el.geoms:
                         self.tool_shape.add(
                             shape=poly,
                             color=(self.app.defaults["global_draw_color"] + '80'),
@@ -4348,7 +4351,7 @@ class AppGeoEditor(QtCore.QObject):
                             tolerance=None
                         )
                 elif type(el) == MultiLineString:
-                    for linestring in el:
+                    for linestring in el.geoms:
                         self.tool_shape.add(
                             shape=linestring,
                             color=(self.app.defaults["global_draw_color"] + '80'),
@@ -4444,6 +4447,13 @@ class AppGeoEditor(QtCore.QObject):
 
         if geometry is None:
             geometry = self.active_tool.geometry
+
+        # Shapely 2.x multipart geometries are not directly iterable.
+        # Expand their explicit components before handling atomic shapes.
+        if isinstance(geometry, BaseGeometry) and hasattr(geometry, 'geoms'):
+            for geo in geometry.geoms:
+                plot_elements += self.plot_shape(geometry=geo, color=color, linewidth=linewidth)
+            return plot_elements
 
         try:
             for geo in geometry:
@@ -4605,7 +4615,7 @@ class AppGeoEditor(QtCore.QObject):
         """
 
         snap_x, snap_y = (x, y)
-        snap_distance = np.Inf
+        snap_distance = np.inf
 
         # # ## Object (corner?) snap
         # # ## No need for the objects, just the coordinates
@@ -5177,6 +5187,19 @@ class AppGeoEditor(QtCore.QObject):
         if reset:
             self.flat_geo = []
 
+        # Shapely 2.x removed direct iteration from multipart geometries.
+        # The editor needs atomic polygons and lines in its R-tree storage.
+        if isinstance(geometry, BaseGeometry) and hasattr(geometry, 'geoms'):
+            for geo in geometry.geoms:
+                if geo is not None:
+                    self.flatten(
+                        geometry=geo,
+                        orient_val=orient_val,
+                        reset=False,
+                        pathonly=pathonly
+                    )
+            return self.flat_geo
+
         # ## If iterable, expand recursively.
         try:
             for geo in geometry:
@@ -5215,10 +5238,10 @@ def poly2rings(poly):
 
 
 def get_shapely_list_bounds(geometry_list):
-    xmin = np.Inf
-    ymin = np.Inf
-    xmax = -np.Inf
-    ymax = -np.Inf
+    xmin = np.inf
+    ymin = np.inf
+    xmax = -np.inf
+    ymax = -np.inf
 
     for gs in geometry_list:
         try:

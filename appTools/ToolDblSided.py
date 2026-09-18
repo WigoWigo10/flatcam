@@ -4,7 +4,7 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 from appTool import AppTool
 from appGUI.GUIElements import RadioSet, FCDoubleSpinner, FCButton, FCComboBox, NumericalEvalTupleEntry, FCLabel
 
-from numpy import Inf
+from numpy import inf as Inf
 
 from shapely.geometry import Point
 from shapely import affinity

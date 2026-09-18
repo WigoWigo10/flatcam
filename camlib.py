@@ -38,7 +38,7 @@ from shapely.geometry import shape
 from descartes.patch import PolygonPatch
 # ---------------------------------------
 
-from collections import Iterable
+from collections.abc import Iterable
 
 import rasterio
 from rasterio.features import shapes
@@ -754,10 +754,10 @@ class Geometry(object):
 
         def bounds_rec(obj):
             if type(obj) is list:
-                gminx = np.Inf
-                gminy = np.Inf
-                gmaxx = -np.Inf
-                gmaxy = -np.Inf
+                gminx = np.inf
+                gminy = np.inf
+                gmaxx = -np.inf
+                gmaxy = -np.inf
 
                 for k in obj:
                     if type(k) is dict:
@@ -950,6 +950,15 @@ class Geometry(object):
 
         if reset:
             self.flat_geometry = []
+
+        # Shapely 2.x multipart geometries are no longer Python iterables.
+        # Expand their explicit ``geoms`` sequence before handling atomic
+        # polygons and lines, preserving the behavior expected by 8.994.
+        if isinstance(geometry, BaseGeometry) and hasattr(geometry, 'geoms'):
+            for geo in geometry.geoms:
+                if geo is not None:
+                    self.flatten(geometry=geo, reset=False, pathonly=pathonly)
+            return self.flat_geometry
 
         # ## If iterable, expand recursively.
         try:
@@ -5604,10 +5613,10 @@ class CNCjob(Geometry):
 
         def bounds_rec(obj):
             if type(obj) is list:
-                minx = np.Inf
-                miny = np.Inf
-                maxx = -np.Inf
-                maxy = -np.Inf
+                minx = np.inf
+                miny = np.inf
+                maxx = -np.inf
+                maxy = -np.inf
 
                 for k in obj:
                     if type(k) is dict:
@@ -7540,10 +7549,10 @@ class CNCjob(Geometry):
 
         def bounds_rec(obj):
             if type(obj) is list:
-                cminx = np.Inf
-                cminy = np.Inf
-                cmaxx = -np.Inf
-                cmaxy = -np.Inf
+                cminx = np.inf
+                cminy = np.inf
+                cmaxx = -np.inf
+                cmaxy = -np.inf
 
                 for k in obj:
                     if type(k) is dict:
@@ -7572,16 +7581,16 @@ class CNCjob(Geometry):
 
             bounds_coords = bounds_rec(self.solid_geometry)
         else:
-            minx = np.Inf
-            miny = np.Inf
-            maxx = -np.Inf
-            maxy = -np.Inf
+            minx = np.inf
+            miny = np.inf
+            maxx = -np.inf
+            maxy = -np.inf
             if self.cnc_tools:
                 for k, v in self.cnc_tools.items():
-                    minx = np.Inf
-                    miny = np.Inf
-                    maxx = -np.Inf
-                    maxy = -np.Inf
+                    minx = np.inf
+                    miny = np.inf
+                    maxx = -np.inf
+                    maxy = -np.inf
                     try:
                         for k in v['solid_geometry']:
                             minx_, miny_, maxx_, maxy_ = bounds_rec(k)
@@ -7598,10 +7607,10 @@ class CNCjob(Geometry):
 
             if self.exc_cnc_tools:
                 for k, v in self.exc_cnc_tools.items():
-                    minx = np.Inf
-                    miny = np.Inf
-                    maxx = -np.Inf
-                    maxy = -np.Inf
+                    minx = np.inf
+                    miny = np.inf
+                    maxx = -np.inf
+                    maxy = -np.inf
                     try:
                         for k in v['solid_geometry']:
                             minx_, miny_, maxx_, maxy_ = bounds_rec(k)
@@ -8038,10 +8047,10 @@ def get_bounds(geometry_list):
     :param geometry_list:   List of geometries for which to calculate the bounds limits
     :return:
     """
-    xmin = np.Inf
-    ymin = np.Inf
-    xmax = -np.Inf
-    ymax = -np.Inf
+    xmin = np.inf
+    ymin = np.inf
+    xmax = -np.inf
+    ymax = -np.inf
 
     for gs in geometry_list:
         try:

@@ -740,7 +740,11 @@ class GerberObject(FlatCAMObj, Gerber):
         if invert:
             try:
                 pl = []
-                for p in geom:
+                # Shapely 2.x geometries are no longer directly iterable.
+                # Keep the 8.994 behavior while using the explicit geoms
+                # sequence for multipart results.
+                parts = geom.geoms if isinstance(geom, MultiPolygon) else geom
+                for p in parts:
                     if p is not None:
                         if isinstance(p, Polygon):
                             pl.append(Polygon(p.exterior.coords[::-1], p.interiors))
@@ -890,11 +894,16 @@ class GerberObject(FlatCAMObj, Gerber):
         else:
             geometry = self.solid_geometry
 
-        # Make sure geometry is iterable.
-        try:
-            __ = iter(geometry)
-        except TypeError:
-            geometry = [geometry]
+        # Shapely 2.x multipart geometries are no longer directly iterable.
+        # Feed their individual parts to the canvas, as older Shapely did.
+        if hasattr(geometry, 'geoms'):
+            geometry = list(geometry.geoms)
+        else:
+            # Make sure geometry is iterable.
+            try:
+                __ = iter(geometry)
+            except TypeError:
+                geometry = [geometry]
 
         if self.app.is_legacy is False:
             def random_color():
@@ -928,7 +937,8 @@ class GerberObject(FlatCAMObj, Gerber):
                         pass
                     else:
                         try:
-                            for el in g:
+                            parts = g.geoms if hasattr(g, 'geoms') else g
+                            for el in parts:
                                 self.add_shape(shape=el, color=color,
                                                face_color=random_color() if self.options['multicolored']
                                                else face_color, visible=visible)
@@ -944,7 +954,8 @@ class GerberObject(FlatCAMObj, Gerber):
                     elif type(g) == Point:
                         pass
                     else:
-                        for el in g:
+                        parts = g.geoms if hasattr(g, 'geoms') else g
+                        for el in parts:
                             self.add_shape(shape=el, color=random_color() if self.options['multicolored'] else 'black',
                                            visible=visible)
             self.shapes.redraw(

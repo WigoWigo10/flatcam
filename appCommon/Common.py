@@ -20,6 +20,7 @@ from appTool import AppTool
 
 from copy import deepcopy
 import collections
+import collections.abc
 
 import numpy as np
 # from voronoi import Voronoi
@@ -85,7 +86,7 @@ class LoudDict(dict):
         self.callback = callback
 
 
-class LoudUniqueList(list, collections.MutableSequence):
+class LoudUniqueList(list, collections.abc.MutableSequence):
     """
     A List with a callback for item changes, callback which returns the index where the items are added/modified.
     A List that will allow adding only items that are not in the list.
@@ -969,7 +970,7 @@ def nearest_point(origin, points_list):
     :return:            Nearest Point
     :rtype:             Point
     """
-    old_dist = np.Inf
+    old_dist = np.inf
     nearest_pt = None
 
     for pt in points_list:

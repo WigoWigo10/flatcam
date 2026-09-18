@@ -108,6 +108,14 @@ class TclCommandGeoCutout(TclCommandSignaled):
                 if reset:
                     self.flat_geometry = []
 
+                # Shapely 2.x multipart geometries expose their members via
+                # ``geoms`` instead of direct iteration.
+                if hasattr(geometry, 'geoms'):
+                    for geo_el in geometry.geoms:
+                        if geo_el is not None:
+                            flatten(geometry=geo_el, reset=False, pathonly=pathonly)
+                    return self.flat_geometry
+
                 # If iterable, expand recursively.
                 try:
                     for geo_el in geometry:

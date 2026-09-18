@@ -1784,11 +1784,8 @@ class App(QtCore.QObject):
                         if silent is False:
                             self.inform.emit(_("Cancelled."))
                     else:
-                        # self.open_project(project_name)
                         run_from_arg = True
-                        # self.worker_task.emit({'fcn': self.open_project,
-                        #                        'params': [project_name, run_from_arg]})
-                        self.open_project(filename=project_name, run_from_arg=run_from_arg)
+                        self.f_handlers.open_project(filename=project_name, run_from_arg=run_from_arg)
                 except Exception as e:
                     self.log.debug("Could not open FlatCAM project file as App parameter due: %s" % str(e))
 
@@ -10598,6 +10595,10 @@ class MenuFileHandlers(QtCore.QObject):
             def obj_init(obj_inst, app_inst):
                 try:
                     obj_inst.from_dict(obj)
+                    # Keep per-object colors restored from the native 8.994
+                    # project.  on_object_created() otherwise replaces them
+                    # with the current global Gerber/Excellon defaults.
+                    obj_inst._restored_from_project = True
                 except Exception as erro:
                     app_inst.log('MenuFileHandlers.open_project() --> ' + str(erro))
                     return 'fail'

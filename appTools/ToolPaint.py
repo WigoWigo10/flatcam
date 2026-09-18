@@ -22,7 +22,7 @@ from shapely.ops import unary_union, linemerge
 from matplotlib.backend_bases import KeyEvent as mpl_key_event
 
 import numpy as np
-from numpy import Inf
+from numpy import inf as Inf
 import traceback
 import sys
 import logging

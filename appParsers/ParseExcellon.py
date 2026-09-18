@@ -1101,10 +1101,10 @@ class Excellon(Geometry):
 
         def bounds_rec(obj):
             if type(obj) is list:
-                minx = np.Inf
-                miny = np.Inf
-                maxx = -np.Inf
-                maxy = -np.Inf
+                minx = np.inf
+                miny = np.inf
+                maxx = -np.inf
+                maxy = -np.inf
 
                 for k in obj:
                     if type(k) is dict:

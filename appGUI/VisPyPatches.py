@@ -13,24 +13,34 @@ import numpy as np
 
 
 def apply_patches():
-    # Patch MarkersVisual to have crossed lines marker
-    cross_lines = """
-    float cross(vec2 pointcoord, float size)
-    {
-        //vbar
-        float r1 = abs(pointcoord.x - 0.5)*size;
-        float r2 = abs(pointcoord.y - 0.5)*size - $v_size/2;
-        float vbar = max(r1,r2);
-        //hbar
-        float r3 = abs(pointcoord.y - 0.5)*size;
-        float r4 = abs(pointcoord.x - 0.5)*size - $v_size/2;
-        float hbar = max(r3,r4);
-        return min(vbar, hbar);
-    }
-    """
+    # NOTE (local patch): each of these monkey-patches pokes at VisPy internals
+    # that predate the currently installed VisPy (0.17.0) by several years and
+    # have since been refactored/renamed. None of this is functionally load-
+    # bearing -- it's a custom marker shape, a perf tweak, a line-width tweak
+    # and an axis-label tweak -- so each block is wrapped to skip on failure
+    # rather than crash the whole app at startup.
 
-    markers._marker_dict['++'] = cross_lines
-    markers.marker_types = tuple(sorted(list(markers._marker_dict.copy().keys())))
+    # Patch MarkersVisual to have crossed lines marker
+    try:
+        cross_lines = """
+        float cross(vec2 pointcoord, float size)
+        {
+            //vbar
+            float r1 = abs(pointcoord.x - 0.5)*size;
+            float r2 = abs(pointcoord.y - 0.5)*size - $v_size/2;
+            float vbar = max(r1,r2);
+            //hbar
+            float r3 = abs(pointcoord.y - 0.5)*size;
+            float r4 = abs(pointcoord.x - 0.5)*size - $v_size/2;
+            float hbar = max(r3,r4);
+            return min(vbar, hbar);
+        }
+        """
+
+        markers._marker_dict['++'] = cross_lines
+        markers.marker_types = tuple(sorted(list(markers._marker_dict.copy().keys())))
+    except Exception as e:
+        print("VisPyPatches.apply_patches() -> marker patch skipped: %s" % str(e))
 
     # # Add clear_data method to LineVisual to have possibility of clearing data
     # def clear_data(self):
@@ -42,49 +52,62 @@ def apply_patches():
     # LineVisual.clear_data = clear_data
 
     # Patch VisPy Grid to prevent updating layout on PaintGL, which cause low fps
-    def _prepare_draw(self, view):
-        pass
+    try:
+        def _prepare_draw(self, view):
+            pass
 
-    def _update_clipper(self):
-        super(Grid, self)._update_clipper()
-        try:
-            self._update_child_widget_dim()
-        except Exception as e:
-            print("VisPyPatches.apply_patches._update_clipper() -> %s" % str(e))
+        def _update_clipper(self):
+            super(Grid, self)._update_clipper()
+            try:
+                self._update_child_widget_dim()
+            except Exception as e:
+                print("VisPyPatches.apply_patches._update_clipper() -> %s" % str(e))
 
-    Grid._prepare_draw = _prepare_draw
-    Grid._update_clipper = _update_clipper
+        Grid._prepare_draw = _prepare_draw
+        Grid._update_clipper = _update_clipper
+    except Exception as e:
+        print("VisPyPatches.apply_patches() -> Grid patch skipped: %s" % str(e))
 
     # Patch InfiniteLine visual to 1px width
-    def _prepare_draw(self, view=None):
-        """This method is called immediately before each draw.
-        The *view* argument indicates which view is about to be drawn.
-        """
-        GL = None
-        from vispy.app._default_app import default_app
+    try:
+        def _prepare_draw(self, view=None):
+            """This method is called immediately before each draw.
+            The *view* argument indicates which view is about to be drawn.
+            """
+            GL = None
+            from vispy.app._default_app import default_app
 
-        if default_app is not None and \
-                default_app.backend_name != 'ipynb_webgl':
-            try:
-                import OpenGL.GL as GL
-            except Exception:  # can be other than ImportError sometimes
-                pass
+            if default_app is not None and \
+                    default_app.backend_name != 'ipynb_webgl':
+                try:
+                    import OpenGL.GL as GL
+                except Exception:  # can be other than ImportError sometimes
+                    pass
 
-        if GL:
-            GL.glDisable(GL.GL_LINE_SMOOTH)
-            GL.glLineWidth(2.0)
+            if GL:
+                GL.glDisable(GL.GL_LINE_SMOOTH)
+                GL.glLineWidth(2.0)
 
-        if self._changed['pos']:
-            self.pos_buf.set_data(self._pos)
-            self._changed['pos'] = False
+            if self._changed['pos']:
+                self.pos_buf.set_data(self._pos)
+                self._changed['pos'] = False
 
-        if self._changed['color']:
-            self._program.vert['color'] = self._color
-            self._changed['color'] = False
+            if self._changed['color']:
+                self._program.vert['color'] = self._color
+                self._changed['color'] = False
 
-    InfiniteLineVisual._prepare_draw = _prepare_draw
+        InfiniteLineVisual._prepare_draw = _prepare_draw
+    except Exception as e:
+        print("VisPyPatches.apply_patches() -> InfiniteLineVisual patch skipped: %s" % str(e))
 
     # Patch AxisVisual to have less axis labels
+    try:
+        _apply_ticker_patch()
+    except Exception as e:
+        print("VisPyPatches.apply_patches() -> Ticker patch skipped: %s" % str(e))
+
+
+def _apply_ticker_patch():
     def _get_tick_frac_labels(self):
         """Get the major ticks, minor ticks, and major labels"""
         minor_num = 4  # number of minor ticks per major division

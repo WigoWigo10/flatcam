@@ -16,7 +16,7 @@ import shapely.affinity as affinity
 
 from matplotlib.backend_bases import KeyEvent as mpl_key_event
 
-from numpy import Inf
+from numpy import inf as Inf
 from copy import deepcopy
 import math
 import logging

@@ -3722,6 +3722,8 @@ class NonCopperClear(AppTool, Gerber):
         """
         if isinstance(target, Polygon):
             geo_len = 1
+        elif isinstance(target, MultiPolygon):
+            geo_len = len(target.geoms)
         else:
             geo_len = len(target)
 
@@ -3740,7 +3742,8 @@ class NonCopperClear(AppTool, Gerber):
             ret_val = boundary.difference(target)
         except Exception:
             try:
-                for el in target:
+                target_parts = target.geoms if isinstance(target, MultiPolygon) else target
+                for el in target_parts:
                     # provide the app with a way to process the GUI events when in a blocking loop
                     QtWidgets.QApplication.processEvents()
                     if self.app.abort_flag:

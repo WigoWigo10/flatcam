@@ -2713,8 +2713,13 @@ class GeometryObject(FlatCAMObj, Geometry):
                 except AttributeError:
                     return geom
 
-        if self.multigeo is True:
+        # Keep the per-tool geometry synchronized for both MultiGeo and
+        # SingleGeo objects. Transforming only ``solid_geometry`` leaves a
+        # stale tool copy which later breaks editing or regenerated jobs.
+        if self.tools:
             for tool in self.tools:
+                if not self.tools[tool].get('solid_geometry'):
+                    continue
                 # variables to display the percentage of work done
                 self.geo_len = 0
                 try:
