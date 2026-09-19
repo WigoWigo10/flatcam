@@ -59,7 +59,6 @@ import org.flatcam.app.project.ProjectFile;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
-import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
@@ -636,11 +635,11 @@ final class MainWindow {
      * if a pathological input ever makes it worth it.
      */
     private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
-        openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(image.units(), image.toolDiameters().size(),
-                params -> runDrillGCodeGeneration(item, image, params), this::closeToolPanel));
+        openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(image,
+                result -> runDrillGCodeGeneration(item, image, result), this::closeToolPanel));
     }
 
-    private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeParameters params) {
+    private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeToolPanel.Result result) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de furacao");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
@@ -656,7 +655,7 @@ final class MainWindow {
         }
 
         try {
-            String gcode = GCodeGenerator.generateDrillGCode(image, params);
+            String gcode = GCodeGenerator.generateDrillGCode(image, result.params(), result.selectedToolIds());
             Files.writeString(outFile.toPath(), gcode);
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
@@ -817,10 +816,15 @@ final class MainWindow {
         gcodeButton.setOnAction(e -> generateDrillGCode(item, image));
         box.getChildren().add(gcodeButton);
 
+        // Read-only per-tool breakdown - ObjectUI.py's tools_table, minus the per-tool
+        // "P" plot-visibility checkbox (needs per-tool sub-layers our renderer doesn't
+        // have yet) and the milling-conversion buttons (no milling tool ported yet).
+        box.getChildren().add(new Label("Tools Table:"));
+        box.getChildren().add(DrillGCodeToolPanel.buildToolsTableView(image));
+
         box.getChildren().add(propertiesSection(String.format(
-                "Unidades: %s%nFerramentas: %d%nFuros: %d%nSlots: %d%nBounds: %s",
-                image.units(), image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
-                Arrays.toString(image.bounds())
+                "Unidades: %s%nFuros totais: %d%nSlots totais: %d%nBounds: %s",
+                image.units(), image.totalDrills(), image.totalSlots(), Arrays.toString(image.bounds())
         )));
         return box;
     }
