@@ -1,10 +1,12 @@
 package org.flatcam.fx;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
@@ -46,6 +48,8 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
+import org.flatcam.app.project.ProjectFile;
+import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
@@ -92,6 +96,8 @@ final class MainWindow {
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, CncJobEntry> cncJobByItem = new LinkedHashMap<>();
+    /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
+    private final Map<TreeItem<String>, Path> sourcePathByItem = new LinkedHashMap<>();
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
@@ -152,6 +158,10 @@ final class MainWindow {
 
     private MenuBar buildMenuBar() {
         Menu fileMenu = new Menu("Arquivo");
+        MenuItem openProjectItem = new MenuItem("Abrir Projeto...");
+        openProjectItem.setOnAction(e -> openProject());
+        MenuItem saveProjectItem = new MenuItem("Salvar Projeto...");
+        saveProjectItem.setOnAction(e -> saveProject());
         MenuItem openGerberItem = new MenuItem("Abrir Gerber (prototipo Fase 3)");
         openGerberItem.setOnAction(e -> openGerberPrototype());
         MenuItem openExcellonItem = new MenuItem("Abrir Excellon (prototipo Fase 4)");
@@ -160,7 +170,9 @@ final class MainWindow {
         runDemoJob.setOnAction(e -> runDemoJob());
         MenuItem exitItem = new MenuItem("Sair");
         exitItem.setOnAction(e -> Platform.exit());
-        fileMenu.getItems().addAll(openGerberItem, openExcellonItem, runDemoJob, new SeparatorMenuItem(), exitItem);
+        fileMenu.getItems().addAll(
+                openProjectItem, saveProjectItem, new SeparatorMenuItem(),
+                openGerberItem, openExcellonItem, runDemoJob, new SeparatorMenuItem(), exitItem);
 
         Menu editMenu = new Menu("Editar");
         MenuItem preferencesItem = new MenuItem("Preferencias");
@@ -485,6 +497,7 @@ final class MainWindow {
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
+        sourcePathByItem.remove(item);
         appendConsole("Removido do projeto: " + item.getValue());
     }
 
@@ -641,7 +654,7 @@ final class MainWindow {
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
                     showGerber(image);
-                    addGerberToProject(file.getName(), image);
+                    addGerberToProject(file, image);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
@@ -675,7 +688,7 @@ final class MainWindow {
                             image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
                             Arrays.toString(image.bounds())));
                     showExcellon(image);
-                    addExcellonToProject(file.getName(), image);
+                    addExcellonToProject(file, image);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
@@ -726,15 +739,137 @@ final class MainWindow {
         }
     }
 
-    private void addGerberToProject(String name, GerberImage image) {
-        TreeItem<String> item = new TreeItem<>(name);
+    /**
+     * Writes which Gerber/Excellon files are open and which G-code jobs were
+     * generated - see ProjectFile's doc for why this is a list of paths to
+     * re-parse, not a geometry snapshot like the legacy .FlatPrj.
+     */
+    private void saveProject() {
+        List<String> gerberPaths = gerberByItem.keySet().stream()
+                .map(sourcePathByItem::get).map(Path::toString).toList();
+        List<String> excellonPaths = excellonByItem.keySet().stream()
+                .map(sourcePathByItem::get).map(Path::toString).toList();
+        List<ProjectFile.CncJobRecord> jobs = cncJobByItem.values().stream()
+                .map(entry -> new ProjectFile.CncJobRecord(entry.sourceName(), entry.outputFile().toString()))
+                .toList();
+        ProjectFile project = new ProjectFile(gerberPaths, excellonPaths, jobs);
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar Projeto");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM Next", "*.fcnproj"));
+        String fallbackDir = Path.of("").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File file = chooser.showSaveDialog(scene.getWindow());
+        if (file == null) {
+            return;
+        }
+
+        try {
+            ProjectFileIO.save(project, file.toPath());
+            AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+            appendConsole("Projeto salvo em " + file);
+        } catch (IOException e) {
+            appendConsole("Falha ao salvar projeto: " + e.getMessage());
+        }
+    }
+
+    /** Clears the current project, then re-parses every file the loaded ProjectFile references. */
+    private void openProject() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Abrir Projeto");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM Next", "*.fcnproj"));
+        String fallbackDir = Path.of("").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File file = chooser.showOpenDialog(scene.getWindow());
+        if (file == null) {
+            return;
+        }
+
+        ProjectFile project;
+        try {
+            project = ProjectFileIO.load(file.toPath());
+        } catch (IOException e) {
+            appendConsole("Falha ao abrir projeto: " + e.getMessage());
+            return;
+        }
+        AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+
+        clearProject();
+        for (String path : project.gerberPaths()) {
+            loadGerberFileSync(new File(path));
+        }
+        for (String path : project.excellonPaths()) {
+            loadExcellonFileSync(new File(path));
+        }
+        for (ProjectFile.CncJobRecord job : project.cncJobs()) {
+            Path outputPath = Path.of(job.outputPath());
+            if (!Files.exists(outputPath)) {
+                appendConsole("Aviso: G-code nao encontrado (arquivo movido/apagado?): " + outputPath);
+                continue;
+            }
+            try {
+                String gcode = Files.readString(outputPath);
+                addCncJobToProject(outputPath.getFileName().toString(), job.sourceName(), outputPath, gcode);
+            } catch (IOException e) {
+                appendConsole("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
+            }
+        }
+        appendConsole("Projeto aberto: " + file);
+    }
+
+    private void clearProject() {
+        gerbersNode.getChildren().clear();
+        excellonNode.getChildren().clear();
+        cncJobsNode.getChildren().clear();
+        gerberByItem.clear();
+        excellonByItem.clear();
+        cncJobByItem.clear();
+        sourcePathByItem.clear();
+        plotAreaView.setGeometry(null);
+    }
+
+    /**
+     * Synchronous (not via JobExecutor) re-parse used only by openProject() -
+     * loading a handful of files at project-open time is a batch operation,
+     * not the single cancellable action the JobExecutor-based open flows are
+     * built around, and parsing every fixture/real file checked so far takes
+     * well under a second. Revisit if a pathological project makes this show.
+     */
+    private void loadGerberFileSync(File file) {
+        try {
+            GerberImage image = new GerberParser().parse(file.toPath());
+            addGerberToProject(file, image);
+        } catch (Exception e) {
+            appendConsole("Falha ao reabrir Gerber " + file + ": " + e.getMessage());
+        }
+    }
+
+    private void loadExcellonFileSync(File file) {
+        try {
+            ExcellonImage image = new ExcellonParser().parse(file.toPath());
+            addExcellonToProject(file, image);
+        } catch (Exception e) {
+            appendConsole("Falha ao reabrir Excellon " + file + ": " + e.getMessage());
+        }
+    }
+
+    private void addGerberToProject(File file, GerberImage image) {
+        TreeItem<String> item = new TreeItem<>(file.getName());
         gerberByItem.put(item, image);
+        sourcePathByItem.put(item, file.toPath());
         gerbersNode.getChildren().add(item);
     }
 
-    private void addExcellonToProject(String name, ExcellonImage image) {
-        TreeItem<String> item = new TreeItem<>(name);
+    private void addExcellonToProject(File file, ExcellonImage image) {
+        TreeItem<String> item = new TreeItem<>(file.getName());
         excellonByItem.put(item, image);
+        sourcePathByItem.put(item, file.toPath());
         excellonNode.getChildren().add(item);
     }
 

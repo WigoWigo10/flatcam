@@ -41,6 +41,11 @@
                 <artifactId>flatcam-cam</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>20260814</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

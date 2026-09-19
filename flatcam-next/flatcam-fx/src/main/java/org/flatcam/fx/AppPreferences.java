@@ -31,6 +31,7 @@ final class AppPreferences {
     private static final String KEY_SPLIT_HORIZONTAL = "splitHorizontal";
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
     private static final String KEY_LAST_CAM_DIR = "lastCamDirectory";
+    private static final String KEY_LAST_PROJECT_DIR = "lastProjectDirectory";
 
     private AppPreferences() {
     }
@@ -87,6 +88,15 @@ final class AppPreferences {
 
     static void saveLastCamDirectory(String path) {
         PREFS.put(KEY_LAST_CAM_DIR, path);
+        flush();
+    }
+
+    static String loadLastProjectDirectory(String fallback) {
+        return PREFS.get(KEY_LAST_PROJECT_DIR, fallback);
+    }
+
+    static void saveLastProjectDirectory(String path) {
+        PREFS.put(KEY_LAST_PROJECT_DIR, path);
         flush();
     }
 
