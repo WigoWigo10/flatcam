@@ -2,6 +2,7 @@ package org.flatcam.fx;
 
 import javafx.scene.Group;
 import javafx.scene.Node;
+import javafx.scene.shape.Circle;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
@@ -33,6 +34,13 @@ final class Icons {
         Polygon triangle = new Polygon(5, 3, 19, 12, 5, 21);
         triangle.getStyleClass().add("icon-glyph-fill");
         return scaled(triangle, size);
+    }
+
+    /** An open ring - stands in for a drill hole (Excellon). */
+    static Node drill(double size) {
+        Circle ring = new Circle(12, 12, 8);
+        ring.getStyleClass().add("icon-glyph-stroke");
+        return scaled(ring, size);
     }
 
     static Node stop(double size) {

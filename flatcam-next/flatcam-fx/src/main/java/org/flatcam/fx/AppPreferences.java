@@ -9,7 +9,7 @@ import java.util.prefs.Preferences;
  * Thin wrapper over {@link Preferences} (JDK-native, no extra dependency)
  * for the shell state users asked to have remembered across sessions:
  * selected theme, window size, split-pane divider positions, and the last
- * folder used to open a Gerber file. Not a general settings/preferences
+ * folder used to open a Gerber/Excellon file. Not a general settings/preferences
  * system - the real one (per-object options, import/export, factory
  * defaults - see UI_INVENTORY.md section 4) is much bigger scope and
  * belongs to a later phase; this is only what Fase 1's shell itself needs
@@ -30,7 +30,7 @@ final class AppPreferences {
     private static final String KEY_WINDOW_HEIGHT = "windowHeight";
     private static final String KEY_SPLIT_HORIZONTAL = "splitHorizontal";
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
-    private static final String KEY_LAST_GERBER_DIR = "lastGerberDirectory";
+    private static final String KEY_LAST_CAM_DIR = "lastCamDirectory";
 
     private AppPreferences() {
     }
@@ -80,12 +80,13 @@ final class AppPreferences {
         flush();
     }
 
-    static String loadLastGerberDirectory(String fallback) {
-        return PREFS.get(KEY_LAST_GERBER_DIR, fallback);
+    /** Shared between Gerber and Excellon - they're almost always opened from the same fabrication folder. */
+    static String loadLastCamDirectory(String fallback) {
+        return PREFS.get(KEY_LAST_CAM_DIR, fallback);
     }
 
-    static void saveLastGerberDirectory(String path) {
-        PREFS.put(KEY_LAST_GERBER_DIR, path);
+    static void saveLastCamDirectory(String path) {
+        PREFS.put(KEY_LAST_CAM_DIR, path);
         flush();
     }
 

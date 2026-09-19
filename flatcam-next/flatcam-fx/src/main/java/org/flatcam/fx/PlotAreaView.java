@@ -45,6 +45,8 @@ final class PlotAreaView extends StackPane {
     private final Label coordLabel = new Label("X: -   Y: -");
 
     private Geometry geometry;
+    private Color fillColor = COPPER_FILL;
+    private Color strokeColor = COPPER_STROKE;
     private double scale = 3.0;
     private double viewCenterX = 50;
     private double viewCenterY = 40;
@@ -74,9 +76,16 @@ final class PlotAreaView extends StackPane {
         redraw();
     }
 
-    /** Replaces the displayed geometry and fits the view to it. Pass null to show an empty grid. */
+    /** Replaces the displayed geometry (copper-orange) and fits the view to it. Pass null to show an empty grid. */
     void setGeometry(Geometry newGeometry) {
+        setGeometry(newGeometry, COPPER_FILL, COPPER_STROKE);
+    }
+
+    /** Same as {@link #setGeometry(Geometry)}, with a caller-chosen color - e.g. distinguishing drill holes from copper. */
+    void setGeometry(Geometry newGeometry, Color fill, Color stroke) {
         this.geometry = newGeometry;
+        this.fillColor = fill;
+        this.strokeColor = stroke;
         fitToView();
         redraw();
     }
@@ -227,8 +236,8 @@ final class PlotAreaView extends StackPane {
 
     private void drawGeometry(GraphicsContext gc, double contentWidth, double contentHeight) {
         gc.setFillRule(FillRule.EVEN_ODD);
-        gc.setFill(COPPER_FILL);
-        gc.setStroke(COPPER_STROKE);
+        gc.setFill(fillColor);
+        gc.setStroke(strokeColor);
         gc.setLineWidth(1);
 
         int count = geometry.getNumGeometries();

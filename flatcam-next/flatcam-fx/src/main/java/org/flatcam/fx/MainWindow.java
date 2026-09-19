@@ -44,6 +44,8 @@ import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
+import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 
@@ -63,6 +65,8 @@ final class MainWindow {
     private static final Color RUNNING_COLOR = Color.web("#f0ad4e");
     private static final Color CANCELLED_COLOR = Color.web("#9e9e9e");
     private static final Color ERROR_COLOR = Color.web("#e53935");
+    private static final Color DRILL_FILL = Color.web("#c9c9c9");
+    private static final Color DRILL_STROKE = Color.web("#8a8a8a");
 
     private final JobExecutor jobExecutor;
 
@@ -76,8 +80,9 @@ final class MainWindow {
     private final TabPane centerTabs = new TabPane();
     private final Label propertiesLabel = new Label("Selecione um objeto\npara ver seus parametros.");
 
-    /** Gerber files opened so far, keyed by their tree item - backs the Properties tab and the item context menu. */
+    /** Files opened so far, keyed by their tree item - back the Properties tab and the item context menu. */
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
@@ -85,6 +90,7 @@ final class MainWindow {
     private SplitPane horizontalSplit;
     private SplitPane verticalSplit;
     private TreeItem<String> gerbersNode;
+    private TreeItem<String> excellonNode;
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private JobHandle<?> runningJob;
 
@@ -112,11 +118,13 @@ final class MainWindow {
         Menu fileMenu = new Menu("Arquivo");
         MenuItem openGerberItem = new MenuItem("Abrir Gerber (prototipo Fase 3)");
         openGerberItem.setOnAction(e -> openGerberPrototype());
+        MenuItem openExcellonItem = new MenuItem("Abrir Excellon (prototipo Fase 4)");
+        openExcellonItem.setOnAction(e -> openExcellonPrototype());
         MenuItem runDemoJob = new MenuItem("Executar job de demonstracao");
         runDemoJob.setOnAction(e -> runDemoJob());
         MenuItem exitItem = new MenuItem("Sair");
         exitItem.setOnAction(e -> Platform.exit());
-        fileMenu.getItems().addAll(openGerberItem, runDemoJob, new SeparatorMenuItem(), exitItem);
+        fileMenu.getItems().addAll(openGerberItem, openExcellonItem, runDemoJob, new SeparatorMenuItem(), exitItem);
 
         Menu editMenu = new Menu("Editar");
         MenuItem preferencesItem = new MenuItem("Preferencias");
@@ -183,6 +191,10 @@ final class MainWindow {
         openGerberButton.setTooltip(new Tooltip("Abrir Gerber (prototipo Fase 3)"));
         openGerberButton.setOnAction(e -> openGerberPrototype());
 
+        Button openExcellonButton = new Button(null, Icons.drill(16));
+        openExcellonButton.setTooltip(new Tooltip("Abrir Excellon (prototipo Fase 4)"));
+        openExcellonButton.setOnAction(e -> openExcellonPrototype());
+
         runDemoJobButton.setGraphic(Icons.play(16));
         runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
         runDemoJobButton.setOnAction(e -> runDemoJob());
@@ -192,7 +204,7 @@ final class MainWindow {
         cancelJobButton.setDisable(true);
         cancelJobButton.setOnAction(e -> cancelDemoJob());
 
-        return new ToolBar(openGerberButton, new Separator(), runDemoJobButton, cancelJobButton);
+        return new ToolBar(openGerberButton, openExcellonButton, new Separator(), runDemoJobButton, cancelJobButton);
     }
 
     /**
@@ -256,22 +268,25 @@ final class MainWindow {
      * A hidden root (the "Projeto" tab title already says that - an explicit
      * "Projeto" row too was redundant) with one category node per object
      * kind, matching appObjects/ObjectCollection.py's grouping. Category
-     * nodes are inert; file nodes underneath (added as Gerbers are opened -
-     * only Gerber so far) carry a {@link GerberImage} in {@link #gerberByItem}
-     * and get a context menu. Only "Exibir no Plot Area" and "Remover" are
-     * wired - the legacy per-object menu also has Set Color, Create CNCJob,
-     * Edit, Copy, Save (see UI_INVENTORY.md section 1), which need
-     * subsystems (plot state, CNCJob generation, editors, project format)
-     * this phase doesn't have yet.
+     * nodes are inert; file nodes underneath (added as Gerber/Excellon files
+     * are opened - Geometry/CNC Jobs have no Java parser/generator yet)
+     * carry a {@link GerberImage} or {@link ExcellonImage} in {@link #gerberByItem}/
+     * {@link #excellonByItem} and get a context menu. Only "Exibir no Plot
+     * Area" and "Remover" are wired - the legacy per-object menu also has Set
+     * Color, Create CNCJob, Edit, Copy, Save (see UI_INVENTORY.md section 1),
+     * which need subsystems (plot state, CNCJob generation, editors, project
+     * format) this phase doesn't have yet.
      */
     private TreeView<String> buildProjectTree() {
         TreeItem<String> root = new TreeItem<>("Projeto");
         root.setExpanded(true);
         gerbersNode = new TreeItem<>("Gerbers");
         gerbersNode.setExpanded(true);
+        excellonNode = new TreeItem<>("Excellon");
+        excellonNode.setExpanded(true);
         root.getChildren().addAll(
                 gerbersNode,
-                new TreeItem<>("Excellon"),
+                excellonNode,
                 new TreeItem<>("Geometry"),
                 new TreeItem<>("CNC Jobs")
         );
@@ -289,41 +304,64 @@ final class MainWindow {
                     return;
                 }
                 setText(value);
-                GerberImage image = gerberByItem.get(getTreeItem());
-                setContextMenu(image != null ? buildFileContextMenu(getTreeItem(), image) : null);
+                TreeItem<String> item = getTreeItem();
+                GerberImage gerberImage = gerberByItem.get(item);
+                ExcellonImage excellonImage = excellonByItem.get(item);
+                if (gerberImage != null) {
+                    setContextMenu(buildFileContextMenu(
+                            () -> showGerber(gerberImage),
+                            () -> removeFromProject(item, gerberByItem)));
+                } else if (excellonImage != null) {
+                    setContextMenu(buildFileContextMenu(
+                            () -> showExcellon(excellonImage),
+                            () -> removeFromProject(item, excellonByItem)));
+                } else {
+                    setContextMenu(null);
+                }
             }
         });
         return tree;
     }
 
-    private ContextMenu buildFileContextMenu(TreeItem<String> item, GerberImage image) {
+    private ContextMenu buildFileContextMenu(Runnable onShow, Runnable onRemove) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> {
-            showGerber(image);
+            onShow.run();
             centerTabs.getSelectionModel().select(0);
         });
 
         MenuItem removeItem = new MenuItem("Remover");
-        removeItem.setOnAction(e -> {
-            item.getParent().getChildren().remove(item);
-            gerberByItem.remove(item);
-            appendConsole("Removido do projeto: " + item.getValue());
-        });
+        removeItem.setOnAction(e -> onRemove.run());
 
         return new ContextMenu(showItem, removeItem);
     }
 
+    private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
+        item.getParent().getChildren().remove(item);
+        byItem.remove(item);
+        appendConsole("Removido do projeto: " + item.getValue());
+    }
+
     private void showProperties(TreeItem<String> item) {
-        GerberImage image = item == null ? null : gerberByItem.get(item);
-        if (image == null) {
-            propertiesLabel.setText("Selecione um objeto\npara ver seus parametros.");
+        GerberImage gerberImage = item == null ? null : gerberByItem.get(item);
+        if (gerberImage != null) {
+            propertiesLabel.setText(String.format(
+                    "%s%n%nUnidades: %s%nAperturas: %d%nArea: %.4f%nBounds: %s",
+                    item.getValue(), gerberImage.units(), gerberImage.apertures().size(), gerberImage.totalArea(),
+                    Arrays.toString(gerberImage.bounds())
+            ));
             return;
         }
-        propertiesLabel.setText(String.format(
-                "%s%n%nUnidades: %s%nAperturas: %d%nArea: %.4f%nBounds: %s",
-                item.getValue(), image.units(), image.apertures().size(), image.totalArea(),
-                Arrays.toString(image.bounds())
-        ));
+        ExcellonImage excellonImage = item == null ? null : excellonByItem.get(item);
+        if (excellonImage != null) {
+            propertiesLabel.setText(String.format(
+                    "%s%n%nUnidades: %s%nFerramentas: %d%nFuros: %d%nSlots: %d%nBounds: %s",
+                    item.getValue(), excellonImage.units(), excellonImage.toolDiameters().size(),
+                    excellonImage.totalDrills(), excellonImage.totalSlots(), Arrays.toString(excellonImage.bounds())
+            ));
+            return;
+        }
+        propertiesLabel.setText("Selecione um objeto\npara ver seus parametros.");
     }
 
     /**
@@ -426,35 +464,17 @@ final class MainWindow {
 
     /**
      * Fase 3 vertical slice, minimal: open -> parse (flatcam-cam) -> display
-     * (a throwaway Canvas render - see GerberCanvasRenderer). Reuses the same
+     * (a throwaway Canvas render - see PlotAreaView). Reuses the same
      * progress bar/cancel button/console as the demo job, one job at a time.
      */
     private void openGerberPrototype() {
-        if (runningJob != null) {
-            appendConsole("Ja ha um job em andamento.");
-            return;
-        }
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Abrir Gerber (prototipo)");
-        chooser.getExtensionFilters().add(
+        File file = pickCamFile("Abrir Gerber (prototipo)",
                 new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.txt"));
-        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
-        Path lastDir = Path.of(AppPreferences.loadLastGerberDirectory(fallbackDir));
-        if (Files.isDirectory(lastDir)) {
-            chooser.setInitialDirectory(lastDir.toFile());
-        }
-        File file = chooser.showOpenDialog(scene.getWindow());
         if (file == null) {
             return;
         }
-        AppPreferences.saveLastGerberDirectory(file.getParentFile().getAbsolutePath());
 
-        runDemoJobButton.setDisable(true);
-        cancelJobButton.setDisable(false);
-        progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
-        setStatus("Analisando " + file.getName() + "...", RUNNING_COLOR);
-        appendConsole("Abrindo " + file + "...");
-
+        beginJob("Analisando " + file.getName() + "...");
         JobHandle<GerberImage> handle = jobExecutor.submit(context -> new GerberParser().parse(file.toPath()), null);
         runningJob = handle;
 
@@ -467,32 +487,109 @@ final class MainWindow {
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
                     showGerber(image);
-                    addToProject(file.getName(), image);
+                    addGerberToProject(file.getName(), image);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        if (isCancellation(error)) {
-                            setStatus("Cancelado.", CANCELLED_COLOR);
-                            appendConsole("Abertura cancelada.");
-                        } else {
-                            setStatus("Falhou.", ERROR_COLOR);
-                            appendConsole("Falha ao abrir Gerber: " + error.getMessage());
-                        }
+                        reportJobError(error, "Falha ao abrir Gerber: ");
                         onJobFinished();
                     });
                     return null;
                 });
     }
 
-    private void addToProject(String name, GerberImage image) {
+    /** Fase 4 vertical slice - same shape as {@link #openGerberPrototype()}, see flatcam-cam's ExcellonParser. */
+    private void openExcellonPrototype() {
+        File file = pickCamFile("Abrir Excellon (prototipo)",
+                new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
+        if (file == null) {
+            return;
+        }
+
+        beginJob("Analisando " + file.getName() + "...");
+        JobHandle<ExcellonImage> handle = jobExecutor.submit(context -> new ExcellonParser().parse(file.toPath()), null);
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(image -> Platform.runLater(() -> {
+                    setStatus("Concluido.", IDLE_COLOR);
+                    progressBar.setProgress(1);
+                    unitsLabel.setText("Unidades: " + image.units());
+                    appendConsole(String.format(
+                            "Excellon OK: %d ferramentas, %d furos, %d slots, bounds=%s",
+                            image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
+                            Arrays.toString(image.bounds())));
+                    showExcellon(image);
+                    addExcellonToProject(file.getName(), image);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao abrir Excellon: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
+    }
+
+    /** Shared "pick a fabrication file" flow: remembers the last folder across both Gerber and Excellon. */
+    private File pickCamFile(String title, FileChooser.ExtensionFilter filter) {
+        if (runningJob != null) {
+            appendConsole("Ja ha um job em andamento.");
+            return null;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().add(filter);
+        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File file = chooser.showOpenDialog(scene.getWindow());
+        if (file != null) {
+            AppPreferences.saveLastCamDirectory(file.getParentFile().getAbsolutePath());
+        }
+        return file;
+    }
+
+    private void beginJob(String statusText) {
+        runDemoJobButton.setDisable(true);
+        cancelJobButton.setDisable(false);
+        progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+        setStatus(statusText, RUNNING_COLOR);
+        appendConsole(statusText);
+    }
+
+    private void reportJobError(Throwable error, String failurePrefix) {
+        if (isCancellation(error)) {
+            setStatus("Cancelado.", CANCELLED_COLOR);
+            appendConsole("Operacao cancelada.");
+        } else {
+            setStatus("Falhou.", ERROR_COLOR);
+            appendConsole(failurePrefix + error.getMessage());
+        }
+    }
+
+    private void addGerberToProject(String name, GerberImage image) {
         TreeItem<String> item = new TreeItem<>(name);
         gerberByItem.put(item, image);
         gerbersNode.getChildren().add(item);
     }
 
+    private void addExcellonToProject(String name, ExcellonImage image) {
+        TreeItem<String> item = new TreeItem<>(name);
+        excellonByItem.put(item, image);
+        excellonNode.getChildren().add(item);
+    }
+
     private void showGerber(GerberImage image) {
         plotAreaView.setGeometry(image.solidGeometry());
+    }
+
+    private void showExcellon(ExcellonImage image) {
+        plotAreaView.setGeometry(image.solidGeometry(), DRILL_FILL, DRILL_STROKE);
     }
 
     private void cancelDemoJob() {
