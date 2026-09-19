@@ -15,6 +15,8 @@ import javafx.scene.control.ProgressBar;
 import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
@@ -25,14 +27,19 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.TextAlignment;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 
 /**
- * Builds the layout described in CONTEXTO_FLATCAM_FX.md, secao 6: menu/
- * toolbar on top, resizable project tree / viewport / properties panels in
- * the middle, jobs+console at the bottom. The center panel is a placeholder -
- * the real GPU-backed viewport is Fase 2.
+ * Shell shape taken from the legacy app, not from CONTEXTO_FLATCAM_FX.md's
+ * secao 6 sketch - see UI_INVENTORY.md. FlatCAM/PyQt5 barely opens separate
+ * windows: a left tab strip alternates Project/Properties/Tool in the same
+ * space, and a center tab strip has a non-closable "Plot Area" (viewport)
+ * plus auxiliary tabs (Preferences, Tools Database, editors, ...) opened on
+ * demand and reused rather than duplicated. This class replicates that
+ * shape; the two auxiliary tab actions here are placeholders demonstrating
+ * the open/reuse/focus pattern, not real Preferences/Tools Database screens.
  */
 final class MainWindow {
 
@@ -43,6 +50,7 @@ final class MainWindow {
     private final Button runDemoJobButton = new Button("Executar job de demonstracao");
     private final Button cancelJobButton = new Button("Cancelar");
     private final TextArea console = new TextArea();
+    private final TabPane centerTabs = new TabPane();
 
     private Scene scene;
     private JobHandle<Void> runningJob;
@@ -69,6 +77,16 @@ final class MainWindow {
         exitItem.setOnAction(e -> Platform.exit());
         fileMenu.getItems().addAll(runDemoJob, new SeparatorMenuItem(), exitItem);
 
+        Menu editMenu = new Menu("Editar");
+        MenuItem preferencesItem = new MenuItem("Preferencias");
+        preferencesItem.setOnAction(e -> openAuxiliaryTab("Preferencias", this::buildPreferencesPlaceholder));
+        editMenu.getItems().add(preferencesItem);
+
+        Menu optionsMenu = new Menu("Opcoes");
+        MenuItem toolsDbItem = new MenuItem("Tools Database");
+        toolsDbItem.setOnAction(e -> openAuxiliaryTab("Tools Database", this::buildToolsDbPlaceholder));
+        optionsMenu.getItems().add(toolsDbItem);
+
         Menu viewMenu = new Menu("Exibir");
         viewMenu.getItems().add(buildThemeMenu());
 
@@ -77,7 +95,7 @@ final class MainWindow {
         aboutItem.setOnAction(e -> appendConsole("FlatCAM Next - esqueleto Fase 1 (CONTEXTO_FLATCAM_FX.md)"));
         helpMenu.getItems().add(aboutItem);
 
-        return new MenuBar(fileMenu, viewMenu, helpMenu);
+        return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, helpMenu);
     }
 
     /**
@@ -121,8 +139,8 @@ final class MainWindow {
     }
 
     private SplitPane buildMainSplit() {
-        SplitPane horizontal = new SplitPane(buildProjectPanel(), buildViewportPlaceholder(), buildPropertiesPanel());
-        horizontal.setDividerPositions(0.2, 0.78);
+        SplitPane horizontal = new SplitPane(buildLeftTabs(), buildCenterTabs());
+        horizontal.setDividerPositions(0.22);
 
         SplitPane vertical = new SplitPane(horizontal, buildBottomPanel());
         vertical.setOrientation(Orientation.VERTICAL);
@@ -130,7 +148,24 @@ final class MainWindow {
         return vertical;
     }
 
-    private VBox buildProjectPanel() {
+    /**
+     * Project / Properties / Tool sharing one tab strip - see UI_INVENTORY.md
+     * section 1 (appGUI/MainGUI.py's self.notebook). Properties and Tool are
+     * placeholders until Fase 3/5 give them real content to show.
+     */
+    private TabPane buildLeftTabs() {
+        Tab projectTab = new Tab("Projeto", buildProjectTree());
+        Tab propertiesTab = new Tab("Propriedades", centeredPlaceholder("Selecione um objeto\npara ver seus parametros."));
+        Tab toolTab = new Tab("Ferramenta", centeredPlaceholder("Nenhuma ferramenta ativa."));
+
+        TabPane tabs = new TabPane(projectTab, propertiesTab, toolTab);
+        tabs.getTabs().forEach(tab -> tab.setClosable(false));
+        tabs.getStyleClass().add("side-panel");
+        tabs.setMinWidth(160);
+        return tabs;
+    }
+
+    private TreeView<String> buildProjectTree() {
         TreeItem<String> root = new TreeItem<>("Projeto");
         root.setExpanded(true);
         root.getChildren().addAll(
@@ -141,30 +176,61 @@ final class MainWindow {
         );
         TreeView<String> tree = new TreeView<>(root);
         tree.setShowRoot(true);
-        VBox.setVgrow(tree, Priority.ALWAYS);
+        return tree;
+    }
 
-        VBox panel = new VBox(new Label("Projeto"), tree);
-        panel.getStyleClass().add("side-panel");
-        panel.setMinWidth(160);
-        return panel;
+    /**
+     * Plot Area (viewport) is the one tab that can never be closed;
+     * everything else - Preferences, Tools Database, editors - opens here on
+     * demand via {@link #openAuxiliaryTab}, matching appGUI/MainGUI.py's
+     * plot_tab_area instead of the separate right-hand panel the skeleton
+     * used to have.
+     */
+    private TabPane buildCenterTabs() {
+        Tab plotAreaTab = new Tab("Plot Area", buildViewportPlaceholder());
+        plotAreaTab.setClosable(false);
+        centerTabs.getTabs().add(plotAreaTab);
+        return centerTabs;
     }
 
     private StackPane buildViewportPlaceholder() {
         Label placeholder = new Label(
                 "Viewport GPU\n(Fase 2 - ainda nao implementado)\n\nAbrir Gerber/Excellon chega na Fase 3."
         );
-        placeholder.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        placeholder.setTextAlignment(TextAlignment.CENTER);
         StackPane viewport = new StackPane(placeholder);
         viewport.getStyleClass().add("viewport-placeholder");
         return viewport;
     }
 
-    private VBox buildPropertiesPanel() {
-        Label placeholder = new Label("Selecione um objeto\npara ver seus parametros.");
-        VBox panel = new VBox(new Label("Ferramenta / Propriedades"), placeholder);
-        panel.getStyleClass().add("side-panel");
-        panel.setMinWidth(180);
-        return panel;
+    /**
+     * Opens {@code title} in the center tab strip, or focuses it if already
+     * open - the legacy app never duplicates these auxiliary tabs either.
+     */
+    private void openAuxiliaryTab(String title, java.util.function.Supplier<javafx.scene.Node> content) {
+        for (Tab tab : centerTabs.getTabs()) {
+            if (title.equals(tab.getText())) {
+                centerTabs.getSelectionModel().select(tab);
+                return;
+            }
+        }
+        Tab tab = new Tab(title, content.get());
+        centerTabs.getTabs().add(tab);
+        centerTabs.getSelectionModel().select(tab);
+    }
+
+    private StackPane buildPreferencesPlaceholder() {
+        return centeredPlaceholder("Preferencias\n(placeholder - ver UI_INVENTORY.md secao 4)");
+    }
+
+    private StackPane buildToolsDbPlaceholder() {
+        return centeredPlaceholder("Tools Database\n(placeholder - ver UI_INVENTORY.md secao 6)");
+    }
+
+    private StackPane centeredPlaceholder(String text) {
+        Label label = new Label(text);
+        label.setTextAlignment(TextAlignment.CENTER);
+        return new StackPane(label);
     }
 
     private VBox buildBottomPanel() {
