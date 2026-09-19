@@ -7,6 +7,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
+import org.flatcam.cam.gerber.GerberParser;
+import org.flatcam.cam.isolation.IsolationGenerator;
+import org.flatcam.cam.isolation.IsolationParameters;
+import org.flatcam.cam.isolation.IsolationResult;
+import org.flatcam.cam.isolation.IsolationType;
 import org.junit.jupiter.api.Test;
 
 class GCodeGeneratorTest {
@@ -82,6 +87,29 @@ class GCodeGeneratorTest {
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(3.0, 1.6, 300, -1, false));
     }
 
+    @Test
+    void isolationTracesEachRingWithPlungeAndRetract() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult result = IsolationGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 1, 0.0, IsolationType.BOTH));
+
+        String gcode = GCodeGenerator.generateIsolationGCode(result, new IsolationGCodeParameters(0.1, 0.003, 10, 0));
+
+        assertTrue(gcode.contains("G20"), "inch file should select G20");
+        assertEquals(result.ringCount(), countOccurrences(gcode, "G1 Z-0.0030"),
+                "one plunge per ring in the result");
+        assertTrue(gcode.trim().endsWith("M30"));
+        assertEquals(0, countOccurrences(gcode, "M3 "), "spindleSpeedRpm=0 must omit M3/M5");
+    }
+
+    @Test
+    void isolationRejectsNonPositiveParameters() {
+        assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0, 0.003, 10, 0));
+        assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0.1, 0, 10, 0));
+        assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0.1, 0.003, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0.1, 0.003, 10, -1));
+    }
+
     private static int countOccurrences(String haystack, String needle) {
         int count = 0;
         int index = 0;
@@ -90,5 +118,16 @@ class GCodeGeneratorTest {
             index += needle.length();
         }
         return count;
+    }
+
+    private static java.nio.file.Path findRepoRoot() {
+        java.nio.file.Path dir = java.nio.file.Path.of("").toAbsolutePath();
+        while (dir != null) {
+            if (java.nio.file.Files.isDirectory(dir.resolve("tests/gerber_files"))) {
+                return dir;
+            }
+            dir = dir.getParent();
+        }
+        throw new IllegalStateException("Could not locate repo root (no ancestor has tests/gerber_files)");
     }
 }

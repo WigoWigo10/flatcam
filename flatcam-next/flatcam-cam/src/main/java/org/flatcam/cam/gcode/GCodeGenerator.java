@@ -7,6 +7,11 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.isolation.IsolationResult;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Polygon;
 
 /**
  * Generates GRBL-compatible drilling G-code from a parsed {@link ExcellonImage}:
@@ -81,6 +86,57 @@ public final class GCodeGenerator {
         line(gcode, "G0 Z%s", fmt(params.safeZ()));
         line(gcode, "M30");
         return gcode.toString();
+    }
+
+    /**
+     * Generates isolation-routing G-code: one rapid+plunge+follow-ring+retract
+     * per ring in the result (see IsolationGenerator) - the tool traces the
+     * ring itself (already closed, first coordinate == last), no separate
+     * closing move needed. A single tool per job, unlike drilling's tool
+     * table - isolation is normally cut with one bit - so no tool-change
+     * pause here.
+     */
+    public static String generateIsolationGCode(IsolationResult result, IsolationGCodeParameters params) {
+        StringBuilder gcode = new StringBuilder();
+        line(gcode, "; Gerado por FlatCAM Next (prototipo) - isolamento");
+        line(gcode, "; Unidades do arquivo de origem: %s", result.units());
+        line(gcode, result.units().equals("MM") ? "G21" : "G20");
+        line(gcode, "G90");
+        line(gcode, "G94");
+        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        if (params.spindleSpeedRpm() > 0) {
+            line(gcode, "M3 S%d", params.spindleSpeedRpm());
+        }
+
+        Geometry geometry = result.geometry();
+        int count = geometry.getNumGeometries();
+        for (int i = 0; i < count; i++) {
+            Coordinate[] coordinates = ringCoordinates(geometry.getGeometryN(i));
+            if (coordinates == null || coordinates.length == 0) {
+                continue;
+            }
+            line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+            line(gcode, "G1 Z-%s F%s", fmt(params.cutDepth()), fmt(params.feedRate()));
+            for (int p = 1; p < coordinates.length; p++) {
+                line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x), fmt(coordinates[p].y), fmt(params.feedRate()));
+            }
+            line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        }
+
+        if (params.spindleSpeedRpm() > 0) {
+            line(gcode, "M5");
+        }
+        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        line(gcode, "M30");
+        return gcode.toString();
+    }
+
+    private static Coordinate[] ringCoordinates(Geometry geometry) {
+        return switch (geometry) {
+            case LineString line -> line.getCoordinates();
+            case Polygon polygon -> polygon.getExteriorRing().getCoordinates();
+            default -> null;
+        };
     }
 
     private static void line(StringBuilder sb, String format, Object... args) {
