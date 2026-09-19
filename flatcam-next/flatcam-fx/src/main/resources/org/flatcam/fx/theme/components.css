@@ -69,3 +69,8 @@
 .status-bar .label {
     -fx-text-fill: -fc-panel-text;
 }
+
+.form-error-label {
+    -fx-text-fill: #e53935;
+    -fx-font-size: 11px;
+}

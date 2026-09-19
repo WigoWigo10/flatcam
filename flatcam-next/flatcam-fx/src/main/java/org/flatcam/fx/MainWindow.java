@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -46,6 +47,8 @@ import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
+import org.flatcam.cam.gcode.DrillGCodeParameters;
+import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 
@@ -312,9 +315,7 @@ final class MainWindow {
                             () -> showGerber(gerberImage),
                             () -> removeFromProject(item, gerberByItem)));
                 } else if (excellonImage != null) {
-                    setContextMenu(buildFileContextMenu(
-                            () -> showExcellon(excellonImage),
-                            () -> removeFromProject(item, excellonByItem)));
+                    setContextMenu(buildExcellonContextMenu(item, excellonImage));
                 } else {
                     setContextMenu(null);
                 }
@@ -334,6 +335,60 @@ final class MainWindow {
         removeItem.setOnAction(e -> onRemove.run());
 
         return new ContextMenu(showItem, removeItem);
+    }
+
+    /** Same as {@link #buildFileContextMenu}, plus "Gerar G-code de furacao" - the one action Excellon has that Gerber doesn't yet. */
+    private ContextMenu buildExcellonContextMenu(TreeItem<String> item, ExcellonImage image) {
+        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        showItem.setOnAction(e -> {
+            showExcellon(image);
+            centerTabs.getSelectionModel().select(0);
+        });
+
+        MenuItem gcodeItem = new MenuItem("Gerar G-code de furacao...");
+        gcodeItem.setOnAction(e -> generateDrillGCode(item, image));
+
+        MenuItem removeItem = new MenuItem("Remover");
+        removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
+
+        return new ContextMenu(showItem, gcodeItem, removeItem);
+    }
+
+    /**
+     * Fase 5 first slice: asks for a few generation parameters (DrillGCodeDialog),
+     * then writes plain drill G-code (GCodeGenerator) to a file the user picks.
+     * Runs on the FX thread directly - string-building over a few hundred/
+     * thousand points is not the kind of work secao 4.3 is about; move this to
+     * JobExecutor if a pathological input ever makes it worth it.
+     */
+    private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
+        Optional<DrillGCodeParameters> params = DrillGCodeDialog.show(image.units(), image.toolDiameters().size());
+        if (params.isEmpty()) {
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar G-code de furacao");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_drill.nc");
+        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File outFile = chooser.showSaveDialog(scene.getWindow());
+        if (outFile == null) {
+            return;
+        }
+
+        try {
+            String gcode = GCodeGenerator.generateDrillGCode(image, params.get());
+            Files.writeString(outFile.toPath(), gcode);
+            AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
+            appendConsole("G-code de furacao salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
+        } catch (Exception e) {
+            appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
+        }
     }
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
