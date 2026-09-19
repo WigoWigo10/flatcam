@@ -1,39 +1,35 @@
 package org.flatcam.fx;
 
-import java.util.Optional;
-import javafx.event.ActionEvent;
+import java.util.function.Consumer;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
-import javafx.scene.control.ButtonBar;
-import javafx.scene.control.ButtonType;
 import javafx.scene.control.CheckBox;
-import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.VBox;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
 
 /**
- * Small parameter form for drilling G-code generation (safe Z, drill depth,
- * feed rate, spindle speed, tool-change pause) - the same kind of "ask for
- * generation parameters before producing output" step the legacy app has
- * for CNCJob generation (UI_INVENTORY.md section 2, CNCObjectUI's "Common
- * Parameters"/"Probe GCode Generation"), just far smaller.
+ * Parameters for drilling G-code generation, as an embeddable panel rather
+ * than a modal dialog - appTools/ToolDrilling.py's run() switches the LEFT
+ * sidebar's own "Tool" tab (app.ui.tool_tab) to this tool's UI instead of
+ * popping a separate window, same as ToolIsolation.py (see
+ * IsolationToolPanel's doc). MainWindow wires this the same way via its own
+ * "Ferramenta" tab.
  */
-final class DrillGCodeDialog {
+final class DrillGCodeToolPanel {
 
-    private DrillGCodeDialog() {
+    private DrillGCodeToolPanel() {
     }
 
-    static Optional<DrillGCodeParameters> show(String units, int toolCount) {
+    /**
+     * @param onGenerate called with the parsed parameters when "Gerar" is clicked and they're valid.
+     * @param onClose    called when "Fechar" is clicked - MainWindow uses it to restore the tool tab's placeholder.
+     */
+    static Node build(String units, int toolCount, Consumer<DrillGCodeParameters> onGenerate, Runnable onClose) {
         boolean metric = "MM".equals(units);
-        Dialog<DrillGCodeParameters> dialog = new Dialog<>();
-        dialog.setTitle("Gerar G-code de furacao");
-        dialog.setHeaderText("Parametros (unidades do arquivo: " + units + ")");
-
-        ButtonType generateButtonType = new ButtonType("Gerar", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(generateButtonType, ButtonType.CANCEL);
 
         TextField safeZField = new TextField(metric ? "3.0" : "0.1");
         TextField depthField = new TextField(metric ? "1.7" : "0.07");
@@ -47,39 +43,32 @@ final class DrillGCodeDialog {
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
-        grid.setPadding(new Insets(12));
         grid.addRow(0, new Label("Altura de seguranca (Z):"), safeZField);
         grid.addRow(1, new Label("Profundidade de furacao:"), depthField);
         grid.addRow(2, new Label("Avanco (feed rate, unid./min):"), feedField);
         grid.addRow(3, new Label("Spindle (RPM, 0 = nao controlar):"), spindleField);
         grid.add(pauseCheck, 0, 4, 2, 1);
-        grid.add(errorLabel, 0, 5, 2, 1);
-        dialog.getDialogPane().setContent(grid);
 
-        Node generateButton = dialog.getDialogPane().lookupButton(generateButtonType);
-        generateButton.addEventFilter(ActionEvent.ACTION, event -> {
+        Button generateButton = new Button("Gerar");
+        generateButton.setMaxWidth(Double.MAX_VALUE);
+        Button closeButton = new Button("Fechar");
+        closeButton.setMaxWidth(Double.MAX_VALUE);
+        generateButton.setOnAction(e -> {
             try {
-                parseParameters(safeZField, depthField, feedField, spindleField, pauseCheck);
-            } catch (RuntimeException e) {
-                errorLabel.setText(e.getMessage());
-                event.consume();
+                DrillGCodeParameters params = parseParameters(safeZField, depthField, feedField, spindleField, pauseCheck);
+                errorLabel.setText("");
+                onGenerate.accept(params);
+            } catch (RuntimeException ex) {
+                errorLabel.setText(ex.getMessage());
             }
         });
+        closeButton.setOnAction(e -> onClose.run());
 
-        dialog.setResultConverter(button -> {
-            if (button != generateButtonType) {
-                return null;
-            }
-            try {
-                // Re-parses rather than caching the filter's result: simplest way to keep one source of
-                // truth, and the event filter above already guarantees these values parse cleanly here.
-                return parseParameters(safeZField, depthField, feedField, spindleField, pauseCheck);
-            } catch (RuntimeException e) {
-                return null;
-            }
-        });
-
-        return dialog.showAndWait();
+        VBox box = new VBox(10,
+                new Label("Parametros (unidades do arquivo: " + units + ")"),
+                grid, errorLabel, generateButton, closeButton);
+        box.setPadding(new Insets(12));
+        return box;
     }
 
     private static DrillGCodeParameters parseParameters(

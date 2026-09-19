@@ -37,8 +37,15 @@ import org.locationtech.jts.geom.Polygon;
  */
 final class PlotAreaView extends StackPane {
 
-    /** One object's plot: its geometry, whether it's filled (copper/holes) or stroke-only (a toolpath), colors, visibility, category. */
-    record RenderLayer(Geometry geometry, boolean strokeOnly, Color fillColor, Color strokeColor, boolean visible, LayerCategory category) {
+    /**
+     * One object's plot: its geometry, whether it's a stroke-only toolpath
+     * (isolation preview - a bare LineString, not a filled/outline choice),
+     * colors, the legacy "Solid"/"Multi-Color" plot options (filled vs.
+     * outline-only; a single color vs. one per geometry part), visibility
+     * and category.
+     */
+    record RenderLayer(Geometry geometry, boolean strokeOnly, Color fillColor, Color strokeColor,
+                        boolean visible, LayerCategory category, boolean filled, boolean multicolor) {
     }
 
     /**
@@ -105,8 +112,11 @@ final class PlotAreaView extends StackPane {
      * {@link #fitToLayer} for that (typically right after adding a new one).
      */
     void putLayer(Object key, LayerCategory category, Geometry geometry, Color fillColor, Color strokeColor, boolean strokeOnly) {
-        boolean visible = !layers.containsKey(key) || layers.get(key).visible();
-        layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category));
+        RenderLayer existing = layers.get(key);
+        boolean visible = existing == null || existing.visible();
+        boolean filled = existing == null || existing.filled();
+        boolean multicolor = existing != null && existing.multicolor();
+        layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category, filled, multicolor));
         redraw();
     }
 
@@ -118,7 +128,8 @@ final class PlotAreaView extends StackPane {
     void setLayerVisible(Object key, boolean visible) {
         RenderLayer layer = layers.get(key);
         if (layer != null) {
-            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(), visible, layer.category()));
+            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
+                    visible, layer.category(), layer.filled(), layer.multicolor()));
             redraw();
         }
     }
@@ -131,7 +142,8 @@ final class PlotAreaView extends StackPane {
     void setLayerColors(Object key, Color fillColor, Color strokeColor) {
         RenderLayer layer = layers.get(key);
         if (layer != null) {
-            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), fillColor, strokeColor, layer.visible(), layer.category()));
+            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), fillColor, strokeColor,
+                    layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
         }
     }
@@ -140,6 +152,36 @@ final class PlotAreaView extends StackPane {
     Color[] layerColors(Object key) {
         RenderLayer layer = layers.get(key);
         return layer == null ? null : new Color[]{layer.fillColor(), layer.strokeColor()};
+    }
+
+    /** The legacy "Solid" plot option: filled polygons (with holes) vs. outline-only. */
+    void setLayerFilled(Object key, boolean filled) {
+        RenderLayer layer = layers.get(key);
+        if (layer != null) {
+            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
+                    layer.visible(), layer.category(), filled, layer.multicolor()));
+            redraw();
+        }
+    }
+
+    boolean isLayerFilled(Object key) {
+        RenderLayer layer = layers.get(key);
+        return layer == null || layer.filled();
+    }
+
+    /** The legacy "Multi-Color" plot option: each geometry part gets a distinct hue instead of the layer's one fill color. */
+    void setLayerMulticolor(Object key, boolean multicolor) {
+        RenderLayer layer = layers.get(key);
+        if (layer != null) {
+            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
+                    layer.visible(), layer.category(), layer.filled(), multicolor));
+            redraw();
+        }
+    }
+
+    boolean isLayerMulticolor(Object key) {
+        RenderLayer layer = layers.get(key);
+        return layer != null && layer.multicolor();
     }
 
     void clearLayers() {
@@ -320,14 +362,15 @@ final class PlotAreaView extends StackPane {
 
     private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth, double contentHeight) {
         gc.setFillRule(FillRule.EVEN_ODD);
-        gc.setFill(layer.fillColor());
-        gc.setStroke(layer.strokeColor());
         gc.setLineWidth(layer.strokeOnly() ? 1.5 : 1);
 
         Geometry geometry = layer.geometry();
         int count = geometry.getNumGeometries();
         for (int i = 0; i < count; i++) {
             Geometry part = geometry.getGeometryN(i);
+            Color partColor = layer.multicolor() ? multicolorHue(i) : layer.fillColor();
+            gc.setFill(partColor);
+            gc.setStroke(layer.multicolor() ? partColor.darker() : layer.strokeColor());
             if (layer.strokeOnly()) {
                 Coordinate[] coordinates = switch (part) {
                     case LineString line -> line.getCoordinates();
@@ -346,10 +389,19 @@ final class PlotAreaView extends StackPane {
                 for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
                     addRing(gc, polygon.getInteriorRingN(r).getCoordinates(), contentWidth, contentHeight);
                 }
-                gc.fill();
+                // The legacy app's "Solid" plot option: filled copper/holes vs. outline-only.
+                if (layer.filled()) {
+                    gc.fill();
+                }
                 gc.stroke();
             }
         }
+    }
+
+    /** A deterministic, well-spread hue per part index for the "Multi-Color" plot option - not literally random, so redraws don't flicker. */
+    private static Color multicolorHue(int partIndex) {
+        double hue = (partIndex * 137.508) % 360; // golden-angle spacing avoids adjacent parts landing on similar hues
+        return Color.hsb(hue, 0.65, 0.85);
     }
 
     private void addRing(GraphicsContext gc, Coordinate[] coordinates, double contentWidth, double contentHeight) {

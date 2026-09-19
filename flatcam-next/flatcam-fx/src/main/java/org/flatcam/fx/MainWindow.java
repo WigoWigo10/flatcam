@@ -9,14 +9,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -31,6 +32,8 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.TextField;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
@@ -38,6 +41,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -46,6 +50,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
@@ -93,7 +98,8 @@ final class MainWindow {
     private final Button cancelJobButton = new Button();
     private final TextArea console = new TextArea();
     private final TabPane centerTabs = new TabPane();
-    private final Label propertiesLabel = new Label("Selecione um objeto\npara ver seus parametros.");
+    private final StackPane propertiesContainer = new StackPane();
+    private final Label propertiesPlaceholder = new Label("Selecione um objeto\npara ver seus parametros.");
 
     /** A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator writes one. */
     private record CncJobEntry(String sourceName, Path outputFile, String gcode) {
@@ -122,6 +128,9 @@ final class MainWindow {
     private SplitPane horizontalSplit;
     private SplitPane verticalSplit;
     private TreeView<String> projectTree;
+    private TabPane leftTabs;
+    private Tab propertiesTab;
+    private Tab toolTab;
     private TreeItem<String> gerbersNode;
     private TreeItem<String> excellonNode;
     private TreeItem<String> cncJobsNode;
@@ -342,20 +351,44 @@ final class MainWindow {
 
     /**
      * Project / Properties / Tool sharing one tab strip - see UI_INVENTORY.md
-     * section 1 (appGUI/MainGUI.py's self.notebook). Properties and Tool are
-     * placeholders until Fase 3/5 give them real content to show.
+     * section 1 (appGUI/MainGUI.py's self.notebook - project_tab/
+     * properties_tab/tool_tab). The Tool tab is where a running tool's own
+     * form lives (see {@link #openToolPanel}) - appTools/ToolIsolation.py
+     * and ToolDrilling.py both switch this same tab to their own UI via
+     * app.ui.notebook.setCurrentWidget(app.ui.tool_tab) rather than opening
+     * a separate window.
      */
     private TabPane buildLeftTabs() {
         Tab projectTab = new Tab("Projeto", buildProjectTree());
-        propertiesLabel.setTextAlignment(TextAlignment.CENTER);
-        Tab propertiesTab = new Tab("Propriedades", new StackPane(propertiesLabel));
-        Tab toolTab = new Tab("Ferramenta", centeredPlaceholder("Nenhuma ferramenta ativa."));
+        propertiesPlaceholder.setTextAlignment(TextAlignment.CENTER);
+        propertiesContainer.getChildren().add(propertiesPlaceholder);
+        propertiesTab = new Tab("Propriedades", propertiesContainer);
+        toolTab = new Tab("Ferramenta", centeredPlaceholder("Nenhuma ferramenta ativa."));
 
-        TabPane tabs = new TabPane(projectTab, propertiesTab, toolTab);
-        tabs.getTabs().forEach(tab -> tab.setClosable(false));
-        tabs.getStyleClass().add("side-panel");
-        tabs.setMinWidth(160);
-        return tabs;
+        leftTabs = new TabPane(projectTab, propertiesTab, toolTab);
+        leftTabs.getTabs().forEach(tab -> tab.setClosable(false));
+        leftTabs.getStyleClass().add("side-panel");
+        leftTabs.setMinWidth(160);
+        return leftTabs;
+    }
+
+    /** Switches the left sidebar to the Tool tab and loads {@code content} into it, replacing whatever was there. */
+    private void openToolPanel(String label, Node content) {
+        toolTab.setText(label);
+        toolTab.setContent(content);
+        leftTabs.getSelectionModel().select(toolTab);
+    }
+
+    /**
+     * Restores the Tool tab's placeholder and switches back to Properties -
+     * matching ToolIsolation.py/ToolDrilling.py's own
+     * app.ui.notebook.setCurrentWidget(app.ui.properties_tab) once a tool
+     * finishes (or is closed without finishing).
+     */
+    private void closeToolPanel() {
+        toolTab.setText("Ferramenta");
+        toolTab.setContent(centeredPlaceholder("Nenhuma ferramenta ativa."));
+        leftTabs.getSelectionModel().select(propertiesTab);
     }
 
     /**
@@ -399,6 +432,14 @@ final class MainWindow {
         projectTree.setShowRoot(false);
         projectTree.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         projectTree.getSelectionModel().selectedItemProperty().addListener((obs, previous, selected) -> showProperties(selected));
+        // Double-click or Enter on a row switches the sidebar to Properties - matches
+        // ObjectCollection.py's on_item_activated()/on_row_activated(), which both call
+        // build_ui() then app.ui.notebook.setCurrentWidget(app.ui.properties_tab).
+        projectTree.setOnKeyPressed(event -> {
+            if (event.getCode() == KeyCode.ENTER && projectTree.getSelectionModel().getSelectedItem() != null) {
+                leftTabs.getSelectionModel().select(propertiesTab);
+            }
+        });
         projectTree.setCellFactory(view -> {
             TreeCell<String> cell = new TreeCell<>() {
                 @Override
@@ -407,6 +448,11 @@ final class MainWindow {
                     setText(empty || value == null ? null : value);
                 }
             };
+            cell.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && cell.getTreeItem() != null) {
+                    leftTabs.getSelectionModel().select(propertiesTab);
+                }
+            });
             // Populating a ContextMenu's items inside its own setOnShowing (instead of
             // before the initial show() call) left the popup sized to zero the first
             // time - it never appeared. Building the menu synchronously in response to
@@ -581,18 +627,20 @@ final class MainWindow {
     }
 
     /**
-     * Fase 5 first slice: asks for a few generation parameters (DrillGCodeDialog),
-     * then writes plain drill G-code (GCodeGenerator) to a file the user picks.
-     * Runs on the FX thread directly - string-building over a few hundred/
-     * thousand points is not the kind of work secao 4.3 is about; move this to
-     * JobExecutor if a pathological input ever makes it worth it.
+     * Loads DrillGCodeToolPanel into the Tool tab (appTools/ToolDrilling.py's
+     * run() switches app.ui.tool_tab to its own UI the same way - see
+     * {@link #openToolPanel}), and writes plain drill G-code (GCodeGenerator)
+     * to a file the user picks once "Gerar" is clicked. Runs on the FX
+     * thread directly - string-building over a few hundred/thousand points
+     * is not the kind of work secao 4.3 is about; move this to JobExecutor
+     * if a pathological input ever makes it worth it.
      */
     private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
-        Optional<DrillGCodeParameters> params = DrillGCodeDialog.show(image.units(), image.toolDiameters().size());
-        if (params.isEmpty()) {
-            return;
-        }
+        openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(image.units(), image.toolDiameters().size(),
+                params -> runDrillGCodeGeneration(item, image, params), this::closeToolPanel));
+    }
 
+    private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeParameters params) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de furacao");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
@@ -608,32 +656,36 @@ final class MainWindow {
         }
 
         try {
-            String gcode = GCodeGenerator.generateDrillGCode(image, params.get());
+            String gcode = GCodeGenerator.generateDrillGCode(image, params);
             Files.writeString(outFile.toPath(), gcode);
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
             addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
+            closeToolPanel();
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
         }
     }
 
     /**
-     * Fase 5 first slice: generates an isolation toolpath around the
-     * Gerber's copper (IsolationGenerator, ported from appTools/
-     * ToolIsolation.py + camlib.py's Gerber.isolation_geometry() - see its
-     * class doc for exactly what was and wasn't carried over), shows it as
-     * its own cyan stroke-only layer alongside the copper's own layer (the
-     * copper stays visible, unlike opening a different file), then writes
-     * G-code the same way generateDrillGCode() does.
+     * Loads IsolationToolPanel into the Tool tab (appTools/ToolIsolation.py's
+     * run() switches app.ui.tool_tab to its own UI the same way - see
+     * {@link #openToolPanel}). Once "Gerar" is clicked, generates an
+     * isolation toolpath around the Gerber's copper (IsolationGenerator,
+     * ported from appTools/ToolIsolation.py + camlib.py's
+     * Gerber.isolation_geometry() - see its class doc for exactly what was
+     * and wasn't carried over), shows it as its own cyan stroke-only layer
+     * alongside the copper's own layer (the copper stays visible, unlike
+     * opening a different file), then writes G-code the same way
+     * runDrillGCodeGeneration() does.
      */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
-        Optional<IsolationDialog.Result> params = IsolationDialog.show(image.units());
-        if (params.isEmpty()) {
-            return;
-        }
+        openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(),
+                params -> runIsolationGeneration(item, image, params), this::closeToolPanel));
+    }
 
-        IsolationResult isolation = IsolationGenerator.generate(image.units(), image.solidGeometry(), params.get().geometryParams());
+    private void runIsolationGeneration(TreeItem<String> item, GerberImage image, IsolationToolPanel.Result params) {
+        IsolationResult isolation = IsolationGenerator.generate(image.units(), image.solidGeometry(), params.geometryParams());
         if (isolation.isEmpty()) {
             appendConsole("Isolamento nao gerou nenhum anel (geometria de cobre vazia?).");
             return;
@@ -660,11 +712,12 @@ final class MainWindow {
         }
 
         try {
-            String gcode = GCodeGenerator.generateIsolationGCode(isolation, params.get().gcodeParams());
+            String gcode = GCodeGenerator.generateIsolationGCode(isolation, params.gcodeParams());
             Files.writeString(outFile.toPath(), gcode);
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de isolamento salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
             addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
+            closeToolPanel();
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code de isolamento: " + e.getMessage());
         }
@@ -679,34 +732,159 @@ final class MainWindow {
         appendConsole("Removido do projeto: " + item.getValue());
     }
 
+    /**
+     * Swaps in a per-object panel matching appGUI/ObjectUI.py's GerberObjectUI/
+     * ExcellonObjectUI (shown via ObjectCollection.on_list_selection_change ->
+     * FlatCAMObj.build_ui() swapping the object's own persistent UI widget
+     * into the Properties scroll area). Rebuilt from scratch on every
+     * selection change instead of one persistent widget per object - this
+     * app doesn't keep a live UI instance per object the way the legacy one
+     * does, but the effect (the right panel for whatever is selected) is the
+     * same. Editor/NCC Tool/Cutout Tool/Utilities/Transformations from the
+     * legacy panel are deliberately left out - those need subsystems
+     * (an object editor, non-copper clearing, board cutout, geometry
+     * transforms) this phase doesn't have.
+     */
     private void showProperties(TreeItem<String> item) {
+        Node content;
         GerberImage gerberImage = item == null ? null : gerberByItem.get(item);
-        if (gerberImage != null) {
-            propertiesLabel.setText(String.format(
-                    "%s%n%nUnidades: %s%nAperturas: %d%nArea: %.4f%nBounds: %s",
-                    item.getValue(), gerberImage.units(), gerberImage.apertures().size(), gerberImage.totalArea(),
-                    Arrays.toString(gerberImage.bounds())
-            ));
-            return;
-        }
         ExcellonImage excellonImage = item == null ? null : excellonByItem.get(item);
-        if (excellonImage != null) {
-            propertiesLabel.setText(String.format(
-                    "%s%n%nUnidades: %s%nFerramentas: %d%nFuros: %d%nSlots: %d%nBounds: %s",
-                    item.getValue(), excellonImage.units(), excellonImage.toolDiameters().size(),
-                    excellonImage.totalDrills(), excellonImage.totalSlots(), Arrays.toString(excellonImage.bounds())
-            ));
-            return;
-        }
         CncJobEntry cncJob = item == null ? null : cncJobByItem.get(item);
-        if (cncJob != null) {
-            propertiesLabel.setText(String.format(
-                    "%s%n%nOrigem: %s%nArquivo: %s%nLinhas: %d",
-                    item.getValue(), cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode().lines().count()
-            ));
-            return;
+        if (gerberImage != null) {
+            content = buildGerberPropertiesPanel(item, gerberImage);
+        } else if (excellonImage != null) {
+            content = buildExcellonPropertiesPanel(item, excellonImage);
+        } else if (cncJob != null) {
+            content = buildCncJobPropertiesPanel(item, cncJob);
+        } else {
+            content = propertiesPlaceholder;
         }
-        propertiesLabel.setText("Selecione um objeto\npara ver seus parametros.");
+        propertiesContainer.getChildren().setAll(content);
+    }
+
+    /** "Gerber Object" header, Plot Options (Solid/Multi-Color), Name, Plot, Properties, Isolation Routing - see ObjectUI.py's GerberObjectUI. */
+    private Node buildGerberPropertiesPanel(TreeItem<String> item, GerberImage image) {
+        VBox box = objectPropertiesHeader("Gerber Object", GERBER_FILL);
+
+        CheckBox solidCb = new CheckBox("Solid");
+        solidCb.setSelected(plotAreaView.isLayerFilled(item));
+        solidCb.setOnAction(e -> plotAreaView.setLayerFilled(item, solidCb.isSelected()));
+        CheckBox multicolorCb = new CheckBox("Multi-Color");
+        multicolorCb.setSelected(plotAreaView.isLayerMulticolor(item));
+        multicolorCb.setOnAction(e -> plotAreaView.setLayerMulticolor(item, multicolorCb.isSelected()));
+        box.getChildren().add(labeledRow("Plot Options:", solidCb, multicolorCb));
+
+        box.getChildren().add(nameRow(item));
+
+        CheckBox plotCb = new CheckBox();
+        plotCb.setSelected(plotAreaView.isLayerVisible(item));
+        plotCb.setOnAction(e -> plotAreaView.setLayerVisible(item, plotCb.isSelected()));
+        box.getChildren().add(labeledRow("Plot:", plotCb));
+
+        Button isolationButton = new Button("Isolation Routing");
+        isolationButton.setMaxWidth(Double.MAX_VALUE);
+        isolationButton.setOnAction(e -> generateIsolation(item, image));
+        box.getChildren().add(isolationButton);
+
+        box.getChildren().add(propertiesSection(String.format(
+                "Unidades: %s%nAperturas: %d%nArea total: %.4f%nBounds: %s",
+                image.units(), image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())
+        )));
+        return box;
+    }
+
+    /** Same shape as {@link #buildGerberPropertiesPanel}, minus isolation, plus drilling G-code - see ObjectUI.py's ExcellonObjectUI. */
+    private Node buildExcellonPropertiesPanel(TreeItem<String> item, ExcellonImage image) {
+        VBox box = objectPropertiesHeader("Excellon Object", DRILL_FILL);
+
+        CheckBox solidCb = new CheckBox("Solid");
+        solidCb.setSelected(plotAreaView.isLayerFilled(item));
+        solidCb.setOnAction(e -> plotAreaView.setLayerFilled(item, solidCb.isSelected()));
+        CheckBox multicolorCb = new CheckBox("Multi-Color");
+        multicolorCb.setSelected(plotAreaView.isLayerMulticolor(item));
+        multicolorCb.setOnAction(e -> plotAreaView.setLayerMulticolor(item, multicolorCb.isSelected()));
+        box.getChildren().add(labeledRow("Plot Options:", solidCb, multicolorCb));
+
+        box.getChildren().add(nameRow(item));
+
+        CheckBox plotCb = new CheckBox();
+        plotCb.setSelected(plotAreaView.isLayerVisible(item));
+        plotCb.setOnAction(e -> plotAreaView.setLayerVisible(item, plotCb.isSelected()));
+        box.getChildren().add(labeledRow("Plot:", plotCb));
+
+        Button gcodeButton = new Button("Gerar G-code de furacao...");
+        gcodeButton.setMaxWidth(Double.MAX_VALUE);
+        gcodeButton.setOnAction(e -> generateDrillGCode(item, image));
+        box.getChildren().add(gcodeButton);
+
+        box.getChildren().add(propertiesSection(String.format(
+                "Unidades: %s%nFerramentas: %d%nFuros: %d%nSlots: %d%nBounds: %s",
+                image.units(), image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
+                Arrays.toString(image.bounds())
+        )));
+        return box;
+    }
+
+    private Node buildCncJobPropertiesPanel(TreeItem<String> item, CncJobEntry entry) {
+        VBox box = objectPropertiesHeader("CNC Job Object", ISOLATION_COLOR);
+        box.getChildren().add(nameRow(item));
+        Button viewButton = new Button("Ver G-code");
+        viewButton.setMaxWidth(Double.MAX_VALUE);
+        viewButton.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
+        box.getChildren().add(viewButton);
+        box.getChildren().add(propertiesSection(String.format(
+                "Origem: %s%nArquivo: %s%nLinhas: %d",
+                entry.sourceName(), entry.outputFile(), entry.gcode().lines().count()
+        )));
+        return box;
+    }
+
+    private VBox objectPropertiesHeader(String title, Color swatchColor) {
+        Rectangle swatch = new Rectangle(14, 14, swatchColor);
+        swatch.setArcWidth(3);
+        swatch.setArcHeight(3);
+        Label titleLabel = new Label(title);
+        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        HBox header = new HBox(6, swatch, titleLabel);
+        header.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(8, header);
+        box.setPadding(new Insets(10));
+        return box;
+    }
+
+    private HBox labeledRow(String label, Node... controls) {
+        HBox row = new HBox(10, new Label(label));
+        row.getChildren().addAll(controls);
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    /** "Name:" + an editable field - renaming just changes the TreeItem's own value (its tree label), matching FlatCAMObj.on_name_activate(). */
+    private HBox nameRow(TreeItem<String> item) {
+        TextField nameField = new TextField(item.getValue());
+        HBox.setHgrow(nameField, Priority.ALWAYS);
+        Runnable commit = () -> {
+            String newName = nameField.getText().trim();
+            if (!newName.isEmpty() && !newName.equals(item.getValue())) {
+                item.setValue(newName);
+            }
+        };
+        nameField.setOnAction(e -> commit.run());
+        nameField.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+            if (!isFocused) {
+                commit.run();
+            }
+        });
+        return labeledRow("Name:", nameField);
+    }
+
+    /** The legacy "PROPERTIES" toggle button + inline stats frame, done here as a collapsible section. */
+    private TitledPane propertiesSection(String text) {
+        Label label = new Label(text);
+        TitledPane pane = new TitledPane("PROPERTIES", label);
+        pane.setExpanded(false);
+        return pane;
     }
 
     /**
