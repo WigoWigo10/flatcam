@@ -2,6 +2,8 @@ package org.flatcam.fx;
 
 import javafx.scene.Group;
 import javafx.scene.Node;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
@@ -60,6 +62,22 @@ final class Icons {
         square.setArcHeight(4);
         square.getStyleClass().add("icon-glyph-fill");
         return scaled(square, size);
+    }
+
+    /**
+     * A raster icon copied straight from the legacy app's own assets/resources/ (e.g.
+     * ObjectCollection.py's icon_files map: flatcam_icon16.png/drill16.png/cnc16.png for
+     * Gerber/Excellon/CNCJob tree rows) - pixel-identical to Python's, not a redrawn
+     * lookalike. See flatcam-fx/src/main/resources/org/flatcam/fx/icons/.
+     */
+    static Node fromResource(String fileName, double size) {
+        Image image = new Image(Icons.class.getResourceAsStream("icons/" + fileName));
+        ImageView view = new ImageView(image);
+        view.setFitWidth(size);
+        view.setFitHeight(size);
+        view.setPreserveRatio(true);
+        view.setSmooth(true);
+        return view;
     }
 
     private static Node scaled(Node shape, double size) {

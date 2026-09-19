@@ -13,6 +13,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -44,6 +45,7 @@ import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -438,27 +440,143 @@ final class MainWindow {
 
         projectTree = new TreeView<>(root);
         projectTree.setShowRoot(false);
+        projectTree.setEditable(true);
         projectTree.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         projectTree.getSelectionModel().selectedItemProperty().addListener((obs, previous, selected) -> showProperties(selected));
-        // Double-click or Enter on a row switches the sidebar to Properties - matches
-        // ObjectCollection.py's on_item_activated()/on_row_activated(), which both call
-        // build_ui() then app.ui.notebook.setCurrentWidget(app.ui.properties_tab).
+        // Category rows (Gerbers/Excellon/Geometry/CNC Jobs) are just visual grouping, not
+        // real objects - they have no Properties panel and no context menu, and shouldn't be
+        // selectable at all. A per-row click handler can't fully prevent that: Shift-click or
+        // Ctrl+A range-selects across whatever rows fall in between, category headers included,
+        // regardless of any click handling on those specific rows - so this reactively drops
+        // one the instant it lands in the selection, however it got there.
+        projectTree.getSelectionModel().getSelectedItems().addListener((ListChangeListener<TreeItem<String>>) change -> {
+            while (change.next()) {
+                if (!change.wasAdded()) {
+                    continue;
+                }
+                for (TreeItem<String> added : change.getAddedSubList()) {
+                    if (added != null && !isProjectObject(added)) {
+                        int row = projectTree.getRow(added);
+                        if (row >= 0) {
+                            projectTree.getSelectionModel().clearSelection(row);
+                        }
+                    }
+                }
+            }
+        });
+        // Renaming in-place commits by just updating the TreeItem's own value - same as
+        // the Properties panel's Name field (see nameRow()), just triggered from the tree.
+        projectTree.setOnEditCommit(event -> event.getTreeItem().setValue(event.getNewValue()));
         projectTree.setOnKeyPressed(event -> {
-            if (event.getCode() == KeyCode.ENTER && projectTree.getSelectionModel().getSelectedItem() != null) {
-                leftTabs.getSelectionModel().select(propertiesTab);
+            TreeItem<String> selected = projectTree.getSelectionModel().getSelectedItem();
+            switch (event.getCode()) {
+                // Double-click or Enter on a row switches the sidebar to Properties - matches
+                // ObjectCollection.py's on_item_activated()/on_row_activated(), which both call
+                // build_ui() then app.ui.notebook.setCurrentWidget(app.ui.properties_tab).
+                case ENTER -> {
+                    if (selected != null && isProjectObject(selected)) {
+                        leftTabs.getSelectionModel().select(propertiesTab);
+                    }
+                }
+                // F2 is the conventional cross-app inline-rename key (Qt's own default
+                // "EditKeyPressed" trigger) - kept distinct from double-click/Enter above,
+                // which this port already dedicates to "show Properties".
+                case F2 -> {
+                    if (selected != null && isProjectObject(selected)) {
+                        projectTree.edit(selected);
+                    }
+                }
+                case DELETE -> {
+                    List<TreeItem<String>> selectedItems = projectTree.getSelectionModel().getSelectedItems().stream()
+                            .filter(Objects::nonNull).distinct().toList();
+                    if (!selectedItems.isEmpty()) {
+                        removeSelectionFromProject(selectedItems);
+                    }
+                }
+                default -> {
+                }
             }
         });
         projectTree.setCellFactory(view -> {
+            // Everything renders as a single graphic Node (never the Cell's own text
+            // property) - Labeled's separate text+graphic layout did not vertically
+            // center a custom graphic against the text baseline reliably inside a
+            // TreeCell. An HBox fully owns its own children's alignment instead.
+            TextField editField = new TextField();
+            Label textLabel = new Label();
+            StackPane iconHolder = new StackPane();
+            iconHolder.setAlignment(Pos.CENTER);
+            iconHolder.setMinSize(16, 16);
+            iconHolder.setPrefSize(16, 16);
+            HBox displayBox = new HBox(6, iconHolder, textLabel);
+            displayBox.setAlignment(Pos.CENTER_LEFT);
+
             TreeCell<String> cell = new TreeCell<>() {
+                @Override
+                public void startEdit() {
+                    if (getTreeItem() == null || !isProjectObject(getTreeItem())) {
+                        return;
+                    }
+                    super.startEdit();
+                    editField.setText(getItem());
+                    setText(null);
+                    setGraphic(editField);
+                    editField.selectAll();
+                    editField.requestFocus();
+                }
+
+                @Override
+                public void cancelEdit() {
+                    super.cancelEdit();
+                    refreshDisplay(getItem(), getTreeItem());
+                }
+
                 @Override
                 protected void updateItem(String value, boolean empty) {
                     super.updateItem(value, empty);
-                    setText(empty || value == null ? null : value);
+                    setText(null);
+                    if (empty || value == null) {
+                        setGraphic(null);
+                    } else if (isEditing()) {
+                        editField.setText(value);
+                        setGraphic(editField);
+                    } else {
+                        refreshDisplay(value, getTreeItem());
+                    }
+                }
+
+                private void refreshDisplay(String value, TreeItem<String> item) {
+                    textLabel.setText(value);
+                    boolean isObject = isProjectObject(item);
+                    // Category rows (Gerbers/Excellon/Geometry/CNC Jobs) get no icon but do
+                    // get a bold label, so they read as group headers rather than objects.
+                    textLabel.setStyle(isObject ? null : "-fx-font-weight: bold;");
+                    Node icon = iconShapeFor(item);
+                    iconHolder.getChildren().setAll(icon == null ? List.of() : List.of(icon));
+                    setGraphic(displayBox);
                 }
             };
-            cell.setOnMouseClicked(event -> {
-                if (event.getClickCount() == 2 && cell.getTreeItem() != null) {
+            editField.setOnAction(e -> cell.commitEdit(editField.getText()));
+            editField.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+                if (!isFocused && cell.isEditing()) {
+                    cell.commitEdit(editField.getText());
+                }
+            });
+            editField.setOnKeyPressed(e -> {
+                if (e.getCode() == KeyCode.ESCAPE) {
+                    cell.cancelEdit();
+                }
+            });
+            // An event FILTER on MOUSE_PRESSED, not a MOUSE_CLICKED handler: TreeView.
+            // setEditable(true) (needed for F2 rename) also wires the cell's own default
+            // double-click-to-edit behavior, which triggers from the cell's own
+            // MOUSE_PRESSED handler (before MOUSE_CLICKED is ever dispatched) - a filter
+            // on MOUSE_CLICKED ran too late to stop it. Filters run before handlers at
+            // the same node, so consuming the press here reliably suppresses it.
+            cell.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+                if (event.getClickCount() == 2 && isProjectObject(cell.getTreeItem())) {
                     leftTabs.getSelectionModel().select(propertiesTab);
+                    event.consume();
                 }
             });
             // Populating a ContextMenu's items inside its own setOnShowing (instead of
@@ -479,6 +597,31 @@ final class MainWindow {
             return cell;
         });
         return projectTree;
+    }
+
+    /** Category rows (Gerbers/Excellon/Geometry/CNC Jobs) aren't real objects - only actual Gerber/Excellon/CNC Job items are. */
+    private boolean isProjectObject(TreeItem<String> item) {
+        return gerberByItem.containsKey(item) || excellonByItem.containsKey(item) || cncJobByItem.containsKey(item);
+    }
+
+    /**
+     * One icon per object kind, copied straight from the legacy app's own assets
+     * (ObjectCollection.py's icon_files: flatcam_icon16.png/drill16.png/cnc16.png) -
+     * see Icons.fromResource(). A plain ImageView's layout bounds are exactly its own
+     * pixel box, which centers predictably in the fixed-size iconHolder; the earlier
+     * Group+Scale vector glyphs did not.
+     */
+    private Node iconShapeFor(TreeItem<String> item) {
+        if (gerberByItem.containsKey(item)) {
+            return Icons.fromResource("gerber16.png", 16);
+        }
+        if (excellonByItem.containsKey(item)) {
+            return Icons.fromResource("drill16.png", 16);
+        }
+        if (cncJobByItem.containsKey(item)) {
+            return Icons.fromResource("cnc16.png", 16);
+        }
+        return null;
     }
 
     /**
