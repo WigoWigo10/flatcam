@@ -63,6 +63,8 @@ import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.app.project.ProjectFile;
 import org.flatcam.app.project.ProjectFileIO;
+import org.flatcam.cam.cutout.CutoutGenerator;
+import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
@@ -95,6 +97,7 @@ final class MainWindow {
     private static final Color DRILL_FILL = Color.web("#c9c9c9");
     private static final Color DRILL_STROKE = Color.web("#8a8a8a");
     private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
+    private static final Color CUTOUT_COLOR = Color.web("#ff8a00");
     private static final Color MARK_COLOR = Color.web("#ff2fd6", 0.65);
     // CNCJob toolpath colors - straight from defaults.py's cncjob plot defaults, confirmed
     // against camlib.py's CNCjob.plot2(): cut fully opaque, travel ~30% opacity, travel drawn
@@ -141,6 +144,10 @@ final class MainWindow {
      * replaced rather than duplicated.
      */
     private record IsolationLayerKey(TreeItem<String> gerberItem) {
+    }
+
+    /** Same idea as {@link IsolationLayerKey}, for the Cutout Tool's own preview - see {@link #runCutoutGeneration}. */
+    private record CutoutLayerKey(TreeItem<String> gerberItem) {
     }
 
     /** PlotAreaView layer key for the apertures table's "Mark" highlight overlay - see {@link GerberAperturesTable}. */
@@ -802,10 +809,13 @@ final class MainWindow {
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
 
+        MenuItem cutoutItem = new MenuItem("Cutout Tool...");
+        cutoutItem.setOnAction(e -> generateCutout(item, image));
+
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
-        return List.of(showItem, enableItem, disableItem, colorItem, isolationItem, removeItem);
+        return List.of(showItem, enableItem, disableItem, colorItem, isolationItem, cutoutItem, removeItem);
     }
 
     /** Same as {@link #gerberContextMenuItems}, minus isolation, plus "Gerar G-code de furacao". */
@@ -1016,12 +1026,71 @@ final class MainWindow {
         }
     }
 
+    /**
+     * Loads CutoutToolPanel into the Tool tab (appTools/ToolCutOut.py's
+     * run() switches app.ui.tool_tab to its own UI the same way - see
+     * {@link #openToolPanel}). Once either "Gerar" button is clicked,
+     * generates a board-cutout toolpath around the Gerber's outline
+     * (CutoutGenerator, ported from appTools/ToolCutOut.py - see its class
+     * doc for exactly what was and wasn't carried over: only the automatic
+     * Bridge gap patterns, no Thin/M-Bites, no manual click-to-place gaps,
+     * and no intermediate Geometry object - straight to G-code, same as
+     * Isolation Routing), previews it the same way, then writes G-code the
+     * same way runIsolationGeneration() does.
+     */
+    private void generateCutout(TreeItem<String> item, GerberImage image) {
+        openToolPanel("Cutout Tool", CutoutToolPanel.build(image.units(),
+                result -> runCutoutGeneration(item, image, result), this::closeToolPanel));
+    }
+
+    private void runCutoutGeneration(TreeItem<String> item, GerberImage image, CutoutToolPanel.Result result) {
+        CutoutResult cutout = CutoutGenerator.generate(image.units(), image.solidGeometry(), result.cutoutParams());
+        if (cutout.isEmpty()) {
+            appendConsole("Cutout nao gerou nenhum caminho (geometria de cobre vazia?).");
+            return;
+        }
+
+        plotAreaView.putLayer(new CutoutLayerKey(item), PlotAreaView.LayerCategory.OVERLAY,
+                cutout.geometry(), CUTOUT_COLOR, CUTOUT_COLOR, true);
+        centerTabs.getSelectionModel().select(0);
+        appendConsole(String.format("Cutout: %d caminhos, comprimento total=%.4f, bounds=%s",
+                cutout.partCount(), cutout.totalLength(), Arrays.toString(cutout.bounds())));
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar G-code de cutout");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cutout.nc");
+        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File outFile = chooser.showSaveDialog(scene.getWindow());
+        if (outFile == null) {
+            return;
+        }
+
+        try {
+            CncJobResult job = GCodeGenerator.generateCutoutCncJob(cutout, result.gcodeParams(), result.cutoutParams().toolDiameter());
+            Files.writeString(outFile.toPath(), job.gcode());
+            AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
+            appendConsole("G-code de cutout salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
+            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
+                    job.travelGeometry(), job.cutGeometry());
+            plotAreaView.removeLayer(new CutoutLayerKey(item));
+            closeToolPanel();
+        } catch (Exception e) {
+            appendConsole("Falha ao gerar/salvar G-code de cutout: " + e.getMessage());
+        }
+    }
+
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
         sourcePathByItem.remove(item);
         plotAreaView.removeLayer(item);
         plotAreaView.removeLayer(new IsolationLayerKey(item));
+        plotAreaView.removeLayer(new CutoutLayerKey(item));
         plotAreaView.removeLayer(new MarkLayerKey(item));
         plotAreaView.removeLayer(new CncTravelLayerKey(item));
         plotAreaView.removeLayer(new CncCutLayerKey(item));
@@ -1081,6 +1150,11 @@ final class MainWindow {
         isolationButton.setMaxWidth(Double.MAX_VALUE);
         isolationButton.setOnAction(e -> generateIsolation(item, image));
         box.getChildren().add(isolationButton);
+
+        Button cutoutButton = new Button("Cutout Tool");
+        cutoutButton.setMaxWidth(Double.MAX_VALUE);
+        cutoutButton.setOnAction(e -> generateCutout(item, image));
+        box.getChildren().add(cutoutButton);
 
         box.getChildren().add(new Label("Apertures Table:"));
         box.getChildren().add(buildAperturesTableSection(item, image));

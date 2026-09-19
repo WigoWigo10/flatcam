@@ -382,13 +382,19 @@ final class PlotAreaView extends StackPane {
                     continue;
                 }
                 gc.beginPath();
-                addRing(gc, coordinates, contentWidth, contentHeight);
+                // Not closed: a strokeOnly LineString is not always a closed ring - the
+                // Cutout Tool's preview (appTools/ToolCutOut.py's bridge gaps) is
+                // deliberately made of OPEN arcs, and closing each one back to its own
+                // start here drew a spurious chord straight across the gap it represents.
+                // An isolation ring's own coordinates already repeat the start point as
+                // the end point, so leaving this open draws it correctly too either way.
+                addRing(gc, coordinates, contentWidth, contentHeight, false);
                 gc.stroke();
             } else if (part instanceof Polygon polygon) {
                 gc.beginPath();
-                addRing(gc, polygon.getExteriorRing().getCoordinates(), contentWidth, contentHeight);
+                addRing(gc, polygon.getExteriorRing().getCoordinates(), contentWidth, contentHeight, true);
                 for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
-                    addRing(gc, polygon.getInteriorRingN(r).getCoordinates(), contentWidth, contentHeight);
+                    addRing(gc, polygon.getInteriorRingN(r).getCoordinates(), contentWidth, contentHeight, true);
                 }
                 // The legacy app's "Solid" plot option: filled copper/holes vs. outline-only.
                 if (layer.filled()) {
@@ -405,7 +411,7 @@ final class PlotAreaView extends StackPane {
         return Color.hsb(hue, 0.65, 0.85);
     }
 
-    private void addRing(GraphicsContext gc, Coordinate[] coordinates, double contentWidth, double contentHeight) {
+    private void addRing(GraphicsContext gc, Coordinate[] coordinates, double contentWidth, double contentHeight, boolean close) {
         if (coordinates.length == 0) {
             return;
         }
@@ -415,7 +421,9 @@ final class PlotAreaView extends StackPane {
             double[] p = worldToScreen(coordinates[i].x, coordinates[i].y, contentWidth, contentHeight);
             gc.lineTo(p[0] + RULER_LEFT_WIDTH, p[1] + RULER_TOP_HEIGHT);
         }
-        gc.closePath();
+        if (close) {
+            gc.closePath();
+        }
     }
 
     private void drawRulers(GraphicsContext gc, double width, double height, double contentWidth, double contentHeight, double step) {
