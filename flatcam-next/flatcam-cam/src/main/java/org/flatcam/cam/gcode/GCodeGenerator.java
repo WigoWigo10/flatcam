@@ -3,6 +3,7 @@ package org.flatcam.cam.gcode;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
@@ -33,6 +34,15 @@ public final class GCodeGenerator {
     }
 
     public static String generateDrillGCode(ExcellonImage image, DrillGCodeParameters params) {
+        return generateDrillGCode(image, params, null);
+    }
+
+    /**
+     * @param selectedToolIds which tools to include, or {@code null}/empty for all of them - mirrors
+     *                        appTools/ToolDrilling.py's own tools table, where row SELECTION (not a
+     *                        checkbox) decides which tools' drills/slots go into the generated G-code.
+     */
+    public static String generateDrillGCode(ExcellonImage image, DrillGCodeParameters params, Set<Integer> selectedToolIds) {
         Map<Integer, List<ExcellonImage.Drill>> drillsByTool =
                 image.drills().stream().collect(Collectors.groupingBy(ExcellonImage.Drill::toolId));
         Map<Integer, List<ExcellonImage.Slot>> slotsByTool =
@@ -41,6 +51,9 @@ public final class GCodeGenerator {
         SortedSet<Integer> toolIds = new TreeSet<>();
         toolIds.addAll(drillsByTool.keySet());
         toolIds.addAll(slotsByTool.keySet());
+        if (selectedToolIds != null && !selectedToolIds.isEmpty()) {
+            toolIds.retainAll(selectedToolIds);
+        }
 
         StringBuilder gcode = new StringBuilder();
         line(gcode, "; Gerado por FlatCAM Next (prototipo) - furacao");

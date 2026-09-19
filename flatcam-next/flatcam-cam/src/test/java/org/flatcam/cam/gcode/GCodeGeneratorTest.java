@@ -80,6 +80,38 @@ class GCodeGeneratorTest {
     }
 
     @Test
+    void selectedToolIdsFiltersWhichToolsAreDrilled() {
+        ExcellonImage image = parse(
+                "M48", "METRIC", "T1C0.8", "T2C1.0", "%",
+                "T1", "X1.0Y1.0",
+                "T2", "X3.0Y3.0",
+                "M30"
+        );
+        String gcode = GCodeGenerator.generateDrillGCode(image,
+                new DrillGCodeParameters(3.0, 1.6, 250, 0, false), java.util.Set.of(2));
+
+        assertTrue(gcode.contains("X3.0000 Y3.0000"), "the selected tool's hole must be drilled");
+        assertTrue(!gcode.contains("X1.0000 Y1.0000"), "the unselected tool's hole must be skipped");
+    }
+
+    @Test
+    void nullOrEmptySelectedToolIdsMeansAllTools() {
+        ExcellonImage image = parse(
+                "M48", "METRIC", "T1C0.8", "T2C1.0", "%",
+                "T1", "X1.0Y1.0",
+                "T2", "X3.0Y3.0",
+                "M30"
+        );
+        DrillGCodeParameters params = new DrillGCodeParameters(3.0, 1.6, 250, 0, false);
+        String withNull = GCodeGenerator.generateDrillGCode(image, params, null);
+        String withEmpty = GCodeGenerator.generateDrillGCode(image, params, java.util.Set.of());
+        for (String gcode : List.of(withNull, withEmpty)) {
+            assertTrue(gcode.contains("X1.0000 Y1.0000"));
+            assertTrue(gcode.contains("X3.0000 Y3.0000"));
+        }
+    }
+
+    @Test
     void rejectsNonPositiveParameters() {
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(0, 1.6, 300, 0, false));
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(3.0, 0, 300, 0, false));
