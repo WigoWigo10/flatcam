@@ -4,6 +4,8 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -12,12 +14,14 @@ import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.Separator;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
@@ -25,13 +29,18 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
+import javafx.scene.control.Tooltip;
+import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Circle;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
@@ -51,17 +60,32 @@ import org.flatcam.cam.gerber.GerberParser;
  */
 final class MainWindow {
 
+    private static final Color IDLE_COLOR = Color.web("#4caf50");
+    private static final Color RUNNING_COLOR = Color.web("#f0ad4e");
+    private static final Color CANCELLED_COLOR = Color.web("#9e9e9e");
+    private static final Color ERROR_COLOR = Color.web("#e53935");
+
     private final JobExecutor jobExecutor;
 
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label statusLabel = new Label("Pronto.");
-    private final Button runDemoJobButton = new Button("Executar job de demonstracao");
-    private final Button cancelJobButton = new Button("Cancelar");
+    private final Circle statusDot = new Circle(5, Color.web("#4caf50"));
+    private final Label unitsLabel = new Label("Unidades: -");
+    private final Button runDemoJobButton = new Button();
+    private final Button cancelJobButton = new Button();
     private final TextArea console = new TextArea();
     private final TabPane centerTabs = new TabPane();
+    private final Label propertiesLabel = new Label("Selecione um objeto\npara ver seus parametros.");
+
+    /** Gerber files opened so far, keyed by their tree item - backs the Properties tab and the item context menu. */
+    private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
 
     private Scene scene;
     private StackPane viewportPane;
+    private SplitPane horizontalSplit;
+    private SplitPane verticalSplit;
+    private TreeItem<String> gerbersNode;
+    private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private JobHandle<?> runningJob;
 
     MainWindow(JobExecutor jobExecutor) {
@@ -72,10 +96,16 @@ final class MainWindow {
         BorderPane root = new BorderPane();
         root.setTop(new VBox(buildMenuBar(), buildToolBar()));
         root.setCenter(buildMainSplit());
+        root.setBottom(buildStatusBar());
 
         scene = new Scene(root);
-        ThemeOption.CUSTOM_LIGHT.applyTo(scene);
+        currentTheme.applyTo(scene);
         return scene;
+    }
+
+    /** Called by MainApp on window close - split-divider positions have no natural "save now" moment otherwise. */
+    void saveSplitPositions() {
+        AppPreferences.saveSplitPositions(horizontalSplit.getDividerPositions()[0], verticalSplit.getDividerPositions()[0]);
     }
 
     private MenuBar buildMenuBar() {
@@ -119,14 +149,14 @@ final class MainWindow {
 
         Menu customMenu = new Menu("CSS puro");
         customMenu.getItems().addAll(
-                themeItem(ThemeOption.CUSTOM_LIGHT, themeGroup, true),
-                themeItem(ThemeOption.CUSTOM_DARK, themeGroup, false)
+                themeItem(ThemeOption.CUSTOM_LIGHT, themeGroup),
+                themeItem(ThemeOption.CUSTOM_DARK, themeGroup)
         );
 
         Menu atlantaFxMenu = new Menu("AtlantaFX");
         atlantaFxMenu.getItems().addAll(
-                themeItem(ThemeOption.ATLANTAFX_LIGHT, themeGroup, false),
-                themeItem(ThemeOption.ATLANTAFX_DARK, themeGroup, false)
+                themeItem(ThemeOption.ATLANTAFX_LIGHT, themeGroup),
+                themeItem(ThemeOption.ATLANTAFX_DARK, themeGroup)
         );
 
         Menu themeMenu = new Menu("Tema");
@@ -134,29 +164,67 @@ final class MainWindow {
         return themeMenu;
     }
 
-    private RadioMenuItem themeItem(ThemeOption option, ToggleGroup group, boolean selected) {
+    /** Selection reflects (and, on change, persists) {@link #currentTheme} - loaded from AppPreferences at construction. */
+    private RadioMenuItem themeItem(ThemeOption option, ToggleGroup group) {
         RadioMenuItem item = new RadioMenuItem(option.label());
         item.setToggleGroup(group);
-        item.setSelected(selected);
-        item.setOnAction(e -> option.applyTo(scene));
+        item.setSelected(option == currentTheme);
+        item.setOnAction(e -> {
+            option.applyTo(scene);
+            currentTheme = option;
+            AppPreferences.saveTheme(option);
+        });
         return item;
     }
 
+    /** Icon-only buttons with tooltips, matching the legacy app's toolbar convention (UI_INVENTORY.md section 1). */
     private ToolBar buildToolBar() {
+        Button openGerberButton = new Button(null, Icons.folderOpen(16));
+        openGerberButton.setTooltip(new Tooltip("Abrir Gerber (prototipo Fase 3)"));
+        openGerberButton.setOnAction(e -> openGerberPrototype());
+
+        runDemoJobButton.setGraphic(Icons.play(16));
+        runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
         runDemoJobButton.setOnAction(e -> runDemoJob());
+
+        cancelJobButton.setGraphic(Icons.stop(16));
+        cancelJobButton.setTooltip(new Tooltip("Cancelar"));
         cancelJobButton.setDisable(true);
         cancelJobButton.setOnAction(e -> cancelDemoJob());
-        return new ToolBar(runDemoJobButton, cancelJobButton);
+
+        return new ToolBar(openGerberButton, new Separator(), runDemoJobButton, cancelJobButton);
+    }
+
+    /**
+     * A fixed status bar at the very bottom of the window (appGUI/MainGUI.py's
+     * statusBar(), UI_INVENTORY.md section 1) - separate from the resizable
+     * job progress/console panel, always visible regardless of which tabs are
+     * open. The units label reflects the last-opened Gerber's real units;
+     * everything else the legacy status bar shows (grid, workspace size, HUD
+     * toggles) needs state this phase doesn't have yet.
+     */
+    private HBox buildStatusBar() {
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        HBox bar = new HBox(6, statusDot, statusLabel, spacer, unitsLabel);
+        bar.setAlignment(Pos.CENTER_LEFT);
+        bar.getStyleClass().add("status-bar");
+        return bar;
+    }
+
+    private void setStatus(String text, Color dotColor) {
+        statusLabel.setText(text);
+        statusDot.setFill(dotColor);
     }
 
     private SplitPane buildMainSplit() {
-        SplitPane horizontal = new SplitPane(buildLeftTabs(), buildCenterTabs());
-        horizontal.setDividerPositions(0.22);
+        horizontalSplit = new SplitPane(buildLeftTabs(), buildCenterTabs());
+        horizontalSplit.setDividerPositions(AppPreferences.loadSplitHorizontal(0.22));
 
-        SplitPane vertical = new SplitPane(horizontal, buildBottomPanel());
-        vertical.setOrientation(Orientation.VERTICAL);
-        vertical.setDividerPositions(0.75);
-        return vertical;
+        verticalSplit = new SplitPane(horizontalSplit, buildBottomPanel());
+        verticalSplit.setOrientation(Orientation.VERTICAL);
+        verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
+        return verticalSplit;
     }
 
     /**
@@ -166,7 +234,8 @@ final class MainWindow {
      */
     private TabPane buildLeftTabs() {
         Tab projectTab = new Tab("Projeto", buildProjectTree());
-        Tab propertiesTab = new Tab("Propriedades", centeredPlaceholder("Selecione um objeto\npara ver seus parametros."));
+        propertiesLabel.setTextAlignment(TextAlignment.CENTER);
+        Tab propertiesTab = new Tab("Propriedades", new StackPane(propertiesLabel));
         Tab toolTab = new Tab("Ferramenta", centeredPlaceholder("Nenhuma ferramenta ativa."));
 
         TabPane tabs = new TabPane(projectTab, propertiesTab, toolTab);
@@ -176,18 +245,78 @@ final class MainWindow {
         return tabs;
     }
 
+    /**
+     * A hidden root (the "Projeto" tab title already says that - an explicit
+     * "Projeto" row too was redundant) with one category node per object
+     * kind, matching appObjects/ObjectCollection.py's grouping. Category
+     * nodes are inert; file nodes underneath (added as Gerbers are opened -
+     * only Gerber so far) carry a {@link GerberImage} in {@link #gerberByItem}
+     * and get a context menu. Only "Exibir no Plot Area" and "Remover" are
+     * wired - the legacy per-object menu also has Set Color, Create CNCJob,
+     * Edit, Copy, Save (see UI_INVENTORY.md section 1), which need
+     * subsystems (plot state, CNCJob generation, editors, project format)
+     * this phase doesn't have yet.
+     */
     private TreeView<String> buildProjectTree() {
         TreeItem<String> root = new TreeItem<>("Projeto");
         root.setExpanded(true);
+        gerbersNode = new TreeItem<>("Gerbers");
+        gerbersNode.setExpanded(true);
         root.getChildren().addAll(
-                new TreeItem<>("Gerbers"),
+                gerbersNode,
                 new TreeItem<>("Excellon"),
                 new TreeItem<>("Geometry"),
                 new TreeItem<>("CNC Jobs")
         );
+
         TreeView<String> tree = new TreeView<>(root);
-        tree.setShowRoot(true);
+        tree.setShowRoot(false);
+        tree.getSelectionModel().selectedItemProperty().addListener((obs, previous, selected) -> showProperties(selected));
+        tree.setCellFactory(view -> new TreeCell<>() {
+            @Override
+            protected void updateItem(String value, boolean empty) {
+                super.updateItem(value, empty);
+                if (empty || value == null) {
+                    setText(null);
+                    setContextMenu(null);
+                    return;
+                }
+                setText(value);
+                GerberImage image = gerberByItem.get(getTreeItem());
+                setContextMenu(image != null ? buildFileContextMenu(getTreeItem(), image) : null);
+            }
+        });
         return tree;
+    }
+
+    private ContextMenu buildFileContextMenu(TreeItem<String> item, GerberImage image) {
+        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        showItem.setOnAction(e -> {
+            showGerber(image);
+            centerTabs.getSelectionModel().select(0);
+        });
+
+        MenuItem removeItem = new MenuItem("Remover");
+        removeItem.setOnAction(e -> {
+            item.getParent().getChildren().remove(item);
+            gerberByItem.remove(item);
+            appendConsole("Removido do projeto: " + item.getValue());
+        });
+
+        return new ContextMenu(showItem, removeItem);
+    }
+
+    private void showProperties(TreeItem<String> item) {
+        GerberImage image = item == null ? null : gerberByItem.get(item);
+        if (image == null) {
+            propertiesLabel.setText("Selecione um objeto\npara ver seus parametros.");
+            return;
+        }
+        propertiesLabel.setText(String.format(
+                "%s%n%nUnidades: %s%nAperturas: %d%nArea: %.4f%nBounds: %s",
+                item.getValue(), image.units(), image.apertures().size(), image.totalArea(),
+                Arrays.toString(image.bounds())
+        ));
     }
 
     /**
@@ -245,10 +374,10 @@ final class MainWindow {
     }
 
     private VBox buildBottomPanel() {
-        HBox progressRow = new HBox(8, progressBar, statusLabel, cancelJobButton);
+        HBox progressRow = new HBox(8, progressBar);
         progressRow.setAlignment(Pos.CENTER_LEFT);
         progressRow.setPadding(new Insets(4));
-        HBox.setHgrow(statusLabel, Priority.ALWAYS);
+        HBox.setHgrow(progressBar, Priority.ALWAYS);
 
         console.setEditable(false);
         console.setPrefRowCount(6);
@@ -266,6 +395,7 @@ final class MainWindow {
         runDemoJobButton.setDisable(true);
         cancelJobButton.setDisable(false);
         progressBar.setProgress(0);
+        setStatus("Executando...", RUNNING_COLOR);
         appendConsole("Job de demonstracao iniciado (nao bloqueia a UI - tente redimensionar a janela).");
 
         JobHandle<Void> handle = jobExecutor.submit(new DemoJob(), (fraction, message) ->
@@ -277,17 +407,17 @@ final class MainWindow {
 
         handle.completion()
                 .thenAccept(result -> Platform.runLater(() -> {
-                    statusLabel.setText("Concluido.");
+                    setStatus("Concluido.", IDLE_COLOR);
                     appendConsole("Job de demonstracao concluido.");
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (isCancellation(error)) {
-                            statusLabel.setText("Cancelado.");
+                            setStatus("Cancelado.", CANCELLED_COLOR);
                             appendConsole("Job de demonstracao cancelado pelo usuario.");
                         } else {
-                            statusLabel.setText("Falhou.");
+                            setStatus("Falhou.", ERROR_COLOR);
                             appendConsole("Job de demonstracao falhou: " + error.getMessage());
                         }
                         onJobFinished();
@@ -322,7 +452,7 @@ final class MainWindow {
         runDemoJobButton.setDisable(true);
         cancelJobButton.setDisable(false);
         progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
-        statusLabel.setText("Analisando " + file.getName() + "...");
+        setStatus("Analisando " + file.getName() + "...", RUNNING_COLOR);
         appendConsole("Abrindo " + file + "...");
 
         JobHandle<GerberImage> handle = jobExecutor.submit(context -> new GerberParser().parse(file.toPath()), null);
@@ -330,27 +460,35 @@ final class MainWindow {
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
-                    statusLabel.setText("Concluido.");
+                    setStatus("Concluido.", IDLE_COLOR);
                     progressBar.setProgress(1);
+                    unitsLabel.setText("Unidades: " + image.units());
                     appendConsole(String.format(
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
                     showGerber(image);
+                    addToProject(file.getName(), image);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (isCancellation(error)) {
-                            statusLabel.setText("Cancelado.");
+                            setStatus("Cancelado.", CANCELLED_COLOR);
                             appendConsole("Abertura cancelada.");
                         } else {
-                            statusLabel.setText("Falhou.");
+                            setStatus("Falhou.", ERROR_COLOR);
                             appendConsole("Falha ao abrir Gerber: " + error.getMessage());
                         }
                         onJobFinished();
                     });
                     return null;
                 });
+    }
+
+    private void addToProject(String name, GerberImage image) {
+        TreeItem<String> item = new TreeItem<>(name);
+        gerberByItem.put(item, image);
+        gerbersNode.getChildren().add(item);
     }
 
     private void showGerber(GerberImage image) {

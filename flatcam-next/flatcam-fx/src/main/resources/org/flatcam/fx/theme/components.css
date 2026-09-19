@@ -36,3 +36,28 @@
 .viewport-placeholder .label {
     -fx-text-fill: -fc-viewport-fg;
 }
+
+/* Vector toolbar icons (Icons.java) - same glyph, colored via the current theme's text color. */
+.icon-glyph-stroke {
+    -fx-fill: transparent;
+    -fx-stroke: -fx-text-base-color;
+    -fx-stroke-width: 2;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+.icon-glyph-fill {
+    -fx-fill: -fx-text-base-color;
+}
+
+.status-bar {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 3 8 3 8;
+    -fx-spacing: 10;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+.status-bar .label {
+    -fx-text-fill: -fc-panel-text;
+}

@@ -25,8 +25,12 @@ public class MainApp extends Application {
         MainWindow mainWindow = new MainWindow(jobExecutor);
         primaryStage.setTitle("FlatCAM Next (skeleton)");
         primaryStage.setScene(mainWindow.createScene());
-        primaryStage.setWidth(1200);
-        primaryStage.setHeight(800);
+        primaryStage.setWidth(AppPreferences.loadWindowWidth(1200));
+        primaryStage.setHeight(AppPreferences.loadWindowHeight(800));
+        primaryStage.setOnCloseRequest(e -> {
+            AppPreferences.saveWindowSize(primaryStage.getWidth(), primaryStage.getHeight());
+            mainWindow.saveSplitPositions();
+        });
         primaryStage.show();
 
         LOG.log(Level.INFO, "MainApp started");

@@ -1,0 +1,52 @@
+package org.flatcam.fx;
+
+import javafx.scene.Group;
+import javafx.scene.Node;
+import javafx.scene.shape.Polygon;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.SVGPath;
+import javafx.scene.transform.Scale;
+
+/**
+ * Small monochrome toolbar icons, built as vector shapes (not raster images)
+ * so a single icon works across every theme - color comes from the
+ * "icon-glyph-stroke"/"icon-glyph-fill" style classes (theme/components.css),
+ * which just reference -fx-text-base-color, the same as any label's text.
+ * The folder shape is Feather Icons' "folder" path (MIT); play/stop are
+ * simple enough to draw directly rather than pull in more path data.
+ */
+final class Icons {
+
+    private static final double NATIVE_SIZE = 24.0;
+
+    private Icons() {
+    }
+
+    static Node folderOpen(double size) {
+        SVGPath path = new SVGPath();
+        path.setContent("M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z");
+        path.getStyleClass().add("icon-glyph-stroke");
+        return scaled(path, size);
+    }
+
+    static Node play(double size) {
+        Polygon triangle = new Polygon(5, 3, 19, 12, 5, 21);
+        triangle.getStyleClass().add("icon-glyph-fill");
+        return scaled(triangle, size);
+    }
+
+    static Node stop(double size) {
+        Rectangle square = new Rectangle(3, 3, 18, 18);
+        square.setArcWidth(4);
+        square.setArcHeight(4);
+        square.getStyleClass().add("icon-glyph-fill");
+        return scaled(square, size);
+    }
+
+    private static Node scaled(Node shape, double size) {
+        Group group = new Group(shape);
+        double factor = size / NATIVE_SIZE;
+        group.getTransforms().add(new Scale(factor, factor));
+        return group;
+    }
+}
