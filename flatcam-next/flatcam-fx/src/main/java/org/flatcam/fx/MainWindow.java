@@ -56,6 +56,8 @@ import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.flatcam.cam.isolation.IsolationGenerator;
+import org.flatcam.cam.isolation.IsolationResult;
 
 /**
  * Shell shape taken from the legacy app, not from CONTEXTO_FLATCAM_FX.md's
@@ -75,6 +77,7 @@ final class MainWindow {
     private static final Color ERROR_COLOR = Color.web("#e53935");
     private static final Color DRILL_FILL = Color.web("#c9c9c9");
     private static final Color DRILL_STROKE = Color.web("#8a8a8a");
+    private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
 
     private final JobExecutor jobExecutor;
 
@@ -388,9 +391,7 @@ final class MainWindow {
                 ExcellonImage excellonImage = excellonByItem.get(item);
                 CncJobEntry cncJob = cncJobByItem.get(item);
                 if (gerberImage != null) {
-                    setContextMenu(buildFileContextMenu(
-                            () -> showGerber(gerberImage),
-                            () -> removeFromProject(item, gerberByItem)));
+                    setContextMenu(buildGerberContextMenu(item, gerberImage));
                 } else if (excellonImage != null) {
                     setContextMenu(buildExcellonContextMenu(item, excellonImage));
                 } else if (cncJob != null) {
@@ -403,20 +404,24 @@ final class MainWindow {
         return tree;
     }
 
-    private ContextMenu buildFileContextMenu(Runnable onShow, Runnable onRemove) {
+    /** "Exibir no Plot Area", "Gerar Isolamento..." and "Remover" for a Gerber tree item. */
+    private ContextMenu buildGerberContextMenu(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> {
-            onShow.run();
+            showGerber(image);
             centerTabs.getSelectionModel().select(0);
         });
 
-        MenuItem removeItem = new MenuItem("Remover");
-        removeItem.setOnAction(e -> onRemove.run());
+        MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
+        isolationItem.setOnAction(e -> generateIsolation(item, image));
 
-        return new ContextMenu(showItem, removeItem);
+        MenuItem removeItem = new MenuItem("Remover");
+        removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
+
+        return new ContextMenu(showItem, isolationItem, removeItem);
     }
 
-    /** Same as {@link #buildFileContextMenu}, plus "Gerar G-code de furacao" - the one action Excellon has that Gerber doesn't yet. */
+    /** Same as {@link #buildGerberContextMenu}, plus "Gerar G-code de furacao" - the one action Excellon has that Gerber doesn't yet. */
     private ContextMenu buildExcellonContextMenu(TreeItem<String> item, ExcellonImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> {
@@ -491,6 +496,58 @@ final class MainWindow {
             addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Fase 5 first slice: generates an isolation toolpath around the
+     * Gerber's copper (IsolationGenerator, ported from appTools/
+     * ToolIsolation.py + camlib.py's Gerber.isolation_geometry() - see its
+     * class doc for exactly what was and wasn't carried over), shows it as
+     * a cyan overlay on top of the copper (PlotAreaView.showOverlay - the
+     * copper stays visible, unlike opening a different file), then writes
+     * G-code the same way generateDrillGCode() does.
+     */
+    private void generateIsolation(TreeItem<String> item, GerberImage image) {
+        Optional<IsolationDialog.Result> params = IsolationDialog.show(image.units());
+        if (params.isEmpty()) {
+            return;
+        }
+
+        IsolationResult isolation = IsolationGenerator.generate(image.units(), image.solidGeometry(), params.get().geometryParams());
+        if (isolation.isEmpty()) {
+            appendConsole("Isolamento nao gerou nenhum anel (geometria de cobre vazia?).");
+            return;
+        }
+
+        showGerber(image);
+        plotAreaView.showOverlay(isolation.geometry(), ISOLATION_COLOR);
+        centerTabs.getSelectionModel().select(0);
+        appendConsole(String.format("Isolamento: %d aneis, comprimento total=%.4f, bounds=%s",
+                isolation.ringCount(), isolation.totalLength(), Arrays.toString(isolation.bounds())));
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar G-code de isolamento");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_isolation.nc");
+        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File outFile = chooser.showSaveDialog(scene.getWindow());
+        if (outFile == null) {
+            return;
+        }
+
+        try {
+            String gcode = GCodeGenerator.generateIsolationGCode(isolation, params.get().gcodeParams());
+            Files.writeString(outFile.toPath(), gcode);
+            AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
+            appendConsole("G-code de isolamento salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
+            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
+        } catch (Exception e) {
+            appendConsole("Falha ao gerar/salvar G-code de isolamento: " + e.getMessage());
         }
     }
 

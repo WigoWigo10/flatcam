@@ -13,6 +13,7 @@ import javafx.scene.text.TextAlignment;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
 
 /**
@@ -47,6 +48,8 @@ final class PlotAreaView extends StackPane {
     private Geometry geometry;
     private Color fillColor = COPPER_FILL;
     private Color strokeColor = COPPER_STROKE;
+    private Geometry overlayGeometry;
+    private Color overlayColor = Color.CYAN;
     private double scale = 3.0;
     private double viewCenterX = 50;
     private double viewCenterY = 40;
@@ -86,7 +89,21 @@ final class PlotAreaView extends StackPane {
         this.geometry = newGeometry;
         this.fillColor = fill;
         this.strokeColor = stroke;
+        this.overlayGeometry = null; // a newly loaded object has no overlay of its own yet.
         fitToView();
+        redraw();
+    }
+
+    /**
+     * A second, stroke-only geometry drawn on top of the main one (e.g. an
+     * isolation toolpath over the copper it was generated from) - unlike
+     * {@link #setGeometry}, this does not change the fitted view, so the
+     * copper stays framed the same way after generating a toolpath from it.
+     * Pass null to clear it.
+     */
+    void showOverlay(Geometry overlay, Color color) {
+        this.overlayGeometry = overlay;
+        this.overlayColor = color;
         redraw();
     }
 
@@ -202,6 +219,9 @@ final class PlotAreaView extends StackPane {
         if (geometry != null && !geometry.isEmpty()) {
             drawGeometry(gc, contentWidth, contentHeight);
         }
+        if (overlayGeometry != null && !overlayGeometry.isEmpty()) {
+            drawOverlay(gc, contentWidth, contentHeight);
+        }
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
     }
 
@@ -251,6 +271,28 @@ final class PlotAreaView extends StackPane {
                 gc.fill();
                 gc.stroke();
             }
+        }
+    }
+
+    /** Stroke-only (no fill) - for line-based geometry like an isolation toolpath, not filled copper. */
+    private void drawOverlay(GraphicsContext gc, double contentWidth, double contentHeight) {
+        gc.setStroke(overlayColor);
+        gc.setLineWidth(1.5);
+
+        int count = overlayGeometry.getNumGeometries();
+        for (int i = 0; i < count; i++) {
+            Geometry part = overlayGeometry.getGeometryN(i);
+            Coordinate[] coordinates = switch (part) {
+                case LineString line -> line.getCoordinates();
+                case Polygon polygon -> polygon.getExteriorRing().getCoordinates();
+                default -> null;
+            };
+            if (coordinates == null || coordinates.length == 0) {
+                continue;
+            }
+            gc.beginPath();
+            addRing(gc, coordinates, contentWidth, contentHeight);
+            gc.stroke();
         }
     }
 
