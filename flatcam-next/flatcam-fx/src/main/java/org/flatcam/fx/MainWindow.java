@@ -146,7 +146,7 @@ final class MainWindow {
     private TreeItem<String> cncJobsNode;
     private VBox bottomPanel;
     private double dividerBeforeConsoleCollapse = 0.75;
-    private boolean consoleCollapsed;
+    private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private JobHandle<?> runningJob;
 
@@ -191,6 +191,7 @@ final class MainWindow {
             verticalSplit.setDividerPositions(dividerBeforeConsoleCollapse);
             attachVerticalDividerSaveListener(); // re-adding creates a new Divider instance.
         }
+        AppPreferences.saveConsoleOpen(show);
     }
 
     private MenuBar buildMenuBar() {
@@ -312,7 +313,7 @@ final class MainWindow {
         ToggleButton consoleToggle = new ToggleButton(null, Icons.terminal(14));
         consoleToggle.setTooltip(new Tooltip("Mostrar/ocultar console"));
         consoleToggle.getStyleClass().add("status-bar-toggle");
-        consoleToggle.setSelected(true);
+        consoleToggle.setSelected(!consoleCollapsed);
         consoleToggle.setOnAction(e -> toggleConsole(consoleToggle.isSelected()));
 
         HBox bar = new HBox(6, statusDot, statusLabel, spacer, consoleToggle, unitsLabel);
@@ -329,7 +330,10 @@ final class MainWindow {
     private SplitPane buildMainSplit() {
         horizontalSplit = new SplitPane(buildLeftTabs(), buildCenterTabs());
         bottomPanel = buildBottomPanel();
-        verticalSplit = new SplitPane(horizontalSplit, bottomPanel);
+        // Starts without the bottom panel at all (not just visually collapsed) if the
+        // console was closed last session - same "remove from items" mechanism toggleConsole()
+        // uses, just applied before the first layout instead of via a later user click.
+        verticalSplit = consoleCollapsed ? new SplitPane(horizontalSplit) : new SplitPane(horizontalSplit, bottomPanel);
         verticalSplit.setOrientation(Orientation.VERTICAL);
 
         // SplitPane does not reliably honor a divider position set before its first
@@ -339,11 +343,16 @@ final class MainWindow {
         // first layout, then attaching the listener, avoids that drift entirely.
         Platform.runLater(() -> {
             horizontalSplit.setDividerPositions(AppPreferences.loadSplitHorizontal(0.22));
-            verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
-
             horizontalSplit.getDividers().get(0).positionProperty()
                     .addListener((obs, oldVal, newVal) -> saveSplitPositions());
-            attachVerticalDividerSaveListener();
+            if (!consoleCollapsed) {
+                verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
+                attachVerticalDividerSaveListener();
+            } else {
+                // No bottom panel means no divider to restore a position on yet - toggleConsole()
+                // reads this the next time the console is actually reopened.
+                dividerBeforeConsoleCollapse = AppPreferences.loadSplitVertical(0.75);
+            }
         });
         return verticalSplit;
     }

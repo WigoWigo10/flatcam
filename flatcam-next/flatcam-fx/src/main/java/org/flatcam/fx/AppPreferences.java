@@ -30,6 +30,7 @@ final class AppPreferences {
     private static final String KEY_WINDOW_HEIGHT = "windowHeight";
     private static final String KEY_SPLIT_HORIZONTAL = "splitHorizontal";
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
+    private static final String KEY_CONSOLE_OPEN = "consoleOpen";
     private static final String KEY_LAST_CAM_DIR = "lastCamDirectory";
     private static final String KEY_LAST_PROJECT_DIR = "lastProjectDirectory";
 
@@ -78,6 +79,15 @@ final class AppPreferences {
     static void saveSplitPositions(double horizontal, double vertical) {
         PREFS.putDouble(KEY_SPLIT_HORIZONTAL, horizontal);
         PREFS.putDouble(KEY_SPLIT_VERTICAL, vertical);
+        flush();
+    }
+
+    static boolean loadConsoleOpen(boolean fallback) {
+        return PREFS.getBoolean(KEY_CONSOLE_OPEN, fallback);
+    }
+
+    static void saveConsoleOpen(boolean open) {
+        PREFS.putBoolean(KEY_CONSOLE_OPEN, open);
         flush();
     }
 
