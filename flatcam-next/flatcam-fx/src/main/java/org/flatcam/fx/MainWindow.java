@@ -12,7 +12,6 @@ import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
@@ -80,8 +79,9 @@ final class MainWindow {
     /** Gerber files opened so far, keyed by their tree item - backs the Properties tab and the item context menu. */
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
 
+    private final PlotAreaView plotAreaView = new PlotAreaView();
+
     private Scene scene;
-    private StackPane viewportPane;
     private SplitPane horizontalSplit;
     private SplitPane verticalSplit;
     private TreeItem<String> gerbersNode;
@@ -224,6 +224,13 @@ final class MainWindow {
         verticalSplit = new SplitPane(horizontalSplit, buildBottomPanel());
         verticalSplit.setOrientation(Orientation.VERTICAL);
         verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
+
+        // Save on every drag, not just on window close - relying only on the close
+        // handler lost divider positions in practice (see AppPreferences).
+        horizontalSplit.getDividers().get(0).positionProperty()
+                .addListener((obs, oldVal, newVal) -> saveSplitPositions());
+        verticalSplit.getDividers().get(0).positionProperty()
+                .addListener((obs, oldVal, newVal) -> saveSplitPositions());
         return verticalSplit;
     }
 
@@ -327,20 +334,11 @@ final class MainWindow {
      * used to have.
      */
     private TabPane buildCenterTabs() {
-        Tab plotAreaTab = new Tab("Plot Area", buildViewportPlaceholder());
+        plotAreaView.getStyleClass().add("viewport-placeholder");
+        Tab plotAreaTab = new Tab("Plot Area", plotAreaView);
         plotAreaTab.setClosable(false);
         centerTabs.getTabs().add(plotAreaTab);
         return centerTabs;
-    }
-
-    private StackPane buildViewportPlaceholder() {
-        Label placeholder = new Label(
-                "Viewport GPU\n(Fase 2 - ainda nao implementado)\n\nUse Arquivo > Abrir Gerber (prototipo Fase 3)."
-        );
-        placeholder.setTextAlignment(TextAlignment.CENTER);
-        viewportPane = new StackPane(placeholder);
-        viewportPane.getStyleClass().add("viewport-placeholder");
-        return viewportPane;
     }
 
     /**
@@ -440,14 +438,16 @@ final class MainWindow {
         chooser.setTitle("Abrir Gerber (prototipo)");
         chooser.getExtensionFilters().add(
                 new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.txt"));
-        Path defaultDir = Path.of("tests/gerber_files").toAbsolutePath();
-        if (Files.isDirectory(defaultDir)) {
-            chooser.setInitialDirectory(defaultDir.toFile());
+        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastGerberDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
         }
         File file = chooser.showOpenDialog(scene.getWindow());
         if (file == null) {
             return;
         }
+        AppPreferences.saveLastGerberDirectory(file.getParentFile().getAbsolutePath());
 
         runDemoJobButton.setDisable(true);
         cancelJobButton.setDisable(false);
@@ -492,10 +492,7 @@ final class MainWindow {
     }
 
     private void showGerber(GerberImage image) {
-        double width = viewportPane.getWidth() > 0 ? viewportPane.getWidth() : 800;
-        double height = viewportPane.getHeight() > 0 ? viewportPane.getHeight() : 600;
-        Canvas canvas = GerberCanvasRenderer.render(image.solidGeometry(), width, height);
-        viewportPane.getChildren().setAll(canvas);
+        plotAreaView.setGeometry(image.solidGeometry());
     }
 
     private void cancelDemoJob() {

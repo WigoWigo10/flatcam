@@ -37,6 +37,14 @@
     -fx-text-fill: -fc-viewport-fg;
 }
 
+.plot-coord-label {
+    -fx-background-color: rgba(30, 30, 30, 0.85);
+    -fx-text-fill: -fc-viewport-fg;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 11px;
+    -fx-background-radius: 3;
+}
+
 /* Vector toolbar icons (Icons.java) - same glyph, colored via the current theme's text color. */
 .icon-glyph-stroke {
     -fx-fill: transparent;
