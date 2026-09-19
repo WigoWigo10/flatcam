@@ -6,9 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -64,6 +66,8 @@ import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
  * Shell shape taken from the legacy app, not from CONTEXTO_FLATCAM_FX.md's
@@ -86,6 +90,7 @@ final class MainWindow {
     private static final Color DRILL_FILL = Color.web("#c9c9c9");
     private static final Color DRILL_STROKE = Color.web("#8a8a8a");
     private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
+    private static final Color MARK_COLOR = Color.web("#ff2fd6", 0.65);
 
     private final JobExecutor jobExecutor;
 
@@ -112,6 +117,10 @@ final class MainWindow {
      * replaced rather than duplicated.
      */
     private record IsolationLayerKey(TreeItem<String> gerberItem) {
+    }
+
+    /** PlotAreaView layer key for the apertures table's "Mark" highlight overlay - see {@link GerberAperturesTable}. */
+    private record MarkLayerKey(TreeItem<String> gerberItem) {
     }
 
     /** Files opened/generated so far, keyed by their tree item - back the Properties tab and the item context menu. */
@@ -728,6 +737,7 @@ final class MainWindow {
         sourcePathByItem.remove(item);
         plotAreaView.removeLayer(item);
         plotAreaView.removeLayer(new IsolationLayerKey(item));
+        plotAreaView.removeLayer(new MarkLayerKey(item));
         appendConsole("Removido do projeto: " + item.getValue());
     }
 
@@ -785,11 +795,46 @@ final class MainWindow {
         isolationButton.setOnAction(e -> generateIsolation(item, image));
         box.getChildren().add(isolationButton);
 
+        box.getChildren().add(new Label("Apertures Table:"));
+        box.getChildren().add(buildAperturesTableSection(item, image));
+
         box.getChildren().add(propertiesSection(String.format(
                 "Unidades: %s%nAperturas: %d%nArea total: %.4f%nBounds: %s",
                 image.units(), image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())
         )));
         return box;
+    }
+
+    /**
+     * Wires GerberAperturesTable's per-row "Mark" checkboxes to a highlight
+     * overlay layer - purely visual, matching the confirmed Python behavior
+     * (no tool reads mark state, see GerberAperturesTable's class doc).
+     * Resets any marks left over from a previous view of this same object's
+     * panel first, so the checkboxes (which always start unchecked, since
+     * the panel is rebuilt from scratch on every selection) never disagree
+     * with what's actually highlighted.
+     */
+    private Node buildAperturesTableSection(TreeItem<String> item, GerberImage image) {
+        MarkLayerKey markKey = new MarkLayerKey(item);
+        plotAreaView.removeLayer(markKey);
+        Set<String> markedCodes = new LinkedHashSet<>();
+        return GerberAperturesTable.build(image, (code, marked) -> {
+            if (marked) {
+                markedCodes.add(code);
+            } else {
+                markedCodes.remove(code);
+            }
+            if (markedCodes.isEmpty()) {
+                plotAreaView.removeLayer(markKey);
+                return;
+            }
+            List<Geometry> shapes = markedCodes.stream()
+                    .map(c -> image.apertureGeometry().get(c))
+                    .filter(Objects::nonNull)
+                    .toList();
+            Geometry union = shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes);
+            plotAreaView.putLayer(markKey, PlotAreaView.LayerCategory.OVERLAY, union, MARK_COLOR, MARK_COLOR, false);
+        });
     }
 
     /** Same shape as {@link #buildGerberPropertiesPanel}, minus isolation, plus drilling G-code - see ObjectUI.py's ExcellonObjectUI. */
