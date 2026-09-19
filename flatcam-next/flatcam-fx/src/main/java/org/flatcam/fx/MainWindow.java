@@ -75,6 +75,8 @@ final class MainWindow {
     private static final Color RUNNING_COLOR = Color.web("#f0ad4e");
     private static final Color CANCELLED_COLOR = Color.web("#9e9e9e");
     private static final Color ERROR_COLOR = Color.web("#e53935");
+    private static final Color GERBER_FILL = Color.web("#e1a339");
+    private static final Color GERBER_STROKE = Color.web("#a06f1f");
     private static final Color DRILL_FILL = Color.web("#c9c9c9");
     private static final Color DRILL_STROKE = Color.web("#8a8a8a");
     private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
@@ -93,6 +95,16 @@ final class MainWindow {
 
     /** A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator writes one. */
     private record CncJobEntry(String sourceName, Path outputFile, String gcode) {
+    }
+
+    /**
+     * PlotAreaView layer key for an isolation preview, distinct from the
+     * Gerber's own key (its TreeItem) so the toolpath layer sits alongside
+     * the copper layer instead of replacing it. Re-generating isolation for
+     * the same Gerber item produces an equal key, so the preview layer is
+     * replaced rather than duplicated.
+     */
+    private record IsolationLayerKey(TreeItem<String> gerberItem) {
     }
 
     /** Files opened/generated so far, keyed by their tree item - back the Properties tab and the item context menu. */
@@ -404,13 +416,23 @@ final class MainWindow {
         return tree;
     }
 
-    /** "Exibir no Plot Area", "Gerar Isolamento..." and "Remover" for a Gerber tree item. */
+    /**
+     * "Exibir no Plot Area", "Ativar/Desativar Plot", "Definir Cor...",
+     * "Gerar Isolamento..." and "Remover" for a Gerber tree item - the
+     * visibility toggle and color picker mirror the legacy per-object menu's
+     * Enable/Disable Plot and Set Color (UI_INVENTORY.md section 1), now
+     * that each object is its own PlotAreaView layer instead of one
+     * replacing another.
+     */
     private ContextMenu buildGerberContextMenu(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
-        showItem.setOnAction(e -> {
-            showGerber(image);
-            centerTabs.getSelectionModel().select(0);
-        });
+        showItem.setOnAction(e -> focusLayer(item));
+
+        MenuItem visibilityItem = new MenuItem();
+        visibilityItem.setOnAction(e -> plotAreaView.setLayerVisible(item, !plotAreaView.isLayerVisible(item)));
+
+        MenuItem colorItem = new MenuItem("Definir Cor...");
+        colorItem.setOnAction(e -> editLayerColor(item));
 
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
@@ -418,16 +440,21 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
-        return new ContextMenu(showItem, isolationItem, removeItem);
+        ContextMenu menu = new ContextMenu(showItem, visibilityItem, colorItem, isolationItem, removeItem);
+        menu.setOnShowing(e -> visibilityItem.setText(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot"));
+        return menu;
     }
 
-    /** Same as {@link #buildGerberContextMenu}, plus "Gerar G-code de furacao" - the one action Excellon has that Gerber doesn't yet. */
+    /** Same as {@link #buildGerberContextMenu}, minus isolation, plus "Gerar G-code de furacao". */
     private ContextMenu buildExcellonContextMenu(TreeItem<String> item, ExcellonImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
-        showItem.setOnAction(e -> {
-            showExcellon(image);
-            centerTabs.getSelectionModel().select(0);
-        });
+        showItem.setOnAction(e -> focusLayer(item));
+
+        MenuItem visibilityItem = new MenuItem();
+        visibilityItem.setOnAction(e -> plotAreaView.setLayerVisible(item, !plotAreaView.isLayerVisible(item)));
+
+        MenuItem colorItem = new MenuItem("Definir Cor...");
+        colorItem.setOnAction(e -> editLayerColor(item));
 
         MenuItem gcodeItem = new MenuItem("Gerar G-code de furacao...");
         gcodeItem.setOnAction(e -> generateDrillGCode(item, image));
@@ -435,7 +462,24 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
 
-        return new ContextMenu(showItem, gcodeItem, removeItem);
+        ContextMenu menu = new ContextMenu(showItem, visibilityItem, colorItem, gcodeItem, removeItem);
+        menu.setOnShowing(e -> visibilityItem.setText(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot"));
+        return menu;
+    }
+
+    private void focusLayer(TreeItem<String> item) {
+        plotAreaView.setLayerVisible(item, true);
+        plotAreaView.bringToFront(item);
+        plotAreaView.fitToLayer(item);
+        centerTabs.getSelectionModel().select(0);
+    }
+
+    /** Only a fill color is asked for - the legacy dialog doesn't expose a separate outline color either. */
+    private void editLayerColor(TreeItem<String> item) {
+        Color[] current = plotAreaView.layerColors(item);
+        Color currentFill = current != null ? current[0] : GERBER_FILL;
+        LayerColorDialog.show(currentFill)
+                .ifPresent(fill -> plotAreaView.setLayerColors(item, fill, fill.darker()));
     }
 
     private ContextMenu buildCncJobContextMenu(TreeItem<String> item, CncJobEntry entry) {
@@ -504,7 +548,7 @@ final class MainWindow {
      * Gerber's copper (IsolationGenerator, ported from appTools/
      * ToolIsolation.py + camlib.py's Gerber.isolation_geometry() - see its
      * class doc for exactly what was and wasn't carried over), shows it as
-     * a cyan overlay on top of the copper (PlotAreaView.showOverlay - the
+     * its own cyan stroke-only layer alongside the copper's own layer (the
      * copper stays visible, unlike opening a different file), then writes
      * G-code the same way generateDrillGCode() does.
      */
@@ -520,8 +564,8 @@ final class MainWindow {
             return;
         }
 
-        showGerber(image);
-        plotAreaView.showOverlay(isolation.geometry(), ISOLATION_COLOR);
+        plotAreaView.putLayer(new IsolationLayerKey(item), PlotAreaView.LayerCategory.OVERLAY,
+                isolation.geometry(), ISOLATION_COLOR, ISOLATION_COLOR, true);
         centerTabs.getSelectionModel().select(0);
         appendConsole(String.format("Isolamento: %d aneis, comprimento total=%.4f, bounds=%s",
                 isolation.ringCount(), isolation.totalLength(), Arrays.toString(isolation.bounds())));
@@ -555,6 +599,8 @@ final class MainWindow {
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
         sourcePathByItem.remove(item);
+        plotAreaView.removeLayer(item);
+        plotAreaView.removeLayer(new IsolationLayerKey(item));
         appendConsole("Removido do projeto: " + item.getValue());
     }
 
@@ -689,15 +735,24 @@ final class MainWindow {
     /**
      * Fase 3 vertical slice, minimal: open -> parse (flatcam-cam) -> display
      * (a throwaway Canvas render - see PlotAreaView). Reuses the same
-     * progress bar/cancel button/console as the demo job, one job at a time.
+     * progress bar/cancel button/console as the demo job, processing any
+     * number of selected files one at a time (matching the legacy app's
+     * multi-select file-open dialogs).
      */
     private void openGerberPrototype() {
-        File file = pickCamFile("Abrir Gerber (prototipo)",
-                new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.txt"));
-        if (file == null) {
+        List<File> files = pickCamFiles("Abrir Gerber (prototipo)",
+                new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
+        if (!files.isEmpty()) {
+            openGerberQueue(files, 0);
+        }
+    }
+
+    private void openGerberQueue(List<File> files, int index) {
+        if (index >= files.size()) {
+            onJobFinished();
             return;
         }
-
+        File file = files.get(index);
         beginJob("Analisando " + file.getName() + "...");
         JobHandle<GerberImage> handle = jobExecutor.submit(context -> new GerberParser().parse(file.toPath()), null);
         runningJob = handle;
@@ -710,14 +765,14 @@ final class MainWindow {
                     appendConsole(String.format(
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
-                    showGerber(image);
-                    addGerberToProject(file, image);
-                    onJobFinished();
+                    TreeItem<String> item = addGerberToProject(file, image);
+                    plotAreaView.fitToLayer(item);
+                    openGerberQueue(files, index + 1);
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao abrir Gerber: ");
-                        onJobFinished();
+                        reportJobError(error, "Falha ao abrir Gerber " + file.getName() + ": ");
+                        openGerberQueue(files, index + 1);
                     });
                     return null;
                 });
@@ -725,12 +780,19 @@ final class MainWindow {
 
     /** Fase 4 vertical slice - same shape as {@link #openGerberPrototype()}, see flatcam-cam's ExcellonParser. */
     private void openExcellonPrototype() {
-        File file = pickCamFile("Abrir Excellon (prototipo)",
+        List<File> files = pickCamFiles("Abrir Excellon (prototipo)",
                 new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
-        if (file == null) {
+        if (!files.isEmpty()) {
+            openExcellonQueue(files, 0);
+        }
+    }
+
+    private void openExcellonQueue(List<File> files, int index) {
+        if (index >= files.size()) {
+            onJobFinished();
             return;
         }
-
+        File file = files.get(index);
         beginJob("Analisando " + file.getName() + "...");
         JobHandle<ExcellonImage> handle = jobExecutor.submit(context -> new ExcellonParser().parse(file.toPath()), null);
         runningJob = handle;
@@ -744,24 +806,24 @@ final class MainWindow {
                             "Excellon OK: %d ferramentas, %d furos, %d slots, bounds=%s",
                             image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
                             Arrays.toString(image.bounds())));
-                    showExcellon(image);
-                    addExcellonToProject(file, image);
-                    onJobFinished();
+                    TreeItem<String> item = addExcellonToProject(file, image);
+                    plotAreaView.fitToLayer(item);
+                    openExcellonQueue(files, index + 1);
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao abrir Excellon: ");
-                        onJobFinished();
+                        reportJobError(error, "Falha ao abrir Excellon " + file.getName() + ": ");
+                        openExcellonQueue(files, index + 1);
                     });
                     return null;
                 });
     }
 
-    /** Shared "pick a fabrication file" flow: remembers the last folder across both Gerber and Excellon. */
-    private File pickCamFile(String title, FileChooser.ExtensionFilter filter) {
+    /** Shared "pick fabrication files" flow (multi-select): remembers the last folder across both Gerber and Excellon. */
+    private List<File> pickCamFiles(String title, FileChooser.ExtensionFilter filter) {
         if (runningJob != null) {
             appendConsole("Ja ha um job em andamento.");
-            return null;
+            return List.of();
         }
         FileChooser chooser = new FileChooser();
         chooser.setTitle(title);
@@ -771,11 +833,12 @@ final class MainWindow {
         if (Files.isDirectory(lastDir)) {
             chooser.setInitialDirectory(lastDir.toFile());
         }
-        File file = chooser.showOpenDialog(scene.getWindow());
-        if (file != null) {
-            AppPreferences.saveLastCamDirectory(file.getParentFile().getAbsolutePath());
+        List<File> files = chooser.showOpenMultipleDialog(scene.getWindow());
+        if (files == null || files.isEmpty()) {
+            return List.of();
         }
-        return file;
+        AppPreferences.saveLastCamDirectory(files.get(0).getParentFile().getAbsolutePath());
+        return files;
     }
 
     private void beginJob(String statusText) {
@@ -888,7 +951,7 @@ final class MainWindow {
         excellonByItem.clear();
         cncJobByItem.clear();
         sourcePathByItem.clear();
-        plotAreaView.setGeometry(null);
+        plotAreaView.clearLayers();
     }
 
     /**
@@ -916,26 +979,23 @@ final class MainWindow {
         }
     }
 
-    private void addGerberToProject(File file, GerberImage image) {
+    /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */
+    private TreeItem<String> addGerberToProject(File file, GerberImage image) {
         TreeItem<String> item = new TreeItem<>(file.getName());
         gerberByItem.put(item, image);
         sourcePathByItem.put(item, file.toPath());
         gerbersNode.getChildren().add(item);
+        plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER, image.solidGeometry(), GERBER_FILL, GERBER_STROKE, false);
+        return item;
     }
 
-    private void addExcellonToProject(File file, ExcellonImage image) {
+    private TreeItem<String> addExcellonToProject(File file, ExcellonImage image) {
         TreeItem<String> item = new TreeItem<>(file.getName());
         excellonByItem.put(item, image);
         sourcePathByItem.put(item, file.toPath());
         excellonNode.getChildren().add(item);
-    }
-
-    private void showGerber(GerberImage image) {
-        plotAreaView.setGeometry(image.solidGeometry());
-    }
-
-    private void showExcellon(ExcellonImage image) {
-        plotAreaView.setGeometry(image.solidGeometry(), DRILL_FILL, DRILL_STROKE);
+        plotAreaView.putLayer(item, PlotAreaView.LayerCategory.EXCELLON, image.solidGeometry(), DRILL_FILL, DRILL_STROKE, false);
+        return item;
     }
 
     private void cancelDemoJob() {

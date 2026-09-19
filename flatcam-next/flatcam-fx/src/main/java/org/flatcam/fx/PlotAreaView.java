@@ -1,14 +1,16 @@
 package org.flatcam.fx;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.control.Label;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.FillRule;
-import javafx.scene.control.Label;
 import javafx.scene.text.TextAlignment;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
@@ -22,11 +24,34 @@ import org.locationtech.jts.geom.Polygon;
  * proves the interaction model (drag to pan, scroll to zoom, adaptive grid,
  * rulers, origin crosshair, X/Y/Dx/Dy readout - matching appGUI/MainGUI.py's
  * Plot Area, UI_INVENTORY.md section 1) works before committing to a
- * rendering technology for scale. Geometry drawing itself is still the
- * simple even-odd polygon fill from the old GerberCanvasRenderer, just
- * routed through the same world-to-screen transform as everything else here.
+ * rendering technology for scale.
+ *
+ * <p>Holds an ordered stack of named layers (one per opened Gerber/Excellon/
+ * isolation result, keyed by whatever the caller wants - MainWindow uses the
+ * project tree's TreeItem) instead of a single geometry, so multiple objects
+ * show at once - matching the legacy app's project tree, where every object
+ * has its own plot rather than one replacing another (UI_INVENTORY.md
+ * section 1's "Enable/Disable Plot" and "Set Color" per-object actions).
+ * Draw order follows insertion order (a LinkedHashMap) - no explicit
+ * z-ordering control yet.
  */
 final class PlotAreaView extends StackPane {
+
+    /** One object's plot: its geometry, whether it's filled (copper/holes) or stroke-only (a toolpath), colors, visibility, category. */
+    record RenderLayer(Geometry geometry, boolean strokeOnly, Color fillColor, Color strokeColor, boolean visible, LayerCategory category) {
+    }
+
+    /**
+     * Fixed draw-order groups: Gerbers always under Excellon drills, which
+     * are always under isolation/toolpath overlays - so opening files in a
+     * different order (or bringing one to front via "Exibir") never makes a
+     * Gerber cover an Excellon or vice versa. {@link #bringToFront} only
+     * reorders a layer relative to others in its own category, matching the
+     * legacy project tree's own Gerbers/Excellon/CNC Jobs grouping.
+     */
+    enum LayerCategory {
+        GERBER, EXCELLON, OVERLAY
+    }
 
     private static final double RULER_TOP_HEIGHT = 20;
     private static final double RULER_LEFT_WIDTH = 44;
@@ -39,17 +64,11 @@ final class PlotAreaView extends StackPane {
     private static final Color GRID_LINE = Color.web("#333333");
     private static final Color AXIS_LINE = Color.web("#b33a3a");
     private static final Color RULER_TEXT = Color.web("#9a9a9a");
-    private static final Color COPPER_FILL = Color.web("#e1a339");
-    private static final Color COPPER_STROKE = Color.web("#a06f1f");
 
     private final Canvas canvas = new Canvas();
     private final Label coordLabel = new Label("X: -   Y: -");
+    private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
 
-    private Geometry geometry;
-    private Color fillColor = COPPER_FILL;
-    private Color strokeColor = COPPER_STROKE;
-    private Geometry overlayGeometry;
-    private Color overlayColor = Color.CYAN;
     private double scale = 3.0;
     private double viewCenterX = 50;
     private double viewCenterY = 40;
@@ -79,41 +98,82 @@ final class PlotAreaView extends StackPane {
         redraw();
     }
 
-    /** Replaces the displayed geometry (copper-orange) and fits the view to it. Pass null to show an empty grid. */
-    void setGeometry(Geometry newGeometry) {
-        setGeometry(newGeometry, COPPER_FILL, COPPER_STROKE);
+    /**
+     * Adds or replaces a layer's geometry/appearance. Visibility is
+     * preserved if the key already existed (so recoloring an object doesn't
+     * un-hide it), else defaults to visible. Does not change the view - call
+     * {@link #fitToLayer} for that (typically right after adding a new one).
+     */
+    void putLayer(Object key, LayerCategory category, Geometry geometry, Color fillColor, Color strokeColor, boolean strokeOnly) {
+        boolean visible = !layers.containsKey(key) || layers.get(key).visible();
+        layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category));
+        redraw();
     }
 
-    /** Same as {@link #setGeometry(Geometry)}, with a caller-chosen color - e.g. distinguishing drill holes from copper. */
-    void setGeometry(Geometry newGeometry, Color fill, Color stroke) {
-        this.geometry = newGeometry;
-        this.fillColor = fill;
-        this.strokeColor = stroke;
-        this.overlayGeometry = null; // a newly loaded object has no overlay of its own yet.
-        fitToView();
+    void removeLayer(Object key) {
+        layers.remove(key);
+        redraw();
+    }
+
+    void setLayerVisible(Object key, boolean visible) {
+        RenderLayer layer = layers.get(key);
+        if (layer != null) {
+            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(), visible, layer.category()));
+            redraw();
+        }
+    }
+
+    boolean isLayerVisible(Object key) {
+        RenderLayer layer = layers.get(key);
+        return layer == null || layer.visible();
+    }
+
+    void setLayerColors(Object key, Color fillColor, Color strokeColor) {
+        RenderLayer layer = layers.get(key);
+        if (layer != null) {
+            layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), fillColor, strokeColor, layer.visible(), layer.category()));
+            redraw();
+        }
+    }
+
+    /** {fillColor, strokeColor} for a layer, or null if the key isn't a layer - for pre-filling {@link LayerColorDialog}. */
+    Color[] layerColors(Object key) {
+        RenderLayer layer = layers.get(key);
+        return layer == null ? null : new Color[]{layer.fillColor(), layer.strokeColor()};
+    }
+
+    void clearLayers() {
+        layers.clear();
         redraw();
     }
 
     /**
-     * A second, stroke-only geometry drawn on top of the main one (e.g. an
-     * isolation toolpath over the copper it was generated from) - unlike
-     * {@link #setGeometry}, this does not change the fitted view, so the
-     * copper stays framed the same way after generating a toolpath from it.
-     * Pass null to clear it.
+     * Moves a layer to the end of the draw order (drawn last = on top of
+     * everything else) - a LinkedHashMap in insertion-order mode keeps a
+     * key's original position on a plain put(), so re-inserting after
+     * removal is what actually reorders it. Used by "Exibir no Plot Area"
+     * so re-selecting an object brings it above whatever was covering it.
      */
-    void showOverlay(Geometry overlay, Color color) {
-        this.overlayGeometry = overlay;
-        this.overlayColor = color;
-        redraw();
+    void bringToFront(Object key) {
+        RenderLayer layer = layers.remove(key);
+        if (layer != null) {
+            layers.put(key, layer);
+            redraw();
+        }
     }
 
-    private void fitToView() {
+    /** Fits the view to one layer's bounds (e.g. "Exibir no Plot Area" on a specific object). */
+    void fitToLayer(Object key) {
+        RenderLayer layer = layers.get(key);
+        if (layer != null && layer.geometry() != null && !layer.geometry().isEmpty()) {
+            fitToEnvelope(layer.geometry().getEnvelopeInternal());
+            redraw();
+        }
+    }
+
+    private void fitToEnvelope(Envelope envelope) {
         double contentWidth = Math.max(1, getWidth() - RULER_LEFT_WIDTH);
         double contentHeight = Math.max(1, getHeight() - RULER_TOP_HEIGHT);
-        if (geometry == null || geometry.isEmpty()) {
-            return;
-        }
-        Envelope envelope = geometry.getEnvelopeInternal();
         double margin = 20;
         double scaleX = envelope.getWidth() > 0 ? (contentWidth - 2 * margin) / envelope.getWidth() : scale;
         double scaleY = envelope.getHeight() > 0 ? (contentHeight - 2 * margin) / envelope.getHeight() : scale;
@@ -216,11 +276,15 @@ final class PlotAreaView extends StackPane {
         double step = niceStep(80.0 / scale);
         drawGrid(gc, contentWidth, contentHeight, step);
         drawAxisCrosshair(gc, contentWidth, contentHeight);
-        if (geometry != null && !geometry.isEmpty()) {
-            drawGeometry(gc, contentWidth, contentHeight);
-        }
-        if (overlayGeometry != null && !overlayGeometry.isEmpty()) {
-            drawOverlay(gc, contentWidth, contentHeight);
+        // Category order (GERBER, then EXCELLON, then OVERLAY) is fixed regardless of each
+        // layer's position in the map, so bringToFront (a plain reinsert-at-end) only ever
+        // changes a layer's position relative to others in the same category.
+        for (LayerCategory category : LayerCategory.values()) {
+            for (RenderLayer layer : layers.values()) {
+                if (layer.category() == category && layer.visible() && layer.geometry() != null && !layer.geometry().isEmpty()) {
+                    drawLayer(gc, layer, contentWidth, contentHeight);
+                }
+            }
         }
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
     }
@@ -254,15 +318,29 @@ final class PlotAreaView extends StackPane {
         gc.strokeLine(ox, RULER_TOP_HEIGHT, ox, canvas.getHeight());
     }
 
-    private void drawGeometry(GraphicsContext gc, double contentWidth, double contentHeight) {
+    private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth, double contentHeight) {
         gc.setFillRule(FillRule.EVEN_ODD);
-        gc.setFill(fillColor);
-        gc.setStroke(strokeColor);
-        gc.setLineWidth(1);
+        gc.setFill(layer.fillColor());
+        gc.setStroke(layer.strokeColor());
+        gc.setLineWidth(layer.strokeOnly() ? 1.5 : 1);
 
+        Geometry geometry = layer.geometry();
         int count = geometry.getNumGeometries();
         for (int i = 0; i < count; i++) {
-            if (geometry.getGeometryN(i) instanceof Polygon polygon) {
+            Geometry part = geometry.getGeometryN(i);
+            if (layer.strokeOnly()) {
+                Coordinate[] coordinates = switch (part) {
+                    case LineString line -> line.getCoordinates();
+                    case Polygon polygon -> polygon.getExteriorRing().getCoordinates();
+                    default -> null;
+                };
+                if (coordinates == null || coordinates.length == 0) {
+                    continue;
+                }
+                gc.beginPath();
+                addRing(gc, coordinates, contentWidth, contentHeight);
+                gc.stroke();
+            } else if (part instanceof Polygon polygon) {
                 gc.beginPath();
                 addRing(gc, polygon.getExteriorRing().getCoordinates(), contentWidth, contentHeight);
                 for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
@@ -271,28 +349,6 @@ final class PlotAreaView extends StackPane {
                 gc.fill();
                 gc.stroke();
             }
-        }
-    }
-
-    /** Stroke-only (no fill) - for line-based geometry like an isolation toolpath, not filled copper. */
-    private void drawOverlay(GraphicsContext gc, double contentWidth, double contentHeight) {
-        gc.setStroke(overlayColor);
-        gc.setLineWidth(1.5);
-
-        int count = overlayGeometry.getNumGeometries();
-        for (int i = 0; i < count; i++) {
-            Geometry part = overlayGeometry.getGeometryN(i);
-            Coordinate[] coordinates = switch (part) {
-                case LineString line -> line.getCoordinates();
-                case Polygon polygon -> polygon.getExteriorRing().getCoordinates();
-                default -> null;
-            };
-            if (coordinates == null || coordinates.length == 0) {
-                continue;
-            }
-            gc.beginPath();
-            addRing(gc, coordinates, contentWidth, contentHeight);
-            gc.stroke();
         }
     }
 
