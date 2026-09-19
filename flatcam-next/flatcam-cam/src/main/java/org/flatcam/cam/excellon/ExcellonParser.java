@@ -75,9 +75,9 @@ public final class ExcellonParser {
         String units = null;
         Integer formatLowerOverride = null;
         Map<Integer, Double> toolDiameters = new LinkedHashMap<>();
-        Map<Integer, Integer> drillCounts = new LinkedHashMap<>();
-        Map<Integer, Integer> slotCounts = new LinkedHashMap<>();
         List<Geometry> shapes = new ArrayList<>();
+        List<ExcellonImage.Drill> drills = new ArrayList<>();
+        List<ExcellonImage.Slot> slots = new ArrayList<>();
 
         Integer currentTool = null;
         double posX = 0;
@@ -119,8 +119,6 @@ public final class ExcellonParser {
             if (toolDefinition.matches()) {
                 int id = Integer.parseInt(toolDefinition.group(1));
                 toolDiameters.put(id, Double.parseDouble(toolDefinition.group(2)));
-                drillCounts.putIfAbsent(id, 0);
-                slotCounts.putIfAbsent(id, 0);
                 continue;
             }
             Matcher toolSelect = TOOL_SELECT.matcher(line);
@@ -142,7 +140,7 @@ public final class ExcellonParser {
                 shapes.add(geometryFactory
                         .createLineString(new Coordinate[]{new Coordinate(x1, y1), new Coordinate(x2, y2)})
                         .buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
-                slotCounts.merge(currentTool, 1, Integer::sum);
+                slots.add(new ExcellonImage.Slot(currentTool, x1, y1, x2, y2));
                 posX = x2;
                 posY = y2;
                 continue;
@@ -157,7 +155,7 @@ public final class ExcellonParser {
                 double diameter = requireToolDiameter(toolDiameters, currentTool, line);
 
                 shapes.add(geometryFactory.createPoint(new Coordinate(x, y)).buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
-                drillCounts.merge(currentTool, 1, Integer::sum);
+                drills.add(new ExcellonImage.Drill(currentTool, x, y));
                 posX = x;
                 posY = y;
                 continue;
@@ -167,7 +165,7 @@ public final class ExcellonParser {
         }
 
         Geometry solid = shapes.isEmpty() ? geometryFactory.createPolygon() : UnaryUnionOp.union(shapes);
-        return new ExcellonImage(units == null ? "IN" : units, toolDiameters, drillCounts, slotCounts, solid);
+        return new ExcellonImage(units == null ? "IN" : units, toolDiameters, drills, slots, solid);
     }
 
     /**
