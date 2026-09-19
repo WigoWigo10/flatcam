@@ -81,6 +81,10 @@ public final class GerberParser {
         int interpolationMode = 1; // 1=linear (G01), 2=clockwise arc (G02), 3=counter-clockwise arc (G03) - modal
         String quadrantMode = null; // "SINGLE" (G74) or "MULTI" (G75) - required before any arc
         SolidAccumulator accumulator = new SolidAccumulator(geometryFactory);
+        // Every flash/stroke's shape, kept per aperture regardless of polarity - purely for the
+        // apertures table's "Mark" highlight (appParsers/ParseGerber.py's apertures[code]['geometry']),
+        // with zero effect on the final solidGeometry above.
+        Map<String, List<Geometry>> shapesByAperture = new LinkedHashMap<>();
 
         boolean regionMode = false;
         List<Coordinate> currentContour = null;
@@ -219,6 +223,7 @@ public final class GerberParser {
                                 .createLineString(segment.toArray(new Coordinate[0]))
                                 .buffer(radius, STROKE_QUADRANT_SEGMENTS);
                         accumulator.add(stroke, polarity);
+                        shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(stroke);
                     }
                 }
                 case 2 -> {
@@ -233,7 +238,9 @@ public final class GerberParser {
                 }
                 case 3 -> {
                     Aperture aperture = requireAperture(apertures, currentApertureId, line);
-                    accumulator.add(aperture.footprintAt(newX, newY, geometryFactory), polarity);
+                    Geometry footprint = aperture.footprintAt(newX, newY, geometryFactory);
+                    accumulator.add(footprint, polarity);
+                    shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(footprint);
                 }
                 default -> throw new GerberParseException("Unreachable D-code " + code + " in: " + line);
             }
@@ -241,7 +248,13 @@ public final class GerberParser {
             posY = newY;
         }
 
-        return new GerberImage(units == null ? "IN" : units, apertures, accumulator.result());
+        Map<String, Geometry> apertureGeometry = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Geometry>> entry : shapesByAperture.entrySet()) {
+            List<Geometry> shapes = entry.getValue();
+            apertureGeometry.put(entry.getKey(), shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes));
+        }
+
+        return new GerberImage(units == null ? "IN" : units, apertures, accumulator.result(), apertureGeometry);
     }
 
     private Aperture buildAperture(String type, String paramsRaw, Map<String, ApertureMacro> macros) {

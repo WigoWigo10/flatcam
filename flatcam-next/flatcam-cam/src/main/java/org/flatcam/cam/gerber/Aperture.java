@@ -62,6 +62,11 @@ public final class Aperture {
         };
     }
 
+    /** The macro's name, for a MACRO aperture's "Type" column in the apertures table - null otherwise. */
+    public String macroName() {
+        return macro != null ? macro.name() : null;
+    }
+
     /** The shape this aperture paints when flashed (D03) at (x, y). */
     public Geometry footprintAt(double x, double y, GeometryFactory geometryFactory) {
         return switch (kind) {

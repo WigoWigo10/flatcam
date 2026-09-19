@@ -1,6 +1,7 @@
 package org.flatcam.cam.gerber;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -12,6 +13,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.json.JSONObject;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 /**
@@ -120,6 +122,27 @@ class GerberParserBaselineTest {
                 default -> fail("Unhandled baseline aperture type '" + type + "' for D" + id);
             }
         }
+    }
+
+    /**
+     * apertureGeometry() (the "Mark" highlight data source) isn't in the Python
+     * baseline JSON, so this is a plain sanity check rather than a differential
+     * comparison: every used aperture has non-empty geometry, and D10 (the flash
+     * aperture in simple1.gbr) covers strictly less area than the whole board -
+     * i.e. it really is per-aperture, not accidentally the full solidGeometry.
+     */
+    @Test
+    void apertureGeometryIsPopulatedPerUsedAperture() throws Exception {
+        Path repoRoot = findRepoRoot();
+        GerberImage image = new GerberParser().parse(repoRoot.resolve("tests/gerber_files/simple1.gbr"));
+
+        assertFalse(image.apertureGeometry().isEmpty(), "at least one aperture must have been used");
+        for (String usedApertureId : image.apertureGeometry().keySet()) {
+            assertTrue(image.apertures().containsKey(usedApertureId), "unknown aperture id " + usedApertureId);
+            assertFalse(image.apertureGeometry().get(usedApertureId).isEmpty(), "aperture D" + usedApertureId + " geometry");
+        }
+        assertTrue(image.apertureGeometry().get("10").getArea() < image.totalArea(),
+                "one aperture's own geometry should be a strict subset of the whole board");
     }
 
     /** Walks up from the working directory until it finds the repo root (marked by tests/gerber_files). */
