@@ -112,6 +112,38 @@ class GCodeGeneratorTest {
     }
 
     @Test
+    void drillCncJobGeometrySeparatesTravelFromCut() {
+        ExcellonImage image = parse(
+                "M48", "METRIC", "T1C0.8", "%",
+                "T1", "X1.0Y1.0", "X5.0Y1.0",
+                "M30"
+        );
+        CncJobResult result = GCodeGenerator.generateDrillCncJob(image,
+                new DrillGCodeParameters(3.0, 1.6, 250, 0, false), null);
+
+        assertTrue(!result.travelGeometry().isEmpty(), "a rapid move connects the two holes");
+        // Each hole becomes its own disjoint cut-shape circle (the two holes are 4mm apart,
+        // far wider than the 0.8mm tool diameter) - camlib.py's own gcode_parse() does the
+        // same thing since a drill doesn't move laterally while cutting.
+        assertEquals(2, result.cutGeometry().getNumGeometries());
+    }
+
+    @Test
+    void isolationCncJobGeometrySeparatesTravelFromCut() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult isolation = IsolationGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 1, 0.0, IsolationType.BOTH));
+
+        CncJobResult result = GCodeGenerator.generateIsolationCncJob(isolation,
+                new IsolationGCodeParameters(0.1, 0.003, 10, 0), 0.02);
+
+        assertTrue(!result.cutGeometry().isEmpty(), "the isolation rings themselves are the cut geometry");
+        // At most one cut ribbon per ring - fewer if two rings' buffered ribbons happen to touch
+        // and merge in the union, which unioning can only ever reduce the count by, never increase.
+        assertTrue(result.cutGeometry().getNumGeometries() <= isolation.ringCount());
+    }
+
+    @Test
     void rejectsNonPositiveParameters() {
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(0, 1.6, 300, 0, false));
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(3.0, 0, 300, 0, false));
