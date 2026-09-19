@@ -1,0 +1,21 @@
+{
+  "aperture_count": 1,
+  "aperture_macro_count": 0,
+  "apertures": {
+    "11": {
+      "geometry_count": 1,
+      "size": 0.008,
+      "type": "C"
+    }
+  },
+  "bounds": [
+    -2e-06,
+    -2e-06,
+    1.772002,
+    1.181002
+  ],
+  "follow_geometry_count": 1,
+  "solid_geometry_part_count": 1,
+  "solid_geometry_total_area": 0.0470005,
+  "units": "IN"
+}

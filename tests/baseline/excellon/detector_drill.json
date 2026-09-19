@@ -1,0 +1,35 @@
+{
+  "bounds": [
+    0.1488,
+    0.0723,
+    1.6488,
+    1.0223
+  ],
+  "tool_count": 4,
+  "tools": {
+    "1": {
+      "drill_count": 4,
+      "slot_count": 0,
+      "tooldia": 0.125984
+    },
+    "100": {
+      "drill_count": 5,
+      "slot_count": 0,
+      "tooldia": 0.031496
+    },
+    "101": {
+      "drill_count": 16,
+      "slot_count": 0,
+      "tooldia": 0.035
+    },
+    "102": {
+      "drill_count": 6,
+      "slot_count": 0,
+      "tooldia": 0.059055
+    }
+  },
+  "total_drills": 31,
+  "total_slots": 0,
+  "units": "IN",
+  "zeros": null
+}

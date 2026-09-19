@@ -1,0 +1,33 @@
+{
+  "aperture_count": 3,
+  "aperture_macro_count": 0,
+  "apertures": {
+    "0": {
+      "geometry_count": 2,
+      "size": 0.0,
+      "type": "REG"
+    },
+    "10": {
+      "geometry_count": 2,
+      "height": 0.07874,
+      "size": 0.091826,
+      "type": "R",
+      "width": 0.047244
+    },
+    "11": {
+      "geometry_count": 6,
+      "size": 0.024,
+      "type": "C"
+    }
+  },
+  "bounds": [
+    2.418,
+    0.826994,
+    2.963622,
+    1.251006
+  ],
+  "follow_geometry_count": 10,
+  "solid_geometry_part_count": 1,
+  "solid_geometry_total_area": 0.04745081,
+  "units": "IN"
+}

@@ -1,0 +1,60 @@
+{
+  "bounds": [
+    -5.6496,
+    -0.0629,
+    1.8503,
+    3.738
+  ],
+  "tool_count": 9,
+  "tools": {
+    "1": {
+      "drill_count": 2,
+      "slot_count": 0,
+      "tooldia": 0.02
+    },
+    "2": {
+      "drill_count": 7,
+      "slot_count": 0,
+      "tooldia": 0.08
+    },
+    "3": {
+      "drill_count": 10,
+      "slot_count": 0,
+      "tooldia": 0.06
+    },
+    "4": {
+      "drill_count": 42,
+      "slot_count": 0,
+      "tooldia": 0.03
+    },
+    "5": {
+      "drill_count": 9,
+      "slot_count": 0,
+      "tooldia": 0.065
+    },
+    "6": {
+      "drill_count": 12,
+      "slot_count": 0,
+      "tooldia": 0.045
+    },
+    "7": {
+      "drill_count": 12,
+      "slot_count": 0,
+      "tooldia": 0.04
+    },
+    "8": {
+      "drill_count": 4,
+      "slot_count": 0,
+      "tooldia": 0.1181
+    },
+    "9": {
+      "drill_count": 5,
+      "slot_count": 0,
+      "tooldia": 0.05
+    }
+  },
+  "total_drills": 103,
+  "total_slots": 0,
+  "units": "IN",
+  "zeros": null
+}

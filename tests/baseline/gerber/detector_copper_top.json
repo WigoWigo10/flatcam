@@ -1,0 +1,48 @@
+{
+  "aperture_count": 6,
+  "aperture_macro_count": 0,
+  "apertures": {
+    "10": {
+      "geometry_count": 16,
+      "size": 0.075,
+      "type": "C"
+    },
+    "11": {
+      "geometry_count": 6,
+      "size": 0.099055,
+      "type": "C"
+    },
+    "12": {
+      "geometry_count": 5,
+      "size": 0.07874,
+      "type": "C"
+    },
+    "13": {
+      "geometry_count": 2,
+      "height": 0.075,
+      "size": 0.106066,
+      "type": "R",
+      "width": 0.075
+    },
+    "14": {
+      "geometry_count": 1,
+      "size": 0.024,
+      "type": "C"
+    },
+    "15": {
+      "geometry_count": 2,
+      "size": 0.02,
+      "type": "C"
+    }
+  },
+  "bounds": [
+    0.299473,
+    0.0345,
+    1.4865,
+    1.021527
+  ],
+  "follow_geometry_count": 32,
+  "solid_geometry_part_count": 1,
+  "solid_geometry_total_area": 0.16205362,
+  "units": "IN"
+}

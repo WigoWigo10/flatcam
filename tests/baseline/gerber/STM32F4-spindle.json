@@ -1,0 +1,181 @@
+{
+  "aperture_count": 26,
+  "aperture_macro_count": 1,
+  "apertures": {
+    "10": {
+      "geometry_count": 1,
+      "height": 0.3,
+      "size": 0.424264,
+      "type": "R",
+      "width": 0.3
+    },
+    "11": {
+      "geometry_count": 1,
+      "height": 0.175,
+      "size": 0.479896,
+      "type": "R",
+      "width": 0.44685
+    },
+    "12": {
+      "geometry_count": 32,
+      "height": 0.01181,
+      "size": 0.048694,
+      "type": "R",
+      "width": 0.04724
+    },
+    "13": {
+      "geometry_count": 32,
+      "height": 0.04724,
+      "size": 0.048694,
+      "type": "R",
+      "width": 0.01181
+    },
+    "14": {
+      "geometry_count": 4,
+      "height": 0.04724,
+      "size": 0.072594,
+      "type": "R",
+      "width": 0.05512
+    },
+    "15": {
+      "geometry_count": 14,
+      "height": 0.06299,
+      "size": 0.081161,
+      "type": "R",
+      "width": 0.05118
+    },
+    "16": {
+      "geometry_count": 10,
+      "height": 0.05118,
+      "size": 0.081161,
+      "type": "R",
+      "width": 0.06299
+    },
+    "17": {
+      "geometry_count": 5,
+      "height": 0.01969,
+      "size": 0.10038,
+      "type": "R",
+      "width": 0.09843
+    },
+    "18": {
+      "geometry_count": 4,
+      "height": 0.07874,
+      "size": 0.126049,
+      "type": "R",
+      "width": 0.09843
+    },
+    "19": {
+      "geometry_count": 18,
+      "height": 0.05906,
+      "size": 0.07815,
+      "type": "R",
+      "width": 0.05118
+    },
+    "20": {
+      "geometry_count": 2,
+      "height": 0.05512,
+      "size": 0.063486,
+      "type": "R",
+      "width": 0.0315
+    },
+    "21": {
+      "geometry_count": 1,
+      "height": 0.0748,
+      "size": 0.081162,
+      "type": "R",
+      "width": 0.0315
+    },
+    "22": {
+      "geometry_count": 2,
+      "size": 0.06,
+      "type": "C"
+    },
+    "23": {
+      "geometry_count": 4,
+      "height": 0.07874,
+      "size": 0.098428,
+      "type": "R",
+      "width": 0.05906
+    },
+    "24": {
+      "geometry_count": 32,
+      "type": "AM"
+    },
+    "25": {
+      "geometry_count": 6,
+      "height": 0.05512,
+      "size": 0.077951,
+      "type": "R",
+      "width": 0.05512
+    },
+    "26": {
+      "geometry_count": 4,
+      "height": 0.04331,
+      "size": 0.133217,
+      "type": "R",
+      "width": 0.12598
+    },
+    "27": {
+      "geometry_count": 11,
+      "size": 0.074,
+      "type": "C"
+    },
+    "28": {
+      "geometry_count": 8,
+      "height": 0.07098,
+      "size": 0.094899,
+      "type": "R",
+      "width": 0.06299
+    },
+    "29": {
+      "geometry_count": 2,
+      "height": 0.04331,
+      "size": 0.05853,
+      "type": "R",
+      "width": 0.03937
+    },
+    "30": {
+      "geometry_count": 2,
+      "height": 0.05118,
+      "size": 0.07815,
+      "type": "R",
+      "width": 0.05906
+    },
+    "31": {
+      "geometry_count": 1661,
+      "size": 0.012,
+      "type": "C"
+    },
+    "32": {
+      "geometry_count": 10,
+      "size": 0.024,
+      "type": "C"
+    },
+    "33": {
+      "geometry_count": 13,
+      "size": 0.016,
+      "type": "C"
+    },
+    "34": {
+      "geometry_count": 18,
+      "size": 0.03181,
+      "type": "C"
+    },
+    "35": {
+      "geometry_count": 7,
+      "size": 0.04,
+      "type": "C"
+    }
+  },
+  "bounds": [
+    0.019677,
+    0.019677,
+    2.867323,
+    2.279923
+  ],
+  "follow_geometry_count": 1904,
+  "solid_geometry_part_count": 1,
+  "solid_geometry_total_area": 4.59429672,
+  "units": "IN"
+}
