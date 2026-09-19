@@ -1,0 +1,18 @@
+/*
+ * "CSS puro" family, dark palette. Same idea as vars-custom-light.css, just
+ * darker - still plain JavaFX (Modena) underneath, no AtlantaFX.
+ */
+.root {
+    -fx-base: #2b2b2b;
+    -fx-background: #2b2b2b;
+    -fx-control-inner-background: #333333;
+    -fx-text-base-color: #e0e0e0;
+    -fx-accent: #4a8bff;
+    -fx-font-size: 12px;
+
+    -fc-panel-bg: #303030;
+    -fc-panel-border: #1c1c1c;
+    -fc-panel-text: #e0e0e0;
+    -fc-viewport-bg: #101010;
+    -fc-viewport-fg: #8a8a8a;
+}

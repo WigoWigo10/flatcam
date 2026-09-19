@@ -57,7 +57,7 @@ final class MainWindow {
         root.setCenter(buildMainSplit());
 
         scene = new Scene(root);
-        Theme.LIGHT.applyTo(scene);
+        ThemeOption.CUSTOM_LIGHT.applyTo(scene);
         return scene;
     }
 
@@ -70,15 +70,7 @@ final class MainWindow {
         fileMenu.getItems().addAll(runDemoJob, new SeparatorMenuItem(), exitItem);
 
         Menu viewMenu = new Menu("Exibir");
-        ToggleGroup themeGroup = new ToggleGroup();
-        RadioMenuItem lightTheme = new RadioMenuItem("Tema claro");
-        lightTheme.setSelected(true);
-        lightTheme.setToggleGroup(themeGroup);
-        lightTheme.setOnAction(e -> Theme.LIGHT.applyTo(scene));
-        RadioMenuItem darkTheme = new RadioMenuItem("Tema escuro");
-        darkTheme.setToggleGroup(themeGroup);
-        darkTheme.setOnAction(e -> Theme.DARK.applyTo(scene));
-        viewMenu.getItems().addAll(lightTheme, darkTheme);
+        viewMenu.getItems().add(buildThemeMenu());
 
         Menu helpMenu = new Menu("Ajuda");
         MenuItem aboutItem = new MenuItem("Sobre");
@@ -86,6 +78,39 @@ final class MainWindow {
         helpMenu.getItems().add(aboutItem);
 
         return new MenuBar(fileMenu, viewMenu, helpMenu);
+    }
+
+    /**
+     * Both theme families side by side (CSS puro / AtlantaFX), light and
+     * dark in each, one ToggleGroup shared across both submenus so only one
+     * option is ever selected at a time.
+     */
+    private Menu buildThemeMenu() {
+        ToggleGroup themeGroup = new ToggleGroup();
+
+        Menu customMenu = new Menu("CSS puro");
+        customMenu.getItems().addAll(
+                themeItem(ThemeOption.CUSTOM_LIGHT, themeGroup, true),
+                themeItem(ThemeOption.CUSTOM_DARK, themeGroup, false)
+        );
+
+        Menu atlantaFxMenu = new Menu("AtlantaFX");
+        atlantaFxMenu.getItems().addAll(
+                themeItem(ThemeOption.ATLANTAFX_LIGHT, themeGroup, false),
+                themeItem(ThemeOption.ATLANTAFX_DARK, themeGroup, false)
+        );
+
+        Menu themeMenu = new Menu("Tema");
+        themeMenu.getItems().addAll(customMenu, atlantaFxMenu);
+        return themeMenu;
+    }
+
+    private RadioMenuItem themeItem(ThemeOption option, ToggleGroup group, boolean selected) {
+        RadioMenuItem item = new RadioMenuItem(option.label());
+        item.setToggleGroup(group);
+        item.setSelected(selected);
+        item.setOnAction(e -> option.applyTo(scene));
+        return item;
     }
 
     private ToolBar buildToolBar() {

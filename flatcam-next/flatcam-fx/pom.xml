@@ -45,6 +45,13 @@
             <artifactId>javafx-base</artifactId>
             <version>${javafx.version}</version>
         </dependency>
+
+        <!-- Optional theme family, alongside the hand-written CSS in resources/org/flatcam/fx/theme -->
+        <dependency>
+            <groupId>io.github.mkpaz</groupId>
+            <artifactId>atlantafx-base</artifactId>
+            <version>2.1.0</version>
+        </dependency>
     </dependencies>
 
     <build>

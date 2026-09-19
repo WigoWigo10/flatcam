@@ -1,0 +1,11 @@
+/*
+ * "AtlantaFX" family, dark palette (paired with PrimerDark). See
+ * vars-atlantafx-light.css.
+ */
+.root {
+    -fc-panel-bg: #22272e;
+    -fc-panel-border: #444c56;
+    -fc-panel-text: #adbac7;
+    -fc-viewport-bg: #0d1117;
+    -fc-viewport-fg: #8b949e;
+}

@@ -1,0 +1,13 @@
+/*
+ * "AtlantaFX" family, light palette (paired with PrimerLight as the
+ * user-agent stylesheet - see ThemeOption). Only the -fc-* custom properties
+ * our own panes use; everything else (buttons, fields, ...) comes from
+ * AtlantaFX itself, so no -fx-base/-fx-accent overrides here.
+ */
+.root {
+    -fc-panel-bg: #f6f8fa;
+    -fc-panel-border: #d0d7de;
+    -fc-panel-text: #1f2328;
+    -fc-viewport-bg: #1e1e1e;
+    -fc-viewport-fg: #cfcfcf;
+}

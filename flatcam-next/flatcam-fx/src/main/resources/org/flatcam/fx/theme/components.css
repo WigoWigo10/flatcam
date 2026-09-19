@@ -1,0 +1,38 @@
+/*
+ * Structure/layout rules for our own custom panes, shared by every palette
+ * (vars-*.css). Only -fc-* custom properties are referenced here so the same
+ * file works whether the base look is plain JavaFX (Modena) or an AtlantaFX
+ * user-agent stylesheet - see ThemeOption.
+ */
+
+.side-panel {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 6;
+    -fx-spacing: 4;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 0 1 0 0;
+}
+
+.side-panel .label {
+    -fx-text-fill: -fc-panel-text;
+}
+
+.bottom-panel {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 4;
+    -fx-spacing: 4;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+.bottom-panel .label {
+    -fx-text-fill: -fc-panel-text;
+}
+
+.viewport-placeholder {
+    -fx-background-color: -fc-viewport-bg;
+}
+
+.viewport-placeholder .label {
+    -fx-text-fill: -fc-viewport-fg;
+}

@@ -1,0 +1,17 @@
+/*
+ * "CSS puro" family, light palette. No AtlantaFX involved - the base look is
+ * plain JavaFX (Modena), tweaked via -fx-base/-fx-accent, in the same spirit
+ * as UGS-FX's root.css (a small hand-written palette on top of the default).
+ */
+.root {
+    -fx-base: #f2f2f2;
+    -fx-background: #f2f2f2;
+    -fx-accent: #2f6fed;
+    -fx-font-size: 12px;
+
+    -fc-panel-bg: #ffffff;
+    -fc-panel-border: #d9d9d9;
+    -fc-panel-text: #202020;
+    -fc-viewport-bg: #1e1e1e;
+    -fc-viewport-fg: #cfcfcf;
+}
