@@ -31,6 +31,11 @@ public class MainApp extends Application {
             AppPreferences.saveWindowSize(primaryStage.getWidth(), primaryStage.getHeight());
             mainWindow.saveSplitPositions();
         });
+        // Matches the legacy app, which always opens maximized regardless of its last
+        // saved window size - setWidth/Height above still matter as the size restored
+        // if the user un-maximizes later. Set before show() so it takes effect without
+        // a visible flash of the un-maximized size first.
+        primaryStage.setMaximized(true);
         primaryStage.show();
 
         LOG.log(Level.INFO, "MainApp started");
