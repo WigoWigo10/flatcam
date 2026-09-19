@@ -108,12 +108,24 @@ def _round(value, places=6):
 
 
 def _iter_geoms(solid_geometry):
+    """
+    Recursively flattens to leaf (non-container) geometries. Gerber.solid_geometry
+    can be a plain Shapely geometry, a list of geometries, or - as seen with
+    simple1.gbr - a length-1 list wrapping a MultiPolygon: a shallow check
+    (list vs geometry) undercounts real disjoint parts in that case.
+    """
     if solid_geometry is None:
         return []
     if hasattr(solid_geometry, 'geoms'):  # MultiPolygon / GeometryCollection
-        return list(solid_geometry.geoms)
+        result = []
+        for g in solid_geometry.geoms:
+            result.extend(_iter_geoms(g))
+        return result
     if isinstance(solid_geometry, (list, tuple)):
-        return list(solid_geometry)
+        result = []
+        for g in solid_geometry:
+            result.extend(_iter_geoms(g))
+        return result
     return [solid_geometry]
 
 
