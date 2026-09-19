@@ -5,6 +5,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import org.flatcam.cam.cutout.CutoutGenerator;
+import org.flatcam.cam.cutout.CutoutKind;
+import org.flatcam.cam.cutout.CutoutParameters;
+import org.flatcam.cam.cutout.CutoutResult;
+import org.flatcam.cam.cutout.CutoutShape;
+import org.flatcam.cam.cutout.GapPattern;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberParser;
@@ -144,11 +150,71 @@ class GCodeGeneratorTest {
     }
 
     @Test
+    void cutoutMultiDepthRetracesTheWholePathAtEachStep() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE, CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
+
+        // depthPerPass 0.05 into a cutDepth of 0.12 must step 0.05, 0.10, 0.12 - three passes, not one.
+        CncJobResult result = GCodeGenerator.generateCutoutCncJob(cutout,
+                new CutoutGCodeParameters(0.1, 0.12, true, 0.05, 10, 0), 0.02);
+
+        assertEquals(1, countOccurrences(result.gcode(), "G1 Z-0.0500"));
+        assertEquals(1, countOccurrences(result.gcode(), "G1 Z-0.1000"));
+        assertEquals(1, countOccurrences(result.gcode(), "G1 Z-0.1200"));
+        assertTrue(result.gcode().trim().endsWith("M30"));
+    }
+
+    @Test
+    void cutoutSinglePassPlungesStraightToCutDepth() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE, CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
+
+        CncJobResult result = GCodeGenerator.generateCutoutCncJob(cutout,
+                new CutoutGCodeParameters(0.1, 0.12, false, 0.05, 10, 0), 0.02);
+
+        assertEquals(1, countOccurrences(result.gcode(), "G1 Z-0.1200"));
+        assertEquals(0, countOccurrences(result.gcode(), "G1 Z-0.0500"), "no intermediate step without multi-depth");
+    }
+
+    @Test
+    void cutoutTravelBetweenGapArcsStaysShortInsteadOfCrossingTheBoard() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        // FOUR bridge gaps split the one outline into 4 open arcs. The bug this guards against:
+        // GeometryCollection part order after gap-splitting doesn't follow the perimeter, so naively
+        // travelling arcs in that raw order produced a travel move straight across the board's
+        // diagonal instead of a short hop to the physically nearest arc end.
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE, CutoutShape.FREEFORM, 0.05, GapPattern.FOUR));
+        double[] bounds = cutout.bounds();
+        double boardDiagonal = Math.hypot(bounds[2] - bounds[0], bounds[3] - bounds[1]);
+        assertEquals(4, cutout.partCount(), "FOUR gaps must split the one outline into 4 open arcs");
+
+        // Exercises the ordering fix directly, starting from a point already on the board (not the
+        // implied machine origin at (0,0), whose own unavoidably-long first hop would otherwise
+        // swamp any bounding-box-based measurement of the REST of the hops).
+        var ordered = GCodeGenerator.orderedByNearestNeighbor(cutout.geometry(), bounds[0], bounds[1]);
+        assertEquals(4, ordered.size());
+        for (int i = 1; i < ordered.size(); i++) {
+            var previousEnd = ordered.get(i - 1)[ordered.get(i - 1).length - 1];
+            var nextStart = ordered.get(i)[0];
+            double hop = Math.hypot(nextStart.x - previousEnd.x, nextStart.y - previousEnd.y);
+            assertTrue(hop < boardDiagonal * 0.5,
+                    "hop " + i + " between adjacent gap arcs should stay local (" + hop + " vs board diagonal " + boardDiagonal + ")");
+        }
+    }
+
+    @Test
     void rejectsNonPositiveParameters() {
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(0, 1.6, 300, 0, false));
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(3.0, 0, 300, 0, false));
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(3.0, 1.6, 0, 0, false));
         assertThrows(IllegalArgumentException.class, () -> new DrillGCodeParameters(3.0, 1.6, 300, -1, false));
+        assertThrows(IllegalArgumentException.class, () -> new CutoutGCodeParameters(0, 1.6, false, 0, 300, 0));
+        assertThrows(IllegalArgumentException.class, () -> new CutoutGCodeParameters(3.0, 0, false, 0, 300, 0));
+        assertThrows(IllegalArgumentException.class, () -> new CutoutGCodeParameters(3.0, 1.6, true, 0, 300, 0),
+                "depthPerPass must be positive when multiDepth is on");
     }
 
     @Test

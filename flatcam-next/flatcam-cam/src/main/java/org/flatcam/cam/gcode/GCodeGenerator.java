@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.locationtech.jts.geom.Coordinate;
@@ -173,13 +174,7 @@ public final class GCodeGenerator {
         double lastX = 0;
         double lastY = 0;
 
-        Geometry geometry = result.geometry();
-        int count = geometry.getNumGeometries();
-        for (int i = 0; i < count; i++) {
-            Coordinate[] coordinates = ringCoordinates(geometry.getGeometryN(i));
-            if (coordinates == null || coordinates.length == 0) {
-                continue;
-            }
+        for (Coordinate[] coordinates : orderedByNearestNeighbor(result.geometry(), lastX, lastY)) {
             addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
             cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
             Coordinate last = coordinates[coordinates.length - 1];
@@ -200,6 +195,81 @@ public final class GCodeGenerator {
         line(gcode, "G0 Z%s", fmt(params.safeZ()));
         line(gcode, "M30");
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+    }
+
+    /**
+     * Generates cutout G-code: one rapid+plunge(es)+follow-path+retract per
+     * disjoint path in the result (see CutoutGenerator) - a path is open,
+     * not closed, wherever a bridge gap interrupts it, so (unlike
+     * isolation's closed rings) the tool simply lifts, stops tracing, and
+     * the next path starts fresh; it never needs to jump over a gap
+     * mid-path. When params.multiDepth() is on, the ENTIRE path is
+     * re-traced at each intermediate Z step down to cutDepth (appTools/
+     * ToolCutOut.py's "Multi-Depth" behavior), not just plunged deeper once.
+     */
+    public static CncJobResult generateCutoutCncJob(CutoutResult result, CutoutGCodeParameters params, double toolDiameter) {
+        StringBuilder gcode = new StringBuilder();
+        line(gcode, "; Gerado por FlatCAM Next (prototipo) - recorte de placa (cutout)");
+        line(gcode, "; Unidades do arquivo de origem: %s", result.units());
+        line(gcode, result.units().equals("MM") ? "G21" : "G20");
+        line(gcode, "G90");
+        line(gcode, "G94");
+        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        if (params.spindleSpeedRpm() > 0) {
+            line(gcode, "M3 S%d", params.spindleSpeedRpm());
+        }
+
+        double radius = toolDiameter / 2.0;
+        List<Geometry> travelShapes = new ArrayList<>();
+        List<Geometry> cutShapes = new ArrayList<>();
+        double lastX = 0;
+        double lastY = 0;
+
+        List<Double> depths = passDepths(params.cutDepth(), params.multiDepth(), params.depthPerPass());
+
+        for (Coordinate[] coordinates : orderedByNearestNeighbor(result.geometry(), lastX, lastY)) {
+            addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
+            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
+            Coordinate last = coordinates[coordinates.length - 1];
+            lastX = last.x;
+            lastY = last.y;
+
+            line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+            for (double depth : depths) {
+                line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
+                for (int p = 1; p < coordinates.length; p++) {
+                    line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x), fmt(coordinates[p].y), fmt(params.feedRate()));
+                }
+                if (depth != depths.get(depths.size() - 1)) {
+                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                    line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                }
+            }
+            line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        }
+
+        if (params.spindleSpeedRpm() > 0) {
+            line(gcode, "M5");
+        }
+        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        line(gcode, "M30");
+        return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+    }
+
+    /** [depthPerPass, 2*depthPerPass, ..., cutDepth] when multiDepth is on, else just [cutDepth]. */
+    private static List<Double> passDepths(double cutDepth, boolean multiDepth, double depthPerPass) {
+        List<Double> depths = new ArrayList<>();
+        if (!multiDepth) {
+            depths.add(cutDepth);
+            return depths;
+        }
+        double depth = depthPerPass;
+        while (depth < cutDepth) {
+            depths.add(depth);
+            depth += depthPerPass;
+        }
+        depths.add(cutDepth);
+        return depths;
     }
 
     private static void addTravel(List<Geometry> travelShapes, double fromX, double fromY, double toX, double toY, double radius) {
@@ -224,6 +294,72 @@ public final class GCodeGenerator {
             return GEOMETRY_FACTORY.createGeometryCollection();
         }
         return shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes);
+    }
+
+    /**
+     * A GeometryCollection's part order (e.g. after CutoutGenerator splits one
+     * outline into several open arcs at each bridge gap, or LineMerger's own
+     * internal edge bookkeeping for isolation's rings) reflects however the
+     * union/merge algorithm happened to build it, not perimeter-adjacency -
+     * connecting travel moves in that raw order produced long diagonal chords
+     * across the board instead of short hops between adjacent arc ends. This
+     * greedily visits, from the current position, whichever remaining piece's
+     * start OR end is nearest (reversing it if approaching from its end is
+     * closer), the standard "traveling salesman, nearest neighbor" heuristic
+     * - not optimal, but more than enough to turn corner-to-corner jumps into
+     * hops of a few gap-widths.
+     */
+    static List<Coordinate[]> orderedByNearestNeighbor(Geometry geometry, double startX, double startY) {
+        List<Coordinate[]> remaining = new ArrayList<>();
+        for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            Coordinate[] coordinates = ringCoordinates(geometry.getGeometryN(i));
+            if (coordinates != null && coordinates.length > 0) {
+                remaining.add(coordinates);
+            }
+        }
+
+        List<Coordinate[]> ordered = new ArrayList<>(remaining.size());
+        double currentX = startX;
+        double currentY = startY;
+        while (!remaining.isEmpty()) {
+            int bestIndex = 0;
+            boolean bestReversed = false;
+            double bestDistance = Double.MAX_VALUE;
+            for (int i = 0; i < remaining.size(); i++) {
+                Coordinate[] candidate = remaining.get(i);
+                Coordinate first = candidate[0];
+                Coordinate last = candidate[candidate.length - 1];
+                double distanceToStart = Math.hypot(first.x - currentX, first.y - currentY);
+                double distanceToEnd = Math.hypot(last.x - currentX, last.y - currentY);
+                if (distanceToStart < bestDistance) {
+                    bestDistance = distanceToStart;
+                    bestIndex = i;
+                    bestReversed = false;
+                }
+                if (distanceToEnd < bestDistance) {
+                    bestDistance = distanceToEnd;
+                    bestIndex = i;
+                    bestReversed = true;
+                }
+            }
+            Coordinate[] chosen = remaining.remove(bestIndex);
+            if (bestReversed) {
+                chosen = reversed(chosen);
+            }
+            ordered.add(chosen);
+            Coordinate end = chosen[chosen.length - 1];
+            currentX = end.x;
+            currentY = end.y;
+        }
+        return ordered;
+    }
+
+    private static Coordinate[] reversed(Coordinate[] coordinates) {
+        Coordinate[] result = new Coordinate[coordinates.length];
+        for (int i = 0; i < coordinates.length; i++) {
+            result[i] = coordinates[coordinates.length - 1 - i];
+        }
+        return result;
     }
 
     private static Coordinate[] ringCoordinates(Geometry geometry) {
