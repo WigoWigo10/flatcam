@@ -1,0 +1,40 @@
+.root {
+    -fx-base: #2b2b2b;
+    -fx-background: #2b2b2b;
+    -fx-control-inner-background: #333333;
+    -fx-text-base-color: #e0e0e0;
+    -fx-accent: #4a8bff;
+    -fx-font-size: 12px;
+}
+
+.side-panel {
+    -fx-background-color: #303030;
+    -fx-padding: 6;
+    -fx-spacing: 4;
+    -fx-border-color: #1c1c1c;
+    -fx-border-width: 0 1 0 0;
+}
+
+.side-panel .label {
+    -fx-text-fill: #e0e0e0;
+}
+
+.viewport-placeholder {
+    -fx-background-color: #101010;
+}
+
+.viewport-placeholder .label {
+    -fx-text-fill: #8a8a8a;
+}
+
+.bottom-panel {
+    -fx-background-color: #303030;
+    -fx-padding: 4;
+    -fx-spacing: 4;
+    -fx-border-color: #1c1c1c;
+    -fx-border-width: 1 0 0 0;
+}
+
+.bottom-panel .label {
+    -fx-text-fill: #e0e0e0;
+}
