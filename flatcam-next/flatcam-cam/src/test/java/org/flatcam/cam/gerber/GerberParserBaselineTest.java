@@ -61,7 +61,9 @@ class GerberParserBaselineTest {
             new Fixture("tests/gerber_files/detector_contour.gbr", "detector_contour"),
             new Fixture("tests/gerber_files/detector_copper_top.gbr", "detector_copper_top"),
             new Fixture("tests/gerber_files/detector_copper_bottom.gbr", "detector_copper_bottom"),
-            new Fixture("tests/gerber_files/STM32F4-spindle.cmp", "STM32F4-spindle")
+            new Fixture("tests/gerber_files/STM32F4-spindle.cmp", "STM32F4-spindle"),
+            new Fixture("tests/gerber_files/arc_multi.gbr", "arc_multi"),
+            new Fixture("tests/gerber_files/arc_single.gbr", "arc_single")
     );
 
     @TestFactory

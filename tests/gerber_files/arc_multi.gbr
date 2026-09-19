@@ -1,0 +1,9 @@
+G04 Synthetic fixture: one G75 (multi-quadrant) G02 semicircle*
+%FSLAX33Y33*%
+%MOMM*%
+%ADD10C,0.500*%
+D10*
+G75*
+X0Y0D02*
+G02X10000Y0I5000J0D01*
+M02*

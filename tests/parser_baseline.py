@@ -33,6 +33,8 @@ GERBER_FIXTURES = [
     'tests/gerber_files/detector_copper_top.gbr',
     'tests/gerber_files/detector_copper_bottom.gbr',
     'tests/gerber_files/STM32F4-spindle.cmp',
+    'tests/gerber_files/arc_multi.gbr',
+    'tests/gerber_files/arc_single.gbr',
 ]
 
 EXCELLON_FIXTURES = [

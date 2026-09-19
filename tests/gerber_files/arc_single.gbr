@@ -1,0 +1,9 @@
+G04 Synthetic fixture: one G74 (single-quadrant) G03 quarter circle*
+%FSLAX33Y33*%
+%MOMM*%
+%ADD10C,0.500*%
+D10*
+G74*
+X0Y0D02*
+G03X5000Y5000I0J5000D01*
+M02*
