@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
@@ -24,6 +25,7 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.Separator;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.control.SeparatorMenuItem;
 import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
@@ -119,6 +121,7 @@ final class MainWindow {
     private Scene scene;
     private SplitPane horizontalSplit;
     private SplitPane verticalSplit;
+    private TreeView<String> projectTree;
     private TreeItem<String> gerbersNode;
     private TreeItem<String> excellonNode;
     private TreeItem<String> cncJobsNode;
@@ -363,11 +366,18 @@ final class MainWindow {
      * are opened, or as drilling G-code is generated - Geometry has no Java
      * generator yet) carry a {@link GerberImage}, {@link ExcellonImage} or
      * {@link CncJobEntry} in {@link #gerberByItem}/{@link #excellonByItem}/
-     * {@link #cncJobByItem} and get a context menu. Only "Exibir no Plot
-     * Area"/"Ver G-code" and "Remover" are wired - the legacy per-object menu
-     * also has Set Color, Edit, Copy, Save (see UI_INVENTORY.md section 1),
-     * which need subsystems (plot state, editors, project format) this phase
-     * doesn't have yet.
+     * {@link #cncJobByItem} and get a context menu.
+     *
+     * <p>Multi-selection (Ctrl/Shift-click, ObjectCollection.py's
+     * ExtendedSelection) is enabled: right-clicking with more than one row
+     * selected shows a shared "Ativar/Desativar/Remover" menu applying to
+     * the whole selection instead of a single object's menu - matching
+     * appObjects/ObjectCollection.py's on_menu_request(), which always pops
+     * the same menuproject regardless of how many rows are selected, and
+     * app_Main.py's on_enable_sel_plots()/on_disable_sel_plots()/on_delete(),
+     * which all iterate self.collection.get_selected(). The per-object menu
+     * (Set Color, Edit, Copy, Save from UI_INVENTORY.md section 1) still
+     * needs subsystems (editors, project format) this phase doesn't have.
      */
     private TreeView<String> buildProjectTree() {
         TreeItem<String> root = new TreeItem<>("Projeto");
@@ -385,50 +395,119 @@ final class MainWindow {
                 cncJobsNode
         );
 
-        TreeView<String> tree = new TreeView<>(root);
-        tree.setShowRoot(false);
-        tree.getSelectionModel().selectedItemProperty().addListener((obs, previous, selected) -> showProperties(selected));
-        tree.setCellFactory(view -> new TreeCell<>() {
-            @Override
-            protected void updateItem(String value, boolean empty) {
-                super.updateItem(value, empty);
-                if (empty || value == null) {
-                    setText(null);
-                    setContextMenu(null);
+        projectTree = new TreeView<>(root);
+        projectTree.setShowRoot(false);
+        projectTree.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        projectTree.getSelectionModel().selectedItemProperty().addListener((obs, previous, selected) -> showProperties(selected));
+        projectTree.setCellFactory(view -> {
+            TreeCell<String> cell = new TreeCell<>() {
+                @Override
+                protected void updateItem(String value, boolean empty) {
+                    super.updateItem(value, empty);
+                    setText(empty || value == null ? null : value);
+                }
+            };
+            // Populating a ContextMenu's items inside its own setOnShowing (instead of
+            // before the initial show() call) left the popup sized to zero the first
+            // time - it never appeared. Building the menu synchronously in response to
+            // the actual right-click, then calling show() ourselves, avoids that.
+            cell.setOnContextMenuRequested(event -> {
+                TreeItem<String> item = cell.getTreeItem();
+                if (item == null) {
                     return;
                 }
-                setText(value);
-                TreeItem<String> item = getTreeItem();
-                GerberImage gerberImage = gerberByItem.get(item);
-                ExcellonImage excellonImage = excellonByItem.get(item);
-                CncJobEntry cncJob = cncJobByItem.get(item);
-                if (gerberImage != null) {
-                    setContextMenu(buildGerberContextMenu(item, gerberImage));
-                } else if (excellonImage != null) {
-                    setContextMenu(buildExcellonContextMenu(item, excellonImage));
-                } else if (cncJob != null) {
-                    setContextMenu(buildCncJobContextMenu(item, cncJob));
-                } else {
-                    setContextMenu(null);
+                ContextMenu menu = buildContextMenuFor(item);
+                if (!menu.getItems().isEmpty()) {
+                    menu.show(cell, event.getScreenX(), event.getScreenY());
                 }
-            }
+                event.consume();
+            });
+            return cell;
         });
-        return tree;
+        return projectTree;
+    }
+
+    /**
+     * Built fresh on every right-click (not once per row) so it always
+     * reflects the CURRENT selection at click time, same as the legacy
+     * app's shared menuproject: with more than one row selected, show the
+     * bulk Ativar/Desativar/Remover menu; otherwise the rich single-object
+     * menu for whichever kind {@code item} is.
+     */
+    private ContextMenu buildContextMenuFor(TreeItem<String> item) {
+        List<TreeItem<String>> selected = projectTree.getSelectionModel().getSelectedItems().stream()
+                .filter(Objects::nonNull).distinct().toList();
+        if (selected.size() > 1 && selected.contains(item)) {
+            return new ContextMenu(buildBulkContextMenuItems(selected).toArray(new MenuItem[0]));
+        }
+        GerberImage gerberImage = gerberByItem.get(item);
+        ExcellonImage excellonImage = excellonByItem.get(item);
+        CncJobEntry cncJob = cncJobByItem.get(item);
+        if (gerberImage != null) {
+            return new ContextMenu(gerberContextMenuItems(item, gerberImage).toArray(new MenuItem[0]));
+        } else if (excellonImage != null) {
+            return new ContextMenu(excellonContextMenuItems(item, excellonImage).toArray(new MenuItem[0]));
+        } else if (cncJob != null) {
+            return new ContextMenu(cncJobContextMenuItems(item, cncJob).toArray(new MenuItem[0]));
+        }
+        return new ContextMenu();
+    }
+
+    /**
+     * "Ativar Plot"/"Desativar Plot" (skipping CNC Jobs, which have no plot
+     * layer) and "Remover" for the whole current selection - the multi-
+     * select counterpart of app_Main.py's on_enable_sel_plots()/
+     * on_disable_sel_plots()/on_delete(), each of which loops over
+     * self.collection.get_selected() instead of a single object.
+     */
+    private List<MenuItem> buildBulkContextMenuItems(List<TreeItem<String>> selected) {
+        long plottable = selected.stream().filter(this::isPlottable).count();
+
+        MenuItem enableItem = new MenuItem("Ativar Plot (" + plottable + ")");
+        enableItem.setDisable(plottable == 0);
+        enableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
+                .forEach(i -> plotAreaView.setLayerVisible(i, true)));
+
+        MenuItem disableItem = new MenuItem("Desativar Plot (" + plottable + ")");
+        disableItem.setDisable(plottable == 0);
+        disableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
+                .forEach(i -> plotAreaView.setLayerVisible(i, false)));
+
+        MenuItem removeItem = new MenuItem("Remover (" + selected.size() + ")");
+        removeItem.setOnAction(e -> removeSelectionFromProject(selected));
+
+        return List.of(enableItem, disableItem, removeItem);
+    }
+
+    private boolean isPlottable(TreeItem<String> item) {
+        return gerberByItem.containsKey(item) || excellonByItem.containsKey(item);
+    }
+
+    private void removeSelectionFromProject(List<TreeItem<String>> items) {
+        for (TreeItem<String> item : items) {
+            if (gerberByItem.containsKey(item)) {
+                removeFromProject(item, gerberByItem);
+            } else if (excellonByItem.containsKey(item)) {
+                removeFromProject(item, excellonByItem);
+            } else if (cncJobByItem.containsKey(item)) {
+                removeFromProject(item, cncJobByItem);
+            }
+        }
     }
 
     /**
      * "Exibir no Plot Area", "Ativar/Desativar Plot", "Definir Cor...",
-     * "Gerar Isolamento..." and "Remover" for a Gerber tree item - the
-     * visibility toggle and color picker mirror the legacy per-object menu's
-     * Enable/Disable Plot and Set Color (UI_INVENTORY.md section 1), now
-     * that each object is its own PlotAreaView layer instead of one
+     * "Gerar Isolamento..." and "Remover" for a single Gerber tree item -
+     * the visibility toggle and color picker mirror the legacy per-object
+     * menu's Enable/Disable Plot and Set Color (UI_INVENTORY.md section 1),
+     * now that each object is its own PlotAreaView layer instead of one
      * replacing another.
      */
-    private ContextMenu buildGerberContextMenu(TreeItem<String> item, GerberImage image) {
+    private List<MenuItem> gerberContextMenuItems(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> focusLayer(item));
 
-        MenuItem visibilityItem = new MenuItem();
+        MenuItem visibilityItem = new MenuItem(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot");
         visibilityItem.setOnAction(e -> plotAreaView.setLayerVisible(item, !plotAreaView.isLayerVisible(item)));
 
         MenuItem colorItem = new MenuItem("Definir Cor...");
@@ -440,17 +519,15 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
-        ContextMenu menu = new ContextMenu(showItem, visibilityItem, colorItem, isolationItem, removeItem);
-        menu.setOnShowing(e -> visibilityItem.setText(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot"));
-        return menu;
+        return List.of(showItem, visibilityItem, colorItem, isolationItem, removeItem);
     }
 
-    /** Same as {@link #buildGerberContextMenu}, minus isolation, plus "Gerar G-code de furacao". */
-    private ContextMenu buildExcellonContextMenu(TreeItem<String> item, ExcellonImage image) {
+    /** Same as {@link #gerberContextMenuItems}, minus isolation, plus "Gerar G-code de furacao". */
+    private List<MenuItem> excellonContextMenuItems(TreeItem<String> item, ExcellonImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> focusLayer(item));
 
-        MenuItem visibilityItem = new MenuItem();
+        MenuItem visibilityItem = new MenuItem(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot");
         visibilityItem.setOnAction(e -> plotAreaView.setLayerVisible(item, !plotAreaView.isLayerVisible(item)));
 
         MenuItem colorItem = new MenuItem("Definir Cor...");
@@ -462,9 +539,7 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
 
-        ContextMenu menu = new ContextMenu(showItem, visibilityItem, colorItem, gcodeItem, removeItem);
-        menu.setOnShowing(e -> visibilityItem.setText(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot"));
-        return menu;
+        return List.of(showItem, visibilityItem, colorItem, gcodeItem, removeItem);
     }
 
     private void focusLayer(TreeItem<String> item) {
@@ -482,14 +557,14 @@ final class MainWindow {
                 .ifPresent(fill -> plotAreaView.setLayerColors(item, fill, fill.darker()));
     }
 
-    private ContextMenu buildCncJobContextMenu(TreeItem<String> item, CncJobEntry entry) {
+    private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {
         MenuItem viewItem = new MenuItem("Ver G-code");
         viewItem.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
 
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, cncJobByItem));
 
-        return new ContextMenu(viewItem, removeItem);
+        return List.of(viewItem, removeItem);
     }
 
     private TextArea buildGCodeViewer(String gcode) {
