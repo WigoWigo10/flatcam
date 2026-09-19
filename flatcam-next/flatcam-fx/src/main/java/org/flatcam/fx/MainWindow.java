@@ -27,6 +27,7 @@ import javafx.scene.control.SplitPane;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
+import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
@@ -83,9 +84,14 @@ final class MainWindow {
     private final TabPane centerTabs = new TabPane();
     private final Label propertiesLabel = new Label("Selecione um objeto\npara ver seus parametros.");
 
-    /** Files opened so far, keyed by their tree item - back the Properties tab and the item context menu. */
+    /** A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator writes one. */
+    private record CncJobEntry(String sourceName, Path outputFile, String gcode) {
+    }
+
+    /** Files opened/generated so far, keyed by their tree item - back the Properties tab and the item context menu. */
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, CncJobEntry> cncJobByItem = new LinkedHashMap<>();
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
@@ -94,6 +100,10 @@ final class MainWindow {
     private SplitPane verticalSplit;
     private TreeItem<String> gerbersNode;
     private TreeItem<String> excellonNode;
+    private TreeItem<String> cncJobsNode;
+    private VBox bottomPanel;
+    private double dividerBeforeConsoleCollapse = 0.75;
+    private boolean consoleCollapsed;
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private JobHandle<?> runningJob;
 
@@ -114,7 +124,30 @@ final class MainWindow {
 
     /** Called by MainApp on window close - split-divider positions have no natural "save now" moment otherwise. */
     void saveSplitPositions() {
+        if (consoleCollapsed) {
+            return; // the collapsed (~1.0) position is not a real layout preference - see toggleConsole().
+        }
         AppPreferences.saveSplitPositions(horizontalSplit.getDividerPositions()[0], verticalSplit.getDividerPositions()[0]);
+    }
+
+    /**
+     * Collapses the resizable progress/console panel, or restores it. Moving the
+     * divider to 1.0 alone does not reach a true 100% collapse - the console
+     * TextArea has a nonzero intrinsic min-height, so a sliver always stayed
+     * visible. Removing the pane from the SplitPane's items entirely (and
+     * re-adding it to restore) has no such floor.
+     */
+    private void toggleConsole(boolean show) {
+        if (!show) {
+            dividerBeforeConsoleCollapse = verticalSplit.getDividerPositions()[0];
+            consoleCollapsed = true;
+            verticalSplit.getItems().remove(bottomPanel);
+        } else {
+            consoleCollapsed = false;
+            verticalSplit.getItems().add(bottomPanel);
+            verticalSplit.setDividerPositions(dividerBeforeConsoleCollapse);
+            attachVerticalDividerSaveListener(); // re-adding creates a new Divider instance.
+        }
     }
 
     private MenuBar buildMenuBar() {
@@ -217,11 +250,23 @@ final class MainWindow {
      * open. The units label reflects the last-opened Gerber's real units;
      * everything else the legacy status bar shows (grid, workspace size, HUD
      * toggles) needs state this phase doesn't have yet.
+     *
+     * <p>The console/shell toggle lives here, not the top toolbar - confirmed
+     * against appGUI/MainGUI.py: shell_status_label is a clickable icon added
+     * to status_toolbar, which is added to infobar (the bottom status bar),
+     * not any top toolbar.
      */
     private HBox buildStatusBar() {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox bar = new HBox(6, statusDot, statusLabel, spacer, unitsLabel);
+
+        ToggleButton consoleToggle = new ToggleButton(null, Icons.terminal(14));
+        consoleToggle.setTooltip(new Tooltip("Mostrar/ocultar console"));
+        consoleToggle.getStyleClass().add("status-bar-toggle");
+        consoleToggle.setSelected(true);
+        consoleToggle.setOnAction(e -> toggleConsole(consoleToggle.isSelected()));
+
+        HBox bar = new HBox(6, statusDot, statusLabel, spacer, consoleToggle, unitsLabel);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("status-bar");
         return bar;
@@ -234,19 +279,35 @@ final class MainWindow {
 
     private SplitPane buildMainSplit() {
         horizontalSplit = new SplitPane(buildLeftTabs(), buildCenterTabs());
-        horizontalSplit.setDividerPositions(AppPreferences.loadSplitHorizontal(0.22));
-
-        verticalSplit = new SplitPane(horizontalSplit, buildBottomPanel());
+        bottomPanel = buildBottomPanel();
+        verticalSplit = new SplitPane(horizontalSplit, bottomPanel);
         verticalSplit.setOrientation(Orientation.VERTICAL);
-        verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
 
-        // Save on every drag, not just on window close - relying only on the close
-        // handler lost divider positions in practice (see AppPreferences).
-        horizontalSplit.getDividers().get(0).positionProperty()
-                .addListener((obs, oldVal, newVal) -> saveSplitPositions());
+        // SplitPane does not reliably honor a divider position set before its first
+        // layout pass - measured drift on a loaded 0.55: it settled at ~0.51 by the next
+        // launch, because the save listener (attached below) caught that settling as if
+        // it were a real change and persisted it. Deferring the initial set past the
+        // first layout, then attaching the listener, avoids that drift entirely.
+        Platform.runLater(() -> {
+            horizontalSplit.setDividerPositions(AppPreferences.loadSplitHorizontal(0.22));
+            verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
+
+            horizontalSplit.getDividers().get(0).positionProperty()
+                    .addListener((obs, oldVal, newVal) -> saveSplitPositions());
+            attachVerticalDividerSaveListener();
+        });
+        return verticalSplit;
+    }
+
+    /**
+     * SplitPane rebuilds its Divider list whenever its items change - after
+     * toggleConsole() removes/re-adds the bottom panel, the old Divider
+     * instance a listener was attached to is discarded, so this must be
+     * called again each time the panel is restored, not just once at startup.
+     */
+    private void attachVerticalDividerSaveListener() {
         verticalSplit.getDividers().get(0).positionProperty()
                 .addListener((obs, oldVal, newVal) -> saveSplitPositions());
-        return verticalSplit;
     }
 
     /**
@@ -272,13 +333,14 @@ final class MainWindow {
      * "Projeto" row too was redundant) with one category node per object
      * kind, matching appObjects/ObjectCollection.py's grouping. Category
      * nodes are inert; file nodes underneath (added as Gerber/Excellon files
-     * are opened - Geometry/CNC Jobs have no Java parser/generator yet)
-     * carry a {@link GerberImage} or {@link ExcellonImage} in {@link #gerberByItem}/
-     * {@link #excellonByItem} and get a context menu. Only "Exibir no Plot
-     * Area" and "Remover" are wired - the legacy per-object menu also has Set
-     * Color, Create CNCJob, Edit, Copy, Save (see UI_INVENTORY.md section 1),
-     * which need subsystems (plot state, CNCJob generation, editors, project
-     * format) this phase doesn't have yet.
+     * are opened, or as drilling G-code is generated - Geometry has no Java
+     * generator yet) carry a {@link GerberImage}, {@link ExcellonImage} or
+     * {@link CncJobEntry} in {@link #gerberByItem}/{@link #excellonByItem}/
+     * {@link #cncJobByItem} and get a context menu. Only "Exibir no Plot
+     * Area"/"Ver G-code" and "Remover" are wired - the legacy per-object menu
+     * also has Set Color, Edit, Copy, Save (see UI_INVENTORY.md section 1),
+     * which need subsystems (plot state, editors, project format) this phase
+     * doesn't have yet.
      */
     private TreeView<String> buildProjectTree() {
         TreeItem<String> root = new TreeItem<>("Projeto");
@@ -287,11 +349,13 @@ final class MainWindow {
         gerbersNode.setExpanded(true);
         excellonNode = new TreeItem<>("Excellon");
         excellonNode.setExpanded(true);
+        cncJobsNode = new TreeItem<>("CNC Jobs");
+        cncJobsNode.setExpanded(true);
         root.getChildren().addAll(
                 gerbersNode,
                 excellonNode,
                 new TreeItem<>("Geometry"),
-                new TreeItem<>("CNC Jobs")
+                cncJobsNode
         );
 
         TreeView<String> tree = new TreeView<>(root);
@@ -310,12 +374,15 @@ final class MainWindow {
                 TreeItem<String> item = getTreeItem();
                 GerberImage gerberImage = gerberByItem.get(item);
                 ExcellonImage excellonImage = excellonByItem.get(item);
+                CncJobEntry cncJob = cncJobByItem.get(item);
                 if (gerberImage != null) {
                     setContextMenu(buildFileContextMenu(
                             () -> showGerber(gerberImage),
                             () -> removeFromProject(item, gerberByItem)));
                 } else if (excellonImage != null) {
                     setContextMenu(buildExcellonContextMenu(item, excellonImage));
+                } else if (cncJob != null) {
+                    setContextMenu(buildCncJobContextMenu(item, cncJob));
                 } else {
                     setContextMenu(null);
                 }
@@ -354,6 +421,29 @@ final class MainWindow {
         return new ContextMenu(showItem, gcodeItem, removeItem);
     }
 
+    private ContextMenu buildCncJobContextMenu(TreeItem<String> item, CncJobEntry entry) {
+        MenuItem viewItem = new MenuItem("Ver G-code");
+        viewItem.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
+
+        MenuItem removeItem = new MenuItem("Remover");
+        removeItem.setOnAction(e -> removeFromProject(item, cncJobByItem));
+
+        return new ContextMenu(viewItem, removeItem);
+    }
+
+    private TextArea buildGCodeViewer(String gcode) {
+        TextArea area = new TextArea(gcode);
+        area.setEditable(false);
+        area.setStyle("-fx-font-family: monospace;");
+        return area;
+    }
+
+    private void addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode) {
+        TreeItem<String> item = new TreeItem<>(outputFileName);
+        cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode));
+        cncJobsNode.getChildren().add(item);
+    }
+
     /**
      * Fase 5 first slice: asks for a few generation parameters (DrillGCodeDialog),
      * then writes plain drill G-code (GCodeGenerator) to a file the user picks.
@@ -386,6 +476,7 @@ final class MainWindow {
             Files.writeString(outFile.toPath(), gcode);
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
+            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
         }
@@ -413,6 +504,14 @@ final class MainWindow {
                     "%s%n%nUnidades: %s%nFerramentas: %d%nFuros: %d%nSlots: %d%nBounds: %s",
                     item.getValue(), excellonImage.units(), excellonImage.toolDiameters().size(),
                     excellonImage.totalDrills(), excellonImage.totalSlots(), Arrays.toString(excellonImage.bounds())
+            ));
+            return;
+        }
+        CncJobEntry cncJob = item == null ? null : cncJobByItem.get(item);
+        if (cncJob != null) {
+            propertiesLabel.setText(String.format(
+                    "%s%n%nOrigem: %s%nArquivo: %s%nLinhas: %d",
+                    item.getValue(), cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode().lines().count()
             ));
             return;
         }

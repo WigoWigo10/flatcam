@@ -70,6 +70,19 @@
     -fx-text-fill: -fc-panel-text;
 }
 
+/* Flat, icon-only - the legacy app's status bar toggles are plain clickable icons, not buttons with chrome. */
+.status-bar-toggle {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-padding: 2 6 2 6;
+}
+
+.status-bar-toggle:selected {
+    -fx-background-color: derive(-fc-panel-border, 20%);
+    -fx-background-radius: 3;
+}
+
 .form-error-label {
     -fx-text-fill: #e53935;
     -fx-font-size: 11px;

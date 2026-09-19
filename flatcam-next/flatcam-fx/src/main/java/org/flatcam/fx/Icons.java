@@ -3,7 +3,9 @@ package org.flatcam.fx;
 import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.shape.Circle;
+import javafx.scene.shape.Line;
 import javafx.scene.shape.Polygon;
+import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.transform.Scale;
@@ -41,6 +43,15 @@ final class Icons {
         Circle ring = new Circle(12, 12, 8);
         ring.getStyleClass().add("icon-glyph-stroke");
         return scaled(ring, size);
+    }
+
+    /** A ">_" prompt glyph - toggles the console/log panel. */
+    static Node terminal(double size) {
+        Polyline chevron = new Polyline(4, 17, 10, 11, 4, 5);
+        chevron.getStyleClass().add("icon-glyph-stroke");
+        Line underscore = new Line(12, 19, 20, 19);
+        underscore.getStyleClass().add("icon-glyph-stroke");
+        return scaled(new Group(chevron, underscore), size);
     }
 
     static Node stop(double size) {
