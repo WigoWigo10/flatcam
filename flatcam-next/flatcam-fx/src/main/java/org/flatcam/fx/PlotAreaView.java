@@ -50,14 +50,15 @@ final class PlotAreaView extends StackPane {
 
     /**
      * Fixed draw-order groups: Gerbers always under Excellon drills, which
-     * are always under isolation/toolpath overlays - so opening files in a
-     * different order (or bringing one to front via "Exibir") never makes a
-     * Gerber cover an Excellon or vice versa. {@link #bringToFront} only
-     * reorders a layer relative to others in its own category, matching the
-     * legacy project tree's own Gerbers/Excellon/CNC Jobs grouping.
+     * are always under isolation previews, which are always under generated
+     * CNC Job toolpaths - so opening files in a different order (or bringing
+     * one to front via "Exibir") never makes a Gerber cover an Excellon or
+     * vice versa. {@link #bringToFront} only reorders a layer relative to
+     * others in its own category, matching the legacy project tree's own
+     * Gerbers/Excellon/CNC Jobs grouping.
      */
     enum LayerCategory {
-        GERBER, EXCELLON, OVERLAY
+        GERBER, EXCELLON, OVERLAY, CNCJOB
     }
 
     private static final double RULER_TOP_HEIGHT = 20;

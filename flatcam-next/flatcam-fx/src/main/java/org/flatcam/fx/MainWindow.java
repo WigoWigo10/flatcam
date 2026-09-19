@@ -21,6 +21,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -64,6 +65,7 @@ import org.flatcam.app.project.ProjectFile;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
+import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
@@ -94,6 +96,13 @@ final class MainWindow {
     private static final Color DRILL_STROKE = Color.web("#8a8a8a");
     private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
     private static final Color MARK_COLOR = Color.web("#ff2fd6", 0.65);
+    // CNCJob toolpath colors - straight from defaults.py's cncjob plot defaults, confirmed
+    // against camlib.py's CNCjob.plot2(): cut fully opaque, travel ~30% opacity, travel drawn
+    // on top of cut (see PlotAreaView.LayerCategory's CNCJOB ordering and addCncJobToProject()).
+    private static final Color CNC_CUT_FILL = Color.web("#5E6CFF");
+    private static final Color CNC_CUT_STROKE = Color.web("#4650BD");
+    private static final Color CNC_TRAVEL_FILL = Color.web("#F0E24D", 0.30);
+    private static final Color CNC_TRAVEL_STROKE = Color.web("#B5AB3A", 0.30);
 
     private final JobExecutor jobExecutor;
 
@@ -108,8 +117,20 @@ final class MainWindow {
     private final StackPane propertiesContainer = new StackPane();
     private final Label propertiesPlaceholder = new Label("Selecione um objeto\npara ver seus parametros.");
 
-    /** A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator writes one. */
-    private record CncJobEntry(String sourceName, Path outputFile, String gcode) {
+    /**
+     * A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator
+     * writes one. travelGeometry/cutGeometry are null when reopening a saved project (the
+     * lightweight .fcnproj format only stores the G-code file path, not its toolpath geometry -
+     * see ProjectFile's doc - so a reloaded CNC Job has no plot until regenerated).
+     */
+    private record CncJobEntry(String sourceName, Path outputFile, String gcode, Geometry travelGeometry, Geometry cutGeometry) {
+    }
+
+    /** PlotAreaView layer keys for a CNC Job's two toolpath layers - see {@link #addCncJobToProject}. */
+    private record CncTravelLayerKey(TreeItem<String> cncJobItem) {
+    }
+
+    private record CncCutLayerKey(TreeItem<String> cncJobItem) {
     }
 
     /**
@@ -573,7 +594,17 @@ final class MainWindow {
                     boolean isObject = isProjectObject(item);
                     // Category rows (Gerbers/Excellon/Geometry/CNC Jobs) get no icon but do
                     // get a bold label, so they read as group headers rather than objects.
-                    textLabel.setStyle(isObject ? null : "-fx-font-weight: bold;");
+                    // A disabled object's row dims via opacity - ObjectCollection.py's own
+                    // data()/Qt.ForegroundRole switches to a fixed "disabled" text color
+                    // instead, but a fixed hex risks poor contrast in at least one of this
+                    // app's four themes, where opacity adapts automatically.
+                    if (!isObject) {
+                        textLabel.setStyle("-fx-font-weight: bold;");
+                        textLabel.setOpacity(1.0);
+                    } else {
+                        textLabel.setStyle(null);
+                        textLabel.setOpacity(isPlottable(item) && !isObjectVisible(item) ? 0.5 : 1.0);
+                    }
                     Node icon = iconShapeFor(item);
                     iconHolder.getChildren().setAll(icon == null ? List.of() : List.of(icon));
                     setGraphic(displayBox);
@@ -674,11 +705,11 @@ final class MainWindow {
     }
 
     /**
-     * "Ativar Plot"/"Desativar Plot" (skipping CNC Jobs, which have no plot
-     * layer) and "Remover" for the whole current selection - the multi-
-     * select counterpart of app_Main.py's on_enable_sel_plots()/
-     * on_disable_sel_plots()/on_delete(), each of which loops over
-     * self.collection.get_selected() instead of a single object.
+     * "Ativar Plot"/"Desativar Plot" and "Remover" for the whole current
+     * selection - the multi-select counterpart of app_Main.py's
+     * on_enable_sel_plots()/on_disable_sel_plots()/on_delete(), each of
+     * which loops over self.collection.get_selected() instead of a single
+     * object.
      */
     private List<MenuItem> buildBulkContextMenuItems(List<TreeItem<String>> selected) {
         long plottable = selected.stream().filter(this::isPlottable).count();
@@ -686,12 +717,12 @@ final class MainWindow {
         MenuItem enableItem = new MenuItem("Ativar Plot (" + plottable + ")");
         enableItem.setDisable(plottable == 0);
         enableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
-                .forEach(i -> plotAreaView.setLayerVisible(i, true)));
+                .forEach(i -> setObjectVisible(i, true)));
 
         MenuItem disableItem = new MenuItem("Desativar Plot (" + plottable + ")");
         disableItem.setDisable(plottable == 0);
         disableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
-                .forEach(i -> plotAreaView.setLayerVisible(i, false)));
+                .forEach(i -> setObjectVisible(i, false)));
 
         MenuItem removeItem = new MenuItem("Remover (" + selected.size() + ")");
         removeItem.setOnAction(e -> removeSelectionFromProject(selected));
@@ -699,8 +730,38 @@ final class MainWindow {
         return List.of(enableItem, disableItem, removeItem);
     }
 
+    /** True for a Gerber/Excellon, or a CNC Job that actually has toolpath geometry to show (see CncJobEntry's doc). */
     private boolean isPlottable(TreeItem<String> item) {
-        return gerberByItem.containsKey(item) || excellonByItem.containsKey(item);
+        if (gerberByItem.containsKey(item) || excellonByItem.containsKey(item)) {
+            return true;
+        }
+        CncJobEntry entry = cncJobByItem.get(item);
+        return entry != null && (entry.travelGeometry() != null || entry.cutGeometry() != null);
+    }
+
+    /**
+     * A CNC Job's visibility spans its two sub-layers (travel + cut, see
+     * {@link #addCncJobToProject}) toggled together as one unit - everywhere
+     * else, an object's tree item is itself the PlotAreaView layer key.
+     */
+    private boolean isObjectVisible(TreeItem<String> item) {
+        if (cncJobByItem.containsKey(item)) {
+            return plotAreaView.isLayerVisible(new CncTravelLayerKey(item)) || plotAreaView.isLayerVisible(new CncCutLayerKey(item));
+        }
+        return plotAreaView.isLayerVisible(item);
+    }
+
+    private void setObjectVisible(TreeItem<String> item, boolean visible) {
+        if (cncJobByItem.containsKey(item)) {
+            plotAreaView.setLayerVisible(new CncTravelLayerKey(item), visible);
+            plotAreaView.setLayerVisible(new CncCutLayerKey(item), visible);
+        } else {
+            plotAreaView.setLayerVisible(item, visible);
+        }
+        // The tree doesn't otherwise know PlotAreaView's layer visibility changed - see
+        // refreshDisplay()'s dimming of disabled rows (ObjectCollection.py's own
+        // data()/Qt.ForegroundRole, which reads obj.options['plot'] the same way).
+        projectTree.refresh();
     }
 
     private void removeSelectionFromProject(List<TreeItem<String>> items) {
@@ -716,19 +777,24 @@ final class MainWindow {
     }
 
     /**
-     * "Exibir no Plot Area", "Ativar/Desativar Plot", "Definir Cor...",
-     * "Gerar Isolamento..." and "Remover" for a single Gerber tree item -
-     * the visibility toggle and color picker mirror the legacy per-object
-     * menu's Enable/Disable Plot and Set Color (UI_INVENTORY.md section 1),
-     * now that each object is its own PlotAreaView layer instead of one
-     * replacing another.
+     * "Exibir no Plot Area", "Enable Plot", "Disable Plot", "Definir Cor...",
+     * "Gerar Isolamento..." and "Remover" for a single Gerber tree item.
+     * Enable/Disable Plot are two separate, always-present items - not one
+     * dynamic toggle - matching appGUI/MainGUI.py's actual menuproject
+     * (menuprojectenable/menuprojectdisable are both always in the menu;
+     * Python doesn't hide/rename one based on current state either). Set
+     * Color here is a single fill-color dialog rather than Python's swatch
+     * submenu (Red/Blue/.../Custom/Opacity/Default) - a deliberate
+     * simplification, not yet ported 1:1.
      */
     private List<MenuItem> gerberContextMenuItems(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> focusLayer(item));
 
-        MenuItem visibilityItem = new MenuItem(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot");
-        visibilityItem.setOnAction(e -> plotAreaView.setLayerVisible(item, !plotAreaView.isLayerVisible(item)));
+        MenuItem enableItem = new MenuItem("Ativar Plot");
+        enableItem.setOnAction(e -> setObjectVisible(item, true));
+        MenuItem disableItem = new MenuItem("Desativar Plot");
+        disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         MenuItem colorItem = new MenuItem("Definir Cor...");
         colorItem.setOnAction(e -> editLayerColor(item));
@@ -739,7 +805,7 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
-        return List.of(showItem, visibilityItem, colorItem, isolationItem, removeItem);
+        return List.of(showItem, enableItem, disableItem, colorItem, isolationItem, removeItem);
     }
 
     /** Same as {@link #gerberContextMenuItems}, minus isolation, plus "Gerar G-code de furacao". */
@@ -747,8 +813,10 @@ final class MainWindow {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> focusLayer(item));
 
-        MenuItem visibilityItem = new MenuItem(plotAreaView.isLayerVisible(item) ? "Desativar Plot" : "Ativar Plot");
-        visibilityItem.setOnAction(e -> plotAreaView.setLayerVisible(item, !plotAreaView.isLayerVisible(item)));
+        MenuItem enableItem = new MenuItem("Ativar Plot");
+        enableItem.setOnAction(e -> setObjectVisible(item, true));
+        MenuItem disableItem = new MenuItem("Desativar Plot");
+        disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         MenuItem colorItem = new MenuItem("Definir Cor...");
         colorItem.setOnAction(e -> editLayerColor(item));
@@ -759,11 +827,11 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
 
-        return List.of(showItem, visibilityItem, colorItem, gcodeItem, removeItem);
+        return List.of(showItem, enableItem, disableItem, colorItem, gcodeItem, removeItem);
     }
 
     private void focusLayer(TreeItem<String> item) {
-        plotAreaView.setLayerVisible(item, true);
+        setObjectVisible(item, true);
         plotAreaView.bringToFront(item);
         plotAreaView.fitToLayer(item);
         centerTabs.getSelectionModel().select(0);
@@ -778,13 +846,41 @@ final class MainWindow {
     }
 
     private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {
+        boolean plottable = isPlottable(item);
+
+        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        showItem.setDisable(!plottable);
+        showItem.setOnAction(e -> focusCncJob(item, entry));
+
+        MenuItem enableItem = new MenuItem("Ativar Plot");
+        enableItem.setDisable(!plottable);
+        enableItem.setOnAction(e -> setObjectVisible(item, true));
+        MenuItem disableItem = new MenuItem("Desativar Plot");
+        disableItem.setDisable(!plottable);
+        disableItem.setOnAction(e -> setObjectVisible(item, false));
+
         MenuItem viewItem = new MenuItem("Ver G-code");
         viewItem.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
 
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, cncJobByItem));
 
-        return List.of(viewItem, removeItem);
+        return List.of(showItem, enableItem, disableItem, viewItem, removeItem);
+    }
+
+    /** "Exibir no Plot Area" for a CNC Job - brings both its sub-layers to front and fits to whichever has geometry. */
+    private void focusCncJob(TreeItem<String> item, CncJobEntry entry) {
+        setObjectVisible(item, true);
+        CncCutLayerKey cutKey = new CncCutLayerKey(item);
+        CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
+        plotAreaView.bringToFront(cutKey);
+        plotAreaView.bringToFront(travelKey);
+        if (entry.cutGeometry() != null && !entry.cutGeometry().isEmpty()) {
+            plotAreaView.fitToLayer(cutKey);
+        } else if (entry.travelGeometry() != null && !entry.travelGeometry().isEmpty()) {
+            plotAreaView.fitToLayer(travelKey);
+        }
+        centerTabs.getSelectionModel().select(0);
     }
 
     private TextArea buildGCodeViewer(String gcode) {
@@ -794,10 +890,26 @@ final class MainWindow {
         return area;
     }
 
-    private void addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode) {
+    /**
+     * @param travelGeometry the rapid (non-cutting) toolpath, or null if unavailable (a reloaded
+     *                       project - see {@link CncJobEntry}'s doc)
+     * @param cutGeometry    the cutting toolpath, or null likewise
+     */
+    private void addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
+            Geometry travelGeometry, Geometry cutGeometry) {
         TreeItem<String> item = new TreeItem<>(outputFileName);
-        cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode));
+        cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode, travelGeometry, cutGeometry));
         cncJobsNode.getChildren().add(item);
+        if (cutGeometry != null && !cutGeometry.isEmpty()) {
+            plotAreaView.putLayer(new CncCutLayerKey(item), PlotAreaView.LayerCategory.CNCJOB,
+                    cutGeometry, CNC_CUT_FILL, CNC_CUT_STROKE, false);
+        }
+        if (travelGeometry != null && !travelGeometry.isEmpty()) {
+            // Put after cut so it draws on top within the CNCJOB category, matching
+            // camlib.py's CNCjob.plot2() (cut layer 1, travel layer 2).
+            plotAreaView.putLayer(new CncTravelLayerKey(item), PlotAreaView.LayerCategory.CNCJOB,
+                    travelGeometry, CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
+        }
     }
 
     /**
@@ -830,11 +942,12 @@ final class MainWindow {
         }
 
         try {
-            String gcode = GCodeGenerator.generateDrillGCode(image, result.params(), result.selectedToolIds());
-            Files.writeString(outFile.toPath(), gcode);
+            CncJobResult job = GCodeGenerator.generateDrillCncJob(image, result.params(), result.selectedToolIds());
+            Files.writeString(outFile.toPath(), job.gcode());
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-            appendConsole("G-code de furacao salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
-            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
+            appendConsole("G-code de furacao salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
+            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
+                    job.travelGeometry(), job.cutGeometry());
             closeToolPanel();
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
@@ -886,11 +999,17 @@ final class MainWindow {
         }
 
         try {
-            String gcode = GCodeGenerator.generateIsolationGCode(isolation, params.gcodeParams());
-            Files.writeString(outFile.toPath(), gcode);
+            CncJobResult job = GCodeGenerator.generateIsolationCncJob(isolation, params.gcodeParams(), params.geometryParams().toolDiameter());
+            Files.writeString(outFile.toPath(), job.gcode());
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-            appendConsole("G-code de isolamento salvo em " + outFile + " (" + gcode.lines().count() + " linhas).");
-            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), gcode);
+            appendConsole("G-code de isolamento salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
+            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
+                    job.travelGeometry(), job.cutGeometry());
+            // The preview put at the top of this method is now redundant - the new CNC
+            // Job's own (enable/disable-able) cut layer shows the same toolpath. Leaving
+            // the preview in place would be a second, permanently-on copy with no
+            // visibility control of its own.
+            plotAreaView.removeLayer(new IsolationLayerKey(item));
             closeToolPanel();
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code de isolamento: " + e.getMessage());
@@ -904,6 +1023,8 @@ final class MainWindow {
         plotAreaView.removeLayer(item);
         plotAreaView.removeLayer(new IsolationLayerKey(item));
         plotAreaView.removeLayer(new MarkLayerKey(item));
+        plotAreaView.removeLayer(new CncTravelLayerKey(item));
+        plotAreaView.removeLayer(new CncCutLayerKey(item));
         appendConsole("Removido do projeto: " + item.getValue());
     }
 
@@ -953,7 +1074,7 @@ final class MainWindow {
 
         CheckBox plotCb = new CheckBox();
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
-        plotCb.setOnAction(e -> plotAreaView.setLayerVisible(item, plotCb.isSelected()));
+        plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
         Button isolationButton = new Button("Isolation Routing");
@@ -1019,7 +1140,7 @@ final class MainWindow {
 
         CheckBox plotCb = new CheckBox();
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
-        plotCb.setOnAction(e -> plotAreaView.setLayerVisible(item, plotCb.isSelected()));
+        plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
         Button gcodeButton = new Button("Gerar G-code de furacao...");
@@ -1040,9 +1161,44 @@ final class MainWindow {
         return box;
     }
 
+    /**
+     * "CNC Job Object" header, Plot Kind (All/Travel/Cut - ObjectUI.py's
+     * cncplot_method_combo) and Plot, Ver G-code, Properties - see
+     * ObjectUI.py's CNCObjectUI. Plot Kind/Plot stay disabled when the entry
+     * has no toolpath geometry (a reloaded project - see CncJobEntry's doc).
+     */
     private Node buildCncJobPropertiesPanel(TreeItem<String> item, CncJobEntry entry) {
         VBox box = objectPropertiesHeader("CNC Job Object", ISOLATION_COLOR);
         box.getChildren().add(nameRow(item));
+
+        boolean hasGeometry = entry.travelGeometry() != null || entry.cutGeometry() != null;
+        CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
+        CncCutLayerKey cutKey = new CncCutLayerKey(item);
+        boolean travelVisible = hasGeometry && plotAreaView.isLayerVisible(travelKey);
+        boolean cutVisible = hasGeometry && plotAreaView.isLayerVisible(cutKey);
+
+        ComboBox<String> kindCombo = new ComboBox<>();
+        kindCombo.getItems().addAll("All", "Travel", "Cut");
+        kindCombo.setValue(!cutVisible ? "Travel" : !travelVisible ? "Cut" : "All");
+        kindCombo.setDisable(!hasGeometry);
+
+        CheckBox plotCb = new CheckBox();
+        plotCb.setSelected(travelVisible || cutVisible);
+        plotCb.setDisable(!hasGeometry);
+
+        Runnable applyVisibility = () -> {
+            boolean visible = plotCb.isSelected();
+            String kind = kindCombo.getValue();
+            plotAreaView.setLayerVisible(travelKey, visible && !"Cut".equals(kind));
+            plotAreaView.setLayerVisible(cutKey, visible && !"Travel".equals(kind));
+            projectTree.refresh(); // see setObjectVisible()'s doc - the tree dims a disabled row's text.
+        };
+        plotCb.setOnAction(e -> applyVisibility.run());
+        kindCombo.setOnAction(e -> applyVisibility.run());
+
+        box.getChildren().add(labeledRow("Plot Kind:", kindCombo));
+        box.getChildren().add(labeledRow("Plot:", plotCb));
+
         Button viewButton = new Button("Ver G-code");
         viewButton.setMaxWidth(Double.MAX_VALUE);
         viewButton.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
@@ -1403,7 +1559,8 @@ final class MainWindow {
             }
             try {
                 String gcode = Files.readString(outputPath);
-                addCncJobToProject(outputPath.getFileName().toString(), job.sourceName(), outputPath, gcode);
+                // No toolpath geometry to plot on a reload - see CncJobEntry's doc.
+                addCncJobToProject(outputPath.getFileName().toString(), job.sourceName(), outputPath, gcode, null, null);
             } catch (IOException e) {
                 appendConsole("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
             }
