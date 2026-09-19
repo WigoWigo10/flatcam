@@ -1,11 +1,16 @@
 package org.flatcam.fx;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.canvas.Canvas;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -28,8 +33,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
+import org.flatcam.cam.gerber.GerberImage;
+import org.flatcam.cam.gerber.GerberParser;
 
 /**
  * Shell shape taken from the legacy app, not from CONTEXTO_FLATCAM_FX.md's
@@ -53,7 +61,8 @@ final class MainWindow {
     private final TabPane centerTabs = new TabPane();
 
     private Scene scene;
-    private JobHandle<Void> runningJob;
+    private StackPane viewportPane;
+    private JobHandle<?> runningJob;
 
     MainWindow(JobExecutor jobExecutor) {
         this.jobExecutor = jobExecutor;
@@ -71,11 +80,13 @@ final class MainWindow {
 
     private MenuBar buildMenuBar() {
         Menu fileMenu = new Menu("Arquivo");
+        MenuItem openGerberItem = new MenuItem("Abrir Gerber (prototipo Fase 3)");
+        openGerberItem.setOnAction(e -> openGerberPrototype());
         MenuItem runDemoJob = new MenuItem("Executar job de demonstracao");
         runDemoJob.setOnAction(e -> runDemoJob());
         MenuItem exitItem = new MenuItem("Sair");
         exitItem.setOnAction(e -> Platform.exit());
-        fileMenu.getItems().addAll(runDemoJob, new SeparatorMenuItem(), exitItem);
+        fileMenu.getItems().addAll(openGerberItem, runDemoJob, new SeparatorMenuItem(), exitItem);
 
         Menu editMenu = new Menu("Editar");
         MenuItem preferencesItem = new MenuItem("Preferencias");
@@ -195,12 +206,12 @@ final class MainWindow {
 
     private StackPane buildViewportPlaceholder() {
         Label placeholder = new Label(
-                "Viewport GPU\n(Fase 2 - ainda nao implementado)\n\nAbrir Gerber/Excellon chega na Fase 3."
+                "Viewport GPU\n(Fase 2 - ainda nao implementado)\n\nUse Arquivo > Abrir Gerber (prototipo Fase 3)."
         );
         placeholder.setTextAlignment(TextAlignment.CENTER);
-        StackPane viewport = new StackPane(placeholder);
-        viewport.getStyleClass().add("viewport-placeholder");
-        return viewport;
+        viewportPane = new StackPane(placeholder);
+        viewportPane.getStyleClass().add("viewport-placeholder");
+        return viewportPane;
     }
 
     /**
@@ -257,13 +268,14 @@ final class MainWindow {
         progressBar.setProgress(0);
         appendConsole("Job de demonstracao iniciado (nao bloqueia a UI - tente redimensionar a janela).");
 
-        runningJob = jobExecutor.submit(new DemoJob(), (fraction, message) ->
+        JobHandle<Void> handle = jobExecutor.submit(new DemoJob(), (fraction, message) ->
                 Platform.runLater(() -> {
                     progressBar.setProgress(fraction);
                     statusLabel.setText(message);
                 }));
+        runningJob = handle;
 
-        runningJob.completion()
+        handle.completion()
                 .thenAccept(result -> Platform.runLater(() -> {
                     statusLabel.setText("Concluido.");
                     appendConsole("Job de demonstracao concluido.");
@@ -271,8 +283,7 @@ final class MainWindow {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        if (error.getCause() instanceof CancellationException
-                                || error instanceof CancellationException) {
+                        if (isCancellation(error)) {
                             statusLabel.setText("Cancelado.");
                             appendConsole("Job de demonstracao cancelado pelo usuario.");
                         } else {
@@ -285,10 +296,78 @@ final class MainWindow {
                 });
     }
 
+    /**
+     * Fase 3 vertical slice, minimal: open -> parse (flatcam-cam) -> display
+     * (a throwaway Canvas render - see GerberCanvasRenderer). Reuses the same
+     * progress bar/cancel button/console as the demo job, one job at a time.
+     */
+    private void openGerberPrototype() {
+        if (runningJob != null) {
+            appendConsole("Ja ha um job em andamento.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Abrir Gerber (prototipo)");
+        chooser.getExtensionFilters().add(
+                new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.txt"));
+        Path defaultDir = Path.of("tests/gerber_files").toAbsolutePath();
+        if (Files.isDirectory(defaultDir)) {
+            chooser.setInitialDirectory(defaultDir.toFile());
+        }
+        File file = chooser.showOpenDialog(scene.getWindow());
+        if (file == null) {
+            return;
+        }
+
+        runDemoJobButton.setDisable(true);
+        cancelJobButton.setDisable(false);
+        progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+        statusLabel.setText("Analisando " + file.getName() + "...");
+        appendConsole("Abrindo " + file + "...");
+
+        JobHandle<GerberImage> handle = jobExecutor.submit(context -> new GerberParser().parse(file.toPath()), null);
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(image -> Platform.runLater(() -> {
+                    statusLabel.setText("Concluido.");
+                    progressBar.setProgress(1);
+                    appendConsole(String.format(
+                            "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
+                            image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
+                    showGerber(image);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        if (isCancellation(error)) {
+                            statusLabel.setText("Cancelado.");
+                            appendConsole("Abertura cancelada.");
+                        } else {
+                            statusLabel.setText("Falhou.");
+                            appendConsole("Falha ao abrir Gerber: " + error.getMessage());
+                        }
+                        onJobFinished();
+                    });
+                    return null;
+                });
+    }
+
+    private void showGerber(GerberImage image) {
+        double width = viewportPane.getWidth() > 0 ? viewportPane.getWidth() : 800;
+        double height = viewportPane.getHeight() > 0 ? viewportPane.getHeight() : 600;
+        Canvas canvas = GerberCanvasRenderer.render(image.solidGeometry(), width, height);
+        viewportPane.getChildren().setAll(canvas);
+    }
+
     private void cancelDemoJob() {
         if (runningJob != null) {
             runningJob.cancel();
         }
+    }
+
+    private static boolean isCancellation(Throwable error) {
+        return error instanceof CancellationException || error.getCause() instanceof CancellationException;
     }
 
     private void onJobFinished() {

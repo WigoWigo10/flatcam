@@ -25,6 +25,7 @@
 
     <modules>
         <module>flatcam-application</module>
+        <module>flatcam-cam</module>
         <module>flatcam-fx</module>
     </modules>
 
@@ -33,6 +34,11 @@
             <dependency>
                 <groupId>org.flatcam.next</groupId>
                 <artifactId>flatcam-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.flatcam.next</groupId>
+                <artifactId>flatcam-cam</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
