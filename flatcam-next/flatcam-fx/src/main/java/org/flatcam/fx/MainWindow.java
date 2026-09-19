@@ -28,6 +28,7 @@ import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import javafx.scene.control.RadioMenuItem;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.SeparatorMenuItem;
@@ -220,7 +221,13 @@ final class MainWindow {
         Menu optionsMenu = new Menu("Opcoes");
         MenuItem toolsDbItem = new MenuItem("Tools Database");
         toolsDbItem.setOnAction(e -> openAuxiliaryTab("Tools Database", this::buildToolsDbPlaceholder));
-        optionsMenu.getItems().add(toolsDbItem);
+        // Python launches this from a toolbar icon (Alt+C) rather than a menu (appGUI/MainGUI.py's
+        // calculators_btn) - this app doesn't have that full tools toolbar yet, so a menu item is
+        // the reasonable equivalent entry point. Unlike Isolation/Drilling, it needs no selected
+        // object at all.
+        MenuItem calculatorsItem = new MenuItem("Calculators");
+        calculatorsItem.setOnAction(e -> openToolPanel("Calculators", CalculatorsPanel.build()));
+        optionsMenu.getItems().addAll(toolsDbItem, calculatorsItem);
 
         Menu viewMenu = new Menu("Exibir");
         viewMenu.getItems().add(buildThemeMenu());
@@ -391,10 +398,17 @@ final class MainWindow {
         return leftTabs;
     }
 
-    /** Switches the left sidebar to the Tool tab and loads {@code content} into it, replacing whatever was there. */
+    /**
+     * Switches the left sidebar to the Tool tab and loads {@code content} into it
+     * (wrapped in a ScrollPane - matches every legacy tool's own
+     * app.ui.tool_scroll_area, needed once a tool's form is tall enough to not fit
+     * the sidebar, e.g. CalculatorsPanel's three stacked calculators).
+     */
     private void openToolPanel(String label, Node content) {
         toolTab.setText(label);
-        toolTab.setContent(content);
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        toolTab.setContent(scroll);
         leftTabs.getSelectionModel().select(toolTab);
     }
 
