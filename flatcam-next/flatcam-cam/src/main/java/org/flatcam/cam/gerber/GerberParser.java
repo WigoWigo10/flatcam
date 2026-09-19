@@ -46,8 +46,12 @@ public final class GerberParser {
             "G90*", "G91*", "G70*", "G71*", "G01*", "G1*", "G74*", "G75*",
             "M00*", "M01*", "M02*", "M30*"
     );
-    private static final List<String> IGNORABLE_PREFIXES =
-            List.of("G04", "%OF", "%SF", "%LN", "%AS", "%IP");
+    private static final List<String> IGNORABLE_PREFIXES = List.of(
+            "G04", "%OF", "%SF", "%LN", "%AS", "%IP",
+            // Gerber X2 attributes (%TF/%TA/%TO file/aperture/object attributes, %TD deletes one) -
+            // metadata for CAM tooling (net names, component refs, ...), no effect on geometry.
+            "%TF", "%TA", "%TD", "%TO"
+    );
 
     private static final int STROKE_QUADRANT_SEGMENTS = 16;
 
@@ -84,7 +88,16 @@ public final class GerberParser {
                 if (line.equals("%")) {
                     macros.put(macroInProgress.name(), macroInProgress);
                     macroInProgress = null;
-                } else {
+                } else if (line.endsWith("*%")) {
+                    // The block-closing '%' can be glued onto the last primitive line
+                    // instead of standing on its own (seen in KiCad output).
+                    String primitiveLine = line.substring(0, line.length() - 1);
+                    if (!isMacroComment(primitiveLine)) {
+                        macroInProgress.addPrimitive(splitPrimitive(primitiveLine));
+                    }
+                    macros.put(macroInProgress.name(), macroInProgress);
+                    macroInProgress = null;
+                } else if (!isMacroComment(line)) {
                     macroInProgress.addPrimitive(splitPrimitive(line));
                 }
                 continue;
@@ -224,6 +237,12 @@ public final class GerberParser {
     private static String[] splitPrimitive(String line) {
         String body = line.endsWith("*") ? line.substring(0, line.length() - 1) : line;
         return body.split(",");
+    }
+
+    /** Primitive code 0 is a free-text comment, e.g. "0 Rounding radius*" - not comma-separated fields at all. */
+    private static boolean isMacroComment(String line) {
+        String body = line.endsWith("*") ? line.substring(0, line.length() - 1) : line;
+        return body.equals("0") || body.startsWith("0 ") || body.startsWith("0\t");
     }
 
     private static Geometry buildRegionGeometry(List<List<Coordinate>> contours, GeometryFactory geometryFactory) {
