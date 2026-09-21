@@ -34,7 +34,7 @@ class AppObject(QtCore.QObject):
     # Emitted by app_obj.new_object() and passes the new object as argument, plot flag.
     # on_object_created() adds the object to the collection, plots on appropriate flag
     # and emits app_obj.new_object_available.
-    object_created = QtCore.pyqtSignal(object, bool, bool, object, list)
+    object_created = QtCore.pyqtSignal(object, bool, object, object, list)
 
     # Emitted when a object has been changed (like scaled, mirrored)
     object_changed = QtCore.pyqtSignal(object)
@@ -76,8 +76,9 @@ class AppObject(QtCore.QObject):
                                 The function is called with 2 parameters: the new object and the App instance.
         :type initialize:       function
         :param plot:            If to plot the resulting object
-        :param autoselected:    if the resulting object is autoselected in the Project tab and therefore in the
-                                self.collection
+        :param autoselected:    True selects the resulting object, False clears selection and None preserves the
+                                current selection. Preserving it is useful for actions launched by a properties UI
+                                that must remain alive until the handler returns.
         :param callback:        a method that is launched after the object is created
         :type callback:         function
 
@@ -444,11 +445,12 @@ class AppObject(QtCore.QObject):
         # #############################################################################################################
         self.app.shell.command_line().set_model_data(self.app.myKeywords)
 
-        if auto_select or self.app.ui.notebook.currentWidget() is self.app.ui.properties_tab:
+        if auto_select is True or (auto_select is not None and
+                                   self.app.ui.notebook.currentWidget() is self.app.ui.properties_tab):
             # select the just opened object but deselect the previous ones
             self.app.collection.set_all_inactive()
             self.app.collection.set_active(obj.options["name"])
-        else:
+        elif auto_select is False:
             self.app.collection.set_all_inactive()
 
         # here it is done the object plotting

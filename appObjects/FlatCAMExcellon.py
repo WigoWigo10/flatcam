@@ -37,6 +37,26 @@ class ExcellonObject(FlatCAMObj, Excellon):
     optionChanged = QtCore.pyqtSignal(str)
     multicolored_build_sig = QtCore.pyqtSignal()
 
+    @staticmethod
+    def milling_drill_path(drill, hole_diameter, tool_diameter):
+        """Return the tool-center path used to mill a circular drill hole."""
+        path_radius = (hole_diameter - tool_diameter) / 2
+        # Shapely does not create a useful ring for a zero-width buffer.  Keep
+        # the historical FlatCAM epsilon for equal hole/tool diameters.
+        if path_radius == 0:
+            path_radius = 0.0000001
+        return drill.buffer(path_radius).exterior
+
+    @staticmethod
+    def resolve_milling_tool_key(tool_key, tool_table):
+        """Resolve project-restored string keys against integer UI keys."""
+        if tool_key in tool_table:
+            return tool_key
+        for stored_key in tool_table:
+            if str(stored_key) == str(tool_key):
+                return stored_key
+        raise KeyError(tool_key)
+
     def __init__(self, name):
         self.decimals = self.app.decimals
 
@@ -827,7 +847,8 @@ class ExcellonObject(FlatCAMObj, Excellon):
 
         return slots_in_file, excellon_code
 
-    def generate_milling_drills(self, tools=None, outname=None, tooldia=None, plot=False, use_thread=False):
+    def generate_milling_drills(self, tools=None, outname=None, tooldia=None, plot=False, use_thread=False,
+                                autoselected=True):
         """
         Will generate an Geometry Object allowing to cut a drill hole instead of drilling it.
 
@@ -873,6 +894,8 @@ class ExcellonObject(FlatCAMObj, Excellon):
             tools = [i[0] for i in sorted_tools]  # List if ordered tool names.
             log.debug("Tools 'all' and sorted are: %s" % str(tools))
 
+        tools = [self.resolve_milling_tool_key(tool, self.tools) for tool in tools]
+
         if len(tools) == 0:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("Please select one or more tools from the list and try again."))
             return False, "Error: No tools."
@@ -915,15 +938,17 @@ class ExcellonObject(FlatCAMObj, Excellon):
             # we add a tenth of the minimum value, meaning 0.0000001, which from our point of view is "almost zero"
             for etool in tools:
                 for drill in self.tools[etool]['drills']:
-                    buffer_value = self.tools[etool]['tooldia'] / 2 - tooldia / 2
-                    if buffer_value == 0:
-                        geo_obj.solid_geometry.append(drill.buffer(0.0000001).exterior)
-                    else:
-                        geo_obj.solid_geometry.append(drill.buffer(buffer_value).exterior)
+                    geo_obj.solid_geometry.append(
+                        self.milling_drill_path(
+                            drill=drill,
+                            hole_diameter=self.tools[etool]['tooldia'],
+                            tool_diameter=tooldia
+                        )
+                    )
 
         if use_thread:
             def geo_thread(a_obj):
-                a_obj.app_obj.new_object("geometry", outname, geo_init, plot=plot)
+                a_obj.app_obj.new_object("geometry", outname, geo_init, plot=plot, autoselected=autoselected)
 
             # Create a promise with the new name
             self.app.collection.promise(outname)
@@ -931,11 +956,12 @@ class ExcellonObject(FlatCAMObj, Excellon):
             # Send to worker
             self.app.worker_task.emit({'fcn': geo_thread, 'params': [self.app]})
         else:
-            self.app.app_obj.new_object("geometry", outname, geo_init, plot=plot)
+            self.app.app_obj.new_object("geometry", outname, geo_init, plot=plot, autoselected=autoselected)
 
         return True, ""
 
-    def generate_milling_slots(self, tools=None, outname=None, tooldia=None, plot=False, use_thread=False):
+    def generate_milling_slots(self, tools=None, outname=None, tooldia=None, plot=False, use_thread=False,
+                               autoselected=True):
         """
         Will generate an Geometry Object allowing to cut/mill a slot hole.
 
@@ -980,6 +1006,8 @@ class ExcellonObject(FlatCAMObj, Excellon):
         if tools == "all":
             tools = [i[0] for i in sorted_tools]  # List if ordered tool names.
             log.debug("Tools 'all' and sorted are: %s" % str(tools))
+
+        tools = [self.resolve_milling_tool_key(tool, self.tools) for tool in tools]
 
         if len(tools) == 0:
             self.app.inform.emit('[ERROR_NOTCL] %s' % _("Please select one or more tools from the list and try again."))
@@ -1038,7 +1066,9 @@ class ExcellonObject(FlatCAMObj, Excellon):
 
         if use_thread:
             def geo_thread(a_obj):
-                a_obj.app_obj.new_object("geometry", outname + '_slot', geo_init, plot=plot)
+                a_obj.app_obj.new_object(
+                    "geometry", outname + '_slot', geo_init, plot=plot, autoselected=autoselected
+                )
 
             # Create a promise with the new name
             self.app.collection.promise(outname)
@@ -1046,21 +1076,44 @@ class ExcellonObject(FlatCAMObj, Excellon):
             # Send to worker
             self.app.worker_task.emit({'fcn': geo_thread, 'params': [self.app]})
         else:
-            self.app.app_obj.new_object("geometry", outname + '_slot', geo_init, plot=plot)
+            self.app.app_obj.new_object(
+                "geometry", outname + '_slot', geo_init, plot=plot, autoselected=autoselected
+            )
 
         return True, ""
 
     def on_generate_milling_button_click(self, *args):
         self.app.defaults.report_usage("excellon_on_create_milling_drills button")
-        self.read_form()
 
-        self.generate_milling_drills(use_thread=False, plot=True)
+        # Continue on the next event-loop turn so generation and error handling
+        # are outside the Qt clicked() signal dispatch.
+        QtCore.QTimer.singleShot(0, self._generate_milling_drills_from_ui)
+
+    def _generate_milling_drills_from_ui(self):
+        try:
+            self.read_form()
+            # Keep this Excellon panel selected while the new Geometry is appended.
+            self.generate_milling_drills(use_thread=False, plot=True, autoselected=None)
+        except Exception as err:
+            # An exception escaping a PyQt slot is fatal in this runtime.  Keep
+            # the application alive and expose the real Python error instead.
+            log.exception("Mill Drills failed")
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Mill Drills failed"), str(err)))
 
     def on_generate_milling_slots_button_click(self, *args):
         self.app.defaults.report_usage("excellon_on_create_milling_slots_button")
-        self.read_form()
 
-        self.generate_milling_slots(use_thread=False, plot=True)
+        # Same lifetime issue as Mill Drills: creation autoselects the new
+        # Geometry and replaces the Excellon panel that emitted clicked().
+        QtCore.QTimer.singleShot(0, self._generate_milling_slots_from_ui)
+
+    def _generate_milling_slots_from_ui(self):
+        try:
+            self.read_form()
+            self.generate_milling_slots(use_thread=False, plot=True, autoselected=None)
+        except Exception as err:
+            log.exception("Mill Slots failed")
+            self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Mill Slots failed"), str(err)))
 
     def convert_units(self, units):
         log.debug("FlatCAMObj.ExcellonObject.convert_units()")
