@@ -1467,7 +1467,7 @@ class Geometry(object):
         # Shapely 2.x multipart geometries are no longer directly iterable.
         # Always expand them through ``geoms`` and keep atomic polygons as a
         # one-element sequence.
-        current_parts = current.geoms if hasattr(current, 'geoms') else [current]
+        current_parts = geometry_parts(current)
         for p in current_parts:
             if not isinstance(p, Polygon) or p.is_empty:
                 continue
@@ -1487,7 +1487,7 @@ class Geometry(object):
             current = current.buffer(-tooldia * (1 - overlap), int(steps_per_circle))
             if current.area > 0:
 
-                current_parts = current.geoms if hasattr(current, 'geoms') else [current]
+                current_parts = geometry_parts(current)
                 for p in current_parts:
                     if not isinstance(p, Polygon) or p.is_empty:
                         continue
@@ -1577,16 +1577,15 @@ class Geometry(object):
             else:
                 # geoms.append(path)
                 # geoms.insert(path)
-                # path can be a collection of paths.
-                try:
-                    for p in path:
-                        geoms.insert(p)
-                        if prog_plot:
-                            self.plot_temp_shapes(p)
-                except TypeError:
-                    geoms.insert(path)
+                # An intersection can return LineString, MultiLineString or
+                # GeometryCollection.  Shapely 2.x multipart geometries are
+                # not directly iterable, so flatten their ``geoms`` first.
+                for p in geometry_parts(path):
+                    if not isinstance(p, (LineString, LinearRing)) or p.is_empty:
+                        continue
+                    geoms.insert(p)
                     if prog_plot:
-                        self.plot_temp_shapes(path)
+                        self.plot_temp_shapes(p)
 
                 if prog_plot:
                     self.temp_shapes.redraw()
@@ -1595,7 +1594,11 @@ class Geometry(object):
 
         # Clean inside edges (contours) of the original polygon
         if contour:
-            buffered_poly = autolist(polygon_to_clear.buffer(-tooldia / 2, int(steps_per_circle)))
+            buffered_poly = [
+                poly for poly in geometry_parts(
+                    polygon_to_clear.buffer(-tooldia / 2, int(steps_per_circle)))
+                if isinstance(poly, Polygon) and not poly.is_empty
+            ]
             outer_edges = [x.exterior for x in buffered_poly]
 
             inner_edges = []
@@ -1695,15 +1698,12 @@ class Geometry(object):
                 line = LineString([(left, y), (right, y)])
                 line = line.intersection(margin_poly)
 
-                try:
-                    for ll in line:
-                        lines_trimmed.append(ll)
-                        if prog_plot:
-                            self.plot_temp_shapes(ll)
-                except TypeError:
-                    lines_trimmed.append(line)
+                for ll in geometry_parts(line):
+                    if not isinstance(ll, (LineString, LinearRing)) or ll.is_empty:
+                        continue
+                    lines_trimmed.append(ll)
                     if prog_plot:
-                        self.plot_temp_shapes(line)
+                        self.plot_temp_shapes(ll)
             except Exception as e:
                 log.debug('camlib.Geometry.clear_polygon3() Processing poly --> %s' % str(e))
                 return None
@@ -1732,15 +1732,12 @@ class Geometry(object):
                 line = LineString([(x, top), (x, bot)])
                 line = line.intersection(margin_poly)
 
-                try:
-                    for ll in line:
-                        lines_trimmed.append(ll)
-                        if prog_plot:
-                            self.plot_temp_shapes(ll)
-                except TypeError:
-                    lines_trimmed.append(line)
+                for ll in geometry_parts(line):
+                    if not isinstance(ll, (LineString, LinearRing)) or ll.is_empty:
+                        continue
+                    lines_trimmed.append(ll)
                     if prog_plot:
-                        self.plot_temp_shapes(line)
+                        self.plot_temp_shapes(ll)
             except Exception as e:
                 log.debug('camlib.Geometry.clear_polygon3() Processing poly --> %s' % str(e))
                 return None
@@ -1751,37 +1748,20 @@ class Geometry(object):
         lines_trimmed = unary_union(lines_trimmed)
 
         # Add lines to storage
-        try:
-            for line in lines_trimmed:
-                if isinstance(line, LineString) or isinstance(line, LinearRing):
-                    if not line.is_empty:
-                        geoms.insert(line)
-                else:
-                    log.debug("camlib.Geometry.clear_polygon3(). Not a line: %s" % str(type(line)))
-        except TypeError:
-            # in case lines_trimmed are not iterable (Linestring, LinearRing)
-            if not lines_trimmed.is_empty:
-                geoms.insert(lines_trimmed)
+        for line in geometry_parts(lines_trimmed):
+            if isinstance(line, (LineString, LinearRing)) and not line.is_empty:
+                geoms.insert(line)
+            else:
+                log.debug("camlib.Geometry.clear_polygon3(). Not a line: %s" % str(type(line)))
 
         # Add margin (contour) to storage
         if contour:
-            try:
-                for poly in margin_poly:
-                    if isinstance(poly, Polygon) and not poly.is_empty:
-                        geoms.insert(poly.exterior)
-                        if prog_plot:
-                            self.plot_temp_shapes(poly.exterior)
-                        for ints in poly.interiors:
-                            geoms.insert(ints)
-                            if prog_plot:
-                                self.plot_temp_shapes(ints)
-            except TypeError:
-                if isinstance(margin_poly, Polygon) and not margin_poly.is_empty:
-                    marg_ext = margin_poly.exterior
-                    geoms.insert(marg_ext)
+            for poly in geometry_parts(margin_poly):
+                if isinstance(poly, Polygon) and not poly.is_empty:
+                    geoms.insert(poly.exterior)
                     if prog_plot:
-                        self.plot_temp_shapes(margin_poly.exterior)
-                    for ints in margin_poly.interiors:
+                        self.plot_temp_shapes(poly.exterior)
+                    for ints in poly.interiors:
                         geoms.insert(ints)
                         if prog_plot:
                             self.plot_temp_shapes(ints)
@@ -1874,28 +1854,22 @@ class Geometry(object):
             log.debug('camlib.Geometry.fill_with_lines() Processing poly --> %s' % str(e))
             return None
 
-        try:
-            for ll in new_line:
-                lines_trimmed.append(ll)
-                if prog_plot:
-                    self.plot_temp_shapes(ll)
-        except TypeError:
-            lines_trimmed.append(new_line)
+        for ll in geometry_parts(new_line):
+            if not isinstance(ll, (LineString, LinearRing)) or ll.is_empty:
+                continue
+            lines_trimmed.append(ll)
             if prog_plot:
-                self.plot_temp_shapes(new_line)
+                self.plot_temp_shapes(ll)
 
         new_line = line.parallel_offset(distance=delta, side='right', resolution=int(steps_per_circle))
         new_line = new_line.intersection(margin_poly)
 
-        try:
-            for ll in new_line:
-                lines_trimmed.append(ll)
-                if prog_plot:
-                    self.plot_temp_shapes(ll)
-        except TypeError:
-            lines_trimmed.append(new_line)
+        for ll in geometry_parts(new_line):
+            if not isinstance(ll, (LineString, LinearRing)) or ll.is_empty:
+                continue
+            lines_trimmed.append(ll)
             if prog_plot:
-                self.plot_temp_shapes(new_line)
+                self.plot_temp_shapes(ll)
 
         if prog_plot:
             self.temp_shapes.redraw()
@@ -1903,35 +1877,20 @@ class Geometry(object):
         lines_trimmed = unary_union(lines_trimmed)
 
         # Add lines to storage
-        try:
-            for line in lines_trimmed:
-                if isinstance(line, LineString) or isinstance(line, LinearRing):
-                    geoms.insert(line)
-                else:
-                    log.debug("camlib.Geometry.fill_with_lines(). Not a line: %s" % str(type(line)))
-        except TypeError:
-            # in case lines_trimmed are not iterable (Linestring, LinearRing)
-            geoms.insert(lines_trimmed)
+        for line in geometry_parts(lines_trimmed):
+            if isinstance(line, (LineString, LinearRing)) and not line.is_empty:
+                geoms.insert(line)
+            else:
+                log.debug("camlib.Geometry.fill_with_lines(). Not a line: %s" % str(type(line)))
 
         # Add margin (contour) to storage
         if contour:
-            try:
-                for poly in margin_poly:
-                    if isinstance(poly, Polygon) and not poly.is_empty:
-                        geoms.insert(poly.exterior)
-                        if prog_plot:
-                            self.plot_temp_shapes(poly.exterior)
-                        for ints in poly.interiors:
-                            geoms.insert(ints)
-                            if prog_plot:
-                                self.plot_temp_shapes(ints)
-            except TypeError:
-                if isinstance(margin_poly, Polygon) and not margin_poly.is_empty:
-                    marg_ext = margin_poly.exterior
-                    geoms.insert(marg_ext)
+            for poly in geometry_parts(margin_poly):
+                if isinstance(poly, Polygon) and not poly.is_empty:
+                    geoms.insert(poly.exterior)
                     if prog_plot:
-                        self.plot_temp_shapes(margin_poly.exterior)
-                    for ints in margin_poly.interiors:
+                        self.plot_temp_shapes(poly.exterior)
+                    for ints in poly.interiors:
                         geoms.insert(ints)
                         if prog_plot:
                             self.plot_temp_shapes(ints)
@@ -8494,7 +8453,29 @@ def dict2obj(d):
 #                  "z": self.data[i][2]} for i in crossing]
 
 
+def geometry_parts(obj):
+    """Flatten lists and Shapely multipart geometries into atomic members."""
+    if obj is None:
+        return []
+
+    if isinstance(obj, (list, tuple, set)):
+        parts = []
+        for element in obj:
+            parts.extend(geometry_parts(element))
+        return parts
+
+    if isinstance(obj, BaseGeometry) and hasattr(obj, 'geoms'):
+        parts = []
+        for element in obj.geoms:
+            parts.extend(geometry_parts(element))
+        return parts
+
+    return [obj]
+
+
 def autolist(obj):
+    if isinstance(obj, BaseGeometry) and hasattr(obj, 'geoms'):
+        return list(obj.geoms)
     try:
         __ = iter(obj)
         return obj

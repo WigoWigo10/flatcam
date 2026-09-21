@@ -1412,7 +1412,9 @@ class NonCopperClear(AppTool, Gerber):
             self.app.inform.emit('[ERROR_NOTCL] %s: %s' % (_("Object not found"), str(self.obj_name)))
             return
 
-        if self.ncc_obj.kind == 'geometry' and self.obj_name.lower().endswith('_area'):
+        is_board_area = bool(self.ncc_obj.options.get('is_board_area', False)) or \
+            self.obj_name.lower().endswith('_area')
+        if self.ncc_obj.kind == 'geometry' and is_board_area:
             self.app.inform.emit(
                 '[ERROR_NOTCL] %s' %
                 _("A filled outline area is a reference, not the NCC source. "
@@ -1820,6 +1822,21 @@ class NonCopperClear(AppTool, Gerber):
 
         return env_obj, box_kind
 
+    def constrain_reference_margin(self, ncc_select, box_obj, margin):
+        """Keep a filled board reference from expanding beyond Edge.Cuts."""
+        if ncc_select != 2 or box_obj is None or box_obj.kind != 'geometry' or margin <= 0:
+            return margin
+
+        obj_name = box_obj.options.get('name', '')
+        is_board_area = bool(box_obj.options.get('is_board_area', False)) or obj_name.lower().endswith('_area')
+        if not is_board_area:
+            return margin
+
+        self.app.inform.emit(
+            '[WARNING_NOTCL] %s' %
+            _("A positive margin would extend clearing outside the board outline. Margin was limited to 0."))
+        return 0.0
+
     def apply_margin_to_bounding_box(self, bbox, box_kind, ncc_select, ncc_margin):
         """
         Prepare non-copper polygons.
@@ -1971,52 +1988,25 @@ class NonCopperClear(AppTool, Gerber):
                 if ncc_margin < tool_iso:
                     self.app.inform.emit('[WARNING_NOTCL] %s' % _("Isolation geometry is broken. Margin is less "
                                                                   "than isolation tool diameter."))
-                try:
-                    for geo_elem in isolated_geo:
-                        # provide the app with a way to process the GUI events when in a blocking loop
-                        QtWidgets.QApplication.processEvents()
+                for geo_elem in self.geometry_parts(isolated_geo):
+                    # provide the app with a way to process the GUI events when in a blocking loop
+                    QtWidgets.QApplication.processEvents()
 
-                        if self.app.abort_flag:
-                            # graceful abort requested by the user
-                            raise grace
+                    if self.app.abort_flag:
+                        # graceful abort requested by the user
+                        raise grace
 
-                        if isinstance(geo_elem, Polygon):
-                            for ring in self.poly2rings(geo_elem):
-                                new_geo = ring.intersection(bounding_box)
-                                if new_geo and not new_geo.is_empty:
-                                    new_geometry.append(new_geo)
-                        elif isinstance(geo_elem, MultiPolygon):
-                            for poly in geo_elem:
-                                for ring in self.poly2rings(poly):
-                                    new_geo = ring.intersection(bounding_box)
-                                    if new_geo and not new_geo.is_empty:
-                                        new_geometry.append(new_geo)
-                        elif isinstance(geo_elem, LineString):
-                            new_geo = geo_elem.intersection(bounding_box)
-                            if new_geo:
-                                if not new_geo.is_empty:
-                                    new_geometry.append(new_geo)
-                        elif isinstance(geo_elem, MultiLineString):
-                            for line_elem in geo_elem:
-                                new_geo = line_elem.intersection(bounding_box)
-                                if new_geo and not new_geo.is_empty:
-                                    new_geometry.append(new_geo)
-                except TypeError:
-                    if isinstance(isolated_geo, Polygon):
-                        for ring in self.poly2rings(isolated_geo):
-                            new_geo = ring.intersection(bounding_box)
-                            if new_geo:
-                                if not new_geo.is_empty:
-                                    new_geometry.append(new_geo)
-                    elif isinstance(isolated_geo, LineString):
-                        new_geo = isolated_geo.intersection(bounding_box)
-                        if new_geo and not new_geo.is_empty:
+                    if isinstance(geo_elem, Polygon):
+                        source_paths = self.poly2rings(geo_elem)
+                    elif isinstance(geo_elem, (LineString, LinearRing)):
+                        source_paths = [geo_elem]
+                    else:
+                        continue
+
+                    for source_path in source_paths:
+                        new_geo = source_path.intersection(bounding_box)
+                        if new_geo is not None and not new_geo.is_empty:
                             new_geometry.append(new_geo)
-                    elif isinstance(isolated_geo, MultiLineString):
-                        for line_elem in isolated_geo:
-                            new_geo = line_elem.intersection(bounding_box)
-                            if new_geo and not new_geo.is_empty:
-                                new_geometry.append(new_geo)
 
                 # a MultiLineString geometry element will show that the isolation is broken for this tool
                 for geo_e in new_geometry:
@@ -2108,36 +2098,30 @@ class NonCopperClear(AppTool, Gerber):
             except Exception as ee:
                 log.debug("NonCopperClear.clear_polygon_worker() Lines --> %s" % str(ee))
         elif ncc_method == 3:   # Combo
-            try:
-                self.app.inform.emit(_("Clearing the polygon with the method: lines."))
-                cp = self.clear_polygon3(pol, tooldia,
-                                         steps_per_circle=self.circle_steps,
-                                         overlap=ncc_overlap, contour=ncc_contour,
-                                         connect=ncc_connect,
-                                         prog_plot=prog_plot)
-
-                if cp and cp.objects:
-                    pass
-                else:
-                    self.app.inform.emit(_("Failed. Clearing the polygon with the method: seed."))
-                    cp = self.clear_polygon2(pol, tooldia,
-                                             steps_per_circle=self.circle_steps,
-                                             overlap=ncc_overlap, contour=ncc_contour,
-                                             connect=ncc_connect,
-                                             prog_plot=prog_plot)
+            methods = (
+                (_("lines"), self.clear_polygon3),
+                (_("seed"), self.clear_polygon2),
+                (_("standard"), self.clear_polygon),
+            )
+            for method_name, method in methods:
+                try:
+                    self.app.inform.emit(
+                        _("Clearing the polygon with the method: %s.") % method_name)
+                    cp = method(pol, tooldia,
+                                steps_per_circle=self.circle_steps,
+                                overlap=ncc_overlap, contour=ncc_contour,
+                                connect=ncc_connect,
+                                prog_plot=prog_plot)
                     if cp and cp.objects:
-                        pass
-                    else:
-                        self.app.inform.emit(_("Failed. Clearing the polygon with the method: standard."))
-                        cp = self.clear_polygon(pol, tooldia,
-                                                steps_per_circle=self.circle_steps,
-                                                overlap=ncc_overlap, contour=ncc_contour,
-                                                connect=ncc_connect,
-                                                prog_plot=prog_plot)
-            except grace:
-                return "fail"
-            except Exception as ee:
-                log.debug("NonCopperClear.clear_polygon_worker() Combo --> %s" % str(ee))
+                        break
+                except grace:
+                    return "fail"
+                except Exception as ee:
+                    # A failure in one strategy must not prevent Combo from
+                    # trying the remaining fallbacks.
+                    log.debug("NonCopperClear.clear_polygon_worker() Combo %s --> %s" %
+                              (method_name, str(ee)))
+                    cp = None
 
         if cp and cp.objects:
             return list(cp.get_objects())
@@ -2245,6 +2229,7 @@ class NonCopperClear(AppTool, Gerber):
 
             # Bounding box for current tool
             ncc_margin = self.ui.ncc_margin_entry.get_value()
+            ncc_margin = self.constrain_reference_margin(ncc_select, sel_obj, ncc_margin)
             bbox = self.apply_margin_to_bounding_box(bbox=bbox_geo, box_kind=bbox_kind,
                                                      ncc_select=ncc_select, ncc_margin=ncc_margin)
 
@@ -2481,6 +2466,7 @@ class NonCopperClear(AppTool, Gerber):
 
             # Bounding box for current tool
             ncc_margin = self.ui.ncc_margin_entry.get_value()
+            ncc_margin = self.constrain_reference_margin(ncc_select, sel_obj, ncc_margin)
             bbox = self.apply_margin_to_bounding_box(bbox=env_obj, box_kind=box_obj_kind,
                                                      ncc_select=ncc_select, ncc_margin=ncc_margin)
 
@@ -3005,52 +2991,22 @@ class NonCopperClear(AppTool, Gerber):
                         if ncc_margin < tool_iso:
                             app_obj.inform.emit('[WARNING_NOTCL] %s' % _("Isolation geometry is broken. Margin is less "
                                                                          "than isolation tool diameter."))
-                        try:
-                            for geo_elem in isolated_geo:
-                                # provide the app with a way to process the GUI events when in a blocking loop
-                                QtWidgets.QApplication.processEvents()
+                        for geo_elem in self.geometry_parts(isolated_geo):
+                            QtWidgets.QApplication.processEvents()
+                            if self.app.abort_flag:
+                                raise grace
 
-                                if self.app.abort_flag:
-                                    # graceful abort requested by the user
-                                    raise grace
+                            if isinstance(geo_elem, Polygon):
+                                source_paths = self.poly2rings(geo_elem)
+                            elif isinstance(geo_elem, (LineString, LinearRing)):
+                                source_paths = [geo_elem]
+                            else:
+                                continue
 
-                                if isinstance(geo_elem, Polygon):
-                                    for ring in self.poly2rings(geo_elem):
-                                        new_geo = ring.intersection(bounding_box)
-                                        if new_geo and not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                                elif isinstance(geo_elem, MultiPolygon):
-                                    for a_poly in geo_elem:
-                                        for ring in self.poly2rings(a_poly):
-                                            new_geo = ring.intersection(bounding_box)
-                                            if new_geo and not new_geo.is_empty:
-                                                new_geometry.append(new_geo)
-                                elif isinstance(geo_elem, LineString):
-                                    new_geo = geo_elem.intersection(bounding_box)
-                                    if new_geo:
-                                        if not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                                elif isinstance(geo_elem, MultiLineString):
-                                    for line_elem in geo_elem:
-                                        new_geo = line_elem.intersection(bounding_box)
-                                        if new_geo and not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                        except TypeError:
-                            if isinstance(isolated_geo, Polygon):
-                                for ring in self.poly2rings(isolated_geo):
-                                    new_geo = ring.intersection(bounding_box)
-                                    if new_geo:
-                                        if not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                            elif isinstance(isolated_geo, LineString):
-                                new_geo = isolated_geo.intersection(bounding_box)
-                                if new_geo and not new_geo.is_empty:
+                            for source_path in source_paths:
+                                new_geo = source_path.intersection(bounding_box)
+                                if new_geo is not None and not new_geo.is_empty:
                                     new_geometry.append(new_geo)
-                            elif isinstance(isolated_geo, MultiLineString):
-                                for line_elem in isolated_geo:
-                                    new_geo = line_elem.intersection(bounding_box)
-                                    if new_geo and not new_geo.is_empty:
-                                        new_geometry.append(new_geo)
 
                         # a MultiLineString geometry element will show that the isolation is broken for this tool
                         for geo_e in new_geometry:
@@ -3385,55 +3341,22 @@ class NonCopperClear(AppTool, Gerber):
                         app_obj.inform.emit('[WARNING_NOTCL] %s' % _("Isolation geometry is broken. Margin is less "
                                                                      "than isolation tool diameter."))
 
-                        try:
-                            for geo_elem in isolated_geo:
-                                # provide the app with a way to process the GUI events when in a blocking loop
-                                QtWidgets.QApplication.processEvents()
+                        for geo_elem in self.geometry_parts(isolated_geo):
+                            QtWidgets.QApplication.processEvents()
+                            if self.app.abort_flag:
+                                raise grace
 
-                                if self.app.abort_flag:
-                                    # graceful abort requested by the user
-                                    raise grace
+                            if isinstance(geo_elem, Polygon):
+                                source_paths = self.poly2rings(geo_elem)
+                            elif isinstance(geo_elem, (LineString, LinearRing)):
+                                source_paths = [geo_elem]
+                            else:
+                                continue
 
-                                if isinstance(geo_elem, Polygon):
-                                    for ring in self.poly2rings(geo_elem):
-                                        new_geo = ring.intersection(bounding_box)
-                                        if new_geo and not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                                elif isinstance(geo_elem, MultiPolygon):
-                                    for poly_g in geo_elem:
-                                        for ring in self.poly2rings(poly_g):
-                                            new_geo = ring.intersection(bounding_box)
-                                            if new_geo and not new_geo.is_empty:
-                                                new_geometry.append(new_geo)
-                                elif isinstance(geo_elem, LineString):
-                                    new_geo = geo_elem.intersection(bounding_box)
-                                    if new_geo:
-                                        if not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                                elif isinstance(geo_elem, MultiLineString):
-                                    for line_elem in geo_elem:
-                                        new_geo = line_elem.intersection(bounding_box)
-                                        if new_geo and not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                        except TypeError:
-                            try:
-                                if isinstance(isolated_geo, Polygon):
-                                    for ring in self.poly2rings(isolated_geo):
-                                        new_geo = ring.intersection(bounding_box)
-                                        if new_geo:
-                                            if not new_geo.is_empty:
-                                                new_geometry.append(new_geo)
-                                elif isinstance(isolated_geo, LineString):
-                                    new_geo = isolated_geo.intersection(bounding_box)
-                                    if new_geo and not new_geo.is_empty:
-                                        new_geometry.append(new_geo)
-                                elif isinstance(isolated_geo, MultiLineString):
-                                    for line_elem in isolated_geo:
-                                        new_geo = line_elem.intersection(bounding_box)
-                                        if new_geo and not new_geo.is_empty:
-                                            new_geometry.append(new_geo)
-                            except Exception:
-                                pass
+                            for source_path in source_paths:
+                                new_geo = source_path.intersection(bounding_box)
+                                if new_geo is not None and not new_geo.is_empty:
+                                    new_geometry.append(new_geo)
 
                         # a MultiLineString geometry element will show that the isolation is broken for this tool
                         for geo_e in new_geometry:
@@ -3806,13 +3729,19 @@ class NonCopperClear(AppTool, Gerber):
 
     @staticmethod
     def geometry_parts(geometry):
-        """Return Shapely multipart members on both Shapely 1.x and 2.x."""
+        """Flatten containers and Shapely multipart geometry members."""
         if geometry is None:
             return []
-        if isinstance(geometry, (list, tuple)):
-            return list(geometry)
+        if isinstance(geometry, (list, tuple, set)):
+            parts = []
+            for element in geometry:
+                parts.extend(NonCopperClear.geometry_parts(element))
+            return parts
         if isinstance(geometry, BaseGeometry) and hasattr(geometry, 'geoms'):
-            return list(geometry.geoms)
+            parts = []
+            for element in geometry.geoms:
+                parts.extend(NonCopperClear.geometry_parts(element))
+            return parts
         return [geometry]
 
     @staticmethod
@@ -3834,23 +3763,22 @@ class NonCopperClear(AppTool, Gerber):
 
         if invert:
             try:
-                try:
-                    pl = []
-                    for p in geom:
-                        if p is not None:
-                            if isinstance(p, Polygon):
-                                pl.append(Polygon(p.exterior.coords[::-1], p.interiors))
-                            elif isinstance(p, LinearRing):
-                                pl.append(Polygon(p.coords[::-1]))
-                    geom = MultiPolygon(pl)
-                except TypeError:
-                    if isinstance(geom, Polygon) and geom is not None:
-                        geom = Polygon(geom.exterior.coords[::-1], geom.interiors)
-                    elif isinstance(geom, LinearRing) and geom is not None:
-                        geom = Polygon(geom.coords[::-1])
-                    else:
-                        log.debug("NonCopperClear.generate_envelope() Error --> Unexpected Geometry %s" %
-                                  type(geom))
+                reversed_polygons = []
+                for element in self.geometry_parts(geom):
+                    if isinstance(element, Polygon):
+                        reversed_interiors = [ring.coords[::-1] for ring in element.interiors]
+                        reversed_polygons.append(
+                            Polygon(element.exterior.coords[::-1], reversed_interiors))
+                    elif isinstance(element, LinearRing):
+                        reversed_polygons.append(Polygon(element.coords[::-1]))
+
+                if not reversed_polygons:
+                    log.debug("NonCopperClear.generate_envelope() Error --> Unexpected Geometry %s" % type(geom))
+                    return 'fail'
+                if len(reversed_polygons) == 1:
+                    geom = reversed_polygons[0]
+                else:
+                    geom = MultiPolygon(reversed_polygons)
             except Exception as e:
                 log.debug("NonCopperClear.generate_envelope() Error --> %s" % str(e))
                 return 'fail'

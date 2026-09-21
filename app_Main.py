@@ -5534,6 +5534,7 @@ class App(QtCore.QObject):
                 obj_init.solid_geometry = [area]
                 obj_init.multigeo = False
                 obj_init.tools = {}
+                obj_init.options['is_board_area'] = True
 
             created = self.app_obj.new_object("geometry", obj_name, initialize)
             if created == 'fail':
