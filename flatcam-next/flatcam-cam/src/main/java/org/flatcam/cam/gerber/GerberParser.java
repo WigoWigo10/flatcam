@@ -49,7 +49,7 @@ public final class GerberParser {
     private static final int GERBER_CIRCLE_STEPS = 64; // matches legacy defaults["gerber_circle_steps"]
 
     private static final Set<String> IGNORABLE_EXACT = Set.of(
-            "G90*", "G91*", "G70*", "G71*",
+            "G90*",
             "M00*", "M01*", "M02*", "M30*"
     );
     private static final List<String> IGNORABLE_PREFIXES = List.of(
@@ -116,6 +116,26 @@ public final class GerberParser {
             }
 
             if (isIgnorable(line)) {
+                continue;
+            }
+            if (line.equals("G91*")) {
+                // Incremental coordinate mode: every subsequent X/Y/I/J is an offset from the
+                // current position rather than an absolute coordinate. Not implemented - the
+                // decoder below always treats coordinates as absolute (G90), so silently
+                // accepting G91 would produce plausible-looking but wrong geometry instead of
+                // a visible failure.
+                throw new GerberParseException(
+                        "Incremental coordinate mode (G91) is not supported: " + rawLine);
+            }
+            if (line.equals("G70*") || line.equals("G71*")) {
+                String impliedUnits = line.equals("G70*") ? "IN" : "MM";
+                if (units == null) {
+                    units = impliedUnits;
+                } else if (!units.equals(impliedUnits)) {
+                    throw new GerberParseException(
+                            "Unit mismatch: %MO declared " + units + " but " + rawLine.strip()
+                                    + " declares " + impliedUnits);
+                }
                 continue;
             }
 
