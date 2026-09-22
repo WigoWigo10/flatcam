@@ -5,5 +5,6 @@ public enum ApertureKind {
     CIRCLE,
     RECTANGLE,
     OBROUND,
+    POLYGON,
     MACRO
 }

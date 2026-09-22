@@ -4,11 +4,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Parsed %FS...*% coordinate format. Only leading-zero omission ('L') and
- * absolute notation ('A') are supported - the only combination used by the
- * Fase 0 fixture corpus (tests/gerber_files/) - trailing-zero omission ('T')
- * and incremental notation ('I') raise {@link GerberParseException} rather
- * than silently mis-parsing coordinates.
+ * Parsed %FS...*% coordinate format: leading/trailing/no zero suppression
+ * and absolute/incremental notation, matching ParseGerber.py's fmt_re.
  */
 public final class FormatSpec {
 
@@ -19,12 +16,17 @@ public final class FormatSpec {
     public final int xDecDigits;
     public final int yIntDigits;
     public final int yDecDigits;
+    private final char zeroSuppression;
+    private final boolean incremental;
 
-    private FormatSpec(int xIntDigits, int xDecDigits, int yIntDigits, int yDecDigits) {
+    private FormatSpec(int xIntDigits, int xDecDigits, int yIntDigits, int yDecDigits,
+                       char zeroSuppression, boolean incremental) {
         this.xIntDigits = xIntDigits;
         this.xDecDigits = xDecDigits;
         this.yIntDigits = yIntDigits;
         this.yDecDigits = yDecDigits;
+        this.zeroSuppression = zeroSuppression;
+        this.incremental = incremental;
     }
 
     public static FormatSpec parse(String line) {
@@ -34,28 +36,26 @@ public final class FormatSpec {
         }
         String zeros = m.group(1);
         String notation = m.group(2);
-        if (zeros != null && !zeros.equals("L")) {
-            throw new GerberParseException("Only leading-zero omission (FS L..) is supported, got: " + line);
-        }
-        if (!notation.equals("A")) {
-            throw new GerberParseException("Only absolute notation (FS .A) is supported, got: " + line);
-        }
         return new FormatSpec(
                 Integer.parseInt(m.group(3)), Integer.parseInt(m.group(4)),
-                Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6))
+                Integer.parseInt(m.group(5)), Integer.parseInt(m.group(6)),
+                zeros == null ? 'D' : zeros.charAt(0), notation.equals("I")
         );
     }
 
-    /** Decodes a leading-zero-omitted, fixed-decimal digit string (e.g. "2940" with 3 decimals -&gt; 2.940). */
+    public boolean isIncremental() {
+        return incremental;
+    }
+
     public double decodeX(String digits) {
-        return decode(digits, xDecDigits);
+        return decode(digits, xIntDigits, xDecDigits, zeroSuppression);
     }
 
     public double decodeY(String digits) {
-        return decode(digits, yDecDigits);
+        return decode(digits, yIntDigits, yDecDigits, zeroSuppression);
     }
 
-    private static double decode(String digits, int decDigits) {
+    private static double decode(String digits, int intDigits, int decDigits, char zeroSuppression) {
         boolean negative = false;
         String s = digits;
         if (s.startsWith("+")) {
@@ -66,6 +66,12 @@ public final class FormatSpec {
         }
         if (s.isEmpty()) {
             return 0.0;
+        }
+        int totalDigits = intDigits + decDigits;
+        if (zeroSuppression == 'T') {
+            long value = Long.parseLong(s);
+            double result = value * Math.pow(10, totalDigits - s.length() - decDigits);
+            return negative ? -result : result;
         }
         long value = Long.parseLong(s);
         double result = value / Math.pow(10, decDigits);

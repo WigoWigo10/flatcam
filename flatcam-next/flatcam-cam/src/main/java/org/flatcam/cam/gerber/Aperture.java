@@ -7,10 +7,8 @@ import org.locationtech.jts.geom.util.AffineTransformation;
 
 /**
  * A defined aperture (%ADDnn...). Standard shapes (C/R/O) carry width/height
- * directly; MACRO wraps a resolved {@link ApertureMacro} plus its modifiers.
- * Polygon-template apertures (P) are not implemented - unused by the Fase 0
- * fixture corpus - and neither are non-circular strokes: {@link #strokeRadius()}
- * only works for CIRCLE, matching every stroke (non-flash D01) in that corpus.
+ * directly; POLYGON carries its vertex count/rotation; MACRO wraps a
+ * resolved {@link ApertureMacro} plus its modifiers.
  */
 public final class Aperture {
 
@@ -19,31 +17,43 @@ public final class Aperture {
     public final ApertureKind kind;
     public final double width;
     public final double height;
+    private final int polygonVertices;
+    private final double polygonRotation;
     private final ApertureMacro macro;
     private final double[] macroModifiers;
 
-    private Aperture(ApertureKind kind, double width, double height, ApertureMacro macro, double[] macroModifiers) {
+    private Aperture(ApertureKind kind, double width, double height, int polygonVertices,
+                     double polygonRotation, ApertureMacro macro, double[] macroModifiers) {
         this.kind = kind;
         this.width = width;
         this.height = height;
+        this.polygonVertices = polygonVertices;
+        this.polygonRotation = polygonRotation;
         this.macro = macro;
         this.macroModifiers = macroModifiers;
     }
 
     public static Aperture circle(double diameter) {
-        return new Aperture(ApertureKind.CIRCLE, diameter, diameter, null, null);
+        return new Aperture(ApertureKind.CIRCLE, diameter, diameter, 0, 0, null, null);
     }
 
     public static Aperture rectangle(double width, double height) {
-        return new Aperture(ApertureKind.RECTANGLE, width, height, null, null);
+        return new Aperture(ApertureKind.RECTANGLE, width, height, 0, 0, null, null);
     }
 
     public static Aperture obround(double width, double height) {
-        return new Aperture(ApertureKind.OBROUND, width, height, null, null);
+        return new Aperture(ApertureKind.OBROUND, width, height, 0, 0, null, null);
+    }
+
+    public static Aperture polygon(double diameter, int vertices, double rotation) {
+        if (vertices < 3 || vertices > 12) {
+            throw new GerberParseException("Polygon aperture vertex count must be between 3 and 12: " + vertices);
+        }
+        return new Aperture(ApertureKind.POLYGON, diameter, diameter, vertices, rotation, null, null);
     }
 
     public static Aperture macro(ApertureMacro macro, double[] modifiers) {
-        return new Aperture(ApertureKind.MACRO, 0, 0, macro, modifiers);
+        return new Aperture(ApertureKind.MACRO, 0, 0, 0, 0, macro, modifiers);
     }
 
     /**
@@ -58,6 +68,7 @@ public final class Aperture {
         return switch (kind) {
             case CIRCLE -> width / 2.0;
             case RECTANGLE, OBROUND -> Math.min(width, height) / 2.0;
+            case POLYGON -> width / 2.0;
             case MACRO -> throw new GerberParseException("Stroking with a macro aperture is not supported");
         };
     }
@@ -67,18 +78,38 @@ public final class Aperture {
         return macro != null ? macro.name() : null;
     }
 
+    public int polygonVertices() {
+        return polygonVertices;
+    }
+
+    public double polygonRotation() {
+        return polygonRotation;
+    }
+
     /** The shape this aperture paints when flashed (D03) at (x, y). */
     public Geometry footprintAt(double x, double y, GeometryFactory geometryFactory) {
         return switch (kind) {
             case CIRCLE -> geometryFactory.createPoint(new Coordinate(x, y)).buffer(width / 2.0, CIRCLE_QUADRANT_SEGMENTS);
             case RECTANGLE -> rectangleAt(x, y, geometryFactory);
             case OBROUND -> obroundAt(x, y, geometryFactory);
+            case POLYGON -> polygonAt(x, y, geometryFactory);
             case MACRO -> {
                 Geometry shape = macro.evaluate(macroModifiers, geometryFactory);
                 Geometry moved = AffineTransformation.translationInstance(x, y).transform(shape);
                 yield moved;
             }
         };
+    }
+
+    private Geometry polygonAt(double x, double y, GeometryFactory geometryFactory) {
+        Coordinate[] ring = new Coordinate[polygonVertices + 1];
+        double radius = width / 2.0;
+        for (int i = 0; i < polygonVertices; i++) {
+            double angle = Math.toRadians(polygonRotation + i * 360.0 / polygonVertices);
+            ring[i] = new Coordinate(x + radius * Math.cos(angle), y + radius * Math.sin(angle));
+        }
+        ring[polygonVertices] = ring[0];
+        return geometryFactory.createPolygon(ring);
     }
 
     private Geometry rectangleAt(double x, double y, GeometryFactory geometryFactory) {

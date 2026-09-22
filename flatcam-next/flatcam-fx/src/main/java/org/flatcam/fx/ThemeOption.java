@@ -44,6 +44,10 @@ public enum ThemeOption {
         return label;
     }
 
+    public boolean isDark() {
+        return this == CUSTOM_DARK || this == ATLANTAFX_DARK;
+    }
+
     public void applyTo(Scene scene) {
         Application.setUserAgentStylesheet(atlantaFxTheme != null ? atlantaFxTheme.getUserAgentStylesheet() : null);
         scene.getStylesheets().setAll(

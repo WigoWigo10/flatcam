@@ -67,6 +67,23 @@
     -fx-fill: -fx-text-base-color;
 }
 
+/*
+ * The legacy project-tree bitmaps are predominantly black. Dark themes keep
+ * the original artwork but give it a compact, modern light outline so its
+ * silhouette remains legible against the sidebar.
+ */
+.sidebar-object-icon-frame-dark {
+    -fx-background-color: rgba(255, 255, 255, 0.07);
+    -fx-background-radius: 4;
+    -fx-border-color: rgba(255, 255, 255, 0.52);
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+}
+
+.sidebar-object-icon-glyph-dark {
+    -fx-effect: dropshadow(one-pass-box, rgba(255, 255, 255, 0.78), 1.2, 0.82, 0, 0);
+}
+
 .status-bar {
     -fx-background-color: -fc-panel-bg;
     -fx-padding: 3 8 3 8;

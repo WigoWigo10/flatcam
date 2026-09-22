@@ -72,11 +72,13 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
@@ -95,10 +97,13 @@ final class MainWindow {
     private static final Color RUNNING_COLOR = Color.web("#f0ad4e");
     private static final Color CANCELLED_COLOR = Color.web("#9e9e9e");
     private static final Color ERROR_COLOR = Color.web("#e53935");
-    private static final Color GERBER_FILL = Color.web("#e1a339");
-    private static final Color GERBER_STROKE = Color.web("#a06f1f");
-    private static final Color DRILL_FILL = Color.web("#c9c9c9");
-    private static final Color DRILL_STROKE = Color.web("#8a8a8a");
+    private static final double LEGACY_OBJECT_ALPHA = 191.0 / 255.0; // defaults.py: hexadecimal BF
+    private static final Color GERBER_FILL = Color.web("#BBF268", LEGACY_OBJECT_ALPHA);
+    private static final Color GERBER_STROKE = Color.web("#006E20", LEGACY_OBJECT_ALPHA);
+    private static final Color DRILL_FILL = Color.web("#C40000", LEGACY_OBJECT_ALPHA);
+    private static final Color DRILL_STROKE = Color.web("#750000", LEGACY_OBJECT_ALPHA);
+    private static final Color GEOMETRY_FILL = Color.web("#FF0000");
+    private static final Color GEOMETRY_STROKE = Color.web("#ff0000");
     private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
     private static final Color MARK_COLOR = Color.web("#ff2fd6", 0.65);
     // CNCJob toolpath colors - straight from defaults.py's cncjob plot defaults, confirmed
@@ -147,6 +152,10 @@ final class MainWindow {
     private record LoadedCncJob(String sourceName, Path outputPath, String gcode) {
     }
 
+    /** A Geometry object derived from a Gerber (Follow, non-copper area or bounding box). */
+    private record GeometryEntry(String sourceName, String units, Geometry geometry, boolean strokeOnly) {
+    }
+
     private record LoadedProject(List<LoadedGerber> gerbers, List<LoadedExcellon> excellons,
                                  List<LoadedCncJob> cncJobs, List<String> warnings) {
     }
@@ -165,7 +174,10 @@ final class MainWindow {
     /** Files opened/generated so far, keyed by their tree item - back the Properties tab and the item context menu. */
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, GeometryEntry> geometryByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, CncJobEntry> cncJobByItem = new LinkedHashMap<>();
+    /** Gerber objects currently plotted as unbuffered trace centerlines instead of solid copper. */
+    private final Set<TreeItem<String>> gerberFollowItems = new LinkedHashSet<>();
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
     private final Map<TreeItem<String>, Path> sourcePathByItem = new LinkedHashMap<>();
 
@@ -180,6 +192,7 @@ final class MainWindow {
     private Tab toolTab;
     private TreeItem<String> gerbersNode;
     private TreeItem<String> excellonNode;
+    private TreeItem<String> geometryNode;
     private TreeItem<String> cncJobsNode;
     private VBox bottomPanel;
     private double dividerBeforeConsoleCollapse = 0.75;
@@ -310,6 +323,11 @@ final class MainWindow {
             option.applyTo(scene);
             currentTheme = option;
             AppPreferences.saveTheme(option);
+            // Tree cells cache their graphic nodes; rebuild them so dark-only
+            // icon outlines appear/disappear immediately with the theme.
+            if (projectTree != null) {
+                projectTree.refresh();
+            }
         });
         return item;
     }
@@ -465,10 +483,8 @@ final class MainWindow {
      * "Projeto" row too was redundant) with one category node per object
      * kind, matching appObjects/ObjectCollection.py's grouping. Category
      * nodes are inert; file nodes underneath (added as Gerber/Excellon files
-     * are opened, or as drilling G-code is generated - Geometry has no Java
-     * generator yet) carry a {@link GerberImage}, {@link ExcellonImage} or
-     * {@link CncJobEntry} in {@link #gerberByItem}/{@link #excellonByItem}/
-     * {@link #cncJobByItem} and get a context menu.
+     * are opened, or as Geometry/CNC objects are generated) carry their model
+     * in the corresponding item map and get a context menu.
      *
      * <p>Multi-selection (Ctrl/Shift-click, ObjectCollection.py's
      * ExtendedSelection) is enabled: right-clicking with more than one row
@@ -489,12 +505,14 @@ final class MainWindow {
         gerbersNode.setExpanded(true);
         excellonNode = new TreeItem<>("Excellon");
         excellonNode.setExpanded(true);
+        geometryNode = new TreeItem<>("Geometry");
+        geometryNode.setExpanded(true);
         cncJobsNode = new TreeItem<>("CNC Jobs");
         cncJobsNode.setExpanded(true);
         root.getChildren().addAll(
                 gerbersNode,
                 excellonNode,
-                new TreeItem<>("Geometry"),
+                geometryNode,
                 cncJobsNode
         );
 
@@ -580,8 +598,8 @@ final class MainWindow {
             Tooltip objectTooltip = new Tooltip();
             StackPane iconHolder = new StackPane();
             iconHolder.setAlignment(Pos.CENTER);
-            iconHolder.setMinSize(16, 16);
-            iconHolder.setPrefSize(16, 16);
+            iconHolder.setMinSize(20, 20);
+            iconHolder.setPrefSize(20, 20);
             HBox displayBox = new HBox(6, iconHolder, textLabel);
             displayBox.setAlignment(Pos.CENTER_LEFT);
 
@@ -700,7 +718,8 @@ final class MainWindow {
 
     /** Category rows (Gerbers/Excellon/Geometry/CNC Jobs) aren't real objects - only actual Gerber/Excellon/CNC Job items are. */
     private boolean isProjectObject(TreeItem<String> item) {
-        return gerberByItem.containsKey(item) || excellonByItem.containsKey(item) || cncJobByItem.containsKey(item);
+        return gerberByItem.containsKey(item) || excellonByItem.containsKey(item)
+                || geometryByItem.containsKey(item) || cncJobByItem.containsKey(item);
     }
 
     /**
@@ -711,16 +730,40 @@ final class MainWindow {
      * Group+Scale vector glyphs did not.
      */
     private Node iconShapeFor(TreeItem<String> item) {
+        Node icon;
         if (gerberByItem.containsKey(item)) {
-            return Icons.fromResource("gerber16.png", 16);
+            icon = Icons.fromResource("gerber16.png", 16);
+        } else if (excellonByItem.containsKey(item)) {
+            icon = Icons.fromResource("drill16.png", 16);
+        } else if (geometryByItem.containsKey(item)) {
+            Rectangle geometryIcon = new Rectangle(13, 10, Color.TRANSPARENT);
+            geometryIcon.setStroke(GEOMETRY_STROKE);
+            geometryIcon.setStrokeWidth(1.5);
+            icon = geometryIcon;
+        } else if (cncJobByItem.containsKey(item)) {
+            icon = Icons.fromResource("cnc16.png", 16);
+        } else {
+            return null;
         }
-        if (excellonByItem.containsKey(item)) {
-            return Icons.fromResource("drill16.png", 16);
+        return decorateSidebarIcon(icon);
+    }
+
+    /**
+     * Legacy object icons are mostly black. On dark themes, place the original
+     * bitmap in a restrained rounded frame and add a tight light halo around
+     * its actual silhouette; the artwork itself remains unchanged.
+     */
+    private Node decorateSidebarIcon(Node icon) {
+        if (!currentTheme.isDark()) {
+            return icon;
         }
-        if (cncJobByItem.containsKey(item)) {
-            return Icons.fromResource("cnc16.png", 16);
-        }
-        return null;
+        icon.getStyleClass().add("sidebar-object-icon-glyph-dark");
+        StackPane frame = new StackPane(icon);
+        frame.getStyleClass().add("sidebar-object-icon-frame-dark");
+        frame.setMinSize(20, 20);
+        frame.setPrefSize(20, 20);
+        frame.setMaxSize(20, 20);
+        return frame;
     }
 
     /**
@@ -738,11 +781,14 @@ final class MainWindow {
         }
         GerberImage gerberImage = gerberByItem.get(item);
         ExcellonImage excellonImage = excellonByItem.get(item);
+        GeometryEntry geometry = geometryByItem.get(item);
         CncJobEntry cncJob = cncJobByItem.get(item);
         if (gerberImage != null) {
             return new ContextMenu(gerberContextMenuItems(item, gerberImage).toArray(new MenuItem[0]));
         } else if (excellonImage != null) {
             return new ContextMenu(excellonContextMenuItems(item, excellonImage).toArray(new MenuItem[0]));
+        } else if (geometry != null) {
+            return new ContextMenu(geometryContextMenuItems(item).toArray(new MenuItem[0]));
         } else if (cncJob != null) {
             return new ContextMenu(cncJobContextMenuItems(item, cncJob).toArray(new MenuItem[0]));
         }
@@ -760,19 +806,23 @@ final class MainWindow {
         long plottable = selected.stream().filter(this::isPlottable).count();
 
         MenuItem enableItem = new MenuItem("Ativar Plot (" + plottable + ")");
+        setLegacyMenuIcon(enableItem, "replot32.png");
         enableItem.setDisable(plottable == 0);
         enableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
                 .forEach(i -> setObjectVisible(i, true)));
 
         MenuItem disableItem = new MenuItem("Desativar Plot (" + plottable + ")");
+        setLegacyMenuIcon(disableItem, "clear_plot32.png");
         disableItem.setDisable(plottable == 0);
         disableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
                 .forEach(i -> setObjectVisible(i, false)));
 
         MenuItem removeItem = new MenuItem("Remover (" + selected.size() + ")");
+        setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeSelectionFromProject(selected));
 
         MenuItem copyItem = new MenuItem("Copiar (" + selected.size() + ")");
+        setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copySelection(selected));
 
         return List.of(enableItem, disableItem, new SeparatorMenuItem(), copyItem, removeItem);
@@ -780,7 +830,7 @@ final class MainWindow {
 
     /** True for a Gerber/Excellon, or a CNC Job that actually has toolpath geometry to show (see CncJobEntry's doc). */
     private boolean isPlottable(TreeItem<String> item) {
-        if (gerberByItem.containsKey(item) || excellonByItem.containsKey(item)) {
+        if (gerberByItem.containsKey(item) || excellonByItem.containsKey(item) || geometryByItem.containsKey(item)) {
             return true;
         }
         CncJobEntry entry = cncJobByItem.get(item);
@@ -818,6 +868,8 @@ final class MainWindow {
                 removeFromProject(item, gerberByItem);
             } else if (excellonByItem.containsKey(item)) {
                 removeFromProject(item, excellonByItem);
+            } else if (geometryByItem.containsKey(item)) {
+                removeFromProject(item, geometryByItem);
             } else if (cncJobByItem.containsKey(item)) {
                 removeFromProject(item, cncJobByItem);
             }
@@ -835,40 +887,52 @@ final class MainWindow {
      */
     private List<MenuItem> gerberContextMenuItems(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
         MenuItem enableItem = new MenuItem("Ativar Plot");
+        setLegacyMenuIcon(enableItem, "replot32.png");
         enableItem.setOnAction(e -> setObjectVisible(item, true));
         MenuItem disableItem = new MenuItem("Desativar Plot");
+        setLegacyMenuIcon(disableItem, "clear_plot32.png");
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
 
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
+        setLegacyMenuIcon(isolationItem, "iso_16.png");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
 
         MenuItem cutoutItem = new MenuItem("Cutout Tool...");
+        setLegacyMenuIcon(cutoutItem, "cut32.png");
         cutoutItem.setOnAction(e -> generateCutout(item, image));
 
         Menu createCncMenu = new Menu("Criar CNC Job");
+        setLegacyMenuIcon(createCncMenu, "cnc32.png");
         createCncMenu.getItems().addAll(isolationItem, cutoutItem);
 
         MenuItem viewSourceItem = new MenuItem("Ver Fonte");
+        setLegacyMenuIcon(viewSourceItem, "source32.png");
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
+        setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
 
         MenuItem removeItem = new MenuItem("Remover");
+        setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
         MenuItem saveItem = new MenuItem("Salvar como...");
+        setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
 
         MenuItem propertiesItem = new MenuItem("Propriedades");
+        setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
@@ -879,38 +943,87 @@ final class MainWindow {
     /** Same legacy project-menu shape as Gerber, with Excellon's drilling CNC workflow. */
     private List<MenuItem> excellonContextMenuItems(TreeItem<String> item, ExcellonImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
         MenuItem enableItem = new MenuItem("Ativar Plot");
+        setLegacyMenuIcon(enableItem, "replot32.png");
         enableItem.setOnAction(e -> setObjectVisible(item, true));
         MenuItem disableItem = new MenuItem("Desativar Plot");
+        setLegacyMenuIcon(disableItem, "clear_plot32.png");
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         Menu colorMenu = buildLayerColorMenu(item, DRILL_FILL, DRILL_STROKE);
 
         MenuItem gcodeItem = new MenuItem("Criar CNC Job...");
+        setLegacyMenuIcon(gcodeItem, "cnc32.png");
         gcodeItem.setOnAction(e -> generateDrillGCode(item, image));
 
         MenuItem viewSourceItem = new MenuItem("Ver Fonte");
+        setLegacyMenuIcon(viewSourceItem, "source32.png");
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
+        setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
 
         MenuItem removeItem = new MenuItem("Remover");
+        setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
 
         MenuItem saveItem = new MenuItem("Salvar como...");
+        setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
 
         MenuItem propertiesItem = new MenuItem("Propriedades");
+        setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
                 new SeparatorMenuItem(), gcodeItem, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), propertiesItem);
+    }
+
+    /** Project-tree actions for Gerber-derived Geometry objects. */
+    private List<MenuItem> geometryContextMenuItems(TreeItem<String> item) {
+        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        setLegacyMenuIcon(showItem, "zoom_fit32.png");
+        showItem.setOnAction(e -> focusLayer(item));
+
+        MenuItem enableItem = new MenuItem("Ativar Plot");
+        setLegacyMenuIcon(enableItem, "replot32.png");
+        enableItem.setOnAction(e -> setObjectVisible(item, true));
+        MenuItem disableItem = new MenuItem("Desativar Plot");
+        setLegacyMenuIcon(disableItem, "clear_plot32.png");
+        disableItem.setOnAction(e -> setObjectVisible(item, false));
+
+        Menu colorMenu = buildLayerColorMenu(item, GEOMETRY_FILL, GEOMETRY_STROKE);
+
+        MenuItem viewItem = new MenuItem("Ver WKT");
+        setLegacyMenuIcon(viewItem, "source32.png");
+        viewItem.setOnAction(e -> viewObjectSource(item));
+        MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit_ok32.png");
+        renameItem.setOnAction(e -> beginRename(item));
+        MenuItem copyItem = new MenuItem("Copiar");
+        setLegacyMenuIcon(copyItem, "copy32.png");
+        copyItem.setOnAction(e -> copyObject(item));
+        MenuItem removeItem = new MenuItem("Remover");
+        setLegacyMenuIcon(removeItem, "delete32.png");
+        removeItem.setOnAction(e -> removeFromProject(item, geometryByItem));
+        MenuItem saveItem = new MenuItem("Salvar WKT como...");
+        setLegacyMenuIcon(saveItem, "save_as.png");
+        saveItem.setOnAction(e -> saveObjectAs(item));
+        MenuItem propertiesItem = new MenuItem("Propriedades");
+        setLegacyMenuIcon(propertiesItem, "properties32.png");
+        propertiesItem.setOnAction(e -> showObjectProperties(item));
+
+        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
+                new SeparatorMenuItem(), viewItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -926,26 +1039,33 @@ final class MainWindow {
         Color[] current = plotAreaView.layerColors(item);
         Color currentFill = current != null ? current[0]
                 : excellonByItem.containsKey(item) ? DRILL_FILL : GERBER_FILL;
-        LayerColorDialog.show(currentFill)
-                .ifPresent(fill -> plotAreaView.setLayerColors(item, fill, fill.darker()));
+        LayerColorDialog.show(currentFill).ifPresent(selected -> {
+            Color fill = colorWithOpacity(selected, defaultObjectOpacity(item));
+            plotAreaView.setLayerColors(item, fill, legacyOutlineColor(selected));
+        });
     }
 
     private Menu buildLayerColorMenu(TreeItem<String> item, Color defaultFill, Color defaultStroke) {
         Menu menu = new Menu("Definir Cor");
-        addColorPreset(menu, item, "Vermelho", Color.web("#ef5350"));
-        addColorPreset(menu, item, "Azul", Color.web("#42a5f5"));
-        addColorPreset(menu, item, "Amarelo", Color.web("#fdd835"));
-        addColorPreset(menu, item, "Verde", Color.web("#66bb6a"));
-        addColorPreset(menu, item, "Roxo", Color.web("#ab47bc"));
-        addColorPreset(menu, item, "Marrom", Color.web("#8d6e63"));
+        setLegacyMenuIcon(menu, "set_color32.png");
+        // Exact RGB values from app_Main.py:on_set_color_action_triggered().
+        addColorPreset(menu, item, "Vermelho", Color.web("#FF0000"));
+        addColorPreset(menu, item, "Azul", Color.web("#0000FF"));
+        addColorPreset(menu, item, "Amarelo", Color.web("#FFDF00"));
+        addColorPreset(menu, item, "Verde", Color.web("#00FF00"));
+        addColorPreset(menu, item, "Roxo", Color.web("#FF00FF"));
+        addColorPreset(menu, item, "Marrom", Color.web("#A52A2A"));
         addColorPreset(menu, item, "Branco", Color.WHITE);
         addColorPreset(menu, item, "Preto", Color.BLACK);
 
         MenuItem customItem = new MenuItem("Personalizada...");
+        setLegacyMenuIcon(customItem, "set_color32.png");
         customItem.setOnAction(e -> editLayerColor(item));
         MenuItem opacityItem = new MenuItem("Opacidade...");
+        setLegacyMenuIcon(opacityItem, "set_color32.png");
         opacityItem.setOnAction(e -> editLayerOpacity(item));
         MenuItem defaultItem = new MenuItem("Padrao");
+        defaultItem.setGraphic(colorSwatch(defaultFill));
         defaultItem.setOnAction(e -> plotAreaView.setLayerColors(item, defaultFill, defaultStroke));
         menu.getItems().addAll(new SeparatorMenuItem(), customItem, new SeparatorMenuItem(), opacityItem, defaultItem);
         return menu;
@@ -953,13 +1073,35 @@ final class MainWindow {
 
     private void addColorPreset(Menu menu, TreeItem<String> item, String label, Color color) {
         MenuItem colorItem = new MenuItem(label);
+        colorItem.setGraphic(colorSwatch(color));
         colorItem.setOnAction(e -> {
-            Color[] current = plotAreaView.layerColors(item);
-            double opacity = current == null ? 1.0 : current[0].getOpacity();
-            Color fill = colorWithOpacity(color, opacity);
-            plotAreaView.setLayerColors(item, fill, fill.darker());
+            Color fill = colorWithOpacity(color, defaultObjectOpacity(item));
+            plotAreaView.setLayerColors(item, fill, legacyOutlineColor(color));
         });
         menu.getItems().add(colorItem);
+    }
+
+    /** A compact modern preview while keeping the legacy preset itself exact. */
+    private static Rectangle colorSwatch(Color color) {
+        Rectangle swatch = new Rectangle(14, 14, colorWithOpacity(color, 1));
+        swatch.setArcWidth(5);
+        swatch.setArcHeight(5);
+        swatch.setStroke(Color.web("#808080", 0.72));
+        swatch.setStrokeWidth(0.8);
+        return swatch;
+    }
+
+    private double defaultObjectOpacity(TreeItem<String> item) {
+        return geometryByItem.containsKey(item) ? 1.0 : LEGACY_OBJECT_ALPHA;
+    }
+
+    /** Python's color_variant(rgb, 0.7), including its special base for white. */
+    private static Color legacyOutlineColor(Color color) {
+        Color base = color.equals(Color.WHITE) ? Color.web("#DEDEDE") : color;
+        return Color.rgb(
+                (int) Math.round(base.getRed() * 255 * 0.7),
+                (int) Math.round(base.getGreen() * 255 * 0.7),
+                (int) Math.round(base.getBlue() * 255 * 0.7));
     }
 
     private void editLayerOpacity(TreeItem<String> item) {
@@ -968,44 +1110,58 @@ final class MainWindow {
             return;
         }
         LayerColorDialog.showOpacity(current[0].getOpacity()).ifPresent(opacity ->
-                plotAreaView.setLayerColors(item, colorWithOpacity(current[0], opacity),
-                        colorWithOpacity(current[1], opacity)));
+                // Legacy FlatCAM changes fill alpha only; the outline remains unchanged.
+                plotAreaView.setLayerColors(item, colorWithOpacity(current[0], opacity), current[1]));
     }
 
     private static Color colorWithOpacity(Color color, double opacity) {
         return new Color(color.getRed(), color.getGreen(), color.getBlue(), opacity);
     }
 
+    private void setLegacyMenuIcon(MenuItem item, String fileName) {
+        String resource = currentTheme.isDark() ? "dark/" + fileName : fileName;
+        item.setGraphic(Icons.fromResource(resource, 16));
+    }
+
     private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {
         boolean plottable = isPlottable(item);
 
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setDisable(!plottable);
         showItem.setOnAction(e -> focusCncJob(item, entry));
 
         MenuItem enableItem = new MenuItem("Ativar Plot");
+        setLegacyMenuIcon(enableItem, "replot32.png");
         enableItem.setDisable(!plottable);
         enableItem.setOnAction(e -> setObjectVisible(item, true));
         MenuItem disableItem = new MenuItem("Desativar Plot");
+        setLegacyMenuIcon(disableItem, "clear_plot32.png");
         disableItem.setDisable(!plottable);
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         MenuItem viewItem = new MenuItem("Ver G-code");
+        setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
+        setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
 
         MenuItem removeItem = new MenuItem("Remover");
+        setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, cncJobByItem));
 
         MenuItem saveItem = new MenuItem("Salvar como...");
+        setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
 
         MenuItem propertiesItem = new MenuItem("Propriedades");
+        setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), viewItem, renameItem, copyItem,
@@ -1049,7 +1205,10 @@ final class MainWindow {
     private void viewObjectSource(TreeItem<String> item) {
         String source;
         CncJobEntry cncJob = cncJobByItem.get(item);
-        if (cncJob != null) {
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (geometry != null) {
+            source = geometry.geometry().toText();
+        } else if (cncJob != null) {
             source = cncJob.gcode();
         } else {
             Path path = sourcePathByItem.get(item);
@@ -1071,8 +1230,9 @@ final class MainWindow {
 
     private void saveObjectAs(TreeItem<String> item) {
         CncJobEntry cncJob = cncJobByItem.get(item);
+        GeometryEntry geometry = geometryByItem.get(item);
         Path sourcePath = sourcePathByItem.get(item);
-        if (cncJob == null && sourcePath == null) {
+        if (cncJob == null && geometry == null && sourcePath == null) {
             appendConsole("Nao ha conteudo exportavel para " + item.getValue() + ".");
             return;
         }
@@ -1080,7 +1240,9 @@ final class MainWindow {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar objeto como");
         chooser.setInitialFileName(item.getValue());
-        if (gerberByItem.containsKey(item)) {
+        if (geometry != null) {
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Well-Known Text", "*.wkt", "*.txt"));
+        } else if (gerberByItem.containsKey(item)) {
             chooser.getExtensionFilters().add(
                     new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
         } else if (excellonByItem.containsKey(item)) {
@@ -1091,7 +1253,8 @@ final class MainWindow {
                     new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
         }
 
-        Path suggestedParent = cncJob != null ? cncJob.outputFile().getParent() : sourcePath.getParent();
+        Path suggestedParent = cncJob != null ? cncJob.outputFile().getParent()
+                : sourcePath != null ? sourcePath.getParent() : null;
         if (suggestedParent != null && Files.isDirectory(suggestedParent)) {
             chooser.setInitialDirectory(suggestedParent.toFile());
         }
@@ -1102,7 +1265,9 @@ final class MainWindow {
 
         Path target = destination.toPath();
         try {
-            if (cncJob != null) {
+            if (geometry != null) {
+                Files.writeString(target, geometry.geometry().toText());
+            } else if (cncJob != null) {
                 Files.writeString(target, cncJob.gcode());
             } else if (!sourcePath.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
                 Files.copy(sourcePath, target, StandardCopyOption.REPLACE_EXISTING);
@@ -1132,6 +1297,7 @@ final class MainWindow {
         TreeItem<String> copyItem;
         GerberImage gerber = gerberByItem.get(sourceItem);
         ExcellonImage excellon = excellonByItem.get(sourceItem);
+        GeometryEntry geometry = geometryByItem.get(sourceItem);
         CncJobEntry cncJob = cncJobByItem.get(sourceItem);
 
         if (gerber != null) {
@@ -1139,6 +1305,10 @@ final class MainWindow {
             copyLayerAppearance(sourceItem, copyItem);
         } else if (excellon != null) {
             copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon);
+            copyLayerAppearance(sourceItem, copyItem);
+        } else if (geometry != null) {
+            copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
+                    geometry.geometry().copy(), geometry.strokeOnly());
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
@@ -1180,6 +1350,7 @@ final class MainWindow {
     private boolean projectObjectNameExists(String name) {
         return gerbersNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()))
                 || excellonNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()))
+                || geometryNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()))
                 || cncJobsNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()));
     }
 
@@ -1456,6 +1627,7 @@ final class MainWindow {
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
+        gerberFollowItems.remove(item);
         sourcePathByItem.remove(item);
         plotAreaView.removeLayer(item);
         plotAreaView.removeLayer(new MarkLayerKey(item));
@@ -1481,11 +1653,14 @@ final class MainWindow {
         Node content;
         GerberImage gerberImage = item == null ? null : gerberByItem.get(item);
         ExcellonImage excellonImage = item == null ? null : excellonByItem.get(item);
+        GeometryEntry geometry = item == null ? null : geometryByItem.get(item);
         CncJobEntry cncJob = item == null ? null : cncJobByItem.get(item);
         if (gerberImage != null) {
             content = buildGerberPropertiesPanel(item, gerberImage);
         } else if (excellonImage != null) {
             content = buildExcellonPropertiesPanel(item, excellonImage);
+        } else if (geometry != null) {
+            content = buildGeometryPropertiesPanel(item, geometry);
         } else if (cncJob != null) {
             content = buildCncJobPropertiesPanel(item, cncJob);
         } else {
@@ -1511,7 +1686,21 @@ final class MainWindow {
         CheckBox plotCb = new CheckBox();
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
-        box.getChildren().add(labeledRow("Plot:", plotCb));
+        CheckBox followCb = new CheckBox("Follow");
+        followCb.setTooltip(new Tooltip("Exibe a linha central das trilhas Gerber."));
+        followCb.setSelected(gerberFollowItems.contains(item));
+        followCb.setOnAction(e -> {
+            boolean follow = followCb.isSelected();
+            if (follow) {
+                gerberFollowItems.add(item);
+            } else {
+                gerberFollowItems.remove(item);
+            }
+            plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER,
+                    follow ? image.followGeometry() : image.solidGeometry(),
+                    GERBER_FILL, GERBER_STROKE, follow);
+        });
+        box.getChildren().add(labeledRow("Plot:", plotCb, followCb));
 
         Button isolationButton = new Button("Isolation Routing");
         isolationButton.setMaxWidth(Double.MAX_VALUE);
@@ -1523,6 +1712,8 @@ final class MainWindow {
         cutoutButton.setOnAction(e -> generateCutout(item, image));
         box.getChildren().add(cutoutButton);
 
+        box.getChildren().add(buildGerberUtilities(item, image));
+
         box.getChildren().add(new Label("Apertures Table:"));
         box.getChildren().add(buildAperturesTableSection(item, image));
 
@@ -1531,6 +1722,86 @@ final class MainWindow {
                 image.units(), image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())
         )));
         return box;
+    }
+
+    /** Follow, non-copper and bounding-box Geometry generators from GerberObjectUI's Utilities section. */
+    private TitledPane buildGerberUtilities(TreeItem<String> item, GerberImage image) {
+        VBox content = new VBox(7);
+        content.setPadding(new Insets(8));
+
+        Button followButton = new Button("Gerar Geometry Follow");
+        followButton.setMaxWidth(Double.MAX_VALUE);
+        followButton.setOnAction(e -> addDerivedGeometry(item, image, "_follow", image.followGeometry(), true));
+
+        Label nonCopperLabel = new Label("Non-copper regions");
+        nonCopperLabel.setStyle("-fx-font-weight: bold;");
+        TextField nonCopperMargin = marginField();
+        CheckBox nonCopperRounded = new CheckBox("Rounded");
+        Button nonCopperButton = new Button("Generate Geometry");
+        nonCopperButton.setOnAction(e -> generateGerberUtility(item, image, "_noncopper",
+                nonCopperMargin, nonCopperRounded.isSelected(), true));
+
+        Label bboxLabel = new Label("Bounding Box");
+        bboxLabel.setStyle("-fx-font-weight: bold;");
+        TextField bboxMargin = marginField();
+        CheckBox bboxRounded = new CheckBox("Rounded");
+        Button bboxButton = new Button("Generate Geometry");
+        bboxButton.setOnAction(e -> generateGerberUtility(item, image, "_bbox",
+                bboxMargin, bboxRounded.isSelected(), false));
+
+        content.getChildren().addAll(followButton, new Separator(), nonCopperLabel,
+                labeledRow("Boundary Margin:", nonCopperMargin),
+                labeledRow("", nonCopperRounded, nonCopperButton), new Separator(), bboxLabel,
+                labeledRow("Boundary Margin:", bboxMargin), labeledRow("", bboxRounded, bboxButton));
+        TitledPane pane = new TitledPane("UTILITIES", content);
+        pane.setExpanded(false);
+        return pane;
+    }
+
+    private static TextField marginField() {
+        TextField field = new TextField("0.0");
+        field.setPrefColumnCount(7);
+        return field;
+    }
+
+    private void generateGerberUtility(TreeItem<String> item, GerberImage image, String suffix,
+                                       TextField marginField, boolean rounded, boolean nonCopper) {
+        try {
+            double margin = Double.parseDouble(marginField.getText().trim().replace(',', '.'));
+            Geometry generated = nonCopper
+                    ? GerberGeometryGenerator.nonCopper(image, margin, rounded)
+                    : GerberGeometryGenerator.boundingBox(image, margin, rounded);
+            addDerivedGeometry(item, image, suffix, generated, false);
+        } catch (RuntimeException ex) {
+            appendConsole("Falha ao gerar Geometry: " + ex.getMessage());
+            setStatus("Falhou.", ERROR_COLOR);
+        }
+    }
+
+    private void addDerivedGeometry(TreeItem<String> sourceItem, GerberImage image, String suffix,
+                                    Geometry geometry, boolean strokeOnly) {
+        if (geometry == null || geometry.isEmpty()) {
+            appendConsole("Geometry " + suffix + " ficou vazia.");
+            setStatus("Falhou.", ERROR_COLOR);
+            return;
+        }
+        String name = uniqueDerivedName(sourceItem.getValue() + suffix);
+        TreeItem<String> generated = addGeometryToProject(name, sourceItem.getValue(), image.units(), geometry, strokeOnly);
+        appendConsole("Geometry gerada: " + name);
+        selectProjectItem(generated);
+        plotAreaView.fitToLayer(generated);
+        setStatus("Concluido.", IDLE_COLOR);
+    }
+
+    private String uniqueDerivedName(String base) {
+        if (!projectObjectNameExists(base)) {
+            return base;
+        }
+        int suffix = 2;
+        while (projectObjectNameExists(base + "_" + suffix)) {
+            suffix++;
+        }
+        return base + "_" + suffix;
     }
 
     /**
@@ -1599,6 +1870,25 @@ final class MainWindow {
                 "Unidades: %s%nFuros totais: %d%nSlots totais: %d%nBounds: %s",
                 image.units(), image.totalDrills(), image.totalSlots(), Arrays.toString(image.bounds())
         )));
+        return box;
+    }
+
+    private Node buildGeometryPropertiesPanel(TreeItem<String> item, GeometryEntry entry) {
+        VBox box = objectPropertiesHeader("Geometry Object", GEOMETRY_STROKE);
+        box.getChildren().add(nameRow(item));
+
+        CheckBox plotCb = new CheckBox();
+        plotCb.setSelected(plotAreaView.isLayerVisible(item));
+        plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
+        box.getChildren().add(labeledRow("Plot:", plotCb));
+
+        Envelope envelope = entry.geometry().getEnvelopeInternal();
+        double[] bounds = entry.geometry().isEmpty() ? null
+                : new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
+        box.getChildren().add(propertiesSection(String.format(
+                "Origem: %s%nUnidades: %s%nArea: %.4f%nComprimento: %.4f%nBounds: %s",
+                entry.sourceName(), entry.units(), entry.geometry().getArea(), entry.geometry().getLength(),
+                Arrays.toString(bounds))));
         return box;
     }
 
@@ -2136,10 +2426,13 @@ final class MainWindow {
     private void clearProject() {
         gerbersNode.getChildren().clear();
         excellonNode.getChildren().clear();
+        geometryNode.getChildren().clear();
         cncJobsNode.getChildren().clear();
         gerberByItem.clear();
         excellonByItem.clear();
+        geometryByItem.clear();
         cncJobByItem.clear();
+        gerberFollowItems.clear();
         sourcePathByItem.clear();
         plotAreaView.clearLayers();
         unitsLabel.setText("Unidades: -");
@@ -2169,6 +2462,16 @@ final class MainWindow {
         sourcePathByItem.put(item, sourcePath);
         excellonNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.EXCELLON, image.solidGeometry(), DRILL_FILL, DRILL_STROKE, false);
+        return item;
+    }
+
+    private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
+                                                  Geometry geometry, boolean strokeOnly) {
+        TreeItem<String> item = new TreeItem<>(displayName);
+        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly));
+        geometryNode.getChildren().add(item);
+        plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GEOMETRY, geometry,
+                GEOMETRY_FILL, GEOMETRY_STROKE, strokeOnly);
         return item;
     }
 

@@ -8,12 +8,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Covers the G70/G71/G91 handling fixed after the Fase 0 baseline: previously
+ * Covers the G70/G71/G90/G91 handling fixed after the Fase 0 baseline: previously
  * these three codes were silently ignored (IGNORABLE_EXACT), which let a
  * metric-only file declaring units solely via G71 (no %MO) fall back to the
- * "IN" default, and let a G91 (incremental) file be mis-decoded as absolute
- * coordinates without any error. See GerberParser's IGNORABLE_EXACT comment
- * and its G70/G71/G91 handling above the DATA_LINE match.
+ * "IN" default. Incremental files are now decoded instead of rejected.
  */
 class GerberUnitAndCoordinateModeTest {
 
@@ -82,9 +80,15 @@ class GerberUnitAndCoordinateModeTest {
     }
 
     @Test
-    void g91IncrementalModeIsRejectedRatherThanMisdecoded() {
-        GerberParseException ex = assertThrows(GerberParseException.class,
-                () -> new GerberParser().parse(withHeader("G91*")));
-        assertTrue(ex.getMessage().contains("Incremental"));
+    void g91EnablesIncrementalCoordinates() {
+        List<String> lines = new java.util.ArrayList<>(HEADER);
+        lines.add("G91*");
+        lines.add("D10*");
+        lines.add("X001000Y001000D03*");
+        lines.add("X001000Y000000D03*");
+        lines.add("M02*");
+
+        GerberImage image = new GerberParser().parse(lines);
+        assertEquals(2.005, image.bounds()[2], 1e-6);
     }
 }

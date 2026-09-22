@@ -106,12 +106,16 @@ final class GerberAperturesTable {
             case CIRCLE -> "C";
             case RECTANGLE -> "R";
             case OBROUND -> "O";
+            case POLYGON -> "P";
             case MACRO -> aperture.macroName() != null ? aperture.macroName() : "AM";
         };
         double size = aperture.kind == ApertureKind.MACRO ? 0 : aperture.width;
-        String dim = aperture.kind == ApertureKind.RECTANGLE || aperture.kind == ApertureKind.OBROUND
-                ? String.format("%.4f x %.4f", aperture.width, aperture.height)
-                : "";
+        String dim = switch (aperture.kind) {
+            case RECTANGLE, OBROUND -> String.format("%.4f x %.4f", aperture.width, aperture.height);
+            case POLYGON -> String.format("%.4f x %d @ %.2f deg", aperture.width,
+                    aperture.polygonVertices(), aperture.polygonRotation());
+            default -> "";
+        };
         return new ApertureRow(code, type, size, dim);
     }
 

@@ -59,6 +59,52 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Reuse the legacy Python UI's own context-menu artwork. -->
+            <resource>
+                <directory>../../assets/resources</directory>
+                <targetPath>org/flatcam/fx/icons</targetPath>
+                <includes>
+                    <include>replot32.png</include>
+                    <include>clear_plot32.png</include>
+                    <include>set_color32.png</include>
+                    <include>cnc32.png</include>
+                    <include>source32.png</include>
+                    <include>edit_ok32.png</include>
+                    <include>copy32.png</include>
+                    <include>delete32.png</include>
+                    <include>save_as.png</include>
+                    <include>properties32.png</include>
+                    <include>zoom_fit32.png</include>
+                    <include>iso_16.png</include>
+                    <include>cut32.png</include>
+                    <include>drilling_tool32.png</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>../../assets/resources/dark_resources</directory>
+                <targetPath>org/flatcam/fx/icons/dark</targetPath>
+                <includes>
+                    <include>replot32.png</include>
+                    <include>clear_plot32.png</include>
+                    <include>set_color32.png</include>
+                    <include>cnc32.png</include>
+                    <include>source32.png</include>
+                    <include>edit_ok32.png</include>
+                    <include>copy32.png</include>
+                    <include>delete32.png</include>
+                    <include>save_as.png</include>
+                    <include>properties32.png</include>
+                    <include>zoom_fit32.png</include>
+                    <include>iso_16.png</include>
+                    <include>cut32.png</include>
+                    <include>drilling_tool32.png</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.openjfx</groupId>

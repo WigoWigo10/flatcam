@@ -17,6 +17,8 @@ import org.flatcam.cam.ProgressCallback;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
@@ -31,9 +33,8 @@ import org.locationtech.jts.operation.union.UnaryUnionOp;
  * camlib.py's arc()/arc_angle() helpers, needed to open board-outline
  * (Edge_Cuts) Gerbers, whose rounded corners are drawn as arcs.
  *
- * <p>Deliberately NOT a full Gerber implementation: trailing-zero/incremental
- * coordinate formats, step-and-repeat (%SR), polygon-template apertures (P),
- * and most aperture-macro primitives are unimplemented. Unsupported input
+ * <p>Deliberately NOT yet a full Gerber implementation: step-and-repeat (%SR)
+ * and some aperture-macro primitives are unimplemented. Unsupported input
  * raises {@link GerberParseException} rather than silently producing wrong
  * geometry - see GerberParserBaselineTest for what this is validated against.
  */
@@ -52,7 +53,6 @@ public final class GerberParser {
     private static final int GERBER_CIRCLE_STEPS = 64; // matches legacy defaults["gerber_circle_steps"]
 
     private static final Set<String> IGNORABLE_EXACT = Set.of(
-            "G90*",
             "M00*", "M01*", "M02*", "M30*"
     );
     private static final List<String> IGNORABLE_PREFIXES = List.of(
@@ -99,8 +99,10 @@ public final class GerberParser {
         Objects.requireNonNull(progressCallback, "progressCallback");
         cancellationToken.throwIfCancellationRequested();
         progressCallback.report(0);
+        List<String> lines = splitStatements(rawLines);
         String units = null;
         FormatSpec format = null;
+        boolean incrementalMode = false;
         Map<String, Aperture> apertures = new LinkedHashMap<>();
         Map<String, ApertureMacro> macros = new HashMap<>();
         ApertureMacro macroInProgress = null;
@@ -109,6 +111,7 @@ public final class GerberParser {
         double posX = 0;
         double posY = 0;
         char polarity = 'D';
+        int currentOperationCode = 2;
         int interpolationMode = 1; // 1=linear (G01), 2=clockwise arc (G02), 3=counter-clockwise arc (G03) - modal
         String quadrantMode = null; // "SINGLE" (G74) or "MULTI" (G75) - required before any arc
         SolidAccumulator accumulator = new SolidAccumulator(geometryFactory, cancellationToken);
@@ -116,15 +119,19 @@ public final class GerberParser {
         // apertures table's "Mark" highlight (appParsers/ParseGerber.py's apertures[code]['geometry']),
         // with zero effect on the final solidGeometry above.
         Map<String, List<Geometry>> shapesByAperture = new LinkedHashMap<>();
+        // ParseGerber.py's follow_buffer: unbuffered draw paths, region
+        // boundaries and flash centers. Kept separately from copper solids so
+        // the UI and later Geometry-object workflow can follow trace centers.
+        List<Geometry> followShapes = new ArrayList<>();
 
         boolean regionMode = false;
         List<Coordinate> currentContour = null;
         List<List<Coordinate>> regionContours = null;
 
-        for (int lineIndex = 0; lineIndex < rawLines.size(); lineIndex++) {
+        for (int lineIndex = 0; lineIndex < lines.size(); lineIndex++) {
             cancellationToken.throwIfCancellationRequested();
-            reportProgressStep(progressCallback, lineIndex, rawLines.size(), 0, 0.90);
-            String rawLine = rawLines.get(lineIndex);
+            reportProgressStep(progressCallback, lineIndex, lines.size(), 0, 0.90);
+            String rawLine = lines.get(lineIndex);
             String line = rawLine.strip();
             if (line.isEmpty()) {
                 continue;
@@ -152,14 +159,9 @@ public final class GerberParser {
             if (isIgnorable(line)) {
                 continue;
             }
-            if (line.equals("G91*")) {
-                // Incremental coordinate mode: every subsequent X/Y/I/J is an offset from the
-                // current position rather than an absolute coordinate. Not implemented - the
-                // decoder below always treats coordinates as absolute (G90), so silently
-                // accepting G91 would produce plausible-looking but wrong geometry instead of
-                // a visible failure.
-                throw new GerberParseException(
-                        "Incremental coordinate mode (G91) is not supported: " + rawLine);
+            if (line.equals("G90*") || line.equals("G91*")) {
+                incrementalMode = line.equals("G91*");
+                continue;
             }
             if (line.equals("G70*") || line.equals("G71*")) {
                 String impliedUnits = line.equals("G70*") ? "IN" : "MM";
@@ -170,6 +172,7 @@ public final class GerberParser {
             Matcher m;
             if (line.startsWith("%FS")) {
                 format = FormatSpec.parse(line);
+                incrementalMode = format.isIncremental();
                 continue;
             }
             if ((m = MO_LINE.matcher(line)).matches()) {
@@ -186,7 +189,8 @@ public final class GerberParser {
             }
             if ((m = AD_LINE.matcher(line)).matches()) {
                 requireFormat(format, line);
-                apertures.put(m.group(1), buildAperture(m.group(2), m.group(3), macros));
+                apertures.put(String.valueOf(Integer.parseInt(m.group(1))),
+                        buildAperture(m.group(2), m.group(3), macros));
                 continue;
             }
             if (line.equals("G36*")) {
@@ -199,7 +203,9 @@ public final class GerberParser {
                 if (currentContour != null && currentContour.size() > 2) {
                     regionContours.add(currentContour);
                 }
-                accumulator.add(buildRegionGeometry(regionContours, geometryFactory, cancellationToken), polarity);
+                Geometry region = buildRegionGeometry(regionContours, geometryFactory, cancellationToken);
+                accumulator.add(region, polarity);
+                addRegionBoundaries(region, followShapes);
                 regionMode = false;
                 currentContour = null;
                 regionContours = null;
@@ -220,7 +226,12 @@ public final class GerberParser {
                     currentApertureId = String.valueOf(value);
                     continue;
                 }
-                // value 1-3: bare D01/D02/D03 op-code with no coordinates - falls through to DATA_LINE.
+                currentOperationCode = value;
+                // D01/D02 alone only change the modal operation. D03 also flashes at
+                // the current point, matching ParseGerber.py's opcode_re branch.
+                if (value != 3) {
+                    continue;
+                }
             }
 
             m = DATA_LINE.matcher(line);
@@ -238,13 +249,16 @@ public final class GerberParser {
             if (m.group(1) != null) {
                 interpolationMode = Integer.parseInt(m.group(1));
             }
-            double newX = m.group(2) != null ? format.decodeX(m.group(2)) : posX;
-            double newY = m.group(3) != null ? format.decodeY(m.group(3)) : posY;
+            double decodedX = m.group(2) != null ? format.decodeX(m.group(2)) : 0;
+            double decodedY = m.group(3) != null ? format.decodeY(m.group(3)) : 0;
+            double newX = m.group(2) != null ? (incrementalMode ? posX + decodedX : decodedX) : posX;
+            double newY = m.group(3) != null ? (incrementalMode ? posY + decodedY : decodedY) : posY;
             double offsetI = m.group(4) != null ? format.decodeX(m.group(4)) : 0;
             double offsetJ = m.group(5) != null ? format.decodeY(m.group(5)) : 0;
-            int code = m.group(6) != null
-                    ? Integer.parseInt(m.group(6))
-                    : (m.group(2) != null || m.group(3) != null ? 1 : 2);
+            if (m.group(6) != null) {
+                currentOperationCode = Integer.parseInt(m.group(6));
+            }
+            int code = currentOperationCode;
 
             switch (code) {
                 case 1 -> {
@@ -267,11 +281,12 @@ public final class GerberParser {
                                     "Stroke with aperture D" + currentApertureId + " (" + aperture.kind
                                             + ") on line: " + rawLine, e);
                         }
-                        Geometry stroke = geometryFactory
-                                .createLineString(segment.toArray(new Coordinate[0]))
-                                .buffer(radius, STROKE_QUADRANT_SEGMENTS);
+                        LineString centerline = geometryFactory
+                                .createLineString(segment.toArray(new Coordinate[0]));
+                        Geometry stroke = centerline.buffer(radius, STROKE_QUADRANT_SEGMENTS);
                         accumulator.add(stroke, polarity);
                         shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(stroke);
+                        followShapes.add(centerline);
                     }
                 }
                 case 2 -> {
@@ -289,6 +304,7 @@ public final class GerberParser {
                     Geometry footprint = aperture.footprintAt(newX, newY, geometryFactory);
                     accumulator.add(footprint, polarity);
                     shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(footprint);
+                    followShapes.add(geometryFactory.createPoint(new Coordinate(newX, newY)));
                 }
                 default -> throw new GerberParseException("Unreachable D-code " + code + " in: " + line);
             }
@@ -310,9 +326,28 @@ public final class GerberParser {
 
         progressCallback.report(0.98);
         Geometry solidGeometry = accumulator.result();
+        Geometry followGeometry = geometryFactory.createGeometryCollection(followShapes.toArray(Geometry[]::new));
         cancellationToken.throwIfCancellationRequested();
         progressCallback.report(1);
-        return new GerberImage(units == null ? "IN" : units, apertures, solidGeometry, apertureGeometry);
+        return new GerberImage(units == null ? "IN" : units, apertures, solidGeometry,
+                followGeometry, apertureGeometry);
+    }
+
+    /** Adds one directly drawable line per region ring, including holes and multipart regions. */
+    private static void addRegionBoundaries(Geometry geometry, List<Geometry> target) {
+        if (geometry == null || geometry.isEmpty()) {
+            return;
+        }
+        if (geometry instanceof Polygon polygon) {
+            target.add(polygon.getExteriorRing());
+            for (int ring = 0; ring < polygon.getNumInteriorRing(); ring++) {
+                target.add(polygon.getInteriorRingN(ring));
+            }
+            return;
+        }
+        for (int part = 0; part < geometry.getNumGeometries(); part++) {
+            addRegionBoundaries(geometry.getGeometryN(part), target);
+        }
     }
 
     private static void reportProgressStep(ProgressCallback callback, int completed, int total,
@@ -322,6 +357,73 @@ public final class GerberParser {
                 ? -1 : start + (end - start) * (completed - 1) / total;
         if (completed == 0 || Math.round(fraction * 100) != Math.round(previous * 100)) {
             callback.report(fraction);
+        }
+    }
+
+    /**
+     * Turns physical file lines into Gerber statements. Real generators often
+     * concatenate commands ({@code G54D11*G36*}) or put an entire aperture
+     * macro / multiple extended commands inside one {@code %...%} block.
+     */
+    private static List<String> splitStatements(List<String> rawLines) {
+        String source = String.join("\n", rawLines);
+        List<String> statements = new ArrayList<>();
+        int cursor = 0;
+        while (cursor < source.length()) {
+            while (cursor < source.length() && Character.isWhitespace(source.charAt(cursor))) {
+                cursor++;
+            }
+            if (cursor >= source.length()) {
+                break;
+            }
+
+            if (source.charAt(cursor) == '%') {
+                int close = source.indexOf('%', cursor + 1);
+                if (close < 0) {
+                    throw new GerberParseException("Unterminated extended Gerber block");
+                }
+                expandExtendedBlock(source.substring(cursor + 1, close), statements);
+                cursor = close + 1;
+                continue;
+            }
+
+            int star = source.indexOf('*', cursor);
+            int newline = source.indexOf('\n', cursor);
+            boolean endsAtStar = star >= 0 && (newline < 0 || star < newline);
+            int end = endsAtStar ? star + 1 : newline >= 0 ? newline : source.length();
+            String statement = source.substring(cursor, end).strip();
+            if (!statement.isEmpty()) {
+                statements.add(statement);
+            }
+            cursor = end;
+        }
+        return statements;
+    }
+
+    private static void expandExtendedBlock(String blockBody, List<String> statements) {
+        String body = blockBody.strip();
+        if (body.startsWith("AM")) {
+            int headerEnd = body.indexOf('*');
+            if (headerEnd < 0) {
+                throw new GerberParseException("Malformed aperture macro block: %" + body + "%");
+            }
+            statements.add("%" + body.substring(0, headerEnd + 1));
+            String primitives = body.substring(headerEnd + 1);
+            for (String primitive : primitives.split("\\*")) {
+                String trimmed = primitive.strip();
+                if (!trimmed.isEmpty()) {
+                    statements.add(trimmed + "*");
+                }
+            }
+            statements.add("%");
+            return;
+        }
+
+        for (String command : body.split("\\*")) {
+            String trimmed = command.strip();
+            if (!trimmed.isEmpty()) {
+                statements.add("%" + trimmed + "*%");
+            }
         }
     }
 
@@ -344,7 +446,8 @@ public final class GerberParser {
             case "C" -> Aperture.circle(Double.parseDouble(params[0]));
             case "R" -> Aperture.rectangle(Double.parseDouble(params[0]), Double.parseDouble(params[1]));
             case "O" -> Aperture.obround(Double.parseDouble(params[0]), Double.parseDouble(params[1]));
-            case "P" -> throw new GerberParseException("Polygon-template apertures (P) are not implemented");
+            case "P" -> Aperture.polygon(Double.parseDouble(params[0]), Integer.parseInt(params[1]),
+                    params.length >= 3 ? Double.parseDouble(params[2]) : 0);
             default -> {
                 ApertureMacro macro = macros.get(type);
                 if (macro == null) {
