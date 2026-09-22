@@ -3,6 +3,8 @@ package org.flatcam.cam.cutout;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
+import org.flatcam.cam.CancellationToken;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -46,8 +48,16 @@ public final class CutoutGenerator {
     }
 
     public static CutoutResult generate(String units, Geometry copperGeometry, CutoutParameters params) {
+        return generate(units, copperGeometry, params, CancellationToken.none());
+    }
+
+    public static CutoutResult generate(String units, Geometry copperGeometry, CutoutParameters params,
+                                        CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
         GeometryFactory geometryFactory = copperGeometry.getFactory();
         Geometry source = params.convexShape() ? copperGeometry.convexHull() : copperGeometry;
+        cancellationToken.throwIfCancellationRequested();
 
         List<Geometry> parts = params.kind() == CutoutKind.PANEL ? explode(source) : List.of(unionOrBox(source, geometryFactory));
 
@@ -60,18 +70,22 @@ public final class CutoutGenerator {
         // MultiLineString) instead of the flat MultiLineString itself.
         List<Geometry> paths = new ArrayList<>();
         for (Geometry part : parts) {
+            cancellationToken.throwIfCancellationRequested();
             Geometry outline = params.shape() == CutoutShape.RECTANGULAR
                     ? rectangularOutline(part, params, geometryFactory)
                     : freeformOutline(part, params);
             if (outline == null || outline.isEmpty()) {
                 continue;
             }
-            Geometry withGaps = applyGaps(outline, params, geometryFactory);
+            cancellationToken.throwIfCancellationRequested();
+            Geometry withGaps = applyGaps(outline, params, geometryFactory, cancellationToken);
             for (int i = 0; i < withGaps.getNumGeometries(); i++) {
+                cancellationToken.throwIfCancellationRequested();
                 paths.add(withGaps.getGeometryN(i));
             }
         }
 
+        cancellationToken.throwIfCancellationRequested();
         Geometry combined = paths.isEmpty() ? geometryFactory.createGeometryCollection() : geometryFactory.buildGeometry(paths);
         return new CutoutResult(units, combined);
     }
@@ -126,7 +140,8 @@ public final class CutoutGenerator {
      * remain touching end-to-end (appTools/ToolCutOut.py's own
      * subtract_poly_from_geo() + linemerge()).
      */
-    private static Geometry applyGaps(Geometry outline, CutoutParameters params, GeometryFactory geometryFactory) {
+    private static Geometry applyGaps(Geometry outline, CutoutParameters params, GeometryFactory geometryFactory,
+                                      CancellationToken cancellationToken) {
         if (params.gapPattern() == GapPattern.NONE || params.gapSize() <= 0) {
             return outline;
         }
@@ -134,8 +149,10 @@ public final class CutoutGenerator {
         Envelope envelope = outline.getEnvelopeInternal();
         Geometry result = outline;
         for (Geometry band : buildGapBands(envelope, params.gapPattern(), halfGap, geometryFactory)) {
+            cancellationToken.throwIfCancellationRequested();
             result = result.difference(band);
         }
+        cancellationToken.throwIfCancellationRequested();
         return lineMerge(result, geometryFactory);
     }
 

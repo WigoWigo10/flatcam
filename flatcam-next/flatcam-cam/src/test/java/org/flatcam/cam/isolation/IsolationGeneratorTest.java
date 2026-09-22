@@ -1,10 +1,14 @@
 package org.flatcam.cam.isolation;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.junit.jupiter.api.Test;
@@ -52,6 +56,19 @@ class IsolationGeneratorTest {
         assertMatches("tests/gerber_files/detector_copper_top.gbr",
                 new IsolationParameters(0.024, 1, 0.0, IsolationType.BOTH),
                 10.041400203942958, new double[]{0.28747, 0.02250, 1.49850, 1.03353});
+    }
+
+    @Test
+    void stopsAtACooperativeCancellationCheckpoint() throws Exception {
+        GerberImage gerber = new GerberParser().parse(
+                findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        AtomicInteger checks = new AtomicInteger();
+        CancellationToken cancellation = () -> checks.incrementAndGet() >= 3;
+
+        assertThrows(CancellationException.class, () -> IsolationGenerator.generate(
+                gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 3, 0.15, IsolationType.BOTH), cancellation));
+        assertTrue(checks.get() >= 3);
     }
 
     private void assertMatches(String repoRelativePath, IsolationParameters params,

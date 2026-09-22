@@ -94,4 +94,19 @@ class JobExecutorTest {
         );
         assertTrue(thrown.getCause() instanceof IllegalStateException);
     }
+
+    @Test
+    void cancellationExceptionFromJobIsReportedAsCancellation() {
+        Job<Void> job = context -> {
+            throw new CancellationException("cancelled by core operation");
+        };
+
+        JobHandle<Void> handle = executor.submit(job, null);
+
+        org.junit.jupiter.api.Assertions.assertThrows(
+                CancellationException.class,
+                () -> handle.completion().get(2, TimeUnit.SECONDS)
+        );
+        assertTrue(handle.completion().isCancelled());
+    }
 }

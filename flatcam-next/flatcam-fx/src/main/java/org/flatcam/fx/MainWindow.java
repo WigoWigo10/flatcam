@@ -63,6 +63,7 @@ import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.app.project.ProjectFile;
 import org.flatcam.app.project.ProjectFileIO;
+import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
@@ -97,7 +98,6 @@ final class MainWindow {
     private static final Color DRILL_FILL = Color.web("#c9c9c9");
     private static final Color DRILL_STROKE = Color.web("#8a8a8a");
     private static final Color ISOLATION_COLOR = Color.web("#28d0d0");
-    private static final Color CUTOUT_COLOR = Color.web("#ff8a00");
     private static final Color MARK_COLOR = Color.web("#ff2fd6", 0.65);
     // CNCJob toolpath colors - straight from defaults.py's cncjob plot defaults, confirmed
     // against camlib.py's CNCjob.plot2(): cut fully opaque, travel ~30% opacity, travel drawn
@@ -129,25 +129,17 @@ final class MainWindow {
     private record CncJobEntry(String sourceName, Path outputFile, String gcode, Geometry travelGeometry, Geometry cutGeometry) {
     }
 
+    private record IsolationJobOutput(IsolationResult toolpath, CncJobResult cncJob) {
+    }
+
+    private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
+    }
+
     /** PlotAreaView layer keys for a CNC Job's two toolpath layers - see {@link #addCncJobToProject}. */
     private record CncTravelLayerKey(TreeItem<String> cncJobItem) {
     }
 
     private record CncCutLayerKey(TreeItem<String> cncJobItem) {
-    }
-
-    /**
-     * PlotAreaView layer key for an isolation preview, distinct from the
-     * Gerber's own key (its TreeItem) so the toolpath layer sits alongside
-     * the copper layer instead of replacing it. Re-generating isolation for
-     * the same Gerber item produces an equal key, so the preview layer is
-     * replaced rather than duplicated.
-     */
-    private record IsolationLayerKey(TreeItem<String> gerberItem) {
-    }
-
-    /** Same idea as {@link IsolationLayerKey}, for the Cutout Tool's own preview - see {@link #runCutoutGeneration}. */
-    private record CutoutLayerKey(TreeItem<String> gerberItem) {
     }
 
     /** PlotAreaView layer key for the apertures table's "Mark" highlight overlay - see {@link GerberAperturesTable}. */
@@ -971,10 +963,9 @@ final class MainWindow {
      * isolation toolpath around the Gerber's copper (IsolationGenerator,
      * ported from appTools/ToolIsolation.py + camlib.py's
      * Gerber.isolation_geometry() - see its class doc for exactly what was
-     * and wasn't carried over), shows it as its own cyan stroke-only layer
-     * alongside the copper's own layer (the copper stays visible, unlike
-     * opening a different file), then writes G-code the same way
-     * runDrillGCodeGeneration() does.
+     * and wasn't carried over), generates its G-code and writes it in one
+     * cancellable background job. The resulting CNC Job supplies the visible
+     * toolpath layer, avoiding a duplicate preview overlay.
      */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
         openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(),
@@ -982,17 +973,10 @@ final class MainWindow {
     }
 
     private void runIsolationGeneration(TreeItem<String> item, GerberImage image, IsolationToolPanel.Result params) {
-        IsolationResult isolation = IsolationGenerator.generate(image.units(), image.solidGeometry(), params.geometryParams());
-        if (isolation.isEmpty()) {
-            appendConsole("Isolamento nao gerou nenhum anel (geometria de cobre vazia?).");
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-
-        plotAreaView.putLayer(new IsolationLayerKey(item), PlotAreaView.LayerCategory.OVERLAY,
-                isolation.geometry(), ISOLATION_COLOR, ISOLATION_COLOR, true);
-        centerTabs.getSelectionModel().select(0);
-        appendConsole(String.format("Isolamento: %d aneis, comprimento total=%.4f, bounds=%s",
-                isolation.ringCount(), isolation.totalLength(), Arrays.toString(isolation.bounds())));
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de isolamento");
@@ -1008,22 +992,54 @@ final class MainWindow {
             return;
         }
 
-        try {
-            CncJobResult job = GCodeGenerator.generateIsolationCncJob(isolation, params.gcodeParams(), params.geometryParams().toolDiameter());
+        beginJob("Gerando isolamento...");
+        JobHandle<IsolationJobOutput> handle = jobExecutor.submit(context -> {
+            CancellationToken cancellation = context::isCancelled;
+            IsolationResult isolation = IsolationGenerator.generate(
+                    image.units(), image.solidGeometry(), params.geometryParams(), cancellation);
+            context.reportProgress(0.5, "Gerando G-code de isolamento...");
+            if (isolation.isEmpty()) {
+                return new IsolationJobOutput(isolation, null);
+            }
+            CncJobResult job = GCodeGenerator.generateIsolationCncJob(
+                    isolation, params.gcodeParams(), params.geometryParams().toolDiameter(), cancellation);
+            context.checkCancelled();
+            context.reportProgress(0.9, "Salvando G-code de isolamento...");
             Files.writeString(outFile.toPath(), job.gcode());
-            AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-            appendConsole("G-code de isolamento salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
-            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
-                    job.travelGeometry(), job.cutGeometry());
-            // The preview put at the top of this method is now redundant - the new CNC
-            // Job's own (enable/disable-able) cut layer shows the same toolpath. Leaving
-            // the preview in place would be a second, permanently-on copy with no
-            // visibility control of its own.
-            plotAreaView.removeLayer(new IsolationLayerKey(item));
-            closeToolPanel();
-        } catch (Exception e) {
-            appendConsole("Falha ao gerar/salvar G-code de isolamento: " + e.getMessage());
-        }
+            return new IsolationJobOutput(isolation, job);
+        }, (fraction, message) -> Platform.runLater(() -> {
+            progressBar.setProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(output -> Platform.runLater(() -> {
+                    if (output.toolpath().isEmpty()) {
+                        appendConsole("Isolamento nao gerou nenhum anel (geometria de cobre vazia?).");
+                    } else {
+                        appendConsole(String.format("Isolamento: %d aneis, comprimento total=%.4f, bounds=%s",
+                                output.toolpath().ringCount(), output.toolpath().totalLength(),
+                                Arrays.toString(output.toolpath().bounds())));
+                        CncJobResult job = output.cncJob();
+                        AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
+                        appendConsole("G-code de isolamento salvo em " + outFile
+                                + " (" + job.gcode().lines().count() + " linhas).");
+                        addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
+                                job.travelGeometry(), job.cutGeometry());
+                        closeToolPanel();
+                    }
+                    progressBar.setProgress(1);
+                    setStatus("Concluido.", IDLE_COLOR);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao gerar/salvar G-code de isolamento: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
     }
 
     /**
@@ -1035,8 +1051,8 @@ final class MainWindow {
      * doc for exactly what was and wasn't carried over: only the automatic
      * Bridge gap patterns, no Thin/M-Bites, no manual click-to-place gaps,
      * and no intermediate Geometry object - straight to G-code, same as
-     * Isolation Routing), previews it the same way, then writes G-code the
-     * same way runIsolationGeneration() does.
+     * Isolation Routing), then stores the resulting cancellable background
+     * job as a CNC Job with its own visible toolpath.
      */
     private void generateCutout(TreeItem<String> item, GerberImage image) {
         openToolPanel("Cutout Tool", CutoutToolPanel.build(image.units(),
@@ -1044,17 +1060,10 @@ final class MainWindow {
     }
 
     private void runCutoutGeneration(TreeItem<String> item, GerberImage image, CutoutToolPanel.Result result) {
-        CutoutResult cutout = CutoutGenerator.generate(image.units(), image.solidGeometry(), result.cutoutParams());
-        if (cutout.isEmpty()) {
-            appendConsole("Cutout nao gerou nenhum caminho (geometria de cobre vazia?).");
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-
-        plotAreaView.putLayer(new CutoutLayerKey(item), PlotAreaView.LayerCategory.OVERLAY,
-                cutout.geometry(), CUTOUT_COLOR, CUTOUT_COLOR, true);
-        centerTabs.getSelectionModel().select(0);
-        appendConsole(String.format("Cutout: %d caminhos, comprimento total=%.4f, bounds=%s",
-                cutout.partCount(), cutout.totalLength(), Arrays.toString(cutout.bounds())));
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de cutout");
@@ -1070,18 +1079,54 @@ final class MainWindow {
             return;
         }
 
-        try {
-            CncJobResult job = GCodeGenerator.generateCutoutCncJob(cutout, result.gcodeParams(), result.cutoutParams().toolDiameter());
+        beginJob("Gerando cutout...");
+        JobHandle<CutoutJobOutput> handle = jobExecutor.submit(context -> {
+            CancellationToken cancellation = context::isCancelled;
+            CutoutResult cutout = CutoutGenerator.generate(
+                    image.units(), image.solidGeometry(), result.cutoutParams(), cancellation);
+            context.reportProgress(0.5, "Gerando G-code de cutout...");
+            if (cutout.isEmpty()) {
+                return new CutoutJobOutput(cutout, null);
+            }
+            CncJobResult job = GCodeGenerator.generateCutoutCncJob(
+                    cutout, result.gcodeParams(), result.cutoutParams().toolDiameter(), cancellation);
+            context.checkCancelled();
+            context.reportProgress(0.9, "Salvando G-code de cutout...");
             Files.writeString(outFile.toPath(), job.gcode());
-            AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-            appendConsole("G-code de cutout salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
-            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
-                    job.travelGeometry(), job.cutGeometry());
-            plotAreaView.removeLayer(new CutoutLayerKey(item));
-            closeToolPanel();
-        } catch (Exception e) {
-            appendConsole("Falha ao gerar/salvar G-code de cutout: " + e.getMessage());
-        }
+            return new CutoutJobOutput(cutout, job);
+        }, (fraction, message) -> Platform.runLater(() -> {
+            progressBar.setProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(output -> Platform.runLater(() -> {
+                    if (output.toolpath().isEmpty()) {
+                        appendConsole("Cutout nao gerou nenhum caminho (geometria de cobre vazia?).");
+                    } else {
+                        appendConsole(String.format("Cutout: %d caminhos, comprimento total=%.4f, bounds=%s",
+                                output.toolpath().partCount(), output.toolpath().totalLength(),
+                                Arrays.toString(output.toolpath().bounds())));
+                        CncJobResult job = output.cncJob();
+                        AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
+                        appendConsole("G-code de cutout salvo em " + outFile
+                                + " (" + job.gcode().lines().count() + " linhas).");
+                        addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
+                                job.travelGeometry(), job.cutGeometry());
+                        closeToolPanel();
+                    }
+                    progressBar.setProgress(1);
+                    setStatus("Concluido.", IDLE_COLOR);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao gerar/salvar G-code de cutout: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
     }
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
@@ -1089,8 +1134,6 @@ final class MainWindow {
         byItem.remove(item);
         sourcePathByItem.remove(item);
         plotAreaView.removeLayer(item);
-        plotAreaView.removeLayer(new IsolationLayerKey(item));
-        plotAreaView.removeLayer(new CutoutLayerKey(item));
         plotAreaView.removeLayer(new MarkLayerKey(item));
         plotAreaView.removeLayer(new CncTravelLayerKey(item));
         plotAreaView.removeLayer(new CncCutLayerKey(item));

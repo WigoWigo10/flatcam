@@ -3,6 +3,7 @@ package org.flatcam.app.job;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -59,6 +60,10 @@ public final class JobExecutor {
                 }
             } catch (InterruptedException e) {
                 // Cooperative cancellation via JobContext#checkCancelled(): not a failure.
+                completion.cancel(false);
+            } catch (CancellationException e) {
+                // CAM-core operations use CancellationException so they do not need
+                // to depend on this module's checked JobContext contract.
                 completion.cancel(false);
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Job failed", e);

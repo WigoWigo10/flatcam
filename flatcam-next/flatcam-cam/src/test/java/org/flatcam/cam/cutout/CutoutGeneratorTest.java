@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.junit.jupiter.api.Test;
@@ -115,6 +118,20 @@ class CutoutGeneratorTest {
     void rejectsNonPositiveToolDiameter() {
         assertThrows(IllegalArgumentException.class,
                 () -> new CutoutParameters(0, 0.5, false, CutoutKind.SINGLE, CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
+    }
+
+    @Test
+    void stopsAtACooperativeCancellationCheckpoint() throws Exception {
+        GerberImage gerber = simple1();
+        AtomicInteger checks = new AtomicInteger();
+        CancellationToken cancellation = () -> checks.incrementAndGet() >= 4;
+
+        assertThrows(CancellationException.class, () -> CutoutGenerator.generate(
+                gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE,
+                        CutoutShape.FREEFORM, 0.05, GapPattern.FOUR),
+                cancellation));
+        assertTrue(checks.get() >= 4);
     }
 
     private static Geometry square(GeometryFactory geometryFactory, double x, double y, double size) {

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutKind;
 import org.flatcam.cam.cutout.CutoutParameters;
@@ -238,6 +240,22 @@ class GCodeGeneratorTest {
         assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0.1, 0, 10, 0));
         assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0.1, 0.003, 0, 0));
         assertThrows(IllegalArgumentException.class, () -> new IsolationGCodeParameters(0.1, 0.003, 10, -1));
+    }
+
+    @Test
+    void isolationAndCutoutGCodeHonorCancellation() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult isolation = IsolationGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 1, 0.0, IsolationType.BOTH));
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE,
+                        CutoutShape.FREEFORM, 0.05, GapPattern.FOUR));
+        CancellationToken cancelled = () -> true;
+
+        assertThrows(CancellationException.class, () -> GCodeGenerator.generateIsolationCncJob(
+                isolation, new IsolationGCodeParameters(0.1, 0.003, 10, 0), 0.02, cancelled));
+        assertThrows(CancellationException.class, () -> GCodeGenerator.generateCutoutCncJob(
+                cutout, new CutoutGCodeParameters(0.1, 0.12, false, 0.05, 10, 0), 0.02, cancelled));
     }
 
     private static int countOccurrences(String haystack, String needle) {

@@ -2,6 +2,8 @@ package org.flatcam.cam.isolation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import org.flatcam.cam.CancellationToken;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
@@ -52,6 +54,13 @@ public final class IsolationGenerator {
     }
 
     public static IsolationResult generate(String units, Geometry copperGeometry, IsolationParameters params) {
+        return generate(units, copperGeometry, params, CancellationToken.none());
+    }
+
+    public static IsolationResult generate(String units, Geometry copperGeometry, IsolationParameters params,
+                                           CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
         if (copperGeometry == null || copperGeometry.isEmpty()) {
             return new IsolationResult(units, new GeometryFactory().createGeometryCollection());
         }
@@ -60,18 +69,23 @@ public final class IsolationGenerator {
         List<LineString> rings = new ArrayList<>();
 
         for (int pass = 0; pass < params.passes(); pass++) {
+            cancellationToken.throwIfCancellationRequested();
             double offset = params.toolDiameter() * (pass + 0.5 - pass * params.overlapFraction());
             Geometry buffered = copperGeometry.buffer(offset, QUADRANT_SEGMENTS);
-            collectRings(buffered, params.type(), rings, geometryFactory);
+            cancellationToken.throwIfCancellationRequested();
+            collectRings(buffered, params.type(), rings, geometryFactory, cancellationToken);
         }
 
+        cancellationToken.throwIfCancellationRequested();
         Geometry combined = geometryFactory.createGeometryCollection(rings.toArray(new LineString[0]));
         return new IsolationResult(units, combined);
     }
 
-    private static void collectRings(Geometry buffered, IsolationType type, List<LineString> rings, GeometryFactory geometryFactory) {
+    private static void collectRings(Geometry buffered, IsolationType type, List<LineString> rings,
+                                     GeometryFactory geometryFactory, CancellationToken cancellationToken) {
         int count = buffered.getNumGeometries();
         for (int i = 0; i < count; i++) {
+            cancellationToken.throwIfCancellationRequested();
             if (!(buffered.getGeometryN(i) instanceof Polygon polygon)) {
                 continue;
             }
@@ -80,6 +94,7 @@ public final class IsolationGenerator {
             }
             if (type != IsolationType.EXTERIOR) {
                 for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
+                    cancellationToken.throwIfCancellationRequested();
                     rings.add(geometryFactory.createLineString(polygon.getInteriorRingN(r).getCoordinateSequence()));
                 }
             }

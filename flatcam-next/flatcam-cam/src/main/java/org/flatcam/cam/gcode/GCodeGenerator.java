@@ -4,10 +4,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.isolation.IsolationResult;
@@ -157,6 +159,13 @@ public final class GCodeGenerator {
      * {@link CncJobResult}).
      */
     public static CncJobResult generateIsolationCncJob(IsolationResult result, IsolationGCodeParameters params, double toolDiameter) {
+        return generateIsolationCncJob(result, params, toolDiameter, CancellationToken.none());
+    }
+
+    public static CncJobResult generateIsolationCncJob(IsolationResult result, IsolationGCodeParameters params,
+                                                        double toolDiameter, CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "; Gerado por FlatCAM Next (prototipo) - isolamento");
         line(gcode, "; Unidades do arquivo de origem: %s", result.units());
@@ -174,7 +183,9 @@ public final class GCodeGenerator {
         double lastX = 0;
         double lastY = 0;
 
-        for (Coordinate[] coordinates : orderedByNearestNeighbor(result.geometry(), lastX, lastY)) {
+        for (Coordinate[] coordinates : orderedByNearestNeighbor(
+                result.geometry(), lastX, lastY, cancellationToken)) {
+            cancellationToken.throwIfCancellationRequested();
             addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
             cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
             Coordinate last = coordinates[coordinates.length - 1];
@@ -184,6 +195,7 @@ public final class GCodeGenerator {
             line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
             line(gcode, "G1 Z-%s F%s", fmt(params.cutDepth()), fmt(params.feedRate()));
             for (int p = 1; p < coordinates.length; p++) {
+                cancellationToken.throwIfCancellationRequested();
                 line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x), fmt(coordinates[p].y), fmt(params.feedRate()));
             }
             line(gcode, "G0 Z%s", fmt(params.safeZ()));
@@ -194,6 +206,7 @@ public final class GCodeGenerator {
         }
         line(gcode, "G0 Z%s", fmt(params.safeZ()));
         line(gcode, "M30");
+        cancellationToken.throwIfCancellationRequested();
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
     }
 
@@ -208,6 +221,13 @@ public final class GCodeGenerator {
      * ToolCutOut.py's "Multi-Depth" behavior), not just plunged deeper once.
      */
     public static CncJobResult generateCutoutCncJob(CutoutResult result, CutoutGCodeParameters params, double toolDiameter) {
+        return generateCutoutCncJob(result, params, toolDiameter, CancellationToken.none());
+    }
+
+    public static CncJobResult generateCutoutCncJob(CutoutResult result, CutoutGCodeParameters params,
+                                                     double toolDiameter, CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "; Gerado por FlatCAM Next (prototipo) - recorte de placa (cutout)");
         line(gcode, "; Unidades do arquivo de origem: %s", result.units());
@@ -227,7 +247,9 @@ public final class GCodeGenerator {
 
         List<Double> depths = passDepths(params.cutDepth(), params.multiDepth(), params.depthPerPass());
 
-        for (Coordinate[] coordinates : orderedByNearestNeighbor(result.geometry(), lastX, lastY)) {
+        for (Coordinate[] coordinates : orderedByNearestNeighbor(
+                result.geometry(), lastX, lastY, cancellationToken)) {
+            cancellationToken.throwIfCancellationRequested();
             addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
             cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
             Coordinate last = coordinates[coordinates.length - 1];
@@ -236,8 +258,10 @@ public final class GCodeGenerator {
 
             line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
             for (double depth : depths) {
+                cancellationToken.throwIfCancellationRequested();
                 line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
                 for (int p = 1; p < coordinates.length; p++) {
+                    cancellationToken.throwIfCancellationRequested();
                     line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x), fmt(coordinates[p].y), fmt(params.feedRate()));
                 }
                 if (depth != depths.get(depths.size() - 1)) {
@@ -253,6 +277,7 @@ public final class GCodeGenerator {
         }
         line(gcode, "G0 Z%s", fmt(params.safeZ()));
         line(gcode, "M30");
+        cancellationToken.throwIfCancellationRequested();
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
     }
 
@@ -310,8 +335,14 @@ public final class GCodeGenerator {
      * hops of a few gap-widths.
      */
     static List<Coordinate[]> orderedByNearestNeighbor(Geometry geometry, double startX, double startY) {
+        return orderedByNearestNeighbor(geometry, startX, startY, CancellationToken.none());
+    }
+
+    private static List<Coordinate[]> orderedByNearestNeighbor(
+            Geometry geometry, double startX, double startY, CancellationToken cancellationToken) {
         List<Coordinate[]> remaining = new ArrayList<>();
         for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            cancellationToken.throwIfCancellationRequested();
             Coordinate[] coordinates = ringCoordinates(geometry.getGeometryN(i));
             if (coordinates != null && coordinates.length > 0) {
                 remaining.add(coordinates);
@@ -322,10 +353,12 @@ public final class GCodeGenerator {
         double currentX = startX;
         double currentY = startY;
         while (!remaining.isEmpty()) {
+            cancellationToken.throwIfCancellationRequested();
             int bestIndex = 0;
             boolean bestReversed = false;
             double bestDistance = Double.MAX_VALUE;
             for (int i = 0; i < remaining.size(); i++) {
+                cancellationToken.throwIfCancellationRequested();
                 Coordinate[] candidate = remaining.get(i);
                 Coordinate first = candidate[0];
                 Coordinate last = candidate[candidate.length - 1];
