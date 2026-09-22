@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -89,6 +90,20 @@ class ExcellonParserBaselineTest {
 
         assertThrows(CancellationException.class, () -> new ExcellonParser().parse(lines, cancellation));
         assertTrue(checks.get() >= 5);
+    }
+
+    @Test
+    void reportsMonotonicProgressFromZeroToOne() throws Exception {
+        List<Double> progress = new ArrayList<>();
+        new ExcellonParser().parse(findRepoRoot().resolve("tests/gerber_files/detector_drill.txt"),
+                CancellationToken.none(), progress::add);
+
+        assertEquals(0.0, progress.get(0));
+        assertEquals(1.0, progress.get(progress.size() - 1));
+        assertTrue(progress.stream().anyMatch(value -> value > 0 && value < 1));
+        for (int i = 1; i < progress.size(); i++) {
+            assertTrue(progress.get(i) >= progress.get(i - 1), "progress must never move backwards");
+        }
     }
 
     private static Path findRepoRoot() {

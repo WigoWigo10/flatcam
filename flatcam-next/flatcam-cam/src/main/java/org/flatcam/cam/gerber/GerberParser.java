@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -70,11 +71,18 @@ public final class GerberParser {
     }
 
     public GerberImage parse(Path file, CancellationToken cancellationToken) throws IOException {
+        return parse(file, cancellationToken, ProgressCallback.none());
+    }
+
+    public GerberImage parse(Path file, CancellationToken cancellationToken, ProgressCallback progressCallback)
+            throws IOException {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
+        Objects.requireNonNull(progressCallback, "progressCallback");
         cancellationToken.throwIfCancellationRequested();
+        progressCallback.report(0);
         List<String> lines = Files.readAllLines(file);
         cancellationToken.throwIfCancellationRequested();
-        return parse(lines, cancellationToken);
+        return parse(lines, cancellationToken, progressCallback);
     }
 
     public GerberImage parse(List<String> rawLines) {
@@ -82,8 +90,15 @@ public final class GerberParser {
     }
 
     public GerberImage parse(List<String> rawLines, CancellationToken cancellationToken) {
+        return parse(rawLines, cancellationToken, ProgressCallback.none());
+    }
+
+    public GerberImage parse(List<String> rawLines, CancellationToken cancellationToken,
+                             ProgressCallback progressCallback) {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
+        Objects.requireNonNull(progressCallback, "progressCallback");
         cancellationToken.throwIfCancellationRequested();
+        progressCallback.report(0);
         String units = null;
         FormatSpec format = null;
         Map<String, Aperture> apertures = new LinkedHashMap<>();
@@ -106,8 +121,10 @@ public final class GerberParser {
         List<Coordinate> currentContour = null;
         List<List<Coordinate>> regionContours = null;
 
-        for (String rawLine : rawLines) {
+        for (int lineIndex = 0; lineIndex < rawLines.size(); lineIndex++) {
             cancellationToken.throwIfCancellationRequested();
+            reportProgressStep(progressCallback, lineIndex, rawLines.size(), 0, 0.90);
+            String rawLine = rawLines.get(lineIndex);
             String line = rawLine.strip();
             if (line.isEmpty()) {
                 continue;
@@ -279,17 +296,33 @@ public final class GerberParser {
             posY = newY;
         }
 
+        progressCallback.report(0.90);
         Map<String, Geometry> apertureGeometry = new LinkedHashMap<>();
+        int apertureIndex = 0;
         for (Map.Entry<String, List<Geometry>> entry : shapesByAperture.entrySet()) {
             cancellationToken.throwIfCancellationRequested();
             List<Geometry> shapes = entry.getValue();
             apertureGeometry.put(entry.getKey(), shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes));
             cancellationToken.throwIfCancellationRequested();
+            apertureIndex++;
+            reportProgressStep(progressCallback, apertureIndex, shapesByAperture.size(), 0.90, 0.98);
         }
 
+        progressCallback.report(0.98);
         Geometry solidGeometry = accumulator.result();
         cancellationToken.throwIfCancellationRequested();
+        progressCallback.report(1);
         return new GerberImage(units == null ? "IN" : units, apertures, solidGeometry, apertureGeometry);
+    }
+
+    private static void reportProgressStep(ProgressCallback callback, int completed, int total,
+                                           double start, double end) {
+        double fraction = total == 0 ? end : start + (end - start) * completed / total;
+        double previous = total == 0 || completed == 0
+                ? -1 : start + (end - start) * (completed - 1) / total;
+        if (completed == 0 || Math.round(fraction * 100) != Math.round(previous * 100)) {
+            callback.report(fraction);
+        }
     }
 
     /**

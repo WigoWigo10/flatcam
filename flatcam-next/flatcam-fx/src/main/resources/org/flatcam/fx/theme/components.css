@@ -29,6 +29,15 @@
     -fx-text-fill: -fc-panel-text;
 }
 
+.progress-percentage {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-background-color: rgba(0, 0, 0, 0.58);
+    -fx-background-radius: 3;
+    -fx-padding: 0 5 0 5;
+}
+
 .viewport-placeholder {
     -fx-background-color: -fc-viewport-bg;
 }

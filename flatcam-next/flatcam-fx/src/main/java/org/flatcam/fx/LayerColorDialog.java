@@ -7,6 +7,7 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.ColorPicker;
 import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
+import javafx.scene.control.Slider;
 import javafx.scene.layout.GridPane;
 import javafx.scene.paint.Color;
 
@@ -45,6 +46,33 @@ final class LayerColorDialog {
 
         dialog.setResultConverter(button -> button == okType ? fillPicker.getValue() : null);
 
+        return dialog.showAndWait();
+    }
+
+    static Optional<Double> showOpacity(double currentOpacity) {
+        Dialog<Double> dialog = new Dialog<>();
+        dialog.setTitle("Opacidade");
+
+        ButtonType okType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);
+
+        Slider slider = new Slider(0, 100, currentOpacity * 100);
+        slider.setShowTickLabels(true);
+        slider.setShowTickMarks(true);
+        slider.setMajorTickUnit(25);
+        slider.setBlockIncrement(5);
+        Label value = new Label(Math.round(slider.getValue()) + "%");
+        slider.valueProperty().addListener((obs, oldValue, newValue) ->
+                value.setText(Math.round(newValue.doubleValue()) + "%"));
+
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.setPadding(new Insets(12));
+        grid.addRow(0, new Label("Opacidade:"), slider, value);
+        dialog.getDialogPane().setContent(grid);
+
+        dialog.setResultConverter(button -> button == okType ? slider.getValue() / 100.0 : null);
         return dialog.showAndWait();
     }
 }

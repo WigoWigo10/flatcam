@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -111,6 +112,7 @@ final class MainWindow {
     private final JobExecutor jobExecutor;
 
     private final ProgressBar progressBar = new ProgressBar(0);
+    private final Label progressPercentLabel = new Label("0%");
     private final Label statusLabel = new Label("Pronto.");
     private final Circle statusDot = new Circle(5, Color.web("#4caf50"));
     private final Label unitsLabel = new Label("Unidades: -");
@@ -476,8 +478,9 @@ final class MainWindow {
      * the same menuproject regardless of how many rows are selected, and
      * app_Main.py's on_enable_sel_plots()/on_disable_sel_plots()/on_delete(),
      * which all iterate self.collection.get_selected(). The per-object menu
-     * (Set Color, Edit, Copy, Save from UI_INVENTORY.md section 1) still
-     * needs subsystems (editors, project format) this phase doesn't have.
+     * The single-object menu mirrors every legacy action that has a real
+     * counterpart in the current object model. Full Gerber/Excellon/Geometry
+     * editing remains tied to the future editor subsystem.
      */
     private TreeView<String> buildProjectTree() {
         TreeItem<String> root = new TreeItem<>("Projeto");
@@ -523,7 +526,7 @@ final class MainWindow {
         });
         // Renaming in-place commits by just updating the TreeItem's own value - same as
         // the Properties panel's Name field (see nameRow()), just triggered from the tree.
-        projectTree.setOnEditCommit(event -> event.getTreeItem().setValue(event.getNewValue()));
+        projectTree.setOnEditCommit(event -> renameProjectItem(event.getTreeItem(), event.getNewValue()));
         projectTree.setOnKeyPressed(event -> {
             TreeItem<String> selected = projectTree.getSelectionModel().getSelectedItem();
             switch (event.getCode()) {
@@ -550,6 +553,19 @@ final class MainWindow {
                         removeSelectionFromProject(selectedItems);
                     }
                 }
+                // Project-tab keyboard parity: Python toggles each selected object's
+                // Plot checkbox with Space and clears selection with Escape.
+                case SPACE -> projectTree.getSelectionModel().getSelectedItems().stream()
+                        .filter(this::isPlottable).distinct()
+                        .forEach(item -> setObjectVisible(item, !isObjectVisible(item)));
+                case ESCAPE -> projectTree.getSelectionModel().clearSelection();
+                case C -> {
+                    if (event.isControlDown()) {
+                        copySelection(projectTree.getSelectionModel().getSelectedItems().stream()
+                                .filter(Objects::nonNull).distinct().toList());
+                        event.consume();
+                    }
+                }
                 default -> {
                 }
             }
@@ -561,6 +577,7 @@ final class MainWindow {
             // TreeCell. An HBox fully owns its own children's alignment instead.
             TextField editField = new TextField();
             Label textLabel = new Label();
+            Tooltip objectTooltip = new Tooltip();
             StackPane iconHolder = new StackPane();
             iconHolder.setAlignment(Pos.CENTER);
             iconHolder.setMinSize(16, 16);
@@ -620,10 +637,18 @@ final class MainWindow {
                         // empty and therefore had no disclosure arrow. Let TreeView's
                         // own disclosure/indent area be their only left indentation.
                         displayBox.getChildren().setAll(textLabel);
+                        setTooltip(null);
                     } else {
                         textLabel.setStyle(null);
                         textLabel.setOpacity(isPlottable(item) && !isObjectVisible(item) ? 0.5 : 1.0);
                         displayBox.getChildren().setAll(iconHolder, textLabel);
+                        Path sourcePath = sourcePathByItem.get(item);
+                        CncJobEntry cncJob = cncJobByItem.get(item);
+                        String pathText = sourcePath != null ? sourcePath.toString()
+                                : cncJob != null ? cncJob.outputFile().toString() : value;
+                        objectTooltip.setText(pathText + System.lineSeparator()
+                                + (isObjectVisible(item) ? "Plot ativo" : "Plot desativado"));
+                        setTooltip(objectTooltip);
                     }
                     Node icon = iconShapeFor(item);
                     iconHolder.getChildren().setAll(icon == null ? List.of() : List.of(icon));
@@ -747,7 +772,10 @@ final class MainWindow {
         MenuItem removeItem = new MenuItem("Remover (" + selected.size() + ")");
         removeItem.setOnAction(e -> removeSelectionFromProject(selected));
 
-        return List.of(enableItem, disableItem, removeItem);
+        MenuItem copyItem = new MenuItem("Copiar (" + selected.size() + ")");
+        copyItem.setOnAction(e -> copySelection(selected));
+
+        return List.of(enableItem, disableItem, new SeparatorMenuItem(), copyItem, removeItem);
     }
 
     /** True for a Gerber/Excellon, or a CNC Job that actually has toolpath geometry to show (see CncJobEntry's doc). */
@@ -797,15 +825,13 @@ final class MainWindow {
     }
 
     /**
-     * "Exibir no Plot Area", "Enable Plot", "Disable Plot", "Definir Cor...",
-     * "Gerar Isolamento..." and "Remover" for a single Gerber tree item.
+     * Context menu for one Gerber. Its ordering follows MainGUI.py's
+     * menuproject, with the Next-only "Exibir" convenience action first and
+     * its two available CNC workflows grouped under "Criar CNC Job".
      * Enable/Disable Plot are two separate, always-present items - not one
      * dynamic toggle - matching appGUI/MainGUI.py's actual menuproject
      * (menuprojectenable/menuprojectdisable are both always in the menu;
      * Python doesn't hide/rename one based on current state either). Set
-     * Color here is a single fill-color dialog rather than Python's swatch
-     * submenu (Red/Blue/.../Custom/Opacity/Default) - a deliberate
-     * simplification, not yet ported 1:1.
      */
     private List<MenuItem> gerberContextMenuItems(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
@@ -816,8 +842,7 @@ final class MainWindow {
         MenuItem disableItem = new MenuItem("Desativar Plot");
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
-        MenuItem colorItem = new MenuItem("Definir Cor...");
-        colorItem.setOnAction(e -> editLayerColor(item));
+        Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
 
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
@@ -825,13 +850,33 @@ final class MainWindow {
         MenuItem cutoutItem = new MenuItem("Cutout Tool...");
         cutoutItem.setOnAction(e -> generateCutout(item, image));
 
+        Menu createCncMenu = new Menu("Criar CNC Job");
+        createCncMenu.getItems().addAll(isolationItem, cutoutItem);
+
+        MenuItem viewSourceItem = new MenuItem("Ver Fonte");
+        viewSourceItem.setOnAction(e -> viewObjectSource(item));
+
+        MenuItem renameItem = new MenuItem("Renomear");
+        renameItem.setOnAction(e -> beginRename(item));
+
+        MenuItem copyItem = new MenuItem("Copiar");
+        copyItem.setOnAction(e -> copyObject(item));
+
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
-        return List.of(showItem, enableItem, disableItem, colorItem, isolationItem, cutoutItem, removeItem);
+        MenuItem saveItem = new MenuItem("Salvar como...");
+        saveItem.setOnAction(e -> saveObjectAs(item));
+
+        MenuItem propertiesItem = new MenuItem("Propriedades");
+        propertiesItem.setOnAction(e -> showObjectProperties(item));
+
+        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
+                new SeparatorMenuItem(), createCncMenu, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), propertiesItem);
     }
 
-    /** Same as {@link #gerberContextMenuItems}, minus isolation, plus "Gerar G-code de furacao". */
+    /** Same legacy project-menu shape as Gerber, with Excellon's drilling CNC workflow. */
     private List<MenuItem> excellonContextMenuItems(TreeItem<String> item, ExcellonImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         showItem.setOnAction(e -> focusLayer(item));
@@ -841,16 +886,32 @@ final class MainWindow {
         MenuItem disableItem = new MenuItem("Desativar Plot");
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
-        MenuItem colorItem = new MenuItem("Definir Cor...");
-        colorItem.setOnAction(e -> editLayerColor(item));
+        Menu colorMenu = buildLayerColorMenu(item, DRILL_FILL, DRILL_STROKE);
 
-        MenuItem gcodeItem = new MenuItem("Gerar G-code de furacao...");
+        MenuItem gcodeItem = new MenuItem("Criar CNC Job...");
         gcodeItem.setOnAction(e -> generateDrillGCode(item, image));
+
+        MenuItem viewSourceItem = new MenuItem("Ver Fonte");
+        viewSourceItem.setOnAction(e -> viewObjectSource(item));
+
+        MenuItem renameItem = new MenuItem("Renomear");
+        renameItem.setOnAction(e -> beginRename(item));
+
+        MenuItem copyItem = new MenuItem("Copiar");
+        copyItem.setOnAction(e -> copyObject(item));
 
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
 
-        return List.of(showItem, enableItem, disableItem, colorItem, gcodeItem, removeItem);
+        MenuItem saveItem = new MenuItem("Salvar como...");
+        saveItem.setOnAction(e -> saveObjectAs(item));
+
+        MenuItem propertiesItem = new MenuItem("Propriedades");
+        propertiesItem.setOnAction(e -> showObjectProperties(item));
+
+        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
+                new SeparatorMenuItem(), gcodeItem, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), propertiesItem);
     }
 
     private void focusLayer(TreeItem<String> item) {
@@ -863,9 +924,56 @@ final class MainWindow {
     /** Only a fill color is asked for - the legacy dialog doesn't expose a separate outline color either. */
     private void editLayerColor(TreeItem<String> item) {
         Color[] current = plotAreaView.layerColors(item);
-        Color currentFill = current != null ? current[0] : GERBER_FILL;
+        Color currentFill = current != null ? current[0]
+                : excellonByItem.containsKey(item) ? DRILL_FILL : GERBER_FILL;
         LayerColorDialog.show(currentFill)
                 .ifPresent(fill -> plotAreaView.setLayerColors(item, fill, fill.darker()));
+    }
+
+    private Menu buildLayerColorMenu(TreeItem<String> item, Color defaultFill, Color defaultStroke) {
+        Menu menu = new Menu("Definir Cor");
+        addColorPreset(menu, item, "Vermelho", Color.web("#ef5350"));
+        addColorPreset(menu, item, "Azul", Color.web("#42a5f5"));
+        addColorPreset(menu, item, "Amarelo", Color.web("#fdd835"));
+        addColorPreset(menu, item, "Verde", Color.web("#66bb6a"));
+        addColorPreset(menu, item, "Roxo", Color.web("#ab47bc"));
+        addColorPreset(menu, item, "Marrom", Color.web("#8d6e63"));
+        addColorPreset(menu, item, "Branco", Color.WHITE);
+        addColorPreset(menu, item, "Preto", Color.BLACK);
+
+        MenuItem customItem = new MenuItem("Personalizada...");
+        customItem.setOnAction(e -> editLayerColor(item));
+        MenuItem opacityItem = new MenuItem("Opacidade...");
+        opacityItem.setOnAction(e -> editLayerOpacity(item));
+        MenuItem defaultItem = new MenuItem("Padrao");
+        defaultItem.setOnAction(e -> plotAreaView.setLayerColors(item, defaultFill, defaultStroke));
+        menu.getItems().addAll(new SeparatorMenuItem(), customItem, new SeparatorMenuItem(), opacityItem, defaultItem);
+        return menu;
+    }
+
+    private void addColorPreset(Menu menu, TreeItem<String> item, String label, Color color) {
+        MenuItem colorItem = new MenuItem(label);
+        colorItem.setOnAction(e -> {
+            Color[] current = plotAreaView.layerColors(item);
+            double opacity = current == null ? 1.0 : current[0].getOpacity();
+            Color fill = colorWithOpacity(color, opacity);
+            plotAreaView.setLayerColors(item, fill, fill.darker());
+        });
+        menu.getItems().add(colorItem);
+    }
+
+    private void editLayerOpacity(TreeItem<String> item) {
+        Color[] current = plotAreaView.layerColors(item);
+        if (current == null) {
+            return;
+        }
+        LayerColorDialog.showOpacity(current[0].getOpacity()).ifPresent(opacity ->
+                plotAreaView.setLayerColors(item, colorWithOpacity(current[0], opacity),
+                        colorWithOpacity(current[1], opacity)));
+    }
+
+    private static Color colorWithOpacity(Color color, double opacity) {
+        return new Color(color.getRed(), color.getGreen(), color.getBlue(), opacity);
     }
 
     private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {
@@ -883,12 +991,206 @@ final class MainWindow {
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         MenuItem viewItem = new MenuItem("Ver G-code");
-        viewItem.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
+        viewItem.setOnAction(e -> viewObjectSource(item));
+
+        MenuItem renameItem = new MenuItem("Renomear");
+        renameItem.setOnAction(e -> beginRename(item));
+
+        MenuItem copyItem = new MenuItem("Copiar");
+        copyItem.setOnAction(e -> copyObject(item));
 
         MenuItem removeItem = new MenuItem("Remover");
         removeItem.setOnAction(e -> removeFromProject(item, cncJobByItem));
 
-        return List.of(showItem, enableItem, disableItem, viewItem, removeItem);
+        MenuItem saveItem = new MenuItem("Salvar como...");
+        saveItem.setOnAction(e -> saveObjectAs(item));
+
+        MenuItem propertiesItem = new MenuItem("Propriedades");
+        propertiesItem.setOnAction(e -> showObjectProperties(item));
+
+        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), viewItem, renameItem, copyItem,
+                removeItem, saveItem, new SeparatorMenuItem(), propertiesItem);
+    }
+
+    private void beginRename(TreeItem<String> item) {
+        int row = projectTree.getRow(item);
+        if (row >= 0) {
+            projectTree.getSelectionModel().clearAndSelect(row);
+            Platform.runLater(() -> projectTree.edit(item));
+        }
+    }
+
+    private boolean renameProjectItem(TreeItem<String> item, String requestedName) {
+        String newName = requestedName == null ? "" : requestedName.trim();
+        if (newName.isEmpty()) {
+            appendConsole("O nome do objeto nao pode ficar vazio.");
+            projectTree.refresh();
+            return false;
+        }
+        boolean duplicate = !newName.equals(item.getValue()) && projectObjectNameExists(newName);
+        if (duplicate) {
+            appendConsole("Ja existe um objeto chamado " + newName + ".");
+            projectTree.refresh();
+            return false;
+        }
+        item.setValue(newName);
+        return true;
+    }
+
+    private void showObjectProperties(TreeItem<String> item) {
+        int row = projectTree.getRow(item);
+        if (row >= 0) {
+            projectTree.getSelectionModel().clearAndSelect(row);
+        }
+        showProperties(item);
+        leftTabs.getSelectionModel().select(propertiesTab);
+    }
+
+    private void viewObjectSource(TreeItem<String> item) {
+        String source;
+        CncJobEntry cncJob = cncJobByItem.get(item);
+        if (cncJob != null) {
+            source = cncJob.gcode();
+        } else {
+            Path path = sourcePathByItem.get(item);
+            if (path == null) {
+                appendConsole("Fonte indisponivel para " + item.getValue() + ".");
+                return;
+            }
+            try {
+                source = Files.readString(path);
+            } catch (IOException e) {
+                appendConsole("Falha ao ler a fonte " + path + ": " + e.getMessage());
+                setStatus("Falhou.", ERROR_COLOR);
+                return;
+            }
+        }
+        String tabTitle = "Fonte - " + item.getValue();
+        openAuxiliaryTab(tabTitle, () -> buildGCodeViewer(source));
+    }
+
+    private void saveObjectAs(TreeItem<String> item) {
+        CncJobEntry cncJob = cncJobByItem.get(item);
+        Path sourcePath = sourcePathByItem.get(item);
+        if (cncJob == null && sourcePath == null) {
+            appendConsole("Nao ha conteudo exportavel para " + item.getValue() + ".");
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar objeto como");
+        chooser.setInitialFileName(item.getValue());
+        if (gerberByItem.containsKey(item)) {
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
+        } else if (excellonByItem.containsKey(item)) {
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
+        } else {
+            chooser.getExtensionFilters().add(
+                    new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        }
+
+        Path suggestedParent = cncJob != null ? cncJob.outputFile().getParent() : sourcePath.getParent();
+        if (suggestedParent != null && Files.isDirectory(suggestedParent)) {
+            chooser.setInitialDirectory(suggestedParent.toFile());
+        }
+        File destination = chooser.showSaveDialog(scene.getWindow());
+        if (destination == null) {
+            return;
+        }
+
+        Path target = destination.toPath();
+        try {
+            if (cncJob != null) {
+                Files.writeString(target, cncJob.gcode());
+            } else if (!sourcePath.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
+                Files.copy(sourcePath, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+            File parent = destination.getParentFile();
+            if (parent != null) {
+                AppPreferences.saveLastCamDirectory(parent.getAbsolutePath());
+            }
+            appendConsole("Objeto salvo em " + target);
+            setStatus("Concluido.", IDLE_COLOR);
+        } catch (IOException e) {
+            appendConsole("Falha ao salvar " + target + ": " + e.getMessage());
+            setStatus("Falhou.", ERROR_COLOR);
+        }
+    }
+
+    private void copySelection(List<TreeItem<String>> selected) {
+        TreeItem<String> lastCopy = null;
+        for (TreeItem<String> item : selected) {
+            lastCopy = copyObject(item);
+        }
+        selectProjectItem(lastCopy);
+    }
+
+    private TreeItem<String> copyObject(TreeItem<String> sourceItem) {
+        String copyName = uniqueCopyName(sourceItem.getValue());
+        TreeItem<String> copyItem;
+        GerberImage gerber = gerberByItem.get(sourceItem);
+        ExcellonImage excellon = excellonByItem.get(sourceItem);
+        CncJobEntry cncJob = cncJobByItem.get(sourceItem);
+
+        if (gerber != null) {
+            copyItem = addGerberToProject(copyName, sourcePathByItem.get(sourceItem), gerber);
+            copyLayerAppearance(sourceItem, copyItem);
+        } else if (excellon != null) {
+            copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon);
+            copyLayerAppearance(sourceItem, copyItem);
+        } else if (cncJob != null) {
+            copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
+                    cncJob.travelGeometry(), cncJob.cutGeometry());
+            copyLayerAppearance(new CncTravelLayerKey(sourceItem), new CncTravelLayerKey(copyItem));
+            copyLayerAppearance(new CncCutLayerKey(sourceItem), new CncCutLayerKey(copyItem));
+        } else {
+            return null;
+        }
+
+        appendConsole("Objeto copiado: " + sourceItem.getValue() + " -> " + copyName);
+        selectProjectItem(copyItem);
+        return copyItem;
+    }
+
+    private void copyLayerAppearance(Object sourceKey, Object targetKey) {
+        Color[] colors = plotAreaView.layerColors(sourceKey);
+        if (colors == null) {
+            return;
+        }
+        plotAreaView.setLayerColors(targetKey, colors[0], colors[1]);
+        plotAreaView.setLayerFilled(targetKey, plotAreaView.isLayerFilled(sourceKey));
+        plotAreaView.setLayerMulticolor(targetKey, plotAreaView.isLayerMulticolor(sourceKey));
+        plotAreaView.setLayerVisible(targetKey, plotAreaView.isLayerVisible(sourceKey));
+    }
+
+    private String uniqueCopyName(String originalName) {
+        int dot = originalName.lastIndexOf('.');
+        String stem = dot > 0 ? originalName.substring(0, dot) : originalName;
+        String extension = dot > 0 ? originalName.substring(dot) : "";
+        String candidate = stem + "_copy" + extension;
+        int suffix = 2;
+        while (projectObjectNameExists(candidate)) {
+            candidate = stem + "_copy_" + suffix++ + extension;
+        }
+        return candidate;
+    }
+
+    private boolean projectObjectNameExists(String name) {
+        return gerbersNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()))
+                || excellonNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()))
+                || cncJobsNode.getChildren().stream().anyMatch(item -> name.equals(item.getValue()));
+    }
+
+    private void selectProjectItem(TreeItem<String> item) {
+        if (item == null) {
+            return;
+        }
+        int row = projectTree.getRow(item);
+        if (row >= 0) {
+            projectTree.getSelectionModel().clearAndSelect(row);
+        }
     }
 
     /** "Exibir no Plot Area" for a CNC Job - brings both its sub-layers to front and fits to whichever has geometry. */
@@ -918,7 +1220,7 @@ final class MainWindow {
      *                       project - see {@link CncJobEntry}'s doc)
      * @param cutGeometry    the cutting toolpath, or null likewise
      */
-    private void addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
+    private TreeItem<String> addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
             Geometry travelGeometry, Geometry cutGeometry) {
         TreeItem<String> item = new TreeItem<>(outputFileName);
         cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode, travelGeometry, cutGeometry));
@@ -933,6 +1235,7 @@ final class MainWindow {
             plotAreaView.putLayer(new CncTravelLayerKey(item), PlotAreaView.LayerCategory.CNCJOB,
                     travelGeometry, CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
         }
+        return item;
     }
 
     /**
@@ -1029,7 +1332,7 @@ final class MainWindow {
             Files.writeString(outFile.toPath(), job.gcode());
             return new IsolationJobOutput(isolation, job);
         }, (fraction, message) -> Platform.runLater(() -> {
-            progressBar.setProgress(fraction);
+            updateProgress(fraction);
             statusLabel.setText(message);
         }));
         runningJob = handle;
@@ -1050,7 +1353,7 @@ final class MainWindow {
                                 job.travelGeometry(), job.cutGeometry());
                         closeToolPanel();
                     }
-                    progressBar.setProgress(1);
+                    updateProgress(1);
                     setStatus("Concluido.", IDLE_COLOR);
                     onJobFinished();
                 }))
@@ -1116,7 +1419,7 @@ final class MainWindow {
             Files.writeString(outFile.toPath(), job.gcode());
             return new CutoutJobOutput(cutout, job);
         }, (fraction, message) -> Platform.runLater(() -> {
-            progressBar.setProgress(fraction);
+            updateProgress(fraction);
             statusLabel.setText(message);
         }));
         runningJob = handle;
@@ -1137,7 +1440,7 @@ final class MainWindow {
                                 job.travelGeometry(), job.cutGeometry());
                         closeToolPanel();
                     }
-                    progressBar.setProgress(1);
+                    updateProgress(1);
                     setStatus("Concluido.", IDLE_COLOR);
                     onJobFinished();
                 }))
@@ -1376,7 +1679,11 @@ final class MainWindow {
         Runnable commit = () -> {
             String newName = nameField.getText().trim();
             if (!newName.isEmpty() && !newName.equals(item.getValue())) {
-                item.setValue(newName);
+                if (!renameProjectItem(item, newName)) {
+                    nameField.setText(item.getValue());
+                }
+            } else if (newName.isEmpty()) {
+                nameField.setText(item.getValue());
             }
         };
         nameField.setOnAction(e -> commit.run());
@@ -1442,10 +1749,15 @@ final class MainWindow {
     }
 
     private VBox buildBottomPanel() {
-        HBox progressRow = new HBox(8, progressBar);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        progressPercentLabel.setMouseTransparent(true);
+        progressPercentLabel.getStyleClass().add("progress-percentage");
+        StackPane progressWithPercentage = new StackPane(progressBar, progressPercentLabel);
+        HBox.setHgrow(progressWithPercentage, Priority.ALWAYS);
+
+        HBox progressRow = new HBox(8, progressWithPercentage);
         progressRow.setAlignment(Pos.CENTER_LEFT);
         progressRow.setPadding(new Insets(4));
-        HBox.setHgrow(progressBar, Priority.ALWAYS);
 
         console.setEditable(false);
         console.setPrefRowCount(6);
@@ -1462,13 +1774,13 @@ final class MainWindow {
         }
         runDemoJobButton.setDisable(true);
         cancelJobButton.setDisable(false);
-        progressBar.setProgress(0);
+        updateProgress(0);
         setStatus("Executando...", RUNNING_COLOR);
         appendConsole("Job de demonstracao iniciado (nao bloqueia a UI - tente redimensionar a janela).");
 
         JobHandle<Void> handle = jobExecutor.submit(new DemoJob(), (fraction, message) ->
                 Platform.runLater(() -> {
-                    progressBar.setProgress(fraction);
+                    updateProgress(fraction);
                     statusLabel.setText(message);
                 }));
         runningJob = handle;
@@ -1511,19 +1823,31 @@ final class MainWindow {
 
     private void openGerberQueue(List<File> files, int index) {
         if (index >= files.size()) {
+            updateProgress(1);
+            setStatus("Concluido.", IDLE_COLOR);
             onJobFinished();
             return;
         }
         File file = files.get(index);
-        beginJob("Analisando " + file.getName() + "...");
-        JobHandle<GerberImage> handle = jobExecutor.submit(
-                context -> new GerberParser().parse(file.toPath(), context::isCancelled), null);
+        String message = "Analisando Gerber " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
+        if (index == 0) {
+            beginJob(message);
+        } else {
+            setStatus(message, RUNNING_COLOR);
+            appendConsole(message);
+        }
+        JobHandle<GerberImage> handle = jobExecutor.submit(context ->
+                new GerberParser().parse(file.toPath(), context::isCancelled,
+                        fileFraction -> context.reportProgress(
+                                (index + fileFraction) / files.size(), message)),
+                (fraction, progressMessage) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(progressMessage);
+                }));
         runningJob = handle;
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
-                    setStatus("Concluido.", IDLE_COLOR);
-                    progressBar.setProgress(1);
                     unitsLabel.setText("Unidades: " + image.units());
                     appendConsole(String.format(
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
@@ -1556,19 +1880,31 @@ final class MainWindow {
 
     private void openExcellonQueue(List<File> files, int index) {
         if (index >= files.size()) {
+            updateProgress(1);
+            setStatus("Concluido.", IDLE_COLOR);
             onJobFinished();
             return;
         }
         File file = files.get(index);
-        beginJob("Analisando " + file.getName() + "...");
-        JobHandle<ExcellonImage> handle = jobExecutor.submit(
-                context -> new ExcellonParser().parse(file.toPath(), context::isCancelled), null);
+        String message = "Analisando Excellon " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
+        if (index == 0) {
+            beginJob(message);
+        } else {
+            setStatus(message, RUNNING_COLOR);
+            appendConsole(message);
+        }
+        JobHandle<ExcellonImage> handle = jobExecutor.submit(context ->
+                new ExcellonParser().parse(file.toPath(), context::isCancelled,
+                        fileFraction -> context.reportProgress(
+                                (index + fileFraction) / files.size(), message)),
+                (fraction, progressMessage) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(progressMessage);
+                }));
         runningJob = handle;
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
-                    setStatus("Concluido.", IDLE_COLOR);
-                    progressBar.setProgress(1);
                     unitsLabel.setText("Unidades: " + image.units());
                     appendConsole(String.format(
                             "Excellon OK: %d ferramentas, %d furos, %d slots, bounds=%s",
@@ -1616,9 +1952,19 @@ final class MainWindow {
     private void beginJob(String statusText) {
         runDemoJobButton.setDisable(true);
         cancelJobButton.setDisable(false);
-        progressBar.setProgress(ProgressBar.INDETERMINATE_PROGRESS);
+        updateProgress(ProgressBar.INDETERMINATE_PROGRESS);
         setStatus(statusText, RUNNING_COLOR);
         appendConsole(statusText);
+    }
+
+    private void updateProgress(double fraction) {
+        progressBar.setProgress(fraction);
+        if (Double.isNaN(fraction) || fraction < 0) {
+            progressPercentLabel.setText("...");
+            return;
+        }
+        double bounded = Math.max(0, Math.min(1, fraction));
+        progressPercentLabel.setText(Math.round(bounded * 100) + "%");
     }
 
     private void reportJobError(Throwable error, String failurePrefix) {
@@ -1707,17 +2053,21 @@ final class MainWindow {
 
             for (String path : project.gerberPaths()) {
                 Path sourcePath = Path.of(path);
-                context.reportProgress(progressFraction(processed, total),
-                        "Analisando Gerber " + sourcePath.getFileName() + "...");
-                GerberImage image = new GerberParser().parse(sourcePath, cancellation);
+                int completedBeforeFile = processed;
+                String progressMessage = "Analisando Gerber " + sourcePath.getFileName() + "...";
+                GerberImage image = new GerberParser().parse(sourcePath, cancellation,
+                        fileFraction -> context.reportProgress(
+                                progressFraction(completedBeforeFile + fileFraction, total), progressMessage));
                 gerbers.add(new LoadedGerber(sourcePath.toFile(), image));
                 processed++;
             }
             for (String path : project.excellonPaths()) {
                 Path sourcePath = Path.of(path);
-                context.reportProgress(progressFraction(processed, total),
-                        "Analisando Excellon " + sourcePath.getFileName() + "...");
-                ExcellonImage image = new ExcellonParser().parse(sourcePath, cancellation);
+                int completedBeforeFile = processed;
+                String progressMessage = "Analisando Excellon " + sourcePath.getFileName() + "...";
+                ExcellonImage image = new ExcellonParser().parse(sourcePath, cancellation,
+                        fileFraction -> context.reportProgress(
+                                progressFraction(completedBeforeFile + fileFraction, total), progressMessage));
                 excellons.add(new LoadedExcellon(sourcePath.toFile(), image));
                 processed++;
             }
@@ -1732,6 +2082,8 @@ final class MainWindow {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
                 processed++;
+                context.reportProgress(progressFraction(processed, total),
+                        "G-code " + outputPath.getFileName() + " carregado.");
             }
 
             cancellation.throwIfCancellationRequested();
@@ -1739,7 +2091,7 @@ final class MainWindow {
             return new LoadedProject(List.copyOf(gerbers), List.copyOf(excellons),
                     List.copyOf(cncJobs), List.copyOf(warnings));
         }, (fraction, message) -> Platform.runLater(() -> {
-            progressBar.setProgress(fraction);
+            updateProgress(fraction);
             statusLabel.setText(message);
         }));
         runningJob = handle;
@@ -1763,7 +2115,7 @@ final class MainWindow {
                     project.warnings().forEach(this::appendConsole);
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                     appendConsole("Projeto aberto: " + file);
-                    progressBar.setProgress(1);
+                    updateProgress(1);
                     setStatus("Concluido.", IDLE_COLOR);
                     onJobFinished();
                 }))
@@ -1777,7 +2129,7 @@ final class MainWindow {
                 });
     }
 
-    private static double progressFraction(int processed, int total) {
+    private static double progressFraction(double processed, int total) {
         return total == 0 ? 0 : (double) processed / total;
     }
 
@@ -1795,18 +2147,26 @@ final class MainWindow {
 
     /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */
     private TreeItem<String> addGerberToProject(File file, GerberImage image) {
-        TreeItem<String> item = new TreeItem<>(file.getName());
+        return addGerberToProject(file.getName(), file.toPath(), image);
+    }
+
+    private TreeItem<String> addGerberToProject(String displayName, Path sourcePath, GerberImage image) {
+        TreeItem<String> item = new TreeItem<>(displayName);
         gerberByItem.put(item, image);
-        sourcePathByItem.put(item, file.toPath());
+        sourcePathByItem.put(item, sourcePath);
         gerbersNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER, image.solidGeometry(), GERBER_FILL, GERBER_STROKE, false);
         return item;
     }
 
     private TreeItem<String> addExcellonToProject(File file, ExcellonImage image) {
-        TreeItem<String> item = new TreeItem<>(file.getName());
+        return addExcellonToProject(file.getName(), file.toPath(), image);
+    }
+
+    private TreeItem<String> addExcellonToProject(String displayName, Path sourcePath, ExcellonImage image) {
+        TreeItem<String> item = new TreeItem<>(displayName);
         excellonByItem.put(item, image);
-        sourcePathByItem.put(item, file.toPath());
+        sourcePathByItem.put(item, sourcePath);
         excellonNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.EXCELLON, image.solidGeometry(), DRILL_FILL, DRILL_STROKE, false);
         return item;
