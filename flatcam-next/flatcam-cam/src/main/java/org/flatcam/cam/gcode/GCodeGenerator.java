@@ -281,6 +281,85 @@ public final class GCodeGenerator {
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
     }
 
+    /**
+     * Converts the center lines stored by a Geometry object (including an NCC
+     * result) to a normal CNC Job. Polygon inputs are traced around every
+     * exterior/interior ring; line inputs are followed directly.
+     */
+    public static CncJobResult generateGeometryCncJob(String units, Geometry geometry,
+                                                       GeometryGCodeParameters params, double toolDiameter) {
+        return generateGeometryCncJob(units, geometry, params, toolDiameter, CancellationToken.none());
+    }
+
+    public static CncJobResult generateGeometryCncJob(String units, Geometry geometry,
+                                                       GeometryGCodeParameters params, double toolDiameter,
+                                                       CancellationToken cancellationToken) {
+        Objects.requireNonNull(units, "units");
+        Objects.requireNonNull(geometry, "geometry");
+        Objects.requireNonNull(params, "params");
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        if (!Double.isFinite(toolDiameter) || toolDiameter <= 0) {
+            throw new IllegalArgumentException("toolDiameter must be positive: " + toolDiameter);
+        }
+        cancellationToken.throwIfCancellationRequested();
+
+        StringBuilder gcode = new StringBuilder();
+        line(gcode, "; Gerado por FlatCAM Next (prototipo) - Geometry");
+        line(gcode, "; Unidades do objeto de origem: %s", units);
+        line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
+        line(gcode, "G90");
+        line(gcode, "G94");
+        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        if (params.spindleSpeedRpm() > 0) {
+            line(gcode, "M3 S%d", params.spindleSpeedRpm());
+        }
+
+        double radius = toolDiameter / 2.0;
+        List<Geometry> travelShapes = new ArrayList<>();
+        List<Geometry> cutShapes = new ArrayList<>();
+        List<Double> depths = passDepths(params.cutDepth(), params.multiDepth(), params.depthPerPass());
+        double lastX = 0;
+        double lastY = 0;
+
+        for (Coordinate[] coordinates : orderedByNearestNeighbor(
+                geometry, lastX, lastY, cancellationToken)) {
+            cancellationToken.throwIfCancellationRequested();
+            if (coordinates.length < 2) {
+                continue;
+            }
+            addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
+            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates)
+                    .buffer(radius, STROKE_QUADRANT_SEGMENTS));
+            Coordinate last = coordinates[coordinates.length - 1];
+            lastX = last.x;
+            lastY = last.y;
+
+            line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+            for (double depth : depths) {
+                cancellationToken.throwIfCancellationRequested();
+                line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
+                for (int p = 1; p < coordinates.length; p++) {
+                    cancellationToken.throwIfCancellationRequested();
+                    line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x),
+                            fmt(coordinates[p].y), fmt(params.feedRate()));
+                }
+                if (depth != depths.get(depths.size() - 1)) {
+                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                    line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                }
+            }
+            line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        }
+
+        if (params.spindleSpeedRpm() > 0) {
+            line(gcode, "M5");
+        }
+        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        line(gcode, "M30");
+        cancellationToken.throwIfCancellationRequested();
+        return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+    }
+
     /** [depthPerPass, 2*depthPerPass, ..., cutDepth] when multiDepth is on, else just [cutDepth]. */
     private static List<Double> passDepths(double cutDepth, boolean multiDepth, double depthPerPass) {
         List<Double> depths = new ArrayList<>();
@@ -341,13 +420,7 @@ public final class GCodeGenerator {
     private static List<Coordinate[]> orderedByNearestNeighbor(
             Geometry geometry, double startX, double startY, CancellationToken cancellationToken) {
         List<Coordinate[]> remaining = new ArrayList<>();
-        for (int i = 0; i < geometry.getNumGeometries(); i++) {
-            cancellationToken.throwIfCancellationRequested();
-            Coordinate[] coordinates = ringCoordinates(geometry.getGeometryN(i));
-            if (coordinates != null && coordinates.length > 0) {
-                remaining.add(coordinates);
-            }
-        }
+        collectCoordinatePaths(geometry, remaining, cancellationToken);
 
         List<Coordinate[]> ordered = new ArrayList<>(remaining.size());
         double currentX = startX;
@@ -395,12 +468,26 @@ public final class GCodeGenerator {
         return result;
     }
 
-    private static Coordinate[] ringCoordinates(Geometry geometry) {
-        return switch (geometry) {
-            case LineString line -> line.getCoordinates();
-            case Polygon polygon -> polygon.getExteriorRing().getCoordinates();
-            default -> null;
-        };
+    private static void collectCoordinatePaths(Geometry geometry, List<Coordinate[]> target,
+                                               CancellationToken cancellationToken) {
+        cancellationToken.throwIfCancellationRequested();
+        if (geometry instanceof LineString line) {
+            if (!line.isEmpty() && line.getNumPoints() >= 2) {
+                target.add(line.getCoordinates());
+            }
+            return;
+        }
+        if (geometry instanceof Polygon polygon) {
+            target.add(polygon.getExteriorRing().getCoordinates());
+            for (int i = 0; i < polygon.getNumInteriorRing(); i++) {
+                cancellationToken.throwIfCancellationRequested();
+                target.add(polygon.getInteriorRingN(i).getCoordinates());
+            }
+            return;
+        }
+        for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            collectCoordinatePaths(geometry.getGeometryN(i), target, cancellationToken);
+        }
     }
 
     private static void line(StringBuilder sb, String format, Object... args) {

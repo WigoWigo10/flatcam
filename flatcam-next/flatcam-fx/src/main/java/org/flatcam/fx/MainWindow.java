@@ -77,6 +77,9 @@ import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
+import org.flatcam.cam.ncc.NccGenerator;
+import org.flatcam.cam.ncc.NccParameters;
+import org.flatcam.cam.ncc.NccResult;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
@@ -152,8 +155,9 @@ final class MainWindow {
     private record LoadedCncJob(String sourceName, Path outputPath, String gcode) {
     }
 
-    /** A Geometry object derived from a Gerber (Follow, non-copper area or bounding box). */
-    private record GeometryEntry(String sourceName, String units, Geometry geometry, boolean strokeOnly) {
+    /** A Geometry object derived from a Gerber; toolDiameter is known for machining-tool results such as NCC. */
+    private record GeometryEntry(String sourceName, String units, Geometry geometry,
+                                 boolean strokeOnly, Double toolDiameter) {
     }
 
     private record LoadedProject(List<LoadedGerber> gerbers, List<LoadedExcellon> excellons,
@@ -987,6 +991,7 @@ final class MainWindow {
 
     /** Project-tree actions for Gerber-derived Geometry objects. */
     private List<MenuItem> geometryContextMenuItems(TreeItem<String> item) {
+        GeometryEntry entry = geometryByItem.get(item);
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
@@ -999,6 +1004,10 @@ final class MainWindow {
         disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         Menu colorMenu = buildLayerColorMenu(item, GEOMETRY_FILL, GEOMETRY_STROKE);
+
+        MenuItem cncItem = new MenuItem("Criar CNC Job...");
+        setLegacyMenuIcon(cncItem, "cnc32.png");
+        cncItem.setOnAction(e -> generateGeometryCncJob(item, entry));
 
         MenuItem viewItem = new MenuItem("Ver WKT");
         setLegacyMenuIcon(viewItem, "source32.png");
@@ -1019,7 +1028,7 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), viewItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), cncItem, viewItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -1307,7 +1316,7 @@ final class MainWindow {
             copyLayerAppearance(sourceItem, copyItem);
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
-                    geometry.geometry().copy(), geometry.strokeOnly());
+                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.toolDiameter());
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
@@ -1623,6 +1632,122 @@ final class MainWindow {
                 });
     }
 
+    /** Opens the legacy-style NCC form; unlike Isolation/Cutout, NCC produces an intermediate Geometry object. */
+    private void generateNcc(TreeItem<String> item, GerberImage image) {
+        openToolPanel("NCC Tool", NccToolPanel.build(image.units(),
+                params -> runNccGeneration(item, image, params), this::closeToolPanel));
+    }
+
+    private void runNccGeneration(TreeItem<String> item, GerberImage image, NccParameters params) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+
+        beginJob("Gerando Non-Copper Clearing...");
+        JobHandle<NccResult> handle = jobExecutor.submit(context -> NccGenerator.generate(
+                image.units(), image.solidGeometry(), params, context::isCancelled,
+                fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing...")),
+                (fraction, message) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(message);
+                }));
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(result -> Platform.runLater(() -> {
+                    if (result.isEmpty()) {
+                        appendConsole("NCC nao gerou caminhos. A ferramenta pode ser grande demais para a area livre.");
+                        setStatus("Sem caminhos.", ERROR_COLOR);
+                    } else {
+                        String name = uniqueDerivedName(item.getValue() + "_ncc");
+                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
+                                result.geometry(), true, params.toolDiameter());
+                        appendConsole(String.format(
+                                "NCC: %d caminhos, comprimento total=%.4f, falhas=%d, bounds=%s",
+                                result.pathCount(), result.totalLength(), result.failedPolygonCount(),
+                                Arrays.toString(result.bounds())));
+                        selectProjectItem(generated);
+                        plotAreaView.fitToLayer(generated);
+                        closeToolPanel();
+                        setStatus("Concluido.", IDLE_COLOR);
+                    }
+                    updateProgress(1);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao gerar Non-Copper Clearing: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
+    }
+
+    private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
+        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.toolDiameter(),
+                result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
+    }
+
+    private void runGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
+                                          GeometryCncToolPanel.Result result) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar G-code de Geometry");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cnc.nc");
+        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File outFile = chooser.showSaveDialog(scene.getWindow());
+        if (outFile == null) {
+            return;
+        }
+
+        beginJob("Gerando CNC Job de Geometry...");
+        JobHandle<CncJobResult> handle = jobExecutor.submit(context -> {
+            context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
+            CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), entry.geometry(),
+                    result.parameters(), result.toolDiameter(), context::isCancelled);
+            context.checkCancelled();
+            context.reportProgress(0.90, "Salvando G-code de Geometry...");
+            Files.writeString(outFile.toPath(), job.gcode());
+            return job;
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(job -> Platform.runLater(() -> {
+                    AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
+                    appendConsole("G-code de Geometry salvo em " + outFile
+                            + " (" + job.gcode().lines().count() + " linhas).");
+                    TreeItem<String> cncItem = addCncJobToProject(outFile.getName(), item.getValue(),
+                            outFile.toPath(), job.gcode(), job.travelGeometry(), job.cutGeometry());
+                    selectProjectItem(cncItem);
+                    focusCncJob(cncItem, cncJobByItem.get(cncItem));
+                    closeToolPanel();
+                    updateProgress(1);
+                    setStatus("Concluido.", IDLE_COLOR);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao gerar/salvar CNC Job de Geometry: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
+    }
+
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
@@ -1643,10 +1768,8 @@ final class MainWindow {
      * selection change instead of one persistent widget per object - this
      * app doesn't keep a live UI instance per object the way the legacy one
      * does, but the effect (the right panel for whatever is selected) is the
-     * same. Editor/NCC Tool/Cutout Tool/Utilities/Transformations from the
-     * legacy panel are deliberately left out - those need subsystems
-     * (an object editor, non-copper clearing, board cutout, geometry
-     * transforms) this phase doesn't have.
+     * same. The remaining deliberate omissions are the object editor and
+     * transformations, which need a mutable, persistent object model.
      */
     private void showProperties(TreeItem<String> item) {
         Node content;
@@ -1705,6 +1828,12 @@ final class MainWindow {
         isolationButton.setMaxWidth(Double.MAX_VALUE);
         isolationButton.setOnAction(e -> generateIsolation(item, image));
         box.getChildren().add(isolationButton);
+
+        Button nccButton = new Button("NCC Tool");
+        nccButton.setGraphic(legacyIcon("eraser26.png", 18));
+        nccButton.setMaxWidth(Double.MAX_VALUE);
+        nccButton.setOnAction(e -> generateNcc(item, image));
+        box.getChildren().add(nccButton);
 
         Button cutoutButton = new Button("Cutout Tool");
         cutoutButton.setGraphic(legacyIcon("cut32_bis.png", 18));
@@ -1885,12 +2014,19 @@ final class MainWindow {
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
+        Button cncButton = new Button("Generate CNC Job");
+        cncButton.setGraphic(legacyIcon("cnc16.png", 16));
+        cncButton.setMaxWidth(Double.MAX_VALUE);
+        cncButton.setOnAction(e -> generateGeometryCncJob(item, entry));
+        box.getChildren().add(cncButton);
+
         Envelope envelope = entry.geometry().getEnvelopeInternal();
         double[] bounds = entry.geometry().isEmpty() ? null
                 : new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
+        String toolText = entry.toolDiameter() == null ? "" : String.format("%nTool Dia: %.4f", entry.toolDiameter());
         box.getChildren().add(propertiesSection(String.format(
-                "Origem: %s%nUnidades: %s%nArea: %.4f%nComprimento: %.4f%nBounds: %s",
-                entry.sourceName(), entry.units(), entry.geometry().getArea(), entry.geometry().getLength(),
+                "Origem: %s%nUnidades: %s%s%nArea: %.4f%nComprimento: %.4f%nBounds: %s",
+                entry.sourceName(), entry.units(), toolText, entry.geometry().getArea(), entry.geometry().getLength(),
                 Arrays.toString(bounds))));
         return box;
     }
@@ -2481,8 +2617,13 @@ final class MainWindow {
 
     private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
                                                   Geometry geometry, boolean strokeOnly) {
+        return addGeometryToProject(displayName, sourceName, units, geometry, strokeOnly, null);
+    }
+
+    private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
+                                                  Geometry geometry, boolean strokeOnly, Double toolDiameter) {
         TreeItem<String> item = new TreeItem<>(displayName);
-        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly));
+        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, toolDiameter));
         geometryNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GEOMETRY, geometry,
                 GEOMETRY_FILL, GEOMETRY_STROKE, strokeOnly);

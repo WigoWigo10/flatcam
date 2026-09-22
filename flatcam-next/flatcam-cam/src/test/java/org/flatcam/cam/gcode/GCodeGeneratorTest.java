@@ -20,6 +20,8 @@ import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.isolation.IsolationType;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.junit.jupiter.api.Test;
 
 class GCodeGeneratorTest {
@@ -256,6 +258,56 @@ class GCodeGeneratorTest {
                 isolation, new IsolationGCodeParameters(0.1, 0.003, 10, 0), 0.02, cancelled));
         assertThrows(CancellationException.class, () -> GCodeGenerator.generateCutoutCncJob(
                 cutout, new CutoutGCodeParameters(0.1, 0.12, false, 0.05, 10, 0), 0.02, cancelled));
+    }
+
+    @Test
+    void geometryPathsBecomeAMultiDepthCncJob() {
+        GeometryFactory factory = new GeometryFactory();
+        var paths = factory.createMultiLineString(new org.locationtech.jts.geom.LineString[]{
+                factory.createLineString(new Coordinate[]{new Coordinate(1, 1), new Coordinate(4, 1)}),
+                factory.createLineString(new Coordinate[]{new Coordinate(4, 2), new Coordinate(1, 2)})
+        });
+
+        CncJobResult result = GCodeGenerator.generateGeometryCncJob("MM", paths,
+                new GeometryGCodeParameters(3, 0.12, true, 0.05, 300, 10_000), 0.5);
+
+        assertTrue(result.gcode().contains("G21"));
+        assertEquals(2, countOccurrences(result.gcode(), "G1 Z-0.0500"));
+        assertEquals(2, countOccurrences(result.gcode(), "G1 Z-0.1000"));
+        assertEquals(2, countOccurrences(result.gcode(), "G1 Z-0.1200"));
+        assertTrue(result.gcode().contains("M3 S10000"));
+        assertTrue(!result.cutGeometry().isEmpty());
+        assertTrue(!result.travelGeometry().isEmpty());
+    }
+
+    @Test
+    void geometryCncJobTracesPolygonExteriorAndHole() {
+        GeometryFactory factory = new GeometryFactory();
+        var shell = factory.createLinearRing(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(5, 0), new Coordinate(5, 5),
+                new Coordinate(0, 5), new Coordinate(0, 0)});
+        var hole = factory.createLinearRing(new Coordinate[]{
+                new Coordinate(1, 1), new Coordinate(1, 2), new Coordinate(2, 2),
+                new Coordinate(2, 1), new Coordinate(1, 1)});
+
+        CncJobResult result = GCodeGenerator.generateGeometryCncJob("IN", factory.createPolygon(shell, new org.locationtech.jts.geom.LinearRing[]{hole}),
+                new GeometryGCodeParameters(0.1, 0.01, false, 1, 12, 0), 0.02);
+
+        assertTrue(result.gcode().contains("G20"));
+        assertEquals(2, countOccurrences(result.gcode(), "G1 Z-0.0100"),
+                "one plunge for the exterior and one for the hole");
+    }
+
+    @Test
+    void geometryCncJobValidatesAndCancels() {
+        GeometryFactory factory = new GeometryFactory();
+        var path = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 1)});
+        GeometryGCodeParameters params = new GeometryGCodeParameters(3, 0.1, false, 1, 300, 0);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> GCodeGenerator.generateGeometryCncJob("MM", path, params, 0));
+        assertThrows(CancellationException.class,
+                () -> GCodeGenerator.generateGeometryCncJob("MM", path, params, 0.5, () -> true));
     }
 
     private static int countOccurrences(String haystack, String needle) {

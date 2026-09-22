@@ -11,9 +11,13 @@ crescendo ao lado do app Python/PyQt5 existente (não o substitui ainda).
 ## Rodar
 
 ```bash
-./mvnw.cmd -q install -DskipTests   # primeira vez, ou apos mudar flatcam-application
+./mvnw.cmd -q install -DskipTests   # atualiza todos os modulos internos no repositorio Maven local
 ./mvnw.cmd -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
 ```
+
+Execute novamente o primeiro comando depois de alterar `flatcam-cam` ou
+`flatcam-application`. Rodar somente `flatcam-fx` pode carregar uma versao
+anterior desses modulos do repositorio Maven local.
 
 (o prefixo curto `javafx:run` não resolve por padrão sem um `settings.xml`
 com `pluginGroups` configurado - por isso o goal totalmente qualificado acima.)

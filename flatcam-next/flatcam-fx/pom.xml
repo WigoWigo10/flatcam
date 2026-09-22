@@ -72,6 +72,7 @@
                     <include>clear_plot32.png</include>
                     <include>set_color32.png</include>
                     <include>cnc32.png</include>
+                    <include>cnc16.png</include>
                     <include>source32.png</include>
                     <include>copy32.png</include>
                     <include>delete32.png</include>
@@ -85,6 +86,7 @@
                     <include>flatcam_icon32.png</include>
                     <include>settings18.png</include>
                     <include>geometry32.png</include>
+                    <include>eraser26.png</include>
                 </includes>
             </resource>
             <resource>
@@ -95,6 +97,7 @@
                     <include>clear_plot32.png</include>
                     <include>set_color32.png</include>
                     <include>cnc32.png</include>
+                    <include>cnc16.png</include>
                     <include>source32.png</include>
                     <include>copy32.png</include>
                     <include>delete32.png</include>
@@ -107,6 +110,7 @@
                     <include>flatcam_icon32.png</include>
                     <include>settings18.png</include>
                     <include>geometry32.png</include>
+                    <include>eraser26.png</include>
                 </includes>
             </resource>
         </resources>
