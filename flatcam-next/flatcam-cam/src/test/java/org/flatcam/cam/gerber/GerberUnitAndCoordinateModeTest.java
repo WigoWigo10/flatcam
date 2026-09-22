@@ -2,6 +2,7 @@ package org.flatcam.cam.gerber;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -54,13 +55,36 @@ class GerberUnitAndCoordinateModeTest {
     void g71ConflictingWithMOLineIsRejected() {
         GerberParseException ex = assertThrows(GerberParseException.class,
                 () -> new GerberParser().parse(withHeader("%MOIN*%", "G71*")));
-        assertEquals(true, ex.getMessage().contains("Unit mismatch"));
+        assertTrue(ex.getMessage().contains("Unit mismatch"));
+    }
+
+    @Test
+    void moConflictingWithEarlierG71IsRejected() {
+        GerberParseException ex = assertThrows(GerberParseException.class,
+                () -> new GerberParser().parse(withHeader("G71*", "%MOIN*%")));
+        assertTrue(ex.getMessage().contains("Unit mismatch"));
+    }
+
+    @Test
+    void g70AndMOMetricConflictInEitherOrder() {
+        assertThrows(GerberParseException.class,
+                () -> new GerberParser().parse(withHeader("%MOMM*%", "G70*")));
+        assertThrows(GerberParseException.class,
+                () -> new GerberParser().parse(withHeader("G70*", "%MOMM*%")));
+    }
+
+    @Test
+    void matchingDeclarationsAreAcceptedInEitherOrder() {
+        assertEquals("MM", new GerberParser().parse(withHeader("%MOMM*%", "G71*")).units());
+        assertEquals("MM", new GerberParser().parse(withHeader("G71*", "%MOMM*%")).units());
+        assertEquals("IN", new GerberParser().parse(withHeader("%MOIN*%", "G70*")).units());
+        assertEquals("IN", new GerberParser().parse(withHeader("G70*", "%MOIN*%")).units());
     }
 
     @Test
     void g91IncrementalModeIsRejectedRatherThanMisdecoded() {
         GerberParseException ex = assertThrows(GerberParseException.class,
                 () -> new GerberParser().parse(withHeader("G91*")));
-        assertEquals(true, ex.getMessage().contains("Incremental"));
+        assertTrue(ex.getMessage().contains("Incremental"));
     }
 }

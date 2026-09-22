@@ -129,13 +129,7 @@ public final class GerberParser {
             }
             if (line.equals("G70*") || line.equals("G71*")) {
                 String impliedUnits = line.equals("G70*") ? "IN" : "MM";
-                if (units == null) {
-                    units = impliedUnits;
-                } else if (!units.equals(impliedUnits)) {
-                    throw new GerberParseException(
-                            "Unit mismatch: %MO declared " + units + " but " + rawLine.strip()
-                                    + " declares " + impliedUnits);
-                }
+                units = reconcileUnits(units, impliedUnits, rawLine.strip());
                 continue;
             }
 
@@ -145,7 +139,7 @@ public final class GerberParser {
                 continue;
             }
             if ((m = MO_LINE.matcher(line)).matches()) {
-                units = m.group(1);
+                units = reconcileUnits(units, m.group(1), rawLine.strip());
                 continue;
             }
             if ((m = AM_START.matcher(line)).matches()) {
@@ -275,6 +269,19 @@ public final class GerberParser {
         }
 
         return new GerberImage(units == null ? "IN" : units, apertures, accumulator.result(), apertureGeometry);
+    }
+
+    /**
+     * Accepts repeated, equivalent unit declarations while rejecting a conflict
+     * regardless of whether the legacy G70/G71 code or %MO appeared first.
+     */
+    private static String reconcileUnits(String currentUnits, String declaredUnits, String declaration) {
+        if (currentUnits != null && !currentUnits.equals(declaredUnits)) {
+            throw new GerberParseException(
+                    "Unit mismatch: earlier declaration selected " + currentUnits
+                            + " but " + declaration + " declares " + declaredUnits);
+        }
+        return declaredUnits;
     }
 
     private Aperture buildAperture(String type, String paramsRaw, Map<String, ApertureMacro> macros) {
