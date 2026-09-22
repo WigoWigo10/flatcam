@@ -600,9 +600,16 @@ final class MainWindow {
                     if (!isObject) {
                         textLabel.setStyle("-fx-font-weight: bold;");
                         textLabel.setOpacity(1.0);
+                        // Category headers have no icon. Keeping the empty 16 px
+                        // iconHolder plus the HBox gap made them look like children of
+                        // an invisible extra level, especially while the category was
+                        // empty and therefore had no disclosure arrow. Let TreeView's
+                        // own disclosure/indent area be their only left indentation.
+                        displayBox.getChildren().setAll(textLabel);
                     } else {
                         textLabel.setStyle(null);
                         textLabel.setOpacity(isPlottable(item) && !isObjectVisible(item) ? 0.5 : 1.0);
+                        displayBox.getChildren().setAll(iconHolder, textLabel);
                     }
                     Node icon = iconShapeFor(item);
                     iconHolder.getChildren().setAll(icon == null ? List.of() : List.of(icon));
