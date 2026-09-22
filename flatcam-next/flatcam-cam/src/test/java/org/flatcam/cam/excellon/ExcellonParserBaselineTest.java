@@ -2,14 +2,19 @@ package org.flatcam.cam.excellon;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.flatcam.cam.CancellationToken;
 import org.json.JSONObject;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 /**
@@ -74,6 +79,16 @@ class ExcellonParserBaselineTest {
                         "bounds[" + i + "]: expected ~" + expectedBounds[i] + ", got " + actualBounds[i]);
             }
         }));
+    }
+
+    @Test
+    void stopsAtCooperativeCancellationCheckpoint() throws Exception {
+        List<String> lines = Files.readAllLines(findRepoRoot().resolve("tests/gerber_files/detector_drill.txt"));
+        AtomicInteger checks = new AtomicInteger();
+        CancellationToken cancellation = () -> checks.incrementAndGet() >= 5;
+
+        assertThrows(CancellationException.class, () -> new ExcellonParser().parse(lines, cancellation));
+        assertTrue(checks.get() >= 5);
     }
 
     private static Path findRepoRoot() {

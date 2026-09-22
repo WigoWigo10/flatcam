@@ -7,8 +7,10 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.flatcam.cam.CancellationToken;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -68,10 +70,24 @@ public final class ExcellonParser {
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public ExcellonImage parse(Path file) throws IOException {
-        return parse(Files.readAllLines(file));
+        return parse(file, CancellationToken.none());
+    }
+
+    public ExcellonImage parse(Path file, CancellationToken cancellationToken) throws IOException {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
+        List<String> lines = Files.readAllLines(file);
+        cancellationToken.throwIfCancellationRequested();
+        return parse(lines, cancellationToken);
     }
 
     public ExcellonImage parse(List<String> rawLines) {
+        return parse(rawLines, CancellationToken.none());
+    }
+
+    public ExcellonImage parse(List<String> rawLines, CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
         String units = null;
         Integer formatLowerOverride = null;
         Map<Integer, Double> toolDiameters = new LinkedHashMap<>();
@@ -84,6 +100,7 @@ public final class ExcellonParser {
         double posY = 0;
 
         for (String rawLine : rawLines) {
+            cancellationToken.throwIfCancellationRequested();
             String line = rawLine.strip();
             if (line.isEmpty() || IGNORABLE_EXACT.contains(line)) {
                 continue;
@@ -140,6 +157,7 @@ public final class ExcellonParser {
                 shapes.add(geometryFactory
                         .createLineString(new Coordinate[]{new Coordinate(x1, y1), new Coordinate(x2, y2)})
                         .buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
+                cancellationToken.throwIfCancellationRequested();
                 slots.add(new ExcellonImage.Slot(currentTool, x1, y1, x2, y2));
                 posX = x2;
                 posY = y2;
@@ -155,6 +173,7 @@ public final class ExcellonParser {
                 double diameter = requireToolDiameter(toolDiameters, currentTool, line);
 
                 shapes.add(geometryFactory.createPoint(new Coordinate(x, y)).buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
+                cancellationToken.throwIfCancellationRequested();
                 drills.add(new ExcellonImage.Drill(currentTool, x, y));
                 posX = x;
                 posY = y;
@@ -164,7 +183,9 @@ public final class ExcellonParser {
             throw new ExcellonParseException("Unsupported Excellon line: " + rawLine);
         }
 
+        cancellationToken.throwIfCancellationRequested();
         Geometry solid = shapes.isEmpty() ? geometryFactory.createPolygon() : UnaryUnionOp.union(shapes);
+        cancellationToken.throwIfCancellationRequested();
         return new ExcellonImage(units == null ? "IN" : units, toolDiameters, drills, slots, solid);
     }
 

@@ -8,9 +8,11 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.flatcam.cam.CancellationToken;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -64,10 +66,24 @@ public final class GerberParser {
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
     public GerberImage parse(Path file) throws IOException {
-        return parse(Files.readAllLines(file));
+        return parse(file, CancellationToken.none());
+    }
+
+    public GerberImage parse(Path file, CancellationToken cancellationToken) throws IOException {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
+        List<String> lines = Files.readAllLines(file);
+        cancellationToken.throwIfCancellationRequested();
+        return parse(lines, cancellationToken);
     }
 
     public GerberImage parse(List<String> rawLines) {
+        return parse(rawLines, CancellationToken.none());
+    }
+
+    public GerberImage parse(List<String> rawLines, CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
         String units = null;
         FormatSpec format = null;
         Map<String, Aperture> apertures = new LinkedHashMap<>();
@@ -80,7 +96,7 @@ public final class GerberParser {
         char polarity = 'D';
         int interpolationMode = 1; // 1=linear (G01), 2=clockwise arc (G02), 3=counter-clockwise arc (G03) - modal
         String quadrantMode = null; // "SINGLE" (G74) or "MULTI" (G75) - required before any arc
-        SolidAccumulator accumulator = new SolidAccumulator(geometryFactory);
+        SolidAccumulator accumulator = new SolidAccumulator(geometryFactory, cancellationToken);
         // Every flash/stroke's shape, kept per aperture regardless of polarity - purely for the
         // apertures table's "Mark" highlight (appParsers/ParseGerber.py's apertures[code]['geometry']),
         // with zero effect on the final solidGeometry above.
@@ -91,6 +107,7 @@ public final class GerberParser {
         List<List<Coordinate>> regionContours = null;
 
         for (String rawLine : rawLines) {
+            cancellationToken.throwIfCancellationRequested();
             String line = rawLine.strip();
             if (line.isEmpty()) {
                 continue;
@@ -165,7 +182,7 @@ public final class GerberParser {
                 if (currentContour != null && currentContour.size() > 2) {
                     regionContours.add(currentContour);
                 }
-                accumulator.add(buildRegionGeometry(regionContours, geometryFactory), polarity);
+                accumulator.add(buildRegionGeometry(regionContours, geometryFactory, cancellationToken), polarity);
                 regionMode = false;
                 currentContour = null;
                 regionContours = null;
@@ -264,11 +281,15 @@ public final class GerberParser {
 
         Map<String, Geometry> apertureGeometry = new LinkedHashMap<>();
         for (Map.Entry<String, List<Geometry>> entry : shapesByAperture.entrySet()) {
+            cancellationToken.throwIfCancellationRequested();
             List<Geometry> shapes = entry.getValue();
             apertureGeometry.put(entry.getKey(), shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes));
+            cancellationToken.throwIfCancellationRequested();
         }
 
-        return new GerberImage(units == null ? "IN" : units, apertures, accumulator.result(), apertureGeometry);
+        Geometry solidGeometry = accumulator.result();
+        cancellationToken.throwIfCancellationRequested();
+        return new GerberImage(units == null ? "IN" : units, apertures, solidGeometry, apertureGeometry);
     }
 
     /**
@@ -316,9 +337,11 @@ public final class GerberParser {
         return body.equals("0") || body.startsWith("0 ") || body.startsWith("0\t");
     }
 
-    private static Geometry buildRegionGeometry(List<List<Coordinate>> contours, GeometryFactory geometryFactory) {
+    private static Geometry buildRegionGeometry(List<List<Coordinate>> contours, GeometryFactory geometryFactory,
+                                                CancellationToken cancellationToken) {
         List<Geometry> polygons = new ArrayList<>();
         for (List<Coordinate> contour : contours) {
+            cancellationToken.throwIfCancellationRequested();
             if (contour.size() < 3) {
                 continue;
             }
@@ -331,7 +354,9 @@ public final class GerberParser {
         if (polygons.isEmpty()) {
             return geometryFactory.createPolygon();
         }
-        return UnaryUnionOp.union(polygons);
+        Geometry result = UnaryUnionOp.union(polygons);
+        cancellationToken.throwIfCancellationRequested();
+        return result;
     }
 
     private static boolean isIgnorable(String line) {
@@ -452,11 +477,13 @@ public final class GerberParser {
      */
     private static final class SolidAccumulator {
         private final List<Geometry> pending = new ArrayList<>();
+        private final CancellationToken cancellationToken;
         private Geometry solid;
         private char pendingPolarity = 'D';
 
-        SolidAccumulator(GeometryFactory geometryFactory) {
+        SolidAccumulator(GeometryFactory geometryFactory, CancellationToken cancellationToken) {
             this.solid = geometryFactory.createPolygon();
+            this.cancellationToken = cancellationToken;
         }
 
         void add(Geometry shape, char polarity) {
@@ -471,17 +498,21 @@ public final class GerberParser {
         }
 
         Geometry result() {
+            cancellationToken.throwIfCancellationRequested();
             flush();
             return solid;
         }
 
         private void flush() {
+            cancellationToken.throwIfCancellationRequested();
             if (pending.isEmpty()) {
                 return;
             }
             Geometry batch = pending.size() == 1 ? pending.get(0) : UnaryUnionOp.union(pending);
+            cancellationToken.throwIfCancellationRequested();
             pending.clear();
             solid = pendingPolarity == 'C' ? solid.difference(batch) : solid.union(batch);
+            cancellationToken.throwIfCancellationRequested();
         }
     }
 }

@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -133,6 +134,19 @@ final class MainWindow {
     }
 
     private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
+    }
+
+    private record LoadedGerber(File file, GerberImage image) {
+    }
+
+    private record LoadedExcellon(File file, ExcellonImage image) {
+    }
+
+    private record LoadedCncJob(String sourceName, Path outputPath, String gcode) {
+    }
+
+    private record LoadedProject(List<LoadedGerber> gerbers, List<LoadedExcellon> excellons,
+                                 List<LoadedCncJob> cncJobs, List<String> warnings) {
     }
 
     /** PlotAreaView layer keys for a CNC Job's two toolpath layers - see {@link #addCncJobToProject}. */
@@ -1502,7 +1516,8 @@ final class MainWindow {
         }
         File file = files.get(index);
         beginJob("Analisando " + file.getName() + "...");
-        JobHandle<GerberImage> handle = jobExecutor.submit(context -> new GerberParser().parse(file.toPath()), null);
+        JobHandle<GerberImage> handle = jobExecutor.submit(
+                context -> new GerberParser().parse(file.toPath(), context::isCancelled), null);
         runningJob = handle;
 
         handle.completion()
@@ -1520,7 +1535,11 @@ final class MainWindow {
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         reportJobError(error, "Falha ao abrir Gerber " + file.getName() + ": ");
-                        openGerberQueue(files, index + 1);
+                        if (isCancellation(error)) {
+                            onJobFinished();
+                        } else {
+                            openGerberQueue(files, index + 1);
+                        }
                     });
                     return null;
                 });
@@ -1542,7 +1561,8 @@ final class MainWindow {
         }
         File file = files.get(index);
         beginJob("Analisando " + file.getName() + "...");
-        JobHandle<ExcellonImage> handle = jobExecutor.submit(context -> new ExcellonParser().parse(file.toPath()), null);
+        JobHandle<ExcellonImage> handle = jobExecutor.submit(
+                context -> new ExcellonParser().parse(file.toPath(), context::isCancelled), null);
         runningJob = handle;
 
         handle.completion()
@@ -1561,7 +1581,11 @@ final class MainWindow {
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         reportJobError(error, "Falha ao abrir Excellon " + file.getName() + ": ");
-                        openExcellonQueue(files, index + 1);
+                        if (isCancellation(error)) {
+                            onJobFinished();
+                        } else {
+                            openExcellonQueue(files, index + 1);
+                        }
                     });
                     return null;
                 });
@@ -1644,8 +1668,16 @@ final class MainWindow {
         }
     }
 
-    /** Clears the current project, then re-parses every file the loaded ProjectFile references. */
+    /**
+     * Loads and validates every referenced file off the JavaFX thread. The visible project is replaced only after the
+     * whole CAM batch succeeds, so a malformed/missing source or cancellation leaves the current project untouched.
+     */
     private void openProject() {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Abrir Projeto");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM Next", "*.fcnproj"));
@@ -1659,37 +1691,94 @@ final class MainWindow {
             return;
         }
 
-        ProjectFile project;
-        try {
-            project = ProjectFileIO.load(file.toPath());
-        } catch (IOException e) {
-            appendConsole("Falha ao abrir projeto: " + e.getMessage());
-            return;
-        }
-        AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+        beginJob("Abrindo projeto " + file.getName() + "...");
+        JobHandle<LoadedProject> handle = jobExecutor.submit(context -> {
+            CancellationToken cancellation = context::isCancelled;
+            cancellation.throwIfCancellationRequested();
+            ProjectFile project = ProjectFileIO.load(file.toPath());
+            cancellation.throwIfCancellationRequested();
 
-        clearProject();
-        for (String path : project.gerberPaths()) {
-            loadGerberFileSync(new File(path));
-        }
-        for (String path : project.excellonPaths()) {
-            loadExcellonFileSync(new File(path));
-        }
-        for (ProjectFile.CncJobRecord job : project.cncJobs()) {
-            Path outputPath = Path.of(job.outputPath());
-            if (!Files.exists(outputPath)) {
-                appendConsole("Aviso: G-code nao encontrado (arquivo movido/apagado?): " + outputPath);
-                continue;
+            List<LoadedGerber> gerbers = new ArrayList<>();
+            List<LoadedExcellon> excellons = new ArrayList<>();
+            List<LoadedCncJob> cncJobs = new ArrayList<>();
+            List<String> warnings = new ArrayList<>();
+            int total = project.gerberPaths().size() + project.excellonPaths().size() + project.cncJobs().size();
+            int processed = 0;
+
+            for (String path : project.gerberPaths()) {
+                Path sourcePath = Path.of(path);
+                context.reportProgress(progressFraction(processed, total),
+                        "Analisando Gerber " + sourcePath.getFileName() + "...");
+                GerberImage image = new GerberParser().parse(sourcePath, cancellation);
+                gerbers.add(new LoadedGerber(sourcePath.toFile(), image));
+                processed++;
             }
-            try {
-                String gcode = Files.readString(outputPath);
-                // No toolpath geometry to plot on a reload - see CncJobEntry's doc.
-                addCncJobToProject(outputPath.getFileName().toString(), job.sourceName(), outputPath, gcode, null, null);
-            } catch (IOException e) {
-                appendConsole("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
+            for (String path : project.excellonPaths()) {
+                Path sourcePath = Path.of(path);
+                context.reportProgress(progressFraction(processed, total),
+                        "Analisando Excellon " + sourcePath.getFileName() + "...");
+                ExcellonImage image = new ExcellonParser().parse(sourcePath, cancellation);
+                excellons.add(new LoadedExcellon(sourcePath.toFile(), image));
+                processed++;
             }
-        }
-        appendConsole("Projeto aberto: " + file);
+            for (ProjectFile.CncJobRecord job : project.cncJobs()) {
+                cancellation.throwIfCancellationRequested();
+                Path outputPath = Path.of(job.outputPath());
+                context.reportProgress(progressFraction(processed, total),
+                        "Lendo G-code " + outputPath.getFileName() + "...");
+                try {
+                    cncJobs.add(new LoadedCncJob(job.sourceName(), outputPath, Files.readString(outputPath)));
+                } catch (IOException e) {
+                    warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
+                }
+                processed++;
+            }
+
+            cancellation.throwIfCancellationRequested();
+            context.reportProgress(1, "Projeto carregado.");
+            return new LoadedProject(List.copyOf(gerbers), List.copyOf(excellons),
+                    List.copyOf(cncJobs), List.copyOf(warnings));
+        }, (fraction, message) -> Platform.runLater(() -> {
+            progressBar.setProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+
+        handle.completion()
+                .thenAccept(project -> Platform.runLater(() -> {
+                    clearProject();
+                    for (LoadedGerber loaded : project.gerbers()) {
+                        addGerberToProject(loaded.file(), loaded.image());
+                        unitsLabel.setText("Unidades: " + loaded.image().units());
+                    }
+                    for (LoadedExcellon loaded : project.excellons()) {
+                        addExcellonToProject(loaded.file(), loaded.image());
+                        unitsLabel.setText("Unidades: " + loaded.image().units());
+                    }
+                    for (LoadedCncJob loaded : project.cncJobs()) {
+                        // No toolpath geometry to plot on a reload - see CncJobEntry's doc.
+                        addCncJobToProject(loaded.outputPath().getFileName().toString(), loaded.sourceName(),
+                                loaded.outputPath(), loaded.gcode(), null, null);
+                    }
+                    project.warnings().forEach(this::appendConsole);
+                    AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+                    appendConsole("Projeto aberto: " + file);
+                    progressBar.setProgress(1);
+                    setStatus("Concluido.", IDLE_COLOR);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao abrir projeto: ");
+                        appendConsole("O projeto atual foi preservado.");
+                        onJobFinished();
+                    });
+                    return null;
+                });
+    }
+
+    private static double progressFraction(int processed, int total) {
+        return total == 0 ? 0 : (double) processed / total;
     }
 
     private void clearProject() {
@@ -1701,31 +1790,7 @@ final class MainWindow {
         cncJobByItem.clear();
         sourcePathByItem.clear();
         plotAreaView.clearLayers();
-    }
-
-    /**
-     * Synchronous (not via JobExecutor) re-parse used only by openProject() -
-     * loading a handful of files at project-open time is a batch operation,
-     * not the single cancellable action the JobExecutor-based open flows are
-     * built around, and parsing every fixture/real file checked so far takes
-     * well under a second. Revisit if a pathological project makes this show.
-     */
-    private void loadGerberFileSync(File file) {
-        try {
-            GerberImage image = new GerberParser().parse(file.toPath());
-            addGerberToProject(file, image);
-        } catch (Exception e) {
-            appendConsole("Falha ao reabrir Gerber " + file + ": " + e.getMessage());
-        }
-    }
-
-    private void loadExcellonFileSync(File file) {
-        try {
-            ExcellonImage image = new ExcellonParser().parse(file.toPath());
-            addExcellonToProject(file, image);
-        } catch (Exception e) {
-            appendConsole("Falha ao reabrir Excellon " + file + ": " + e.getMessage());
-        }
+        unitsLabel.setText("Unidades: -");
     }
 
     /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */

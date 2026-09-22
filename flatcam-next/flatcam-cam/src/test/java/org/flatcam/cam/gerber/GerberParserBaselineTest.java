@@ -3,6 +3,7 @@ package org.flatcam.cam.gerber;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -10,7 +11,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
+import org.flatcam.cam.CancellationToken;
 import org.json.JSONObject;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
@@ -143,6 +147,16 @@ class GerberParserBaselineTest {
         }
         assertTrue(image.apertureGeometry().get("10").getArea() < image.totalArea(),
                 "one aperture's own geometry should be a strict subset of the whole board");
+    }
+
+    @Test
+    void stopsAtCooperativeCancellationCheckpoint() throws Exception {
+        List<String> lines = Files.readAllLines(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        AtomicInteger checks = new AtomicInteger();
+        CancellationToken cancellation = () -> checks.incrementAndGet() >= 5;
+
+        assertThrows(CancellationException.class, () -> new GerberParser().parse(lines, cancellation));
+        assertTrue(checks.get() >= 5);
     }
 
     /** Walks up from the working directory until it finds the repo root (marked by tests/gerber_files). */
