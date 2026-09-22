@@ -1,45 +1,66 @@
-# FlatCAM Next (skeleton)
+# FlatCAM Next
 
-Fase 1 do plano em `../CONTEXTO_FLATCAM_FX.md`: esqueleto JavaFX + Java,
-crescendo ao lado do app Python/PyQt5 existente (não o substitui ainda).
+Reimplementação gradual do FlatCAM Python/PyQt5 em Java 21 + JavaFX. O projeto
+já oferece uma fatia funcional para carregar e exibir Gerber/Excellon, executar
+operações CAM e gerar CNC Jobs; ele ainda cresce ao lado do aplicativo legado e
+não o substitui por completo.
+
+Para estado detalhado, limitações e próximos passos, leia
+[`CONTEXTO_E_PROGRESSO.md`](CONTEXTO_E_PROGRESSO.md). A arquitetura e estratégia
+originais estão em [`../CONTEXTO_FLATCAM_FX.md`](../CONTEXTO_FLATCAM_FX.md), e o
+inventário de paridade visual/funcional em [`UI_INVENTORY.md`](UI_INVENTORY.md).
 
 ## Requisitos
 
 - JDK 21 (LTS). Testado com Temurin 21.0.11.
-- Sem instalação de Maven necessária - use o wrapper (`mvnw`/`mvnw.cmd`).
+- Nenhuma instalação global de Maven: use `mvnw`/`mvnw.cmd`.
 
-## Rodar
+## Testar
 
-```bash
-./mvnw.cmd -q install -DskipTests   # atualiza todos os modulos internos no repositorio Maven local
-./mvnw.cmd -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
+No Windows PowerShell, a partir desta pasta:
+
+```powershell
+.\mvnw.cmd -q clean test
 ```
 
-Execute novamente o primeiro comando depois de alterar `flatcam-cam` ou
-`flatcam-application`. Rodar somente `flatcam-fx` pode carregar uma versao
-anterior desses modulos do repositorio Maven local.
-
-(o prefixo curto `javafx:run` não resolve por padrão sem um `settings.xml`
-com `pluginGroups` configurado - por isso o goal totalmente qualificado acima.)
-
-## Testes
+Em Linux/macOS:
 
 ```bash
-./mvnw.cmd -q test
+./mvnw -q clean test
 ```
+
+## Executar
+
+Windows PowerShell:
+
+```powershell
+.\mvnw.cmd -q install -DskipTests
+.\mvnw.cmd -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
+```
+
+Linux/macOS:
+
+```bash
+./mvnw -q install -DskipTests
+./mvnw -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
+```
+
+Repita o `install` depois de alterar `flatcam-cam` ou `flatcam-application`.
+Executar apenas `flatcam-fx` pode carregar snapshots antigos desses módulos a
+partir do repositório Maven local e causar falhas tardias ao abrir uma
+ferramenta.
+
+O goal JavaFX foi escrito por extenso porque o prefixo curto `javafx:run` pode
+não ser resolvido sem `pluginGroups` configurado no `settings.xml`.
 
 ## Módulos
 
-- `flatcam-application` - modelo de projeto, sistema de jobs/cancelamento
-  (`JobExecutor`, `Job`, `JobHandle`). Sem dependência de JavaFX de propósito:
-  a UI depende deste módulo, nunca o contrário.
-- `flatcam-fx` - janela, menus, painéis, temas claro/escuro. O painel central
-  (viewport) é um placeholder - o viewport GPU real é Fase 2. Não há
-  parsing de Gerber/Excellon ainda - isso é a Fase 3 (fatia vertical
-  "abrir -> interpretar -> exibir -> selecionar -> inspecionar").
+- `flatcam-application` — projeto, jobs, progresso e cancelamento, sem JavaFX.
+- `flatcam-cam` — parsing Gerber/Excellon, geometria JTS, operações CAM e G-code,
+  sem JavaFX.
+- `flatcam-fx` — interface JavaFX, árvore do projeto, Plot Area, temas e painéis
+  de ferramentas.
 
-Os demais módulos descritos na seção 5 do documento de contexto
-(`flatcam-cam`, `flatcam-renderer`, `flatcam-scheduler`, `flatcam-cli`,
-`flatcam-compat`, `flatcam-native`, `flatcam-tests`, `benchmarks`) ainda não
-existem - propositalmente, para não antecipar abstração antes de precisar
-dela (regra 12, seção 13 do documento de contexto).
+O fluxo implementado inclui Gerber/Excellon, Isolation, Cutout, NCC inicial,
+Geometry -> CNC, plot de trajetos e salvamento de G-code. Consulte o documento
+de contexto para saber exatamente o que ainda não tem paridade com o Python.
