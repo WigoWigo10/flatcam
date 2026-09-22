@@ -724,7 +724,7 @@ final class MainWindow {
 
     /**
      * One icon per object kind, copied straight from the legacy app's own assets
-     * (ObjectCollection.py's icon_files: flatcam_icon16.png/drill16.png/cnc16.png) -
+     * (ObjectCollection.py's icon_files: flatcam_icon16.png/drill16.png/geometry16.png/cnc16.png) -
      * see Icons.fromResource(). A plain ImageView's layout bounds are exactly its own
      * pixel box, which centers predictably in the fixed-size iconHolder; the earlier
      * Group+Scale vector glyphs did not.
@@ -736,10 +736,7 @@ final class MainWindow {
         } else if (excellonByItem.containsKey(item)) {
             icon = Icons.fromResource("drill16.png", 16);
         } else if (geometryByItem.containsKey(item)) {
-            Rectangle geometryIcon = new Rectangle(13, 10, Color.TRANSPARENT);
-            geometryIcon.setStroke(GEOMETRY_STROKE);
-            geometryIcon.setStrokeWidth(1.5);
-            icon = geometryIcon;
+            icon = Icons.fromResource("geometry16.png", 16);
         } else if (cncJobByItem.containsKey(item)) {
             icon = Icons.fromResource("cnc16.png", 16);
         } else {
@@ -904,7 +901,7 @@ final class MainWindow {
         isolationItem.setOnAction(e -> generateIsolation(item, image));
 
         MenuItem cutoutItem = new MenuItem("Cutout Tool...");
-        setLegacyMenuIcon(cutoutItem, "cut32.png");
+        setLegacyMenuIcon(cutoutItem, "cut32_bis.png");
         cutoutItem.setOnAction(e -> generateCutout(item, image));
 
         Menu createCncMenu = new Menu("Criar CNC Job");
@@ -916,7 +913,6 @@ final class MainWindow {
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
-        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
@@ -964,7 +960,6 @@ final class MainWindow {
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
-        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
@@ -1007,7 +1002,6 @@ final class MainWindow {
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
         MenuItem renameItem = new MenuItem("Renomear");
-        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
         MenuItem copyItem = new MenuItem("Copiar");
         setLegacyMenuIcon(copyItem, "copy32.png");
@@ -1119,8 +1113,12 @@ final class MainWindow {
     }
 
     private void setLegacyMenuIcon(MenuItem item, String fileName) {
+        item.setGraphic(legacyIcon(fileName, 16));
+    }
+
+    private Node legacyIcon(String fileName, double size) {
         String resource = currentTheme.isDark() ? "dark/" + fileName : fileName;
-        item.setGraphic(Icons.fromResource(resource, 16));
+        return Icons.fromResource(resource, size);
     }
 
     private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {
@@ -1145,7 +1143,6 @@ final class MainWindow {
         viewItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
-        setLegacyMenuIcon(renameItem, "edit_ok32.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
@@ -1671,7 +1668,7 @@ final class MainWindow {
 
     /** "Gerber Object" header, Plot Options (Solid/Multi-Color), Name, Plot, Properties, Isolation Routing - see ObjectUI.py's GerberObjectUI. */
     private Node buildGerberPropertiesPanel(TreeItem<String> item, GerberImage image) {
-        VBox box = objectPropertiesHeader("Gerber Object", GERBER_FILL);
+        VBox box = objectPropertiesHeader("Gerber Object", GERBER_FILL, "flatcam_icon32.png");
 
         CheckBox solidCb = new CheckBox("Solid");
         solidCb.setSelected(plotAreaView.isLayerFilled(item));
@@ -1708,6 +1705,7 @@ final class MainWindow {
         box.getChildren().add(isolationButton);
 
         Button cutoutButton = new Button("Cutout Tool");
+        cutoutButton.setGraphic(legacyIcon("cut32_bis.png", 18));
         cutoutButton.setMaxWidth(Double.MAX_VALUE);
         cutoutButton.setOnAction(e -> generateCutout(item, image));
         box.getChildren().add(cutoutButton);
@@ -1738,6 +1736,7 @@ final class MainWindow {
         TextField nonCopperMargin = marginField();
         CheckBox nonCopperRounded = new CheckBox("Rounded");
         Button nonCopperButton = new Button("Generate Geometry");
+        nonCopperButton.setGraphic(legacyIcon("geometry32.png", 18));
         nonCopperButton.setOnAction(e -> generateGerberUtility(item, image, "_noncopper",
                 nonCopperMargin, nonCopperRounded.isSelected(), true));
 
@@ -1746,6 +1745,7 @@ final class MainWindow {
         TextField bboxMargin = marginField();
         CheckBox bboxRounded = new CheckBox("Rounded");
         Button bboxButton = new Button("Generate Geometry");
+        bboxButton.setGraphic(legacyIcon("geometry32.png", 18));
         bboxButton.setOnAction(e -> generateGerberUtility(item, image, "_bbox",
                 bboxMargin, bboxRounded.isSelected(), false));
 
@@ -1754,6 +1754,7 @@ final class MainWindow {
                 labeledRow("", nonCopperRounded, nonCopperButton), new Separator(), bboxLabel,
                 labeledRow("Boundary Margin:", bboxMargin), labeledRow("", bboxRounded, bboxButton));
         TitledPane pane = new TitledPane("UTILITIES", content);
+        pane.setGraphic(legacyIcon("settings18.png", 18));
         pane.setExpanded(false);
         return pane;
     }
@@ -1942,12 +1943,22 @@ final class MainWindow {
     }
 
     private VBox objectPropertiesHeader(String title, Color swatchColor) {
-        Rectangle swatch = new Rectangle(14, 14, swatchColor);
-        swatch.setArcWidth(3);
-        swatch.setArcHeight(3);
+        return objectPropertiesHeader(title, swatchColor, null);
+    }
+
+    private VBox objectPropertiesHeader(String title, Color swatchColor, String iconFile) {
+        Node leadingGraphic;
+        if (iconFile == null) {
+            Rectangle swatch = new Rectangle(14, 14, swatchColor);
+            swatch.setArcWidth(3);
+            swatch.setArcHeight(3);
+            leadingGraphic = swatch;
+        } else {
+            leadingGraphic = legacyIcon(iconFile, 24);
+        }
         Label titleLabel = new Label(title);
         titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
-        HBox header = new HBox(6, swatch, titleLabel);
+        HBox header = new HBox(6, leadingGraphic, titleLabel);
         header.setAlignment(Pos.CENTER_LEFT);
 
         VBox box = new VBox(8, header);
@@ -1989,6 +2000,7 @@ final class MainWindow {
     private TitledPane propertiesSection(String text) {
         Label label = new Label(text);
         TitledPane pane = new TitledPane("PROPERTIES", label);
+        pane.setGraphic(legacyIcon("properties32.png", 18));
         pane.setExpanded(false);
         return pane;
     }

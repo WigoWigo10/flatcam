@@ -73,15 +73,18 @@
                     <include>set_color32.png</include>
                     <include>cnc32.png</include>
                     <include>source32.png</include>
-                    <include>edit_ok32.png</include>
                     <include>copy32.png</include>
                     <include>delete32.png</include>
                     <include>save_as.png</include>
                     <include>properties32.png</include>
                     <include>zoom_fit32.png</include>
                     <include>iso_16.png</include>
-                    <include>cut32.png</include>
+                    <include>cut32_bis.png</include>
                     <include>drilling_tool32.png</include>
+                    <include>geometry16.png</include>
+                    <include>flatcam_icon32.png</include>
+                    <include>settings18.png</include>
+                    <include>geometry32.png</include>
                 </includes>
             </resource>
             <resource>
@@ -93,15 +96,17 @@
                     <include>set_color32.png</include>
                     <include>cnc32.png</include>
                     <include>source32.png</include>
-                    <include>edit_ok32.png</include>
                     <include>copy32.png</include>
                     <include>delete32.png</include>
                     <include>save_as.png</include>
                     <include>properties32.png</include>
                     <include>zoom_fit32.png</include>
                     <include>iso_16.png</include>
-                    <include>cut32.png</include>
+                    <include>cut32_bis.png</include>
                     <include>drilling_tool32.png</include>
+                    <include>flatcam_icon32.png</include>
+                    <include>settings18.png</include>
+                    <include>geometry32.png</include>
                 </includes>
             </resource>
         </resources>
