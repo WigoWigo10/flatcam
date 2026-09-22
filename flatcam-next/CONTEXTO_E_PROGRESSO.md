@@ -283,6 +283,52 @@ Não decida silenciosamente se várias ferramentas devem produzir troca de
 ferramenta num único CNC Job ou jobs separados. Primeiro confirme o comportamento
 do Python e registre qualquer divergência deliberada.
 
+### Nota de divergência (opinião do Claude, 2026-09-22)
+
+A recomendação acima (NCC multi-tool com Rest Machining) foi escrita por uma
+sessão anterior (Codex). Uma sessão Claude, ao revisar o projeto neste mesmo
+ponto, discorda da ordem e recomenda **resolver primeiro a persistência de
+projeto** (seção 7, "Persistência ainda não é um modelo editável") antes de
+abrir o incremento NCC multi-tool. Motivo:
+
+- NCC multi-tool é trabalho horizontal: adiciona um novo tipo de resultado
+  (segmentado por ferramenta, com ordem e possivelmente Rest Machining) que
+  também não seria persistido pelo `ProjectFile` atual, que hoje só guarda
+  caminhos de Gerber/Excellon e referências de CNC Job.
+- Cada fatia nova que roda em cima desse formato (Isolation, Cutout, NCC,
+  Geometry, CNC Job) é mais um caso que a futura reforma de persistência
+  (já prevista na seção 9.3) vai ter que migrar depois. Resolver isso agora,
+  com a superfície de objetos ainda pequena, custa menos do que esperar
+  crescer mais.
+- A seção 9.3 já lista o modelo de projeto versionado como pré-requisito do
+  Gerber Editor; adiantar uma fatia mínima dele agora evita que o NCC
+  multi-tool vire mais uma dependência a desembaraçar nessa reforma.
+
+Isso não invalida o plano do Codex nem a ordem descrita nas seções 8 e 9 -
+é uma divergência de julgamento sobre sequenciamento, registrada para que a
+próxima sessão (humana ou IA) escolha com o argumento explícito, em vez de
+herdar uma prioridade sem saber que houve debate sobre ela. Se a próxima
+sessão seguir o plano original do Codex, não é necessário reverter esta nota;
+só marque aqui qual caminho foi escolhido e por quê.
+
+Escopo mínimo proposto pelo Claude para essa fatia de persistência, caso seja
+adotada antes do NCC multi-tool:
+
+1. Dar versão ao `.fcnproj` (campo `version`), pensando em migração futura.
+2. Persistir parâmetros CAM por objeto (Isolation/Cutout/NCC), não só o
+   G-code de saída - o suficiente para reabrir e reexecutar/reeditar sem
+   reconfigurar do zero.
+3. Persistir a associação Geometry -> ferramentas/parâmetros que a geraram,
+   e CNC Job -> parâmetros que o geraram.
+4. Manter compatibilidade de leitura com o `.fcnproj` atual (arquivo sem
+   `version` é tratado como v1).
+5. Testes: salvar -> reabrir -> objetos e parâmetros idênticos; e leitura de
+   um `.fcnproj` "antigo" (sem os campos novos) continua funcionando.
+
+Isto não é o modelo de objeto versionado completo da seção 9.3 (identidade,
+metadados e origem separados) - é o mínimo para parar de perder estado a
+cada ferramenta nova, sem bloquear o NCC depois.
+
 ## 9. Roadmap depois do próximo incremento
 
 Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
