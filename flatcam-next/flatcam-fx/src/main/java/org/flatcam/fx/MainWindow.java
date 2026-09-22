@@ -212,6 +212,7 @@ final class MainWindow {
 
         scene = new Scene(root);
         currentTheme.applyTo(scene);
+        plotAreaView.applyTheme(currentTheme);
         return scene;
     }
 
@@ -322,6 +323,7 @@ final class MainWindow {
         item.setOnAction(e -> {
             option.applyTo(scene);
             currentTheme = option;
+            plotAreaView.applyTheme(option);
             AppPreferences.saveTheme(option);
             // Tree cells cache their graphic nodes; rebuild them so dark-only
             // icon outlines appear/disappear immediately with the theme.

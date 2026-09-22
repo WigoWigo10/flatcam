@@ -67,15 +67,27 @@ final class PlotAreaView extends StackPane {
     private static final double MAX_SCALE = 10_000;
     private static final double ZOOM_STEP = 1.1;
 
-    private static final Color BACKGROUND = Color.web("#1e1e1e");
-    private static final Color RULER_BACKGROUND = Color.web("#252525");
-    private static final Color GRID_LINE = Color.web("#333333");
-    private static final Color AXIS_LINE = Color.web("#b33a3a");
-    private static final Color RULER_TEXT = Color.web("#9a9a9a");
+    private record PlotPalette(Color background, Color rulerBackground, Color gridLine,
+                               Color axisLine, Color rulerText) {
+    }
+
+    private static final PlotPalette CUSTOM_LIGHT_PALETTE = new PlotPalette(
+            Color.web("#f7f7f7"), Color.web("#e7e7e7"), Color.web("#dedede"),
+            Color.web("#c44747"), Color.web("#606060"));
+    private static final PlotPalette CUSTOM_DARK_PALETTE = new PlotPalette(
+            Color.web("#101010"), Color.web("#202020"), Color.web("#2b2b2b"),
+            Color.web("#b33a3a"), Color.web("#9a9a9a"));
+    private static final PlotPalette ATLANTAFX_LIGHT_PALETTE = new PlotPalette(
+            Color.web("#f6f8fa"), Color.web("#eaeef2"), Color.web("#d8dee4"),
+            Color.web("#cf4a4a"), Color.web("#57606a"));
+    private static final PlotPalette ATLANTAFX_DARK_PALETTE = new PlotPalette(
+            Color.web("#0d1117"), Color.web("#161b22"), Color.web("#21262d"),
+            Color.web("#c44b55"), Color.web("#8b949e"));
 
     private final Canvas canvas = new Canvas();
     private final Label coordLabel = new Label("X: -   Y: -");
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
+    private PlotPalette palette = CUSTOM_LIGHT_PALETTE;
 
     private double scale = 3.0;
     private double viewCenterX = 50;
@@ -103,6 +115,17 @@ final class PlotAreaView extends StackPane {
         setOnMouseMoved(this::handleMove);
         setOnMouseExited(e -> coordLabel.setText(hasReference ? "" : "X: -   Y: -"));
 
+        redraw();
+    }
+
+    /** Updates every canvas-owned color immediately when the application theme changes. */
+    void applyTheme(ThemeOption theme) {
+        palette = switch (theme) {
+            case CUSTOM_LIGHT -> CUSTOM_LIGHT_PALETTE;
+            case CUSTOM_DARK -> CUSTOM_DARK_PALETTE;
+            case ATLANTAFX_LIGHT -> ATLANTAFX_LIGHT_PALETTE;
+            case ATLANTAFX_DARK -> ATLANTAFX_DARK_PALETTE;
+        };
         redraw();
     }
 
@@ -313,7 +336,7 @@ final class PlotAreaView extends StackPane {
         double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
 
         GraphicsContext gc = canvas.getGraphicsContext2D();
-        gc.setFill(BACKGROUND);
+        gc.setFill(palette.background());
         gc.fillRect(0, 0, width, height);
 
         double step = niceStep(80.0 / scale);
@@ -333,7 +356,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void drawGrid(GraphicsContext gc, double contentWidth, double contentHeight, double step) {
-        gc.setStroke(GRID_LINE);
+        gc.setStroke(palette.gridLine());
         gc.setLineWidth(1);
 
         double worldLeft = screenToWorld(0, 0)[0];
@@ -352,7 +375,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void drawAxisCrosshair(GraphicsContext gc, double contentWidth, double contentHeight) {
-        gc.setStroke(AXIS_LINE);
+        gc.setStroke(palette.axisLine());
         gc.setLineWidth(1.5);
         double[] origin = worldToScreen(0, 0, contentWidth, contentHeight);
         double ox = origin[0] + RULER_LEFT_WIDTH;
@@ -427,11 +450,11 @@ final class PlotAreaView extends StackPane {
     }
 
     private void drawRulers(GraphicsContext gc, double width, double height, double contentWidth, double contentHeight, double step) {
-        gc.setFill(RULER_BACKGROUND);
+        gc.setFill(palette.rulerBackground());
         gc.fillRect(0, 0, width, RULER_TOP_HEIGHT);
         gc.fillRect(0, 0, RULER_LEFT_WIDTH, height);
 
-        gc.setFill(RULER_TEXT);
+        gc.setFill(palette.rulerText());
         gc.setTextAlign(TextAlignment.CENTER);
 
         double worldLeft = screenToWorld(0, 0)[0];

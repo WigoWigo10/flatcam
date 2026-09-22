@@ -15,4 +15,5 @@
     -fc-panel-text: #e0e0e0;
     -fc-viewport-bg: #101010;
     -fc-viewport-fg: #8a8a8a;
+    -fc-viewport-overlay-bg: rgba(30, 30, 30, 0.85);
 }

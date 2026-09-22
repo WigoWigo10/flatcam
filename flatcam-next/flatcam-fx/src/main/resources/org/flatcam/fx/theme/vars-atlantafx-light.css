@@ -8,6 +8,7 @@
     -fc-panel-bg: #f6f8fa;
     -fc-panel-border: #d0d7de;
     -fc-panel-text: #1f2328;
-    -fc-viewport-bg: #1e1e1e;
-    -fc-viewport-fg: #cfcfcf;
+    -fc-viewport-bg: #f6f8fa;
+    -fc-viewport-fg: #57606a;
+    -fc-viewport-overlay-bg: rgba(255, 255, 255, 0.9);
 }

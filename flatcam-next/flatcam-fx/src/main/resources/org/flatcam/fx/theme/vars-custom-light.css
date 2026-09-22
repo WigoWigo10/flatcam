@@ -12,6 +12,7 @@
     -fc-panel-bg: #ffffff;
     -fc-panel-border: #d9d9d9;
     -fc-panel-text: #202020;
-    -fc-viewport-bg: #1e1e1e;
-    -fc-viewport-fg: #cfcfcf;
+    -fc-viewport-bg: #f7f7f7;
+    -fc-viewport-fg: #404040;
+    -fc-viewport-overlay-bg: rgba(255, 255, 255, 0.88);
 }
