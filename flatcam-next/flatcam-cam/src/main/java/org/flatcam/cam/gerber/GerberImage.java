@@ -31,6 +31,16 @@ public final class GerberImage {
         this.apertureGeometry = Map.copyOf(apertureGeometry);
     }
 
+    /**
+     * Builds a GerberImage directly from already-resolved data rather than
+     * parsing a file - used by project persistence (org.flatcam.app.project.flatprj)
+     * to reconstruct one from a saved project's embedded geometry.
+     */
+    public static GerberImage of(String units, Map<String, Aperture> apertures, Geometry solidGeometry,
+                                 Geometry followGeometry, Map<String, Geometry> apertureGeometry) {
+        return new GerberImage(units, apertures, solidGeometry, followGeometry, apertureGeometry);
+    }
+
     public String units() {
         return units;
     }

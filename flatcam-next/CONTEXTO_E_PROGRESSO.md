@@ -58,8 +58,8 @@ O reactor Maven contém três módulos:
 
 | Módulo | Responsabilidade atual | Regra de dependência |
 | --- | --- | --- |
-| `flatcam-application` | modelo leve de projeto, jobs, progresso e cancelamento | não depende de JavaFX |
-| `flatcam-cam` | parsing, geometria, operações CAM e geração de G-code | não depende de JavaFX |
+| `flatcam-application` | modelo leve de projeto, jobs, progresso e cancelamento | não depende de JavaFX; depende de `flatcam-cam` desde a persistência embutida de Gerber/Excellon (seção 9.3) - `ProjectFile` guarda `GerberImage`/`ExcellonImage` de verdade, não paths |
+| `flatcam-cam` | parsing, geometria, operações CAM e geração de G-code | não depende de JavaFX nem de `flatcam-application` |
 | `flatcam-fx` | janela, árvore do projeto, painéis de ferramentas, temas e renderização | depende dos dois módulos anteriores |
 
 Não existem ainda módulos separados de renderer, CLI, scheduler, compat ou
@@ -69,9 +69,10 @@ separação.
 ### Verificação mais recente
 
 Após NCC multi-tool + boundary por referência + Check validity + Transformations
-(seções 5 e 4), `clean test` passa com **109 testes executados**, sem falhas,
-erros ou testes ignorados (79 antes do NCC multi-tool, 82 após ele, 86 após
-boundary/validity, 109 após Transformations). `JobExecutorTest` registra
++ persistência embutida de Gerber/Excellon (seções 5, 4 e 9.3), `clean test`
+passa com **112 testes executados**, sem falhas, erros ou testes ignorados
+(79 antes do NCC multi-tool, 82 após ele, 86 após boundary/validity, 109 após
+Transformations, 112 após a persistência embutida). `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -113,8 +114,17 @@ resultados podem mudar.
   leitura/parsing em vez de uma animação fictícia.
 - Abertura de projeto de forma atômica: o estado anterior não fica parcialmente
   substituído se o carregamento falhar.
-- Formato `.fcnproj` inicial para caminhos de Gerber/Excellon e referências de
-  CNC Jobs.
+- **Formato `.fcnproj` v2 (2026-09-22): Gerber e Excellon embutem sua própria
+  geometria**, no mesmo formato que o `.FlatPrj` do Python usa de verdade -
+  pesquisado diretamente em `camlib.py`/`app_Main.py` antes de implementar
+  (ver seção 9.3). Um objeto Gerber/Excellon salvo por este app pode, em
+  princípio, ser aberto por uma instalação real do FlatCAM Python (verificado
+  contra o código-fonte Python; **não verificado contra uma instalação
+  Python+Shapely rodando de verdade**, que não está disponível neste
+  ambiente de desenvolvimento). Detalhes técnicos completos na seção 9.3.
+  Geometry e CNC Job **ainda não** fazem parte desse formato embutido -
+  continuam como antes (Geometry nem é persistido; CNC Job guarda só o path
+  do G-code e o texto, sem geometria de plot ao reabrir).
 
 ### Gerber
 
@@ -305,7 +315,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
-| Persistência de projeto | inicial | guarda principalmente caminhos, não snapshots editáveis |
+| Persistência de projeto | forte/parcial (Gerber/Excellon), inicial (Geometry/CNC Job) | Gerber/Excellon embutem geometria (WKT) no mesmo formato do `.FlatPrj` do Python; Geometry não é persistido, CNC Job só guarda o G-code |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | ausente | necessário para paridade de ferramentas |
@@ -374,20 +384,25 @@ novos painéis devem manter terminologia consistente com o produto.
 ## 8. Próximo passo recomendado
 
 **NCC multi-tool com Rest Machining, boundary por objeto de referência,
-"Check validity" e Transformations foram concluídos** (seções 5 e 4 ->
-"Transformations") - critérios de aceite verificados via testes do reactor
-(109 testes) e smoke test do app; validação visual dos painéis feita ao vivo
-com o usuário a cada rodada.
+"Check validity", Transformations, e persistência embutida de Gerber/Excellon
+(compatível com o `.FlatPrj` do Python) foram concluídos** (seções 5, 4 e
+9.3) - critérios de aceite verificados via testes do reactor (112 testes) e
+smoke test do app; validação visual dos painéis feita ao vivo com o usuário
+a cada rodada. A compatibilidade Python é verificada por leitura de código +
+round-trip Java, não contra uma instalação Python real (indisponível neste
+ambiente) - ver seção 9.3 para o aviso completo.
 
-O que resta da paridade NCC (seleção de área no canvas, Tools Database) e o
-que falta de Transformations (Buffer, referência "Object") exigem
-infraestrutura grande (interação de seleção no canvas; um subsistema de banco
-de tools inteiro) ou são complementos pequenos de baixo valor imediato. O
-próximo incremento recomendado é **9.3: Modelo de objetos e projeto
-versionado** - é pré-requisito explícito do Gerber Editor (9.4, a maior
-lacuna funcional ainda aberta na área Gerber) e da persistência de objetos
-derivados/transformados entre sessões (hoje o `.fcnproj` reparseia os
-arquivos de origem ao reabrir, perdendo qualquer transformação aplicada).
+O que resta de 9.3 (Geometry e CNC Job com o mesmo tratamento) precisa de
+mudanças de modelo reais antes de qualquer serialização (Geometry precisa de
+um dict de parâmetros CAM persistente por ferramenta; CNC Job precisa reter
+uma lista por segmento durante a geração) - cada um é essencialmente seu
+próprio projeto, no mesmo espírito de "Excellon+Gerber primeiro" que guiou
+essa fase. Alternativamente, dado que a lacuna mais visível agora é a
+ausência total de um editor, faz sentido também considerar avançar direto
+para o **Gerber Editor (9.4)** usando o que já existe (Gerber com geometria
+embutida já é compatível com a ideia de "objeto editável que sobrevive a
+save/reload"), adiando Geometry/CNC Job para quando algo realmente força a
+mão (ex.: um NCC resultado precisar sobreviver a um reload).
 
 ### Critérios de aceite do incremento concluído (referência)
 
@@ -404,7 +419,7 @@ arquivos de origem ao reabrir, perdendo qualquer transformação aplicada).
   (reutiliza `CancellationToken` já existente)
 - Progresso não regride e termina em 100% no sucesso. ✅ (testado)
 - Testes do reactor passam e o app inicia com os módulos recém-instalados. ✅
-  (109 testes, `MainApp started`)
+  (112 testes, `MainApp started`)
 
 Decisão registrada: várias ferramentas produzem troca de ferramenta **num
 único CNC Job** (G-code concatenado com M0 opcional entre seções), não jobs
@@ -436,11 +451,96 @@ pequenos, adicionáveis quando houver demanda real.
 
 ### 9.3 Modelo de objetos e projeto versionado
 
-- separar identidade, metadados, geometria e origem do arquivo;
-- preservar objetos derivados e parâmetros CAM;
-- suportar migração do `.fcnproj` atual;
-- preparar comandos reversíveis e snapshots necessários para edição;
-- definir política para arquivos fonte movidos ou ausentes.
+**Fase 1 concluída nesta revisão (2026-09-22): Gerber + Excellon com
+compatibilidade real de arquivo com o `.FlatPrj` do Python.** O usuário pediu
+explicitamente para usar o modelo real do Python em vez de inventar um
+formato próprio mais leve - decisão registrada e pesquisada a fundo em
+`camlib.py`/`app_Main.py` antes de implementar.
+
+**O que o Python realmente faz** (confirmado lendo o código-fonte, não
+suposto):
+- `save_project()`/`open_project()` (`app_Main.py` ~10605-10809) escrevem
+  `{"objs": [obj.to_dict() para cada objeto], "options": {...}, "version":
+  ...}` como JSON (`json.dumps(..., indent=2, sort_keys=True)`), opcionalmente
+  comprimido em XZ de verdade (`lzma.open(..., preset=3)` - default
+  `global_save_compressed=True`). O carregamento tenta JSON puro primeiro e
+  cai para XZ se falhar - sem cabeçalho/flag, é auto-detecção por tentativa.
+- Cada geometria Shapely vira `{"__class__":"Shply","__inst__":"<WKT>"}` via
+  `shapely.wkt.dumps`/`loads` (`camlib.py:8144-8186`) - **WKT bruto, não
+  GeoJSON**. JTS fala WKT nativamente (`WKTWriter`/`WKTReader`), então isso
+  interopera sem nenhum dos dois lados conhecer a biblioteca de geometria do
+  outro.
+- Gerber/Excellon **não guardam path do arquivo-fonte** - só a geometria já
+  resolvida (e o texto bruto do arquivo original, como metadado inerte). É
+  exatamente essa propriedade que resolve o problema que motivou essa
+  mudança (Transformations/edições se perdiam ao reabrir).
+- O campo `"version"` é escrito mas **nunca lido de volta** no carregamento -
+  é write-only. Compatibilidade retroativa é por tolerância a chave ausente
+  (cada atributo é lido num `try/except KeyError`, mantendo o default do
+  construtor se faltar), não por migração versionada.
+
+**O que foi implementado** (`org.flatcam.app.project.flatprj`,
+`GerberFlatPrjCodec`/`ExcellonFlatPrjCodec`/`WktJson`):
+- Mesma estrutura de arquivo (`objs`/`options`/`version`), mesmo wrapper WKT,
+  XZ real via `org.tukaani:xz` (preset 3, igual ao default do Python),
+  mesma auto-detecção JSON-puro-depois-XZ no carregamento.
+- Gerber: `kind`/`units`/`solid_geometry`/`follow_geometry`/`tools`/
+  `apertures`/`options.name`/`fill_color`/`outline_color`/`alpha_level`.
+- Excellon: furos/slots reagrupados por ferramenta em `tools[id] =
+  {tooldia, drills, slots, solid_geometry, data}`, igual ao shape do Python,
+  em vez das listas próprias deste port (indexadas por campo `toolId`).
+- `ProjectFile.GerberEntry`/`ExcellonEntry` também guardam cor de
+  preenchimento/contorno, visibilidade, "Solid"/"Multi-Color" e modo
+  "Follow" (Gerber) - reabrir um projeto restaura a aparência inteira, não
+  só a geometria.
+- Fallback para o formato v1 antigo (só paths) - se o path ainda existir,
+  reparseia; se não, pula esse objeto sem falhar o carregamento inteiro.
+- 6 testes de round-trip (`ProjectFileIOTest`), incluindo um que verifica
+  que o arquivo salvo por padrão **é XZ de verdade** (bytes não são JSON
+  puro) e outro que carrega um projeto v1 legado reparseando o arquivo.
+
+**Simplificações documentadas** (por falta do dado na camada de parsing
+atual, não por atalho de serialização):
+- `apertures[code]['geometry']` é uma lista de **um item** (a união já
+  calculada), não uma entrada por flash/stroke como o Python faz - o
+  `GerberParser` não retém geometria por flash individualmente hoje. Não
+  afeta CAM/plot (mesma união), só afetaria um editor futuro que quisesse
+  selecionar um flash específico.
+- Aperture do tipo MACRO volta como um círculo placeholder ao recarregar (o
+  texto bruto da macro não é retido) - só afeta a exibição daquela linha na
+  Apertures Table; a geometria real (`apertureGeometry()`/`solidGeometry()`)
+  é independente e volta exatamente como salva.
+- `tools[id]['solid_geometry']` e `['data']` do Excellon voltam vazios (este
+  port só mantém uma geometria agregada por todas as ferramentas, e nenhum
+  dict de parâmetros CAM persistente por ferramenta) - inofensivo para
+  visualizar/gerar G-code, só afetaria um fluxo Python que precisasse da
+  geometria isolada de uma ferramenta específica.
+- `int_digits`/`frac_digits`/`aperture_macros`/`source_file`/`zeros`/campos
+  de formato Excellon não são escritos - o Python tolera a ausência (usa o
+  default do construtor); nenhum é necessário para visualizar/gerar CAM.
+
+**Importante**: a compatibilidade Python foi verificada **lendo o
+código-fonte** e testada de ponta a ponta **do lado Java** (round-trip via
+`ProjectFileIOTest`). Não foi verificada abrindo um arquivo salvo por este
+app numa instalação real do FlatCAM Python + Shapely - este ambiente de
+desenvolvimento não tem Python com as dependências do FlatCAM instaladas
+(só Python puro, sem `shapely`/`PyQt5`, e sem acesso à internet para
+instalar). Se o usuário tiver uma instalação Python funcional, vale testar
+abrir um `.fcnproj` salvo por este port lá antes de confiar cegamente na
+compatibilidade.
+
+**O que falta para completar 9.3**:
+- Geometry: precisa de um dict `data` persistente por ferramenta (parâmetros
+  CAM) que este port simplesmente não tem hoje - é uma mudança de modelo,
+  não só de serialização.
+- CNC Job: precisa reter uma lista por segmento com "kind" (`gcode_parsed`
+  do Python) durante a geração - `GCodeGenerator` hoje só produz duas
+  geometrias já unidas (viagem/corte), não uma lista ordenada por segmento.
+- Extensão do arquivo continua `.fcnproj` (não `.FlatPrj`) por convenção -
+  deixa claro qual app salvou, mesmo os dois lendo/escrevendo formatos
+  equivalentes para Gerber/Excellon.
+- Comandos reversíveis/undo-redo (bullet original do roadmap) continuam sem
+  desenhar - dependem do editor existir primeiro.
 
 ### 9.4 Gerber Editor
 
@@ -539,7 +639,8 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | Caminho | Papel |
 | --- | --- |
 | `flatcam-application/.../job/` | executor, contexto, handle, progresso e cancelamento de jobs |
-| `flatcam-application/.../project/` | schema e IO do `.fcnproj` |
+| `flatcam-application/.../project/` | schema e IO do `.fcnproj` (v2: Gerber/Excellon com geometria embutida) |
+| `flatcam-application/.../project/flatprj/` | codecs compatíveis com o `.FlatPrj` do Python - `WktJson`, `GerberFlatPrjCodec`, `ExcellonFlatPrjCodec` |
 | `flatcam-cam/.../gerber/` | parser e geração de geometrias Gerber |
 | `flatcam-cam/.../excellon/` | parser e modelo Excellon |
 | `flatcam-cam/.../isolation/` | Isolation Routing |

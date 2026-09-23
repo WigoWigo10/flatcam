@@ -153,22 +153,16 @@ final class MainWindow {
     private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
     }
 
-    private record LoadedGerber(File file, GerberImage image) {
-    }
-
-    private record LoadedExcellon(File file, ExcellonImage image) {
-    }
-
     private record LoadedCncJob(String sourceName, Path outputPath, String gcode) {
     }
 
-    /** A Geometry object derived from a Gerber; toolDiameter is known for machining-tool results such as NCC. */
     /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
     private record GeometryEntry(String sourceName, String units, Geometry geometry,
                                  boolean strokeOnly, List<ToolGeometry> tools) {
     }
 
-    private record LoadedProject(List<LoadedGerber> gerbers, List<LoadedExcellon> excellons,
+    /** Gerber/Excellon entries already carry their own fully-resolved geometry (ProjectFileIO), no re-parsing needed. */
+    private record LoadedProject(List<ProjectFile.GerberEntry> gerbers, List<ProjectFile.ExcellonEntry> excellons,
                                  List<LoadedCncJob> cncJobs, List<String> warnings) {
     }
 
@@ -2692,19 +2686,36 @@ final class MainWindow {
     }
 
     /**
-     * Writes which Gerber/Excellon files are open and which G-code jobs were
-     * generated - see ProjectFile's doc for why this is a list of paths to
-     * re-parse, not a geometry snapshot like the legacy .FlatPrj.
+     * Writes every Gerber/Excellon's own resolved geometry (WKT-embedded,
+     * matching the legacy app's .FlatPrj shape - see ProjectFileIO's doc)
+     * plus which G-code jobs were generated. Unlike a path, embedded
+     * geometry survives a save/reload even after an in-memory edit
+     * (Transformations) or if the original source file is later moved or
+     * deleted.
      */
     private void saveProject() {
-        List<String> gerberPaths = gerberByItem.keySet().stream()
-                .map(sourcePathByItem::get).map(Path::toString).toList();
-        List<String> excellonPaths = excellonByItem.keySet().stream()
-                .map(sourcePathByItem::get).map(Path::toString).toList();
+        List<ProjectFile.GerberEntry> gerbers = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
+            TreeItem<String> item = entry.getKey();
+            Color[] colors = plotAreaView.layerColors(item);
+            gerbers.add(new ProjectFile.GerberEntry(item.getValue(), entry.getValue(),
+                    colors != null ? colors[0].toString() : null, colors != null ? colors[1].toString() : null,
+                    plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
+                    plotAreaView.isLayerMulticolor(item), gerberFollowItems.contains(item)));
+        }
+        List<ProjectFile.ExcellonEntry> excellons = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, ExcellonImage> entry : excellonByItem.entrySet()) {
+            TreeItem<String> item = entry.getKey();
+            Color[] colors = plotAreaView.layerColors(item);
+            excellons.add(new ProjectFile.ExcellonEntry(item.getValue(), entry.getValue(),
+                    colors != null ? colors[0].toString() : null, colors != null ? colors[1].toString() : null,
+                    plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
+                    plotAreaView.isLayerMulticolor(item)));
+        }
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.values().stream()
                 .map(entry -> new ProjectFile.CncJobRecord(entry.sourceName(), entry.outputFile().toString()))
                 .toList();
-        ProjectFile project = new ProjectFile(gerberPaths, excellonPaths, jobs);
+        ProjectFile project = new ProjectFile(gerbers, excellons, jobs);
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
@@ -2755,55 +2766,30 @@ final class MainWindow {
         JobHandle<LoadedProject> handle = jobExecutor.submit(context -> {
             CancellationToken cancellation = context::isCancelled;
             cancellation.throwIfCancellationRequested();
+            context.reportProgress(0.05, "Lendo " + file.getName() + "...");
             ProjectFile project = ProjectFileIO.load(file.toPath());
             cancellation.throwIfCancellationRequested();
+            context.reportProgress(0.5, "Projeto decodificado.");
 
-            List<LoadedGerber> gerbers = new ArrayList<>();
-            List<LoadedExcellon> excellons = new ArrayList<>();
             List<LoadedCncJob> cncJobs = new ArrayList<>();
             List<String> warnings = new ArrayList<>();
-            int total = project.gerberPaths().size() + project.excellonPaths().size() + project.cncJobs().size();
+            int total = Math.max(1, project.cncJobs().size());
             int processed = 0;
-
-            for (String path : project.gerberPaths()) {
-                Path sourcePath = Path.of(path);
-                int completedBeforeFile = processed;
-                String progressMessage = "Analisando Gerber " + sourcePath.getFileName() + "...";
-                GerberImage image = new GerberParser().parse(sourcePath, cancellation,
-                        fileFraction -> context.reportProgress(
-                                progressFraction(completedBeforeFile + fileFraction, total), progressMessage));
-                gerbers.add(new LoadedGerber(sourcePath.toFile(), image));
-                processed++;
-            }
-            for (String path : project.excellonPaths()) {
-                Path sourcePath = Path.of(path);
-                int completedBeforeFile = processed;
-                String progressMessage = "Analisando Excellon " + sourcePath.getFileName() + "...";
-                ExcellonImage image = new ExcellonParser().parse(sourcePath, cancellation,
-                        fileFraction -> context.reportProgress(
-                                progressFraction(completedBeforeFile + fileFraction, total), progressMessage));
-                excellons.add(new LoadedExcellon(sourcePath.toFile(), image));
-                processed++;
-            }
             for (ProjectFile.CncJobRecord job : project.cncJobs()) {
                 cancellation.throwIfCancellationRequested();
                 Path outputPath = Path.of(job.outputPath());
-                context.reportProgress(progressFraction(processed, total),
-                        "Lendo G-code " + outputPath.getFileName() + "...");
+                context.reportProgress(0.5 + 0.5 * processed / total, "Lendo G-code " + outputPath.getFileName() + "...");
                 try {
                     cncJobs.add(new LoadedCncJob(job.sourceName(), outputPath, Files.readString(outputPath)));
                 } catch (IOException e) {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
                 processed++;
-                context.reportProgress(progressFraction(processed, total),
-                        "G-code " + outputPath.getFileName() + " carregado.");
             }
 
             cancellation.throwIfCancellationRequested();
             context.reportProgress(1, "Projeto carregado.");
-            return new LoadedProject(List.copyOf(gerbers), List.copyOf(excellons),
-                    List.copyOf(cncJobs), List.copyOf(warnings));
+            return new LoadedProject(project.gerbers(), project.excellons(), List.copyOf(cncJobs), List.copyOf(warnings));
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -2813,12 +2799,14 @@ final class MainWindow {
         handle.completion()
                 .thenAccept(project -> Platform.runLater(() -> {
                     clearProject();
-                    for (LoadedGerber loaded : project.gerbers()) {
-                        addGerberToProject(loaded.file(), loaded.image());
+                    for (ProjectFile.GerberEntry loaded : project.gerbers()) {
+                        TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
+                        applyRestoredGerberState(item, loaded.image(), loaded);
                         unitsLabel.setText("Unidades: " + loaded.image().units());
                     }
-                    for (LoadedExcellon loaded : project.excellons()) {
-                        addExcellonToProject(loaded.file(), loaded.image());
+                    for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
+                        TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image());
+                        applyRestoredExcellonState(item, loaded);
                         unitsLabel.setText("Unidades: " + loaded.image().units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
@@ -2843,8 +2831,33 @@ final class MainWindow {
                 });
     }
 
-    private static double progressFraction(double processed, int total) {
-        return total == 0 ? 0 : (double) processed / total;
+    /** Restores a reloaded Gerber's plot appearance/visibility/follow-mode - see ProjectFile.GerberEntry. */
+    private void applyRestoredGerberState(TreeItem<String> item, GerberImage image, ProjectFile.GerberEntry entry) {
+        Color fill = entry.fillColorWeb() != null ? Color.web(entry.fillColorWeb()) : GERBER_FILL;
+        Color stroke = entry.strokeColorWeb() != null ? Color.web(entry.strokeColorWeb()) : GERBER_STROKE;
+        if (entry.followMode()) {
+            gerberFollowItems.add(item);
+            plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER, image.followGeometry(), fill, stroke, true);
+        } else {
+            plotAreaView.setLayerColors(item, fill, stroke);
+        }
+        plotAreaView.setLayerFilled(item, entry.filled());
+        plotAreaView.setLayerMulticolor(item, entry.multicolor());
+        if (!entry.visible()) {
+            setObjectVisible(item, false);
+        }
+    }
+
+    /** Restores a reloaded Excellon's plot appearance/visibility - see ProjectFile.ExcellonEntry. */
+    private void applyRestoredExcellonState(TreeItem<String> item, ProjectFile.ExcellonEntry entry) {
+        if (entry.fillColorWeb() != null && entry.strokeColorWeb() != null) {
+            plotAreaView.setLayerColors(item, Color.web(entry.fillColorWeb()), Color.web(entry.strokeColorWeb()));
+        }
+        plotAreaView.setLayerFilled(item, entry.filled());
+        plotAreaView.setLayerMulticolor(item, entry.multicolor());
+        if (!entry.visible()) {
+            setObjectVisible(item, false);
+        }
     }
 
     private void clearProject() {

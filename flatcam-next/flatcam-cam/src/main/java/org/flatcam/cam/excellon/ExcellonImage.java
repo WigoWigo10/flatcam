@@ -38,6 +38,17 @@ public final class ExcellonImage {
         this.solidGeometry = solidGeometry;
     }
 
+    /**
+     * Builds an ExcellonImage directly from already-resolved data rather
+     * than parsing a file - used by project persistence
+     * (org.flatcam.app.project.flatprj) to reconstruct one from a saved
+     * project's embedded geometry.
+     */
+    public static ExcellonImage of(String units, Map<Integer, Double> toolDiameters, List<Drill> drills,
+                                   List<Slot> slots, Geometry solidGeometry) {
+        return new ExcellonImage(units, toolDiameters, drills, slots, solidGeometry);
+    }
+
     public String units() {
         return units;
     }
