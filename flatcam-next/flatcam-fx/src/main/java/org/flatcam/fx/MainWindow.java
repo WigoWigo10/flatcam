@@ -420,6 +420,8 @@ final class MainWindow {
         item.setToggleGroup(group);
         item.setSelected(option == currentTheme);
         item.setOnAction(e -> {
+            boolean switchingBetweenAtlantaFxVariants = currentTheme.isAtlantaFx() && option.isAtlantaFx()
+                    && currentTheme != option;
             option.applyTo(scene);
             currentTheme = option;
             plotAreaView.applyTheme(option);
@@ -428,6 +430,11 @@ final class MainWindow {
             // icon outlines appear/disappear immediately with the theme.
             if (projectTree != null) {
                 projectTree.refresh();
+            }
+            if (switchingBetweenAtlantaFxVariants) {
+                appendConsole("Aviso: alternar entre variantes AtlantaFX sem reiniciar pode deixar texto de "
+                        + "menus de contexto ilegivel (limitacao conhecida do AtlantaFX/JavaFX ao trocar "
+                        + "Application.setUserAgentStylesheet() em tempo de execucao - reabra o app se notar isso).");
             }
         });
         return item;

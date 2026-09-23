@@ -379,6 +379,30 @@ Ainda há textos fixos e mistura de idiomas em pontos da UI. Não espalhe novas
 strings sem necessidade. A internacionalização completa pode vir depois, mas
 novos painéis devem manter terminologia consistente com o produto.
 
+### Limitação conhecida: alternar entre variantes AtlantaFX em tempo de execução
+
+Achado durante revisão de ícones (2026-09-23), não relacionado a nenhuma
+mudança de CSS deste port: trocar entre `ATLANTAFX_LIGHT` e `ATLANTAFX_DARK`
+via o menu Tema, sem reiniciar o app, deixa a variável CSS interna do
+próprio AtlantaFX (`-color-fg-default`) sem resolver dentro do
+`primer-light.bss` (aviso do JavaFX no console: `Could not resolve
+'-color-fg-default' while resolving lookups for '-fx-text-fill' from rule
+'*.menu-item>*.label'`) - o texto de itens de menu de contexto não-hover
+fica invisível (preto sobre preto, aparentemente, já que o fallback também
+falha a resolver). Confirmado isoladamente com um harness fora da tela: a
+mesma stylesheet carregada **direto** (sem troca prévia) funciona
+perfeitamente; só quebra após uma troca `Application.setUserAgentStylesheet()`
+para outra variante AtlantaFX na mesma JVM. O tema "CSS puro" (`CUSTOM_*`,
+UA stylesheet nulo nos dois) não tem esse problema.
+
+A correção correta (recriar a `Scene` inteira ao trocar) perderia todo o
+estado da sessão (projeto aberto, árvore, plot) - pior que o bug. Em vez
+disso, `MainWindow.themeItem()` agora avisa no console quando essa troca
+específica acontece (`ATLANTAFX_LIGHT` <-> `ATLANTAFX_DARK`), recomendando
+reabrir o app. Não testado: se a troca `CUSTOM_*` <-> `ATLANTAFX_*` (indo de
+UA nulo para não-nulo, ou vice-versa) sofre do mesmo problema - não afirme
+que funciona sem verificar.
+
 ### Diferenças intencionais já aceitas
 
 - Operações pesadas rodam em background e são canceláveis.
