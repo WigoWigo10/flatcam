@@ -79,6 +79,7 @@ import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.ncc.NccGenerator;
@@ -186,6 +187,10 @@ final class MainWindow {
     private final Set<TreeItem<String>> gerberFollowItems = new LinkedHashSet<>();
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
     private final Map<TreeItem<String>, Path> sourcePathByItem = new LinkedHashMap<>();
+
+    /** The Gerber item currently open in the editor, if any - see startGerberEdit/applyGerberEdit/cancelGerberEdit. */
+    private TreeItem<String> editingItem;
+    private GerberEditSession editingSession;
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
@@ -1126,6 +1131,9 @@ final class MainWindow {
 
         Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
 
+        MenuItem editItem = new MenuItem("Editar");
+        editItem.setOnAction(e -> startGerberEdit(item, image));
+
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
         setLegacyMenuIcon(isolationItem, "iso_16.png");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
@@ -1162,8 +1170,8 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), createCncMenu, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
-                new SeparatorMenuItem(), propertiesItem);
+                new SeparatorMenuItem(), editItem, createCncMenu, viewSourceItem, renameItem, copyItem, removeItem,
+                saveItem, new SeparatorMenuItem(), propertiesItem);
     }
 
     /** Same legacy project-menu shape as Gerber, with Excellon's drilling CNC workflow. */
@@ -2873,6 +2881,61 @@ final class MainWindow {
         sourcePathByItem.clear();
         plotAreaView.clearLayers();
         unitsLabel.setText("Unidades: -");
+    }
+
+    /**
+     * Opens the Gerber Editor's first slice on {@code item} - session lifecycle
+     * only, no drawing tools yet (see GerberEditSession's doc and
+     * CONTEXTO_E_PROGRESSO.md section 9.4). Ported from AppGerberEditor.py's
+     * edit_fcgerber(): hides the source object's own plot layer while editing
+     * (restored by applyGerberEdit/cancelGerberEdit) and switches the sidebar's
+     * Tool tab to the editor panel, same as every other tool in this app.
+     */
+    private void startGerberEdit(TreeItem<String> item, GerberImage image) {
+        if (editingItem != null) {
+            appendConsole("Ja existe uma edicao em andamento em " + editingItem.getValue() + ".");
+            return;
+        }
+        editingItem = item;
+        editingSession = new GerberEditSession(item.getValue(), image);
+        plotAreaView.setLayerVisible(item, false);
+        projectTree.refresh();
+        openToolPanel("Editor Gerber", GerberEditToolPanel.build(item.getValue(),
+                this::applyGerberEdit, this::cancelGerberEdit));
+    }
+
+    /**
+     * Ported from AppGerberEditor.py's update_fcgerber()/new_edited_gerber():
+     * publishes the session's working geometry as a NEW Gerber object named
+     * "&lt;name&gt;_edit" (GerberEditSession.nextEditedName), leaving the original
+     * object untouched and visible again - not an overwrite, matching Python's
+     * behavior exactly.
+     */
+    private void applyGerberEdit() {
+        if (editingSession == null) {
+            return;
+        }
+        GerberEditSession.ApplyResult result = editingSession.apply();
+        addGerberToProject(result.name(), null, result.image());
+        endGerberEdit();
+        appendConsole("Editor: objeto \"" + result.name() + "\" criado a partir da edicao.");
+    }
+
+    /** Ported from AppGerberEditor.py's deactivate_grb_editor() without saving: discards the session, no new object. */
+    private void cancelGerberEdit() {
+        if (editingSession == null) {
+            return;
+        }
+        endGerberEdit();
+        appendConsole("Editor: edicao cancelada.");
+    }
+
+    private void endGerberEdit() {
+        plotAreaView.setLayerVisible(editingItem, true);
+        projectTree.refresh();
+        editingItem = null;
+        editingSession = null;
+        closeToolPanel();
     }
 
     /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */

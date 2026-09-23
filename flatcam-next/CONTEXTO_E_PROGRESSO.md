@@ -5,13 +5,15 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-22**. A base anterior a esta revisão é o commit
+> Atualizado em **2026-09-23**. A base anterior a esta revisão é o commit
 > `6a4146ed` (`docs(flatcam-next): add project handoff and progress guide`),
-> seguido nesta mesma data por três incrementos: NCC multi-tool com Rest
-> Machining, boundary por objeto de referência + Check validity (seção 5), e
-> Transformations (seção 4). Antes de trabalhar, confirme o `HEAD`, o
-> `git status` e os testes: este arquivo é um ponto de passagem, não substitui
-> o código como fonte final da verdade.
+> seguido por: NCC multi-tool com Rest Machining, boundary por objeto de
+> referência + Check validity (seção 5), Transformations (seção 4),
+> persistência Gerber/Excellon compatível com o `.FlatPrj` do Python (seção
+> 9.3), e agora a fatia 1/7 do Gerber Editor (seção 8/9.4): sessão de edição
+> com Aplicar/Cancelar, sem ferramentas de desenho ainda. Antes de trabalhar,
+> confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de
+> passagem, não substitui o código como fonte final da verdade.
 
 ## 1. Objetivo do projeto
 
@@ -69,10 +71,11 @@ separação.
 ### Verificação mais recente
 
 Após NCC multi-tool + boundary por referência + Check validity + Transformations
-+ persistência embutida de Gerber/Excellon (seções 5, 4 e 9.3), `clean test`
-passa com **112 testes executados**, sem falhas, erros ou testes ignorados
-(79 antes do NCC multi-tool, 82 após ele, 86 após boundary/validity, 109 após
-Transformations, 112 após a persistência embutida). `JobExecutorTest` registra
++ persistência embutida de Gerber/Excellon + Gerber Editor fatia 1/7 (seções 5,
+4, 9.3 e 8/9.4), `clean test` passa com **116 testes executados**, sem falhas,
+erros ou testes ignorados (79 antes do NCC multi-tool, 82 após ele, 86 após
+boundary/validity, 109 após Transformations, 112 após a persistência
+embutida, 116 após a fatia 1 do editor). `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -311,7 +314,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor ausente |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | ausente | maior lacuna funcional da área Gerber |
+| Editor Gerber | inicial | fatia 1/7 da seção 9.4: sessão Aplicar/Cancelar (`GerberEditSession`, `GerberEditToolPanel`) - Aplicar cria objeto `<nome>_edit` novo, sem sobrescrever o original; ainda sem seleção, hit-testing, undo/redo ou qualquer ferramenta de desenho |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -397,12 +400,40 @@ mudanças de modelo reais antes de qualquer serialização (Geometry precisa de
 um dict de parâmetros CAM persistente por ferramenta; CNC Job precisa reter
 uma lista por segmento durante a geração) - cada um é essencialmente seu
 próprio projeto, no mesmo espírito de "Excellon+Gerber primeiro" que guiou
-essa fase. Alternativamente, dado que a lacuna mais visível agora é a
-ausência total de um editor, faz sentido também considerar avançar direto
-para o **Gerber Editor (9.4)** usando o que já existe (Gerber com geometria
-embutida já é compatível com a ideia de "objeto editável que sobrevive a
-save/reload"), adiando Geometry/CNC Job para quando algo realmente força a
-mão (ex.: um NCC resultado precisar sobreviver a um reload).
+essa fase.
+
+**Gerber Editor - fatia 1/7 concluída (2026-09-23, opinião do Claude
+registrada em 22/09 acima aplicada: avançar o editor em vez de Geometry/CNC
+Job persistence, já que a lacuna mais visível é a ausência total de editor e
+a persistência Gerber/Excellon necessária para "objeto editável que sobrevive
+a save/reload" já existia).**
+
+- `org.flatcam.cam.gerber.edit.GerberEditSession` (núcleo, `flatcam-cam`,
+  testado): sessão de edição com `apply()`/`nextEditedName()`, ported de
+  `AppGerberEditor.py`'s `edit_fcgerber()`/`update_fcgerber()`. Sem operações
+  de edição ainda - `workingImage()` é sempre igual ao objeto de origem.
+- `GerberEditToolPanel`/`MainWindow` (fatia de UI): menu "Editar" no Gerber
+  abre a sessão no painel "Ferramenta" (oculta o objeto original no plot,
+  igual ao Python's `orig_grb_obj.visible = False`); "Aplicar" cria um NOVO
+  objeto `<nome>_edit` (nunca sobrescreve o original, igual ao Python);
+  "Cancelar" descarta a sessão sem criar nada, restaura a visibilidade.
+- Deliberadamente **sem**: seleção/hit-testing no canvas, command stack
+  undo/redo, qualquer ferramenta de desenho (pad/track/region/disc/buffer/
+  scale/etc.), tabela de apertures editável. Ver seção 9.4 para a ordem das
+  próximas fatias (2: seleção/hit-testing; 3: undo/redo; 4: mover/copiar/
+  excluir; 5: pads/tracks/regions/apertures).
+- Critério de aceite desta fatia: usuário consegue entrar no editor, ver o
+  objeto original ocultado, e Aplicar/Cancelar produzem exatamente o
+  resultado acima - verificado por `GerberEditSessionTest` (4 testes) e smoke
+  test manual (`MainApp started`/`stop` limpo). Nenhuma edição de geometria é
+  possível ainda; não anunciar isso como "editor funcional" para o usuário
+  final até pelo menos a fatia 2 (seleção) e 5 (ferramentas básicas)
+  existirem.
+
+Alternativa não escolhida agora, mas ainda válida como próximo passo depois
+das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
+adiando para quando algo realmente força a mão (ex.: um NCC resultado
+precisar sobreviver a um reload).
 
 ### Critérios de aceite do incremento concluído (referência)
 
@@ -592,7 +623,8 @@ compatibilidade.
 
 Implementar por fatias verticais, não como um bloco único:
 
-1. sessão de edição com Aplicar/Cancelar;
+1. sessão de edição com Aplicar/Cancelar; ✅ concluída (seção 8) -
+   `GerberEditSession`/`GerberEditToolPanel`, sem operações de edição ainda;
 2. seleção e hit testing;
 3. command stack com undo/redo;
 4. mover, copiar e excluir;
