@@ -1166,6 +1166,7 @@ final class MainWindow {
         Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
 
         MenuItem editItem = new MenuItem("Editar");
+        setLegacyMenuIcon(editItem, "edit_ok32.png");
         editItem.setOnAction(e -> gerberEditor.start(item, gerberByItem.getOrDefault(item, image)));
 
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");

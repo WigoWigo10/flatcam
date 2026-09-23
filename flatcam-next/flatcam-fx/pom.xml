@@ -94,6 +94,7 @@
                     <include>flipx.png</include>
                     <include>flipy.png</include>
                     <include>reset32.png</include>
+                    <include>edit_ok32.png</include>
                 </includes>
             </resource>
             <resource>
@@ -125,6 +126,7 @@
                     <include>flipx.png</include>
                     <include>flipy.png</include>
                     <include>reset32.png</include>
+                    <include>edit_ok32.png</include>
                 </includes>
             </resource>
         </resources>
