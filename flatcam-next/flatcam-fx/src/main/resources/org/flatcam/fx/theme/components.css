@@ -29,6 +29,53 @@
     -fx-text-fill: -fc-panel-text;
 }
 
+/*
+ * Base text color for every filled row, selected or not - Modena's own
+ * default .tree-cell .text fill (derived from -fx-text-background-color,
+ * itself derived from -fx-background) renders black once a row has been
+ * selected and then deselected again (confirmed with an isolated JavaFX
+ * harness dumping the cell's actual computed text fill before/after
+ * reselecting a different row), unreadable on a dark palette. Setting it
+ * explicitly here, unconditionally, also becomes the fallback the two
+ * selected-state rules below override.
+ */
+.tree-cell:filled .text {
+    -fx-fill: -fc-panel-text;
+}
+
+/*
+ * A row selected while its TreeView doesn't have focus (e.g. focus moved to
+ * the Properties/Ferramenta tab, or to the Plot Area) gets the plain
+ * ".tree-cell:selected" style below; only when the TREE ITSELF has focus
+ * does the selected row get the stronger accent one. Both use dedicated
+ * -fc-selection-* colors instead of Modena's own defaults - the unfocused
+ * Modena default derives its background from -fx-control-inner-background,
+ * which on a dark palette ends up too close to white with barely-visible
+ * text (the original bug report this fixes).
+ *
+ * Deliberately scoped by ".tree-view:focused", NOT by a ":focused"
+ * pseudo-class on .tree-cell itself: a TreeCell's own :focused pseudo-class
+ * tracks the tree's internal FocusModel row index, which does NOT clear when
+ * focus actually leaves the TreeView for another control (confirmed the same
+ * way as above) - so a rule scoped to ".tree-cell:selected:focused" alone
+ * stays permanently "focused"-looking once any row was ever selected.
+ */
+.tree-cell:filled:selected {
+    -fx-background-color: -fc-selection-bg-unfocused;
+}
+
+.tree-cell:filled:selected .text {
+    -fx-fill: -fc-selection-text-unfocused;
+}
+
+.tree-view:focused .tree-cell:filled:selected {
+    -fx-background-color: -fc-selection-bg-focused;
+}
+
+.tree-view:focused .tree-cell:filled:selected .text {
+    -fx-fill: -fc-selection-text-focused;
+}
+
 .progress-percentage {
     -fx-font-size: 11px;
     -fx-font-weight: bold;

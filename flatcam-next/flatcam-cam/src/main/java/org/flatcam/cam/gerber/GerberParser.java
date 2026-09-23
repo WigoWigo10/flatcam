@@ -123,6 +123,7 @@ public final class GerberParser {
         // boundaries and flash centers. Kept separately from copper solids so
         // the UI and later Geometry-object workflow can follow trace centers.
         List<Geometry> followShapes = new ArrayList<>();
+        List<GerberShape> drawnShapes = new ArrayList<>();
 
         boolean regionMode = false;
         List<Coordinate> currentContour = null;
@@ -205,6 +206,9 @@ public final class GerberParser {
                 }
                 Geometry region = buildRegionGeometry(regionContours, geometryFactory, cancellationToken);
                 accumulator.add(region, polarity);
+                if (!region.isEmpty()) {
+                    drawnShapes.add(new GerberShape(GerberShape.REGION_APERTURE, region, polarity == 'C'));
+                }
                 addRegionBoundaries(region, followShapes);
                 regionMode = false;
                 currentContour = null;
@@ -286,6 +290,7 @@ public final class GerberParser {
                         Geometry stroke = centerline.buffer(radius, STROKE_QUADRANT_SEGMENTS);
                         accumulator.add(stroke, polarity);
                         shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(stroke);
+                        drawnShapes.add(new GerberShape(currentApertureId, stroke, polarity == 'C'));
                         followShapes.add(centerline);
                     }
                 }
@@ -304,6 +309,7 @@ public final class GerberParser {
                     Geometry footprint = aperture.footprintAt(newX, newY, geometryFactory);
                     accumulator.add(footprint, polarity);
                     shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(footprint);
+                    drawnShapes.add(new GerberShape(currentApertureId, footprint, polarity == 'C'));
                     followShapes.add(geometryFactory.createPoint(new Coordinate(newX, newY)));
                 }
                 default -> throw new GerberParseException("Unreachable D-code " + code + " in: " + line);
@@ -330,7 +336,7 @@ public final class GerberParser {
         cancellationToken.throwIfCancellationRequested();
         progressCallback.report(1);
         return new GerberImage(units == null ? "IN" : units, apertures, solidGeometry,
-                followGeometry, apertureGeometry);
+                followGeometry, apertureGeometry, drawnShapes);
     }
 
     /** Adds one directly drawable line per region ring, including holes and multipart regions. */

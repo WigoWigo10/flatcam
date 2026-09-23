@@ -6,6 +6,7 @@ import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
+import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.StackPane;
@@ -61,6 +62,25 @@ final class PlotAreaView extends StackPane {
         GERBER, EXCELLON, GEOMETRY, OVERLAY, CNCJOB
     }
 
+    /**
+     * Receives primary-button clicks/drags in world coordinates while an
+     * editor owns the canvas; other buttons keep panning. {@code additive} is
+     * the multi-select key (Control - defaults.py's global_mselect_key).
+     */
+    interface SelectionHandler {
+        void onClick(double worldX, double worldY, boolean additive);
+
+        /** From the press point to the release point; direction is the caller's to interpret. */
+        void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive);
+    }
+
+    private static final double CLICK_DRAG_THRESHOLD_PX = 3;
+    // defaults.py's global_sel_fill/_line (left-to-right) and global_alt_sel_fill/_line (right-to-left).
+    private static final Color ENCLOSING_BOX_FILL = Color.web("#a5a5ffbf");
+    private static final Color ENCLOSING_BOX_LINE = Color.web("#0000ffbf");
+    private static final Color TOUCHING_BOX_FILL = Color.web("#BBF268BF");
+    private static final Color TOUCHING_BOX_LINE = Color.web("#006E20BF");
+
     private static final double RULER_TOP_HEIGHT = 20;
     private static final double RULER_LEFT_WIDTH = 44;
     private static final double MIN_SCALE = 0.001;
@@ -98,6 +118,14 @@ final class PlotAreaView extends StackPane {
     private double referenceWorldY;
     private boolean hasReference;
 
+    private SelectionHandler selectionHandler;
+    private boolean selecting;
+    private boolean selectionDragged;
+    private double selectionPressScreenX;
+    private double selectionPressScreenY;
+    private double selectionCurrentScreenX;
+    private double selectionCurrentScreenY;
+
     PlotAreaView() {
         getChildren().add(canvas);
         StackPane.setAlignment(coordLabel, Pos.BOTTOM_LEFT);
@@ -112,6 +140,7 @@ final class PlotAreaView extends StackPane {
         setOnScroll(this::handleScroll);
         setOnMousePressed(this::handlePress);
         setOnMouseDragged(this::handleDrag);
+        setOnMouseReleased(this::handleRelease);
         setOnMouseMoved(this::handleMove);
         setOnMouseExited(e -> coordLabel.setText(hasReference ? "" : "X: -   Y: -"));
 
@@ -261,6 +290,13 @@ final class PlotAreaView extends StackPane {
         viewCenterY = envelope.getMinY() + envelope.getHeight() / 2.0;
     }
 
+    /** Hands primary-button clicks/drags to {@code handler} (null restores plain pan-with-any-button). */
+    void setSelectionHandler(SelectionHandler handler) {
+        selectionHandler = handler;
+        selecting = false;
+        redraw();
+    }
+
     // --- Input handling -----------------------------------------------
 
     private void handleScroll(ScrollEvent event) {
@@ -290,9 +326,44 @@ final class PlotAreaView extends StackPane {
         referenceWorldY = world[1];
         hasReference = true;
         updateCoordLabel(event.getX(), event.getY());
+        if (selectionHandler != null && event.getButton() == MouseButton.PRIMARY) {
+            selecting = true;
+            selectionDragged = false;
+            selectionPressScreenX = event.getX();
+            selectionPressScreenY = event.getY();
+            selectionCurrentScreenX = event.getX();
+            selectionCurrentScreenY = event.getY();
+        }
+    }
+
+    private void handleRelease(MouseEvent event) {
+        if (!selecting || event.getButton() != MouseButton.PRIMARY) {
+            return;
+        }
+        selecting = false;
+        double[] press = screenToWorld(selectionPressScreenX - RULER_LEFT_WIDTH, selectionPressScreenY - RULER_TOP_HEIGHT);
+        boolean additive = event.isControlDown();
+        if (selectionDragged) {
+            double[] release = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+            selectionHandler.onBox(press[0], press[1], release[0], release[1], additive);
+        } else {
+            selectionHandler.onClick(press[0], press[1], additive);
+        }
+        redraw();
     }
 
     private void handleDrag(MouseEvent event) {
+        if (selecting) {
+            selectionCurrentScreenX = event.getX();
+            selectionCurrentScreenY = event.getY();
+            if (Math.abs(event.getX() - selectionPressScreenX) > CLICK_DRAG_THRESHOLD_PX
+                    || Math.abs(event.getY() - selectionPressScreenY) > CLICK_DRAG_THRESHOLD_PX) {
+                selectionDragged = true;
+            }
+            redraw();
+            updateCoordLabel(event.getX(), event.getY());
+            return;
+        }
         double dx = event.getX() - lastDragScreenX;
         double dy = event.getY() - lastDragScreenY;
         viewCenterX -= dx / scale;
@@ -362,7 +433,24 @@ final class PlotAreaView extends StackPane {
                 }
             }
         }
+        drawSelectionBox(gc);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
+    }
+
+    private void drawSelectionBox(GraphicsContext gc) {
+        if (!selecting || !selectionDragged) {
+            return;
+        }
+        boolean enclosing = selectionCurrentScreenX >= selectionPressScreenX;
+        double x = Math.min(selectionPressScreenX, selectionCurrentScreenX);
+        double y = Math.min(selectionPressScreenY, selectionCurrentScreenY);
+        double w = Math.abs(selectionCurrentScreenX - selectionPressScreenX);
+        double h = Math.abs(selectionCurrentScreenY - selectionPressScreenY);
+        gc.setFill(enclosing ? ENCLOSING_BOX_FILL : TOUCHING_BOX_FILL);
+        gc.fillRect(x, y, w, h);
+        gc.setStroke(enclosing ? ENCLOSING_BOX_LINE : TOUCHING_BOX_LINE);
+        gc.setLineWidth(1);
+        gc.strokeRect(x, y, w, h);
     }
 
     private void drawGrid(GraphicsContext gc, double contentWidth, double contentHeight, double step) {

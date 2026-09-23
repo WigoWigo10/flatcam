@@ -1,6 +1,8 @@
 package org.flatcam.cam.gerber;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Envelope;
@@ -21,14 +23,21 @@ public final class GerberImage {
     private final Geometry solidGeometry;
     private final Geometry followGeometry;
     private final Map<String, Geometry> apertureGeometry;
+    private final List<GerberShape> shapes;
 
     GerberImage(String units, Map<String, Aperture> apertures, Geometry solidGeometry,
                 Geometry followGeometry, Map<String, Geometry> apertureGeometry) {
+        this(units, apertures, solidGeometry, followGeometry, apertureGeometry, List.of());
+    }
+
+    GerberImage(String units, Map<String, Aperture> apertures, Geometry solidGeometry,
+                Geometry followGeometry, Map<String, Geometry> apertureGeometry, List<GerberShape> shapes) {
         this.units = units;
         this.apertures = Map.copyOf(apertures);
         this.solidGeometry = solidGeometry;
         this.followGeometry = followGeometry;
         this.apertureGeometry = Map.copyOf(apertureGeometry);
+        this.shapes = List.copyOf(shapes);
     }
 
     /**
@@ -67,6 +76,15 @@ public final class GerberImage {
     }
 
     /**
+     * Every flash/stroke/region in file order, un-unioned. Empty when not
+     * known - an image restored from a project file, whose format keeps only
+     * one aggregate geometry per aperture (see GerberFlatPrjCodec).
+     */
+    public List<GerberShape> shapes() {
+        return shapes;
+    }
+
+    /**
      * A copy with {@code op} applied to every geometry this object carries
      * (solid, follow, and each aperture's own shapes) - appTools/ToolTransform.py's
      * six operations applied to a Gerber via {@code Gerber.rotate/mirror/skew/scale/offset}.
@@ -81,10 +99,14 @@ public final class GerberImage {
         for (Map.Entry<String, Geometry> entry : apertureGeometry.entrySet()) {
             newApertureGeometry.put(entry.getKey(), op.apply(entry.getValue()));
         }
+        List<GerberShape> newShapes = new ArrayList<>(shapes.size());
+        for (GerberShape shape : shapes) {
+            newShapes.add(new GerberShape(shape.apertureCode(), op.apply(shape.geometry()), shape.clear()));
+        }
         return new GerberImage(units, apertures,
                 solidGeometry == null ? null : op.apply(solidGeometry),
                 followGeometry == null ? null : op.apply(followGeometry),
-                newApertureGeometry);
+                newApertureGeometry, newShapes);
     }
 
     public boolean isEmpty() {

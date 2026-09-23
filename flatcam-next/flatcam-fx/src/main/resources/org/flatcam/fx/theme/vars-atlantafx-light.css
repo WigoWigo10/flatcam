@@ -11,4 +11,8 @@
     -fc-viewport-bg: #f6f8fa;
     -fc-viewport-fg: #57606a;
     -fc-viewport-overlay-bg: rgba(255, 255, 255, 0.9);
+    -fc-selection-bg-focused: #0969da;
+    -fc-selection-bg-unfocused: #d0d7de;
+    -fc-selection-text-focused: #ffffff;
+    -fc-selection-text-unfocused: #1f2328;
 }

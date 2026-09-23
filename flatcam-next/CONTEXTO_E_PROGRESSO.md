@@ -10,8 +10,9 @@ e continuar a migração sem recomeçar a investigação.
 > seguido por: NCC multi-tool com Rest Machining, boundary por objeto de
 > referência + Check validity (seção 5), Transformations (seção 4),
 > persistência Gerber/Excellon compatível com o `.FlatPrj` do Python (seção
-> 9.3), e agora a fatia 1/7 do Gerber Editor (seção 8/9.4): sessão de edição
-> com Aplicar/Cancelar, sem ferramentas de desenho ainda. Antes de trabalhar,
+> 9.3), e as fatias 1-2/7 do Gerber Editor (seção 8/9.4): sessão de edição
+> com Aplicar/Cancelar e seleção/hit-testing de formas no canvas, sem
+> ferramentas de desenho ainda. Antes de trabalhar,
 > confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de
 > passagem, não substitui o código como fonte final da verdade.
 
@@ -71,11 +72,11 @@ separação.
 ### Verificação mais recente
 
 Após NCC multi-tool + boundary por referência + Check validity + Transformations
-+ persistência embutida de Gerber/Excellon + Gerber Editor fatia 1/7 (seções 5,
-4, 9.3 e 8/9.4), `clean test` passa com **116 testes executados**, sem falhas,
-erros ou testes ignorados (79 antes do NCC multi-tool, 82 após ele, 86 após
-boundary/validity, 109 após Transformations, 112 após a persistência
-embutida, 116 após a fatia 1 do editor). `JobExecutorTest` registra
++ persistência embutida de Gerber/Excellon + Gerber Editor fatias 1-2/7 (seções
+5, 4, 9.3 e 8/9.4), `clean test` passa com **127 testes executados**, sem
+falhas, erros ou testes ignorados (79 antes do NCC multi-tool, 82 após ele, 86
+após boundary/validity, 109 após Transformations, 112 após a persistência
+embutida, 116 após a fatia 1 do editor, 127 após a fatia 2). `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -311,10 +312,10 @@ Os rótulos abaixo são deliberadamente conservadores.
 | --- | --- | --- |
 | Shell, temas e layout principal | forte/parcial | base utilizável; vários menus ainda não têm fluxo completo |
 | Plot 2D e interação | forte/parcial | Canvas funcional; ainda não é o renderer final nem foi perfilado para placas enormes |
-| Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor ausente |
+| Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | inicial | fatia 1/7 da seção 9.4: sessão Aplicar/Cancelar (`GerberEditSession`, `GerberEditToolPanel`) - Aplicar cria objeto `<nome>_edit` novo, sem sobrescrever o original; ainda sem seleção, hit-testing, undo/redo ou qualquer ferramenta de desenho |
+| Editor Gerber | inicial | fatias 1-2/7 da seção 9.4: sessão Aplicar/Cancelar e seleção de formas (clique, Ctrl+clique, caixa envolvente/tocante) - Aplicar cria objeto `<nome>_edit` novo, sem sobrescrever o original; ainda sem undo/redo nem qualquer operação que altere geometria |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -351,11 +352,14 @@ transformado como novo arquivo antes de fechar - reforça a prioridade de 9.3.
 
 ### `MainWindow` concentra responsabilidades demais
 
-`flatcam-fx/.../MainWindow.java` tem hoje cerca de 2.650 linhas e concentra
+`flatcam-fx/.../MainWindow.java` tem hoje cerca de 2.970 linhas e concentra
 estado, menus, árvore, diálogos e orquestração de jobs. Não é necessário
 reescrever a tela agora, mas novas áreas grandes devem extrair controladores ou
 serviços coesos. A implementação do editor não deve aumentar indefinidamente
-essa classe.
+essa classe - por isso o Gerber Editor vive em `GerberEditorController`
+(sessão, painel, camadas de plot e handler de seleção do canvas); o
+`MainWindow` só expõe a ele uma interface `Host` estreita. Novas fatias do
+editor devem crescer o controlador, não o `MainWindow`.
 
 ### Renderer atual é uma etapa, não um compromisso definitivo
 
@@ -429,6 +433,86 @@ a save/reload" já existia).**
   possível ainda; não anunciar isso como "editor funcional" para o usuário
   final até pelo menos a fatia 2 (seleção) e 5 (ferramentas básicas)
   existirem.
+
+**Gerber Editor - fatia 2/7 concluída (2026-09-23): seleção e hit-testing.**
+Portado de `AppGerberEditor.py`'s `SelectEditorGrb`,
+`draw_selection_area_handler()` e `plot_all()`, mais o `selection_type` de
+`app_Main.py`:
+
+- Formas individuais: `GerberShape` (abertura, geometria, polaridade) e
+  `GerberImage.shapes()` - o parser agora guarda cada flash/trilha/região antes
+  da união (regiões sob a abertura `"0"`, como o `'REG'` do Python).
+  `transformed()` transforma as formas também.
+- `GerberEditSession`: `clickSelect`/`boxSelect`/`selectedApertures`, com as
+  regras do Python - só formas escuras são selecionáveis (o Python só testa
+  `'solid'`); clique simples substitui a seleção, Ctrl+clique alterna;
+  caixa arrastada para a direita seleciona formas **envolvidas**, para a
+  esquerda formas **tocadas**. Divergência deliberada: o Python alterna no
+  máximo um acerto por bloco de 77 formas (artefato do seu multiprocessing);
+  aqui todos os acertos sob o ponto são alternados.
+- Limitação conhecida: objeto restaurado de projeto (`.fcnproj` v2 guarda um
+  agregado por abertura) não tem as formas individuais; a sessão as
+  reconstrói dividindo cada agregado em partes disjuntas
+  (`shapesApproximated()`), e o painel avisa que pads/trilhas que se tocam
+  viram uma forma só e que regiões ficam de fora. Resolver isso exige
+  persistir as formas individuais no codec (lista por abertura, como o
+  `.FlatPrj` real do Python já faz) - candidato natural para a fatia 7.
+- UI: `GerberEditorController` (novo, fora do `MainWindow`) desenha as formas
+  em `#FF0000AF` e as selecionadas em `#0000FFAF` (cores e alfa de
+  `global_draw_color`/`global_sel_draw_color` + `plot_shape()`), e liga o
+  `PlotAreaView.SelectionHandler`: com o editor ativo, botão esquerdo
+  seleciona (retângulo azul/verde de `global_sel_*`/`global_alt_sel_*`) e
+  direito/meio fazem pan; sem editor, o canvas se comporta como antes. O
+  painel mostra quantas formas e quais aberturas estão selecionadas (no lugar
+  do destaque de linhas da tabela de aberturas do Python, que ainda não
+  existe).
+- Testes: `GerberEditSessionTest` (15, cobrindo clique, alternância, caixa
+  nos dois sentidos, polaridade clara, fallback e transformação). O
+  comportamento interativo no canvas foi verificado só até a inicialização do
+  app - falta validação visual manual.
+- **Corrigido nesta revisão (2026-09-23):** a pendência acima era, na
+  prática, bloqueante - o usuário reportou "clicar não faz nada" ao testar
+  esta fatia, e a causa raiz era exatamente esse bug. A árvore tem um
+  listener em `getSelectedItems()` (linha ~625 do `MainWindow`) que remove
+  reativamente linhas de categoria (Gerbers/Excellon/...) da seleção, já que
+  elas são só agrupamento visual. Esse listener chamava
+  `clearSelection(row)` **sincronamente**, de dentro da própria notificação
+  de mudança - e o `TreeViewBehavior` interno do JavaFX (que também escuta a
+  mesma lista, para implementar o clique) não tolera a lista mudar de
+  tamanho enquanto ele ainda está lendo a mudança corrente, e lança
+  `IndexOutOfBoundsException` no PRÓXIMO clique em qualquer linha da árvore.
+  Na prática isso deixava a árvore (e portanto todo menu de contexto,
+  inclusive "Editar") morta para cliques depois da primeira interação com
+  uma linha de categoria. Corrigido adiando a chamada com
+  `Platform.runLater(...)`. Reproduzido e confirmado antes/depois com um
+  harness isolado (Stage fora da tela, eventos de mouse sintéticos reais
+  contra `TreeCell`s reais) - a versão antiga reproduz o
+  `IndexOutOfBoundsException` byte a byte igual ao relatado; a versão com
+  `Platform.runLater` não lança nada.
+- **Também corrigido nesta revisão: contraste de texto na árvore do
+  projeto** (`components.css` + as 4 paletas `vars-*.css`). Dois bugs
+  distintos, achados durante o teste manual desta fatia:
+  1. Linha selecionada que perde o foco (usuário clica em Propriedades,
+     Ferramenta ou no Plot Area) usava a cor padrão do JavaFX/Modena para
+     esse estado, que em tema escuro fica cinza-claro com texto quase
+     invisível. Corrigido com cores próprias por estado
+     (`-fc-selection-bg-focused/-unfocused`,
+     `-fc-selection-text-focused/-unfocused`).
+  2. Ao trocar a seleção para outra linha, a linha desselecionada ficava com
+     texto **preto puro**, mesmo com a paleta escura carregada - bug
+     separado do Modena (o fill padrão de `.tree-cell .text` deriva de
+     `-fx-text-background-color`, que não respeita bem `-fx-text-base-color`
+     nesse caso). Corrigido fixando `-fx-fill: -fc-panel-text` para todo
+     `.tree-cell:filled .text`, servindo de base para as regras de seleção
+     acima.
+  Achado (2): a correção inicial do item 1 usava `.tree-cell:selected:focused`
+  para distinguir os dois estados - mas o pseudo-estado `:focused` de uma
+  `TreeCell` reflete o índice de foco interno do `FocusModel` da árvore, não
+  se a árvore em si tem foco de verdade, e nunca é desligado quando o foco
+  sai da árvore para outro controle. Trocado para `.tree-view:focused
+  .tree-cell:selected`, que usa o foco real do controle. Os dois bugs foram
+  confirmados e corrigidos verificando o estado computado real (pseudo-classes
+  e `text.getFill()`) num harness isolado antes/depois, não só lendo o CSS.
 
 Alternativa não escolhida agora, mas ainda válida como próximo passo depois
 das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
@@ -625,7 +709,8 @@ Implementar por fatias verticais, não como um bloco único:
 
 1. sessão de edição com Aplicar/Cancelar; ✅ concluída (seção 8) -
    `GerberEditSession`/`GerberEditToolPanel`, sem operações de edição ainda;
-2. seleção e hit testing;
+2. seleção e hit testing; ✅ concluída (seção 8) - `GerberShape`,
+   `GerberEditSession.clickSelect/boxSelect`, `GerberEditorController`;
 3. command stack com undo/redo;
 4. mover, copiar e excluir;
 5. pads, tracks, regions e apertures;

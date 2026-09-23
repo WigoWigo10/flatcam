@@ -79,7 +79,6 @@ import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
-import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.ncc.NccGenerator;
@@ -188,11 +187,35 @@ final class MainWindow {
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
     private final Map<TreeItem<String>, Path> sourcePathByItem = new LinkedHashMap<>();
 
-    /** The Gerber item currently open in the editor, if any - see startGerberEdit/applyGerberEdit/cancelGerberEdit. */
-    private TreeItem<String> editingItem;
-    private GerberEditSession editingSession;
-
     private final PlotAreaView plotAreaView = new PlotAreaView();
+
+    private final GerberEditorController gerberEditor = new GerberEditorController(plotAreaView,
+            new GerberEditorController.Host() {
+                @Override
+                public void openToolPanel(String label, Node content) {
+                    MainWindow.this.openToolPanel(label, content);
+                }
+
+                @Override
+                public void closeToolPanel() {
+                    MainWindow.this.closeToolPanel();
+                }
+
+                @Override
+                public void setObjectVisible(TreeItem<String> item, boolean visible) {
+                    MainWindow.this.setObjectVisible(item, visible);
+                }
+
+                @Override
+                public void addEditedGerber(String name, GerberImage image) {
+                    addGerberToProject(name, null, image);
+                }
+
+                @Override
+                public void log(String message) {
+                    appendConsole(message);
+                }
+            });
 
     private Scene scene;
     private SplitPane horizontalSplit;
@@ -605,6 +628,15 @@ final class MainWindow {
         // Ctrl+A range-selects across whatever rows fall in between, category headers included,
         // regardless of any click handling on those specific rows - so this reactively drops
         // one the instant it lands in the selection, however it got there.
+        //
+        // The actual clearSelection() is deferred to the next pulse (Platform.runLater)
+        // rather than called synchronously from inside this listener: TreeView's
+        // MultipleSelectionModelBase does not tolerate mutating the selection from within
+        // its own change notification - doing so corrupts its internal index bookkeeping
+        // and throws IndexOutOfBoundsException out of the very next click on ANY row (seen
+        // during manual testing: every click on the tree, category or not, stopped doing
+        // anything after the first hit). Deferring lets this listener's own change event
+        // finish processing first.
         projectTree.getSelectionModel().getSelectedItems().addListener((ListChangeListener<TreeItem<String>>) change -> {
             while (change.next()) {
                 if (!change.wasAdded()) {
@@ -612,10 +644,12 @@ final class MainWindow {
                 }
                 for (TreeItem<String> added : change.getAddedSubList()) {
                     if (added != null && !isProjectObject(added)) {
-                        int row = projectTree.getRow(added);
-                        if (row >= 0) {
-                            projectTree.getSelectionModel().clearSelection(row);
-                        }
+                        Platform.runLater(() -> {
+                            int row = projectTree.getRow(added);
+                            if (row >= 0) {
+                                projectTree.getSelectionModel().clearSelection(row);
+                            }
+                        });
                     }
                 }
             }
@@ -1132,7 +1166,7 @@ final class MainWindow {
         Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
 
         MenuItem editItem = new MenuItem("Editar");
-        editItem.setOnAction(e -> startGerberEdit(item, image));
+        editItem.setOnAction(e -> gerberEditor.start(item, gerberByItem.getOrDefault(item, image)));
 
         MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
         setLegacyMenuIcon(isolationItem, "iso_16.png");
@@ -2015,6 +2049,7 @@ final class MainWindow {
     }
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
+        gerberEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
         gerberFollowItems.remove(item);
@@ -2869,6 +2904,7 @@ final class MainWindow {
     }
 
     private void clearProject() {
+        gerberEditor.cancel();
         gerbersNode.getChildren().clear();
         excellonNode.getChildren().clear();
         geometryNode.getChildren().clear();
@@ -2881,61 +2917,6 @@ final class MainWindow {
         sourcePathByItem.clear();
         plotAreaView.clearLayers();
         unitsLabel.setText("Unidades: -");
-    }
-
-    /**
-     * Opens the Gerber Editor's first slice on {@code item} - session lifecycle
-     * only, no drawing tools yet (see GerberEditSession's doc and
-     * CONTEXTO_E_PROGRESSO.md section 9.4). Ported from AppGerberEditor.py's
-     * edit_fcgerber(): hides the source object's own plot layer while editing
-     * (restored by applyGerberEdit/cancelGerberEdit) and switches the sidebar's
-     * Tool tab to the editor panel, same as every other tool in this app.
-     */
-    private void startGerberEdit(TreeItem<String> item, GerberImage image) {
-        if (editingItem != null) {
-            appendConsole("Ja existe uma edicao em andamento em " + editingItem.getValue() + ".");
-            return;
-        }
-        editingItem = item;
-        editingSession = new GerberEditSession(item.getValue(), image);
-        plotAreaView.setLayerVisible(item, false);
-        projectTree.refresh();
-        openToolPanel("Editor Gerber", GerberEditToolPanel.build(item.getValue(),
-                this::applyGerberEdit, this::cancelGerberEdit));
-    }
-
-    /**
-     * Ported from AppGerberEditor.py's update_fcgerber()/new_edited_gerber():
-     * publishes the session's working geometry as a NEW Gerber object named
-     * "&lt;name&gt;_edit" (GerberEditSession.nextEditedName), leaving the original
-     * object untouched and visible again - not an overwrite, matching Python's
-     * behavior exactly.
-     */
-    private void applyGerberEdit() {
-        if (editingSession == null) {
-            return;
-        }
-        GerberEditSession.ApplyResult result = editingSession.apply();
-        addGerberToProject(result.name(), null, result.image());
-        endGerberEdit();
-        appendConsole("Editor: objeto \"" + result.name() + "\" criado a partir da edicao.");
-    }
-
-    /** Ported from AppGerberEditor.py's deactivate_grb_editor() without saving: discards the session, no new object. */
-    private void cancelGerberEdit() {
-        if (editingSession == null) {
-            return;
-        }
-        endGerberEdit();
-        appendConsole("Editor: edicao cancelada.");
-    }
-
-    private void endGerberEdit() {
-        plotAreaView.setLayerVisible(editingItem, true);
-        projectTree.refresh();
-        editingItem = null;
-        editingSession = null;
-        closeToolPanel();
     }
 
     /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */

@@ -1,0 +1,164 @@
+package org.flatcam.fx;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import javafx.scene.Node;
+import javafx.scene.control.TreeItem;
+import javafx.scene.paint.Color;
+import org.flatcam.cam.gerber.GerberImage;
+import org.flatcam.cam.gerber.GerberShape;
+import org.flatcam.cam.gerber.edit.GerberEditSession;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Polygon;
+
+/**
+ * Runs one Gerber Editor session against the main window: owns the
+ * {@link GerberEditSession}, its sidebar panel, its two plot layers and the
+ * canvas selection handler, so none of that state lives in MainWindow
+ * (CONTEXTO_E_PROGRESSO.md section 7 asks the editor not to grow that class).
+ *
+ * <p>Ported from AppGerberEditor.py: edit_fcgerber() hides the source object
+ * and plots the editor's own shapes instead; plot_all() draws each dark shape
+ * in global_draw_color and selected ones in global_sel_draw_color, both with
+ * alpha 'AF' for line and face (plot_shape()); Apply publishes a new
+ * "&lt;name&gt;_edit" object; Cancel/Apply both restore the source object.
+ */
+final class GerberEditorController {
+
+    interface Host {
+        void openToolPanel(String label, Node content);
+
+        void closeToolPanel();
+
+        void setObjectVisible(TreeItem<String> item, boolean visible);
+
+        void addEditedGerber(String name, GerberImage image);
+
+        void log(String message);
+    }
+
+    private record LayerKey(String name) {
+    }
+
+    private static final LayerKey SHAPES_LAYER = new LayerKey("gerber-editor-shapes");
+    private static final LayerKey SELECTION_LAYER = new LayerKey("gerber-editor-selection");
+    private static final Color SHAPE_COLOR = Color.web("#FF0000AF");
+    private static final Color SELECTED_COLOR = Color.web("#0000FFAF");
+    private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
+
+    private final PlotAreaView plotArea;
+    private final Host host;
+
+    private TreeItem<String> item;
+    private GerberEditSession session;
+    private GerberEditToolPanel panel;
+
+    GerberEditorController(PlotAreaView plotArea, Host host) {
+        this.plotArea = plotArea;
+        this.host = host;
+    }
+
+    void start(TreeItem<String> sourceItem, GerberImage image) {
+        if (session != null) {
+            host.log("Ja existe uma edicao em andamento em " + item.getValue() + ".");
+            return;
+        }
+        item = sourceItem;
+        session = new GerberEditSession(sourceItem.getValue(), image);
+        panel = new GerberEditToolPanel(sourceItem.getValue(), session.shapesApproximated(),
+                this::apply, this::cancel);
+
+        host.setObjectVisible(sourceItem, false);
+        plotArea.putLayer(SHAPES_LAYER, PlotAreaView.LayerCategory.OVERLAY, GEOMETRY_FACTORY.createGeometryCollection(),
+                SHAPE_COLOR, SHAPE_COLOR, false);
+        plotArea.putLayer(SELECTION_LAYER, PlotAreaView.LayerCategory.OVERLAY, GEOMETRY_FACTORY.createGeometryCollection(),
+                SELECTED_COLOR, SELECTED_COLOR, false);
+        refreshSelection();
+        plotArea.setSelectionHandler(new PlotAreaView.SelectionHandler() {
+            @Override
+            public void onClick(double worldX, double worldY, boolean additive) {
+                session.clickSelect(worldX, worldY, additive);
+                refreshSelection();
+            }
+
+            @Override
+            public void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive) {
+                session.boxSelect(pressX, pressY, releaseX, releaseY, additive);
+                refreshSelection();
+            }
+        });
+        host.openToolPanel("Editor Gerber", panel.node());
+    }
+
+    /** Ends the session without creating anything if {@code removed} is the object being edited. */
+    void cancelIfEditing(TreeItem<String> removed) {
+        if (session != null && item == removed) {
+            cancel();
+        }
+    }
+
+    void cancel() {
+        if (session == null) {
+            return;
+        }
+        end();
+        host.log("Editor: edicao cancelada.");
+    }
+
+    private void apply() {
+        if (session == null) {
+            return;
+        }
+        GerberEditSession.ApplyResult result = session.apply();
+        end();
+        host.addEditedGerber(result.name(), result.image());
+        host.log("Editor: objeto \"" + result.name() + "\" criado a partir da edicao.");
+    }
+
+    private void end() {
+        plotArea.setSelectionHandler(null);
+        plotArea.removeLayer(SHAPES_LAYER);
+        plotArea.removeLayer(SELECTION_LAYER);
+        host.setObjectVisible(item, true);
+        host.closeToolPanel();
+        item = null;
+        session = null;
+        panel = null;
+    }
+
+    private void refreshSelection() {
+        Set<Integer> selected = session.selectedIndices();
+        List<Geometry> unselectedParts = new ArrayList<>();
+        List<Geometry> selectedParts = new ArrayList<>();
+        List<GerberShape> shapes = session.shapes();
+        for (int i = 0; i < shapes.size(); i++) {
+            GerberShape shape = shapes.get(i);
+            if (!shape.clear()) {
+                addPolygons(shape.geometry(), selected.contains(i) ? selectedParts : unselectedParts);
+            }
+        }
+        plotArea.updateLayerGeometry(SHAPES_LAYER, collection(unselectedParts));
+        plotArea.updateLayerGeometry(SELECTION_LAYER, collection(selectedParts));
+        panel.showSelection(selected.size(), session.selectedApertures());
+    }
+
+    /** PlotAreaView draws one level of parts, so nested multi-polygons are flattened first. */
+    private static void addPolygons(Geometry geometry, List<Geometry> out) {
+        if (geometry instanceof Polygon) {
+            out.add(geometry);
+            return;
+        }
+        for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            Geometry part = geometry.getGeometryN(i);
+            if (part != geometry) {
+                addPolygons(part, out);
+            }
+        }
+    }
+
+    private static Geometry collection(List<Geometry> parts) {
+        return GEOMETRY_FACTORY.createGeometryCollection(parts.toArray(Geometry[]::new));
+    }
+}
