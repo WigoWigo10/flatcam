@@ -1,8 +1,10 @@
 package org.flatcam.cam.ncc;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.DoubleConsumer;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ProgressCallback;
 import org.locationtech.jts.geom.Coordinate;
@@ -16,6 +18,7 @@ import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
  * Ports the geometry-producing portion of {@code ToolNCC.py} and
@@ -24,13 +27,31 @@ import org.locationtech.jts.operation.buffer.BufferParameters;
  * produces the polygons to clear. Toolpaths are cutter-center lines, so every
  * strategy works on the empty area inset by half the tool diameter.
  *
- * <p>This first Java slice intentionally uses one clearing tool. The Python
- * tool's multi-tool table and rest-machining pass can be layered on this core
- * later without changing the result contract.
+ * <p><b>Multi-tool / Rest Machining</b> (ToolNCC.py's {@code gen_clear_area}
+ * vs {@code gen_clear_area_rest}): without Rest Machining, every configured
+ * tool independently clears the SAME full non-copper area - each tool's
+ * result is unrelated to the others', just processed in
+ * {@link NccParameters#order()}. With Rest Machining on, tools are always
+ * processed largest-first; each tool clears only what remains of the area
+ * after subtracting the actual swept footprint (its cleared center-line
+ * paths, buffered back out by its own radius) of every larger tool that ran
+ * before it. A polygon a tool can't clear at all (too small an opening for
+ * that tool) is simply left untouched - since nothing gets subtracted for it,
+ * it naturally stays available for the next, smaller tool, matching Python's
+ * separate "rest_geo" bookkeeping without needing to reproduce it explicitly.
  */
 public final class NccGenerator {
 
     private static final int QUADRANT_SEGMENTS = 64;
+
+    /**
+     * Rest Machining's swept-footprint buffer is shrunk very slightly below
+     * the true tool radius (Python's {@code tool_used = tool - 1e-12} /
+     * {@code tool / 1.9999999}) so floating-point noise in the buffer never
+     * lets the footprint claim a hair more area than the tool actually swept -
+     * which would wrongly steal reachable material from the next, smaller tool.
+     */
+    private static final double FOOTPRINT_SHRINK = 1e-6;
 
     private NccGenerator() {
     }
@@ -48,7 +69,7 @@ public final class NccGenerator {
         GeometryFactory factory = copper != null ? copper.getFactory() : new GeometryFactory();
         if (copper == null || copper.isEmpty()) {
             Geometry empty = factory.createGeometryCollection();
-            return new NccResult(units, empty, empty, 0);
+            return new NccResult(units, empty, empty, List.of());
         }
 
         progress.report(0.02);
@@ -59,34 +80,87 @@ public final class NccGenerator {
                 ? cleanCopper : cleanCopper.buffer(params.copperOffset(), QUADRANT_SEGMENTS);
         Geometry clearingArea = boundary.difference(keepOut).buffer(0);
         cancellation.throwIfCancellationRequested();
-        progress.report(0.10);
+        progress.report(0.08);
 
+        List<Double> orderedTools = orderedToolDiameters(params);
+        List<NccToolResult> toolResults = new ArrayList<>();
+        List<Geometry> combinedPaths = new ArrayList<>();
+        Geometry remainingArea = clearingArea;
+
+        for (int t = 0; t < orderedTools.size(); t++) {
+            double toolDiameter = orderedTools.get(t);
+            Geometry areaForThisTool = params.restMachining() ? remainingArea : clearingArea;
+            int toolIndex = t;
+            int toolCount = orderedTools.size();
+            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, params, cancellation,
+                    fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
+            toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures()));
+            if (!toolClear.geometry().isEmpty()) {
+                combinedPaths.add(toolClear.geometry());
+            }
+            if (params.restMachining() && !toolClear.footprint().isEmpty()) {
+                remainingArea = remainingArea.difference(toolClear.footprint()).buffer(0);
+            }
+            cancellation.throwIfCancellationRequested();
+        }
+
+        Geometry combined = unionGeometries(factory, combinedPaths);
+        progress.report(1.0);
+        return new NccResult(units, combined, clearingArea, toolResults);
+    }
+
+    /** {@link NccParameters#toolDiameters()} in the order NccGenerator should process them. */
+    private static List<Double> orderedToolDiameters(NccParameters params) {
+        List<Double> tools = new ArrayList<>(params.toolDiameters());
+        if (params.restMachining()) {
+            tools.sort(Comparator.reverseOrder());
+            return tools;
+        }
+        switch (params.order()) {
+            case FORWARD -> tools.sort(Comparator.naturalOrder());
+            case REVERSE -> tools.sort(Comparator.reverseOrder());
+            case NONE -> {
+                // keep the table/insertion order as given
+            }
+        }
+        return tools;
+    }
+
+    private record ToolClearResult(Geometry geometry, Geometry footprint, int failures) {
+    }
+
+    /** Clears every polygon in {@code area} with one tool, and reports the actual swept footprint (for Rest Machining). */
+    private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccParameters params,
+                                             CancellationToken cancellation, DoubleConsumer progressWithinTool) {
+        GeometryFactory factory = area.getFactory();
         List<Polygon> polygons = new ArrayList<>();
-        collectPolygons(clearingArea, polygons);
+        collectPolygons(area, polygons);
         List<LineString> allPaths = new ArrayList<>();
+        List<Geometry> footprints = new ArrayList<>();
         int failures = 0;
+        double footprintRadius = toolDiameter / 2.0 * (1 - FOOTPRINT_SHRINK);
         for (int i = 0; i < polygons.size(); i++) {
             cancellation.throwIfCancellationRequested();
             Polygon polygon = polygons.get(i);
-            List<LineString> paths = clearPolygon(polygon, params, cancellation);
+            List<LineString> paths = clearPolygon(polygon, toolDiameter, params, cancellation);
             if (paths.isEmpty()) {
                 failures++;
             } else {
                 if (params.connect()) {
-                    Geometry safeCenterArea = polygon.buffer(-params.toolDiameter() / 2.0, QUADRANT_SEGMENTS);
+                    Geometry safeCenterArea = polygon.buffer(-toolDiameter / 2.0, QUADRANT_SEGMENTS);
                     paths = connectSafePaths(paths, safeCenterArea, factory, cancellation);
                 }
                 allPaths.addAll(paths);
+                for (LineString path : paths) {
+                    footprints.add(path.buffer(footprintRadius, QUADRANT_SEGMENTS));
+                }
             }
-            progress.report(0.10 + 0.88 * (i + 1.0) / Math.max(1, polygons.size()));
+            progressWithinTool.accept((i + 1.0) / Math.max(1, polygons.size()));
         }
-
-        Geometry result = allPaths.isEmpty()
-                ? factory.createGeometryCollection()
-                : factory.buildGeometry(new ArrayList<>(allPaths));
-        cancellation.throwIfCancellationRequested();
-        progress.report(1.0);
-        return new NccResult(units, result, clearingArea, failures);
+        Geometry geometry = allPaths.isEmpty()
+                ? factory.createGeometryCollection() : factory.buildGeometry(new ArrayList<>(allPaths));
+        Geometry footprint = footprints.isEmpty() ? factory.createGeometryCollection() : UnaryUnionOp.union(footprints);
+        return new ToolClearResult(geometry, footprint, failures);
     }
 
     private static Geometry mitreBuffer(Geometry geometry, double distance) {
@@ -98,19 +172,19 @@ public final class NccGenerator {
         return BufferOp.bufferOp(geometry, distance, parameters);
     }
 
-    private static List<LineString> clearPolygon(Polygon polygon, NccParameters params,
+    private static List<LineString> clearPolygon(Polygon polygon, double toolDiameter, NccParameters params,
                                                   CancellationToken cancellation) {
         return switch (params.method()) {
-            case STANDARD -> standardPaths(polygon, params, cancellation);
-            case SEED -> seedPaths(polygon, params, cancellation);
-            case LINES -> linePaths(polygon, params, cancellation);
+            case STANDARD -> standardPaths(polygon, toolDiameter, params, cancellation);
+            case SEED -> seedPaths(polygon, toolDiameter, params, cancellation);
+            case LINES -> linePaths(polygon, toolDiameter, params, cancellation);
             case COMBO -> {
-                List<LineString> paths = linePaths(polygon, params, cancellation);
+                List<LineString> paths = linePaths(polygon, toolDiameter, params, cancellation);
                 if (paths.isEmpty()) {
-                    paths = seedPaths(polygon, params, cancellation);
+                    paths = seedPaths(polygon, toolDiameter, params, cancellation);
                 }
                 if (paths.isEmpty()) {
-                    paths = standardPaths(polygon, params, cancellation);
+                    paths = standardPaths(polygon, toolDiameter, params, cancellation);
                 }
                 yield paths;
             }
@@ -118,11 +192,11 @@ public final class NccGenerator {
     }
 
     /** Inward-offset strategy: the legacy clear_polygon() method. */
-    private static List<LineString> standardPaths(Polygon polygon, NccParameters params,
+    private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccParameters params,
                                                    CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
-        double radius = params.toolDiameter() / 2.0;
-        double step = params.toolDiameter() * (1.0 - params.overlapFraction());
+        double radius = toolDiameter / 2.0;
+        double step = toolDiameter * (1.0 - params.overlapFraction());
         Geometry current = polygon.buffer(-radius, QUADRANT_SEGMENTS);
         Envelope envelope = polygon.getEnvelopeInternal();
         int maxPasses = (int) Math.ceil(Math.max(envelope.getWidth(), envelope.getHeight()) / step) + 4;
@@ -139,11 +213,11 @@ public final class NccGenerator {
     }
 
     /** Expanding-ring strategy: the legacy clear_polygon2() method. */
-    private static List<LineString> seedPaths(Polygon polygon, NccParameters params,
+    private static List<LineString> seedPaths(Polygon polygon, double toolDiameter, NccParameters params,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
-        double toolRadius = params.toolDiameter() / 2.0;
-        double step = params.toolDiameter() * (1.0 - params.overlapFraction());
+        double toolRadius = toolDiameter / 2.0;
+        double step = toolDiameter * (1.0 - params.overlapFraction());
         Geometry safeArea = polygon.buffer(-toolRadius, QUADRANT_SEGMENTS);
         if (safeArea.isEmpty()) {
             return paths;
@@ -174,11 +248,11 @@ public final class NccGenerator {
     }
 
     /** Parallel raster strategy: the legacy clear_polygon3() method. */
-    private static List<LineString> linePaths(Polygon polygon, NccParameters params,
+    private static List<LineString> linePaths(Polygon polygon, double toolDiameter, NccParameters params,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
-        double toolRadius = params.toolDiameter() / 2.0;
-        double step = params.toolDiameter() * (1.0 - params.overlapFraction());
+        double toolRadius = toolDiameter / 2.0;
+        double step = toolDiameter * (1.0 - params.overlapFraction());
         Geometry safeArea = polygon.buffer(-toolRadius, QUADRANT_SEGMENTS);
         if (safeArea.isEmpty()) {
             return paths;
@@ -331,5 +405,21 @@ public final class NccGenerator {
                 collectLines(geometry.getGeometryN(i), target);
             }
         }
+    }
+
+    /**
+     * Unions several (possibly already multi-part) geometries into one flat
+     * result. Flattens to individual parts first - passing a list containing
+     * ONE already-multi-part Geometry straight to buildGeometry would wrap it
+     * one level too deep instead of returning it as-is.
+     */
+    private static Geometry unionGeometries(GeometryFactory factory, List<Geometry> parts) {
+        List<Geometry> flat = new ArrayList<>();
+        for (Geometry part : parts) {
+            for (int i = 0; i < part.getNumGeometries(); i++) {
+                flat.add(part.getGeometryN(i));
+            }
+        }
+        return flat.isEmpty() ? factory.createGeometryCollection() : factory.buildGeometry(flat);
     }
 }

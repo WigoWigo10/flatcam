@@ -1,6 +1,7 @@
 package org.flatcam.cam.gcode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -15,6 +16,7 @@ import org.flatcam.cam.cutout.CutoutShape;
 import org.flatcam.cam.cutout.GapPattern;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationParameters;
@@ -269,7 +271,7 @@ class GCodeGeneratorTest {
         });
 
         CncJobResult result = GCodeGenerator.generateGeometryCncJob("MM", paths,
-                new GeometryGCodeParameters(3, 0.12, true, 0.05, 300, 10_000), 0.5);
+                new GeometryGCodeParameters(3, 0.12, true, 0.05, 300, 10_000, false), 0.5);
 
         assertTrue(result.gcode().contains("G21"));
         assertEquals(2, countOccurrences(result.gcode(), "G1 Z-0.0500"));
@@ -291,7 +293,7 @@ class GCodeGeneratorTest {
                 new Coordinate(2, 1), new Coordinate(1, 1)});
 
         CncJobResult result = GCodeGenerator.generateGeometryCncJob("IN", factory.createPolygon(shell, new org.locationtech.jts.geom.LinearRing[]{hole}),
-                new GeometryGCodeParameters(0.1, 0.01, false, 1, 12, 0), 0.02);
+                new GeometryGCodeParameters(0.1, 0.01, false, 1, 12, 0, false), 0.02);
 
         assertTrue(result.gcode().contains("G20"));
         assertEquals(2, countOccurrences(result.gcode(), "G1 Z-0.0100"),
@@ -302,12 +304,29 @@ class GCodeGeneratorTest {
     void geometryCncJobValidatesAndCancels() {
         GeometryFactory factory = new GeometryFactory();
         var path = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 1)});
-        GeometryGCodeParameters params = new GeometryGCodeParameters(3, 0.1, false, 1, 300, 0);
+        GeometryGCodeParameters params = new GeometryGCodeParameters(3, 0.1, false, 1, 300, 0, false);
 
         assertThrows(IllegalArgumentException.class,
                 () -> GCodeGenerator.generateGeometryCncJob("MM", path, params, 0));
         assertThrows(CancellationException.class,
                 () -> GCodeGenerator.generateGeometryCncJob("MM", path, params, 0.5, () -> true));
+    }
+
+    @Test
+    void multiToolGeometryCncJobInsertsToolChangeBetweenTools() {
+        GeometryFactory factory = new GeometryFactory();
+        var bigToolPath = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(5, 0)});
+        var smallToolPath = factory.createLineString(new Coordinate[]{new Coordinate(0, 1), new Coordinate(5, 1)});
+        GeometryGCodeParameters params = new GeometryGCodeParameters(3, 0.1, false, 1, 300, 10_000, true);
+
+        CncJobResult result = GCodeGenerator.generateGeometryCncJob("MM",
+                List.of(new ToolGeometry(1.0, bigToolPath), new ToolGeometry(0.2, smallToolPath)), params);
+
+        assertTrue(result.gcode().contains("M0"), "pauseForToolChange should insert an M0 between tools");
+        assertTrue(result.gcode().contains("0.2"), "the tool-change comment should name the next tool's diameter");
+        assertEquals(2, countOccurrences(result.gcode(), "M3 S10000"), "spindle restarts once per tool");
+        assertEquals(2, countOccurrences(result.gcode(), "M5"), "spindle stops once between tools and once at the end");
+        assertFalse(result.cutGeometry().isEmpty());
     }
 
     private static int countOccurrences(String haystack, String needle) {

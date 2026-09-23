@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -284,22 +285,44 @@ public final class GCodeGenerator {
     /**
      * Converts the center lines stored by a Geometry object (including an NCC
      * result) to a normal CNC Job. Polygon inputs are traced around every
-     * exterior/interior ring; line inputs are followed directly.
+     * exterior/interior ring; line inputs are followed directly. A
+     * single-tool convenience over {@link #generateGeometryCncJob(String, List, GeometryGCodeParameters)}.
      */
     public static CncJobResult generateGeometryCncJob(String units, Geometry geometry,
                                                        GeometryGCodeParameters params, double toolDiameter) {
-        return generateGeometryCncJob(units, geometry, params, toolDiameter, CancellationToken.none());
+        return generateGeometryCncJob(units, List.of(new ToolGeometry(toolDiameter, geometry)), params);
     }
 
+    /** Single-tool convenience over {@link #generateGeometryCncJob(String, List, GeometryGCodeParameters, CancellationToken)}. */
     public static CncJobResult generateGeometryCncJob(String units, Geometry geometry,
                                                        GeometryGCodeParameters params, double toolDiameter,
                                                        CancellationToken cancellationToken) {
+        return generateGeometryCncJob(units, List.of(new ToolGeometry(toolDiameter, geometry)), params, cancellationToken);
+    }
+
+    /**
+     * Converts one or more tools' worth of center lines (a multi-tool
+     * "multigeo" Geometry object - e.g. an NCC Tool result with Rest
+     * Machining) into a single CNC Job with embedded tool-change sections,
+     * matching Python's own {@code mtool_gen_cncjob}: ONE G-code file, each
+     * tool's section concatenated in the order given, not one CNC Job per
+     * tool. Every tool shares the same {@code params} (see
+     * GeometryGCodeParameters's own doc for why).
+     */
+    public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
+                                                       GeometryGCodeParameters params) {
+        return generateGeometryCncJob(units, tools, params, CancellationToken.none());
+    }
+
+    public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
+                                                       GeometryGCodeParameters params,
+                                                       CancellationToken cancellationToken) {
         Objects.requireNonNull(units, "units");
-        Objects.requireNonNull(geometry, "geometry");
+        Objects.requireNonNull(tools, "tools");
         Objects.requireNonNull(params, "params");
         Objects.requireNonNull(cancellationToken, "cancellationToken");
-        if (!Double.isFinite(toolDiameter) || toolDiameter <= 0) {
-            throw new IllegalArgumentException("toolDiameter must be positive: " + toolDiameter);
+        if (tools.isEmpty()) {
+            throw new IllegalArgumentException("At least one tool geometry is required");
         }
         cancellationToken.throwIfCancellationRequested();
 
@@ -310,45 +333,63 @@ public final class GCodeGenerator {
         line(gcode, "G90");
         line(gcode, "G94");
         line(gcode, "G0 Z%s", fmt(params.safeZ()));
-        if (params.spindleSpeedRpm() > 0) {
-            line(gcode, "M3 S%d", params.spindleSpeedRpm());
-        }
 
-        double radius = toolDiameter / 2.0;
         List<Geometry> travelShapes = new ArrayList<>();
         List<Geometry> cutShapes = new ArrayList<>();
         List<Double> depths = passDepths(params.cutDepth(), params.multiDepth(), params.depthPerPass());
         double lastX = 0;
         double lastY = 0;
+        boolean firstTool = true;
 
-        for (Coordinate[] coordinates : orderedByNearestNeighbor(
-                geometry, lastX, lastY, cancellationToken)) {
+        for (ToolGeometry tool : tools) {
             cancellationToken.throwIfCancellationRequested();
-            if (coordinates.length < 2) {
+            if (tool.geometry() == null || tool.geometry().isEmpty()) {
                 continue;
             }
-            addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
-            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates)
-                    .buffer(radius, STROKE_QUADRANT_SEGMENTS));
-            Coordinate last = coordinates[coordinates.length - 1];
-            lastX = last.x;
-            lastY = last.y;
-
-            line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
-            for (double depth : depths) {
-                cancellationToken.throwIfCancellationRequested();
-                line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
-                for (int p = 1; p < coordinates.length; p++) {
-                    cancellationToken.throwIfCancellationRequested();
-                    line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x),
-                            fmt(coordinates[p].y), fmt(params.feedRate()));
+            if (!firstTool) {
+                if (params.spindleSpeedRpm() > 0) {
+                    line(gcode, "M5");
                 }
-                if (depth != depths.get(depths.size() - 1)) {
-                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
-                    line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                if (params.pauseForToolChange()) {
+                    line(gcode, "M0 ; troque para a ferramenta (diametro %s %s) e continue",
+                            fmt(tool.toolDiameter()), units);
                 }
             }
-            line(gcode, "G0 Z%s", fmt(params.safeZ()));
+            firstTool = false;
+            if (params.spindleSpeedRpm() > 0) {
+                line(gcode, "M3 S%d", params.spindleSpeedRpm());
+            }
+
+            double radius = tool.toolDiameter() / 2.0;
+            for (Coordinate[] coordinates : orderedByNearestNeighbor(
+                    tool.geometry(), lastX, lastY, cancellationToken)) {
+                cancellationToken.throwIfCancellationRequested();
+                if (coordinates.length < 2) {
+                    continue;
+                }
+                addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
+                cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates)
+                        .buffer(radius, STROKE_QUADRANT_SEGMENTS));
+                Coordinate last = coordinates[coordinates.length - 1];
+                lastX = last.x;
+                lastY = last.y;
+
+                line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                for (double depth : depths) {
+                    cancellationToken.throwIfCancellationRequested();
+                    line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
+                    for (int p = 1; p < coordinates.length; p++) {
+                        cancellationToken.throwIfCancellationRequested();
+                        line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x),
+                                fmt(coordinates[p].y), fmt(params.feedRate()));
+                    }
+                    if (depth != depths.get(depths.size() - 1)) {
+                        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                        line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                    }
+                }
+                line(gcode, "G0 Z%s", fmt(params.safeZ()));
+            }
         }
 
         if (params.spindleSpeedRpm() > 0) {

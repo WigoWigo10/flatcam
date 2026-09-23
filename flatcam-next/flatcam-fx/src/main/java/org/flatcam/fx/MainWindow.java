@@ -72,6 +72,7 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
@@ -156,8 +157,9 @@ final class MainWindow {
     }
 
     /** A Geometry object derived from a Gerber; toolDiameter is known for machining-tool results such as NCC. */
+    /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
     private record GeometryEntry(String sourceName, String units, Geometry geometry,
-                                 boolean strokeOnly, Double toolDiameter) {
+                                 boolean strokeOnly, List<ToolGeometry> tools) {
     }
 
     private record LoadedProject(List<LoadedGerber> gerbers, List<LoadedExcellon> excellons,
@@ -1316,7 +1318,7 @@ final class MainWindow {
             copyLayerAppearance(sourceItem, copyItem);
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
-                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.toolDiameter());
+                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.tools());
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
@@ -1661,12 +1663,16 @@ final class MainWindow {
                         setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
                         String name = uniqueDerivedName(item.getValue() + "_ncc");
+                        List<ToolGeometry> tools = result.toolResults().stream()
+                                .filter(toolResult -> !toolResult.isEmpty())
+                                .map(toolResult -> new ToolGeometry(toolResult.toolDiameter(), toolResult.geometry()))
+                                .toList();
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
-                                result.geometry(), true, params.toolDiameter());
+                                result.geometry(), true, tools);
                         appendConsole(String.format(
-                                "NCC: %d caminhos, comprimento total=%.4f, falhas=%d, bounds=%s",
-                                result.pathCount(), result.totalLength(), result.failedPolygonCount(),
-                                Arrays.toString(result.bounds())));
+                                "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
+                                result.pathCount(), result.totalLength(), result.toolResults().size(),
+                                result.totalFailedPolygonCount(), Arrays.toString(result.bounds())));
                         selectProjectItem(generated);
                         plotAreaView.fitToLayer(generated);
                         closeToolPanel();
@@ -1685,7 +1691,7 @@ final class MainWindow {
     }
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
-        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.toolDiameter(),
+        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
                 result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
     }
 
@@ -1713,8 +1719,8 @@ final class MainWindow {
         beginJob("Gerando CNC Job de Geometry...");
         JobHandle<CncJobResult> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
-            CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), entry.geometry(),
-                    result.parameters(), result.toolDiameter(), context::isCancelled);
+            CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), result.tools(),
+                    result.parameters(), context::isCancelled);
             context.checkCancelled();
             context.reportProgress(0.90, "Salvando G-code de Geometry...");
             Files.writeString(outFile.toPath(), job.gcode());
@@ -2023,7 +2029,8 @@ final class MainWindow {
         Envelope envelope = entry.geometry().getEnvelopeInternal();
         double[] bounds = entry.geometry().isEmpty() ? null
                 : new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
-        String toolText = entry.toolDiameter() == null ? "" : String.format("%nTool Dia: %.4f", entry.toolDiameter());
+        String toolText = entry.tools().isEmpty() ? "" : String.format("%nFerramentas: %s", entry.tools().stream()
+                .map(tool -> String.format("%.4f", tool.toolDiameter())).collect(java.util.stream.Collectors.joining(", ")));
         box.getChildren().add(propertiesSection(String.format(
                 "Origem: %s%nUnidades: %s%s%nArea: %.4f%nComprimento: %.4f%nBounds: %s",
                 entry.sourceName(), entry.units(), toolText, entry.geometry().getArea(), entry.geometry().getLength(),
@@ -2617,13 +2624,13 @@ final class MainWindow {
 
     private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
                                                   Geometry geometry, boolean strokeOnly) {
-        return addGeometryToProject(displayName, sourceName, units, geometry, strokeOnly, null);
+        return addGeometryToProject(displayName, sourceName, units, geometry, strokeOnly, List.of());
     }
 
     private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
-                                                  Geometry geometry, boolean strokeOnly, Double toolDiameter) {
+                                                  Geometry geometry, boolean strokeOnly, List<ToolGeometry> tools) {
         TreeItem<String> item = new TreeItem<>(displayName);
-        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, toolDiameter));
+        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, tools));
         geometryNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GEOMETRY, geometry,
                 GEOMETRY_FILL, GEOMETRY_STROKE, strokeOnly);

@@ -31,11 +31,12 @@ class NccGeneratorTest {
             assertFalse(result.isEmpty(), method + " should clear the area around the copper");
             assertTrue(result.pathCount() > 0);
             assertTrue(result.totalLength() > 0);
-            assertEquals(0, result.failedPolygonCount());
+            assertEquals(0, result.totalFailedPolygonCount());
+            assertEquals(1, result.toolResults().size());
 
             // Cutter-center paths inset by r must keep the physical cutter inside
             // the non-copper area, allowing only polygon-approximation noise.
-            Geometry footprint = result.geometry().buffer(params.toolDiameter() / 2.0, 64);
+            Geometry footprint = result.geometry().buffer(0.5 / 2.0, 64);
             double escapedArea = footprint.difference(result.clearingArea().buffer(1e-4)).getArea();
             assertTrue(escapedArea < 5e-4,
                     method + " cutter footprint escaped the clearing area by " + escapedArea);
@@ -91,6 +92,51 @@ class NccGeneratorTest {
                 () -> new NccParameters(1, 0.15, -1, NccMethod.STANDARD, true, true, 0));
         assertThrows(NullPointerException.class,
                 () -> new NccParameters(1, 0.15, 1, null, true, true, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccParameters(List.of(), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, NccOrder.NONE));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccParameters(List.of(0.5, 0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, NccOrder.NONE));
+        assertThrows(NullPointerException.class,
+                () -> new NccParameters(List.of(0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, null));
+    }
+
+    @Test
+    void restMachiningLimitsASmallerToolToWhatALargerToolLeftBehind() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccResult smallAlone = NccGenerator.generate("MM", copper,
+                new NccParameters(0.2, 0.1, 2.0, NccMethod.STANDARD, false, true, 0));
+        assertFalse(smallAlone.isEmpty());
+
+        NccParameters restParams = new NccParameters(List.of(0.2, 1.0), 0.1, 2.0,
+                NccMethod.STANDARD, false, true, 0, true, NccOrder.NONE);
+        NccResult restResult = NccGenerator.generate("MM", copper, restParams);
+
+        assertEquals(2, restResult.toolResults().size());
+        NccToolResult big = restResult.toolResults().get(0);
+        NccToolResult small = restResult.toolResults().get(1);
+        assertEquals(1.0, big.toolDiameter(), 1e-9, "rest machining always goes largest-first");
+        assertEquals(0.2, small.toolDiameter(), 1e-9);
+        assertFalse(big.isEmpty(), "the big tool should clear most of the open area");
+
+        double smallAloneLength = smallAlone.totalLength();
+        double smallInRestLength = small.isEmpty() ? 0.0 : small.geometry().getLength();
+        assertTrue(smallInRestLength < smallAloneLength * 0.5,
+                "the small tool should clear much less once the big tool already took most of the area");
+    }
+
+    @Test
+    void nonRestMultiToolClearsTheFullAreaWithEveryTool() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters params = new NccParameters(List.of(0.2, 0.5), 0.1, 2.0,
+                NccMethod.STANDARD, true, true, 0, false, NccOrder.FORWARD);
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertEquals(2, result.toolResults().size());
+        assertEquals(0.2, result.toolResults().get(0).toolDiameter(), 1e-9, "FORWARD orders ascending");
+        assertEquals(0.5, result.toolResults().get(1).toolDiameter(), 1e-9);
+        for (NccToolResult toolResult : result.toolResults()) {
+            assertFalse(toolResult.isEmpty(), "every tool clears the same full area independently");
+        }
     }
 
     @Test

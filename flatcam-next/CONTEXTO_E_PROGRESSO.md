@@ -5,10 +5,12 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-22**. A base anterior a este documento é o commit
-> `9f6c7463` (`feat(flatcam-next): add NCC and geometry CNC workflow`). Antes de
-> trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um
-> ponto de passagem, não substitui o código como fonte final da verdade.
+> Atualizado em **2026-09-22**. A base anterior a esta revisão é o commit
+> `6a4146ed` (`docs(flatcam-next): add project handoff and progress guide`),
+> seguido nesta mesma data pela implementação de NCC multi-tool com Rest
+> Machining descrita na seção 5. Antes de trabalhar, confirme o `HEAD`, o
+> `git status` e os testes: este arquivo é um ponto de passagem, não substitui
+> o código como fonte final da verdade.
 
 ## 1. Objetivo do projeto
 
@@ -65,9 +67,9 @@ separação.
 
 ### Verificação mais recente
 
-Antes deste documento, `clean test` passou com **79 testes executados**, sem
-falhas, erros ou testes ignorados. Existem 72 métodos anotados com `@Test`;
-testes parametrizados explicam a diferença. `JobExecutorTest` registra
+Após o NCC multi-tool (seção 5), `clean test` passa com **82 testes
+executados**, sem falhas, erros ou testes ignorados (79 antes dessa mudança).
+`JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -147,16 +149,62 @@ resultados podem mudar.
 ## 5. NCC: estado exato da implementação atual
 
 O commit-base `9f6c7463` adicionou a primeira fatia vertical do Non-Copper
-Clearing:
+Clearing (uma ferramenta). Nesta revisão (2026-09-22) o NCC evoluiu para
+**multi-tool com Rest Machining**, seguindo a ordem recomendada na revisão
+anterior deste documento. Pesquisa em `appTools/ToolNCC.py` confirmou o
+algoritmo exato antes da implementação (ver `NccGenerator`'s class doc para a
+citação completa):
 
-- `NccMethod`: `STANDARD`, `SEED`, `LINES` e `COMBO`.
-- Parâmetros: diâmetro, sobreposição, margem, método, conectar trajetos,
-  contorno e offset do cobre.
-- Boundary pelo próprio Gerber ou pelo convex hull.
-- Geração com uma ferramenta, feedback de progresso e cancelamento.
-- Resultado criado como objeto Geometry.
-- Fluxo completo Geometry -> CNC Job -> G-code.
-- Testes sintéticos e teste com o fixture Gerber `simple1.gbr`.
+- `NccParameters.toolDiameters()` é uma lista ordenada de diâmetros (não mais
+  um único `double`); overlap/margem/método/connect/contour/copperOffset
+  continuam **compartilhados entre todas as ferramentas** - Python permite
+  variar isso por ferramenta quando Rest Machining está desligado, mas força
+  um único valor global quando está ligado. Este port sempre compartilha, nos
+  dois modos - simplificação deliberada de v1, documentada no Javadoc do
+  record.
+- `NccOrder` (`NONE`/`FORWARD`/`REVERSE`) replica o `ncc_order_radio` do
+  Python; ignorado quando `restMachining=true`, que sempre processa da maior
+  para a menor ferramenta (mesmo comportamento do Python, que desabilita o
+  radio nesse caso).
+- **Sem Rest Machining**: cada ferramenta limpa a área não-cobre inteira de
+  forma independente (mesmo resultado, diâmetros diferentes) - não há
+  coordenação entre ferramentas, replicando `gen_clear_area`.
+- **Com Rest Machining**: ferramentas processadas da maior para a menor; a
+  área restante para a próxima ferramenta é a área anterior menos a pegada
+  física (o caminho já limpo, re-inflado pelo próprio raio da ferramenta,
+  com um encolhimento de 1e-6 para evitar que ruído de ponto flutuante "coma"
+  área que a ferramenta não varreu de fato) de cada ferramenta maior que já
+  rodou - replica `gen_clear_area_rest`. Um polígono que uma ferramenta não
+  consegue limpar simplesmente permanece disponível para a próxima (menor),
+  sem precisar reproduzir a lista `rest_geo` separada do Python.
+- `NccResult.toolResults()` guarda a contribuição de cada ferramenta
+  (diâmetro + geometria própria + polígonos que falharam), preservando a
+  associação ferramenta -> caminho; `geometry()` continua expondo a união de
+  todas as ferramentas para plotagem/compatibilidade.
+- O objeto Geometry resultante agora carrega `List<ToolGeometry>` (par
+  diâmetro+geometria por ferramenta) em vez de um único diâmetro opcional;
+  "Geometry -> CNC Job" (`GeometryCncToolPanel`/`GCodeGenerator.generateGeometryCncJob`)
+  detecta esse caso e gera **um único G-code** com troca de ferramenta (M0
+  opcional + comentário, mesmo padrão já usado no G-code de furação) entre
+  seções, em vez de pedir um diâmetro ao usuário - mesma abordagem do
+  `mtool_gen_cncjob` do Python (um CNCJob, não um por ferramenta).
+- Boundary continua sendo o convex hull do próprio Gerber (opção "Itself" do
+  Python, e a única implementada) - confirmado como o default real do
+  Python, não uma aproximação.
+- Painel `NccToolPanel` ganhou uma tabela editável de diâmetros
+  (adicionar/remover) e os controles "Rest Machining"/"Order". Passou por uma
+  rodada de polimento de UI/UX após feedback visual direto do usuário: seções
+  com título (FERRAMENTAS/PARAMETROS DE LIMPEZA/MULTI-FERRAMENTA), Enter no
+  campo de diâmetro adiciona a ferramenta, botão Remover desabilita sem
+  seleção, lista de diâmetros se auto-ordena, tabela com altura dinâmica e
+  coluna ocupando 100% da largura (`CONSTRAINED_RESIZE_POLICY`), e tooltips
+  explicando Method/Connect/Contour/Copper offset/Rest Machining/Order com
+  `showDuration` estendido (`Duration.INDEFINITE`) - o padrão do JavaFX
+  esconde tooltips após ~5s mesmo com o mouse parado em cima, cedo demais
+  para textos multi-linha. Evite usar `Button.setDefaultButton`/
+  `setCancelButton` nos painéis desta app: nenhum dos 4 temas estiliza o
+  pseudo-estado `:default` do JavaFX, e o botão fica com a aparência pálida
+  do Modena por baixo do tema (foi tentado e revertido nesta mesma revisão).
 
 O botão NCC já deve abrir o painel da ferramenta. Se voltar a “não fazer nada”,
 primeiro suspeite de snapshots internos desatualizados no repositório Maven
@@ -164,13 +212,15 @@ local e execute `install` no reactor completo, conforme a seção de comandos.
 
 Ainda falta para paridade NCC:
 
-- múltiplas ferramentas;
-- Rest Machining entre ferramentas;
-- seleção de área;
-- objeto de referência como boundary;
-- integração com Tools Database;
-- validações e sugestões de diâmetro compatíveis com o legado;
-- comparação diferencial mais ampla com resultados do Python.
+- seleção de área (retângulo desenhado no canvas);
+- objeto de referência como boundary (hoje só "Itself"/convex hull);
+- parâmetros por ferramenta (overlap/método/margem/connect/contour/offset
+  individuais - hoje compartilhados, ver acima);
+- integração com Tools Database ("Pick from DB");
+- validações e sugestões de diâmetro compatíveis com o legado (checagem de
+  distância mínima de cobre, "tool validity");
+- comparação diferencial mais ampla com resultados do Python (incl. Rest
+  Machining num board real).
 
 ## 6. Matriz honesta de paridade
 
@@ -182,10 +232,10 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas funcional; ainda não é o renderer final nem foi perfilado para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor ausente |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC ainda é fatia inicial |
+| Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, mas ainda falta boundary por referência, área selecionada e Tools DB |
 | Editor Gerber | ausente | maior lacuna funcional da área Gerber |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
-| Geometry | inicial/parcial | NCC cria Geometry e há Geometry -> CNC; edição e operações faltam |
+| Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
 | Persistência de projeto | inicial | guarda principalmente caminhos, não snapshots editáveis |
 | Calculadoras | parcial | três calculadoras implementadas |
@@ -249,39 +299,36 @@ novos painéis devem manter terminologia consistente com o produto.
 
 ## 8. Próximo passo recomendado
 
-O próximo incremento pesado deve ser **NCC multi-tool com Rest Machining**.
-Ele continua a fatia já aberta, testa o modelo de Geometry por ferramenta e
-evita iniciar o editor sobre estruturas ainda imaturas.
+**NCC multi-tool com Rest Machining foi concluído nesta revisão** (seção 5) -
+os critérios de aceite abaixo já foram verificados (testes do reactor e
+smoke test do app; validação visual do painel ainda pendente com o usuário).
+O próximo incremento deve ser **completar a paridade NCC restante** (seção
+9.1: seleção de área, boundary por objeto de referência, Tools Database,
+validação/sugestão de diâmetro) ou, alternativamente, **Transformations**
+(seção 9.2) caso a paridade NCC pontual seja considerada suficiente por ora -
+qualquer uma reutiliza infraestrutura já madura sem exigir o editor.
 
-### Ordem recomendada dentro desse incremento
+### Critérios de aceite do incremento concluído (referência)
 
-1. Inspecionar no Python o modelo de ferramentas, ordenação, Rest Machining,
-   boundary e mensagens de validação.
-2. Evoluir primeiro os tipos do `flatcam-cam`: lista ordenada de ferramentas,
-   parâmetros por ferramenta e resultado segmentado por ferramenta.
-3. Implementar o cálculo da área remanescente entre ferramentas, com
-   cancelamento e progresso monotônico.
-4. Adicionar testes geométricos para ilhas, canais estreitos, áreas vazias,
-   diâmetros inválidos/repetidos e um fixture Gerber real.
-5. Adaptar Geometry e Geometry -> CNC para preservar a associação dos paths
-   com cada ferramenta.
-6. Só então criar a tabela/edição multi-tool no painel JavaFX.
-7. Fazer smoke test manual do fluxo Gerber -> NCC -> Geometry -> CNC -> Save.
-
-### Critérios de aceite
-
-- O usuário consegue configurar ao menos duas ferramentas e sua ordem.
+- O usuário consegue configurar ao menos duas ferramentas e sua ordem. ✅
+  (`NccToolPanel`: tabela de diâmetros + `NccOrder`)
 - A ferramenta menor processa apenas o material que permaneceu após a maior
-  quando Rest Machining está ativo.
-- Resultado por ferramenta é identificável e chega corretamente ao G-code.
-- Parâmetros impossíveis falham com mensagem útil antes de iniciar o job.
-- Cancelamento não publica resultado parcial como se fosse concluído.
-- Progresso não regride e termina em 100% no sucesso.
-- Testes do reactor passam e o app inicia com os módulos recém-instalados.
+  quando Rest Machining está ativo. ✅ (`NccGenerator`, testado)
+- Resultado por ferramenta é identificável e chega corretamente ao G-code. ✅
+  (`NccResult.toolResults()` -> `List<ToolGeometry>` -> G-code com troca de
+  ferramenta)
+- Parâmetros impossíveis falham com mensagem útil antes de iniciar o job. ✅
+  (diâmetro duplicado/não-positivo, lista vazia)
+- Cancelamento não publica resultado parcial como se fosse concluído. ✅
+  (reutiliza `CancellationToken` já existente)
+- Progresso não regride e termina em 100% no sucesso. ✅ (testado)
+- Testes do reactor passam e o app inicia com os módulos recém-instalados. ✅
+  (82 testes, `MainApp started`)
 
-Não decida silenciosamente se várias ferramentas devem produzir troca de
-ferramenta num único CNC Job ou jobs separados. Primeiro confirme o comportamento
-do Python e registre qualquer divergência deliberada.
+Decisão registrada: várias ferramentas produzem troca de ferramenta **num
+único CNC Job** (G-code concatenado com M0 opcional entre seções), não jobs
+separados - confirmado que é assim que `mtool_gen_cncjob` do Python funciona
+(ver seção 5).
 
 ## 9. Roadmap depois do próximo incremento
 
@@ -413,7 +460,8 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | `flatcam-cam/.../excellon/` | parser e modelo Excellon |
 | `flatcam-cam/.../isolation/` | Isolation Routing |
 | `flatcam-cam/.../cutout/` | Board Cutout |
-| `flatcam-cam/.../ncc/` | Non-Copper Clearing |
+| `flatcam-cam/.../ncc/` | Non-Copper Clearing (multi-tool + Rest Machining) |
+| `flatcam-cam/.../geometry/ToolGeometry.java` | par diâmetro+geometria de uma ferramenta dentro de um objeto Geometry multi-tool ("multigeo") |
 | `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code |
 | `flatcam-fx/.../MainWindow.java` | integração principal da UI; atualmente grande demais |
 | `flatcam-fx/.../PlotAreaView.java` | Canvas, viewport e desenho das camadas |
