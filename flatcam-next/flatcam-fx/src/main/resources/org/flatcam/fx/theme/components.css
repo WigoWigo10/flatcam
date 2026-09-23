@@ -113,3 +113,11 @@
     -fx-text-fill: #e53935;
     -fx-font-size: 11px;
 }
+
+/* Small bold divider label grouping a tool panel's fields into sections - see NccToolPanel. */
+.form-section-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-opacity: 0.85;
+    -fx-padding: 4 0 0 0;
+}

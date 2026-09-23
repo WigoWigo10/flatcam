@@ -1,8 +1,16 @@
 package org.flatcam.cam.gcode;
 
-/** Machining parameters for converting a Geometry object's paths into a CNC Job. */
+/**
+ * Machining parameters for converting a Geometry object's paths into a CNC
+ * Job - shared across every tool when the source is a multi-tool ("multigeo")
+ * Geometry (see {@link GCodeGenerator#generateGeometryCncJob}).
+ *
+ * @param pauseForToolChange insert M0 (and a comment naming the next tool's diameter) between tools -
+ *                           mirrors DrillGCodeParameters' own field; meaningless for a single-tool Geometry
+ */
 public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
-                                      double depthPerPass, double feedRate, int spindleSpeedRpm) {
+                                      double depthPerPass, double feedRate, int spindleSpeedRpm,
+                                      boolean pauseForToolChange) {
     public GeometryGCodeParameters {
         if (!Double.isFinite(safeZ) || safeZ <= 0) {
             throw new IllegalArgumentException("safeZ must be positive: " + safeZ);

@@ -3,6 +3,8 @@ package org.flatcam.cam.excellon;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.flatcam.cam.transform.TransformOp;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 
@@ -34,6 +36,17 @@ public final class ExcellonImage {
         this.drills = List.copyOf(drills);
         this.slots = List.copyOf(slots);
         this.solidGeometry = solidGeometry;
+    }
+
+    /**
+     * Builds an ExcellonImage directly from already-resolved data rather
+     * than parsing a file - used by project persistence
+     * (org.flatcam.app.project.flatprj) to reconstruct one from a saved
+     * project's embedded geometry.
+     */
+    public static ExcellonImage of(String units, Map<Integer, Double> toolDiameters, List<Drill> drills,
+                                   List<Slot> slots, Geometry solidGeometry) {
+        return new ExcellonImage(units, toolDiameters, drills, slots, solidGeometry);
     }
 
     public String units() {
@@ -74,6 +87,31 @@ public final class ExcellonImage {
 
     public boolean isEmpty() {
         return solidGeometry == null || solidGeometry.isEmpty();
+    }
+
+    /**
+     * A copy with {@code op} applied to every drill/slot position and the
+     * solid geometry - appTools/ToolTransform.py's six operations applied to
+     * an Excellon via {@code Excellon.rotate/mirror/skew/scale/offset}, which
+     * transform each drill Point and slot start/stop Point individually
+     * (not just the aggregate solid geometry).
+     */
+    public ExcellonImage transformed(TransformOp op) {
+        List<Drill> newDrills = drills.stream()
+                .map(drill -> {
+                    Coordinate p = op.apply(new Coordinate(drill.x(), drill.y()));
+                    return new Drill(drill.toolId(), p.x, p.y);
+                })
+                .toList();
+        List<Slot> newSlots = slots.stream()
+                .map(slot -> {
+                    Coordinate p1 = op.apply(new Coordinate(slot.x1(), slot.y1()));
+                    Coordinate p2 = op.apply(new Coordinate(slot.x2(), slot.y2()));
+                    return new Slot(slot.toolId(), p1.x, p1.y, p2.x, p2.y);
+                })
+                .toList();
+        return new ExcellonImage(units, toolDiameters, newDrills, newSlots,
+                solidGeometry == null ? null : op.apply(solidGeometry));
     }
 
     /** {@code [minX, minY, maxX, maxY]} of the actual hole geometry (buffered by tool radius), or null if empty. */

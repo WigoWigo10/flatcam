@@ -87,6 +87,13 @@
                     <include>settings18.png</include>
                     <include>geometry32.png</include>
                     <include>eraser26.png</include>
+                    <include>transform.png</include>
+                    <include>rotate.png</include>
+                    <include>skewX.png</include>
+                    <include>skewY.png</include>
+                    <include>flipx.png</include>
+                    <include>flipy.png</include>
+                    <include>reset32.png</include>
                 </includes>
             </resource>
             <resource>
@@ -111,6 +118,13 @@
                     <include>settings18.png</include>
                     <include>geometry32.png</include>
                     <include>eraser26.png</include>
+                    <include>transform.png</include>
+                    <include>rotate.png</include>
+                    <include>skewX.png</include>
+                    <include>skewY.png</include>
+                    <include>flipx.png</include>
+                    <include>flipy.png</include>
+                    <include>reset32.png</include>
                 </includes>
             </resource>
         </resources>

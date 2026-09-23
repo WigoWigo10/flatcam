@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -31,11 +33,12 @@ class NccGeneratorTest {
             assertFalse(result.isEmpty(), method + " should clear the area around the copper");
             assertTrue(result.pathCount() > 0);
             assertTrue(result.totalLength() > 0);
-            assertEquals(0, result.failedPolygonCount());
+            assertEquals(0, result.totalFailedPolygonCount());
+            assertEquals(1, result.toolResults().size());
 
             // Cutter-center paths inset by r must keep the physical cutter inside
             // the non-copper area, allowing only polygon-approximation noise.
-            Geometry footprint = result.geometry().buffer(params.toolDiameter() / 2.0, 64);
+            Geometry footprint = result.geometry().buffer(0.5 / 2.0, 64);
             double escapedArea = footprint.difference(result.clearingArea().buffer(1e-4)).getArea();
             assertTrue(escapedArea < 5e-4,
                     method + " cutter footprint escaped the clearing area by " + escapedArea);
@@ -91,6 +94,105 @@ class NccGeneratorTest {
                 () -> new NccParameters(1, 0.15, -1, NccMethod.STANDARD, true, true, 0));
         assertThrows(NullPointerException.class,
                 () -> new NccParameters(1, 0.15, 1, null, true, true, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccParameters(List.of(), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, NccOrder.NONE));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccParameters(List.of(0.5, 0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, NccOrder.NONE));
+        assertThrows(NullPointerException.class,
+                () -> new NccParameters(List.of(0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, null));
+    }
+
+    @Test
+    void restMachiningLimitsASmallerToolToWhatALargerToolLeftBehind() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccResult smallAlone = NccGenerator.generate("MM", copper,
+                new NccParameters(0.2, 0.1, 2.0, NccMethod.STANDARD, false, true, 0));
+        assertFalse(smallAlone.isEmpty());
+
+        NccParameters restParams = new NccParameters(List.of(0.2, 1.0), 0.1, 2.0,
+                NccMethod.STANDARD, false, true, 0, true, NccOrder.NONE);
+        NccResult restResult = NccGenerator.generate("MM", copper, restParams);
+
+        assertEquals(2, restResult.toolResults().size());
+        NccToolResult big = restResult.toolResults().get(0);
+        NccToolResult small = restResult.toolResults().get(1);
+        assertEquals(1.0, big.toolDiameter(), 1e-9, "rest machining always goes largest-first");
+        assertEquals(0.2, small.toolDiameter(), 1e-9);
+        assertFalse(big.isEmpty(), "the big tool should clear most of the open area");
+
+        double smallAloneLength = smallAlone.totalLength();
+        double smallInRestLength = small.isEmpty() ? 0.0 : small.geometry().getLength();
+        assertTrue(smallInRestLength < smallAloneLength * 0.5,
+                "the small tool should clear much less once the big tool already took most of the area");
+    }
+
+    @Test
+    void nonRestMultiToolClearsTheFullAreaWithEveryTool() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters params = new NccParameters(List.of(0.2, 0.5), 0.1, 2.0,
+                NccMethod.STANDARD, true, true, 0, false, NccOrder.FORWARD);
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertEquals(2, result.toolResults().size());
+        assertEquals(0.2, result.toolResults().get(0).toolDiameter(), 1e-9, "FORWARD orders ascending");
+        assertEquals(0.5, result.toolResults().get(1).toolDiameter(), 1e-9);
+        for (NccToolResult toolResult : result.toolResults()) {
+            assertFalse(toolResult.isEmpty(), "every tool clears the same full area independently");
+        }
+    }
+
+    @Test
+    void referenceGerberBoundaryIntersectsBothConvexHulls() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry referenceGerber = FACTORY.toGeometry(new Envelope(4, 5, 0, 10));
+
+        NccParameters itself = new NccParameters(List.of(0.2), 0.1, 2.0, NccMethod.STANDARD, false, true, 0,
+                false, NccOrder.NONE, new NccBoundary.Itself());
+        NccParameters referenced = new NccParameters(List.of(0.2), 0.1, 2.0, NccMethod.STANDARD, false, true, 0,
+                false, NccOrder.NONE, new NccBoundary.ReferenceGerber(referenceGerber));
+
+        NccResult itselfResult = NccGenerator.generate("MM", copper, itself);
+        NccResult referencedResult = NccGenerator.generate("MM", copper, referenced);
+
+        assertFalse(itselfResult.isEmpty());
+        assertFalse(referencedResult.isEmpty());
+        assertTrue(referencedResult.clearingArea().getArea() < itselfResult.clearingArea().getArea(),
+                "the reference Gerber's convex hull should confine the boundary to a smaller area");
+    }
+
+    @Test
+    void referenceGeometryBoundaryUsesRawShapeNotConvexHull() {
+        Geometry big = FACTORY.toGeometry(new Envelope(0, 10, 0, 10));
+        Geometry notch = FACTORY.toGeometry(new Envelope(0, 5, 0, 5));
+        Geometry lShapedReference = big.difference(notch);
+        Geometry copper = FACTORY.toGeometry(new Envelope(7, 8, 7, 8));
+
+        NccParameters params = new NccParameters(List.of(0.2), 0.1, 0.0, NccMethod.STANDARD, false, true, 0,
+                false, NccOrder.NONE, new NccBoundary.ReferenceGeometry(lShapedReference));
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        Geometry notchPoint = FACTORY.createPoint(new Coordinate(2, 2));
+        assertFalse(result.clearingArea().contains(notchPoint),
+                "the L-shaped reference's own notch must stay excluded - a convex hull would fill it in");
+    }
+
+    @Test
+    void minimumCopperClearanceFindsTheNarrowestGapBetweenParts() {
+        Geometry a = FACTORY.toGeometry(new Envelope(0, 1, 0, 1));
+        Geometry b = FACTORY.toGeometry(new Envelope(1.3, 2.3, 0, 1));
+        Geometry copper = a.union(b);
+
+        OptionalDouble clearance = NccGenerator.minimumCopperClearance(copper);
+        assertTrue(clearance.isPresent());
+        assertEquals(0.3, clearance.getAsDouble(), 1e-9);
+    }
+
+    @Test
+    void minimumCopperClearanceIsEmptyWithFewerThanTwoParts() {
+        Geometry single = FACTORY.toGeometry(new Envelope(0, 1, 0, 1));
+        assertTrue(NccGenerator.minimumCopperClearance(single).isEmpty());
+        assertTrue(NccGenerator.minimumCopperClearance(FACTORY.createPolygon()).isEmpty());
+        assertTrue(NccGenerator.minimumCopperClearance(null).isEmpty());
     }
 
     @Test

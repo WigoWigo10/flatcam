@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
@@ -40,6 +41,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -51,6 +53,7 @@ import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -72,6 +75,7 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
@@ -80,6 +84,9 @@ import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.ncc.NccGenerator;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccResult;
+import org.flatcam.cam.transform.TransformOp;
+import org.flatcam.cam.transform.TransformReference;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
@@ -146,21 +153,16 @@ final class MainWindow {
     private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
     }
 
-    private record LoadedGerber(File file, GerberImage image) {
-    }
-
-    private record LoadedExcellon(File file, ExcellonImage image) {
-    }
-
     private record LoadedCncJob(String sourceName, Path outputPath, String gcode) {
     }
 
-    /** A Geometry object derived from a Gerber; toolDiameter is known for machining-tool results such as NCC. */
+    /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
     private record GeometryEntry(String sourceName, String units, Geometry geometry,
-                                 boolean strokeOnly, Double toolDiameter) {
+                                 boolean strokeOnly, List<ToolGeometry> tools) {
     }
 
-    private record LoadedProject(List<LoadedGerber> gerbers, List<LoadedExcellon> excellons,
+    /** Gerber/Excellon entries already carry their own fully-resolved geometry (ProjectFileIO), no re-parsing needed. */
+    private record LoadedProject(List<ProjectFile.GerberEntry> gerbers, List<ProjectFile.ExcellonEntry> excellons,
                                  List<LoadedCncJob> cncJobs, List<String> warnings) {
     }
 
@@ -281,7 +283,72 @@ final class MainWindow {
         // object at all.
         MenuItem calculatorsItem = new MenuItem("Calculators");
         calculatorsItem.setOnAction(e -> openToolPanel("Calculators", CalculatorsPanel.build()));
-        optionsMenu.getItems().addAll(toolsDbItem, calculatorsItem);
+
+        // appGUI/MainGUI.py's Options menu quick actions (Rotate/Skew X/Skew Y/Flip X/Flip Y) -
+        // a separate, lighter driver than the full Transform tool: fixed "selection bbox center"
+        // reference, a small dialog for Rotate/Skew, instant apply for Flip. Same icons as Python
+        // (rotate.png/skewX.png/skewY.png/flipx.png/flipy.png). Python also binds bare Shift+R/
+        // Shift+X/Shift+Y/X/Y accelerators; the bare X/Y ones are skipped here since a scene-global
+        // accelerator with no modifier would hijack typing "x"/"y" into any text field.
+        MenuItem rotateItem = new MenuItem("Girar Selecao");
+        rotateItem.setGraphic(legacyIcon("rotate.png", 16));
+        rotateItem.setOnAction(e -> {
+            if (!anyProjectObjectSelected()) {
+                appendConsole("Selecione ao menos um objeto para girar.");
+                return;
+            }
+            Double angle = promptAngle("Girar Selecao", "Angulo (graus, positivo = sentido horario):", 90);
+            if (angle != null) {
+                // UI-positive = clockwise; negate before building Rotate (positive = CCW there),
+                // exactly like Python's own on_rotate() (obj.rotate(-num, point)).
+                applyTransformToSelection(selected -> new TransformOp.Rotate(-angle, selectionCenterOrOrigin(selected)));
+            }
+        });
+        MenuItem skewXItem = new MenuItem("Inclinar em X");
+        skewXItem.setGraphic(legacyIcon("skewX.png", 16));
+        skewXItem.setOnAction(e -> {
+            if (!anyProjectObjectSelected()) {
+                appendConsole("Selecione ao menos um objeto para inclinar.");
+                return;
+            }
+            Double angle = promptAngle("Inclinar em X", "Angulo (graus):", 0);
+            if (angle != null) {
+                applyTransformToSelection(selected -> new TransformOp.Skew(angle, 0, selectionCenterOrOrigin(selected)));
+            }
+        });
+        MenuItem skewYItem = new MenuItem("Inclinar em Y");
+        skewYItem.setGraphic(legacyIcon("skewY.png", 16));
+        skewYItem.setOnAction(e -> {
+            if (!anyProjectObjectSelected()) {
+                appendConsole("Selecione ao menos um objeto para inclinar.");
+                return;
+            }
+            Double angle = promptAngle("Inclinar em Y", "Angulo (graus):", 0);
+            if (angle != null) {
+                applyTransformToSelection(selected -> new TransformOp.Skew(0, angle, selectionCenterOrOrigin(selected)));
+            }
+        });
+        MenuItem flipXItem = new MenuItem("Espelhar em X");
+        flipXItem.setGraphic(legacyIcon("flipx.png", 16));
+        flipXItem.setOnAction(e -> {
+            if (!anyProjectObjectSelected()) {
+                appendConsole("Selecione ao menos um objeto para espelhar.");
+                return;
+            }
+            applyTransformToSelection(selected -> new TransformOp.MirrorX(selectionCenterOrOrigin(selected)));
+        });
+        MenuItem flipYItem = new MenuItem("Espelhar em Y");
+        flipYItem.setGraphic(legacyIcon("flipy.png", 16));
+        flipYItem.setOnAction(e -> {
+            if (!anyProjectObjectSelected()) {
+                appendConsole("Selecione ao menos um objeto para espelhar.");
+                return;
+            }
+            applyTransformToSelection(selected -> new TransformOp.MirrorY(selectionCenterOrOrigin(selected)));
+        });
+
+        optionsMenu.getItems().addAll(toolsDbItem, calculatorsItem, new SeparatorMenuItem(),
+                rotateItem, skewXItem, skewYItem, flipXItem, flipYItem);
 
         Menu viewMenu = new Menu("Exibir");
         viewMenu.getItems().add(buildThemeMenu());
@@ -726,6 +793,163 @@ final class MainWindow {
     private boolean isProjectObject(TreeItem<String> item) {
         return gerberByItem.containsKey(item) || excellonByItem.containsKey(item)
                 || geometryByItem.containsKey(item) || cncJobByItem.containsKey(item);
+    }
+
+    private boolean anyProjectObjectSelected() {
+        return projectTree.getSelectionModel().getSelectedItems().stream().anyMatch(this::isProjectObject);
+    }
+
+    /** A small modal prompt for one angle - mirrors Python's FCInputDoubleSpinner quick-action dialogs. Null if cancelled or invalid. */
+    private Double promptAngle(String title, String contentText, double defaultValue) {
+        TextInputDialog dialog = new TextInputDialog(String.valueOf(defaultValue));
+        dialog.setTitle(title);
+        dialog.setHeaderText(null);
+        dialog.setContentText(contentText);
+        dialog.initOwner(scene.getWindow());
+        var result = dialog.showAndWait();
+        if (result.isEmpty()) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(result.get().trim().replace(',', '.'));
+        } catch (NumberFormatException ex) {
+            appendConsole(title + ": angulo invalido.");
+            return null;
+        }
+    }
+
+    /** {@code [minX, minY, maxX, maxY]} of whatever object kind {@code item} is, or null if it has no geometry. */
+    private double[] boundsOf(TreeItem<String> item) {
+        GerberImage gerber = gerberByItem.get(item);
+        if (gerber != null) {
+            return gerber.bounds();
+        }
+        ExcellonImage excellon = excellonByItem.get(item);
+        if (excellon != null) {
+            return excellon.bounds();
+        }
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (geometry != null && geometry.geometry() != null && !geometry.geometry().isEmpty()) {
+            Envelope envelope = geometry.geometry().getEnvelopeInternal();
+            return new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
+        }
+        return null;
+    }
+
+    /** appTools/ToolTransform.py's "Selection" reference: center of the combined bounding box, or Origin if none has geometry. */
+    private Coordinate selectionCenterOrOrigin(List<TreeItem<String>> items) {
+        List<double[]> boundsList = items.stream().map(this::boundsOf).filter(java.util.Objects::nonNull).toList();
+        return boundsList.isEmpty() ? TransformReference.origin() : TransformReference.selectionCenter(boundsList);
+    }
+
+    /**
+     * appTools/ToolTransform.py's bulk-apply: runs the op (built from the
+     * final, filtered selection, so a pivot like "Selection center" is
+     * computed from exactly what gets transformed) against every selected
+     * Gerber/Excellon/Geometry object in place, replacing each one's own map
+     * entry and plot layer. CNC Job objects are refused, same as Python
+     * ("CNCJob objects can't be rotated.").
+     */
+    private void applyTransformToSelection(java.util.function.Function<List<TreeItem<String>>, TransformOp> opFactory) {
+        List<TreeItem<String>> selected = projectTree.getSelectionModel().getSelectedItems().stream()
+                .filter(this::isProjectObject).toList();
+        if (selected.isEmpty()) {
+            appendConsole("Selecione ao menos um objeto para transformar.");
+            return;
+        }
+        TransformOp op = opFactory.apply(selected);
+        int applied = 0;
+        for (TreeItem<String> item : selected) {
+            if (applyTransformToItem(item, op)) {
+                applied++;
+            }
+        }
+        if (applied > 0) {
+            appendConsole(applied + " objeto(s) transformado(s).");
+            showProperties(projectTree.getSelectionModel().getSelectedItem());
+        }
+    }
+
+    private void openTransformTool() {
+        openToolPanel("Transform Tool", TransformToolPanel.build(
+                this::selectionCenterOrOrigin, this::applyTransformToSelection, this::closeToolPanel));
+    }
+
+    /**
+     * ObjectUI.py's shared "Transformations" block: a uniform Scale factor
+     * (about Origin, since Python's on_scale_button_click passes no point)
+     * plus an Offset (dx, dy) tuple, and a button opening the full Transform
+     * tool - identical across Gerber/Excellon/Geometry in Python (one shared
+     * panel, not three), so this is called from all three properties panels.
+     */
+    private Node transformationsSection(TreeItem<String> item) {
+        TextField scaleField = new TextField("1.0");
+        Button scaleButton = new Button("Scale");
+        scaleButton.setOnAction(e -> {
+            try {
+                double factor = Double.parseDouble(scaleField.getText().trim().replace(',', '.'));
+                if (applyTransformToItem(item, new TransformOp.Scale(factor, factor, TransformReference.origin()))) {
+                    showProperties(item);
+                }
+            } catch (NumberFormatException ex) {
+                appendConsole("Scale: numero invalido.");
+            }
+        });
+        TextField offsetXField = new TextField("0.0");
+        TextField offsetYField = new TextField("0.0");
+        Button offsetButton = new Button("Offset");
+        offsetButton.setOnAction(e -> {
+            try {
+                double dx = Double.parseDouble(offsetXField.getText().trim().replace(',', '.'));
+                double dy = Double.parseDouble(offsetYField.getText().trim().replace(',', '.'));
+                if (applyTransformToItem(item, new TransformOp.Offset(dx, dy))) {
+                    showProperties(item);
+                }
+            } catch (NumberFormatException ex) {
+                appendConsole("Offset: numero invalido.");
+            }
+        });
+        Button transformationsButton = new Button("Transformations");
+        transformationsButton.setGraphic(legacyIcon("transform.png", 18));
+        transformationsButton.setMaxWidth(Double.MAX_VALUE);
+        transformationsButton.setOnAction(e -> openTransformTool());
+
+        GridPane grid = new GridPane();
+        grid.setHgap(8);
+        grid.setVgap(8);
+        grid.addRow(0, new Label("Scale:"), scaleField, scaleButton);
+        grid.addRow(1, new Label("Offset X,Y:"), offsetXField, offsetYField, offsetButton);
+        return new VBox(6, grid, transformationsButton);
+    }
+
+    /** One object's share of {@link #applyTransformToSelection} - also used directly by each object's own mini "Transformations" panel. */
+    private boolean applyTransformToItem(TreeItem<String> item, TransformOp op) {
+        if (cncJobByItem.containsKey(item)) {
+            appendConsole("CNC Job nao pode ser transformado: " + item.getValue());
+            return false;
+        }
+        GerberImage gerber = gerberByItem.get(item);
+        ExcellonImage excellon = excellonByItem.get(item);
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (gerber != null) {
+            GerberImage transformed = gerber.transformed(op);
+            gerberByItem.put(item, transformed);
+            plotAreaView.updateLayerGeometry(item,
+                    gerberFollowItems.contains(item) ? transformed.followGeometry() : transformed.solidGeometry());
+        } else if (excellon != null) {
+            ExcellonImage transformed = excellon.transformed(op);
+            excellonByItem.put(item, transformed);
+            plotAreaView.updateLayerGeometry(item, transformed.solidGeometry());
+        } else if (geometry != null) {
+            List<ToolGeometry> newTools = geometry.tools().stream().map(t -> t.transformed(op)).toList();
+            GeometryEntry transformed = new GeometryEntry(geometry.sourceName(), geometry.units(),
+                    op.apply(geometry.geometry()), geometry.strokeOnly(), newTools);
+            geometryByItem.put(item, transformed);
+            plotAreaView.updateLayerGeometry(item, transformed.geometry());
+        } else {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -1316,7 +1540,7 @@ final class MainWindow {
             copyLayerAppearance(sourceItem, copyItem);
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
-                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.toolDiameter());
+                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.tools());
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
@@ -1632,41 +1856,75 @@ final class MainWindow {
                 });
     }
 
-    /** Opens the legacy-style NCC form; unlike Isolation/Cutout, NCC produces an intermediate Geometry object. */
-    private void generateNcc(TreeItem<String> item, GerberImage image) {
-        openToolPanel("NCC Tool", NccToolPanel.build(image.units(),
-                params -> runNccGeneration(item, image, params), this::closeToolPanel));
+    /** One tool's contribution plus, optionally, the NCC-wide diameter-validity check - see NccToolPanel.Result. */
+    private record NccJobOutcome(NccResult result, OptionalDouble minCopperClearance) {
     }
 
-    private void runNccGeneration(TreeItem<String> item, GerberImage image, NccParameters params) {
+    /** Opens the legacy-style NCC form; unlike Isolation/Cutout, NCC produces an intermediate Geometry object. */
+    private void generateNcc(TreeItem<String> item, GerberImage image) {
+        List<NccToolPanel.ReferenceCandidate> referenceCandidates = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
+            if (entry.getKey() != item) {
+                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                        entry.getKey().getValue(), true, entry.getValue().solidGeometry()));
+            }
+        }
+        for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
+            referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                    entry.getKey().getValue(), false, entry.getValue().geometry()));
+        }
+        openToolPanel("NCC Tool", NccToolPanel.build(image.units(), referenceCandidates,
+                result -> runNccGeneration(item, image, result), this::closeToolPanel));
+    }
+
+    private void runNccGeneration(TreeItem<String> item, GerberImage image, NccToolPanel.Result panelResult) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
 
+        NccParameters params = panelResult.parameters();
         beginJob("Gerando Non-Copper Clearing...");
-        JobHandle<NccResult> handle = jobExecutor.submit(context -> NccGenerator.generate(
-                image.units(), image.solidGeometry(), params, context::isCancelled,
-                fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing...")),
-                (fraction, message) -> Platform.runLater(() -> {
+        JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
+            OptionalDouble minClearance = panelResult.checkValidity()
+                    ? NccGenerator.minimumCopperClearance(image.solidGeometry())
+                    : OptionalDouble.empty();
+            NccResult result = NccGenerator.generate(image.units(), image.solidGeometry(), params,
+                    context::isCancelled,
+                    fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing..."));
+            return new NccJobOutcome(result, minClearance);
+        }, (fraction, message) -> Platform.runLater(() -> {
                     updateProgress(fraction);
                     statusLabel.setText(message);
                 }));
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(result -> Platform.runLater(() -> {
+                .thenAccept(outcome -> Platform.runLater(() -> {
+                    NccResult result = outcome.result();
+                    outcome.minCopperClearance().ifPresent(minClearance -> {
+                        boolean anySuitable = params.toolDiameters().stream().anyMatch(d -> d <= minClearance);
+                        appendConsole(String.format(java.util.Locale.ROOT,
+                                anySuitable
+                                        ? "Verificacao de validade: ao menos uma ferramenta consegue fazer isolamento completo (distancia minima de cobre = %.4f)."
+                                        : "Verificacao de validade: nenhuma ferramenta selecionada consegue fazer isolamento completo (distancia minima de cobre = %.4f).",
+                                minClearance));
+                    });
                     if (result.isEmpty()) {
                         appendConsole("NCC nao gerou caminhos. A ferramenta pode ser grande demais para a area livre.");
                         setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
                         String name = uniqueDerivedName(item.getValue() + "_ncc");
+                        List<ToolGeometry> tools = result.toolResults().stream()
+                                .filter(toolResult -> !toolResult.isEmpty())
+                                .map(toolResult -> new ToolGeometry(toolResult.toolDiameter(), toolResult.geometry()))
+                                .toList();
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
-                                result.geometry(), true, params.toolDiameter());
+                                result.geometry(), true, tools);
                         appendConsole(String.format(
-                                "NCC: %d caminhos, comprimento total=%.4f, falhas=%d, bounds=%s",
-                                result.pathCount(), result.totalLength(), result.failedPolygonCount(),
-                                Arrays.toString(result.bounds())));
+                                "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
+                                result.pathCount(), result.totalLength(), result.toolResults().size(),
+                                result.totalFailedPolygonCount(), Arrays.toString(result.bounds())));
                         selectProjectItem(generated);
                         plotAreaView.fitToLayer(generated);
                         closeToolPanel();
@@ -1685,7 +1943,7 @@ final class MainWindow {
     }
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
-        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.toolDiameter(),
+        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
                 result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
     }
 
@@ -1713,8 +1971,8 @@ final class MainWindow {
         beginJob("Gerando CNC Job de Geometry...");
         JobHandle<CncJobResult> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
-            CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), entry.geometry(),
-                    result.parameters(), result.toolDiameter(), context::isCancelled);
+            CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), result.tools(),
+                    result.parameters(), context::isCancelled);
             context.checkCancelled();
             context.reportProgress(0.90, "Salvando G-code de Geometry...");
             Files.writeString(outFile.toPath(), job.gcode());
@@ -1845,6 +2103,9 @@ final class MainWindow {
 
         box.getChildren().add(new Label("Apertures Table:"));
         box.getChildren().add(buildAperturesTableSection(item, image));
+
+        box.getChildren().add(new Label("Transformations:"));
+        box.getChildren().add(transformationsSection(item));
 
         box.getChildren().add(propertiesSection(String.format(
                 "Unidades: %s%nAperturas: %d%nArea total: %.4f%nBounds: %s",
@@ -1998,6 +2259,9 @@ final class MainWindow {
         box.getChildren().add(new Label("Tools Table:"));
         box.getChildren().add(DrillGCodeToolPanel.buildToolsTableView(image));
 
+        box.getChildren().add(new Label("Transformations:"));
+        box.getChildren().add(transformationsSection(item));
+
         box.getChildren().add(propertiesSection(String.format(
                 "Unidades: %s%nFuros totais: %d%nSlots totais: %d%nBounds: %s",
                 image.units(), image.totalDrills(), image.totalSlots(), Arrays.toString(image.bounds())
@@ -2020,10 +2284,14 @@ final class MainWindow {
         cncButton.setOnAction(e -> generateGeometryCncJob(item, entry));
         box.getChildren().add(cncButton);
 
+        box.getChildren().add(new Label("Transformations:"));
+        box.getChildren().add(transformationsSection(item));
+
         Envelope envelope = entry.geometry().getEnvelopeInternal();
         double[] bounds = entry.geometry().isEmpty() ? null
                 : new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
-        String toolText = entry.toolDiameter() == null ? "" : String.format("%nTool Dia: %.4f", entry.toolDiameter());
+        String toolText = entry.tools().isEmpty() ? "" : String.format("%nFerramentas: %s", entry.tools().stream()
+                .map(tool -> String.format("%.4f", tool.toolDiameter())).collect(java.util.stream.Collectors.joining(", ")));
         box.getChildren().add(propertiesSection(String.format(
                 "Origem: %s%nUnidades: %s%s%nArea: %.4f%nComprimento: %.4f%nBounds: %s",
                 entry.sourceName(), entry.units(), toolText, entry.geometry().getArea(), entry.geometry().getLength(),
@@ -2418,19 +2686,36 @@ final class MainWindow {
     }
 
     /**
-     * Writes which Gerber/Excellon files are open and which G-code jobs were
-     * generated - see ProjectFile's doc for why this is a list of paths to
-     * re-parse, not a geometry snapshot like the legacy .FlatPrj.
+     * Writes every Gerber/Excellon's own resolved geometry (WKT-embedded,
+     * matching the legacy app's .FlatPrj shape - see ProjectFileIO's doc)
+     * plus which G-code jobs were generated. Unlike a path, embedded
+     * geometry survives a save/reload even after an in-memory edit
+     * (Transformations) or if the original source file is later moved or
+     * deleted.
      */
     private void saveProject() {
-        List<String> gerberPaths = gerberByItem.keySet().stream()
-                .map(sourcePathByItem::get).map(Path::toString).toList();
-        List<String> excellonPaths = excellonByItem.keySet().stream()
-                .map(sourcePathByItem::get).map(Path::toString).toList();
+        List<ProjectFile.GerberEntry> gerbers = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
+            TreeItem<String> item = entry.getKey();
+            Color[] colors = plotAreaView.layerColors(item);
+            gerbers.add(new ProjectFile.GerberEntry(item.getValue(), entry.getValue(),
+                    colors != null ? colors[0].toString() : null, colors != null ? colors[1].toString() : null,
+                    plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
+                    plotAreaView.isLayerMulticolor(item), gerberFollowItems.contains(item)));
+        }
+        List<ProjectFile.ExcellonEntry> excellons = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, ExcellonImage> entry : excellonByItem.entrySet()) {
+            TreeItem<String> item = entry.getKey();
+            Color[] colors = plotAreaView.layerColors(item);
+            excellons.add(new ProjectFile.ExcellonEntry(item.getValue(), entry.getValue(),
+                    colors != null ? colors[0].toString() : null, colors != null ? colors[1].toString() : null,
+                    plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
+                    plotAreaView.isLayerMulticolor(item)));
+        }
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.values().stream()
                 .map(entry -> new ProjectFile.CncJobRecord(entry.sourceName(), entry.outputFile().toString()))
                 .toList();
-        ProjectFile project = new ProjectFile(gerberPaths, excellonPaths, jobs);
+        ProjectFile project = new ProjectFile(gerbers, excellons, jobs);
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
@@ -2481,55 +2766,30 @@ final class MainWindow {
         JobHandle<LoadedProject> handle = jobExecutor.submit(context -> {
             CancellationToken cancellation = context::isCancelled;
             cancellation.throwIfCancellationRequested();
+            context.reportProgress(0.05, "Lendo " + file.getName() + "...");
             ProjectFile project = ProjectFileIO.load(file.toPath());
             cancellation.throwIfCancellationRequested();
+            context.reportProgress(0.5, "Projeto decodificado.");
 
-            List<LoadedGerber> gerbers = new ArrayList<>();
-            List<LoadedExcellon> excellons = new ArrayList<>();
             List<LoadedCncJob> cncJobs = new ArrayList<>();
             List<String> warnings = new ArrayList<>();
-            int total = project.gerberPaths().size() + project.excellonPaths().size() + project.cncJobs().size();
+            int total = Math.max(1, project.cncJobs().size());
             int processed = 0;
-
-            for (String path : project.gerberPaths()) {
-                Path sourcePath = Path.of(path);
-                int completedBeforeFile = processed;
-                String progressMessage = "Analisando Gerber " + sourcePath.getFileName() + "...";
-                GerberImage image = new GerberParser().parse(sourcePath, cancellation,
-                        fileFraction -> context.reportProgress(
-                                progressFraction(completedBeforeFile + fileFraction, total), progressMessage));
-                gerbers.add(new LoadedGerber(sourcePath.toFile(), image));
-                processed++;
-            }
-            for (String path : project.excellonPaths()) {
-                Path sourcePath = Path.of(path);
-                int completedBeforeFile = processed;
-                String progressMessage = "Analisando Excellon " + sourcePath.getFileName() + "...";
-                ExcellonImage image = new ExcellonParser().parse(sourcePath, cancellation,
-                        fileFraction -> context.reportProgress(
-                                progressFraction(completedBeforeFile + fileFraction, total), progressMessage));
-                excellons.add(new LoadedExcellon(sourcePath.toFile(), image));
-                processed++;
-            }
             for (ProjectFile.CncJobRecord job : project.cncJobs()) {
                 cancellation.throwIfCancellationRequested();
                 Path outputPath = Path.of(job.outputPath());
-                context.reportProgress(progressFraction(processed, total),
-                        "Lendo G-code " + outputPath.getFileName() + "...");
+                context.reportProgress(0.5 + 0.5 * processed / total, "Lendo G-code " + outputPath.getFileName() + "...");
                 try {
                     cncJobs.add(new LoadedCncJob(job.sourceName(), outputPath, Files.readString(outputPath)));
                 } catch (IOException e) {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
                 processed++;
-                context.reportProgress(progressFraction(processed, total),
-                        "G-code " + outputPath.getFileName() + " carregado.");
             }
 
             cancellation.throwIfCancellationRequested();
             context.reportProgress(1, "Projeto carregado.");
-            return new LoadedProject(List.copyOf(gerbers), List.copyOf(excellons),
-                    List.copyOf(cncJobs), List.copyOf(warnings));
+            return new LoadedProject(project.gerbers(), project.excellons(), List.copyOf(cncJobs), List.copyOf(warnings));
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -2539,12 +2799,14 @@ final class MainWindow {
         handle.completion()
                 .thenAccept(project -> Platform.runLater(() -> {
                     clearProject();
-                    for (LoadedGerber loaded : project.gerbers()) {
-                        addGerberToProject(loaded.file(), loaded.image());
+                    for (ProjectFile.GerberEntry loaded : project.gerbers()) {
+                        TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
+                        applyRestoredGerberState(item, loaded.image(), loaded);
                         unitsLabel.setText("Unidades: " + loaded.image().units());
                     }
-                    for (LoadedExcellon loaded : project.excellons()) {
-                        addExcellonToProject(loaded.file(), loaded.image());
+                    for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
+                        TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image());
+                        applyRestoredExcellonState(item, loaded);
                         unitsLabel.setText("Unidades: " + loaded.image().units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
@@ -2569,8 +2831,33 @@ final class MainWindow {
                 });
     }
 
-    private static double progressFraction(double processed, int total) {
-        return total == 0 ? 0 : (double) processed / total;
+    /** Restores a reloaded Gerber's plot appearance/visibility/follow-mode - see ProjectFile.GerberEntry. */
+    private void applyRestoredGerberState(TreeItem<String> item, GerberImage image, ProjectFile.GerberEntry entry) {
+        Color fill = entry.fillColorWeb() != null ? Color.web(entry.fillColorWeb()) : GERBER_FILL;
+        Color stroke = entry.strokeColorWeb() != null ? Color.web(entry.strokeColorWeb()) : GERBER_STROKE;
+        if (entry.followMode()) {
+            gerberFollowItems.add(item);
+            plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER, image.followGeometry(), fill, stroke, true);
+        } else {
+            plotAreaView.setLayerColors(item, fill, stroke);
+        }
+        plotAreaView.setLayerFilled(item, entry.filled());
+        plotAreaView.setLayerMulticolor(item, entry.multicolor());
+        if (!entry.visible()) {
+            setObjectVisible(item, false);
+        }
+    }
+
+    /** Restores a reloaded Excellon's plot appearance/visibility - see ProjectFile.ExcellonEntry. */
+    private void applyRestoredExcellonState(TreeItem<String> item, ProjectFile.ExcellonEntry entry) {
+        if (entry.fillColorWeb() != null && entry.strokeColorWeb() != null) {
+            plotAreaView.setLayerColors(item, Color.web(entry.fillColorWeb()), Color.web(entry.strokeColorWeb()));
+        }
+        plotAreaView.setLayerFilled(item, entry.filled());
+        plotAreaView.setLayerMulticolor(item, entry.multicolor());
+        if (!entry.visible()) {
+            setObjectVisible(item, false);
+        }
     }
 
     private void clearProject() {
@@ -2617,13 +2904,13 @@ final class MainWindow {
 
     private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
                                                   Geometry geometry, boolean strokeOnly) {
-        return addGeometryToProject(displayName, sourceName, units, geometry, strokeOnly, null);
+        return addGeometryToProject(displayName, sourceName, units, geometry, strokeOnly, List.of());
     }
 
     private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
-                                                  Geometry geometry, boolean strokeOnly, Double toolDiameter) {
+                                                  Geometry geometry, boolean strokeOnly, List<ToolGeometry> tools) {
         TreeItem<String> item = new TreeItem<>(displayName);
-        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, toolDiameter));
+        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, tools));
         geometryNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GEOMETRY, geometry,
                 GEOMETRY_FILL, GEOMETRY_STROKE, strokeOnly);
