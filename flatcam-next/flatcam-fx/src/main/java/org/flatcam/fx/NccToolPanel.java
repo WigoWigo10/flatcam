@@ -27,9 +27,11 @@ import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
+import org.flatcam.cam.ncc.NccBoundary;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * Multi-tool NCC form; the result is a multigeo Geometry object (one entry
@@ -41,10 +43,25 @@ import org.flatcam.cam.ncc.NccParameters;
  */
 final class NccToolPanel {
 
+    private static final String BOUNDARY_ITSELF = "Itself";
+    private static final String BOUNDARY_REFERENCE = "Reference Object";
+
+    /** One selectable entry for the "Reference Object" boundary combo - see MainWindow.generateNcc. */
+    record ReferenceCandidate(String displayName, boolean isGerber, Geometry geometry) {
+        @Override
+        public String toString() {
+            return displayName + (isGerber ? " (Gerber)" : " (Geometry)");
+        }
+    }
+
+    record Result(NccParameters parameters, boolean checkValidity) {
+    }
+
     private NccToolPanel() {
     }
 
-    static Node build(String units, Consumer<NccParameters> onGenerate, Runnable onClose) {
+    static Node build(String units, List<ReferenceCandidate> referenceCandidates,
+                      Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(units);
         ObservableList<Double> diameters = FXCollections.observableArrayList(metric ? 0.5 : 0.020);
 
@@ -114,6 +131,38 @@ final class NccToolPanel {
             diameters.removeAll(selected);
             toolError.setText("");
         });
+
+        ComboBox<String> boundaryKindCombo = new ComboBox<>();
+        boundaryKindCombo.getItems().add(BOUNDARY_ITSELF);
+        if (!referenceCandidates.isEmpty()) {
+            boundaryKindCombo.getItems().add(BOUNDARY_REFERENCE);
+        }
+        boundaryKindCombo.setValue(BOUNDARY_ITSELF);
+        boundaryKindCombo.setTooltip(tooltip(
+                "Itself: usa o contorno convexo do proprio Gerber como limite.\n"
+                + "Reference Object: usa outro objeto (Gerber ou Geometry) ja carregado como limite."));
+        ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
+        referenceCombo.getItems().addAll(referenceCandidates);
+        if (!referenceCandidates.isEmpty()) {
+            referenceCombo.setValue(referenceCandidates.get(0));
+        }
+        javafx.beans.binding.BooleanBinding referenceChosen = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
+        referenceCombo.visibleProperty().bind(referenceChosen);
+        referenceCombo.managedProperty().bind(referenceChosen);
+
+        GridPane boundaryGrid = new GridPane();
+        boundaryGrid.setHgap(8);
+        boundaryGrid.setVgap(8);
+        boundaryGrid.addRow(0, new Label("Boundary:"), boundaryKindCombo);
+        boundaryGrid.add(referenceCombo, 1, 1);
+
+        CheckBox checkValidityCb = new CheckBox("Verificar validade dos diametros");
+        checkValidityCb.setSelected(true);
+        checkValidityCb.setTooltip(tooltip(
+                "Se marcado, compara cada diametro com a menor distancia entre elementos de\n"
+                + "cobre do Gerber e avisa se alguma ferramenta e grande demais para fazer um\n"
+                + "isolamento completo. Apenas informativo - nao impede a geracao."));
 
         TextField overlapField = new TextField("40");
         TextField marginField = new TextField(metric ? "1.0" : "0.040");
@@ -185,11 +234,21 @@ final class NccToolPanel {
                 double overlap = parse(overlapField, "Overlap") / 100.0;
                 double margin = parse(marginField, "Margin");
                 double offset = offsetCb.isSelected() ? parse(offsetField, "Copper offset") : 0;
+                NccBoundary boundary = new NccBoundary.Itself();
+                if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) {
+                    ReferenceCandidate candidate = referenceCombo.getValue();
+                    if (candidate == null) {
+                        throw new IllegalArgumentException("Selecione um objeto de referencia para o Boundary.");
+                    }
+                    boundary = candidate.isGerber()
+                            ? new NccBoundary.ReferenceGerber(candidate.geometry())
+                            : new NccBoundary.ReferenceGeometry(candidate.geometry());
+                }
                 NccParameters params = new NccParameters(List.copyOf(diameters), overlap, margin,
                         methodCombo.getValue(), connectCb.isSelected(), contourCb.isSelected(), offset,
-                        restCb.isSelected(), orderCombo.getValue());
+                        restCb.isSelected(), orderCombo.getValue(), boundary);
                 errorLabel.setText("");
-                onGenerate.accept(params);
+                onGenerate.accept(new Result(params, checkValidityCb.isSelected()));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }
@@ -204,7 +263,8 @@ final class NccToolPanel {
         toolButtons.setAlignment(Pos.CENTER_LEFT);
 
         VBox box = new VBox(6, new Label("NCC Tool (" + units + ")"),
-                sectionTitle("FERRAMENTAS"), toolTable, toolButtons, toolError,
+                sectionTitle("FERRAMENTAS"), toolTable, toolButtons, toolError, checkValidityCb,
+                sectionTitle("BOUNDARY"), boundaryGrid,
                 sectionTitle("PARAMETROS DE LIMPEZA"), grid,
                 sectionTitle("MULTI-FERRAMENTA"), restGrid,
                 new Separator(), note, errorLabel, generateButton, closeButton);

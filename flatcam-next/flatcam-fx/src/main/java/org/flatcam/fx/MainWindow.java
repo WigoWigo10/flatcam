@@ -12,6 +12,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import javafx.application.Platform;
@@ -1634,30 +1635,60 @@ final class MainWindow {
                 });
     }
 
-    /** Opens the legacy-style NCC form; unlike Isolation/Cutout, NCC produces an intermediate Geometry object. */
-    private void generateNcc(TreeItem<String> item, GerberImage image) {
-        openToolPanel("NCC Tool", NccToolPanel.build(image.units(),
-                params -> runNccGeneration(item, image, params), this::closeToolPanel));
+    /** One tool's contribution plus, optionally, the NCC-wide diameter-validity check - see NccToolPanel.Result. */
+    private record NccJobOutcome(NccResult result, OptionalDouble minCopperClearance) {
     }
 
-    private void runNccGeneration(TreeItem<String> item, GerberImage image, NccParameters params) {
+    /** Opens the legacy-style NCC form; unlike Isolation/Cutout, NCC produces an intermediate Geometry object. */
+    private void generateNcc(TreeItem<String> item, GerberImage image) {
+        List<NccToolPanel.ReferenceCandidate> referenceCandidates = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
+            if (entry.getKey() != item) {
+                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                        entry.getKey().getValue(), true, entry.getValue().solidGeometry()));
+            }
+        }
+        for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
+            referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                    entry.getKey().getValue(), false, entry.getValue().geometry()));
+        }
+        openToolPanel("NCC Tool", NccToolPanel.build(image.units(), referenceCandidates,
+                result -> runNccGeneration(item, image, result), this::closeToolPanel));
+    }
+
+    private void runNccGeneration(TreeItem<String> item, GerberImage image, NccToolPanel.Result panelResult) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
 
+        NccParameters params = panelResult.parameters();
         beginJob("Gerando Non-Copper Clearing...");
-        JobHandle<NccResult> handle = jobExecutor.submit(context -> NccGenerator.generate(
-                image.units(), image.solidGeometry(), params, context::isCancelled,
-                fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing...")),
-                (fraction, message) -> Platform.runLater(() -> {
+        JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
+            OptionalDouble minClearance = panelResult.checkValidity()
+                    ? NccGenerator.minimumCopperClearance(image.solidGeometry())
+                    : OptionalDouble.empty();
+            NccResult result = NccGenerator.generate(image.units(), image.solidGeometry(), params,
+                    context::isCancelled,
+                    fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing..."));
+            return new NccJobOutcome(result, minClearance);
+        }, (fraction, message) -> Platform.runLater(() -> {
                     updateProgress(fraction);
                     statusLabel.setText(message);
                 }));
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(result -> Platform.runLater(() -> {
+                .thenAccept(outcome -> Platform.runLater(() -> {
+                    NccResult result = outcome.result();
+                    outcome.minCopperClearance().ifPresent(minClearance -> {
+                        boolean anySuitable = params.toolDiameters().stream().anyMatch(d -> d <= minClearance);
+                        appendConsole(String.format(java.util.Locale.ROOT,
+                                anySuitable
+                                        ? "Verificacao de validade: ao menos uma ferramenta consegue fazer isolamento completo (distancia minima de cobre = %.4f)."
+                                        : "Verificacao de validade: nenhuma ferramenta selecionada consegue fazer isolamento completo (distancia minima de cobre = %.4f).",
+                                minClearance));
+                    });
                     if (result.isEmpty()) {
                         appendConsole("NCC nao gerou caminhos. A ferramenta pode ser grande demais para a area livre.");
                         setStatus("Sem caminhos.", ERROR_COLOR);

@@ -67,8 +67,9 @@ separação.
 
 ### Verificação mais recente
 
-Após o NCC multi-tool (seção 5), `clean test` passa com **82 testes
-executados**, sem falhas, erros ou testes ignorados (79 antes dessa mudança).
+Após o NCC multi-tool + boundary por referência + Check validity (seção 5),
+`clean test` passa com **86 testes executados**, sem falhas, erros ou testes
+ignorados (79 antes do NCC multi-tool, 82 após ele, 86 após boundary/validity).
 `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
@@ -188,9 +189,23 @@ citação completa):
   opcional + comentário, mesmo padrão já usado no G-code de furação) entre
   seções, em vez de pedir um diâmetro ao usuário - mesma abordagem do
   `mtool_gen_cncjob` do Python (um CNCJob, não um por ferramenta).
-- Boundary continua sendo o convex hull do próprio Gerber (opção "Itself" do
-  Python, e a única implementada) - confirmado como o default real do
-  Python, não uma aproximação.
+- **Boundary** (`NccBoundary`, sealed interface): `Itself` (convex hull do
+  próprio Gerber - default, igual antes) ou `ReferenceGerber`/`ReferenceGeometry`
+  (objeto de referência já carregado no projeto). Réplica de
+  `calculate_bounding_box()`/`ncc_select==2` do Python: para um Gerber de
+  referência, o boundary é a interseção dos dois convex hulls (fonte ∩
+  referência); para uma Geometry de referência, a forma é usada **como está**,
+  sem convex hull (confirmado no código Python - só o caso Gerber tira hull).
+  "Area Selection" (retângulo desenhado no canvas) continua fora de escopo,
+  por depender de infraestrutura de seleção no canvas que ainda não existe.
+- **Verificar validade dos diâmetros** (`NccGenerator.minimumCopperClearance`):
+  réplica de `find_safe_tooldia_multiprocessing`/`find_optim_mp` do Python -
+  calcula a menor distância entre quaisquer duas partes de cobre disjuntas do
+  Gerber e informa no console se pelo menos uma ferramenta selecionada é fina
+  o bastante para um isolamento completo. Puramente informativo, não bloqueia
+  a geração (mesmo comportamento do Python); painel tem um checkbox
+  "Verificar validade dos diâmetros", marcado por padrão (mesmo default do
+  Python).
 - Painel `NccToolPanel` ganhou uma tabela editável de diâmetros
   (adicionar/remover) e os controles "Rest Machining"/"Order". Passou por uma
   rodada de polimento de UI/UX após feedback visual direto do usuário: seções
@@ -212,15 +227,16 @@ local e execute `install` no reactor completo, conforme a seção de comandos.
 
 Ainda falta para paridade NCC:
 
-- seleção de área (retângulo desenhado no canvas);
-- objeto de referência como boundary (hoje só "Itself"/convex hull);
+- seleção de área (retângulo desenhado no canvas) - depende de infraestrutura
+  de interação no canvas que ainda não existe;
 - parâmetros por ferramenta (overlap/método/margem/connect/contour/offset
   individuais - hoje compartilhados, ver acima);
 - integração com Tools Database ("Pick from DB");
-- validações e sugestões de diâmetro compatíveis com o legado (checagem de
-  distância mínima de cobre, "tool validity");
 - comparação diferencial mais ampla com resultados do Python (incl. Rest
-  Machining num board real).
+  Machining, boundary por referência e "Check validity" num board real).
+
+Fechados nesta revisão: boundary por objeto de referência (Gerber ou
+Geometry) e validação/sugestão de diâmetro ("Check validity").
 
 ## 6. Matriz honesta de paridade
 
@@ -232,7 +248,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas funcional; ainda não é o renderer final nem foi perfilado para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor ausente |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, mas ainda falta boundary por referência, área selecionada e Tools DB |
+| Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
 | Editor Gerber | ausente | maior lacuna funcional da área Gerber |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
@@ -299,14 +315,19 @@ novos painéis devem manter terminologia consistente com o produto.
 
 ## 8. Próximo passo recomendado
 
-**NCC multi-tool com Rest Machining foi concluído nesta revisão** (seção 5) -
-os critérios de aceite abaixo já foram verificados (testes do reactor e
-smoke test do app; validação visual do painel ainda pendente com o usuário).
-O próximo incremento deve ser **completar a paridade NCC restante** (seção
-9.1: seleção de área, boundary por objeto de referência, Tools Database,
-validação/sugestão de diâmetro) ou, alternativamente, **Transformations**
-(seção 9.2) caso a paridade NCC pontual seja considerada suficiente por ora -
-qualquer uma reutiliza infraestrutura já madura sem exigir o editor.
+**NCC multi-tool com Rest Machining, boundary por objeto de referência e
+"Check validity" foram concluídos** (seção 5) - critérios de aceite
+verificados via testes do reactor (86 testes) e smoke test do app; validação
+visual do painel feita ao vivo com o usuário a cada rodada.
+
+O que resta da paridade NCC (seleção de área no canvas, Tools Database) exige
+infraestrutura grande e nova (interação de seleção no canvas; um subsistema
+de banco de tools inteiro) que nenhuma outra ferramenta ainda força a
+construir - por isso o próximo incremento recomendado é migrar para
+**Transformations** (seção 9.2: mover/rotacionar/espelhar/escalar/skew/offset
+para Gerber/Excellon/Geometry), que é pré-requisito de várias ferramentas
+maiores do roadmap (2-Sided PCB, Panelize, Copper Thieving, Fiducials) e não
+depende de nenhuma dessas duas peças de infraestrutura.
 
 ### Critérios de aceite do incremento concluído (referência)
 
@@ -323,7 +344,7 @@ qualquer uma reutiliza infraestrutura já madura sem exigir o editor.
   (reutiliza `CancellationToken` já existente)
 - Progresso não regride e termina em 100% no sucesso. ✅ (testado)
 - Testes do reactor passam e o app inicia com os módulos recém-instalados. ✅
-  (82 testes, `MainApp started`)
+  (86 testes, `MainApp started`)
 
 Decisão registrada: várias ferramentas produzem troca de ferramenta **num
 único CNC Job** (G-code concatenado com M0 opcional entre seções), não jobs
@@ -334,14 +355,17 @@ separados - confirmado que é assim que `mtool_gen_cncjob` do Python funciona
 
 Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
-### 9.1 Completar a paridade NCC
+### 9.1 Completar a paridade NCC (o que resta)
 
-- área selecionada;
-- boundary por objeto de referência;
+- área selecionada (retângulo desenhado no canvas) - depende de infraestrutura
+  de seleção no canvas ainda inexistente;
 - Tools Database;
-- validação/sugestão de ferramentas;
-- opções restantes do painel Python;
-- fixtures diferenciais e casos de desempenho.
+- opções restantes do painel Python (parâmetros por ferramenta individuais);
+- fixtures diferenciais e casos de desempenho (incl. Rest Machining e
+  boundary por referência num board real).
+
+Concluído nesta revisão: boundary por objeto de referência e
+validação/sugestão de diâmetro ("Check validity") - ver seção 5.
 
 ### 9.2 Transformations
 

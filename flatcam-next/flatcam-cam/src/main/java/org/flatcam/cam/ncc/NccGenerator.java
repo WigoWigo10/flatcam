@@ -75,7 +75,13 @@ public final class NccGenerator {
         progress.report(0.02);
         Geometry cleanCopper = copper.buffer(0);
         cancellation.throwIfCancellationRequested();
-        Geometry boundary = mitreBuffer(cleanCopper.convexHull(), params.margin());
+        Geometry rawBoundary = switch (params.boundary()) {
+            case NccBoundary.Itself ignored -> cleanCopper.convexHull();
+            case NccBoundary.ReferenceGerber ref -> cleanCopper.convexHull()
+                    .intersection(ref.geometry().buffer(0).convexHull());
+            case NccBoundary.ReferenceGeometry ref -> ref.geometry().buffer(0);
+        };
+        Geometry boundary = mitreBuffer(rawBoundary, params.margin());
         Geometry keepOut = params.copperOffset() == 0
                 ? cleanCopper : cleanCopper.buffer(params.copperOffset(), QUADRANT_SEGMENTS);
         Geometry clearingArea = boundary.difference(keepOut).buffer(0);
@@ -107,6 +113,32 @@ public final class NccGenerator {
         Geometry combined = unionGeometries(factory, combinedPaths);
         progress.report(1.0);
         return new NccResult(units, combined, clearingArea, toolResults);
+    }
+
+    /**
+     * The smallest gap between any two disjoint copper features in {@code copper} - appTools/ToolNCC.py's
+     * "Check validity" (find_safe_tooldia_multiprocessing/find_optim_mp): any tool wider than this gap
+     * will leave that gap un-milled, no matter how the clearing area is computed, since it physically
+     * can't fit through. Advisory only - NccGenerator.generate() does not consult this itself. Empty
+     * when there are fewer than two disjoint copper parts (nothing to measure a gap between).
+     */
+    public static java.util.OptionalDouble minimumCopperClearance(Geometry copper) {
+        if (copper == null || copper.isEmpty()) {
+            return java.util.OptionalDouble.empty();
+        }
+        Geometry clean = copper.buffer(0);
+        List<Polygon> parts = new ArrayList<>();
+        collectPolygons(clean, parts);
+        if (parts.size() < 2) {
+            return java.util.OptionalDouble.empty();
+        }
+        double minDistance = Double.POSITIVE_INFINITY;
+        for (int i = 0; i < parts.size(); i++) {
+            for (int j = i + 1; j < parts.size(); j++) {
+                minDistance = Math.min(minDistance, parts.get(i).distance(parts.get(j)));
+            }
+        }
+        return java.util.OptionalDouble.of(minDistance);
     }
 
     /** {@link NccParameters#toolDiameters()} in the order NccGenerator should process them. */

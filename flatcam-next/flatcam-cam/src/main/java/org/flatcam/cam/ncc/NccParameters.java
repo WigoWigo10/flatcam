@@ -8,7 +8,8 @@ import java.util.Objects;
  *                        entered - {@link #order()}/{@link #restMachining()} decide the actual
  *                        processing order (see NccGenerator)
  * @param overlapFraction 0..1 (not percent) overlap between adjacent passes - shared by every tool
- * @param margin          distance added around the Gerber convex hull to form the clearing boundary
+ * @param margin          distance added around the boundary ({@link #boundary()}) to form the
+ *                        clearing extent
  * @param method          Standard, Seed, Lines, or Combo fallback - shared by every tool
  * @param connect         join paths when the connecting move remains inside the safe center area
  * @param contour         include a final path around the inside edge of the clearing area
@@ -18,6 +19,9 @@ import java.util.Objects;
  *                        NccGenerator's class doc for the exact algorithm
  * @param order           processing order when restMachining is false; ignored (forced
  *                        largest-first) when it's true, matching Python's own behavior
+ * @param boundary        what delimits the area to be cleared before subtracting copper - see
+ *                        {@link NccBoundary}; defaults to {@code Itself} via the convenience
+ *                        constructors below
  *
  * <p>appTools/ToolNCC.py lets overlap/margin/method/connect/contour/copperOffset vary PER TOOL (each
  * row keeps its own copy of these in its "data" dict) when Rest Machining is off, and collapses them
@@ -28,7 +32,8 @@ import java.util.Objects;
  */
 public record NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
                             NccMethod method, boolean connect, boolean contour,
-                            double copperOffset, boolean restMachining, NccOrder order) {
+                            double copperOffset, boolean restMachining, NccOrder order,
+                            NccBoundary boundary) {
 
     private static final double DUPLICATE_TOLERANCE = 1e-6;
 
@@ -60,12 +65,21 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
         }
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(order, "order");
+        Objects.requireNonNull(boundary, "boundary");
     }
 
-    /** Convenience for a single tool, non-rest-machining - this port's original one-tool shape. */
+    /** Convenience defaulting {@link #boundary()} to {@code Itself} - this port's original multi-tool shape. */
+    public NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
+                         NccMethod method, boolean connect, boolean contour, double copperOffset,
+                         boolean restMachining, NccOrder order) {
+        this(toolDiameters, overlapFraction, margin, method, connect, contour, copperOffset,
+                restMachining, order, new NccBoundary.Itself());
+    }
+
+    /** Convenience for a single tool, non-rest-machining, boundary Itself - this port's original one-tool shape. */
     public NccParameters(double toolDiameter, double overlapFraction, double margin,
                          NccMethod method, boolean connect, boolean contour, double copperOffset) {
         this(List.of(toolDiameter), overlapFraction, margin, method, connect, contour, copperOffset,
-                false, NccOrder.NONE);
+                false, NccOrder.NONE, new NccBoundary.Itself());
     }
 }

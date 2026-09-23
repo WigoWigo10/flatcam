@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalDouble;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -137,6 +139,60 @@ class NccGeneratorTest {
         for (NccToolResult toolResult : result.toolResults()) {
             assertFalse(toolResult.isEmpty(), "every tool clears the same full area independently");
         }
+    }
+
+    @Test
+    void referenceGerberBoundaryIntersectsBothConvexHulls() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry referenceGerber = FACTORY.toGeometry(new Envelope(4, 5, 0, 10));
+
+        NccParameters itself = new NccParameters(List.of(0.2), 0.1, 2.0, NccMethod.STANDARD, false, true, 0,
+                false, NccOrder.NONE, new NccBoundary.Itself());
+        NccParameters referenced = new NccParameters(List.of(0.2), 0.1, 2.0, NccMethod.STANDARD, false, true, 0,
+                false, NccOrder.NONE, new NccBoundary.ReferenceGerber(referenceGerber));
+
+        NccResult itselfResult = NccGenerator.generate("MM", copper, itself);
+        NccResult referencedResult = NccGenerator.generate("MM", copper, referenced);
+
+        assertFalse(itselfResult.isEmpty());
+        assertFalse(referencedResult.isEmpty());
+        assertTrue(referencedResult.clearingArea().getArea() < itselfResult.clearingArea().getArea(),
+                "the reference Gerber's convex hull should confine the boundary to a smaller area");
+    }
+
+    @Test
+    void referenceGeometryBoundaryUsesRawShapeNotConvexHull() {
+        Geometry big = FACTORY.toGeometry(new Envelope(0, 10, 0, 10));
+        Geometry notch = FACTORY.toGeometry(new Envelope(0, 5, 0, 5));
+        Geometry lShapedReference = big.difference(notch);
+        Geometry copper = FACTORY.toGeometry(new Envelope(7, 8, 7, 8));
+
+        NccParameters params = new NccParameters(List.of(0.2), 0.1, 0.0, NccMethod.STANDARD, false, true, 0,
+                false, NccOrder.NONE, new NccBoundary.ReferenceGeometry(lShapedReference));
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        Geometry notchPoint = FACTORY.createPoint(new Coordinate(2, 2));
+        assertFalse(result.clearingArea().contains(notchPoint),
+                "the L-shaped reference's own notch must stay excluded - a convex hull would fill it in");
+    }
+
+    @Test
+    void minimumCopperClearanceFindsTheNarrowestGapBetweenParts() {
+        Geometry a = FACTORY.toGeometry(new Envelope(0, 1, 0, 1));
+        Geometry b = FACTORY.toGeometry(new Envelope(1.3, 2.3, 0, 1));
+        Geometry copper = a.union(b);
+
+        OptionalDouble clearance = NccGenerator.minimumCopperClearance(copper);
+        assertTrue(clearance.isPresent());
+        assertEquals(0.3, clearance.getAsDouble(), 1e-9);
+    }
+
+    @Test
+    void minimumCopperClearanceIsEmptyWithFewerThanTwoParts() {
+        Geometry single = FACTORY.toGeometry(new Envelope(0, 1, 0, 1));
+        assertTrue(NccGenerator.minimumCopperClearance(single).isEmpty());
+        assertTrue(NccGenerator.minimumCopperClearance(FACTORY.createPolygon()).isEmpty());
+        assertTrue(NccGenerator.minimumCopperClearance(null).isEmpty());
     }
 
     @Test
