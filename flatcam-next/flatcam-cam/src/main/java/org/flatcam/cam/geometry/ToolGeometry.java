@@ -1,6 +1,7 @@
 package org.flatcam.cam.geometry;
 
 import java.util.Objects;
+import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Geometry;
 
 /**
@@ -16,5 +17,10 @@ public record ToolGeometry(double toolDiameter, Geometry geometry) {
             throw new IllegalArgumentException("toolDiameter must be positive: " + toolDiameter);
         }
         Objects.requireNonNull(geometry, "geometry");
+    }
+
+    /** GeometryObject.scale()/.offset() etc. keep each tool's own solid_geometry in sync - same idea here. */
+    public ToolGeometry transformed(TransformOp op) {
+        return new ToolGeometry(toolDiameter, op.apply(geometry));
     }
 }

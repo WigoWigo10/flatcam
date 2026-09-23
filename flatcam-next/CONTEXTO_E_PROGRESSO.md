@@ -7,8 +7,9 @@ e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-09-22**. A base anterior a esta revisão é o commit
 > `6a4146ed` (`docs(flatcam-next): add project handoff and progress guide`),
-> seguido nesta mesma data pela implementação de NCC multi-tool com Rest
-> Machining descrita na seção 5. Antes de trabalhar, confirme o `HEAD`, o
+> seguido nesta mesma data por três incrementos: NCC multi-tool com Rest
+> Machining, boundary por objeto de referência + Check validity (seção 5), e
+> Transformations (seção 4). Antes de trabalhar, confirme o `HEAD`, o
 > `git status` e os testes: este arquivo é um ponto de passagem, não substitui
 > o código como fonte final da verdade.
 
@@ -67,10 +68,10 @@ separação.
 
 ### Verificação mais recente
 
-Após o NCC multi-tool + boundary por referência + Check validity (seção 5),
-`clean test` passa com **86 testes executados**, sem falhas, erros ou testes
-ignorados (79 antes do NCC multi-tool, 82 após ele, 86 após boundary/validity).
-`JobExecutorTest` registra
+Após NCC multi-tool + boundary por referência + Check validity + Transformations
+(seções 5 e 4), `clean test` passa com **109 testes executados**, sem falhas,
+erros ou testes ignorados (79 antes do NCC multi-tool, 82 após ele, 86 após
+boundary/validity, 109 após Transformations). `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -146,6 +147,57 @@ resultados podem mudar.
 - Calculadoras de unidades, ferramenta V e galvanoplastia.
 - Isolation, Cutout e NCC executam como jobs canceláveis, sem bloquear a thread
   JavaFX.
+
+### Transformations
+
+Implementado nesta revisão (2026-09-22), pesquisado diretamente em
+`appTools/ToolTransform.py`, `appGUI/ObjectUI.py` (o "mini-painel" comum) e
+`app_Main.py` (ações rápidas do menu Options) antes de codificar:
+
+- `org.flatcam.cam.transform.TransformOp` (sealed: `Rotate`, `Scale`, `Skew`,
+  `MirrorX`, `MirrorY`, `Offset`) - motor puro de transformação afim via
+  `AffineTransformation` do JTS, aplicável tanto a `Geometry` quanto a um
+  `Coordinate` isolado (necessário para Excellon, que guarda furos/slots como
+  pontos, não só como geometria agregada). `Rotate` usa a convenção
+  matemática crua (positivo = anti-horário, igual ao `camlib.Geometry.rotate`
+  do Python); as UIs que apresentam "positivo = horário" negam o ângulo antes
+  de construir o op, exatamente como o Python faz em seus dois pontos de
+  chamada (`obj.rotate(-num, point)`).
+- `GerberImage.transformed(op)` / `ExcellonImage.transformed(op)` /
+  `ToolGeometry.transformed(op)` - cada tipo de objeto transforma toda a
+  geometria que carrega (Gerber: solid + follow + geometria por aperture;
+  Excellon: cada furo/slot individualmente, não só o solid agregado;
+  Geometry: cada ferramenta do multigeo). Os campos de diâmetro/largura de
+  aperture NÃO são recalculados após a transformação (só alimentam a tabela
+  de apertures, nenhum cálculo de CAM os lê diretamente) - simplificação
+  deliberada de v1, documentada no Javadoc de `GerberImage`.
+- **Ações rápidas no menu Opções**: Girar Selecao/Inclinar em X/Inclinar em
+  Y/Espelhar em X/Espelhar em Y, com os mesmos ícones do Python
+  (`rotate.png`/`skewX.png`/`skewY.png`/`flipx.png`/`flipy.png`, reaproveitados
+  via `pom.xml` como os demais ícones legados). Referência sempre "Selection"
+  (centro da caixa delimitadora combinada dos objetos selecionados), igual ao
+  `app_Main.py`. Sem atalhos de teclado Shift+R/X/Y/bare X/bare Y do Python -
+  um acelerador global sem modificador em X/Y sequestraria a digitação normal
+  em qualquer campo de texto da aplicação.
+- **Ferramenta completa** (`TransformToolPanel`, aberta pelo botão
+  "Transformations" do mini-painel, ícone `transform.png`): Reference
+  (Origin/Selection/Point - a quarta opção do Python, "Object", fica de fora,
+  ver "falta" abaixo), Rotate, Skew X/Y (com Link), Scale X/Y (com Link),
+  Flip X/Y, Offset X/Y, Reset Tool (ícone `reset32.png`). Cada botão aplica
+  de imediato à seleção atual da árvore, sem passo de "Gerar" - igual ao
+  Python. Botões sem ícone (igual ao Python - só Reset e o combo de tipo de
+  objeto de referência têm ícone lá).
+- **Mini-painel "Transformations"** (`MainWindow.transformationsSection`):
+  igual nos três tipos de objeto (Scale uniforme sobre a Origem + Offset
+  (dx,dy) + botão que abre a ferramenta completa), replicando o
+  `ObjectUI.py` comum do Python (que já era compartilhado entre
+  Gerber/Excellon/Geometry, não três painéis distintos).
+- CNC Job recusa transformação (`CNC Job nao pode ser transformado`), igual
+  ao Python.
+
+Falta (fora de escopo por ora, ver seção 9.2): Buffer (distância/fator) e a
+referência "Object" (centro de outro objeto escolhido) - ambos triviais de
+adicionar depois reaproveitando a infraestrutura já criada.
 
 ## 5. NCC: estado exato da implementação atual
 
@@ -255,7 +307,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
 | Persistência de projeto | inicial | guarda principalmente caminhos, não snapshots editáveis |
 | Calculadoras | parcial | três calculadoras implementadas |
-| Transformations | ausente | planejado após completar a próxima etapa NCC |
+| Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | ausente | necessário para paridade de ferramentas |
 | Preferências globais | inicial/parcial | tema e algumas opções; longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
@@ -277,6 +329,12 @@ Isso era aceitável antes de existirem editores, mas deixa de ser suficiente
 assim que o usuário puder alterar um Gerber/Excellon. Antes do Gerber Editor, o
 formato deve ganhar versão e persistência de objetos editados sem quebrar os
 projetos atuais.
+
+**Transformations (seção 4) já é a primeira fatia afetada por essa lacuna**:
+girar/espelhar/escalar/mover um objeto altera seu estado em memória, mas
+salvar e reabrir o projeto reparseia o arquivo de origem do zero, perdendo a
+transformação. Não há workaround hoje além de reexportar/salvar o objeto já
+transformado como novo arquivo antes de fechar - reforça a prioridade de 9.3.
 
 ### `MainWindow` concentra responsabilidades demais
 
@@ -315,19 +373,21 @@ novos painéis devem manter terminologia consistente com o produto.
 
 ## 8. Próximo passo recomendado
 
-**NCC multi-tool com Rest Machining, boundary por objeto de referência e
-"Check validity" foram concluídos** (seção 5) - critérios de aceite
-verificados via testes do reactor (86 testes) e smoke test do app; validação
-visual do painel feita ao vivo com o usuário a cada rodada.
+**NCC multi-tool com Rest Machining, boundary por objeto de referência,
+"Check validity" e Transformations foram concluídos** (seções 5 e 4 ->
+"Transformations") - critérios de aceite verificados via testes do reactor
+(109 testes) e smoke test do app; validação visual dos painéis feita ao vivo
+com o usuário a cada rodada.
 
-O que resta da paridade NCC (seleção de área no canvas, Tools Database) exige
-infraestrutura grande e nova (interação de seleção no canvas; um subsistema
-de banco de tools inteiro) que nenhuma outra ferramenta ainda força a
-construir - por isso o próximo incremento recomendado é migrar para
-**Transformations** (seção 9.2: mover/rotacionar/espelhar/escalar/skew/offset
-para Gerber/Excellon/Geometry), que é pré-requisito de várias ferramentas
-maiores do roadmap (2-Sided PCB, Panelize, Copper Thieving, Fiducials) e não
-depende de nenhuma dessas duas peças de infraestrutura.
+O que resta da paridade NCC (seleção de área no canvas, Tools Database) e o
+que falta de Transformations (Buffer, referência "Object") exigem
+infraestrutura grande (interação de seleção no canvas; um subsistema de banco
+de tools inteiro) ou são complementos pequenos de baixo valor imediato. O
+próximo incremento recomendado é **9.3: Modelo de objetos e projeto
+versionado** - é pré-requisito explícito do Gerber Editor (9.4, a maior
+lacuna funcional ainda aberta na área Gerber) e da persistência de objetos
+derivados/transformados entre sessões (hoje o `.fcnproj` reparseia os
+arquivos de origem ao reabrir, perdendo qualquer transformação aplicada).
 
 ### Critérios de aceite do incremento concluído (referência)
 
@@ -344,7 +404,7 @@ depende de nenhuma dessas duas peças de infraestrutura.
   (reutiliza `CancellationToken` já existente)
 - Progresso não regride e termina em 100% no sucesso. ✅ (testado)
 - Testes do reactor passam e o app inicia com os módulos recém-instalados. ✅
-  (86 testes, `MainApp started`)
+  (109 testes, `MainApp started`)
 
 Decisão registrada: várias ferramentas produzem troca de ferramenta **num
 único CNC Job** (G-code concatenado com M0 opcional entre seções), não jobs
@@ -367,12 +427,12 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 Concluído nesta revisão: boundary por objeto de referência e
 validação/sugestão de diâmetro ("Check validity") - ver seção 5.
 
-### 9.2 Transformations
+### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
-Criar transformações geométricas reutilizáveis para Gerber, Excellon e
-Geometry: mover, rotacionar, espelhar, escalar, skew e offset conforme o legado.
-Manter a matemática no núcleo, independente de JavaFX, e definir claramente
-unidade, pivô e tolerância.
+Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
+com motor no núcleo (`org.flatcam.cam.transform`), independente de JavaFX.
+Falta apenas Buffer (distância/fator) e a referência "Object" - ambos
+pequenos, adicionáveis quando houver demanda real.
 
 ### 9.3 Modelo de objetos e projeto versionado
 
@@ -486,6 +546,7 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | `flatcam-cam/.../cutout/` | Board Cutout |
 | `flatcam-cam/.../ncc/` | Non-Copper Clearing (multi-tool + Rest Machining) |
 | `flatcam-cam/.../geometry/ToolGeometry.java` | par diâmetro+geometria de uma ferramenta dentro de um objeto Geometry multi-tool ("multigeo") |
+| `flatcam-cam/.../transform/` | motor de Transformations (Rotate/Scale/Skew/Mirror/Offset) - `TransformOp` (sealed) e `TransformReference` |
 | `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code |
 | `flatcam-fx/.../MainWindow.java` | integração principal da UI; atualmente grande demais |
 | `flatcam-fx/.../PlotAreaView.java` | Canvas, viewport e desenho das camadas |
@@ -530,7 +591,9 @@ uma fatia como concluída:
 
 O FlatCAM Next já deixou de ser um esqueleto: carrega e plota Gerber/Excellon,
 tem uma árvore lateral próxima do legado, jobs com progresso/cancelamento,
-Isolation, Cutout, NCC inicial, Geometry -> CNC e G-code. A maior fatia recém
-aberta é NCC. O próximo trabalho recomendado é torná-lo multi-tool com Rest
-Machining; depois completar NCC, implementar Transformations, evoluir o modelo
-persistente e só então iniciar o Gerber Editor sobre uma fundação adequada.
+Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
+referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/
+Flip/Offset) completas para os três tipos de objeto. O próximo trabalho
+recomendado é evoluir o modelo de objetos/projeto para algo versionado e
+editável (seção 9.3) - pré-requisito da persistência de transformações entre
+sessões e do Gerber Editor, a maior lacuna funcional ainda aberta.

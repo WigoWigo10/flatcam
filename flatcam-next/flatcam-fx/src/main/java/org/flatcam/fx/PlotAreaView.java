@@ -144,6 +144,16 @@ final class PlotAreaView extends StackPane {
         redraw();
     }
 
+    /** Swaps a layer's geometry in place (e.g. after a Transform) without disturbing its colors/visibility/plot-kind. */
+    void updateLayerGeometry(Object key, Geometry geometry) {
+        RenderLayer layer = layers.get(key);
+        if (layer != null) {
+            layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
+                    layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
+            redraw();
+        }
+    }
+
     void removeLayer(Object key) {
         layers.remove(key);
         redraw();

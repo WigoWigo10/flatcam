@@ -1,6 +1,8 @@
 package org.flatcam.cam.gerber;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
+import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 
@@ -52,6 +54,27 @@ public final class GerberImage {
     /** One aperture's own shapes (every flash/stroke that used it), for the "Mark" highlight - empty if the aperture was never used. */
     public Map<String, Geometry> apertureGeometry() {
         return apertureGeometry;
+    }
+
+    /**
+     * A copy with {@code op} applied to every geometry this object carries
+     * (solid, follow, and each aperture's own shapes) - appTools/ToolTransform.py's
+     * six operations applied to a Gerber via {@code Gerber.rotate/mirror/skew/scale/offset}.
+     * Aperture width/height/diameter fields are intentionally left untouched:
+     * they only feed the apertures table's display, not any CAM calculation
+     * (which reads {@link #solidGeometry()}/{@link #apertureGeometry()}
+     * directly), so leaving them stale after a transform is a deliberate v1
+     * simplification rather than a correctness gap.
+     */
+    public GerberImage transformed(TransformOp op) {
+        Map<String, Geometry> newApertureGeometry = new LinkedHashMap<>();
+        for (Map.Entry<String, Geometry> entry : apertureGeometry.entrySet()) {
+            newApertureGeometry.put(entry.getKey(), op.apply(entry.getValue()));
+        }
+        return new GerberImage(units, apertures,
+                solidGeometry == null ? null : op.apply(solidGeometry),
+                followGeometry == null ? null : op.apply(followGeometry),
+                newApertureGeometry);
     }
 
     public boolean isEmpty() {
