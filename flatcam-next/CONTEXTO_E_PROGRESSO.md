@@ -403,6 +403,27 @@ reabrir o app. Não testado: se a troca `CUSTOM_*` <-> `ATLANTAFX_*` (indo de
 UA nulo para não-nulo, ou vice-versa) sofre do mesmo problema - não afirme
 que funciona sem verificar.
 
+### Corrigido: menu de contexto herdando texto branco da célula selecionada
+
+Achado e corrigido na mesma revisão (2026-09-23), **distinto** da limitação
+AtlantaFX acima (aquela é uma falha de resolução do JavaFX/AtlantaFX ao
+trocar tema; esta era causada pela própria correção de contraste da árvore
+descrita mais abaixo). Ao clicar com o botão direito num item **já
+selecionado**, `MainWindow` chamava `menu.show(cell, ...)` - ancorando o
+popup na `TreeCell` em si. Uma célula selecionada+focada tem
+`-fx-fill: -fc-selection-text-focused` (branco); `-fx-fill` é uma
+propriedade herdável, e um `ContextMenu` mostrado via `show(Node, ...)`
+herda essa propriedade do nó-âncora. O valor herdado do nó-âncora **vence
+qualquer contra-regra CSS** de prioridade normal (confirmado tentando três
+seletores diferentes em `components.css`, todos perderam) - não é algo
+corrigível só com CSS. O texto de todo o menu ficava branco, invisível
+contra o fundo claro do popup, exceto a linha em hover (que recebe estilo
+próprio). Corrigido trocando a âncora para `projectTree` (a árvore inteira,
+que não carrega essa cor sobrescrita) em vez da célula - sem efeito na
+posição do popup, já que o código já usa coordenadas de tela absolutas
+(`event.getScreenX()/getScreenY()`). Confirmado isolado (harness fora da
+tela) antes/depois da correção.
+
 ### Diferenças intencionais já aceitas
 
 - Operações pesadas rodam em background e são canceláveis.

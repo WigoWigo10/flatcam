@@ -826,7 +826,19 @@ final class MainWindow {
                 }
                 ContextMenu menu = buildContextMenuFor(item);
                 if (!menu.getItems().isEmpty()) {
-                    menu.show(cell, event.getScreenX(), event.getScreenY());
+                    // Anchored on projectTree, NOT cell: a selected+focused TreeCell has
+                    // its own -fc-selection-text-focused override on -fx-fill (an inherited
+                    // CSS property), and a ContextMenu shown via show(Node, ...) inherits
+                    // that from whatever node it's anchored on - a menu anchored directly
+                    // on a white-selected-text cell renders every item's text white too,
+                    // invisible against the popup's own light background. Confirmed
+                    // isolated (fresh off-screen Stage, no screen capture): anchoring the
+                    // same menu/stylesheets on the TreeView itself instead of the cell
+                    // keeps normal legible text, since the TreeView carries no such
+                    // override. event.getScreenX()/getScreenY() already give the popup's
+                    // exact position, so the anchor node only affects this CSS inheritance
+                    // context, not where it appears.
+                    menu.show(projectTree, event.getScreenX(), event.getScreenY());
                 }
                 event.consume();
             });
