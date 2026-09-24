@@ -5,7 +5,7 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.gerber.GerberImage;
 
 /**
- * What a FlatCAM Next project remembers. Gerber/Excellon objects now embed
+ * What a FlatCAM FX project remembers. Gerber/Excellon objects now embed
  * their own fully-resolved geometry (WKT-wrapped, same convention as the
  * legacy app's own .FlatPrj format - see org.flatcam.app.project.flatprj)
  * rather than a path to re-parse: this is what lets a Transformation (or any

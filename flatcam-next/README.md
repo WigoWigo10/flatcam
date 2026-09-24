@@ -1,9 +1,12 @@
-# FlatCAM Next
+# FlatCAM FX
 
 Reimplementação gradual do FlatCAM Python/PyQt5 em Java 21 + JavaFX. O projeto
 já oferece uma fatia funcional para carregar e exibir Gerber/Excellon, executar
 operações CAM e gerar CNC Jobs; ele ainda cresce ao lado do aplicativo legado e
 não o substitui por completo.
+
+O diretório e o artefato Maven continuam chamados `flatcam-next` por
+compatibilidade interna; esse nome não é mais a marca exibida pelo app.
 
 Para estado detalhado, limitações e próximos passos, leia
 [`CONTEXTO_E_PROGRESSO.md`](CONTEXTO_E_PROGRESSO.md). A arquitetura e estratégia

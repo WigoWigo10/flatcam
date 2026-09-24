@@ -1,10 +1,10 @@
-# CONTEXTO DO PROJETO — FlatCAM FX / FlatCAM Next
+# CONTEXTO DO PROJETO — FlatCAM FX
 
 > Documento-base para humanos e IAs/LLMs. Leia-o integralmente antes de propor arquitetura, código, cronograma ou mudanças no projeto.
 
 ## 1. Resumo executivo
 
-O projeto pretende criar uma modernização gradual do FlatCAM, provisoriamente chamada **FlatCAM FX** ou **FlatCAM Next**. A principal referência de experiência visual e responsividade é a interface **UGS-FX**, do Universal G-Code Sender (repositório `winder/Universal-G-Code-Sender`).
+O projeto pretende criar uma modernização gradual do FlatCAM, chamada **FlatCAM FX**. O nome anterior, **FlatCAM Next**, permanece apenas em alguns identificadores internos para preservar compatibilidade. A principal referência de experiência visual e responsividade é a interface **UGS-FX**, do Universal G-Code Sender (repositório `winder/Universal-G-Code-Sender`).
 
 A intenção não é apenas trocar a aparência do FlatCAM. O objetivo é obter uma aplicação CAM desktop moderna, modular, fluida e testável, capaz de continuar responsiva enquanto processa arquivos Gerber, Excellon, geometrias, toolpaths e G-code pesados.
 

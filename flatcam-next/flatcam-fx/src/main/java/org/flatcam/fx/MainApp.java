@@ -15,7 +15,7 @@ import javafx.util.Duration;
 import org.flatcam.app.job.JobExecutor;
 
 /**
- * Entry point for the FlatCAM Next JavaFX shell (Fase 1 skeleton -
+ * Entry point for the FlatCAM FX JavaFX shell (Fase 1 skeleton -
  * CONTEXTO_FLATCAM_FX.md). Deliberately thin: all layout lives in
  * {@link MainWindow}, all background work goes through {@link JobExecutor}
  * so nothing heavy ever runs on this class's thread.
@@ -51,7 +51,7 @@ public class MainApp extends Application {
         Platform.setImplicitExit(false);
 
         MainWindow mainWindow = new MainWindow(jobExecutor);
-        primaryStage.setTitle("FlatCAM Next (skeleton)");
+        primaryStage.setTitle("FlatCAM FX");
         primaryStage.setScene(mainWindow.createScene());
         primaryStage.setWidth(AppPreferences.loadWindowWidth(1200));
         primaryStage.setHeight(AppPreferences.loadWindowHeight(800));

@@ -13,7 +13,7 @@
     <artifactId>flatcam-fx</artifactId>
     <packaging>jar</packaging>
 
-    <name>FlatCAM Next - FX</name>
+    <name>FlatCAM FX - UI</name>
     <description>
         JavaFX shell: window, menus, panels, theming. Fase 1 skeleton per
         CONTEXTO_FLATCAM_FX.md - no real viewport yet (Fase 2), no real

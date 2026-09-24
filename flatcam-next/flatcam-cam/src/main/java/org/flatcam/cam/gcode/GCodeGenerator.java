@@ -71,7 +71,7 @@ public final class GCodeGenerator {
         }
 
         StringBuilder gcode = new StringBuilder();
-        line(gcode, "; Gerado por FlatCAM Next (prototipo) - furacao");
+        line(gcode, "; Gerado por FlatCAM FX (prototipo) - furacao");
         line(gcode, "; Unidades do arquivo de origem: %s", image.units());
         line(gcode, image.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
@@ -168,7 +168,7 @@ public final class GCodeGenerator {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
-        line(gcode, "; Gerado por FlatCAM Next (prototipo) - isolamento");
+        line(gcode, "; Gerado por FlatCAM FX (prototipo) - isolamento");
         line(gcode, "; Unidades do arquivo de origem: %s", result.units());
         line(gcode, result.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
@@ -230,7 +230,7 @@ public final class GCodeGenerator {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
-        line(gcode, "; Gerado por FlatCAM Next (prototipo) - recorte de placa (cutout)");
+        line(gcode, "; Gerado por FlatCAM FX (prototipo) - recorte de placa (cutout)");
         line(gcode, "; Unidades do arquivo de origem: %s", result.units());
         line(gcode, result.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
@@ -327,7 +327,7 @@ public final class GCodeGenerator {
         cancellationToken.throwIfCancellationRequested();
 
         StringBuilder gcode = new StringBuilder();
-        line(gcode, "; Gerado por FlatCAM Next (prototipo) - Geometry");
+        line(gcode, "; Gerado por FlatCAM FX (prototipo) - Geometry");
         line(gcode, "; Unidades do objeto de origem: %s", units);
         line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
         line(gcode, "G90");

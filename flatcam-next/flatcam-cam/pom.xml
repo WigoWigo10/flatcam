@@ -13,7 +13,7 @@
     <artifactId>flatcam-cam</artifactId>
     <packaging>jar</packaging>
 
-    <name>FlatCAM Next - CAM core</name>
+    <name>FlatCAM FX - CAM core</name>
     <description>
         Gerber/Excellon parsing and geometry (Fase 3+ per CONTEXTO_FLATCAM_FX.md).
         JTS for geometry, no JavaFX dependency - flatcam-fx depends on this,

@@ -38,7 +38,7 @@ class GCodeGeneratorTest {
         String gcode = GCodeGenerator.generateDrillGCode(image,
                 new DrillGCodeParameters(3.0, 1.7, 300, 0, false));
 
-        assertTrue(gcode.startsWith("; Gerado por FlatCAM Next"));
+        assertTrue(gcode.startsWith("; Gerado por FlatCAM FX"));
         assertTrue(gcode.contains("G20"), "inch file should select G20");
         assertTrue(gcode.contains("G90"));
         assertTrue(gcode.contains("G0 X0.1000 Y0.2000"));

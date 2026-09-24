@@ -1,6 +1,6 @@
-# FlatCAM Next — contexto, progresso e próximos passos
+# FlatCAM FX — contexto, progresso e próximos passos
 
-Este é o documento operacional de continuidade do **FlatCAM Next**. Ele foi
+Este é o documento operacional de continuidade do **FlatCAM FX**. Ele foi
 escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
@@ -15,7 +15,7 @@ e continuar a migração sem recomeçar a investigação.
 
 ## 1. Objetivo do projeto
 
-O FlatCAM Next é uma reimplementação gradual do FlatCAM Python/PyQt5 em
+O FlatCAM FX é uma reimplementação gradual do FlatCAM Python/PyQt5 em
 **Java 21 + JavaFX**, mantida no mesmo repositório enquanto ainda não substitui
 o aplicativo legado.
 
@@ -931,7 +931,7 @@ uma fatia como concluída:
 
 ## 15. Resumo executivo
 
-O FlatCAM Next já deixou de ser um esqueleto: carrega e plota Gerber/Excellon,
+O FlatCAM FX já deixou de ser um esqueleto: carrega e plota Gerber/Excellon,
 tem uma árvore lateral próxima do legado, jobs com progresso/cancelamento,
 Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
 referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/

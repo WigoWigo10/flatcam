@@ -13,7 +13,7 @@
     <artifactId>flatcam-application</artifactId>
     <packaging>jar</packaging>
 
-    <name>FlatCAM Next - Application</name>
+    <name>FlatCAM FX - Application</name>
     <description>
         Use cases, project model and the job/cancellation system. No JavaFX
         dependency here on purpose: the UI depends on this module, never the

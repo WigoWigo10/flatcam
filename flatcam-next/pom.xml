@@ -9,12 +9,10 @@
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>FlatCAM Next (parent)</name>
+    <name>FlatCAM FX (parent)</name>
     <description>
-        Fase 1 skeleton of the FlatCAM FX migration described in
-        CONTEXTO_FLATCAM_FX.md - JavaFX front end, Java core, kept as a
-        vertical slice growing alongside the existing Python/PyQt5 app
-        (not a replacement yet).
+        JavaFX front end and Java CAM core growing alongside the existing
+        Python/PyQt5 app, as described in CONTEXTO_FLATCAM_FX.md.
     </description>
 
     <properties>

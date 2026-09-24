@@ -726,7 +726,7 @@ final class MainWindow {
                 plannedItem("Reportar Problema", "bug32.png"),
                 new SeparatorMenuItem(),
                 chromeItem("Sobre", "about32.png", () ->
-                        appendConsole("FlatCAM Next - port JavaFX em desenvolvimento.")),
+                        appendConsole("FlatCAM FX - em desenvolvimento.")),
                 chromeItem("Executar job de demonstracao", "code.png", this::runDemoJob));
 
         return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, objectsMenu, toolsMenu, helpMenu);
@@ -3168,7 +3168,7 @@ final class MainWindow {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM Next", "*.fcnproj"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"));
         String fallbackDir = Path.of("").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -3222,7 +3222,7 @@ final class MainWindow {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Abrir Projeto");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM Next", "*.fcnproj"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"));
         String fallbackDir = Path.of("").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
