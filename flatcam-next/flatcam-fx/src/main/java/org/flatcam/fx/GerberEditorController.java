@@ -3,6 +3,7 @@ package org.flatcam.fx;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import javafx.scene.Node;
 import javafx.scene.control.TreeItem;
 import javafx.scene.paint.Color;
@@ -34,7 +35,10 @@ final class GerberEditorController {
 
         void setObjectVisible(TreeItem<String> item, boolean visible);
 
-        void addEditedGerber(String name, GerberImage image);
+        String addEditedGerber(String name, GerberImage image);
+
+        boolean generateEditedGerber(GerberEditSession.ApplyRequest request,
+                                     Consumer<GerberEditSession.ApplyResult> onSuccess, Runnable onFailure);
 
         void log(String message);
     }
@@ -68,7 +72,8 @@ final class GerberEditorController {
         item = sourceItem;
         session = new GerberEditSession(sourceItem.getValue(), image);
         panel = new GerberEditToolPanel(sourceItem.getValue(), session.shapesApproximated(),
-                this::apply, this::cancel);
+                this::deleteSelected, this::moveSelected, this::copySelected,
+                this::undo, this::redo, this::apply, this::cancel);
 
         host.setObjectVisible(sourceItem, false);
         plotArea.putLayer(SHAPES_LAYER, PlotAreaView.LayerCategory.OVERLAY, GEOMETRY_FACTORY.createGeometryCollection(),
@@ -108,13 +113,54 @@ final class GerberEditorController {
     }
 
     private void apply() {
-        if (session == null) {
+        if (session == null || !session.isDirty()) {
             return;
         }
-        GerberEditSession.ApplyResult result = session.apply();
-        end();
-        host.addEditedGerber(result.name(), result.image());
-        host.log("Editor: objeto \"" + result.name() + "\" criado a partir da edicao.");
+        GerberEditSession editing = session;
+        if (host.generateEditedGerber(editing.prepareApply(), result -> {
+            if (session != editing) {
+                return;
+            }
+            end();
+            String name = host.addEditedGerber(result.name(), result.image());
+            host.log("Editor: objeto \"" + name + "\" criado a partir da edicao.");
+        }, () -> {
+            if (session == editing) {
+                panel.setBusy(false);
+            }
+        })) {
+            panel.setBusy(true);
+        }
+    }
+
+    private void deleteSelected() {
+        if (session != null && session.deleteSelected()) {
+            refreshSelection();
+        }
+    }
+
+    private void moveSelected(double dx, double dy) {
+        if (session != null && session.moveSelected(dx, dy)) {
+            refreshSelection();
+        }
+    }
+
+    private void copySelected(double dx, double dy) {
+        if (session != null && session.copySelected(dx, dy)) {
+            refreshSelection();
+        }
+    }
+
+    private void undo() {
+        if (session != null && session.undo()) {
+            refreshSelection();
+        }
+    }
+
+    private void redo() {
+        if (session != null && session.redo()) {
+            refreshSelection();
+        }
     }
 
     private void end() {
@@ -142,6 +188,7 @@ final class GerberEditorController {
         plotArea.updateLayerGeometry(SHAPES_LAYER, collection(unselectedParts));
         plotArea.updateLayerGeometry(SELECTION_LAYER, collection(selectedParts));
         panel.showSelection(selected.size(), session.selectedApertures());
+        panel.showState(session.isDirty(), session.canUndo(), session.canRedo());
     }
 
     /** PlotAreaView draws one level of parts, so nested multi-polygons are flattened first. */

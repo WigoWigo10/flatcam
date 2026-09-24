@@ -13,6 +13,9 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.flatcam.cam.gerber.GerberShape;
+import org.flatcam.cam.gerber.edit.GerberEditSession;
+import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.json.JSONObject;
@@ -71,6 +74,87 @@ class ProjectFileIOTest {
     }
 
     @Test
+    void roundTripsIndividualGerberShapesAndAnEditedResult() throws IOException {
+        GerberImage parsed = new GerberParser().parse(List.of(
+                "%FSLAX23Y23*%", "%MOMM*%", "%ADD10C,1*%", "D10*",
+                "X1000Y1000D03*", "X2000Y1000D03*",
+                "G36*", "X4000Y4000D02*", "X5000Y4000D01*",
+                "X5000Y5000D01*", "X4000Y5000D01*", "X4000Y4000D01*", "G37*",
+                "%LPC*%", "X2000Y1000D03*", "M02*"));
+        Path file = tempDir.resolve("editable.fcnproj");
+        ProjectFile project = new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "board", parsed, null, null, true, true, false, false)), List.of(), List.of());
+
+        ProjectFileIO.save(project, file, false);
+        JSONObject saved = new JSONObject(Files.readString(file));
+        JSONObject gerber = saved.getJSONArray("objs").getJSONObject(0);
+        assertEquals(3, gerber.getJSONObject("apertures").getJSONObject("10").getJSONArray("geometry").length());
+        assertEquals(1, gerber.getJSONObject("apertures").getJSONObject("0").getJSONArray("geometry").length());
+        assertEquals(4, gerber.getJSONObject("_java").getJSONArray("shape_order").length());
+
+        GerberImage loaded = ProjectFileIO.load(file).gerbers().get(0).image();
+        assertEquals(4, loaded.shapes().size());
+        assertEquals(List.of("10", "10", GerberShape.REGION_APERTURE, "10"),
+                loaded.shapes().stream().map(GerberShape::apertureCode).toList());
+        assertTrue(loaded.shapes().get(3).clear());
+        assertTrue(loaded.shapes().stream().allMatch(shape -> shape.followGeometry() != null));
+
+        GerberEditSession editor = new GerberEditSession("board", loaded);
+        assertFalse(editor.shapesApproximated());
+        editor.clickSelect(1, 1, false);
+        assertTrue(editor.deleteSelected());
+        GerberImage edited = editor.apply().image();
+        ProjectFileIO.save(new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "board_edit", edited, null, null, true, true, false, false)), List.of(), List.of()), file);
+        GerberImage reopened = ProjectFileIO.load(file).gerbers().get(0).image();
+        assertEquals(3, reopened.shapes().size());
+        assertTrue(edited.solidGeometry().equalsExact(reopened.solidGeometry(), 1e-9));
+        assertFalse(new GerberEditSession("board_edit", reopened).shapesApproximated());
+    }
+
+    @Test
+    void usesPythonApertureNamesAndReadsPreviousJavaNames() {
+        GerberImage parsed = new GerberParser().parse(List.of(
+                "%FSLAX23Y23*%", "%MOMM*%", "%ADD10C,1*%", "%ADD11R,2X1*%",
+                "%ADD12O,2X1*%", "%ADD13P,2X6X15*%",
+                "D10*", "X1000Y1000D03*", "D11*", "X3000Y1000D03*",
+                "D12*", "X6000Y1000D03*", "D13*", "X9000Y1000D03*", "M02*"));
+        JSONObject saved = GerberFlatPrjCodec.toJson("board", parsed, null, null,
+                true, true, false, false);
+        JSONObject apertures = saved.getJSONObject("apertures");
+        assertEquals("C", apertures.getJSONObject("10").getString("type"));
+        assertEquals(1.0, apertures.getJSONObject("10").getDouble("size"));
+        assertEquals("R", apertures.getJSONObject("11").getString("type"));
+        assertEquals(2.0, apertures.getJSONObject("11").getDouble("width"));
+        assertEquals("O", apertures.getJSONObject("12").getString("type"));
+        assertEquals("P", apertures.getJSONObject("13").getString("type"));
+        assertEquals(2.0, apertures.getJSONObject("13").getDouble("diam"));
+        assertEquals(6, apertures.getJSONObject("13").getInt("nVertices"));
+        assertEquals(15.0, apertures.getJSONObject("13").getDouble("rotation"));
+
+        GerberImage loaded = GerberFlatPrjCodec.fromJson(saved).image();
+        assertEquals(parsed.apertures().get("13").polygonVertices(),
+                loaded.apertures().get("13").polygonVertices());
+        assertEquals(parsed.apertures().get("13").polygonRotation(),
+                loaded.apertures().get("13").polygonRotation());
+        assertEquals(parsed.shapes().size(), loaded.shapes().size());
+
+        // Projects saved by earlier Java versions used enum names and different
+        // polygon keys. Keep them readable after switching to Python's schema.
+        apertures.getJSONObject("10").put("type", "CIRCLE").put("width", 1);
+        apertures.getJSONObject("11").put("type", "RECTANGLE");
+        apertures.getJSONObject("12").put("type", "OBROUND");
+        apertures.getJSONObject("13").put("type", "POLYGON").put("width", 2)
+                .put("polygon_vertices", 6).put("polygon_rotation", 15)
+                .remove("nVertices");
+        apertures.getJSONObject("13").remove("rotation");
+        apertures.getJSONObject("13").remove("diam");
+        GerberImage legacy = GerberFlatPrjCodec.fromJson(saved).image();
+        assertEquals(6, legacy.apertures().get("13").polygonVertices());
+        assertEquals(15.0, legacy.apertures().get("13").polygonRotation());
+    }
+
+    @Test
     void roundTripsEmptyProject() throws IOException {
         ProjectFile empty = new ProjectFile(List.of(), List.of(), List.of());
         Path file = tempDir.resolve("empty.fcnproj");
@@ -112,6 +196,37 @@ class ProjectFileIOTest {
 
         ProjectFile loaded = ProjectFileIO.load(file);
         assertEquals(1, loaded.gerbers().size());
+    }
+
+    @Test
+    void replacingAnExistingProjectPublishesACompleteFile() throws IOException {
+        Path file = tempDir.resolve("existing.fcnproj");
+        Files.writeString(file, "previous contents");
+        ProjectFile project = new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "g.gbr", RECTANGLE_GERBER, null, null, true, true, false, false)), List.of(), List.of());
+
+        ProjectFileIO.save(project, file);
+
+        assertEquals("g.gbr", ProjectFileIO.load(file).gerbers().get(0).name());
+        try (var files = Files.list(tempDir)) {
+            assertEquals(List.of(file), files.toList(), "temporary file must not remain after publication");
+        }
+    }
+
+    @Test
+    void loadsPreviousV2AggregateGerberWithoutInventingIndividualShapes() throws IOException {
+        ProjectFile project = new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "old.gbr", RECTANGLE_GERBER, null, null, true, true, false, false)), List.of(), List.of());
+        Path file = tempDir.resolve("previous-v2.fcnproj");
+        ProjectFileIO.save(project, file, false);
+        JSONObject old = new JSONObject(Files.readString(file));
+        old.getJSONArray("objs").getJSONObject(0).getJSONObject("_java").remove("shape_order");
+        Files.writeString(file, old.toString());
+
+        GerberImage loaded = ProjectFileIO.load(file).gerbers().get(0).image();
+        assertTrue(loaded.shapes().isEmpty());
+        assertTrue(RECTANGLE_GERBER.solidGeometry().equalsTopo(loaded.solidGeometry()));
+        assertTrue(new GerberEditSession("old.gbr", loaded).shapesApproximated());
     }
 
     @Test

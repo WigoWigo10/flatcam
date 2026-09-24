@@ -1,13 +1,18 @@
 package org.flatcam.cam.gerber.edit;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberShape;
+import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -27,10 +32,9 @@ import org.locationtech.jts.geom.Polygon;
  * "&lt;name&gt;_edit" (or "&lt;name&gt;_edit_N") rather than overwriting the
  * original; Cancel discards the session with no new object.
  *
- * <p>There are still no edit operations - {@link #workingImage()} is always
- * the source image and {@link #apply()} never produces edited geometry. What
- * this class does add is the editable shape list ({@link #shapes()}) and a
- * selection over it with Python's rules:
+ * <p>Edits operate on the individual shapes, with undo/redo snapshots of the
+ * shape list. {@link #apply()} rebuilds the solid, follow and per-aperture
+ * geometries and publishes a new image. Selection follows Python's rules:
  * <ul>
  *   <li>Only dark shapes are selectable - Python stores clear shapes under
  *       'clear' only, and its hit tests read 'solid'.</li>
@@ -47,18 +51,25 @@ import org.locationtech.jts.geom.Polygon;
 public final class GerberEditSession {
 
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
+    private static final int HISTORY_LIMIT = 100;
+
+    private record EditState(List<GerberShape> shapes, Set<Integer> selected) {
+    }
 
     private final String sourceName;
     private final GerberImage sourceImage;
-    private final GerberImage workingImage;
-    private final List<GerberShape> shapes;
+    private final List<GerberShape> originalShapes;
+    private List<GerberShape> shapes;
     private final boolean shapesApproximated;
     private final Set<Integer> selected = new LinkedHashSet<>();
+    private final Deque<EditState> undoStack = new ArrayDeque<>();
+    private final Deque<EditState> redoStack = new ArrayDeque<>();
+    private GerberImage cachedWorkingImage;
 
     public GerberEditSession(String sourceName, GerberImage sourceImage) {
         this.sourceName = sourceName;
         this.sourceImage = sourceImage;
-        this.workingImage = sourceImage;
+        this.cachedWorkingImage = sourceImage;
         if (!sourceImage.shapes().isEmpty()) {
             this.shapes = sourceImage.shapes();
             this.shapesApproximated = false;
@@ -66,6 +77,7 @@ public final class GerberEditSession {
             this.shapes = shapesFromApertureAggregates(sourceImage);
             this.shapesApproximated = true;
         }
+        this.originalShapes = this.shapes;
     }
 
     public String sourceName() {
@@ -73,12 +85,14 @@ public final class GerberEditSession {
     }
 
     public GerberImage workingImage() {
-        return workingImage;
+        if (cachedWorkingImage == null) {
+            cachedWorkingImage = sourceImage.withEditedShapes(shapes, () -> false, ignored -> {});
+        }
+        return cachedWorkingImage;
     }
 
-    /** Always false until this port has real edit operations that replace {@link #workingImage()}. */
     public boolean isDirty() {
-        return workingImage != sourceImage;
+        return shapes != originalShapes;
     }
 
     /** Every editable shape, dark and clear, in file order; selection indices refer to this list. */
@@ -177,12 +191,144 @@ public final class GerberEditSession {
         }
     }
 
+    public boolean canUndo() {
+        return !undoStack.isEmpty();
+    }
+
+    public boolean canRedo() {
+        return !redoStack.isEmpty();
+    }
+
+    public boolean undo() {
+        if (!canUndo()) {
+            return false;
+        }
+        redoStack.push(snapshot());
+        restore(undoStack.pop());
+        return true;
+    }
+
+    public boolean redo() {
+        if (!canRedo()) {
+            return false;
+        }
+        undoStack.push(snapshot());
+        restore(redoStack.pop());
+        return true;
+    }
+
+    public boolean deleteSelected() {
+        requireExactShapes();
+        if (selected.isEmpty()) {
+            return false;
+        }
+        List<GerberShape> remaining = new ArrayList<>(shapes.size() - selected.size());
+        for (int i = 0; i < shapes.size(); i++) {
+            if (!selected.contains(i)) {
+                remaining.add(shapes.get(i));
+            }
+        }
+        commit(remaining, Set.of());
+        return true;
+    }
+
+    public boolean moveSelected(double dx, double dy) {
+        requireExactShapes();
+        validateOffset(dx, dy);
+        if (selected.isEmpty() || (dx == 0 && dy == 0)) {
+            return false;
+        }
+        TransformOp.Offset offset = new TransformOp.Offset(dx, dy);
+        List<GerberShape> moved = new ArrayList<>(shapes);
+        for (int index : selected) {
+            moved.set(index, translated(shapes.get(index), offset));
+        }
+        commit(moved, selected);
+        return true;
+    }
+
+    public boolean copySelected(double dx, double dy) {
+        requireExactShapes();
+        validateOffset(dx, dy);
+        if (selected.isEmpty()) {
+            return false;
+        }
+        TransformOp.Offset offset = new TransformOp.Offset(dx, dy);
+        List<GerberShape> copied = new ArrayList<>(shapes.size() + selected.size());
+        Set<Integer> newSelection = new LinkedHashSet<>();
+        for (int i = 0; i < shapes.size(); i++) {
+            copied.add(shapes.get(i));
+            if (selected.contains(i)) {
+                newSelection.add(copied.size());
+                copied.add(translated(shapes.get(i), offset));
+            }
+        }
+        commit(copied, newSelection);
+        return true;
+    }
+
+    private static GerberShape translated(GerberShape shape, TransformOp.Offset offset) {
+        return new GerberShape(shape.apertureCode(), offset.apply(shape.geometry()), shape.clear(),
+                shape.followGeometry() == null ? null : offset.apply(shape.followGeometry()));
+    }
+
+    private static void validateOffset(double dx, double dy) {
+        if (!Double.isFinite(dx) || !Double.isFinite(dy)) {
+            throw new IllegalArgumentException("Move/copy offset must be finite");
+        }
+    }
+
+    private void requireExactShapes() {
+        if (shapesApproximated) {
+            throw new IllegalStateException("This older project lacks individual Gerber shapes; open the source Gerber to edit it");
+        }
+    }
+
+    private EditState snapshot() {
+        return new EditState(shapes, new LinkedHashSet<>(selected));
+    }
+
+    private void restore(EditState state) {
+        shapes = state.shapes();
+        selected.clear();
+        selected.addAll(state.selected());
+        cachedWorkingImage = shapes == originalShapes ? sourceImage : null;
+    }
+
+    private void commit(List<GerberShape> newShapes, Set<Integer> newSelection) {
+        Set<Integer> selectionCopy = new LinkedHashSet<>(newSelection);
+        undoStack.push(snapshot());
+        if (undoStack.size() > HISTORY_LIMIT) {
+            undoStack.removeLast();
+        }
+        redoStack.clear();
+        shapes = List.copyOf(newShapes);
+        selected.clear();
+        selected.addAll(selectionCopy);
+        cachedWorkingImage = null;
+    }
+
     /** The name and geometry Apply will publish as a new object. */
     public record ApplyResult(String name, GerberImage image) {
     }
 
+    /** Immutable work request safe to generate on a background worker. */
+    public record ApplyRequest(String name, GerberImage sourceImage, List<GerberShape> shapes, boolean dirty) {
+        public ApplyResult generate(CancellationToken cancellation, ProgressCallback progress) {
+            if (!dirty) {
+                progress.report(1);
+                return new ApplyResult(name, sourceImage);
+            }
+            return new ApplyResult(name, sourceImage.withEditedShapes(shapes, cancellation, progress));
+        }
+    }
+
+    public ApplyRequest prepareApply() {
+        return new ApplyRequest(nextEditedName(sourceName), sourceImage, shapes, isDirty());
+    }
+
     public ApplyResult apply() {
-        return new ApplyResult(nextEditedName(sourceName), workingImage);
+        return prepareApply().generate(() -> false, ignored -> {});
     }
 
     /**

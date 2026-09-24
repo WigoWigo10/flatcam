@@ -5,14 +5,11 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-23**. A base anterior a esta revisão é o commit
-> `6a4146ed` (`docs(flatcam-next): add project handoff and progress guide`),
-> seguido por: NCC multi-tool com Rest Machining, boundary por objeto de
-> referência + Check validity (seção 5), Transformations (seção 4),
-> persistência Gerber/Excellon compatível com o `.FlatPrj` do Python (seção
-> 9.3), e as fatias 1-2/7 do Gerber Editor (seção 8/9.4): sessão de edição
-> com Aplicar/Cancelar e seleção/hit-testing de formas no canvas, sem
-> ferramentas de desenho ainda. Antes de trabalhar,
+> Atualizado em **2026-09-24**. A base anterior ao incremento atual é o commit
+> `ac831dad` (correção de DPI e largura da barra lateral entre monitores).
+> O Gerber Editor agora também exclui, move e copia formas, oferece undo/redo,
+> reconstrói o Gerber no Apply e preserva as formas individuais ao salvar e
+> reabrir um projeto novo (seções 8 e 9.4). Antes de trabalhar,
 > confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de
 > passagem, não substitui o código como fonte final da verdade.
 
@@ -71,12 +68,9 @@ separação.
 
 ### Verificação mais recente
 
-Após NCC multi-tool + boundary por referência + Check validity + Transformations
-+ persistência embutida de Gerber/Excellon + Gerber Editor fatias 1-2/7 (seções
-5, 4, 9.3 e 8/9.4), `clean test` passa com **127 testes executados**, sem
-falhas, erros ou testes ignorados (79 antes do NCC multi-tool, 82 após ele, 86
-após boundary/validity, 109 após Transformations, 112 após a persistência
-embutida, 116 após a fatia 1 do editor, 127 após a fatia 2). `JobExecutorTest` registra
+Após as primeiras operações do Gerber Editor e o round-trip das formas
+individuais, `test` passa com **137 testes executados**, sem falhas,
+erros ou testes ignorados (127 antes deste incremento). `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -315,11 +309,11 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | inicial | fatias 1-2/7 da seção 9.4: sessão Aplicar/Cancelar e seleção de formas (clique, Ctrl+clique, caixa envolvente/tocante) - Aplicar cria objeto `<nome>_edit` novo, sem sobrescrever o original; ainda sem undo/redo nem qualquer operação que altere geometria |
+| Editor Gerber | parcial | seleção, excluir/mover/copiar por deslocamento X/Y, undo/redo e Aplicar em background; o resultado editado pode ser salvo e reaberto; faltam pads/tracks/regions, tabela de aberturas e interações de posicionamento no canvas |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
-| Persistência de projeto | forte/parcial (Gerber/Excellon), inicial (Geometry/CNC Job) | Gerber/Excellon embutem geometria (WKT) no mesmo formato do `.FlatPrj` do Python; Geometry não é persistido, CNC Job só guarda o G-code |
+| Persistência de projeto | forte/parcial (Gerber/Excellon), inicial (Geometry/CNC Job) | Gerber salva formas individuais e ordem em extensão `_java`, além do WKT padrão Python; Geometry não é persistido, CNC Job só guarda o G-code |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | ausente | necessário para paridade de ferramentas |
@@ -332,27 +326,22 @@ cobrir.
 
 ## 7. Limitações e dívida técnica conhecidas
 
-### Persistência ainda não é um modelo editável
+### Persistência parcial
 
-`ProjectFile` salva caminhos de fontes e referências de saída. Ao reabrir, os
-arquivos de fabricação são parseados novamente. Geometry gerada, geometria de
-plot de CNC Job, propriedades por ferramenta e futuras edições não são
-serializadas como snapshot.
+Gerber/Excellon são salvos como geometria embutida. Gerbers salvos após este
+incremento também preservam cada forma e sua ordem, permitindo reabrir e
+continuar a edição. Projetos `.fcnproj` antigos, salvos com uma única união
+por abertura, ainda carregam e plotam, mas o editor os mantém somente para
+inspeção: reconstruir uma edição a partir dessas uniões poderia perder regiões
+ou fundir pads/trilhas que se tocam. Reabra o arquivo Gerber original para
+editar e salve um projeto novo.
 
-Isso era aceitável antes de existirem editores, mas deixa de ser suficiente
-assim que o usuário puder alterar um Gerber/Excellon. Antes do Gerber Editor, o
-formato deve ganhar versão e persistência de objetos editados sem quebrar os
-projetos atuais.
-
-**Transformations (seção 4) já é a primeira fatia afetada por essa lacuna**:
-girar/espelhar/escalar/mover um objeto altera seu estado em memória, mas
-salvar e reabrir o projeto reparseia o arquivo de origem do zero, perdendo a
-transformação. Não há workaround hoje além de reexportar/salvar o objeto já
-transformado como novo arquivo antes de fechar - reforça a prioridade de 9.3.
+Geometry gerada, geometria de plot de CNC Job e parâmetros por ferramenta
+continuam sem snapshot completo. Ver seção 9.3.
 
 ### `MainWindow` concentra responsabilidades demais
 
-`flatcam-fx/.../MainWindow.java` tem hoje cerca de 2.970 linhas e concentra
+`flatcam-fx/.../MainWindow.java` tem mais de 3.000 linhas e concentra
 estado, menus, árvore, diálogos e orquestração de jobs. Não é necessário
 reescrever a tela agora, mas novas áreas grandes devem extrair controladores ou
 serviços coesos. A implementação do editor não deve aumentar indefinidamente
@@ -559,6 +548,42 @@ Portado de `AppGerberEditor.py`'s `SelectEditorGrb`,
   confirmados e corrigidos verificando o estado computado real (pseudo-classes
   e `text.getFill()`) num harness isolado antes/depois, não só lendo o CSS.
 
+**Gerber Editor - primeiro fluxo de edição concluído no código (2026-09-24;
+aguarda validação visual do usuário).** As fatias 3 e 4 e a persistência das
+formas da fatia 7 foram implementadas juntas:
+
+- `GerberEditSession` mantém uma lista de formas por revisão e até 100 estados
+  de undo/redo. Excluir, mover e copiar operam sobre a seleção; mover/copiar
+  aplicam deslocamentos X/Y informados no painel e também movem a geometria
+  `follow`. A cópia nova fica selecionada.
+- `GerberImage.withEditedShapes()` recompõe cobre sólido em ordem de
+  polaridade dark/clear, geometria `follow` e uniões por abertura. O cálculo de
+  Apply roda num job cancelável com progresso; Cancelar o job conserva a sessão
+  aberta. Aplicar cria um novo Gerber e enquadra o resultado no Plot Area.
+- `GerberFlatPrjCodec` escreve cada forma na lista de geometria da sua
+  abertura, no shape do `.FlatPrj` Python. `_java.shape_order` guarda a ordem
+  global entre aberturas e polaridades para a reconstrução Java. Regiões
+  ficam sob a abertura `0` (`REG`). Os tipos e campos de aberturas gravados
+  agora usam os nomes do Python (`C`, `R`, `O`, `P`, `size`, `diam`, `nVertices`),
+  mantendo a leitura dos nomes usados pelos projetos Java anteriores.
+  `ProjectFileIO` publica o arquivo salvo
+  por substituição atômica quando o sistema suporta e o save roda fora da
+  thread JavaFX.
+- Projetos Java antigos, que continham apenas a união por abertura, continuam
+  abrindo; suas formas individuais são irrecuperáveis e o editor bloqueia
+  operações nelas para não destruir geometria. Projetos Python sem
+  `_java.shape_order` aceitam edição quando todas as formas são dark; se houver
+  formas clear, a ordem relativa é incerta e a edição fica bloqueada.
+- O painel atual usa deslocamento numérico X/Y para Mover/Copiar. O gesto do
+  Python de escolher origem/destino com dois cliques no canvas ainda falta.
+  Também faltam ferramentas de desenho, tabela editável de aberturas e atalhos
+  de teclado do editor. Compatibilidade com um FlatCAM Python executável
+  continua sem validação cruzada real.
+- Verificação automática: `test`, 137 testes, sem falhas; teste de
+  inicialização chegou a `MainApp started`. Ainda executar manualmente o fluxo
+  Abrir Gerber -> Editar -> selecionar -> mover/copiar/excluir -> undo/redo ->
+  Aplicar -> Salvar Projeto -> reabrir.
+
 Alternativa não escolhida agora, mas ainda válida como próximo passo depois
 das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
 adiando para quando algo realmente força a mão (ex.: um NCC resultado
@@ -701,17 +726,15 @@ suposto):
   só a geometria.
 - Fallback para o formato v1 antigo (só paths) - se o path ainda existir,
   reparseia; se não, pula esse objeto sem falhar o carregamento inteiro.
-- 6 testes de round-trip (`ProjectFileIOTest`), incluindo um que verifica
+- Testes de round-trip (`ProjectFileIOTest`), incluindo um que verifica
   que o arquivo salvo por padrão **é XZ de verdade** (bytes não são JSON
   puro) e outro que carrega um projeto v1 legado reparseando o arquivo.
 
-**Simplificações documentadas** (por falta do dado na camada de parsing
-atual, não por atalho de serialização):
-- `apertures[code]['geometry']` é uma lista de **um item** (a união já
-  calculada), não uma entrada por flash/stroke como o Python faz - o
-  `GerberParser` não retém geometria por flash individualmente hoje. Não
-  afeta CAM/plot (mesma união), só afetaria um editor futuro que quisesse
-  selecionar um flash específico.
+**Simplificações e limites documentados**:
+- Projetos novos escrevem uma entrada por flash/stroke/região em
+  `apertures[code]['geometry']` e preservam a ordem em `_java.shape_order`.
+  Projetos Java anteriores a essa mudança tinham só a união por abertura;
+  carregam para plot/CAM, mas são somente leitura no editor.
 - Aperture do tipo MACRO volta como um círculo placeholder ao recarregar (o
   texto bruto da macro não é retido) - só afeta a exibição daquela linha na
   Apertures Table; a geometria real (`apertureGeometry()`/`solidGeometry()`)
@@ -745,22 +768,24 @@ compatibilidade.
 - Extensão do arquivo continua `.fcnproj` (não `.FlatPrj`) por convenção -
   deixa claro qual app salvou, mesmo os dois lendo/escrevendo formatos
   equivalentes para Gerber/Excellon.
-- Comandos reversíveis/undo-redo (bullet original do roadmap) continuam sem
-  desenhar - dependem do editor existir primeiro.
+- O undo/redo do Gerber Editor cobre a sessão em memória; histórico de
+  comandos entre sessões não é serializado (o resultado aplicado é salvo).
 
 ### 9.4 Gerber Editor
 
 Implementar por fatias verticais, não como um bloco único:
 
-1. sessão de edição com Aplicar/Cancelar; ✅ concluída (seção 8) -
-   `GerberEditSession`/`GerberEditToolPanel`, sem operações de edição ainda;
+1. sessão de edição com Aplicar/Cancelar; ✅ concluída (seção 8);
 2. seleção e hit testing; ✅ concluída (seção 8) - `GerberShape`,
    `GerberEditSession.clickSelect/boxSelect`, `GerberEditorController`;
-3. command stack com undo/redo;
-4. mover, copiar e excluir;
+3. command stack com undo/redo; ✅ concluída para operações em memória;
+4. mover, copiar e excluir; ✅ concluída por deslocamento X/Y; falta o gesto
+   de origem/destino no canvas do Python;
 5. pads, tracks, regions e apertures;
 6. operações avançadas do editor legado;
-7. persistência e reabertura do resultado editado.
+7. persistência e reabertura do resultado editado; ✅ concluída para projetos
+   novos; projetos antigos só têm uniões por abertura e não podem recuperar
+   as formas individuais.
 
 Depois disso, repetir a estratégia para o Editor Excellon e ampliar Geometry e
 CNC Job até a paridade necessária.
@@ -902,7 +927,9 @@ O FlatCAM Next já deixou de ser um esqueleto: carrega e plota Gerber/Excellon,
 tem uma árvore lateral próxima do legado, jobs com progresso/cancelamento,
 Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
 referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/
-Flip/Offset) completas para os três tipos de objeto. O próximo trabalho
-recomendado é evoluir o modelo de objetos/projeto para algo versionado e
-editável (seção 9.3) - pré-requisito da persistência de transformações entre
-sessões e do Gerber Editor, a maior lacuna funcional ainda aberta.
+Flip/Offset) completas para os três tipos de objeto. O Gerber Editor já
+seleciona, exclui, move e copia formas, tem undo/redo, aplica um novo objeto e
+salva/reabre suas formas individuais em projetos novos. O próximo trabalho
+recomendado é validar esse fluxo na UI e depois adicionar posicionamento por
+cliques no canvas, ferramentas de desenho e tabela editável de aberturas.
+Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

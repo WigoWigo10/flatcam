@@ -6,6 +6,8 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
@@ -77,13 +79,26 @@ public final class ProjectFileIO {
         root.put("_java", javaExtra);
 
         byte[] jsonBytes = root.toString(2).getBytes(StandardCharsets.UTF_8);
-        if (compress) {
-            try (OutputStream fileOut = Files.newOutputStream(path);
-                 XZOutputStream xzOut = new XZOutputStream(fileOut, new LZMA2Options(XZ_PRESET))) {
-                xzOut.write(jsonBytes);
+        Path destination = path.toAbsolutePath();
+        Path temporary = Files.createTempFile(destination.getParent(),
+                "." + destination.getFileName() + ".", ".tmp");
+        try {
+            if (compress) {
+                try (OutputStream fileOut = Files.newOutputStream(temporary);
+                     XZOutputStream xzOut = new XZOutputStream(fileOut, new LZMA2Options(XZ_PRESET))) {
+                    xzOut.write(jsonBytes);
+                }
+            } else {
+                Files.write(temporary, jsonBytes);
             }
-        } else {
-            Files.write(path, jsonBytes);
+            try {
+                Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
         }
     }
 

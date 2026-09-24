@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
@@ -79,6 +80,7 @@ import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.ncc.NccGenerator;
@@ -207,8 +209,18 @@ final class MainWindow {
                 }
 
                 @Override
-                public void addEditedGerber(String name, GerberImage image) {
-                    addGerberToProject(name, null, image);
+                public String addEditedGerber(String name, GerberImage image) {
+                    String uniqueName = uniqueDerivedName(name);
+                    TreeItem<String> created = addGerberToProject(uniqueName, null, image);
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return uniqueName;
+                }
+
+                @Override
+                public boolean generateEditedGerber(GerberEditSession.ApplyRequest request,
+                        Consumer<GerberEditSession.ApplyResult> onSuccess, Runnable onFailure) {
+                    return MainWindow.this.generateEditedGerber(request, onSuccess, onFailure);
                 }
 
                 @Override
@@ -216,6 +228,37 @@ final class MainWindow {
                     appendConsole(message);
                 }
             });
+
+    private boolean generateEditedGerber(GerberEditSession.ApplyRequest request,
+            Consumer<GerberEditSession.ApplyResult> onSuccess, Runnable onFailure) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return false;
+        }
+        beginJob("Aplicando edicao Gerber...");
+        JobHandle<GerberEditSession.ApplyResult> handle = jobExecutor.submit(context ->
+                request.generate(context::isCancelled,
+                        fraction -> context.reportProgress(fraction, "Aplicando edicao Gerber...")),
+                (fraction, message) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(message);
+                }));
+        runningJob = handle;
+        handle.completion().thenAccept(result -> Platform.runLater(() -> {
+            onJobFinished();
+            updateProgress(1);
+            setStatus("Edicao Gerber concluida.", IDLE_COLOR);
+            onSuccess.accept(result);
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao aplicar edicao Gerber: ");
+                onJobFinished();
+                onFailure.run();
+            });
+            return null;
+        });
+        return true;
+    }
 
     private Scene scene;
     private SplitPane horizontalSplit;
@@ -2823,6 +2866,10 @@ final class MainWindow {
      * deleted.
      */
     private void saveProject() {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
         List<ProjectFile.GerberEntry> gerbers = new ArrayList<>();
         for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
             TreeItem<String> item = entry.getKey();
@@ -2859,13 +2906,35 @@ final class MainWindow {
             return;
         }
 
-        try {
+        beginJob("Salvando projeto " + file.getName() + "...");
+        // Serialization and XZ compression can take time now that Gerber
+        // projects retain every individual flash/stroke for editing.
+        // The writer publishes atomically; there is no cooperative cancel
+        // point inside compression, so do not offer a misleading Cancel button.
+        cancelJobButton.setDisable(true);
+        JobHandle<Path> handle = jobExecutor.submit(context -> {
+            context.reportProgress(Double.NaN, "Serializando projeto...");
             ProjectFileIO.save(project, file.toPath());
+            context.reportProgress(1, "Projeto salvo.");
+            return file.toPath();
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(saved -> Platform.runLater(() -> {
             AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
-            appendConsole("Projeto salvo em " + file);
-        } catch (IOException e) {
-            appendConsole("Falha ao salvar projeto: " + e.getMessage());
-        }
+            appendConsole("Projeto salvo em " + saved);
+            updateProgress(1);
+            setStatus("Projeto salvo.", IDLE_COLOR);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao salvar projeto: ");
+                onJobFinished();
+            });
+            return null;
+        });
     }
 
     /**

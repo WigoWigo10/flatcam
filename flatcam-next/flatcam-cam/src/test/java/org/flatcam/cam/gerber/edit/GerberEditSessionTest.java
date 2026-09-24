@@ -3,17 +3,24 @@ package org.flatcam.cam.gerber.edit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.transform.TransformOp;
 import org.junit.jupiter.api.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
 
 class GerberEditSessionTest {
+
+    private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 
     /**
      * Shape indices: 0 = D10 flash at (1,1); 1 = D10 flash at (3,1); 2 = D11 stroke
@@ -192,5 +199,105 @@ class GerberEditSessionTest {
     @Test
     void sessionIsNotDirtyWithoutEditOperations() {
         assertFalse(session().isDirty());
+    }
+
+    @Test
+    void deleteUndoRedoAndApplyRebuildCopperWithoutMutatingSource() {
+        GerberImage original = board();
+        GerberEditSession session = new GerberEditSession("board", original);
+        session.clickSelect(1, 1, false);
+
+        assertTrue(session.deleteSelected());
+        assertEquals(4, session.shapes().size());
+        assertTrue(session.isDirty());
+        assertFalse(session.apply().image().solidGeometry().covers(point(1, 1)));
+        assertTrue(original.solidGeometry().covers(point(1, 1)));
+
+        assertTrue(session.undo());
+        assertFalse(session.isDirty());
+        assertEquals(Set.of(0), session.selectedIndices());
+        assertSame(original, session.apply().image());
+        assertTrue(session.redo());
+        assertTrue(session.isDirty());
+        assertEquals(4, session.apply().image().shapes().size());
+    }
+
+    @Test
+    void moveUpdatesSolidAndFollowGeometryAndClearsRedoAfterNewEdit() {
+        GerberEditSession session = session();
+        session.clickSelect(1, 1, false);
+        assertTrue(session.moveSelected(9, 0));
+        GerberImage moved = session.apply().image();
+
+        assertFalse(moved.solidGeometry().covers(point(1, 1)));
+        assertTrue(moved.solidGeometry().covers(point(10, 1)));
+        assertTrue(moved.followGeometry().covers(point(10, 1)));
+        assertEquals(Set.of(0), session.selectedIndices());
+
+        assertTrue(session.undo());
+        assertTrue(session.canRedo());
+        assertTrue(session.moveSelected(8, 0));
+        assertFalse(session.canRedo());
+        assertThrows(IllegalArgumentException.class, () -> session.moveSelected(Double.NaN, 0));
+    }
+
+    @Test
+    void copyKeepsOriginalAndSelectsNewShape() {
+        GerberEditSession session = session();
+        session.clickSelect(1, 1, false);
+        assertTrue(session.copySelected(9, 0));
+
+        assertEquals(6, session.shapes().size());
+        assertEquals(Set.of(1), session.selectedIndices());
+        GerberImage copied = session.apply().image();
+        assertTrue(copied.solidGeometry().covers(point(1, 1)));
+        assertTrue(copied.solidGeometry().covers(point(10, 1)));
+        assertEquals(6, copied.shapes().size());
+    }
+
+    @Test
+    void movedDarkShapeStillRespectsLaterClearPolarity() {
+        GerberEditSession session = session();
+        session.clickSelect(3, 1, false);
+        assertEquals(Set.of(1), session.selectedIndices());
+
+        assertTrue(session.moveSelected(2, 0));
+        GerberImage result = session.apply().image();
+        assertFalse(result.solidGeometry().covers(point(3, 1)));
+        assertTrue(result.solidGeometry().covers(point(5, 1)));
+        assertTrue(result.shapes().get(4).clear());
+    }
+
+    @Test
+    void legacyAggregateProjectIsReadOnlyToAvoidLosingUnrepresentedRegions() {
+        GerberImage parsed = board();
+        GerberImage oldProject = GerberImage.of(parsed.units(), parsed.apertures(), parsed.solidGeometry(),
+                parsed.followGeometry(), parsed.apertureGeometry());
+        GerberEditSession session = new GerberEditSession("old", oldProject);
+        session.clickSelect(1, 1, false);
+
+        assertTrue(session.shapesApproximated());
+        assertThrows(IllegalStateException.class, session::deleteSelected);
+        assertSame(oldProject, session.apply().image());
+    }
+
+    @Test
+    void rebuildingUnchangedShapesPreservesSolidAndReportsMonotonicProgress() {
+        GerberImage original = board();
+        List<Double> fractions = new ArrayList<>();
+        GerberImage rebuilt = original.withEditedShapes(original.shapes(), () -> false, fractions::add);
+
+        assertTrue(original.solidGeometry().equalsTopo(rebuilt.solidGeometry()));
+        assertEquals(0.0, fractions.get(0));
+        assertEquals(1.0, fractions.get(fractions.size() - 1));
+        for (int i = 1; i < fractions.size(); i++) {
+            assertTrue(fractions.get(i) >= fractions.get(i - 1), "progress cannot move backwards");
+        }
+        assertThrows(CancellationException.class,
+                () -> original.withEditedShapes(original.shapes(), () -> true, ignored -> {}));
+    }
+
+    private static org.locationtech.jts.geom.Point point(double x, double y) {
+        return GEOMETRY_FACTORY.createPoint(new Coordinate(x, y));
     }
 }

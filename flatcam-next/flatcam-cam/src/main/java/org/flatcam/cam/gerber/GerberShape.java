@@ -11,8 +11,13 @@ import org.locationtech.jts.geom.Geometry;
  *
  * @param apertureCode the D-code that drew it, or {@link #REGION_APERTURE} for a G36/G37 region
  * @param clear        true for LPC (clear polarity) shapes, which the editor never selects
+ * @param followGeometry unbuffered centerline, flash center or region boundary; may be null in older projects
  */
-public record GerberShape(String apertureCode, Geometry geometry, boolean clear) {
+public record GerberShape(String apertureCode, Geometry geometry, boolean clear, Geometry followGeometry) {
+
+    public GerberShape(String apertureCode, Geometry geometry, boolean clear) {
+        this(apertureCode, geometry, clear, null);
+    }
 
     /** ParseGerber.py files region fills under aperture '0' (type 'REG'); same key here. */
     public static final String REGION_APERTURE = "0";

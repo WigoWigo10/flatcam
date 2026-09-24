@@ -4,9 +4,13 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
  * Result of parsing one Gerber file: the resolved apertures, the final
@@ -50,6 +54,12 @@ public final class GerberImage {
         return new GerberImage(units, apertures, solidGeometry, followGeometry, apertureGeometry);
     }
 
+    public static GerberImage of(String units, Map<String, Aperture> apertures, Geometry solidGeometry,
+                                 Geometry followGeometry, Map<String, Geometry> apertureGeometry,
+                                 List<GerberShape> shapes) {
+        return new GerberImage(units, apertures, solidGeometry, followGeometry, apertureGeometry, shapes);
+    }
+
     public String units() {
         return units;
     }
@@ -77,8 +87,8 @@ public final class GerberImage {
 
     /**
      * Every flash/stroke/region in file order, un-unioned. Empty when not
-     * known - an image restored from a project file, whose format keeps only
-     * one aggregate geometry per aperture (see GerberFlatPrjCodec).
+     * known - for example, an image restored from an older project file that
+     * kept only one aggregate geometry per aperture.
      */
     public List<GerberShape> shapes() {
         return shapes;
@@ -101,12 +111,81 @@ public final class GerberImage {
         }
         List<GerberShape> newShapes = new ArrayList<>(shapes.size());
         for (GerberShape shape : shapes) {
-            newShapes.add(new GerberShape(shape.apertureCode(), op.apply(shape.geometry()), shape.clear()));
+            newShapes.add(new GerberShape(shape.apertureCode(), op.apply(shape.geometry()), shape.clear(),
+                    shape.followGeometry() == null ? null : op.apply(shape.followGeometry())));
         }
         return new GerberImage(units, apertures,
                 solidGeometry == null ? null : op.apply(solidGeometry),
                 followGeometry == null ? null : op.apply(followGeometry),
                 newApertureGeometry, newShapes);
+    }
+
+    /** Rebuilds all derived geometries from the editor's ordered, individual shapes. */
+    public GerberImage withEditedShapes(List<GerberShape> editedShapes, CancellationToken cancellation,
+                                        ProgressCallback progress) {
+        GeometryFactory factory = solidGeometry != null ? solidGeometry.getFactory() : new GeometryFactory();
+        Geometry solid = factory.createPolygon();
+        List<Geometry> pending = new ArrayList<>();
+        List<Geometry> follow = new ArrayList<>();
+        Map<String, List<Geometry>> byAperture = new LinkedHashMap<>();
+        boolean pendingClear = false;
+        progress.report(0);
+        for (int i = 0; i < editedShapes.size(); i++) {
+            cancellation.throwIfCancellationRequested();
+            GerberShape shape = editedShapes.get(i);
+            if (!apertures.containsKey(shape.apertureCode())
+                    && !GerberShape.REGION_APERTURE.equals(shape.apertureCode())) {
+                throw new IllegalArgumentException("Unknown Gerber aperture: " + shape.apertureCode());
+            }
+            Geometry geometry = shape.geometry();
+            if (geometry == null || geometry.isEmpty()) {
+                continue;
+            }
+            if (!pending.isEmpty() && shape.clear() != pendingClear) {
+                solid = applyPolarityBatch(solid, pending, pendingClear, cancellation);
+            }
+            pendingClear = shape.clear();
+            pending.add(geometry);
+            if (!GerberShape.REGION_APERTURE.equals(shape.apertureCode())) {
+                byAperture.computeIfAbsent(shape.apertureCode(), ignored -> new ArrayList<>()).add(geometry);
+            }
+            Geometry path = shape.followGeometry();
+            follow.add(path != null ? path : geometry.getBoundary());
+            if ((i & 127) == 0) {
+                progress.report(0.05 + 0.45 * (i + 1.0) / Math.max(1, editedShapes.size()));
+            }
+        }
+        solid = applyPolarityBatch(solid, pending, pendingClear, cancellation);
+        progress.report(0.60);
+
+        Map<String, Geometry> mergedApertures = new LinkedHashMap<>();
+        int processed = 0;
+        for (Map.Entry<String, List<Geometry>> entry : byAperture.entrySet()) {
+            cancellation.throwIfCancellationRequested();
+            List<Geometry> geometries = entry.getValue();
+            mergedApertures.put(entry.getKey(), geometries.size() == 1
+                    ? geometries.get(0) : UnaryUnionOp.union(geometries));
+            processed++;
+            progress.report(0.60 + 0.38 * processed / byAperture.size());
+        }
+        cancellation.throwIfCancellationRequested();
+        Geometry followResult = factory.createGeometryCollection(follow.toArray(Geometry[]::new));
+        progress.report(1);
+        return new GerberImage(units, apertures, solid, followResult, mergedApertures, editedShapes);
+    }
+
+    private static Geometry applyPolarityBatch(Geometry solid, List<Geometry> pending,
+                                               boolean clear, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
+        if (pending.isEmpty()) {
+            return solid;
+        }
+        Geometry batch = pending.size() == 1 ? pending.get(0) : UnaryUnionOp.union(pending);
+        pending.clear();
+        cancellation.throwIfCancellationRequested();
+        Geometry result = clear ? solid.difference(batch) : solid.union(batch);
+        cancellation.throwIfCancellationRequested();
+        return result;
     }
 
     public boolean isEmpty() {

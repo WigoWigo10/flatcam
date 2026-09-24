@@ -207,7 +207,8 @@ public final class GerberParser {
                 Geometry region = buildRegionGeometry(regionContours, geometryFactory, cancellationToken);
                 accumulator.add(region, polarity);
                 if (!region.isEmpty()) {
-                    drawnShapes.add(new GerberShape(GerberShape.REGION_APERTURE, region, polarity == 'C'));
+                    drawnShapes.add(new GerberShape(GerberShape.REGION_APERTURE, region, polarity == 'C',
+                            region.getBoundary()));
                 }
                 addRegionBoundaries(region, followShapes);
                 regionMode = false;
@@ -290,7 +291,7 @@ public final class GerberParser {
                         Geometry stroke = centerline.buffer(radius, STROKE_QUADRANT_SEGMENTS);
                         accumulator.add(stroke, polarity);
                         shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(stroke);
-                        drawnShapes.add(new GerberShape(currentApertureId, stroke, polarity == 'C'));
+                        drawnShapes.add(new GerberShape(currentApertureId, stroke, polarity == 'C', centerline));
                         followShapes.add(centerline);
                     }
                 }
@@ -309,8 +310,9 @@ public final class GerberParser {
                     Geometry footprint = aperture.footprintAt(newX, newY, geometryFactory);
                     accumulator.add(footprint, polarity);
                     shapesByAperture.computeIfAbsent(currentApertureId, k -> new ArrayList<>()).add(footprint);
-                    drawnShapes.add(new GerberShape(currentApertureId, footprint, polarity == 'C'));
-                    followShapes.add(geometryFactory.createPoint(new Coordinate(newX, newY)));
+                    Geometry flashCenter = geometryFactory.createPoint(new Coordinate(newX, newY));
+                    drawnShapes.add(new GerberShape(currentApertureId, footprint, polarity == 'C', flashCenter));
+                    followShapes.add(flashCenter);
                 }
                 default -> throw new GerberParseException("Unreachable D-code " + code + " in: " + line);
             }
