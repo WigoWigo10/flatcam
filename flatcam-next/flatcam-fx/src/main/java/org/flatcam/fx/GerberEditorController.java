@@ -31,6 +31,8 @@ final class GerberEditorController {
     interface Host {
         void openToolPanel(String label, Node content);
 
+        Node icon(String fileName, double size);
+
         void closeToolPanel();
 
         void setObjectVisible(TreeItem<String> item, boolean visible);
@@ -71,7 +73,8 @@ final class GerberEditorController {
         }
         item = sourceItem;
         session = new GerberEditSession(sourceItem.getValue(), image);
-        panel = new GerberEditToolPanel(sourceItem.getValue(), session.shapesApproximated(),
+        panel = new GerberEditToolPanel(sourceItem.getValue(), session.shapesApproximated(), host::icon,
+                this::clearSelection,
                 this::deleteSelected, this::moveSelected, this::copySelected,
                 this::undo, this::redo, this::apply, this::cancel);
 
@@ -135,6 +138,13 @@ final class GerberEditorController {
 
     private void deleteSelected() {
         if (session != null && session.deleteSelected()) {
+            refreshSelection();
+        }
+    }
+
+    private void clearSelection() {
+        if (session != null) {
+            session.clearSelection();
             refreshSelection();
         }
     }

@@ -17,6 +17,8 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
 import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
@@ -199,6 +201,11 @@ final class MainWindow {
                 }
 
                 @Override
+                public Node icon(String fileName, double size) {
+                    return legacyIcon(fileName, size);
+                }
+
+                @Override
                 public void closeToolPanel() {
                     MainWindow.this.closeToolPanel();
                 }
@@ -279,6 +286,7 @@ final class MainWindow {
     private boolean sidebarRestoreQueued;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
+    private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
 
     MainWindow(JobExecutor jobExecutor) {
@@ -287,7 +295,7 @@ final class MainWindow {
 
     Scene createScene() {
         BorderPane root = new BorderPane();
-        root.setTop(new VBox(buildMenuBar(), buildToolBar()));
+        root.setTop(new VBox(buildMenuBar(), buildToolBar(), buildToolsToolBar()));
         root.setCenter(buildMainSplit());
         root.setBottom(buildStatusBar());
 
@@ -391,38 +399,217 @@ final class MainWindow {
         AppPreferences.saveConsoleOpen(show);
     }
 
+    /** A disabled entry is an explicit roadmap marker, never a no-op click. */
+    private MenuItem chromeItem(String label, String icon, Runnable action) {
+        MenuItem item = new MenuItem(label);
+        if (icon != null) {
+            setLegacyMenuIcon(item, icon);
+        }
+        item.setDisable(action == null);
+        if (action == null) {
+            item.getStyleClass().add("planned-command");
+        }
+        if (action != null) {
+            item.setOnAction(event -> action.run());
+        }
+        return item;
+    }
+
+    private MenuItem plannedItem(String label, String icon) {
+        return chromeItem(label, icon, null);
+    }
+
+    private Button chromeButton(String label, String icon, Runnable action) {
+        Button button = new Button(null, legacyIcon(icon, 18));
+        button.setTooltip(new Tooltip(label + (action == null ? " — em desenvolvimento" : "")));
+        button.setDisable(action == null);
+        if (action == null) {
+            button.getStyleClass().add("planned-command");
+        }
+        if (action != null) {
+            button.setOnAction(event -> action.run());
+        }
+        return button;
+    }
+
+    private List<TreeItem<String>> selectedObjects() {
+        return projectTree.getSelectionModel().getSelectedItems().stream()
+                .filter(this::isProjectObject).distinct().toList();
+    }
+
+    private void editSelectedGerber() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        GerberImage image = gerberByItem.get(item);
+        if (image == null) {
+            appendConsole("Selecione um Gerber para editar.");
+        } else {
+            gerberEditor.start(item, image);
+        }
+    }
+
+    private void copySelectedObjects() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (!selected.isEmpty()) {
+            copySelection(selected);
+        } else {
+            appendConsole("Selecione um objeto para copiar.");
+        }
+    }
+
+    private void deleteSelectedObjects() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (!selected.isEmpty()) {
+            removeSelectionFromProject(selected);
+        } else {
+            appendConsole("Selecione um objeto para excluir.");
+        }
+    }
+
+    private void focusSelectedObject() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        if (item != null && isPlottable(item)) {
+            focusLayer(item);
+        } else {
+            appendConsole("Selecione um objeto para enquadrar.");
+        }
+    }
+
+    private void openSelectedGerberTool(String label,
+            java.util.function.BiConsumer<TreeItem<String>, GerberImage> action) {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        GerberImage image = gerberByItem.get(item);
+        if (image == null) {
+            appendConsole("Selecione um Gerber para " + label + ".");
+        } else {
+            action.accept(item, image);
+        }
+    }
+
+    private void openSelectedDrillingTool() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        ExcellonImage image = excellonByItem.get(item);
+        if (image == null) {
+            appendConsole("Selecione um Excellon para a ferramenta de furacao.");
+        } else {
+            generateDrillGCode(item, image);
+        }
+    }
+
+    private Runnable toolAction(String id) {
+        return switch (id) {
+            case "cutout" -> () -> openSelectedGerberTool("Cutout", this::generateCutout);
+            case "ncc" -> () -> openSelectedGerberTool("NCC", this::generateNcc);
+            case "isolation" -> () -> openSelectedGerberTool("Isolamento", this::generateIsolation);
+            case "drilling" -> this::openSelectedDrillingTool;
+            case "calculators" -> () -> openToolPanel("Calculators", CalculatorsPanel.build());
+            case "transform" -> this::openTransformTool;
+            default -> null;
+        };
+    }
+
+    private void addToolCommands(Menu menu, List<LegacyUiManifest.Command> commands) {
+        for (LegacyUiManifest.Command command : commands) {
+            menu.getItems().add(chromeItem(command.label(), command.icon(), toolAction(command.id())));
+        }
+    }
+
+    private void addPlannedCommands(Menu menu, List<LegacyUiManifest.Command> commands) {
+        for (LegacyUiManifest.Command command : commands) {
+            menu.getItems().add(plannedItem(command.label(), command.icon()));
+        }
+    }
+
     private MenuBar buildMenuBar() {
         Menu fileMenu = new Menu("Arquivo");
-        MenuItem openProjectItem = new MenuItem("Abrir Projeto...");
-        openProjectItem.setOnAction(e -> openProject());
-        MenuItem saveProjectItem = new MenuItem("Salvar Projeto...");
-        saveProjectItem.setOnAction(e -> saveProject());
-        MenuItem openGerberItem = new MenuItem("Abrir Gerber (prototipo Fase 3)");
-        openGerberItem.setOnAction(e -> openGerberPrototype());
-        MenuItem openExcellonItem = new MenuItem("Abrir Excellon (prototipo Fase 4)");
-        openExcellonItem.setOnAction(e -> openExcellonPrototype());
-        MenuItem runDemoJob = new MenuItem("Executar job de demonstracao");
-        runDemoJob.setOnAction(e -> runDemoJob());
-        MenuItem exitItem = new MenuItem("Sair");
-        exitItem.setOnAction(e -> Platform.exit());
-        fileMenu.getItems().addAll(
-                openProjectItem, saveProjectItem, new SeparatorMenuItem(),
-                openGerberItem, openExcellonItem, runDemoJob, new SeparatorMenuItem(), exitItem);
+        Menu newMenu = new Menu("Novo");
+        setLegacyMenuIcon(newMenu, "new_file32.png");
+        newMenu.getItems().addAll(
+                plannedItem("Novo Projeto", "new_file32.png"),
+                plannedItem("Geometry", "geometry32.png"),
+                plannedItem("Excellon", "drill32.png"),
+                plannedItem("Document", "notebook32.png"));
+        Menu openMenu = new Menu("Abrir");
+        setLegacyMenuIcon(openMenu, "folder32.png");
+        openMenu.getItems().addAll(
+                chromeItem("Projeto...", "folder32.png", this::openProject),
+                chromeItem("Gerber...", "flatcam_icon32.png", this::openGerberPrototype),
+                chromeItem("Excellon...", "drill32.png", this::openExcellonPrototype),
+                plannedItem("G-Code...", "cnc32.png"),
+                plannedItem("Configuracao...", "settings18.png"));
+        Menu importMenu = new Menu("Importar");
+        setLegacyMenuIcon(importMenu, "import.png");
+        importMenu.getItems().addAll(
+                plannedItem("SVG como Geometry", "svg32.png"),
+                plannedItem("SVG como Gerber", "svg32.png"),
+                plannedItem("DXF como Geometry", "dxf16.png"),
+                plannedItem("DXF como Gerber", "dxf16.png"),
+                plannedItem("HPGL2", "import.png"),
+                plannedItem("PDF", "pdf32.png"));
+        Menu exportMenu = new Menu("Exportar");
+        setLegacyMenuIcon(exportMenu, "export.png");
+        exportMenu.getItems().addAll(
+                plannedItem("SVG", "svg32.png"), plannedItem("DXF", "dxf16.png"),
+                plannedItem("PNG", "export_png32.png"), plannedItem("Gerber", "flatcam_icon32.png"),
+                plannedItem("Excellon", "drill32.png"));
+        Menu scriptMenu = new Menu("Scripting");
+        setLegacyMenuIcon(scriptMenu, "script16.png");
+        scriptMenu.getItems().addAll(
+                plannedItem("Novo Script", "script_new24.png"),
+                plannedItem("Abrir Script", "open_script32.png"),
+                plannedItem("Executar Script", "script16.png"));
+        Menu backupMenu = new Menu("Backup");
+        setLegacyMenuIcon(backupMenu, "backup24.png");
+        backupMenu.getItems().addAll(
+                plannedItem("Importar preferencias", "backup_import24.png"),
+                plannedItem("Exportar preferencias", "backup_export24.png"));
+        fileMenu.getItems().addAll(newMenu, openMenu, plannedItem("Recentes", "recent_files.png"),
+                new SeparatorMenuItem(), chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject),
+                plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
+                importMenu, exportMenu, scriptMenu, backupMenu,
+                plannedItem("Imprimir PDF", "pdf32.png"), new SeparatorMenuItem(),
+                chromeItem("Sair", "power16.png", Platform::exit));
 
         Menu editMenu = new Menu("Editar");
-        MenuItem preferencesItem = new MenuItem("Preferencias");
-        preferencesItem.setOnAction(e -> openAuxiliaryTab("Preferencias", this::buildPreferencesPlaceholder));
-        editMenu.getItems().add(preferencesItem);
+        Menu conversionsMenu = new Menu("Converter");
+        setLegacyMenuIcon(conversionsMenu, "convert32.png");
+        conversionsMenu.getItems().addAll(
+                plannedItem("Single ↔ Multi-Geometry", "geometry32.png"),
+                plannedItem("Objeto → Geometry", "geometry32.png"),
+                plannedItem("Objeto → Gerber", "flatcam_icon32.png"),
+                plannedItem("Objeto → Excellon", "drill32.png"));
+        Menu editorToolsMenu = new Menu("Ferramentas dos editores");
+        setLegacyMenuIcon(editorToolsMenu, "edit_file32.png");
+        Menu excellonEditorMenu = new Menu("Editor Excellon");
+        setLegacyMenuIcon(excellonEditorMenu, "drill32.png");
+        addPlannedCommands(excellonEditorMenu, LegacyUiManifest.EXCELLON_EDITOR);
+        Menu geometryEditorMenu = new Menu("Editor Geometry");
+        setLegacyMenuIcon(geometryEditorMenu, "geometry32.png");
+        addPlannedCommands(geometryEditorMenu, LegacyUiManifest.GEOMETRY_EDITOR);
+        editorToolsMenu.getItems().addAll(excellonEditorMenu, geometryEditorMenu);
+        editMenu.getItems().addAll(
+                chromeItem("Editar Objeto", "edit_file32.png", this::editSelectedGerber),
+                plannedItem("Salvar e Fechar Editor", "close_edit_file32.png"),
+                plannedItem("Editor de G-Code", "code_editor32.png"),
+                editorToolsMenu,
+                new SeparatorMenuItem(),
+                chromeItem("Copiar", "copy_file32.png", this::copySelectedObjects),
+                chromeItem("Excluir", "trash32.png", this::deleteSelectedObjects),
+                conversionsMenu, plannedItem("Juntar Objetos", "union32.png"),
+                new SeparatorMenuItem(),
+                plannedItem("Medir Distancia", "distance32.png"),
+                plannedItem("Distancia Minima", "distance_min32.png"),
+                plannedItem("Definir Origem", "origin32.png"),
+                plannedItem("Mover para Origem", "origin2_32.png"),
+                plannedItem("Ir para Localizacao", "jump_to16.png"),
+                plannedItem("Localizar no Objeto", "locate32.png"),
+                new SeparatorMenuItem(),
+                plannedItem("Alternar Unidades", "toggle_units32.png"),
+                plannedItem("Preferencias", "settings18.png"));
 
         Menu optionsMenu = new Menu("Opcoes");
-        MenuItem toolsDbItem = new MenuItem("Tools Database");
-        toolsDbItem.setOnAction(e -> openAuxiliaryTab("Tools Database", this::buildToolsDbPlaceholder));
-        // Python launches this from a toolbar icon (Alt+C) rather than a menu (appGUI/MainGUI.py's
-        // calculators_btn) - this app doesn't have that full tools toolbar yet, so a menu item is
-        // the reasonable equivalent entry point. Unlike Isolation/Drilling, it needs no selected
-        // object at all.
-        MenuItem calculatorsItem = new MenuItem("Calculators");
-        calculatorsItem.setOnAction(e -> openToolPanel("Calculators", CalculatorsPanel.build()));
+        MenuItem toolsDbItem = plannedItem("Tools Database", "search_db32.png");
+        MenuItem calculatorsItem = chromeItem("Calculators", "calculator24.png",
+                () -> openToolPanel("Calculators", CalculatorsPanel.build()));
 
         // appGUI/MainGUI.py's Options menu quick actions (Rotate/Skew X/Skew Y/Flip X/Flip Y) -
         // a separate, lighter driver than the full Transform tool: fixed "selection bbox center"
@@ -487,18 +674,62 @@ final class MainWindow {
             applyTransformToSelection(selected -> new TransformOp.MirrorY(selectionCenterOrOrigin(selected)));
         });
 
-        optionsMenu.getItems().addAll(toolsDbItem, calculatorsItem, new SeparatorMenuItem(),
+        optionsMenu.getItems().addAll(toolsDbItem, calculatorsItem,
+                chromeItem("Ver Fonte", "source32.png", () -> {
+                    TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+                    if (item != null && isProjectObject(item)) {
+                        viewObjectSource(item);
+                    } else {
+                        appendConsole("Selecione um objeto para ver a fonte.");
+                    }
+                }), new SeparatorMenuItem(),
                 rotateItem, skewXItem, skewYItem, flipXItem, flipYItem);
 
         Menu viewMenu = new Menu("Exibir");
-        viewMenu.getItems().add(buildThemeMenu());
+        viewMenu.getItems().addAll(
+                plannedItem("Replotar Tudo", "replot32.png"),
+                plannedItem("Limpar Plot", "clear_plot32.png"),
+                plannedItem("Aproximar", "zoom_in32.png"),
+                plannedItem("Afastar", "zoom_out32.png"),
+                chromeItem("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
+                new SeparatorMenuItem(),
+                plannedItem("Grade e Snap", "grid32.png"),
+                plannedItem("Eixos", "axis32.png"),
+                plannedItem("Workspace", "workspace24.png"),
+                plannedItem("HUD", "hud_32.png"),
+                new SeparatorMenuItem(), buildThemeMenu());
+
+        Menu objectsMenu = new Menu("Objetos");
+        objectsMenu.getItems().addAll(
+                plannedItem("Selecionar Todos", "select_all.png"),
+                plannedItem("Desmarcar Todos", "deselect_all32.png"),
+                new SeparatorMenuItem(),
+                chromeItem("Copiar Selecionados", "copy32.png", this::copySelectedObjects),
+                chromeItem("Excluir Selecionados", "trash32.png", this::deleteSelectedObjects));
+
+        Menu toolsMenu = new Menu("Ferramentas");
+        Menu preparationMenu = new Menu("Preparacao da placa");
+        addToolCommands(preparationMenu, LegacyUiManifest.TOOLS_PREPARATION);
+        Menu camMenu = new Menu("CAM / Fabricacao");
+        addToolCommands(camMenu, LegacyUiManifest.TOOLS_CAM);
+        Menu utilitiesMenu = new Menu("Utilitarios");
+        addToolCommands(utilitiesMenu, LegacyUiManifest.TOOLS_UTILITIES);
+        toolsMenu.getItems().addAll(plannedItem("Linha de Comando Tcl", "shell32.png"),
+                new SeparatorMenuItem(), preparationMenu, camMenu, utilitiesMenu);
 
         Menu helpMenu = new Menu("Ajuda");
-        MenuItem aboutItem = new MenuItem("Sobre");
-        aboutItem.setOnAction(e -> appendConsole("FlatCAM Next - esqueleto Fase 1 (CONTEXTO_FLATCAM_FX.md)"));
-        helpMenu.getItems().add(aboutItem);
+        helpMenu.getItems().addAll(
+                plannedItem("Ajuda Online", "help.png"),
+                plannedItem("Bookmarks", "bookmarks32.png"),
+                plannedItem("Lista de Atalhos", "shortcuts24.png"),
+                plannedItem("Como Usar", "videohelp24.png"),
+                plannedItem("Reportar Problema", "bug32.png"),
+                new SeparatorMenuItem(),
+                chromeItem("Sobre", "about32.png", () ->
+                        appendConsole("FlatCAM Next - port JavaFX em desenvolvimento.")),
+                chromeItem("Executar job de demonstracao", "code.png", this::runDemoJob));
 
-        return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, helpMenu);
+        return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, objectsMenu, toolsMenu, helpMenu);
     }
 
     /**
@@ -536,6 +767,7 @@ final class MainWindow {
                     && currentTheme != option;
             option.applyTo(scene);
             currentTheme = option;
+            darkIcons.set(option.isDark());
             plotAreaView.applyTheme(option);
             AppPreferences.saveTheme(option);
             // Tree cells cache their graphic nodes; rebuild them so dark-only
@@ -552,15 +784,10 @@ final class MainWindow {
         return item;
     }
 
-    /** Icon-only buttons with tooltips, matching the legacy app's toolbar convention (UI_INVENTORY.md section 1). */
+    /** The Python file/edit/view/shell toolbar groups, with unavailable commands visibly disabled. */
     private ToolBar buildToolBar() {
-        Button openGerberButton = new Button(null, Icons.folderOpen(16));
-        openGerberButton.setTooltip(new Tooltip("Abrir Gerber (prototipo Fase 3)"));
-        openGerberButton.setOnAction(e -> openGerberPrototype());
-
-        Button openExcellonButton = new Button(null, Icons.drill(16));
-        openExcellonButton.setTooltip(new Tooltip("Abrir Excellon (prototipo Fase 4)"));
-        openExcellonButton.setOnAction(e -> openExcellonPrototype());
+        Button openGerberButton = chromeButton("Abrir Gerber", "flatcam_icon32.png", this::openGerberPrototype);
+        Button openExcellonButton = chromeButton("Abrir Excellon", "drill32.png", this::openExcellonPrototype);
 
         runDemoJobButton.setGraphic(Icons.play(16));
         runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
@@ -571,7 +798,50 @@ final class MainWindow {
         cancelJobButton.setDisable(true);
         cancelJobButton.setOnAction(e -> cancelDemoJob());
 
-        return new ToolBar(openGerberButton, openExcellonButton, new Separator(), runDemoJobButton, cancelJobButton);
+        return new ToolBar(
+                openGerberButton, openExcellonButton, new Separator(),
+                chromeButton("Abrir Projeto", "folder32.png", this::openProject),
+                chromeButton("Salvar Projeto", "project_save32.png", this::saveProject),
+                new Separator(),
+                chromeButton("Editor", "edit_file32.png", this::editSelectedGerber),
+                chromeButton("Salvar e Fechar Editor", "close_edit_file32.png", null),
+                chromeButton("Copiar", "copy_file32.png", this::copySelectedObjects),
+                chromeButton("Excluir", "trash32.png", this::deleteSelectedObjects),
+                new Separator(),
+                chromeButton("Medir Distancia", "distance32.png", null),
+                chromeButton("Distancia Minima", "distance_min32.png", null),
+                chromeButton("Definir Origem", "origin32.png", null),
+                chromeButton("Mover para Origem", "origin2_32.png", null),
+                chromeButton("Ir para Localizacao", "jump_to16.png", null),
+                chromeButton("Localizar no Objeto", "locate32.png", null),
+                new Separator(),
+                chromeButton("Replotar", "replot32.png", null),
+                chromeButton("Limpar Plot", "clear_plot32.png", null),
+                chromeButton("Aproximar", "zoom_in32.png", null),
+                chromeButton("Afastar", "zoom_out32.png", null),
+                chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
+                new Separator(),
+                chromeButton("Linha de Comando", "shell32.png", null),
+                chromeButton("Novo Script", "script_new24.png", null),
+                chromeButton("Abrir Script", "open_script32.png", null),
+                chromeButton("Executar Script", "script16.png", null),
+                new Separator(), runDemoJobButton, cancelJobButton);
+    }
+
+    private ToolBar buildToolsToolBar() {
+        ToolBar toolbar = new ToolBar();
+        addToolbarCommands(toolbar, LegacyUiManifest.TOOLS_PREPARATION);
+        toolbar.getItems().add(new Separator());
+        addToolbarCommands(toolbar, LegacyUiManifest.TOOLS_CAM);
+        toolbar.getItems().add(new Separator());
+        addToolbarCommands(toolbar, LegacyUiManifest.TOOLS_UTILITIES);
+        return toolbar;
+    }
+
+    private void addToolbarCommands(ToolBar toolbar, List<LegacyUiManifest.Command> commands) {
+        for (LegacyUiManifest.Command command : commands) {
+            toolbar.getItems().add(chromeButton(command.label(), command.icon(), toolAction(command.id())));
+        }
     }
 
     /**
@@ -1523,8 +1793,11 @@ final class MainWindow {
     }
 
     private Node legacyIcon(String fileName, double size) {
-        String resource = currentTheme.isDark() ? "dark/" + fileName : fileName;
-        return Icons.fromResource(resource, size);
+        Node light = Icons.fromResource(fileName, size);
+        Node dark = Icons.fromResource("dark/" + fileName, size);
+        light.visibleProperty().bind(darkIcons.not());
+        dark.visibleProperty().bind(darkIcons);
+        return new StackPane(light, dark);
     }
 
     private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {

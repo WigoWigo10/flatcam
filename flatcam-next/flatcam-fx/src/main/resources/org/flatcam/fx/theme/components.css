@@ -114,6 +114,20 @@
     -fx-fill: -fx-text-base-color;
 }
 
+/* Future commands are discoverable without looking like working controls. */
+.tool-bar .button.planned-command:disabled,
+.editor-tool-palette .button.planned-command:disabled {
+    -fx-opacity: 0.58;
+}
+
+.editor-tool-palette {
+    -fx-padding: 3;
+    -fx-background-color: -fc-panel-bg;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
 /*
  * The legacy project-tree bitmaps are predominantly black. Dark themes keep
  * the original artwork but give it a compact, modern light outline so its

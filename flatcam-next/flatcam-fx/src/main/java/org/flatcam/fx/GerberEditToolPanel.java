@@ -2,12 +2,15 @@ package org.flatcam.fx;
 
 import java.util.Collection;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.flatcam.cam.gerber.GerberShape;
@@ -31,6 +34,7 @@ final class GerberEditToolPanel {
     private final Button copyButton = new Button("Copiar");
     private final Button applyButton = new Button("Aplicar");
     private final Button cancelButton = new Button("Cancelar");
+    private Button selectToolButton;
     private boolean editable;
     private boolean busy;
     private boolean dirty;
@@ -39,6 +43,7 @@ final class GerberEditToolPanel {
     private int selectedCount;
 
     GerberEditToolPanel(String objectName, boolean shapesApproximated,
+                        BiFunction<String, Double, Node> icon, Runnable onClearSelection,
                         Runnable onDelete, BiConsumer<Double, Double> onMove,
                         BiConsumer<Double, Double> onCopy, Runnable onUndo, Runnable onRedo,
                         Runnable onApply, Runnable onCancel) {
@@ -51,6 +56,46 @@ final class GerberEditToolPanel {
         Label note = new Label("Mover/Copiar usa o deslocamento X/Y abaixo, nas unidades do Gerber. "
                 + "Aplicar cria um novo objeto Gerber; Cancelar descarta as alteracoes.");
         note.setWrapText(true);
+        FlowPane palette = new FlowPane(4, 4);
+        palette.getStyleClass().add("editor-tool-palette");
+        for (LegacyUiManifest.Command command : LegacyUiManifest.GERBER_EDITOR) {
+            Button tool = new Button(null, icon.apply(command.icon(), 20.0));
+            boolean available = switch (command.id()) {
+                case "select" -> true;
+                case "copy", "delete", "move" -> !shapesApproximated;
+                default -> false;
+            };
+            String unavailableReason = shapesApproximated &&
+                    (command.id().equals("copy") || command.id().equals("delete") || command.id().equals("move"))
+                    ? " — indisponível neste projeto antigo" : " — em desenvolvimento";
+            tool.setTooltip(new Tooltip(command.label() + (available ? "" : unavailableReason)));
+            tool.setDisable(!available);
+            if (!available) {
+                tool.getStyleClass().add("planned-command");
+            }
+            switch (command.id()) {
+                case "select" -> {
+                    selectToolButton = tool;
+                    selectToolButton.setOnAction(event -> onClearSelection.run());
+                    palette.getChildren().add(selectToolButton);
+                    continue;
+                }
+                case "copy" -> {
+                    tool.disableProperty().bind(copyButton.disableProperty());
+                    tool.setOnAction(event -> copyButton.fire());
+                }
+                case "delete" -> {
+                    tool.disableProperty().bind(deleteButton.disableProperty());
+                    tool.setOnAction(event -> deleteButton.fire());
+                }
+                case "move" -> {
+                    tool.disableProperty().bind(moveButton.disableProperty());
+                    tool.setOnAction(event -> moveButton.fire());
+                }
+                default -> { }
+            }
+            palette.getChildren().add(tool);
+        }
         selectionLabel.setWrapText(true);
         showSelection(0, java.util.List.of());
 
@@ -77,7 +122,7 @@ final class GerberEditToolPanel {
 
         errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("form-error-label");
-        root = new VBox(10, info, help, selectionLabel, historyRow, deleteButton, offsetRow, operationRow);
+        root = new VBox(10, info, palette, help, selectionLabel, historyRow, deleteButton, offsetRow, operationRow);
         if (shapesApproximated) {
             Label approximated = new Label("Este projeto antigo nao contem formas individuais. "
                     + "Abra o Gerber original para editar sem perder regioes ou separar incorretamente pads/trilhas.");
@@ -126,6 +171,7 @@ final class GerberEditToolPanel {
         copyButton.setDisable(busy || !editable || selectedCount == 0);
         applyButton.setDisable(busy || !dirty);
         cancelButton.setDisable(busy);
+        selectToolButton.setDisable(busy);
     }
 
     private void runOffsetAction(TextField x, TextField y, BiConsumer<Double, Double> action) {

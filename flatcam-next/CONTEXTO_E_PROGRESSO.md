@@ -69,7 +69,7 @@ separação.
 ### Verificação mais recente
 
 Após as primeiras operações do Gerber Editor e o round-trip das formas
-individuais, `test` passa com **137 testes executados**, sem falhas,
+individuais, `clean install` passa com **138 testes executados**, sem falhas,
 erros ou testes ignorados (127 antes deste incremento). `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
@@ -85,6 +85,14 @@ resultados podem mudar.
 
 - Janela JavaFX com menus, barras de ferramentas, painel lateral, console,
   status e progresso.
+- O chrome principal agora expõe os menus e barras de Arquivo, Editar, Exibir,
+  Shell e Ferramentas com os ícones PNG originais do Python. Comandos ainda não
+  portados aparecem desabilitados; ações já funcionais continuam ligadas aos
+  fluxos reais. Os ícones claro/escuro trocam ao vivo com o tema. A barra de
+  ferramentas Gerber também aparece dentro do editor, com operações existentes
+  ativas e ferramentas futuras desabilitadas. Os comandos dos editores
+  Excellon/Geometry estão catalogados em Editar → Ferramentas dos editores,
+  desabilitados até esses editores existirem.
 - Temas claro/escuro próprios e variantes AtlantaFX.
 - A Plot Area acompanha o tema ativo, inclusive fundo, grade, eixos e textos.
 - Canvas com pan, zoom, enquadramento, réguas, grade adaptativa, origem, posição

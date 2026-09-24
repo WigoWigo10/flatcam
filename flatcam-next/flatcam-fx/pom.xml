@@ -56,6 +56,12 @@
             <artifactId>atlantafx-base</artifactId>
             <version>2.1.0</version>
         </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <version>5.11.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -63,74 +69,29 @@
             <resource>
                 <directory>src/main/resources</directory>
             </resource>
-            <!-- Reuse the legacy Python UI's own context-menu artwork. -->
+            <!-- The legacy toolbar/menu artwork is small (<1 MB for both themes).
+                 Keep the full sets available as the JavaFX chrome is populated. -->
             <resource>
                 <directory>../../assets/resources</directory>
                 <targetPath>org/flatcam/fx/icons</targetPath>
                 <includes>
-                    <include>replot32.png</include>
-                    <include>clear_plot32.png</include>
-                    <include>set_color32.png</include>
-                    <include>cnc32.png</include>
-                    <include>cnc16.png</include>
-                    <include>source32.png</include>
-                    <include>copy32.png</include>
-                    <include>delete32.png</include>
-                    <include>save_as.png</include>
-                    <include>properties32.png</include>
-                    <include>zoom_fit32.png</include>
-                    <include>iso_16.png</include>
-                    <include>cut32_bis.png</include>
-                    <include>drilling_tool32.png</include>
-                    <include>geometry16.png</include>
-                    <include>flatcam_icon32.png</include>
-                    <include>settings18.png</include>
-                    <include>geometry32.png</include>
-                    <include>eraser26.png</include>
-                    <include>transform.png</include>
-                    <include>rotate.png</include>
-                    <include>skewX.png</include>
-                    <include>skewY.png</include>
-                    <include>flipx.png</include>
-                    <include>flipy.png</include>
-                    <include>reset32.png</include>
-                    <include>edit_ok32.png</include>
+                    <include>*.png</include>
                 </includes>
             </resource>
             <resource>
                 <directory>../../assets/resources/dark_resources</directory>
                 <targetPath>org/flatcam/fx/icons/dark</targetPath>
                 <includes>
-                    <include>replot32.png</include>
-                    <include>clear_plot32.png</include>
-                    <include>set_color32.png</include>
-                    <include>cnc32.png</include>
-                    <include>cnc16.png</include>
-                    <include>source32.png</include>
-                    <include>copy32.png</include>
-                    <include>delete32.png</include>
-                    <include>save_as.png</include>
-                    <include>properties32.png</include>
-                    <include>zoom_fit32.png</include>
-                    <include>iso_16.png</include>
-                    <include>cut32_bis.png</include>
-                    <include>drilling_tool32.png</include>
-                    <include>flatcam_icon32.png</include>
-                    <include>settings18.png</include>
-                    <include>geometry32.png</include>
-                    <include>eraser26.png</include>
-                    <include>transform.png</include>
-                    <include>rotate.png</include>
-                    <include>skewX.png</include>
-                    <include>skewY.png</include>
-                    <include>flipx.png</include>
-                    <include>flipy.png</include>
-                    <include>reset32.png</include>
-                    <include>edit_ok32.png</include>
+                    <include>*.png</include>
                 </includes>
             </resource>
         </resources>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
             <plugin>
                 <groupId>org.openjfx</groupId>
                 <artifactId>javafx-maven-plugin</artifactId>
