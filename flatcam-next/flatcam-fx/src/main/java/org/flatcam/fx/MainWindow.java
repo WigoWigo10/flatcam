@@ -230,6 +230,10 @@ final class MainWindow {
     private TreeItem<String> cncJobsNode;
     private VBox bottomPanel;
     private double dividerBeforeConsoleCollapse = 0.75;
+    /** Set by MainApp (initially, and again after each DPI-rescale Stage recreation) - see setCurrentScreenId. */
+    private String currentScreenId = "default";
+    private boolean sidebarDividerDragging;
+    private boolean sidebarRestoreQueued;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private JobHandle<?> runningJob;
@@ -245,17 +249,82 @@ final class MainWindow {
         root.setBottom(buildStatusBar());
 
         scene = new Scene(root);
+        scene.addEventFilter(MouseEvent.MOUSE_PRESSED,
+                event -> sidebarDividerDragging = isSidebarDividerTarget(event.getTarget()));
+        scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
+            if (sidebarDividerDragging) {
+                sidebarDividerDragging = false;
+                saveSidebarDividerPosition();
+            }
+        });
         currentTheme.applyTo(scene);
         plotAreaView.applyTheme(currentTheme);
         return scene;
     }
 
-    /** Called by MainApp on window close - split-divider positions have no natural "save now" moment otherwise. */
+    /** Called by MainApp on window close and by the console divider listener. */
     void saveSplitPositions() {
+        if (sidebarDividerDragging) {
+            saveSidebarDividerPosition();
+        }
         if (consoleCollapsed) {
             return; // the collapsed (~1.0) position is not a real layout preference - see toggleConsole().
         }
-        AppPreferences.saveSplitPositions(horizontalSplit.getDividerPositions()[0], verticalSplit.getDividerPositions()[0]);
+        AppPreferences.saveSplitVertical(verticalSplit.getDividerPositions()[0]);
+    }
+
+    private void saveSidebarDividerPosition() {
+        double position = horizontalSplit.getDividerPositions()[0];
+        if (Double.isFinite(position) && position > 0 && position < 1) {
+            AppPreferences.saveSplitHorizontalForScreen(currentScreenId, position);
+        }
+    }
+
+    private boolean isSidebarDividerTarget(Object target) {
+        if (!(target instanceof Node node)) {
+            return false;
+        }
+        for (Node current = node; current != null && current != horizontalSplit; current = current.getParent()) {
+            if (current.getStyleClass().contains("split-pane-divider")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Called by MainApp once initially and again every time it recreates the
+     * Stage on a different screen (its DPI-rescale workaround) - reapplies
+     * THIS screen's own remembered sidebar width. Kept separate per screen,
+     * unlike the shared vertical (console) divider, because this app's two
+     * monitors can have very different resolutions/DPI, so one fraction that
+     * looked right on one looked wrong-sized on the other; the user asked for
+     * each monitor to keep its own.
+     */
+    void setCurrentScreenId(String screenId) {
+        if (screenId.equals(currentScreenId)) {
+            return;
+        }
+        currentScreenId = screenId;
+        if (horizontalSplit == null) {
+            return;
+        }
+        scheduleSidebarRestore();
+    }
+
+    private void scheduleSidebarRestore() {
+        if (sidebarRestoreQueued) {
+            return;
+        }
+        sidebarRestoreQueued = true;
+        Platform.runLater(() -> {
+            sidebarRestoreQueued = false;
+            if (sidebarDividerDragging || horizontalSplit.getWidth() <= 0) {
+                return;
+            }
+            horizontalSplit.setDividerPositions(
+                    AppPreferences.loadSplitHorizontalForScreen(currentScreenId, AppPreferences.loadSplitHorizontal(0.22)));
+        });
     }
 
     /**
@@ -505,15 +574,12 @@ final class MainWindow {
         verticalSplit = consoleCollapsed ? new SplitPane(horizontalSplit) : new SplitPane(horizontalSplit, bottomPanel);
         verticalSplit.setOrientation(Orientation.VERTICAL);
 
-        // SplitPane does not reliably honor a divider position set before its first
-        // layout pass - measured drift on a loaded 0.55: it settled at ~0.51 by the next
-        // launch, because the save listener (attached below) caught that settling as if
-        // it were a real change and persisted it. Deferring the initial set past the
-        // first layout, then attaching the listener, avoids that drift entirely.
+        // Reapply after each Stage width change. A transfer between monitors can
+        // resize this SplitPane for several pulses before the new Stage settles.
+        // Layout-driven divider moves must never be persisted as user choices.
+        horizontalSplit.widthProperty().addListener((obs, oldWidth, newWidth) -> scheduleSidebarRestore());
         Platform.runLater(() -> {
-            horizontalSplit.setDividerPositions(AppPreferences.loadSplitHorizontal(0.22));
-            horizontalSplit.getDividers().get(0).positionProperty()
-                    .addListener((obs, oldVal, newVal) -> saveSplitPositions());
+            scheduleSidebarRestore();
             if (!consoleCollapsed) {
                 verticalSplit.setDividerPositions(AppPreferences.loadSplitVertical(0.75));
                 attachVerticalDividerSaveListener();

@@ -29,6 +29,7 @@ final class AppPreferences {
     private static final String KEY_WINDOW_WIDTH = "windowWidth";
     private static final String KEY_WINDOW_HEIGHT = "windowHeight";
     private static final String KEY_SPLIT_HORIZONTAL = "splitHorizontal";
+    private static final String KEY_SPLIT_HORIZONTAL_SCREEN_PREFIX = "splitHorizontal_";
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
     private static final String KEY_CONSOLE_OPEN = "consoleOpen";
     private static final String KEY_LAST_CAM_DIR = "lastCamDirectory";
@@ -72,12 +73,34 @@ final class AppPreferences {
         return PREFS.getDouble(KEY_SPLIT_HORIZONTAL, fallback);
     }
 
+    /**
+     * The sidebar divider width the user set the last time the window was on
+     * THIS specific monitor - kept separate per screen (unlike the shared
+     * {@link #loadSplitHorizontal(double)}) because this
+     * app's two monitors can have very different resolutions/DPI, so one
+     * fraction that looked right on one looked wrong-sized on the other.
+     * Falls back to the shared (non-per-screen) value on a screen never seen
+     * before, then to {@code fallback}.
+     */
+    static double loadSplitHorizontalForScreen(String screenId, double fallback) {
+        return PREFS.getDouble(splitHorizontalScreenKey(screenId), loadSplitHorizontal(fallback));
+    }
+
+    static void saveSplitHorizontalForScreen(String screenId, double horizontal) {
+        PREFS.putDouble(splitHorizontalScreenKey(screenId), horizontal);
+        PREFS.putDouble(KEY_SPLIT_HORIZONTAL, horizontal);
+        flush();
+    }
+
+    private static String splitHorizontalScreenKey(String screenId) {
+        return KEY_SPLIT_HORIZONTAL_SCREEN_PREFIX + screenId.replaceAll("[^A-Za-z0-9]", "_");
+    }
+
     static double loadSplitVertical(double fallback) {
         return PREFS.getDouble(KEY_SPLIT_VERTICAL, fallback);
     }
 
-    static void saveSplitPositions(double horizontal, double vertical) {
-        PREFS.putDouble(KEY_SPLIT_HORIZONTAL, horizontal);
+    static void saveSplitVertical(double vertical) {
         PREFS.putDouble(KEY_SPLIT_VERTICAL, vertical);
         flush();
     }
