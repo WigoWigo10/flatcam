@@ -289,6 +289,8 @@ final class MainWindow {
     private String currentScreenId = "default";
     private boolean sidebarDividerDragging;
     private boolean sidebarRestoreQueued;
+    private boolean sidebarCollapsed;
+    private ToggleButton sidebarToggle;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
@@ -304,7 +306,7 @@ final class MainWindow {
 
     Scene createScene() {
         BorderPane root = new BorderPane();
-        root.setTop(new VBox(buildMenuBar(), buildToolBar(), buildToolsToolBar()));
+        root.setTop(new VBox(buildMenuRow(), buildToolBar(), buildToolsToolBar()));
         root.setCenter(buildMainSplit());
         root.setBottom(buildStatusBar());
 
@@ -375,6 +377,9 @@ final class MainWindow {
     }
 
     private void saveSidebarDividerPosition() {
+        if (sidebarCollapsed || horizontalSplit.getDividers().isEmpty()) {
+            return;
+        }
         double position = horizontalSplit.getDividerPositions()[0];
         if (Double.isFinite(position) && position > 0 && position < 1) {
             AppPreferences.saveSplitHorizontalForScreen(currentScreenId, position);
@@ -424,7 +429,7 @@ final class MainWindow {
         sidebarRestoreQueued = true;
         Platform.runLater(() -> {
             sidebarRestoreQueued = false;
-            if (sidebarDividerDragging || horizontalSplit.getWidth() <= 0) {
+            if (sidebarCollapsed || sidebarDividerDragging || horizontalSplit.getWidth() <= 0) {
                 return;
             }
             horizontalSplit.setDividerPositions(
@@ -469,8 +474,46 @@ final class MainWindow {
         return item;
     }
 
+    /** The Python menu_toggle_nb action hides the notebook and gives its space to the plot. */
+    private void toggleSidebar() {
+        setSidebarVisible(sidebarCollapsed);
+    }
+
+    private void setSidebarVisible(boolean visible) {
+        if (visible == !sidebarCollapsed) {
+            return;
+        }
+        if (visible) {
+            sidebarCollapsed = false;
+            horizontalSplit.getItems().add(0, leftTabs);
+            scheduleSidebarRestore();
+        } else {
+            saveSidebarDividerPosition();
+            sidebarCollapsed = true;
+            horizontalSplit.getItems().remove(leftTabs);
+        }
+        sidebarToggle.setSelected(visible);
+    }
+
     private MenuItem plannedItem(String label, String icon) {
         return chromeItem(label, icon, null);
+    }
+
+    private HBox buildMenuRow() {
+        sidebarToggle = new ToggleButton(null, legacyIcon("notebook32.png", 16));
+        sidebarToggle.setTooltip(new Tooltip("Mostrar/ocultar painel lateral"));
+        sidebarToggle.setAccessibleText("Mostrar ou ocultar Projeto, Propriedades e Ferramenta");
+        sidebarToggle.getStyleClass().add("sidebar-toggle");
+        sidebarToggle.setSelected(true);
+        sidebarToggle.setOnAction(event -> toggleSidebar());
+
+        MenuBar menuBar = buildMenuBar();
+        menuBar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(menuBar, Priority.ALWAYS);
+        HBox row = new HBox(sidebarToggle, menuBar);
+        row.setAlignment(Pos.CENTER_LEFT);
+        row.getStyleClass().add("menu-bar-row");
+        return row;
     }
 
     private Button chromeButton(String label, String icon, Runnable action) {
@@ -751,6 +794,8 @@ final class MainWindow {
                 plannedItem("Eixos", "axis32.png"),
                 plannedItem("Workspace", "workspace24.png"),
                 plannedItem("HUD", "hud_32.png"),
+                new SeparatorMenuItem(),
+                chromeItem("Mostrar/ocultar painel lateral", "notebook32.png", this::toggleSidebar),
                 new SeparatorMenuItem(), buildThemeMenu());
 
         Menu objectsMenu = new Menu("Objetos");
@@ -1000,6 +1045,7 @@ final class MainWindow {
      * the sidebar, e.g. CalculatorsPanel's three stacked calculators).
      */
     private void openToolPanel(String label, Node content) {
+        setSidebarVisible(true);
         toolTab.setText(label);
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
@@ -2216,6 +2262,7 @@ final class MainWindow {
     }
 
     private void showObjectProperties(TreeItem<String> item) {
+        setSidebarVisible(true);
         int row = projectTree.getRow(item);
         if (row >= 0) {
             projectTree.getSelectionModel().clearAndSelect(row);

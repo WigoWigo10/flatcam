@@ -17,6 +17,23 @@
     -fx-text-fill: -fc-panel-text;
 }
 
+/* Python places the notebook toggle immediately before File on the menu bar. */
+.menu-bar-row {
+    -fx-background-color: -fc-panel-bg;
+}
+
+.sidebar-toggle,
+.sidebar-toggle:selected {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-padding: 2 5 2 5;
+}
+
+.sidebar-toggle:hover {
+    -fx-background-color: derive(-fc-panel-bg, 12%);
+}
+
 .bottom-panel {
     -fx-background-color: -fc-panel-bg;
     -fx-padding: 4;
