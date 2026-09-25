@@ -315,7 +315,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Área | Estado | Observação principal |
 | --- | --- | --- |
 | Shell, temas e layout principal | forte/parcial | base utilizável; vários menus ainda não têm fluxo completo |
-| Plot 2D e interação | forte/parcial | Canvas com seleção de objetos por clique/retângulo, destaque e menu contextual; ainda faltam mover/copiar no canvas, grade configurável e perfilamento para placas enormes |
+| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; faltam validação manual, grade configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
@@ -619,11 +619,26 @@ o mesmo menu funcional da árvore para o objeto atingido; arrasto direito/meio
 continua deslocando a vista. Clicar numa área vazia com o botão direito mostra
 Enquadrar tudo/Limpar seleção. O Editor Gerber mantém seu próprio handler de
 seleção sem herdar o menu global. `PlotObjectSelection` cobre hit-testing e
-seleção por caixa em testes sem JavaFX. Ainda faltam mover/copiar com prévia,
-ações próprias de editor no menu do canvas e validação manual dos gestos.
+seleção por caixa em testes sem JavaFX. Ainda faltam ações próprias de editor
+no menu do canvas e validação manual dos gestos.
 O menu do Plot Area recebeu cores explícitas para texto normal e item focado
 nos quatro temas; o destaque escuro usa azul mais profundo para manter
 contraste de texto de pelo menos 4,5:1 (teste automático do CSS).
+
+**Posicionamento no Plot Area (2026-09-25).** O menu contextual de um Gerber,
+Excellon ou Geometry visível agora oferece "Mover no Plot Area" e "Copiar no Plot
+Area". Um fantasma da geometria acompanha o cursor; clique esquerdo confirma o
+deslocamento entre o ponto do menu e o destino, enquanto Esc ou clique direito
+curto cancela. Multisseleção move/copia o grupo com o mesmo deslocamento.
+CNC Jobs não entram nesse fluxo: mudar apenas o desenho deixaria o G-code
+incoerente. Ainda validar manualmente os gestos e a persistência após salvar e
+reabrir um projeto; não há undo/redo global para estas operações.
+Movimentos confirmados no Plot Area têm histórico próprio: Ctrl+Z desfaz e
+Ctrl+Y refaz, inclusive movimentos de grupos; cópias e transformações feitas
+por outros caminhos invalidam esse histórico. O menu contextual do Plot Area
+agora fecha ao clicar em qualquer ponto do canvas. A janela maximizada tenta
+reabrir no último monitor usado enquanto ele estiver conectado, aplicando a
+largura lateral já salva para aquele monitor; sem ele, abre no principal.
 
 Alternativa não escolhida agora, mas ainda válida como próximo passo depois
 das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
@@ -975,6 +990,6 @@ o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito. O próximo trabalho recomendado é validar
 manualmente esses gestos e a exportação Gerber no Python, depois adicionar
-mover/copiar por cliques no canvas, ferramentas de desenho e tabela editável
+posicionamento por cliques no Editor Gerber, ferramentas de desenho e tabela editável
 de aberturas.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

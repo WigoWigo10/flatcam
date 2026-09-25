@@ -3,3 +3,5 @@
 tests/tmp/
 build/
 .venv/
+venv/
+.venv312/

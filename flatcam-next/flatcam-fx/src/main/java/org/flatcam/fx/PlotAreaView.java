@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import javafx.geometry.Pos;
+import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
@@ -80,6 +81,12 @@ final class PlotAreaView extends StackPane {
         void onContextRequest(double worldX, double worldY, double screenX, double screenY);
     }
 
+    interface PlacementHandler {
+        void onCommit(double dx, double dy);
+
+        void onCancel();
+    }
+
     record SelectableLayer(Object key, Geometry geometry) {
     }
 
@@ -90,6 +97,8 @@ final class PlotAreaView extends StackPane {
     private static final Color TOUCHING_BOX_FILL = Color.web("#BBF268BF");
     private static final Color TOUCHING_BOX_LINE = Color.web("#006E20BF");
     private static final Color SELECTED_OBJECT_LINE = Color.web("#ffb000");
+    private static final Color PLACEMENT_FILL = Color.web("#00bfff", 0.30);
+    private static final Color PLACEMENT_STROKE = Color.web("#00bfff", 0.95);
 
     private static final double RULER_TOP_HEIGHT = 20;
     private static final double RULER_LEFT_WIDTH = 44;
@@ -142,6 +151,14 @@ final class PlotAreaView extends StackPane {
     private boolean rightDragged;
     private double rightPressScreenX;
     private double rightPressScreenY;
+    private PlacementHandler placementHandler;
+    private List<Object> placementKeys = List.of();
+    private List<RenderLayer> placementLayers = List.of();
+    private double placementAnchorWorldX;
+    private double placementAnchorWorldY;
+    private double placementCurrentWorldX;
+    private double placementCurrentWorldY;
+    private boolean placementPrimaryPressed;
 
     PlotAreaView() {
         getChildren().add(canvas);
@@ -192,6 +209,9 @@ final class PlotAreaView extends StackPane {
 
     /** Swaps a layer's geometry in place (e.g. after a Transform) without disturbing its colors/visibility/plot-kind. */
     void updateLayerGeometry(Object key, Geometry geometry) {
+        if (placementKeys.contains(key)) {
+            cancelPlacement();
+        }
         RenderLayer layer = layers.get(key);
         if (layer != null) {
             layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
@@ -201,11 +221,17 @@ final class PlotAreaView extends StackPane {
     }
 
     void removeLayer(Object key) {
+        if (placementKeys.contains(key)) {
+            cancelPlacement();
+        }
         layers.remove(key);
         redraw();
     }
 
     void setLayerVisible(Object key, boolean visible) {
+        if (!visible && placementKeys.contains(key)) {
+            cancelPlacement();
+        }
         RenderLayer layer = layers.get(key);
         if (layer != null) {
             layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
@@ -265,6 +291,7 @@ final class PlotAreaView extends StackPane {
     }
 
     void clearLayers() {
+        cancelPlacement();
         layers.clear();
         selectedObjectBounds = List.of();
         redraw();
@@ -353,6 +380,9 @@ final class PlotAreaView extends StackPane {
 
     /** An editor temporarily overrides the project selector; null restores it. */
     void setSelectionHandler(SelectionHandler handler) {
+        if (handler != null) {
+            cancelPlacement();
+        }
         selectionHandler = handler;
         selecting = false;
         redraw();
@@ -360,6 +390,58 @@ final class PlotAreaView extends StackPane {
 
     void setContextRequestHandler(ContextRequestHandler handler) {
         contextRequestHandler = handler;
+    }
+
+    /** Captures the visible source layers so the ghost cannot mutate the project before confirmation. */
+    boolean beginPlacement(List<?> keys, double anchorWorldX, double anchorWorldY, PlacementHandler handler) {
+        if (selectionHandler != null || keys.isEmpty() || handler == null) {
+            return false;
+        }
+        List<RenderLayer> preview = new ArrayList<>();
+        for (Object key : keys) {
+            RenderLayer layer = layers.get(key);
+            if (layer == null || !layer.visible() || layer.geometry() == null || layer.geometry().isEmpty()) {
+                return false;
+            }
+            preview.add(layer);
+        }
+        cancelPlacement();
+        placementKeys = List.copyOf(keys);
+        placementLayers = List.copyOf(preview);
+        placementAnchorWorldX = anchorWorldX;
+        placementAnchorWorldY = anchorWorldY;
+        placementCurrentWorldX = anchorWorldX;
+        placementCurrentWorldY = anchorWorldY;
+        placementHandler = handler;
+        setCursor(Cursor.CROSSHAIR);
+        redraw();
+        return true;
+    }
+
+    boolean isPlacementActive() {
+        return placementHandler != null;
+    }
+
+    boolean isEditorActive() {
+        return selectionHandler != null;
+    }
+
+    void cancelPlacement() {
+        if (placementHandler == null) {
+            return;
+        }
+        PlacementHandler handler = placementHandler;
+        clearPlacement();
+        handler.onCancel();
+    }
+
+    private void clearPlacement() {
+        placementHandler = null;
+        placementKeys = List.of();
+        placementLayers = List.of();
+        placementPrimaryPressed = false;
+        setCursor(Cursor.DEFAULT);
+        redraw();
     }
 
     // --- Input handling -----------------------------------------------
@@ -397,7 +479,10 @@ final class PlotAreaView extends StackPane {
         referenceWorldY = world[1];
         hasReference = true;
         updateCoordLabel(event.getX(), event.getY());
-        if (activeSelectionHandler() != null && event.getButton() == MouseButton.PRIMARY
+        if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
+            placementPrimaryPressed = insidePlot(event.getX(), event.getY());
+        }
+        if (placementHandler == null && activeSelectionHandler() != null && event.getButton() == MouseButton.PRIMARY
                 && insidePlot(event.getX(), event.getY())) {
             selecting = true;
             selectionDragged = false;
@@ -410,13 +495,29 @@ final class PlotAreaView extends StackPane {
 
     private void handleRelease(MouseEvent event) {
         if (event.getButton() == MouseButton.SECONDARY) {
-            if (rightPressed && !rightDragged && selectionHandler == null
+            if (rightPressed && !rightDragged && placementHandler != null) {
+                cancelPlacement();
+                event.consume();
+            } else if (rightPressed && !rightDragged && selectionHandler == null
                     && contextRequestHandler != null && insidePlot(event.getX(), event.getY())) {
                 double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
                 contextRequestHandler.onContextRequest(world[0], world[1], event.getScreenX(), event.getScreenY());
                 event.consume();
             }
             rightPressed = false;
+            return;
+        }
+        if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
+            if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
+                double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+                PlacementHandler handler = placementHandler;
+                double dx = world[0] - placementAnchorWorldX;
+                double dy = world[1] - placementAnchorWorldY;
+                clearPlacement();
+                handler.onCommit(dx, dy);
+                event.consume();
+            }
+            placementPrimaryPressed = false;
             return;
         }
         if (!selecting || event.getButton() != MouseButton.PRIMARY) {
@@ -435,6 +536,11 @@ final class PlotAreaView extends StackPane {
     }
 
     private void handleDrag(MouseEvent event) {
+        if (placementHandler != null && event.isPrimaryButtonDown()) {
+            updatePlacement(event.getX(), event.getY());
+            updateCoordLabel(event.getX(), event.getY());
+            return;
+        }
         if (selecting) {
             selectionCurrentScreenX = event.getX();
             selectionCurrentScreenY = event.getY();
@@ -467,7 +573,17 @@ final class PlotAreaView extends StackPane {
     }
 
     private void handleMove(MouseEvent event) {
+        updatePlacement(event.getX(), event.getY());
         updateCoordLabel(event.getX(), event.getY());
+    }
+
+    private void updatePlacement(double screenX, double screenY) {
+        if (placementHandler != null && insidePlot(screenX, screenY)) {
+            double[] world = screenToWorld(screenX - RULER_LEFT_WIDTH, screenY - RULER_TOP_HEIGHT);
+            placementCurrentWorldX = world[0];
+            placementCurrentWorldY = world[1];
+            redraw();
+        }
     }
 
     private SelectionHandler activeSelectionHandler() {
@@ -534,9 +650,28 @@ final class PlotAreaView extends StackPane {
                 }
             }
         }
+        drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
+    }
+
+    private void drawPlacementPreview(GraphicsContext gc, double contentWidth, double contentHeight) {
+        if (placementHandler == null) {
+            return;
+        }
+        gc.save();
+        gc.beginPath();
+        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.clip();
+        gc.translate((placementCurrentWorldX - placementAnchorWorldX) * scale,
+                -(placementCurrentWorldY - placementAnchorWorldY) * scale);
+        gc.setLineDashes(5, 4);
+        for (RenderLayer layer : placementLayers) {
+            drawLayer(gc, new RenderLayer(layer.geometry(), layer.strokeOnly(), PLACEMENT_FILL,
+                    PLACEMENT_STROKE, true, layer.category(), layer.filled(), false), contentWidth, contentHeight);
+        }
+        gc.restore();
     }
 
     private void drawSelectedObjectBounds(GraphicsContext gc, double contentWidth, double contentHeight) {

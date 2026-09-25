@@ -2,6 +2,7 @@ package org.flatcam.fx;
 
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.List;
 import javafx.animation.KeyFrame;
 import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
@@ -39,6 +40,9 @@ public class MainApp extends Application {
     private String capturedScreenId;
     private double[] capturedScreenTopLeft;
 
+    private record StartupTarget(Screen screen, String screenId) {
+    }
+
     @Override
     public void start(Stage primaryStage) {
         jobExecutor = new JobExecutor();
@@ -51,10 +55,18 @@ public class MainApp extends Application {
         Platform.setImplicitExit(false);
 
         MainWindow mainWindow = new MainWindow(jobExecutor);
+        StartupTarget startup = startupTarget();
+        Rectangle2D startupBounds = startup.screen().getBounds();
         primaryStage.setTitle("FlatCAM FX");
         primaryStage.setScene(mainWindow.createScene());
-        primaryStage.setWidth(AppPreferences.loadWindowWidth(1200));
-        primaryStage.setHeight(AppPreferences.loadWindowHeight(800));
+        primaryStage.setWidth(Math.min(AppPreferences.loadWindowWidth(1200),
+                Math.max(1, startupBounds.getWidth() - 20)));
+        primaryStage.setHeight(Math.min(AppPreferences.loadWindowHeight(800),
+                Math.max(1, startupBounds.getHeight() - 20)));
+        // Place the Stage before maximizing: the OS chooses the monitor to
+        // maximize from its initial bounds, not from a later setX/setY call.
+        primaryStage.setX(startupBounds.getMinX() + 10);
+        primaryStage.setY(startupBounds.getMinY() + 10);
         wireCloseHandler(primaryStage, mainWindow);
         // Matches the legacy app, which always opens maximized regardless of its last
         // saved window size - setWidth/Height above still matter as the size restored
@@ -64,10 +76,59 @@ public class MainApp extends Application {
         primaryStage.show();
 
         currentStage = primaryStage;
-        mainWindow.setCurrentScreenId(currentScreenId());
+        mainWindow.setCurrentScreenId(startup.screenId());
         installDpiRescaleWorkaround(mainWindow);
 
         LOG.log(Level.INFO, "MainApp started");
+    }
+
+    private static StartupTarget startupTarget() {
+        AppPreferences.SavedWindowScreen saved = AppPreferences.loadWindowScreen();
+        if (saved != null && isDeviceConnected(saved.deviceId())) {
+            List<Screen> screens = Screen.getScreens();
+            List<WindowScreenMatcher.Bounds> bounds = screens.stream()
+                    .map(screen -> screenBounds(screen.getBounds())).toList();
+            int index = WindowScreenMatcher.bestMatch(bounds, saved.bounds());
+            if (index >= 0) {
+                return new StartupTarget(screens.get(index), saved.deviceId());
+            }
+        }
+        String primaryId = java.awt.GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getDefaultScreenDevice().getIDstring();
+        return new StartupTarget(Screen.getPrimary(), primaryId);
+    }
+
+    private static boolean isDeviceConnected(String deviceId) {
+        for (java.awt.GraphicsDevice device : java.awt.GraphicsEnvironment
+                .getLocalGraphicsEnvironment().getScreenDevices()) {
+            if (device.getIDstring().equals(deviceId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static WindowScreenMatcher.Bounds screenBounds(Rectangle2D bounds) {
+        return new WindowScreenMatcher.Bounds(bounds.getMinX(), bounds.getMinY(),
+                bounds.getWidth(), bounds.getHeight());
+    }
+
+    private static Screen screenContainingMostOf(Stage stage) {
+        Screen best = Screen.getPrimary();
+        double bestArea = -1;
+        for (Screen screen : Screen.getScreens()) {
+            Rectangle2D bounds = screen.getBounds();
+            double width = Math.max(0, Math.min(stage.getX() + stage.getWidth(), bounds.getMaxX())
+                    - Math.max(stage.getX(), bounds.getMinX()));
+            double height = Math.max(0, Math.min(stage.getY() + stage.getHeight(), bounds.getMaxY())
+                    - Math.max(stage.getY(), bounds.getMinY()));
+            double area = width * height;
+            if (area > bestArea) {
+                bestArea = area;
+                best = screen;
+            }
+        }
+        return best;
     }
 
     /**
@@ -261,6 +322,8 @@ public class MainApp extends Application {
     private void wireCloseHandler(Stage stage, MainWindow mainWindow) {
         stage.setOnCloseRequest(e -> {
             AppPreferences.saveWindowSize(stage.getWidth(), stage.getHeight());
+            AppPreferences.saveWindowScreen(mainWindow.currentScreenId(),
+                    screenBounds(screenContainingMostOf(stage).getBounds()));
             mainWindow.saveSplitPositions();
             Platform.exit();
         });

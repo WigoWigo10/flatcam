@@ -45,6 +45,7 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
@@ -54,6 +55,7 @@ import javafx.scene.control.TreeCell;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
 import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -291,6 +293,8 @@ final class MainWindow {
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
     private ContextMenu plotContextMenu;
+    private final PlotMoveHistory<TreeItem<String>> plotMoveHistory = new PlotMoveHistory<>();
+    private boolean applyingPlotMove;
 
     MainWindow(JobExecutor jobExecutor) {
         this.jobExecutor = jobExecutor;
@@ -304,6 +308,21 @@ final class MainWindow {
 
         scene = new Scene(root);
         configurePlotInteractions();
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
+                plotAreaView.cancelPlacement();
+                event.consume();
+            } else if (event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && !event.isShiftDown() && !plotAreaView.isEditorActive()
+                    && !plotAreaView.isPlacementActive() && projectTree.getEditingItem() == null
+                    && !isTextInputTarget(event.getTarget())) {
+                if (event.getCode() == KeyCode.Z && undoPlotMove()) {
+                    event.consume();
+                } else if (event.getCode() == KeyCode.Y && redoPlotMove()) {
+                    event.consume();
+                }
+            }
+        });
         scene.addEventFilter(MouseEvent.MOUSE_PRESSED,
                 event -> sidebarDividerDragging = isSidebarDividerTarget(event.getTarget()));
         scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
@@ -315,6 +334,18 @@ final class MainWindow {
         currentTheme.applyTo(scene);
         plotAreaView.applyTheme(currentTheme);
         return scene;
+    }
+
+    private static boolean isTextInputTarget(Object target) {
+        if (!(target instanceof Node node)) {
+            return false;
+        }
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (current instanceof TextInputControl) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Called by MainApp on window close and by the console divider listener. */
@@ -365,6 +396,10 @@ final class MainWindow {
             return;
         }
         scheduleSidebarRestore();
+    }
+
+    String currentScreenId() {
+        return currentScreenId;
     }
 
     private void scheduleSidebarRestore() {
@@ -1233,6 +1268,11 @@ final class MainWindow {
 
     /** Project-object selection is active only while no editor has claimed the canvas. */
     private void configurePlotInteractions() {
+        plotAreaView.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (plotContextMenu != null && plotContextMenu.isShowing()) {
+                plotContextMenu.hide();
+            }
+        });
         plotAreaView.setDefaultSelectionHandler(new PlotAreaView.SelectionHandler() {
             @Override
             public void onClick(double worldX, double worldY, boolean additive) {
@@ -1343,6 +1383,7 @@ final class MainWindow {
             }
             leftTabs.getSelectionModel().select(projectTab);
             plotContextMenu = buildContextMenuFor(hit);
+            addPlotPlacementActions(plotContextMenu, hit, worldX, worldY);
         } else {
             MenuItem fitAll = new MenuItem("Enquadrar tudo");
             setLegacyMenuIcon(fitAll, "zoom_fit32.png");
@@ -1354,8 +1395,129 @@ final class MainWindow {
         }
         if (!plotContextMenu.getItems().isEmpty()) {
             plotContextMenu.getStyleClass().add("plot-context-menu");
+            plotContextMenu.setAutoHide(true);
             plotContextMenu.show(plotAreaView, screenX, screenY);
         }
+    }
+
+    private void addPlotPlacementActions(ContextMenu menu, TreeItem<String> hit, double anchorX, double anchorY) {
+        List<TreeItem<String>> selected = projectTree.getSelectionModel().getSelectedItems().stream()
+                .filter(this::isProjectObject).distinct().toList();
+        List<TreeItem<String>> targets = selected.contains(hit) ? selected : List.of(hit);
+        boolean available = !targets.isEmpty() && targets.stream().allMatch(this::isPlotPlacementTarget);
+
+        MenuItem move = new MenuItem("Mover no Plot Area");
+        setLegacyMenuIcon(move, "move32.png");
+        move.setDisable(!available);
+        move.setOnAction(e -> startPlotPlacement(targets, anchorX, anchorY, false));
+
+        MenuItem copy = new MenuItem("Copiar no Plot Area");
+        setLegacyMenuIcon(copy, "copy32.png");
+        copy.setDisable(!available);
+        copy.setOnAction(e -> startPlotPlacement(targets, anchorX, anchorY, true));
+
+        menu.getItems().addAll(new SeparatorMenuItem(), move, copy);
+    }
+
+    private boolean isPlotPlacementTarget(TreeItem<String> item) {
+        if (!(gerberByItem.containsKey(item) || excellonByItem.containsKey(item)
+                || geometryByItem.containsKey(item))) {
+            return false;
+        }
+        return plotAreaView.visibleSelectableLayers().stream().anyMatch(layer -> layer.key() == item);
+    }
+
+    private void startPlotPlacement(List<TreeItem<String>> targets, double anchorX, double anchorY, boolean copy) {
+        List<TreeItem<String>> snapshot = List.copyOf(targets);
+        if (snapshot.isEmpty() || !snapshot.stream().allMatch(this::isPlotPlacementTarget)) {
+            appendConsole("Mover/copiar no Plot Area requer Gerber, Excellon ou Geometry visivel.");
+            return;
+        }
+        boolean started = plotAreaView.beginPlacement(snapshot, anchorX, anchorY, new PlotAreaView.PlacementHandler() {
+            @Override
+            public void onCommit(double dx, double dy) {
+                commitPlotPlacement(snapshot, dx, dy, copy);
+            }
+
+            @Override
+            public void onCancel() {
+                setStatus("Posicionamento cancelado.", CANCELLED_COLOR);
+            }
+        });
+        if (started) {
+            setStatus((copy ? "Copiar" : "Mover") + ": clique no destino; Esc cancela.", RUNNING_COLOR);
+            plotAreaView.requestFocus();
+        }
+    }
+
+    private void commitPlotPlacement(List<TreeItem<String>> sources, double dx, double dy, boolean copy) {
+        if (!sources.stream().allMatch(this::isPlotPlacementTarget)) {
+            appendConsole("Posicionamento cancelado: um objeto de origem mudou ou foi removido.");
+            setStatus("Posicionamento cancelado.", CANCELLED_COLOR);
+            return;
+        }
+        if (!copy && dx == 0 && dy == 0) {
+            setStatus("Nenhum deslocamento.", IDLE_COLOR);
+            return;
+        }
+        TransformOp.Offset offset = new TransformOp.Offset(dx, dy);
+        List<TreeItem<String>> placed = new ArrayList<>();
+        applyingPlotMove = !copy;
+        try {
+            for (TreeItem<String> source : sources) {
+                TreeItem<String> target = copy ? copyObject(source) : source;
+                if (target != null && applyTransformToItem(target, offset)) {
+                    placed.add(target);
+                }
+            }
+        } finally {
+            applyingPlotMove = false;
+        }
+        if (!copy && !placed.isEmpty()) {
+            plotMoveHistory.record(placed, dx, dy);
+        }
+        if (copy && !placed.isEmpty()) {
+            projectTree.getSelectionModel().clearSelection();
+            for (TreeItem<String> item : placed) {
+                projectTree.getSelectionModel().select(rowForPlotObject(item));
+            }
+        }
+        appendConsole((copy ? "Copiado(s)" : "Movido(s)") + " " + placed.size()
+                + " objeto(s) no Plot Area: dx=" + dx + ", dy=" + dy + ".");
+        setStatus("Concluido.", IDLE_COLOR);
+    }
+
+    private boolean undoPlotMove() {
+        PlotMoveHistory.Move<TreeItem<String>> move = plotMoveHistory.undo();
+        return applyRecordedPlotMove(move, false);
+    }
+
+    private boolean redoPlotMove() {
+        PlotMoveHistory.Move<TreeItem<String>> move = plotMoveHistory.redo();
+        return applyRecordedPlotMove(move, true);
+    }
+
+    private boolean applyRecordedPlotMove(PlotMoveHistory.Move<TreeItem<String>> move, boolean forward) {
+        if (move == null) {
+            return false;
+        }
+        if (!move.targets().stream().allMatch(this::isProjectObject)) {
+            plotMoveHistory.clear();
+            setStatus("Historico de movimento indisponivel.", CANCELLED_COLOR);
+            return true;
+        }
+        applyingPlotMove = true;
+        try {
+            TransformOp.Offset offset = new TransformOp.Offset(
+                    forward ? move.dx() : -move.dx(), forward ? move.dy() : -move.dy());
+            for (TreeItem<String> item : move.targets()) {
+                applyTransformToItem(item, offset);
+            }
+        } finally {
+            applyingPlotMove = false;
+        }
+        setStatus(forward ? "Movimento refeito." : "Movimento desfeito.", IDLE_COLOR);
+        return true;
     }
 
     /** Category rows (Gerbers/Excellon/Geometry/CNC Jobs) aren't real objects - only actual Gerber/Excellon/CNC Job items are. */
@@ -1493,6 +1655,9 @@ final class MainWindow {
 
     /** One object's share of {@link #applyTransformToSelection} - also used directly by each object's own mini "Transformations" panel. */
     private boolean applyTransformToItem(TreeItem<String> item, TransformOp op) {
+        if (!applyingPlotMove) {
+            plotMoveHistory.clear();
+        }
         if (cncJobByItem.containsKey(item)) {
             appendConsole("CNC Job nao pode ser transformado: " + item.getValue());
             return false;
@@ -2116,6 +2281,7 @@ final class MainWindow {
     }
 
     private TreeItem<String> copyObject(TreeItem<String> sourceItem) {
+        plotMoveHistory.clear();
         String copyName = uniqueCopyName(sourceItem.getValue());
         TreeItem<String> copyItem;
         GerberImage gerber = gerberByItem.get(sourceItem);
@@ -2125,6 +2291,11 @@ final class MainWindow {
 
         if (gerber != null) {
             copyItem = addGerberToProject(copyName, sourcePathByItem.get(sourceItem), gerber);
+            if (gerberFollowItems.contains(sourceItem)) {
+                gerberFollowItems.add(copyItem);
+                plotAreaView.putLayer(copyItem, PlotAreaView.LayerCategory.GERBER,
+                        gerber.followGeometry(), GERBER_FILL, GERBER_STROKE, true);
+            }
             copyLayerAppearance(sourceItem, copyItem);
         } else if (excellon != null) {
             copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon);
@@ -2598,6 +2769,7 @@ final class MainWindow {
     }
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
+        plotMoveHistory.clear();
         gerberEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
@@ -3481,6 +3653,8 @@ final class MainWindow {
     }
 
     private void clearProject() {
+        plotAreaView.cancelPlacement();
+        plotMoveHistory.clear();
         gerberEditor.cancel();
         gerbersNode.getChildren().clear();
         excellonNode.getChildren().clear();

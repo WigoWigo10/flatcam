@@ -28,6 +28,11 @@ final class AppPreferences {
     private static final String KEY_THEME = "theme";
     private static final String KEY_WINDOW_WIDTH = "windowWidth";
     private static final String KEY_WINDOW_HEIGHT = "windowHeight";
+    private static final String KEY_WINDOW_SCREEN_ID = "windowScreenId";
+    private static final String KEY_WINDOW_SCREEN_X = "windowScreenX";
+    private static final String KEY_WINDOW_SCREEN_Y = "windowScreenY";
+    private static final String KEY_WINDOW_SCREEN_WIDTH = "windowScreenWidth";
+    private static final String KEY_WINDOW_SCREEN_HEIGHT = "windowScreenHeight";
     private static final String KEY_SPLIT_HORIZONTAL = "splitHorizontal";
     private static final String KEY_SPLIT_HORIZONTAL_SCREEN_PREFIX = "splitHorizontal_";
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
@@ -66,6 +71,34 @@ final class AppPreferences {
     static void saveWindowSize(double width, double height) {
         PREFS.putDouble(KEY_WINDOW_WIDTH, width);
         PREFS.putDouble(KEY_WINDOW_HEIGHT, height);
+        flush();
+    }
+
+    record SavedWindowScreen(String deviceId, WindowScreenMatcher.Bounds bounds) {
+    }
+
+    static SavedWindowScreen loadWindowScreen() {
+        String deviceId = PREFS.get(KEY_WINDOW_SCREEN_ID, null);
+        if (deviceId == null || deviceId.isBlank()) {
+            return null;
+        }
+        var bounds = new WindowScreenMatcher.Bounds(
+                PREFS.getDouble(KEY_WINDOW_SCREEN_X, Double.NaN),
+                PREFS.getDouble(KEY_WINDOW_SCREEN_Y, Double.NaN),
+                PREFS.getDouble(KEY_WINDOW_SCREEN_WIDTH, Double.NaN),
+                PREFS.getDouble(KEY_WINDOW_SCREEN_HEIGHT, Double.NaN));
+        return bounds.valid() ? new SavedWindowScreen(deviceId, bounds) : null;
+    }
+
+    static void saveWindowScreen(String deviceId, WindowScreenMatcher.Bounds bounds) {
+        if (deviceId == null || deviceId.isBlank() || bounds == null || !bounds.valid()) {
+            return;
+        }
+        PREFS.put(KEY_WINDOW_SCREEN_ID, deviceId);
+        PREFS.putDouble(KEY_WINDOW_SCREEN_X, bounds.x());
+        PREFS.putDouble(KEY_WINDOW_SCREEN_Y, bounds.y());
+        PREFS.putDouble(KEY_WINDOW_SCREEN_WIDTH, bounds.width());
+        PREFS.putDouble(KEY_WINDOW_SCREEN_HEIGHT, bounds.height());
         flush();
     }
 
