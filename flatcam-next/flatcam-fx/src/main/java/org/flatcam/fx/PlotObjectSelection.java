@@ -57,7 +57,8 @@ final class PlotObjectSelection {
         if (hits.isEmpty()) {
             return null;
         }
-        int currentIndex = hits.indexOf(current);
+        // List.copyOf() returns a null-rejecting list; no object is selected on the first click.
+        int currentIndex = current == null ? -1 : hits.indexOf(current);
         return hits.get(currentIndex < 0 ? 0 : (currentIndex + 1) % hits.size());
     }
 
