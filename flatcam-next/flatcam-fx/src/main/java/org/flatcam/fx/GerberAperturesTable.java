@@ -89,8 +89,30 @@ final class GerberAperturesTable {
         markColumn.setCellValueFactory(cb -> cb.getValue().markedProperty());
         markColumn.setCellFactory(CheckBoxTableCell.forTableColumn(markColumn));
 
+        // Keep the short data columns compact; Dim absorbs the available width
+        // instead of leaving an unlabelled filler column beside M.
+        indexColumn.setMinWidth(30);
+        indexColumn.setPrefWidth(30);
+        indexColumn.setMaxWidth(30);
+        codeColumn.setMinWidth(45);
+        codeColumn.setPrefWidth(50);
+        codeColumn.setMaxWidth(65);
+        typeColumn.setMinWidth(45);
+        typeColumn.setPrefWidth(65);
+        typeColumn.setMaxWidth(85);
+        sizeColumn.setMinWidth(50);
+        sizeColumn.setPrefWidth(60);
+        sizeColumn.setMaxWidth(75);
+        dimColumn.setMinWidth(75);
+        dimColumn.setPrefWidth(140);
+        markColumn.setMinWidth(32);
+        markColumn.setPrefWidth(32);
+        markColumn.setMaxWidth(32);
+
         TableView<ApertureRow> table = new TableView<>();
         table.setEditable(true);
+        table.setMinWidth(0);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.getColumns().addAll(List.of(indexColumn, codeColumn, typeColumn, sizeColumn, dimColumn, markColumn));
         table.getItems().setAll(rows);
         table.setPrefHeight(Math.min(200, 32 + rows.size() * 28));

@@ -113,6 +113,8 @@ final class GerberEditToolPanel {
         HBox offsetRow = new HBox(6, new Label("X:"), offsetX, new Label("Y:"), offsetY);
         offsetX.setPrefColumnCount(6);
         offsetY.setPrefColumnCount(6);
+        offsetX.setMinWidth(0);
+        offsetY.setMinWidth(0);
 
         undoButton.setOnAction(e -> onUndo.run());
         redoButton.setOnAction(e -> onRedo.run());

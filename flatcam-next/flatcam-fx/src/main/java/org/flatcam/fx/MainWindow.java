@@ -58,6 +58,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -1619,6 +1620,8 @@ final class MainWindow {
      */
     private Node transformationsSection(TreeItem<String> item) {
         TextField scaleField = new TextField("1.0");
+        scaleField.setPrefColumnCount(6);
+        scaleField.setMinWidth(0);
         Button scaleButton = new Button("Scale");
         scaleButton.setOnAction(e -> {
             try {
@@ -1632,6 +1635,10 @@ final class MainWindow {
         });
         TextField offsetXField = new TextField("0.0");
         TextField offsetYField = new TextField("0.0");
+        offsetXField.setPrefColumnCount(6);
+        offsetYField.setPrefColumnCount(6);
+        offsetXField.setMinWidth(0);
+        offsetYField.setMinWidth(0);
         Button offsetButton = new Button("Offset");
         offsetButton.setOnAction(e -> {
             try {
@@ -1649,12 +1656,11 @@ final class MainWindow {
         transformationsButton.setMaxWidth(Double.MAX_VALUE);
         transformationsButton.setOnAction(e -> openTransformTool());
 
-        GridPane grid = new GridPane();
-        grid.setHgap(8);
-        grid.setVgap(8);
-        grid.addRow(0, new Label("Scale:"), scaleField, scaleButton);
-        grid.addRow(1, new Label("Offset X,Y:"), offsetXField, offsetYField, offsetButton);
-        return new VBox(6, grid, transformationsButton);
+        FlowPane scaleRow = new FlowPane(8, 6, new HBox(6, new Label("Scale:"), scaleField), scaleButton);
+        FlowPane offsetRow = new FlowPane(8, 6,
+                new HBox(6, new Label("Offset X:"), offsetXField),
+                new HBox(6, new Label("Y:"), offsetYField), offsetButton);
+        return new VBox(6, scaleRow, offsetRow, transformationsButton);
     }
 
     /** One object's share of {@link #applyTransformToSelection} - also used directly by each object's own mini "Transformations" panel. */

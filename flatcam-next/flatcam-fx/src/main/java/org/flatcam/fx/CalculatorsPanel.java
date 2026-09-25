@@ -45,6 +45,7 @@ final class CalculatorsPanel {
     private static Node buildUnitsSection() {
         TextField mmField = new TextField("0");
         TextField inchField = new TextField("0");
+        compactFields(mmField, inchField);
 
         mmField.setOnAction(e -> inchField.setText(format(parse(mmField.getText()) / 25.4)));
         mmField.focusedProperty().addListener((obs, was, is) -> {
@@ -74,6 +75,7 @@ final class CalculatorsPanel {
         TextField tipAngleField = new TextField("30");
         TextField cutDepthField = new TextField("0.05");
         TextField toolDiaField = new TextField("0.0000");
+        compactFields(tipDiaField, tipAngleField, cutDepthField, toolDiaField);
         toolDiaField.setEditable(false);
 
         Runnable calculate = () -> {
@@ -116,6 +118,8 @@ final class CalculatorsPanel {
         TextField currentField = new TextField("0.00");
         currentField.setEditable(false);
         TextField timeField = new TextField("0.0");
+        compactFields(lengthField, widthField, areaField, densityField,
+                growthField, currentField, timeField);
         timeField.setEditable(false);
 
         HBox lengthRow = new HBox(6, new Label("Board Length:"), lengthField, new Label("cm"));
@@ -171,6 +175,13 @@ final class CalculatorsPanel {
 
         return new VBox(6, sectionTitle("ElectroPlating Calculator"),
                 new Label("Area Calculation:"), areaInputs, grid, calculateButton);
+    }
+
+    private static void compactFields(TextField... fields) {
+        for (TextField field : fields) {
+            field.setPrefColumnCount(7);
+            field.setMinWidth(0);
+        }
     }
 
     private static double parse(String text) {

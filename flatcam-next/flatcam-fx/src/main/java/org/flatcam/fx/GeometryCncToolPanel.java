@@ -40,6 +40,8 @@ final class GeometryCncToolPanel {
 
         TextField toolDiaField = new TextField(format(metric ? 0.8 : 0.031));
         TableView<ToolGeometry> toolTable = new TableView<>();
+        toolTable.setMinWidth(0);
+        toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         if (multiTool) {
             TableColumn<ToolGeometry, Number> idColumn = new TableColumn<>("#");
             idColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(
@@ -61,6 +63,11 @@ final class GeometryCncToolPanel {
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not());
         TextField feedField = new TextField(metric ? "300" : "12");
         TextField spindleField = new TextField("10000");
+        for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
+                depthPerPassField, feedField, spindleField)) {
+            field.setPrefColumnCount(7);
+            field.setMinWidth(0);
+        }
         CheckBox pauseCheck = new CheckBox("Pausar para troca de ferramenta (M0)");
         pauseCheck.setSelected(tools.size() > 1);
         pauseCheck.setDisable(tools.size() <= 1);

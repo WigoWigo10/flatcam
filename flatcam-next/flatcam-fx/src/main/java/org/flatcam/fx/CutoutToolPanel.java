@@ -74,6 +74,11 @@ final class CutoutToolPanel {
         TextField safeZField = new TextField(metric ? "3.0" : "0.1");
         TextField feedField = new TextField(metric ? "300" : "12");
         TextField spindleField = new TextField("10000");
+        for (TextField field : new TextField[]{toolDiaField, cutZField, depthPerPassField,
+                marginField, gapSizeField, safeZField, feedField, spindleField}) {
+            field.setPrefColumnCount(7);
+            field.setMinWidth(0);
+        }
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
 

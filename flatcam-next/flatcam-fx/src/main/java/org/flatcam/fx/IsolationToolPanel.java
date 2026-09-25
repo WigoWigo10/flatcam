@@ -48,6 +48,11 @@ final class IsolationToolPanel {
         TextField depthField = new TextField(metric ? "0.1" : "0.004");
         TextField feedField = new TextField(metric ? "300" : "12");
         TextField spindleField = new TextField("10000");
+        for (TextField field : new TextField[]{toolDiaField, passesField, overlapField,
+                safeZField, depthField, feedField, spindleField}) {
+            field.setPrefColumnCount(7);
+            field.setMinWidth(0);
+        }
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
 

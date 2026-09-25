@@ -91,6 +91,10 @@ final class DrillGCodeToolPanel {
         TextField depthField = new TextField(metric ? "1.7" : "0.07");
         TextField feedField = new TextField(metric ? "300" : "12");
         TextField spindleField = new TextField("10000");
+        for (TextField field : List.of(safeZField, depthField, feedField, spindleField)) {
+            field.setPrefColumnCount(7);
+            field.setMinWidth(0);
+        }
         CheckBox pauseCheck = new CheckBox("Pausar para troca de ferramenta (M0)");
         pauseCheck.setSelected(image.toolDiameters().size() > 1);
         Label errorLabel = new Label();
@@ -155,6 +159,8 @@ final class DrillGCodeToolPanel {
         slotsColumn.setCellValueFactory(new PropertyValueFactory<>("slots"));
 
         TableView<ToolRow> table = new TableView<>();
+        table.setMinWidth(0);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.getColumns().addAll(List.of(idColumn, diameterColumn, drillsColumn, slotsColumn));
         table.getItems().setAll(rows);
         table.setPrefHeight(Math.min(160, 28 + rows.size() * 28));

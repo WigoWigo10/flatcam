@@ -142,6 +142,11 @@ final class TransformToolPanel {
         offsetXButton.setOnAction(e -> withNonZero(offsetXField, "Offset X", errorLabel, dx ->
                 onApply.accept(selected -> new TransformOp.Offset(dx, 0))));
         TextField offsetYField = new TextField("0.0");
+        for (TextField field : List.of(pointXField, pointYField, rotateField,
+                skewXField, skewYField, scaleXField, scaleYField, offsetXField, offsetYField)) {
+            field.setPrefColumnCount(6);
+            field.setMinWidth(0);
+        }
         Button offsetYButton = new Button("Offset Y");
         offsetYButton.setMaxWidth(Double.MAX_VALUE);
         offsetYButton.setOnAction(e -> withNonZero(offsetYField, "Offset Y", errorLabel, dy ->

@@ -79,7 +79,8 @@ final class NccToolPanel {
             }
         });
         toolTable.getColumns().add(diaColumn);
-        toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        toolTable.setMinWidth(0);
+        toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         Runnable updateTableHeight = () ->
                 toolTable.setPrefHeight(Math.min(150, 32 + Math.max(diameters.size(), 1) * 28));
         diameters.addListener((javafx.collections.ListChangeListener<Double>) change -> updateTableHeight.run());
@@ -87,6 +88,7 @@ final class NccToolPanel {
 
         TextField newDiaField = new TextField(metric ? "1.0" : "0.040");
         newDiaField.setPrefColumnCount(8);
+        newDiaField.setMinWidth(0);
         Tooltip.install(newDiaField, tooltip("Diametro da nova ferramenta a adicionar"));
         Button addToolButton = new Button("Adicionar");
         Button removeToolButton = new Button("Remover");
@@ -183,6 +185,10 @@ final class NccToolPanel {
         CheckBox offsetCb = new CheckBox("Copper offset");
         offsetCb.setTooltip(tooltip("Aumenta a distancia minima mantida em torno do cobre, alem da margem."));
         TextField offsetField = new TextField("0.0");
+        for (TextField field : List.of(overlapField, marginField, offsetField)) {
+            field.setPrefColumnCount(7);
+            field.setMinWidth(0);
+        }
         offsetField.disableProperty().bind(offsetCb.selectedProperty().not());
 
         CheckBox restCb = new CheckBox("Rest Machining");
