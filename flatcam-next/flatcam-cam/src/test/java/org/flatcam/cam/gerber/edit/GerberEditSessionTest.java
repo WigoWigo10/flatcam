@@ -239,6 +239,46 @@ class GerberEditSessionTest {
     }
 
     @Test
+    void straightTrackKeepsCenterlineAndParticipatesInUndoRedo() {
+        GerberEditSession session = session();
+        int originalCount = session.shapes().size();
+
+        assertTrue(session.addTrack("11", 10, 10, 14, 10));
+        GerberShape track = session.shapes().get(originalCount);
+        assertEquals(Set.of(originalCount), session.selectedIndices());
+        assertEquals("11", track.apertureCode());
+        assertFalse(track.clear());
+        assertEquals(0.05, track.geometry().getEnvelopeInternal().getHeight(), 1e-9);
+        assertEquals(4.05, track.geometry().getEnvelopeInternal().getWidth(), 1e-9);
+        assertEquals(2, track.followGeometry().getNumPoints());
+        assertEquals(10, track.followGeometry().getCoordinates()[0].x, 1e-9);
+        assertEquals(14, track.followGeometry().getCoordinates()[1].x, 1e-9);
+        assertTrue(session.apply().image().solidGeometry().covers(point(12, 10)));
+
+        assertTrue(session.undo());
+        assertEquals(originalCount, session.shapes().size());
+        assertFalse(session.apply().image().solidGeometry().covers(point(12, 10)));
+        assertTrue(session.redo());
+        assertTrue(session.apply().image().solidGeometry().covers(point(12, 10)));
+    }
+
+    @Test
+    void straightTrackRejectsInvalidApertureAndCoordinatesWithoutHistory() {
+        GerberEditSession session = session();
+        assertFalse(session.addTrack("11", 1, 1, 1, 1));
+        assertThrows(IllegalArgumentException.class, () -> session.addTrack("99", 1, 1, 2, 2));
+        assertThrows(IllegalArgumentException.class, () -> session.addTrack("11", Double.NaN, 1, 2, 2));
+        assertFalse(session.isDirty());
+        assertFalse(session.canUndo());
+
+        GerberImage rectangle = new GerberParser().parse(List.of(
+                "%FSLAX23Y23*%", "%MOIN*%", "%ADD12R,1X2*%", "D12*", "X0Y0D03*", "M02*"));
+        GerberEditSession rectangleSession = new GerberEditSession("rect", rectangle);
+        assertThrows(IllegalArgumentException.class, () -> rectangleSession.addTrack("12", 1, 1, 2, 2));
+        assertFalse(rectangleSession.isDirty());
+    }
+
+    @Test
     void newCircularApertureParticipatesInHistoryAndPadCreation() {
         GerberEditSession session = session();
         String code = session.addCircularAperture(0.25);
@@ -402,6 +442,7 @@ class GerberEditSessionTest {
         assertThrows(IllegalStateException.class,
                 () -> session.addAperture(ApertureKind.RECTANGLE, 2, 1));
         assertThrows(IllegalStateException.class, () -> session.addPad("10", 2, 2));
+        assertThrows(IllegalStateException.class, () -> session.addTrack("10", 1, 1, 2, 2));
         assertSame(oldProject, session.apply().image());
     }
 

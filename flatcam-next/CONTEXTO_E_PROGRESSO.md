@@ -319,7 +319,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background e pads C/R/O por aberturas existentes ou novas; o resultado pode ser salvo e reaberto; faltam outros pads, tracks/regions e edição/remoção de aberturas |
+| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background, pads C/R/O e trilha reta com abertura C; o resultado pode ser salvo e reaberto; faltam trilhas poligonais/modos de curva, regiões, outros pads e edição/remoção de aberturas |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -838,9 +838,8 @@ Implementar por fatias verticais, não como um bloco único:
 2. seleção e hit testing; ✅ concluída (seção 8) - `GerberShape`,
    `GerberEditSession.clickSelect/boxSelect`, `GerberEditorController`;
 3. command stack com undo/redo; ✅ concluída para operações em memória;
-4. mover, copiar e excluir; ✅ concluída por deslocamento X/Y; falta o gesto
-   de origem/destino no canvas do Python;
-5. pads, tracks, regions e apertures; 🟡 pads C/R/O e criação das respectivas aberturas concluídos, com prévia, undo/redo e persistência; pads P/AM, tracks/regions e edição/remoção de aberturas pendentes;
+4. mover, copiar e excluir; ✅ deslocamento X/Y e gesto de origem/destino no canvas;
+5. pads, tracks, regions e apertures; 🟡 pads C/R/O, criação das respectivas aberturas e trilha reta com abertura C concluídos, com prévia, snap, undo/redo e persistência; trilhas poligonais/modos de curva, regiões, pads P/AM e edição/remoção de aberturas pendentes;
 6. operações avançadas do editor legado;
 7. persistência e reabertura do resultado editado; ✅ concluída para projetos
    novos; projetos antigos só têm uniões por abertura e não podem recuperar
@@ -848,6 +847,11 @@ Implementar por fatias verticais, não como um bloco único:
 
 Depois disso, repetir a estratégia para o Editor Excellon e ampliar Geometry e
 CNC Job até a paridade necessária.
+
+Ordem acordada em 2026-09-25: concluir primeiro o desenho de trilhas (a fatia
+reta de dois cliques já existe; faltam polilinhas/modos de curva), depois
+regiões e edição/remoção de aberturas; na sequência, iniciar o Editor de
+G-Code com carregamento e processamento assíncronos, progresso e cancelamento.
 
 ## 10. Regras de implementação para qualquer IA
 
@@ -989,13 +993,14 @@ referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/
 Flip/Offset) completas para os três tipos de objeto. O Gerber Editor já
 seleciona, exclui, move e copia formas, tem undo/redo, aplica um novo objeto e
 salva/reabre suas formas individuais em projetos novos. Também pode criar uma
-abertura circular C com D-code livre e posicionar um pad com prévia e um clique;
-ambas as operações participam do undo/redo e da persistência do projeto.
+aberturas C/R/O com D-code livre, posicionar pads com prévia e desenhar uma
+trilha reta de dois cliques usando uma abertura C; essas operações participam
+do undo/redo e da persistência do projeto.
 "Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O
-próximo trabalho recomendado é validar manualmente o pad novo, os gestos do
-Editor Gerber e a exportação no Python; depois ampliar pads para R/O e criar
-trilhas/regiões, além de editar/remover aberturas existentes.
+próximo trabalho recomendado é validar manualmente o desenho da trilha e a
+exportação no Python; depois ampliar para trilhas poligonais, regiões e
+editar/remover aberturas existentes.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

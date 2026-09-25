@@ -65,7 +65,9 @@ final class GerberEditToolPanel {
     private final TableView<ApertureOption> apertureTable;
     private Button selectToolButton;
     private Button padToolButton;
+    private Button trackToolButton;
     private String selectedPadAperture;
+    private String selectedTrackAperture;
     private boolean editable;
     private boolean busy;
     private boolean dirty;
@@ -79,7 +81,8 @@ final class GerberEditToolPanel {
                         BiFunction<String, Double, Node> icon, Runnable onClearSelection,
                         Runnable onDelete, Runnable onMoveCanvas, Runnable onCopyCanvas,
                         BiConsumer<Double, Double> onMove, BiConsumer<Double, Double> onCopy,
-                        Consumer<String> onAddPad, ApertureCreator onAddAperture,
+                        Consumer<String> onAddPad, Consumer<String> onAddTrack,
+                        ApertureCreator onAddAperture,
                         Runnable onCancelPlacement, Runnable onUndo, Runnable onRedo,
                         Runnable onApply, Runnable onCancel) {
         editable = !shapesApproximated;
@@ -87,7 +90,7 @@ final class GerberEditToolPanel {
         Label help = new Label("Clique seleciona a forma sob o cursor; Ctrl+clique alterna. "
                 + "Arrastar para a direita seleciona as formas envolvidas; para a esquerda, as tocadas. "
                 + "Crie uma abertura C, R ou O (D-code automatico) ou selecione uma existente na tabela, "
-                + "depois use Adicionar Pad para posiciona-la. "
+                + "depois use Adicionar Pad. Para uma trilha reta, selecione uma abertura C e clique no inicio e no fim. "
                 + "Pan: botao direito ou do meio.");
         help.setWrapText(true);
         Label note = new Label("Mover/Copiar usa dois cliques no Plot Area: origem e destino (Esc cancela). "
@@ -100,14 +103,18 @@ final class GerberEditToolPanel {
             Button tool = new Button(null, icon.apply(command.icon(), 20.0));
             boolean available = switch (command.id()) {
                 case "select" -> true;
-                case "copy", "delete", "move", "pad" -> !shapesApproximated;
+                case "copy", "delete", "move", "pad", "track" -> !shapesApproximated;
                 default -> false;
             };
             String unavailableReason = shapesApproximated &&
                     (command.id().equals("copy") || command.id().equals("delete")
-                            || command.id().equals("move") || command.id().equals("pad"))
+                            || command.id().equals("move") || command.id().equals("pad")
+                            || command.id().equals("track"))
                     ? " — indisponível neste projeto antigo" : " — em desenvolvimento";
-            tool.setTooltip(new Tooltip(command.label() + (available ? "" : unavailableReason)));
+            String helpText = command.id().equals("track") && available
+                    ? " - selecione uma abertura C; clique no inicio e no fim"
+                    : "";
+            tool.setTooltip(new Tooltip(command.label() + helpText + (available ? "" : unavailableReason)));
             tool.setDisable(!available);
             if (!available) {
                 tool.getStyleClass().add("planned-command");
@@ -122,6 +129,10 @@ final class GerberEditToolPanel {
                 case "pad" -> {
                     padToolButton = tool;
                     padToolButton.setOnAction(event -> onAddPad.accept(selectedPadAperture));
+                }
+                case "track" -> {
+                    trackToolButton = tool;
+                    trackToolButton.setOnAction(event -> onAddTrack.accept(selectedTrackAperture));
                 }
                 case "copy" -> {
                     tool.disableProperty().bind(copyButton.disableProperty());
@@ -211,7 +222,7 @@ final class GerberEditToolPanel {
 
         errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("form-error-label");
-        root = new VBox(10, info, palette, new Label("Aberturas (C/R/O = pads):"), apertureTable,
+        root = new VBox(10, info, palette, new Label("Aberturas (C/R/O: pads; C: trilhas):"), apertureTable,
                 addApertureRow,
                 help, selectionLabel, historyRow, deleteButton,
                 operationRow, placementLabel, cancelPlacementButton, offsetRow, offsetActions);
@@ -288,6 +299,10 @@ final class GerberEditToolPanel {
         setPlacementState(placing, "Clique no Plot Area para posicionar o pad. Esc cancela.");
     }
 
+    void setTrackPlacing(boolean placing) {
+        setPlacementState(placing, "Clique no inicio e depois no fim da trilha reta. Esc cancela.");
+    }
+
     private void setPlacementState(boolean placing, String message) {
         this.placing = placing;
         placementLabel.setText(placing ? message : "");
@@ -317,6 +332,7 @@ final class GerberEditToolPanel {
         cancelButton.setDisable(busy);
         selectToolButton.setDisable(busy || placing);
         padToolButton.setDisable(busy || placing || !editable || selectedPadAperture == null);
+        trackToolButton.setDisable(busy || placing || !editable || selectedTrackAperture == null);
         addApertureButton.setDisable(busy || placing || !editable);
         apertureTypeBox.setDisable(busy || placing || !editable);
         apertureWidthField.setDisable(busy || placing || !editable);
@@ -349,6 +365,8 @@ final class GerberEditToolPanel {
         table.setPrefHeight(Math.min(180, 30 + Math.max(1, rows.size()) * 27));
         table.getSelectionModel().selectedItemProperty().addListener((obs, oldRow, selectedRow) -> {
             selectedPadAperture = selectedRow != null && supportsPad(selectedRow.aperture())
+                    ? selectedRow.code() : null;
+            selectedTrackAperture = selectedRow != null && supportsTrack(selectedRow.aperture())
                     ? selectedRow.code() : null;
             updateButtons();
         });
@@ -386,6 +404,11 @@ final class GerberEditToolPanel {
                 || aperture.kind == ApertureKind.OBROUND)
                 && Double.isFinite(aperture.width) && aperture.width > 0
                 && Double.isFinite(aperture.height) && aperture.height > 0;
+    }
+
+    private static boolean supportsTrack(Aperture aperture) {
+        return aperture.kind == ApertureKind.CIRCLE
+                && Double.isFinite(aperture.width) && aperture.width > 0;
     }
 
     private static List<ApertureOption> apertureRows(Map<String, Aperture> apertures) {

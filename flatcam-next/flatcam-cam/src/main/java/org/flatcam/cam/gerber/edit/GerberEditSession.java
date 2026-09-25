@@ -19,6 +19,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 
@@ -302,6 +303,30 @@ public final class GerberEditSession {
             throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
         }
         return addPad(apertureCode, x, y);
+    }
+
+    /** Adds one straight D01 stroke with its centerline, using an existing circular aperture. */
+    public boolean addTrack(String apertureCode, double x1, double y1, double x2, double y2) {
+        requireExactShapes();
+        if (!Double.isFinite(x1) || !Double.isFinite(y1) || !Double.isFinite(x2) || !Double.isFinite(y2)) {
+            throw new IllegalArgumentException("Track coordinates must be finite");
+        }
+        Aperture aperture = apertures.get(apertureCode);
+        if (aperture == null || aperture.kind != ApertureKind.CIRCLE
+                || !Double.isFinite(aperture.width) || aperture.width <= 0) {
+            throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
+        }
+        if (x1 == x2 && y1 == y2) {
+            return false;
+        }
+        LineString centerline = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(x1, y1), new Coordinate(x2, y2)});
+        GerberShape track = new GerberShape(apertureCode,
+                centerline.buffer(aperture.strokeRadius(), 16), false, centerline);
+        List<GerberShape> updated = new ArrayList<>(shapes);
+        updated.add(track);
+        commit(updated, Set.of(updated.size() - 1));
+        return true;
     }
 
     /** Creates the next free D-code (D10+) for a standard C/R/O aperture. */

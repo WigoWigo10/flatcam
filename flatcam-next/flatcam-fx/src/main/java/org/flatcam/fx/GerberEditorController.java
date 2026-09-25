@@ -82,7 +82,7 @@ final class GerberEditorController {
                 session.shapesApproximated(), host::icon,
                 this::clearSelection,
                 this::deleteSelected, this::startCanvasMove, this::startCanvasCopy,
-                this::moveSelected, this::copySelected, this::startPadPlacement,
+                this::moveSelected, this::copySelected, this::startPadPlacement, this::startTrackPlacement,
                 this::addAperture, plotArea::cancelPlacement,
                 this::undo, this::redo, this::apply, this::cancel);
 
@@ -223,6 +223,61 @@ final class GerberEditorController {
             panel.setPadPlacing(true);
             panel.showError("");
             host.log("Editor: clique no Plot Area para adicionar pad D" + apertureCode + "; Esc cancela.");
+        }
+    }
+
+    private void startTrackPlacement(String apertureCode) {
+        if (session == null || session.shapesApproximated() || panel.isBusy() || apertureCode == null) {
+            return;
+        }
+        Aperture aperture = session.apertures().get(apertureCode);
+        if (aperture == null || aperture.kind != ApertureKind.CIRCLE
+                || !Double.isFinite(aperture.width) || aperture.width <= 0) {
+            panel.showError("Selecione uma abertura circular C com diametro positivo.");
+            return;
+        }
+        GerberEditSession editing = session;
+        double[] start = new double[2];
+        boolean started = plotArea.beginEditorTrackPlacement(aperture.width, new PlotAreaView.PlacementHandler() {
+            @Override
+            public void onAnchorChosen(double worldX, double worldY) {
+                start[0] = worldX;
+                start[1] = worldY;
+                if (session == editing) {
+                    panel.setPlacementAnchorChosen();
+                }
+            }
+
+            @Override
+            public void onCommit(double dx, double dy) {
+                if (session != editing) {
+                    return;
+                }
+                panel.setTrackPlacing(false);
+                try {
+                    if (editing.addTrack(apertureCode, start[0], start[1], start[0] + dx, start[1] + dy)) {
+                        panel.showError("");
+                        refreshSelection();
+                    } else {
+                        panel.showError("Escolha dois pontos diferentes para a trilha.");
+                    }
+                } catch (RuntimeException exception) {
+                    panel.showError(exception.getMessage());
+                }
+            }
+
+            @Override
+            public void onCancel() {
+                if (session == editing) {
+                    panel.setTrackPlacing(false);
+                }
+            }
+        });
+        if (started) {
+            panel.setTrackPlacing(true);
+            panel.showError("");
+            host.log("Editor: trilha reta D" + apertureCode
+                    + " - clique no inicio e no fim; Esc ou botao direito cancela.");
         }
     }
 

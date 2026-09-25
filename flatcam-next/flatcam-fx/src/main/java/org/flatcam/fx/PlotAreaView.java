@@ -15,6 +15,7 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.FillRule;
+import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.text.TextAlignment;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
@@ -88,6 +89,10 @@ final class PlotAreaView extends StackPane {
 
     interface PlacementHandler {
         default void onAnchorChosen() {
+        }
+
+        default void onAnchorChosen(double worldX, double worldY) {
+            onAnchorChosen();
         }
 
         void onCommit(double dx, double dy);
@@ -183,6 +188,7 @@ final class PlotAreaView extends StackPane {
     private double placementCurrentWorldY;
     private boolean placementPrimaryPressed;
     private boolean placementAnchorChosen;
+    private double placementTrackWidth;
 
     PlotAreaView() {
         getChildren().add(canvas);
@@ -528,12 +534,26 @@ final class PlotAreaView extends StackPane {
         return startPlacement(List.of(), List.of(preview), 0, 0, true, handler);
     }
 
+    /** A two-click straight track; the preview grows from the first snapped point to the cursor. */
+    boolean beginEditorTrackPlacement(double apertureDiameter, PlacementHandler handler) {
+        if (selectionHandler == null || !Double.isFinite(apertureDiameter)
+                || apertureDiameter <= 0 || handler == null) {
+            return false;
+        }
+        if (!startPlacement(List.of(), List.of(), 0, 0, false, handler)) {
+            return false;
+        }
+        placementTrackWidth = apertureDiameter;
+        return true;
+    }
+
     private boolean startPlacement(List<?> keys, List<RenderLayer> preview, double anchorWorldX,
                                    double anchorWorldY, boolean anchorChosen, PlacementHandler handler) {
         if (!Double.isFinite(anchorWorldX) || !Double.isFinite(anchorWorldY)) {
             return false;
         }
         cancelPlacement();
+        placementTrackWidth = 0;
         placementKeys = List.copyOf(keys);
         placementLayers = List.copyOf(preview);
         placementAnchorWorldX = anchorWorldX;
@@ -570,6 +590,7 @@ final class PlotAreaView extends StackPane {
         placementLayers = List.of();
         placementPrimaryPressed = false;
         placementAnchorChosen = false;
+        placementTrackWidth = 0;
         setCursor(Cursor.DEFAULT);
         redraw();
     }
@@ -647,7 +668,7 @@ final class PlotAreaView extends StackPane {
                     placementCurrentWorldX = world[0];
                     placementCurrentWorldY = world[1];
                     placementAnchorChosen = true;
-                    placementHandler.onAnchorChosen();
+                    placementHandler.onAnchorChosen(world[0], world[1]);
                     redraw();
                 } else {
                     PlacementHandler handler = placementHandler;
@@ -848,6 +869,19 @@ final class PlotAreaView extends StackPane {
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
+        if (placementTrackWidth > 0) {
+            double[] start = worldToScreen(placementAnchorWorldX, placementAnchorWorldY,
+                    contentWidth, contentHeight);
+            double[] end = worldToScreen(placementCurrentWorldX, placementCurrentWorldY,
+                    contentWidth, contentHeight);
+            gc.setStroke(PLACEMENT_STROKE);
+            gc.setLineCap(StrokeLineCap.ROUND);
+            gc.setLineWidth(Math.max(1.5, placementTrackWidth * scale));
+            gc.strokeLine(start[0] + RULER_LEFT_WIDTH, start[1] + RULER_TOP_HEIGHT,
+                    end[0] + RULER_LEFT_WIDTH, end[1] + RULER_TOP_HEIGHT);
+            gc.restore();
+            return;
+        }
         gc.translate((placementCurrentWorldX - placementAnchorWorldX) * scale,
                 -(placementCurrentWorldY - placementAnchorWorldY) * scale);
         gc.setLineDashes(5, 4);
