@@ -82,6 +82,9 @@ final class PlotAreaView extends StackPane {
     }
 
     interface PlacementHandler {
+        default void onAnchorChosen() {
+        }
+
         void onCommit(double dx, double dy);
 
         void onCancel();
@@ -159,6 +162,7 @@ final class PlotAreaView extends StackPane {
     private double placementCurrentWorldX;
     private double placementCurrentWorldY;
     private boolean placementPrimaryPressed;
+    private boolean placementAnchorChosen;
 
     PlotAreaView() {
         getChildren().add(canvas);
@@ -380,7 +384,7 @@ final class PlotAreaView extends StackPane {
 
     /** An editor temporarily overrides the project selector; null restores it. */
     void setSelectionHandler(SelectionHandler handler) {
-        if (handler != null) {
+        if (placementHandler != null) {
             cancelPlacement();
         }
         selectionHandler = handler;
@@ -405,6 +409,30 @@ final class PlotAreaView extends StackPane {
             }
             preview.add(layer);
         }
+        return startPlacement(keys, preview, anchorWorldX, anchorWorldY, true, handler);
+    }
+
+    /** Editor shapes have no project layer keys; previewing them never mutates the edit session. */
+    boolean beginEditorPlacement(List<Geometry> geometries, PlacementHandler handler) {
+        if (selectionHandler == null || geometries.isEmpty() || handler == null) {
+            return false;
+        }
+        List<RenderLayer> preview = new ArrayList<>();
+        for (Geometry geometry : geometries) {
+            if (geometry == null || geometry.isEmpty()) {
+                return false;
+            }
+            preview.add(new RenderLayer(geometry, false, PLACEMENT_FILL, PLACEMENT_STROKE,
+                    true, LayerCategory.OVERLAY, true, false));
+        }
+        return startPlacement(List.of(), preview, 0, 0, false, handler);
+    }
+
+    private boolean startPlacement(List<?> keys, List<RenderLayer> preview, double anchorWorldX,
+                                   double anchorWorldY, boolean anchorChosen, PlacementHandler handler) {
+        if (!Double.isFinite(anchorWorldX) || !Double.isFinite(anchorWorldY)) {
+            return false;
+        }
         cancelPlacement();
         placementKeys = List.copyOf(keys);
         placementLayers = List.copyOf(preview);
@@ -412,6 +440,7 @@ final class PlotAreaView extends StackPane {
         placementAnchorWorldY = anchorWorldY;
         placementCurrentWorldX = anchorWorldX;
         placementCurrentWorldY = anchorWorldY;
+        placementAnchorChosen = anchorChosen;
         placementHandler = handler;
         setCursor(Cursor.CROSSHAIR);
         redraw();
@@ -440,6 +469,7 @@ final class PlotAreaView extends StackPane {
         placementKeys = List.of();
         placementLayers = List.of();
         placementPrimaryPressed = false;
+        placementAnchorChosen = false;
         setCursor(Cursor.DEFAULT);
         redraw();
     }
@@ -510,11 +540,21 @@ final class PlotAreaView extends StackPane {
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
                 double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
-                PlacementHandler handler = placementHandler;
-                double dx = world[0] - placementAnchorWorldX;
-                double dy = world[1] - placementAnchorWorldY;
-                clearPlacement();
-                handler.onCommit(dx, dy);
+                if (!placementAnchorChosen) {
+                    placementAnchorWorldX = world[0];
+                    placementAnchorWorldY = world[1];
+                    placementCurrentWorldX = world[0];
+                    placementCurrentWorldY = world[1];
+                    placementAnchorChosen = true;
+                    placementHandler.onAnchorChosen();
+                    redraw();
+                } else {
+                    PlacementHandler handler = placementHandler;
+                    double dx = world[0] - placementAnchorWorldX;
+                    double dy = world[1] - placementAnchorWorldY;
+                    clearPlacement();
+                    handler.onCommit(dx, dy);
+                }
                 event.consume();
             }
             placementPrimaryPressed = false;
@@ -578,7 +618,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void updatePlacement(double screenX, double screenY) {
-        if (placementHandler != null && insidePlot(screenX, screenY)) {
+        if (placementHandler != null && placementAnchorChosen && insidePlot(screenX, screenY)) {
             double[] world = screenToWorld(screenX - RULER_LEFT_WIDTH, screenY - RULER_TOP_HEIGHT);
             placementCurrentWorldX = world[0];
             placementCurrentWorldY = world[1];
@@ -657,7 +697,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void drawPlacementPreview(GraphicsContext gc, double contentWidth, double contentHeight) {
-        if (placementHandler == null) {
+        if (placementHandler == null || !placementAnchorChosen) {
             return;
         }
         gc.save();

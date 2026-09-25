@@ -313,12 +313,16 @@ final class MainWindow {
                 plotAreaView.cancelPlacement();
                 event.consume();
             } else if (event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
-                    && !event.isShiftDown() && !plotAreaView.isEditorActive()
-                    && !plotAreaView.isPlacementActive() && projectTree.getEditingItem() == null
+                    && !event.isShiftDown() && !plotAreaView.isPlacementActive()
+                    && projectTree.getEditingItem() == null
                     && !isTextInputTarget(event.getTarget())) {
-                if (event.getCode() == KeyCode.Z && undoPlotMove()) {
-                    event.consume();
-                } else if (event.getCode() == KeyCode.Y && redoPlotMove()) {
+                boolean handled = false;
+                if (event.getCode() == KeyCode.Z) {
+                    handled = plotAreaView.isEditorActive() ? gerberEditor.undoFromShortcut() : undoPlotMove();
+                } else if (event.getCode() == KeyCode.Y) {
+                    handled = plotAreaView.isEditorActive() ? gerberEditor.redoFromShortcut() : redoPlotMove();
+                }
+                if (handled) {
                     event.consume();
                 }
             }

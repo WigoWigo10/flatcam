@@ -315,11 +315,11 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Área | Estado | Observação principal |
 | --- | --- | --- |
 | Shell, temas e layout principal | forte/parcial | base utilizável; vários menus ainda não têm fluxo completo |
-| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; faltam validação manual, grade configurável e perfilamento para placas enormes |
+| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; gestos básicos validados pelo usuário, faltam grade configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | parcial | seleção, excluir/mover/copiar por deslocamento X/Y, undo/redo e Aplicar em background; o resultado editado pode ser salvo e reaberto; faltam pads/tracks/regions, tabela de aberturas e interações de posicionamento no canvas |
+| Editor Gerber | parcial | seleção, excluir/mover/copiar por X/Y ou posicionamento com prévia no canvas, undo/redo e Aplicar em background; o resultado editado pode ser salvo e reaberto; faltam pads/tracks/regions e tabela editável de aberturas |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -559,7 +559,7 @@ Portado de `AppGerberEditor.py`'s `SelectEditorGrb`,
   e `text.getFill()`) num harness isolado antes/depois, não só lendo o CSS.
 
 **Gerber Editor - primeiro fluxo de edição concluído no código (2026-09-24;
-aguarda validação visual do usuário).** As fatias 3 e 4 e a persistência das
+posicionamento visual validado pelo usuário em 2026-09-25).** As fatias 3 e 4 e a persistência das
 formas da fatia 7 foram implementadas juntas:
 
 - `GerberEditSession` mantém uma lista de formas por revisão e até 100 estados
@@ -584,11 +584,12 @@ formas da fatia 7 foram implementadas juntas:
   operações nelas para não destruir geometria. Projetos Python sem
   `_java.shape_order` aceitam edição quando todas as formas são dark; se houver
   formas clear, a ordem relativa é incerta e a edição fica bloqueada.
-- O painel atual usa deslocamento numérico X/Y para Mover/Copiar. O gesto do
-  Python de escolher origem/destino com dois cliques no canvas ainda falta.
-  Também faltam ferramentas de desenho, tabela editável de aberturas e atalhos
-  de teclado do editor. Compatibilidade com um FlatCAM Python executável
-  continua sem validação cruzada real.
+- O painel mantém deslocamento numérico X/Y e agora os botões/ícones Mover e
+  Copiar iniciam um posicionamento com dois cliques no canvas: origem e destino,
+  com prévia entre eles. Esc ou clique direito curto cancela. Ctrl+Z/Y acionam o
+  histórico da sessão sem capturar atalhos dos campos de texto. Ainda faltam
+  ferramentas de desenho e tabela editável de aberturas.
+  Compatibilidade com um FlatCAM Python executável continua sem validação cruzada real.
 - Verificação automática: `test`, 137 testes, sem falhas; teste de
   inicialização chegou a `MainApp started`. Ainda executar manualmente o fluxo
   Abrir Gerber -> Editar -> selecionar -> mover/copiar/excluir -> undo/redo ->
@@ -619,8 +620,8 @@ o mesmo menu funcional da árvore para o objeto atingido; arrasto direito/meio
 continua deslocando a vista. Clicar numa área vazia com o botão direito mostra
 Enquadrar tudo/Limpar seleção. O Editor Gerber mantém seu próprio handler de
 seleção sem herdar o menu global. `PlotObjectSelection` cobre hit-testing e
-seleção por caixa em testes sem JavaFX. Ainda faltam ações próprias de editor
-no menu do canvas e validação manual dos gestos.
+seleção por caixa em testes sem JavaFX. Os gestos básicos foram validados pelo
+usuário; ainda faltam ações próprias de editor no menu do canvas.
 O menu do Plot Area recebeu cores explícitas para texto normal e item focado
 nos quatro temas; o destaque escuro usa azul mais profundo para manter
 contraste de texto de pelo menos 4,5:1 (teste automático do CSS).
@@ -631,14 +632,16 @@ Area". Um fantasma da geometria acompanha o cursor; clique esquerdo confirma o
 deslocamento entre o ponto do menu e o destino, enquanto Esc ou clique direito
 curto cancela. Multisseleção move/copia o grupo com o mesmo deslocamento.
 CNC Jobs não entram nesse fluxo: mudar apenas o desenho deixaria o G-code
-incoerente. Ainda validar manualmente os gestos e a persistência após salvar e
-reabrir um projeto; não há undo/redo global para estas operações.
+incoerente. Os gestos foram validados pelo usuário; ainda verificar a
+persistência após salvar e reabrir um projeto. Não há undo/redo global para
+cópias ou outras operações fora do histórico de movimentos.
 Movimentos confirmados no Plot Area têm histórico próprio: Ctrl+Z desfaz e
 Ctrl+Y refaz, inclusive movimentos de grupos; cópias e transformações feitas
 por outros caminhos invalidam esse histórico. O menu contextual do Plot Area
 agora fecha ao clicar em qualquer ponto do canvas. A janela maximizada tenta
 reabrir no último monitor usado enquanto ele estiver conectado, aplicando a
-largura lateral já salva para aquele monitor; sem ele, abre no principal.
+largura lateral já salva para aquele monitor; sem ele, abre no principal. O
+usuário confirmou o comportamento em dois monitores em 2026-09-25.
 
 Alternativa não escolhida agora, mas ainda válida como próximo passo depois
 das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
@@ -989,7 +992,7 @@ salva/reabre suas formas individuais em projetos novos. "Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito. O próximo trabalho recomendado é validar
-manualmente esses gestos e a exportação Gerber no Python, depois adicionar
-posicionamento por cliques no Editor Gerber, ferramentas de desenho e tabela editável
-de aberturas.
+manualmente esses gestos, o novo posicionamento no Editor Gerber e a exportação
+Gerber no Python, depois adicionar ferramentas de desenho e tabela editável de
+aberturas.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

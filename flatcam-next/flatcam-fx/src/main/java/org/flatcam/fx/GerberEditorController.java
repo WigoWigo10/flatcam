@@ -48,6 +48,9 @@ final class GerberEditorController {
     private record LayerKey(String name) {
     }
 
+    record PlacementPreview(List<Geometry> geometries) {
+    }
+
     private static final LayerKey SHAPES_LAYER = new LayerKey("gerber-editor-shapes");
     private static final LayerKey SELECTION_LAYER = new LayerKey("gerber-editor-selection");
     private static final Color SHAPE_COLOR = Color.web("#FF0000AF");
@@ -75,7 +78,8 @@ final class GerberEditorController {
         session = new GerberEditSession(sourceItem.getValue(), image);
         panel = new GerberEditToolPanel(sourceItem.getValue(), session.shapesApproximated(), host::icon,
                 this::clearSelection,
-                this::deleteSelected, this::moveSelected, this::copySelected,
+                this::deleteSelected, this::startCanvasMove, this::startCanvasCopy,
+                this::moveSelected, this::copySelected, plotArea::cancelPlacement,
                 this::undo, this::redo, this::apply, this::cancel);
 
         host.setObjectVisible(sourceItem, false);
@@ -116,6 +120,7 @@ final class GerberEditorController {
     }
 
     private void apply() {
+        plotArea.cancelPlacement();
         if (session == null || !session.isDirty()) {
             return;
         }
@@ -137,12 +142,14 @@ final class GerberEditorController {
     }
 
     private void deleteSelected() {
+        plotArea.cancelPlacement();
         if (session != null && session.deleteSelected()) {
             refreshSelection();
         }
     }
 
     private void clearSelection() {
+        plotArea.cancelPlacement();
         if (session != null) {
             session.clearSelection();
             refreshSelection();
@@ -150,30 +157,115 @@ final class GerberEditorController {
     }
 
     private void moveSelected(double dx, double dy) {
+        plotArea.cancelPlacement();
         if (session != null && session.moveSelected(dx, dy)) {
             refreshSelection();
         }
     }
 
     private void copySelected(double dx, double dy) {
+        plotArea.cancelPlacement();
         if (session != null && session.copySelected(dx, dy)) {
             refreshSelection();
         }
     }
 
-    private void undo() {
-        if (session != null && session.undo()) {
-            refreshSelection();
+    private void startCanvasMove() {
+        startCanvasPlacement(false);
+    }
+
+    private void startCanvasCopy() {
+        startCanvasPlacement(true);
+    }
+
+    private void startCanvasPlacement(boolean copy) {
+        if (session == null || session.shapesApproximated() || session.selectedIndices().isEmpty()
+                || panel.isBusy()) {
+            return;
         }
+        GerberEditSession editing = session;
+        Set<Integer> selectedAtStart = Set.copyOf(editing.selectedIndices());
+        PlacementPreview preview = placementPreview(editing.selectedShapes());
+        if (preview == null) {
+            return;
+        }
+        boolean started = plotArea.beginEditorPlacement(preview.geometries(),
+                new PlotAreaView.PlacementHandler() {
+                    @Override
+                    public void onAnchorChosen() {
+                        if (session == editing) {
+                            panel.setPlacementAnchorChosen();
+                        }
+                    }
+
+                    @Override
+                    public void onCommit(double dx, double dy) {
+                        if (session != editing || !editing.selectedIndices().equals(selectedAtStart)) {
+                            host.log("Editor: posicionamento cancelado; a selecao mudou.");
+                            return;
+                        }
+                        panel.setPlacing(false);
+                        boolean changed = copy ? editing.copySelected(dx, dy) : editing.moveSelected(dx, dy);
+                        if (changed) {
+                            refreshSelection();
+                        }
+                    }
+
+                    @Override
+                    public void onCancel() {
+                        if (session == editing) {
+                            panel.setPlacing(false);
+                        }
+                    }
+                });
+        if (started) {
+            panel.setPlacing(true);
+            host.log("Editor: " + (copy ? "copiar" : "mover")
+                    + " formas — clique na origem e depois no destino; Esc ou botao direito cancela.");
+        }
+    }
+
+    static PlacementPreview placementPreview(List<GerberShape> shapes) {
+        List<Geometry> preview = new ArrayList<>();
+        for (GerberShape shape : shapes) {
+            if (!shape.clear() && shape.geometry() != null && !shape.geometry().isEmpty()) {
+                addPolygons(shape.geometry(), preview);
+            }
+        }
+        if (preview.isEmpty()) {
+            return null;
+        }
+        return new PlacementPreview(List.copyOf(preview));
+    }
+
+    boolean undoFromShortcut() {
+        plotArea.cancelPlacement();
+        if (session != null && !panel.isBusy() && session.undo()) {
+            refreshSelection();
+            return true;
+        }
+        return false;
+    }
+
+    boolean redoFromShortcut() {
+        plotArea.cancelPlacement();
+        if (session != null && !panel.isBusy() && session.redo()) {
+            refreshSelection();
+            return true;
+        }
+        return false;
+    }
+
+    private void undo() {
+        undoFromShortcut();
     }
 
     private void redo() {
-        if (session != null && session.redo()) {
-            refreshSelection();
-        }
+        redoFromShortcut();
     }
 
     private void end() {
+        plotArea.cancelPlacement();
         plotArea.setSelectionHandler(null);
         plotArea.removeLayer(SHAPES_LAYER);
         plotArea.removeLayer(SELECTION_LAYER);
