@@ -1,6 +1,8 @@
 package org.flatcam.fx;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -74,12 +76,20 @@ final class PlotAreaView extends StackPane {
         void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive);
     }
 
+    interface ContextRequestHandler {
+        void onContextRequest(double worldX, double worldY, double screenX, double screenY);
+    }
+
+    record SelectableLayer(Object key, Geometry geometry) {
+    }
+
     private static final double CLICK_DRAG_THRESHOLD_PX = 3;
     // defaults.py's global_sel_fill/_line (left-to-right) and global_alt_sel_fill/_line (right-to-left).
     private static final Color ENCLOSING_BOX_FILL = Color.web("#a5a5ffbf");
     private static final Color ENCLOSING_BOX_LINE = Color.web("#0000ffbf");
     private static final Color TOUCHING_BOX_FILL = Color.web("#BBF268BF");
     private static final Color TOUCHING_BOX_LINE = Color.web("#006E20BF");
+    private static final Color SELECTED_OBJECT_LINE = Color.web("#ffb000");
 
     private static final double RULER_TOP_HEIGHT = 20;
     private static final double RULER_LEFT_WIDTH = 44;
@@ -118,13 +128,20 @@ final class PlotAreaView extends StackPane {
     private double referenceWorldY;
     private boolean hasReference;
 
+    private SelectionHandler defaultSelectionHandler;
     private SelectionHandler selectionHandler;
+    private ContextRequestHandler contextRequestHandler;
+    private List<Envelope> selectedObjectBounds = List.of();
     private boolean selecting;
     private boolean selectionDragged;
     private double selectionPressScreenX;
     private double selectionPressScreenY;
     private double selectionCurrentScreenX;
     private double selectionCurrentScreenY;
+    private boolean rightPressed;
+    private boolean rightDragged;
+    private double rightPressScreenX;
+    private double rightPressScreenY;
 
     PlotAreaView() {
         getChildren().add(canvas);
@@ -249,7 +266,46 @@ final class PlotAreaView extends StackPane {
 
     void clearLayers() {
         layers.clear();
+        selectedObjectBounds = List.of();
         redraw();
+    }
+
+    /** Visible project layers in their actual painting order, excluding editor/mark overlays. */
+    List<SelectableLayer> visibleSelectableLayers() {
+        List<SelectableLayer> result = new ArrayList<>();
+        for (LayerCategory category : LayerCategory.values()) {
+            if (category == LayerCategory.OVERLAY) {
+                continue;
+            }
+            for (Map.Entry<Object, RenderLayer> entry : layers.entrySet()) {
+                RenderLayer layer = entry.getValue();
+                if (layer.category() == category && layer.visible()
+                        && layer.geometry() != null && !layer.geometry().isEmpty()) {
+                    result.add(new SelectableLayer(entry.getKey(), layer.geometry()));
+                }
+            }
+        }
+        return List.copyOf(result);
+    }
+
+    double pickToleranceWorld() {
+        return 4.0 / scale;
+    }
+
+    void setSelectedObjectBounds(List<Envelope> bounds) {
+        selectedObjectBounds = bounds.stream().map(Envelope::new).toList();
+        redraw();
+    }
+
+    void fitAllVisible() {
+        Envelope all = new Envelope();
+        for (SelectableLayer layer : visibleSelectableLayers()) {
+            all.expandToInclude(layer.geometry().getEnvelopeInternal());
+        }
+        if (!all.isNull()) {
+            fitToEnvelope(all);
+            redraw();
+        }
     }
 
     /**
@@ -290,11 +346,20 @@ final class PlotAreaView extends StackPane {
         viewCenterY = envelope.getMinY() + envelope.getHeight() / 2.0;
     }
 
-    /** Hands primary-button clicks/drags to {@code handler} (null restores plain pan-with-any-button). */
+    /** The project-object selector used whenever no editor owns the canvas. */
+    void setDefaultSelectionHandler(SelectionHandler handler) {
+        defaultSelectionHandler = handler;
+    }
+
+    /** An editor temporarily overrides the project selector; null restores it. */
     void setSelectionHandler(SelectionHandler handler) {
         selectionHandler = handler;
         selecting = false;
         redraw();
+    }
+
+    void setContextRequestHandler(ContextRequestHandler handler) {
+        contextRequestHandler = handler;
     }
 
     // --- Input handling -----------------------------------------------
@@ -321,12 +386,19 @@ final class PlotAreaView extends StackPane {
     private void handlePress(MouseEvent event) {
         lastDragScreenX = event.getX();
         lastDragScreenY = event.getY();
+        if (event.getButton() == MouseButton.SECONDARY) {
+            rightPressed = true;
+            rightDragged = false;
+            rightPressScreenX = event.getX();
+            rightPressScreenY = event.getY();
+        }
         double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
         referenceWorldX = world[0];
         referenceWorldY = world[1];
         hasReference = true;
         updateCoordLabel(event.getX(), event.getY());
-        if (selectionHandler != null && event.getButton() == MouseButton.PRIMARY) {
+        if (activeSelectionHandler() != null && event.getButton() == MouseButton.PRIMARY
+                && insidePlot(event.getX(), event.getY())) {
             selecting = true;
             selectionDragged = false;
             selectionPressScreenX = event.getX();
@@ -337,6 +409,16 @@ final class PlotAreaView extends StackPane {
     }
 
     private void handleRelease(MouseEvent event) {
+        if (event.getButton() == MouseButton.SECONDARY) {
+            if (rightPressed && !rightDragged && selectionHandler == null
+                    && contextRequestHandler != null && insidePlot(event.getX(), event.getY())) {
+                double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+                contextRequestHandler.onContextRequest(world[0], world[1], event.getScreenX(), event.getScreenY());
+                event.consume();
+            }
+            rightPressed = false;
+            return;
+        }
         if (!selecting || event.getButton() != MouseButton.PRIMARY) {
             return;
         }
@@ -345,9 +427,9 @@ final class PlotAreaView extends StackPane {
         boolean additive = event.isControlDown();
         if (selectionDragged) {
             double[] release = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
-            selectionHandler.onBox(press[0], press[1], release[0], release[1], additive);
+            activeSelectionHandler().onBox(press[0], press[1], release[0], release[1], additive);
         } else {
-            selectionHandler.onClick(press[0], press[1], additive);
+            activeSelectionHandler().onClick(press[0], press[1], additive);
         }
         redraw();
     }
@@ -364,6 +446,16 @@ final class PlotAreaView extends StackPane {
             updateCoordLabel(event.getX(), event.getY());
             return;
         }
+        if (rightPressed && Math.hypot(event.getX() - rightPressScreenX,
+                event.getY() - rightPressScreenY) > CLICK_DRAG_THRESHOLD_PX) {
+            rightDragged = true;
+        }
+        if (!event.isSecondaryButtonDown() && !event.isMiddleButtonDown()) {
+            return;
+        }
+        if (event.isSecondaryButtonDown() && !rightDragged) {
+            return;
+        }
         double dx = event.getX() - lastDragScreenX;
         double dy = event.getY() - lastDragScreenY;
         viewCenterX -= dx / scale;
@@ -376,6 +468,15 @@ final class PlotAreaView extends StackPane {
 
     private void handleMove(MouseEvent event) {
         updateCoordLabel(event.getX(), event.getY());
+    }
+
+    private SelectionHandler activeSelectionHandler() {
+        return selectionHandler != null ? selectionHandler : defaultSelectionHandler;
+    }
+
+    private boolean insidePlot(double screenX, double screenY) {
+        return screenX >= RULER_LEFT_WIDTH && screenY >= RULER_TOP_HEIGHT
+                && screenX < getWidth() && screenY < getHeight();
     }
 
     private void updateCoordLabel(double screenX, double screenY) {
@@ -433,8 +534,25 @@ final class PlotAreaView extends StackPane {
                 }
             }
         }
+        drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
+    }
+
+    private void drawSelectedObjectBounds(GraphicsContext gc, double contentWidth, double contentHeight) {
+        gc.setStroke(SELECTED_OBJECT_LINE);
+        gc.setLineWidth(2);
+        gc.setLineDashes(6, 4);
+        for (Envelope bounds : selectedObjectBounds) {
+            double[] topLeft = worldToScreen(bounds.getMinX(), bounds.getMaxY(), contentWidth, contentHeight);
+            double[] bottomRight = worldToScreen(bounds.getMaxX(), bounds.getMinY(), contentWidth, contentHeight);
+            double x = topLeft[0] + RULER_LEFT_WIDTH;
+            double y = topLeft[1] + RULER_TOP_HEIGHT;
+            double width = Math.max(6, bottomRight[0] - topLeft[0]);
+            double height = Math.max(6, bottomRight[1] - topLeft[1]);
+            gc.strokeRect(x - 3, y - 3, width + 6, height + 6);
+        }
+        gc.setLineDashes();
     }
 
     private void drawSelectionBox(GraphicsContext gc) {

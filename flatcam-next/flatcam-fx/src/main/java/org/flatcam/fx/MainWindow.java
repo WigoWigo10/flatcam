@@ -273,6 +273,7 @@ final class MainWindow {
     private SplitPane verticalSplit;
     private TreeView<String> projectTree;
     private TabPane leftTabs;
+    private Tab projectTab;
     private Tab propertiesTab;
     private Tab toolTab;
     private TreeItem<String> gerbersNode;
@@ -289,6 +290,7 @@ final class MainWindow {
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
+    private ContextMenu plotContextMenu;
 
     MainWindow(JobExecutor jobExecutor) {
         this.jobExecutor = jobExecutor;
@@ -301,6 +303,7 @@ final class MainWindow {
         root.setBottom(buildStatusBar());
 
         scene = new Scene(root);
+        configurePlotInteractions();
         scene.addEventFilter(MouseEvent.MOUSE_PRESSED,
                 event -> sidebarDividerDragging = isSidebarDividerTarget(event.getTarget()));
         scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
@@ -927,7 +930,7 @@ final class MainWindow {
      * a separate window.
      */
     private TabPane buildLeftTabs() {
-        Tab projectTab = new Tab("Projeto", buildProjectTree());
+        projectTab = new Tab("Projeto", buildProjectTree());
         propertiesPlaceholder.setTextAlignment(TextAlignment.CENTER);
         propertiesContainer.getChildren().add(propertiesPlaceholder);
         propertiesTab = new Tab("Propriedades", propertiesContainer);
@@ -1040,6 +1043,7 @@ final class MainWindow {
                     }
                 }
             }
+            refreshPlotSelectionOutline();
         });
         // Renaming in-place commits by just updating the TreeItem's own value - same as
         // the Properties panel's Name field (see nameRow()), just triggered from the tree.
@@ -1227,6 +1231,133 @@ final class MainWindow {
         return projectTree;
     }
 
+    /** Project-object selection is active only while no editor has claimed the canvas. */
+    private void configurePlotInteractions() {
+        plotAreaView.setDefaultSelectionHandler(new PlotAreaView.SelectionHandler() {
+            @Override
+            public void onClick(double worldX, double worldY, boolean additive) {
+                List<PlotObjectSelection.Layer<TreeItem<String>>> layers = selectableObjectsOnPlot();
+                TreeItem<String> hit = additive
+                        ? PlotObjectSelection.topmostAt(layers, worldX, worldY, plotAreaView.pickToleranceWorld())
+                        : PlotObjectSelection.nextAt(layers, worldX, worldY, plotAreaView.pickToleranceWorld(),
+                                projectTree.getSelectionModel().getSelectedItem());
+                if (hit == null) {
+                    if (!additive) {
+                        projectTree.getSelectionModel().clearSelection();
+                    }
+                    return;
+                }
+                int row = rowForPlotObject(hit);
+                if (row < 0) {
+                    return;
+                }
+                if (!additive) {
+                    projectTree.getSelectionModel().clearAndSelect(row);
+                } else if (projectTree.getSelectionModel().isSelected(row)) {
+                    projectTree.getSelectionModel().clearSelection(row);
+                } else {
+                    projectTree.getSelectionModel().select(row);
+                }
+                leftTabs.getSelectionModel().select(projectTab);
+            }
+
+            @Override
+            public void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive) {
+                List<TreeItem<String>> hits = PlotObjectSelection.inBox(
+                        selectableObjectsOnPlot(), pressX, pressY, releaseX, releaseY);
+                if (!additive) {
+                    projectTree.getSelectionModel().clearSelection();
+                }
+                for (TreeItem<String> hit : hits) {
+                    int row = rowForPlotObject(hit);
+                    if (row < 0) {
+                        continue;
+                    }
+                    if (additive && projectTree.getSelectionModel().isSelected(row)) {
+                        projectTree.getSelectionModel().clearSelection(row);
+                    } else {
+                        projectTree.getSelectionModel().select(row);
+                    }
+                }
+                if (!hits.isEmpty()) {
+                    leftTabs.getSelectionModel().select(projectTab);
+                }
+            }
+        });
+        plotAreaView.setContextRequestHandler(this::showPlotContextMenu);
+    }
+
+    private List<PlotObjectSelection.Layer<TreeItem<String>>> selectableObjectsOnPlot() {
+        List<PlotObjectSelection.Layer<TreeItem<String>>> result = new ArrayList<>();
+        for (PlotAreaView.SelectableLayer layer : plotAreaView.visibleSelectableLayers()) {
+            TreeItem<String> owner = ownerOfPlotLayer(layer.key());
+            if (owner != null) {
+                result.add(new PlotObjectSelection.Layer<>(owner, layer.geometry()));
+            }
+        }
+        return result;
+    }
+
+    @SuppressWarnings("unchecked") // TreeItem layer keys in this window always carry String labels.
+    private TreeItem<String> ownerOfPlotLayer(Object key) {
+        if (key instanceof CncCutLayerKey cut) {
+            return cut.cncJobItem();
+        }
+        if (key instanceof CncTravelLayerKey travel) {
+            return travel.cncJobItem();
+        }
+        if (key instanceof TreeItem<?> item) {
+            TreeItem<String> owner = (TreeItem<String>) item;
+            return isProjectObject(owner) ? owner : null;
+        }
+        return null;
+    }
+
+    private void refreshPlotSelectionOutline() {
+        Map<TreeItem<String>, Envelope> bounds = PlotObjectSelection.boundsByOwner(selectableObjectsOnPlot());
+        List<Envelope> selectedBounds = projectTree.getSelectionModel().getSelectedItems().stream()
+                .map(bounds::get).filter(Objects::nonNull).toList();
+        plotAreaView.setSelectedObjectBounds(selectedBounds);
+    }
+
+    private int rowForPlotObject(TreeItem<String> item) {
+        for (TreeItem<String> parent = item.getParent(); parent != null; parent = parent.getParent()) {
+            parent.setExpanded(true);
+        }
+        return projectTree.getRow(item);
+    }
+
+    private void showPlotContextMenu(double worldX, double worldY, double screenX, double screenY) {
+        if (plotContextMenu != null) {
+            plotContextMenu.hide();
+        }
+        List<TreeItem<String>> underPointer = PlotObjectSelection.at(
+                selectableObjectsOnPlot(), worldX, worldY, plotAreaView.pickToleranceWorld());
+        TreeItem<String> hit = underPointer.stream()
+                .filter(projectTree.getSelectionModel().getSelectedItems()::contains)
+                .findFirst().orElseGet(() -> underPointer.isEmpty() ? null : underPointer.get(0));
+        if (hit != null) {
+            int row = rowForPlotObject(hit);
+            if (row >= 0 && !projectTree.getSelectionModel().isSelected(row)) {
+                projectTree.getSelectionModel().clearAndSelect(row);
+            }
+            leftTabs.getSelectionModel().select(projectTab);
+            plotContextMenu = buildContextMenuFor(hit);
+        } else {
+            MenuItem fitAll = new MenuItem("Enquadrar tudo");
+            setLegacyMenuIcon(fitAll, "zoom_fit32.png");
+            fitAll.setOnAction(e -> plotAreaView.fitAllVisible());
+            MenuItem clearSelection = new MenuItem("Limpar selecao");
+            clearSelection.setOnAction(e -> projectTree.getSelectionModel().clearSelection());
+            clearSelection.setDisable(!anyProjectObjectSelected());
+            plotContextMenu = new ContextMenu(fitAll, clearSelection);
+        }
+        if (!plotContextMenu.getItems().isEmpty()) {
+            plotContextMenu.getStyleClass().add("plot-context-menu");
+            plotContextMenu.show(plotAreaView, screenX, screenY);
+        }
+    }
+
     /** Category rows (Gerbers/Excellon/Geometry/CNC Jobs) aren't real objects - only actual Gerber/Excellon/CNC Job items are. */
     private boolean isProjectObject(TreeItem<String> item) {
         return gerberByItem.containsKey(item) || excellonByItem.containsKey(item)
@@ -1387,6 +1518,7 @@ final class MainWindow {
         } else {
             return false;
         }
+        refreshPlotSelectionOutline();
         return true;
     }
 
@@ -1525,6 +1657,7 @@ final class MainWindow {
         // refreshDisplay()'s dimming of disabled rows (ObjectCollection.py's own
         // data()/Qt.ForegroundRole, which reads obj.options['plot'] the same way).
         projectTree.refresh();
+        refreshPlotSelectionOutline();
     }
 
     private void removeSelectionFromProject(List<TreeItem<String>> items) {
@@ -2474,6 +2607,7 @@ final class MainWindow {
         plotAreaView.removeLayer(new MarkLayerKey(item));
         plotAreaView.removeLayer(new CncTravelLayerKey(item));
         plotAreaView.removeLayer(new CncCutLayerKey(item));
+        refreshPlotSelectionOutline();
         appendConsole("Removido do projeto: " + item.getValue());
     }
 
@@ -2538,6 +2672,7 @@ final class MainWindow {
             plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER,
                     follow ? image.followGeometry() : image.solidGeometry(),
                     GERBER_FILL, GERBER_STROKE, follow);
+            refreshPlotSelectionOutline();
         });
         box.getChildren().add(labeledRow("Plot:", plotCb, followCb));
 

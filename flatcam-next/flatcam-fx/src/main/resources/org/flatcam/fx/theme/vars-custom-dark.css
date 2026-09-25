@@ -21,3 +21,9 @@
     -fc-selection-text-focused: #ffffff;
     -fc-selection-text-unfocused: #f0f0f0;
 }
+
+.plot-context-menu {
+    -fc-plot-menu-text: #f0f0f0;
+    -fc-plot-menu-focus-bg: #1d56a6;
+    -fc-plot-menu-focus-text: #ffffff;
+}

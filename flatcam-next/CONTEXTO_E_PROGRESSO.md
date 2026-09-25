@@ -5,7 +5,9 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-25**. O Gerber Editor exclui, move e copia formas,
+> Atualizado em **2026-09-25**. O Plot Area agora seleciona objetos por clique
+> ou retângulo e oferece menu de contexto para ações já implementadas. O Gerber
+> Editor exclui, move e copia formas,
 > oferece undo/redo, reconstrói o Gerber no Apply e preserva as formas
 > individuais ao salvar e reabrir um projeto novo. "Salvar como..." agora
 > exporta a geometria Gerber atual, inclusive objetos editados sem arquivo de
@@ -313,7 +315,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Área | Estado | Observação principal |
 | --- | --- | --- |
 | Shell, temas e layout principal | forte/parcial | base utilizável; vários menus ainda não têm fluxo completo |
-| Plot 2D e interação | forte/parcial | Canvas funcional; ainda não é o renderer final nem foi perfilado para placas enormes |
+| Plot 2D e interação | forte/parcial | Canvas com seleção de objetos por clique/retângulo, destaque e menu contextual; ainda faltam mover/copiar no canvas, grade configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
@@ -606,6 +608,22 @@ essa reconstrução semântica é um passo posterior. Coordenadas usam seis casa
 decimais; regiões que colapsam nessa precisão são recusadas em vez de
 silenciosamente perdidas. Ainda validar visualmente o arquivo exportado no
 FlatCAM Python ou em visualizador Gerber independente.
+
+**Interação de objetos no Plot Area (2026-09-25).** Fora do Editor Gerber, clique
+esquerdo seleciona o objeto visível no topo (cliques repetidos alternam entre
+objetos sobrepostos); arrasto esquerda→direita exige
+enquadramento completo e direita→esquerda seleciona por interseção do retângulo
+com os limites do objeto. Ctrl alterna a seleção múltipla. A seleção sincroniza
+com a árvore Projeto e recebe um contorno no canvas. Clique direito curto abre
+o mesmo menu funcional da árvore para o objeto atingido; arrasto direito/meio
+continua deslocando a vista. Clicar numa área vazia com o botão direito mostra
+Enquadrar tudo/Limpar seleção. O Editor Gerber mantém seu próprio handler de
+seleção sem herdar o menu global. `PlotObjectSelection` cobre hit-testing e
+seleção por caixa em testes sem JavaFX. Ainda faltam mover/copiar com prévia,
+ações próprias de editor no menu do canvas e validação manual dos gestos.
+O menu do Plot Area recebeu cores explícitas para texto normal e item focado
+nos quatro temas; o destaque escuro usa azul mais profundo para manter
+contraste de texto de pelo menos 4,5:1 (teste automático do CSS).
 
 Alternativa não escolhida agora, mas ainda válida como próximo passo depois
 das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
@@ -954,7 +972,9 @@ Flip/Offset) completas para os três tipos de objeto. O Gerber Editor já
 seleciona, exclui, move e copia formas, tem undo/redo, aplica um novo objeto e
 salva/reabre suas formas individuais em projetos novos. "Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
-aberturas originais. O próximo trabalho recomendado é validar visualmente o
-arquivo exportado no Python e depois adicionar posicionamento por cliques no
-canvas, ferramentas de desenho e tabela editável de aberturas.
+aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
+menus funcionais no botão direito. O próximo trabalho recomendado é validar
+manualmente esses gestos e a exportação Gerber no Python, depois adicionar
+mover/copiar por cliques no canvas, ferramentas de desenho e tabela editável
+de aberturas.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

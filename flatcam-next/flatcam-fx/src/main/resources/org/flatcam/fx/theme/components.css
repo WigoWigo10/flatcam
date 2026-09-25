@@ -76,6 +76,29 @@
     -fx-fill: -fc-selection-text-focused;
 }
 
+/* Plot Area popups must not keep a dark/disabled-looking label on the blue
+ * focused row. The popup is a separate scene, so style its labels and Text
+ * nodes explicitly instead of relying on Modena/AtlantaFX inheritance. */
+.plot-context-menu .menu-item .label {
+    -fx-text-fill: -fc-plot-menu-text;
+}
+
+.plot-context-menu .menu-item .label .text {
+    -fx-fill: -fc-plot-menu-text;
+}
+
+.plot-context-menu .menu-item:focused {
+    -fx-background-color: -fc-plot-menu-focus-bg;
+}
+
+.plot-context-menu .menu-item:focused .label {
+    -fx-text-fill: -fc-plot-menu-focus-text;
+}
+
+.plot-context-menu .menu-item:focused .label .text {
+    -fx-fill: -fc-plot-menu-focus-text;
+}
+
 .progress-percentage {
     -fx-font-size: 11px;
     -fx-font-weight: bold;

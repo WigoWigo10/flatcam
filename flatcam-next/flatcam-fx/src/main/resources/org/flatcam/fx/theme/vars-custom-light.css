@@ -20,3 +20,9 @@
     -fc-selection-text-focused: #ffffff;
     -fc-selection-text-unfocused: #1a1a1a;
 }
+
+.plot-context-menu {
+    -fc-plot-menu-text: #202020;
+    -fc-plot-menu-focus-bg: #2f6fed;
+    -fc-plot-menu-focus-text: #ffffff;
+}
