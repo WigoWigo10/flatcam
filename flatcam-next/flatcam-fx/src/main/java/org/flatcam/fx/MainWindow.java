@@ -954,7 +954,7 @@ final class MainWindow {
     private HBox buildStatusBar() {
         ToggleButton consoleToggle = new ToggleButton(null, legacyIcon("shell20.png", 16));
         consoleToggle.setTooltip(new Tooltip("Mostrar/ocultar console"));
-        consoleToggle.getStyleClass().add("status-bar-toggle");
+        consoleToggle.getStyleClass().addAll("status-bar-toggle", "status-console");
         consoleToggle.setSelected(!consoleCollapsed);
         consoleToggle.setOnAction(e -> toggleConsole(consoleToggle.isSelected()));
 

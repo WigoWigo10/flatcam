@@ -45,6 +45,7 @@ final class PlotStatusControls {
         coordinates.getStyleClass().add("status-coordinates");
 
         gridSnap = toggle(icon.apply("grid32.png"), "Ativar/desativar snap na grade", saved.gridSnap());
+        gridSnap.getStyleClass().add("status-grid-snap");
         gridSnap.setOnAction(event -> {
             if (applySpacing()) {
                 feedback.accept(gridSnap.isSelected() ? "Snap na grade ativado." : "Snap na grade desativado.");
@@ -80,6 +81,7 @@ final class PlotStatusControls {
         gridY.setDisable(saved.gridLinked());
 
         axis = toggle(icon.apply("axis16.png"), "Mostrar/ocultar eixos", saved.axisVisible());
+        axis.getStyleClass().add("status-axis");
         axis.setOnAction(event -> {
             plot.setAxisVisible(axis.isSelected());
             save();
@@ -87,6 +89,7 @@ final class PlotStatusControls {
         });
         plot.setAxisVisible(saved.axisVisible());
         hud = toggle(icon.apply("hud16.png"), "Mostrar/ocultar coordenadas no Plot Area", saved.hudVisible());
+        hud.getStyleClass().add("status-hud");
         hud.setOnAction(event -> {
             plot.setHudVisible(hud.isSelected());
             save();
@@ -94,6 +97,7 @@ final class PlotStatusControls {
         });
         plot.setHudVisible(saved.hudVisible());
         workspace = toggle(new Label("A4"), "Mostrar/ocultar limites da area A4", saved.workspaceVisible());
+        workspace.getStyleClass().add("status-workspace");
         workspace.setOnAction(event -> {
             plot.setWorkspaceVisible(workspace.isSelected());
             save();
@@ -103,6 +107,7 @@ final class PlotStatusControls {
 
         Button preferences = new Button(null, icon.apply("settings18.png"));
         preferences.getStyleClass().addAll("status-control", "planned-command");
+        preferences.getStyleClass().add("status-preferences");
         preferences.setTooltip(new Tooltip("Preferencias - em desenvolvimento"));
         preferences.setDisable(true);
 

@@ -12,6 +12,15 @@
     -fc-panel-bg: #ffffff;
     -fc-panel-border: #d9d9d9;
     -fc-panel-text: #202020;
+    -fc-status-hover: #e8edf3;
+    -fc-status-hover-border: #bbc6d2;
+    -fc-status-active-text: #111111;
+    -fc-status-grid: #4a8bff;
+    -fc-status-axis: #ffa500;
+    -fc-status-hud: #9370db;
+    -fc-status-workspace: #6b8e23;
+    -fc-status-console: #f08080;
+    -fc-status-preferences: #20b2aa;
     -fc-viewport-bg: #f7f7f7;
     -fc-viewport-fg: #404040;
     -fc-viewport-overlay-bg: rgba(255, 255, 255, 0.88);

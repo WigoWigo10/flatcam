@@ -141,17 +141,17 @@
     -fx-background-radius: 3;
 }
 
-/* Vector toolbar icons (Icons.java) - same glyph, colored via the current theme's text color. */
+/* Vector toolbar icons (Icons.java) - use our palette, which every theme defines. */
 .icon-glyph-stroke {
     -fx-fill: transparent;
-    -fx-stroke: -fx-text-base-color;
+    -fx-stroke: -fc-panel-text;
     -fx-stroke-width: 2;
     -fx-stroke-line-cap: round;
     -fx-stroke-line-join: round;
 }
 
 .icon-glyph-fill {
-    -fx-fill: -fx-text-base-color;
+    -fx-fill: -fc-panel-text;
 }
 
 /* Future commands are discoverable without looking like working controls. */
@@ -217,23 +217,51 @@
 
 .status-control,
 .status-bar-toggle {
+    -fc-status-active: -fc-status-grid;
     -fx-background-color: transparent;
     -fx-background-insets: 0;
-    -fx-border-width: 0;
+    -fx-background-radius: 4;
+    -fx-border-color: transparent;
+    -fx-border-radius: 4;
+    -fx-border-width: 1;
     -fx-padding: 2 3 2 3;
     -fx-pref-height: 20;
     -fx-min-height: 20;
+    -fx-cursor: hand;
 }
+
+/* Keep each control's Python hue, with theme-specific values from vars-*.css. */
+.status-axis { -fc-status-active: -fc-status-axis; }
+.status-hud { -fc-status-active: -fc-status-hud; }
+.status-workspace { -fc-status-active: -fc-status-workspace; }
+.status-console { -fc-status-active: -fc-status-console; }
+.status-preferences { -fc-status-active: -fc-status-preferences; }
 
 .status-control:selected,
 .status-bar-toggle:selected {
-    -fx-background-color: derive(-fc-panel-border, 20%);
-    -fx-background-radius: 3;
+    -fx-background-color: -fc-status-active;
+    -fx-border-color: derive(-fc-status-active, -18%);
+}
+
+.status-bar .status-control:selected .label {
+    -fx-text-fill: -fc-status-active-text;
 }
 
 .status-control:hover,
 .status-bar-toggle:hover {
-    -fx-background-color: derive(-fc-panel-bg, 12%);
+    -fx-background-color: -fc-status-hover;
+    -fx-border-color: -fc-status-hover-border;
+}
+
+.status-control:selected:hover,
+.status-bar-toggle:selected:hover {
+    -fx-background-color: derive(-fc-status-active, 4%);
+    -fx-border-color: derive(-fc-status-active, 28%);
+}
+
+.status-control:disabled,
+.status-bar-toggle:disabled {
+    -fx-cursor: default;
 }
 
 /* Flat, icon-only - the legacy app's status bar toggles are plain clickable icons, not buttons with chrome. */

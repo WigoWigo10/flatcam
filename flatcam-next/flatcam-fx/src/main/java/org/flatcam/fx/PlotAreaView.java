@@ -107,7 +107,6 @@ final class PlotAreaView extends StackPane {
     private static final Color SELECTED_OBJECT_LINE = Color.web("#ffb000");
     private static final Color PLACEMENT_FILL = Color.web("#00bfff", 0.30);
     private static final Color PLACEMENT_STROKE = Color.web("#00bfff", 0.95);
-    private static final Color SNAP_CURSOR_COLOR = Color.web("#e53935");
 
     private static final double RULER_TOP_HEIGHT = 20;
     private static final double RULER_LEFT_WIDTH = 44;
@@ -115,22 +114,26 @@ final class PlotAreaView extends StackPane {
     private static final double MAX_SCALE = 10_000;
     private static final double ZOOM_STEP = 1.1;
 
-    private record PlotPalette(Color background, Color rulerBackground, Color gridLine,
-                               Color axisLine, Color rulerText) {
+    record PlotPalette(Color background, Color rulerBackground, Color gridLine,
+                       Color axisLine, Color rulerText, Color snapCursor, Color snapOutline) {
     }
 
     private static final PlotPalette CUSTOM_LIGHT_PALETTE = new PlotPalette(
             Color.web("#f7f7f7"), Color.web("#e7e7e7"), Color.web("#dedede"),
-            Color.web("#c44747"), Color.web("#606060"));
+            Color.web("#c44747"), Color.web("#606060"),
+            Color.web("#e53935"), Color.rgb(255, 255, 255, 0.9));
     private static final PlotPalette CUSTOM_DARK_PALETTE = new PlotPalette(
             Color.web("#101010"), Color.web("#202020"), Color.web("#2b2b2b"),
-            Color.web("#b33a3a"), Color.web("#9a9a9a"));
+            Color.web("#b33a3a"), Color.web("#9a9a9a"),
+            Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
     private static final PlotPalette ATLANTAFX_LIGHT_PALETTE = new PlotPalette(
             Color.web("#f6f8fa"), Color.web("#eaeef2"), Color.web("#d8dee4"),
-            Color.web("#cf4a4a"), Color.web("#57606a"));
+            Color.web("#cf4a4a"), Color.web("#57606a"),
+            Color.web("#e53935"), Color.rgb(255, 255, 255, 0.9));
     private static final PlotPalette ATLANTAFX_DARK_PALETTE = new PlotPalette(
             Color.web("#0d1117"), Color.web("#161b22"), Color.web("#21262d"),
-            Color.web("#c44b55"), Color.web("#8b949e"));
+            Color.web("#c44b55"), Color.web("#8b949e"),
+            Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
 
     private final Canvas canvas = new Canvas();
     private final Canvas snapCursorCanvas = new Canvas();
@@ -215,13 +218,17 @@ final class PlotAreaView extends StackPane {
 
     /** Updates every canvas-owned color immediately when the application theme changes. */
     void applyTheme(ThemeOption theme) {
-        palette = switch (theme) {
+        palette = paletteForTheme(theme);
+        redraw();
+    }
+
+    static PlotPalette paletteForTheme(ThemeOption theme) {
+        return switch (theme) {
             case CUSTOM_LIGHT -> CUSTOM_LIGHT_PALETTE;
             case CUSTOM_DARK -> CUSTOM_DARK_PALETTE;
             case ATLANTAFX_LIGHT -> ATLANTAFX_LIGHT_PALETTE;
             case ATLANTAFX_DARK -> ATLANTAFX_DARK_PALETTE;
         };
-        redraw();
     }
 
     /**
@@ -764,12 +771,12 @@ final class PlotAreaView extends StackPane {
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT,
                 getWidth() - RULER_LEFT_WIDTH, getHeight() - RULER_TOP_HEIGHT);
         gc.clip();
-        // A pale outline keeps the red mark readable over both dark copper and light backgrounds.
-        gc.setStroke(Color.rgb(255, 255, 255, 0.9));
+        // Match both the cursor and its halo to the canvas theme, including over copper fills.
+        gc.setStroke(palette.snapOutline());
         gc.setLineWidth(3.5);
         gc.strokeLine(x - 8, y, x + 8, y);
         gc.strokeLine(x, y - 8, x, y + 8);
-        gc.setStroke(SNAP_CURSOR_COLOR);
+        gc.setStroke(palette.snapCursor());
         gc.setLineWidth(1.7);
         gc.strokeLine(x - 8, y, x + 8, y);
         gc.strokeLine(x, y - 8, x, y + 8);

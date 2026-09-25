@@ -16,7 +16,7 @@ import javafx.scene.transform.Scale;
  * Small monochrome toolbar icons, built as vector shapes (not raster images)
  * so a single icon works across every theme - color comes from the
  * "icon-glyph-stroke"/"icon-glyph-fill" style classes (theme/components.css),
- * which just reference -fx-text-base-color, the same as any label's text.
+ * which reference our -fc-panel-text palette token in every theme.
  * The folder shape is Feather Icons' "folder" path (MIT); play/stop are
  * simple enough to draw directly rather than pull in more path data.
  */

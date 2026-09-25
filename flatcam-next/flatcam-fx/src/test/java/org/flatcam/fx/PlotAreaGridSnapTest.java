@@ -1,7 +1,9 @@
 package org.flatcam.fx;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import javafx.scene.paint.Color;
 import org.junit.jupiter.api.Test;
 
 class PlotAreaGridSnapTest {
@@ -25,5 +27,19 @@ class PlotAreaGridSnapTest {
                         + "Dy: -1.0000 [mm]" + System.lineSeparator() + System.lineSeparator()
                         + "X: 5.0000 [mm]" + System.lineSeparator() + "Y: 3.0000 [mm]",
                 PlotAreaView.formatHud(2.5, -1, 5, 3, "MM"));
+    }
+
+    @Test
+    void snapCrossUsesBrighterRedAndDarkHaloInDarkThemes() {
+        for (ThemeOption theme : ThemeOption.values()) {
+            PlotAreaView.PlotPalette palette = PlotAreaView.paletteForTheme(theme);
+            assertEquals(theme.isDark() ? Color.web("#ff6b6b") : Color.web("#e53935"),
+                    palette.snapCursor(), theme.name());
+            if (theme.isDark()) {
+                assertTrue(palette.snapOutline().getBrightness() < 0.2, theme.name());
+            } else {
+                assertTrue(palette.snapOutline().getBrightness() > 0.9, theme.name());
+            }
+        }
     }
 }
