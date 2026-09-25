@@ -319,7 +319,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background e pad circular por abertura C existente ou nova; o resultado pode ser salvo e reaberto; faltam outros pads, tracks/regions e edição/remoção de aberturas |
+| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background e pads C/R/O por aberturas existentes ou novas; o resultado pode ser salvo e reaberto; faltam outros pads, tracks/regions e edição/remoção de aberturas |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -840,7 +840,7 @@ Implementar por fatias verticais, não como um bloco único:
 3. command stack com undo/redo; ✅ concluída para operações em memória;
 4. mover, copiar e excluir; ✅ concluída por deslocamento X/Y; falta o gesto
    de origem/destino no canvas do Python;
-5. pads, tracks, regions e apertures; 🟡 pad circular e criação de abertura C concluídos; demais formas e edição/remoção de aberturas pendentes;
+5. pads, tracks, regions e apertures; 🟡 pads C/R/O e criação das respectivas aberturas concluídos, com prévia, undo/redo e persistência; pads P/AM, tracks/regions e edição/remoção de aberturas pendentes;
 6. operações avançadas do editor legado;
 7. persistência e reabertura do resultado editado; ✅ concluída para projetos
    novos; projetos antigos só têm uniões por abertura e não podem recuperar
@@ -906,8 +906,7 @@ Execute a partir de `flatcam-next`.
 
 ```powershell
 .\mvnw.cmd -q clean test
-.\mvnw.cmd -q install -DskipTests
-.\mvnw.cmd -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
+.\run.cmd
 ```
 
 ### Linux/macOS
@@ -918,10 +917,11 @@ Execute a partir de `flatcam-next`.
 ./mvnw -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
 ```
 
-O `install` antes do `javafx:run` é importante. Ao executar apenas
-`flatcam-fx`, Maven pode resolver `flatcam-cam` e `flatcam-application` a partir
-de snapshots antigos em `~/.m2`. O app pode abrir e falhar somente ao clicar
-numa ferramenta cuja classe nova não esteja instalada.
+No Windows, `run.cmd` executa `install -DskipTests` antes do `javafx:run`.
+Ao executar apenas `flatcam-fx`, Maven pode resolver `flatcam-cam` e
+`flatcam-application` a partir de snapshots antigos em `~/.m2`. O app pode
+abrir e falhar somente ao clicar numa ferramenta cuja classe nova não esteja
+instalada. Se não usar o script, execute esses dois comandos em sequência.
 
 Use o goal JavaFX totalmente qualificado; `javafx:run` curto pode não ser
 resolvido sem `pluginGroups` no `settings.xml`.

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.GerberShape;
@@ -262,6 +263,64 @@ class GerberEditSessionTest {
     }
 
     @Test
+    void rectangularAndObroundPadsUseExistingAperturesAndPreserveTheirCenters() {
+        GerberImage image = new GerberParser().parse(List.of(
+                "%FSLAX24Y24*%", "%MOMM*%", "%ADD10R,2X1*%", "%ADD11O,1X3*%",
+                "D10*", "X0Y0D03*", "M02*"));
+        GerberEditSession session = new GerberEditSession("board", image);
+        int originalCount = session.shapes().size();
+
+        assertTrue(session.addPad("10", 4, 5));
+        assertTrue(session.addPad("11", 8, 9));
+        assertEquals(originalCount + 2, session.shapes().size());
+        assertEquals(2, session.shapes().get(originalCount).geometry().getEnvelopeInternal().getWidth(), 1e-9);
+        assertEquals(1, session.shapes().get(originalCount).geometry().getEnvelopeInternal().getHeight(), 1e-9);
+        assertEquals(1, session.shapes().get(originalCount + 1).geometry().getEnvelopeInternal().getWidth(), 1e-9);
+        assertEquals(3, session.shapes().get(originalCount + 1).geometry().getEnvelopeInternal().getHeight(), 1e-9);
+        assertTrue(session.shapes().get(originalCount).followGeometry().equalsExact(point(4, 5)));
+        assertTrue(session.shapes().get(originalCount + 1).followGeometry().equalsExact(point(8, 9)));
+        assertTrue(session.apply().image().solidGeometry().covers(point(4, 5)));
+        assertTrue(session.apply().image().solidGeometry().covers(point(8, 9)));
+        assertTrue(session.undo());
+        assertEquals(originalCount + 1, session.shapes().size());
+        assertTrue(session.redo());
+        assertEquals(originalCount + 2, session.shapes().size());
+    }
+
+    @Test
+    void newRectangularAndObroundAperturesAreUndoableAndRejectBadDimensions() {
+        GerberEditSession session = session();
+        String rectangle = session.addAperture(ApertureKind.RECTANGLE, 2, 1);
+        String obround = session.addAperture(ApertureKind.OBROUND, 1, 3);
+        assertEquals("12", rectangle);
+        assertEquals("13", obround);
+        assertEquals(ApertureKind.RECTANGLE, session.apertures().get(rectangle).kind);
+        assertEquals(ApertureKind.OBROUND, session.apertures().get(obround).kind);
+        assertTrue(session.addPad(rectangle, 10, 10));
+        assertTrue(session.addPad(obround, 15, 15));
+        assertEquals(2, session.apply().image().apertures().get(rectangle).width, 1e-9);
+        assertEquals(3, session.apply().image().apertures().get(obround).height, 1e-9);
+        assertTrue(session.undo()); // obround pad
+        assertTrue(session.undo()); // rectangular pad
+        assertTrue(session.undo()); // obround aperture
+        assertFalse(session.apertures().containsKey(obround));
+        assertTrue(session.redo());
+        assertTrue(session.redo());
+        assertTrue(session.redo());
+        assertTrue(session.apply().image().solidGeometry().covers(point(15, 15)));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addAperture(ApertureKind.RECTANGLE, 0, 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addAperture(ApertureKind.OBROUND, 1, Double.NaN));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addAperture(ApertureKind.POLYGON, 1, 1));
+        assertThrows(IllegalArgumentException.class, () -> session.addPad("99", 1, 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addPad(rectangle, Double.POSITIVE_INFINITY, 1));
+    }
+
+    @Test
     void deleteUndoRedoAndApplyRebuildCopperWithoutMutatingSource() {
         GerberImage original = board();
         GerberEditSession session = new GerberEditSession("board", original);
@@ -340,6 +399,9 @@ class GerberEditSessionTest {
         assertThrows(IllegalStateException.class, session::deleteSelected);
         assertThrows(IllegalStateException.class, () -> session.addCircularAperture(0.2));
         assertThrows(IllegalStateException.class, () -> session.addCircularPad("10", 2, 2));
+        assertThrows(IllegalStateException.class,
+                () -> session.addAperture(ApertureKind.RECTANGLE, 2, 1));
+        assertThrows(IllegalStateException.class, () -> session.addPad("10", 2, 2));
         assertSame(oldProject, session.apply().image());
     }
 

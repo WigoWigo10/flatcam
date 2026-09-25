@@ -37,8 +37,7 @@ Em Linux/macOS:
 Windows PowerShell:
 
 ```powershell
-.\mvnw.cmd -q install -DskipTests
-.\mvnw.cmd -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
+.\run.cmd
 ```
 
 Linux/macOS:
@@ -48,10 +47,11 @@ Linux/macOS:
 ./mvnw -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
 ```
 
-Repita o `install` depois de alterar `flatcam-cam` ou `flatcam-application`.
-Executar apenas `flatcam-fx` pode carregar snapshots antigos desses módulos a
-partir do repositório Maven local e causar falhas tardias ao abrir uma
-ferramenta.
+No Windows, `run.cmd` instala os módulos atuais antes de abrir o aplicativo.
+Se preferir executar Maven diretamente, rode `install -DskipTests` antes de
+`-pl flatcam-fx ...:run`, especialmente depois de alterar `flatcam-cam` ou
+`flatcam-application`. Executar apenas `flatcam-fx` pode carregar snapshots
+antigos do repositório Maven local e causar falhas tardias ao usar ferramentas.
 
 O goal JavaFX foi escrito por extenso porque o prefixo curto `javafx:run` pode
 não ser resolvido sem `pluginGroups` configurado no `settings.xml`.

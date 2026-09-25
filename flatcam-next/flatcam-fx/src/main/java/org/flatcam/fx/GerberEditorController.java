@@ -82,8 +82,8 @@ final class GerberEditorController {
                 session.shapesApproximated(), host::icon,
                 this::clearSelection,
                 this::deleteSelected, this::startCanvasMove, this::startCanvasCopy,
-                this::moveSelected, this::copySelected, this::startCircularPadPlacement,
-                this::addCircularAperture, plotArea::cancelPlacement,
+                this::moveSelected, this::copySelected, this::startPadPlacement,
+                this::addAperture, plotArea::cancelPlacement,
                 this::undo, this::redo, this::apply, this::cancel);
 
         host.setObjectVisible(sourceItem, false);
@@ -182,14 +182,16 @@ final class GerberEditorController {
         startCanvasPlacement(true);
     }
 
-    private void startCircularPadPlacement(String apertureCode) {
+    private void startPadPlacement(String apertureCode) {
         if (session == null || session.shapesApproximated() || panel.isBusy() || apertureCode == null) {
             return;
         }
         Aperture aperture = session.apertures().get(apertureCode);
-        if (aperture == null || aperture.kind != ApertureKind.CIRCLE
-                || !Double.isFinite(aperture.width) || aperture.width <= 0) {
-            panel.showError("Selecione uma abertura circular com diametro positivo.");
+        if (aperture == null || (aperture.kind != ApertureKind.CIRCLE
+                && aperture.kind != ApertureKind.RECTANGLE && aperture.kind != ApertureKind.OBROUND)
+                || !Double.isFinite(aperture.width) || aperture.width <= 0
+                || !Double.isFinite(aperture.height) || aperture.height <= 0) {
+            panel.showError("Selecione uma abertura C, R ou O com dimensoes positivas.");
             return;
         }
         GerberEditSession editing = session;
@@ -202,7 +204,7 @@ final class GerberEditorController {
                         }
                         panel.setPadPlacing(false);
                         try {
-                            editing.addCircularPad(apertureCode, x, y);
+                            editing.addPad(apertureCode, x, y);
                             panel.showError("");
                             refreshSelection();
                         } catch (RuntimeException exception) {
@@ -224,14 +226,14 @@ final class GerberEditorController {
         }
     }
 
-    private String addCircularAperture(double diameter) {
+    private String addAperture(ApertureKind kind, double width, double height) {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
             throw new IllegalStateException("Editor indisponivel para adicionar abertura.");
         }
-        String code = session.addCircularAperture(diameter);
+        String code = session.addAperture(kind, width, height);
         panel.refreshApertures(session.apertures(), code);
         refreshSelection();
-        host.log("Editor: abertura circular D" + code + " adicionada.");
+        host.log("Editor: abertura " + kind + " D" + code + " adicionada.");
         return code;
     }
 
@@ -298,7 +300,7 @@ final class GerberEditorController {
     boolean undoFromShortcut() {
         plotArea.cancelPlacement();
         if (session != null && !panel.isBusy() && session.undo()) {
-            panel.refreshApertures(session.apertures(), panel.selectedCircularAperture());
+            panel.refreshApertures(session.apertures(), panel.selectedPadAperture());
             refreshSelection();
             return true;
         }
@@ -308,7 +310,7 @@ final class GerberEditorController {
     boolean redoFromShortcut() {
         plotArea.cancelPlacement();
         if (session != null && !panel.isBusy() && session.redo()) {
-            panel.refreshApertures(session.apertures(), panel.selectedCircularAperture());
+            panel.refreshApertures(session.apertures(), panel.selectedPadAperture());
             refreshSelection();
             return true;
         }

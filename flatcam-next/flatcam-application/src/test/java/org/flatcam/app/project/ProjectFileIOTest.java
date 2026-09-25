@@ -12,6 +12,7 @@ import java.util.List;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberImage;
+import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
@@ -131,6 +132,35 @@ class ProjectFileIOTest {
         assertEquals(0.5, reopened.apertures().get(newCode).width, 1e-9);
         assertEquals(4, reopened.shapes().get(1).followGeometry().getCoordinate().x, 1e-9);
         assertEquals(5, reopened.shapes().get(1).followGeometry().getCoordinate().y, 1e-9);
+        assertTrue(edited.solidGeometry().equalsExact(reopened.solidGeometry(), 1e-9));
+        assertFalse(new GerberEditSession("board_edit", reopened).shapesApproximated());
+    }
+
+    @Test
+    void roundTripsRectangularAndObroundPadsFromTheEditor() throws IOException {
+        GerberImage source = new GerberParser().parse(List.of(
+                "%FSLAX24Y24*%", "%MOMM*%", "%ADD10C,1*%", "D10*", "X0Y0D03*", "M02*"));
+        GerberEditSession editor = new GerberEditSession("board", source);
+        String rectangle = editor.addAperture(ApertureKind.RECTANGLE, 2, 1);
+        String obround = editor.addAperture(ApertureKind.OBROUND, 1, 3);
+        assertTrue(editor.addPad(rectangle, 4, 5));
+        assertTrue(editor.addPad(obround, 8, 9));
+        GerberImage edited = editor.apply().image();
+        Path file = tempDir.resolve("shaped-pad-edit.fcnproj");
+
+        ProjectFileIO.save(new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "board_edit", edited, null, null, true, true, false, false)), List.of(), List.of()), file);
+        GerberImage reopened = ProjectFileIO.load(file).gerbers().get(0).image();
+
+        assertEquals(3, reopened.shapes().size());
+        assertEquals(ApertureKind.RECTANGLE, reopened.apertures().get(rectangle).kind);
+        assertEquals(ApertureKind.OBROUND, reopened.apertures().get(obround).kind);
+        assertEquals(2, reopened.apertures().get(rectangle).width, 1e-9);
+        assertEquals(3, reopened.apertures().get(obround).height, 1e-9);
+        assertEquals(rectangle, reopened.shapes().get(1).apertureCode());
+        assertEquals(obround, reopened.shapes().get(2).apertureCode());
+        assertEquals(4, reopened.shapes().get(1).followGeometry().getCoordinate().x, 1e-9);
+        assertEquals(9, reopened.shapes().get(2).followGeometry().getCoordinate().y, 1e-9);
         assertTrue(edited.solidGeometry().equalsExact(reopened.solidGeometry(), 1e-9));
         assertFalse(new GerberEditSession("board_edit", reopened).shapesApproximated());
     }

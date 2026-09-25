@@ -277,16 +277,15 @@ public final class GerberEditSession {
         return true;
     }
 
-    /** Flashes an existing circular aperture at one point, preserving its D-code and center. */
-    public boolean addCircularPad(String apertureCode, double x, double y) {
+    /** Flashes an existing C/R/O aperture at one point, preserving its D-code and center. */
+    public boolean addPad(String apertureCode, double x, double y) {
         requireExactShapes();
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
             throw new IllegalArgumentException("Pad coordinates must be finite");
         }
         Aperture aperture = apertures.get(apertureCode);
-        if (aperture == null || aperture.kind != ApertureKind.CIRCLE
-                || !Double.isFinite(aperture.width) || aperture.width <= 0) {
-            throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
+        if (aperture == null || !supportsPad(aperture)) {
+            throw new IllegalArgumentException("Select a C, R or O aperture with positive dimensions");
         }
         Point center = GEOMETRY_FACTORY.createPoint(new Coordinate(x, y));
         GerberShape pad = new GerberShape(apertureCode,
@@ -297,11 +296,23 @@ public final class GerberEditSession {
         return true;
     }
 
-    /** Creates the next free D-code (D10+) for a circular aperture. */
-    public String addCircularAperture(double diameter) {
+    public boolean addCircularPad(String apertureCode, double x, double y) {
+        Aperture aperture = apertures.get(apertureCode);
+        if (aperture == null || aperture.kind != ApertureKind.CIRCLE) {
+            throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
+        }
+        return addPad(apertureCode, x, y);
+    }
+
+    /** Creates the next free D-code (D10+) for a standard C/R/O aperture. */
+    public String addAperture(ApertureKind kind, double width, double height) {
         requireExactShapes();
-        if (!Double.isFinite(diameter) || diameter <= 0) {
-            throw new IllegalArgumentException("Aperture diameter must be finite and positive");
+        if (kind != ApertureKind.CIRCLE && kind != ApertureKind.RECTANGLE && kind != ApertureKind.OBROUND) {
+            throw new IllegalArgumentException("Only C, R and O apertures can be created here");
+        }
+        if (!Double.isFinite(width) || width <= 0
+                || (kind != ApertureKind.CIRCLE && (!Double.isFinite(height) || height <= 0))) {
+            throw new IllegalArgumentException("Aperture dimensions must be finite and positive");
         }
         int nextCode = 10;
         while (nextCode <= 9999 && apertures.containsKey(Integer.toString(nextCode))) {
@@ -312,7 +323,12 @@ public final class GerberEditSession {
         }
         String code = Integer.toString(nextCode);
         Map<String, Aperture> updated = new java.util.LinkedHashMap<>(apertures);
-        updated.put(code, Aperture.circle(diameter));
+        updated.put(code, switch (kind) {
+            case CIRCLE -> Aperture.circle(width);
+            case RECTANGLE -> Aperture.rectangle(width, height);
+            case OBROUND -> Aperture.obround(width, height);
+            default -> throw new IllegalArgumentException("Unsupported aperture type");
+        });
         undoStack.push(snapshot());
         if (undoStack.size() > HISTORY_LIMIT) {
             undoStack.removeLast();
@@ -321,6 +337,17 @@ public final class GerberEditSession {
         apertures = Map.copyOf(updated);
         cachedWorkingImage = null;
         return code;
+    }
+
+    public String addCircularAperture(double diameter) {
+        return addAperture(ApertureKind.CIRCLE, diameter, diameter);
+    }
+
+    private static boolean supportsPad(Aperture aperture) {
+        return (aperture.kind == ApertureKind.CIRCLE || aperture.kind == ApertureKind.RECTANGLE
+                || aperture.kind == ApertureKind.OBROUND)
+                && Double.isFinite(aperture.width) && aperture.width > 0
+                && Double.isFinite(aperture.height) && aperture.height > 0;
     }
 
     private static GerberShape translated(GerberShape shape, TransformOp.Offset offset) {
