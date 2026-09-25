@@ -138,7 +138,8 @@ final class MainWindow {
     private final Label progressPercentLabel = new Label("0%");
     private final Label statusLabel = new Label("Pronto.");
     private final Circle statusDot = new Circle(5, Color.web("#4caf50"));
-    private final Label unitsLabel = new Label("Unidades: -");
+    private final Label activityLabel = new Label("Idle.");
+    private final Label unitsLabel = new Label("[mm]");
     private final Button runDemoJobButton = new Button();
     private final Button cancelJobButton = new Button();
     private final TextArea console = new TextArea();
@@ -291,6 +292,7 @@ final class MainWindow {
     private boolean sidebarRestoreQueued;
     private boolean sidebarCollapsed;
     private ToggleButton sidebarToggle;
+    private PlotStatusControls statusControls;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
@@ -315,6 +317,11 @@ final class MainWindow {
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
+                event.consume();
+            } else if (event.getCode() == KeyCode.G && !event.isControlDown()
+                    && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
+                    && !isTextInputTarget(event.getTarget())) {
+                statusControls.toggleGrid();
                 event.consume();
             } else if (event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
                     && !event.isShiftDown() && !plotAreaView.isPlacementActive()
@@ -790,10 +797,10 @@ final class MainWindow {
                 plannedItem("Afastar", "zoom_out32.png"),
                 chromeItem("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
                 new SeparatorMenuItem(),
-                plannedItem("Grade e Snap", "grid32.png"),
-                plannedItem("Eixos", "axis32.png"),
-                plannedItem("Workspace", "workspace24.png"),
-                plannedItem("HUD", "hud_32.png"),
+                chromeItem("Snap na grade", "grid32.png", () -> statusControls.toggleGrid()),
+                chromeItem("Eixos", "axis32.png", () -> statusControls.toggleAxis()),
+                chromeItem("Workspace", "workspace24.png", () -> statusControls.toggleWorkspace()),
+                chromeItem("HUD", "hud_32.png", () -> statusControls.toggleHud()),
                 new SeparatorMenuItem(),
                 chromeItem("Mostrar/ocultar painel lateral", "notebook32.png", this::toggleSidebar),
                 new SeparatorMenuItem(), buildThemeMenu());
@@ -943,30 +950,22 @@ final class MainWindow {
         }
     }
 
-    /**
-     * A fixed status bar at the very bottom of the window (appGUI/MainGUI.py's
-     * statusBar(), UI_INVENTORY.md section 1) - separate from the resizable
-     * job progress/console panel, always visible regardless of which tabs are
-     * open. The units label reflects the last-opened Gerber's real units;
-     * everything else the legacy status bar shows (grid, workspace size, HUD
-     * toggles) needs state this phase doesn't have yet.
-     *
-     * <p>The console/shell toggle lives here, not the top toolbar - confirmed
-     * against appGUI/MainGUI.py: shell_status_label is a clickable icon added
-     * to status_toolbar, which is added to infobar (the bottom status bar),
-     * not any top toolbar.
-     */
+    /** Python's fixed infobar: feedback, coordinates, grid, canvas controls, units and activity. */
     private HBox buildStatusBar() {
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        ToggleButton consoleToggle = new ToggleButton(null, Icons.terminal(14));
+        ToggleButton consoleToggle = new ToggleButton(null, legacyIcon("shell20.png", 16));
         consoleToggle.setTooltip(new Tooltip("Mostrar/ocultar console"));
         consoleToggle.getStyleClass().add("status-bar-toggle");
         consoleToggle.setSelected(!consoleCollapsed);
         consoleToggle.setOnAction(e -> toggleConsole(consoleToggle.isSelected()));
 
-        HBox bar = new HBox(6, statusDot, statusLabel, spacer, consoleToggle, unitsLabel);
+        statusControls = new PlotStatusControls(plotAreaView,
+                file -> legacyIcon(file, 16), consoleToggle,
+                statusLabel::setText);
+        unitsLabel.setTooltip(new Tooltip("Unidades do projeto"));
+        statusLabel.setMinWidth(0);
+        statusLabel.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(statusLabel, Priority.ALWAYS);
+        HBox bar = new HBox(6, statusLabel, statusControls.node(), unitsLabel, statusDot, activityLabel);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("status-bar");
         return bar;
@@ -975,6 +974,15 @@ final class MainWindow {
     private void setStatus(String text, Color dotColor) {
         statusLabel.setText(text);
         statusDot.setFill(dotColor);
+        activityLabel.setText(dotColor == RUNNING_COLOR ? "Working..."
+                : dotColor == ERROR_COLOR ? "Failed."
+                : dotColor == CANCELLED_COLOR ? "Cancelled." : "Idle.");
+    }
+
+    private void setDisplayUnits(String units) {
+        String display = units == null || units.isBlank() ? "mm" : units.toLowerCase(java.util.Locale.ROOT);
+        unitsLabel.setText("[" + display + "]");
+        plotAreaView.setUnits(units);
     }
 
     private SplitPane buildMainSplit() {
@@ -3416,7 +3424,7 @@ final class MainWindow {
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
-                    unitsLabel.setText("Unidades: " + image.units());
+                    setDisplayUnits(image.units());
                     appendConsole(String.format(
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
@@ -3473,7 +3481,7 @@ final class MainWindow {
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
-                    unitsLabel.setText("Unidades: " + image.units());
+                    setDisplayUnits(image.units());
                     appendConsole(String.format(
                             "Excellon OK: %d ferramentas, %d furos, %d slots, bounds=%s",
                             image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
@@ -3688,12 +3696,12 @@ final class MainWindow {
                     for (ProjectFile.GerberEntry loaded : project.gerbers()) {
                         TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
                         applyRestoredGerberState(item, loaded.image(), loaded);
-                        unitsLabel.setText("Unidades: " + loaded.image().units());
+                        setDisplayUnits(loaded.image().units());
                     }
                     for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
                         TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image());
                         applyRestoredExcellonState(item, loaded);
-                        unitsLabel.setText("Unidades: " + loaded.image().units());
+                        setDisplayUnits(loaded.image().units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
                         // No toolpath geometry to plot on a reload - see CncJobEntry's doc.
@@ -3761,7 +3769,7 @@ final class MainWindow {
         gerberFollowItems.clear();
         sourcePathByItem.clear();
         plotAreaView.clearLayers();
-        unitsLabel.setText("Unidades: -");
+        setDisplayUnits("MM");
     }
 
     /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */

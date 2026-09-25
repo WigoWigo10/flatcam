@@ -8,7 +8,7 @@ import java.util.prefs.Preferences;
 /**
  * Thin wrapper over {@link Preferences} (JDK-native, no extra dependency)
  * for the shell state users asked to have remembered across sessions:
- * selected theme, window size, split-pane divider positions, and the last
+ * selected theme, window size, split-pane divider positions, plot status-bar controls, and the last
  * folder used to open a Gerber/Excellon file. Not a general settings/preferences
  * system - the real one (per-object options, import/export, factory
  * defaults - see UI_INVENTORY.md section 4) is much bigger scope and
@@ -37,6 +37,13 @@ final class AppPreferences {
     private static final String KEY_SPLIT_HORIZONTAL_SCREEN_PREFIX = "splitHorizontal_";
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
     private static final String KEY_CONSOLE_OPEN = "consoleOpen";
+    private static final String KEY_GRID_SNAP = "gridSnap";
+    private static final String KEY_GRID_X = "gridX";
+    private static final String KEY_GRID_Y = "gridY";
+    private static final String KEY_GRID_LINKED = "gridLinked";
+    private static final String KEY_AXIS_VISIBLE = "axisVisible";
+    private static final String KEY_HUD_VISIBLE = "hudVisible";
+    private static final String KEY_WORKSPACE_VISIBLE = "workspaceVisible";
     private static final String KEY_LAST_CAM_DIR = "lastCamDirectory";
     private static final String KEY_LAST_PROJECT_DIR = "lastProjectDirectory";
 
@@ -144,6 +151,36 @@ final class AppPreferences {
 
     static void saveConsoleOpen(boolean open) {
         PREFS.putBoolean(KEY_CONSOLE_OPEN, open);
+        flush();
+    }
+
+    record PlotStatusSettings(boolean gridSnap, double gridX, double gridY, boolean gridLinked,
+                              boolean axisVisible, boolean hudVisible, boolean workspaceVisible) {
+    }
+
+    static PlotStatusSettings loadPlotStatusSettings() {
+        double gridX = PREFS.getDouble(KEY_GRID_X, 1.0);
+        double gridY = PREFS.getDouble(KEY_GRID_Y, 1.0);
+        if (!Double.isFinite(gridX) || gridX <= 0) {
+            gridX = 1.0;
+        }
+        if (!Double.isFinite(gridY) || gridY <= 0) {
+            gridY = 1.0;
+        }
+        boolean linked = PREFS.getBoolean(KEY_GRID_LINKED, true);
+        return new PlotStatusSettings(PREFS.getBoolean(KEY_GRID_SNAP, true), gridX,
+                linked ? gridX : gridY, linked, PREFS.getBoolean(KEY_AXIS_VISIBLE, true),
+                PREFS.getBoolean(KEY_HUD_VISIBLE, true), PREFS.getBoolean(KEY_WORKSPACE_VISIBLE, false));
+    }
+
+    static void savePlotStatusSettings(PlotStatusSettings settings) {
+        PREFS.putBoolean(KEY_GRID_SNAP, settings.gridSnap());
+        PREFS.putDouble(KEY_GRID_X, settings.gridX());
+        PREFS.putDouble(KEY_GRID_Y, settings.gridY());
+        PREFS.putBoolean(KEY_GRID_LINKED, settings.gridLinked());
+        PREFS.putBoolean(KEY_AXIS_VISIBLE, settings.axisVisible());
+        PREFS.putBoolean(KEY_HUD_VISIBLE, settings.hudVisible());
+        PREFS.putBoolean(KEY_WORKSPACE_VISIBLE, settings.workspaceVisible());
         flush();
     }
 

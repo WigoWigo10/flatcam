@@ -107,6 +107,7 @@ final class PlotAreaView extends StackPane {
     private static final Color SELECTED_OBJECT_LINE = Color.web("#ffb000");
     private static final Color PLACEMENT_FILL = Color.web("#00bfff", 0.30);
     private static final Color PLACEMENT_STROKE = Color.web("#00bfff", 0.95);
+    private static final Color SNAP_CURSOR_COLOR = Color.web("#e53935");
 
     private static final double RULER_TOP_HEIGHT = 20;
     private static final double RULER_LEFT_WIDTH = 44;
@@ -132,7 +133,9 @@ final class PlotAreaView extends StackPane {
             Color.web("#c44b55"), Color.web("#8b949e"));
 
     private final Canvas canvas = new Canvas();
-    private final Label coordLabel = new Label("X: -   Y: -");
+    private final Canvas snapCursorCanvas = new Canvas();
+    private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
+    private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
     private PlotPalette palette = CUSTOM_LIGHT_PALETTE;
 
@@ -143,7 +146,16 @@ final class PlotAreaView extends StackPane {
     private double lastDragScreenY;
     private double referenceWorldX;
     private double referenceWorldY;
-    private boolean hasReference;
+    private boolean gridSnapEnabled = true;
+    private double gridStepX = 1.0;
+    private double gridStepY = 1.0;
+    private boolean axisVisible = true;
+    private boolean hudVisible = true;
+    private boolean workspaceVisible;
+    private String units = "MM";
+    private boolean cursorInsidePlot;
+    private double cursorScreenX;
+    private double cursorScreenY;
 
     private SelectionHandler defaultSelectionHandler;
     private SelectionHandler selectionHandler;
@@ -171,21 +183,32 @@ final class PlotAreaView extends StackPane {
 
     PlotAreaView() {
         getChildren().add(canvas);
+        snapCursorCanvas.setMouseTransparent(true);
+        getChildren().add(snapCursorCanvas);
         StackPane.setAlignment(coordLabel, Pos.BOTTOM_LEFT);
         coordLabel.getStyleClass().add("plot-coord-label");
+        coordLabel.setMouseTransparent(true);
         getChildren().add(coordLabel);
 
         canvas.widthProperty().bind(widthProperty());
         canvas.heightProperty().bind(heightProperty());
+        snapCursorCanvas.widthProperty().bind(widthProperty());
+        snapCursorCanvas.heightProperty().bind(heightProperty());
         widthProperty().addListener((obs, oldVal, newVal) -> redraw());
         heightProperty().addListener((obs, oldVal, newVal) -> redraw());
+        snapCursorCanvas.widthProperty().addListener((obs, oldVal, newVal) -> drawSnapCursor());
+        snapCursorCanvas.heightProperty().addListener((obs, oldVal, newVal) -> drawSnapCursor());
 
         setOnScroll(this::handleScroll);
         setOnMousePressed(this::handlePress);
         setOnMouseDragged(this::handleDrag);
         setOnMouseReleased(this::handleRelease);
         setOnMouseMoved(this::handleMove);
-        setOnMouseExited(e -> coordLabel.setText(hasReference ? "" : "X: -   Y: -"));
+        setOnMouseExited(e -> {
+            cursorInsidePlot = false;
+            drawSnapCursor();
+            coordinateListener.accept("X: -   Y: -");
+        });
 
         redraw();
     }
@@ -304,6 +327,61 @@ final class PlotAreaView extends StackPane {
         layers.clear();
         selectedObjectBounds = List.of();
         redraw();
+    }
+
+    void setCoordinateListener(java.util.function.Consumer<String> listener) {
+        coordinateListener = listener == null ? ignored -> {} : listener;
+    }
+
+    void setGridSnap(boolean enabled, double stepX, double stepY) {
+        if (!Double.isFinite(stepX) || stepX <= 0 || !Double.isFinite(stepY) || stepY <= 0) {
+            throw new IllegalArgumentException("Grid spacing must be finite and positive");
+        }
+        gridSnapEnabled = enabled;
+        gridStepX = stepX;
+        gridStepY = stepY;
+        drawSnapCursor();
+    }
+
+    void setAxisVisible(boolean visible) {
+        axisVisible = visible;
+        redraw();
+    }
+
+    void setHudVisible(boolean visible) {
+        hudVisible = visible;
+        coordLabel.setVisible(visible);
+    }
+
+    void setWorkspaceVisible(boolean visible) {
+        workspaceVisible = visible;
+        redraw();
+    }
+
+    void setUnits(String units) {
+        this.units = units == null ? "MM" : units;
+        coordLabel.setText(formatHud(0, 0, 0, 0, this.units));
+        redraw();
+    }
+
+    static String formatHud(double dx, double dy, double x, double y, String units) {
+        String suffix = units == null ? "mm" : units.toLowerCase(java.util.Locale.ROOT);
+        return String.format(java.util.Locale.ROOT,
+                "Dx: %.4f [%s]%nDy: %.4f [%s]%n%nX: %.4f [%s]%nY: %.4f [%s]",
+                dx, suffix, dy, suffix, x, suffix, y, suffix);
+    }
+
+    static double snapCoordinate(double coordinate, double step) {
+        return Math.round(coordinate / step) * step;
+    }
+
+    private double[] snappedWorld(double screenX, double screenY) {
+        double[] world = screenToWorld(screenX - RULER_LEFT_WIDTH, screenY - RULER_TOP_HEIGHT);
+        if (gridSnapEnabled) {
+            world[0] = snapCoordinate(world[0], gridStepX);
+            world[1] = snapCoordinate(world[1], gridStepY);
+        }
+        return world;
     }
 
     /** Visible project layers in their actual painting order, excluding editor/mark overlays. */
@@ -519,10 +597,11 @@ final class PlotAreaView extends StackPane {
             rightPressScreenX = event.getX();
             rightPressScreenY = event.getY();
         }
-        double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
-        referenceWorldX = world[0];
-        referenceWorldY = world[1];
-        hasReference = true;
+        if (event.getButton() == MouseButton.PRIMARY && insidePlot(event.getX(), event.getY())) {
+            double[] world = snappedWorld(event.getX(), event.getY());
+            referenceWorldX = world[0];
+            referenceWorldY = world[1];
+        }
         updateCoordLabel(event.getX(), event.getY());
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             placementPrimaryPressed = insidePlot(event.getX(), event.getY());
@@ -554,7 +633,7 @@ final class PlotAreaView extends StackPane {
         }
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
-                double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+                double[] world = snappedWorld(event.getX(), event.getY());
                 if (!placementAnchorChosen) {
                     placementAnchorWorldX = world[0];
                     placementAnchorWorldY = world[1];
@@ -637,7 +716,7 @@ final class PlotAreaView extends StackPane {
 
     private void updatePlacement(double screenX, double screenY) {
         if (placementHandler != null && placementAnchorChosen && insidePlot(screenX, screenY)) {
-            double[] world = screenToWorld(screenX - RULER_LEFT_WIDTH, screenY - RULER_TOP_HEIGHT);
+            double[] world = snappedWorld(screenX, screenY);
             placementCurrentWorldX = world[0];
             placementCurrentWorldY = world[1];
             redraw();
@@ -654,13 +733,47 @@ final class PlotAreaView extends StackPane {
     }
 
     private void updateCoordLabel(double screenX, double screenY) {
-        double[] world = screenToWorld(screenX - RULER_LEFT_WIDTH, screenY - RULER_TOP_HEIGHT);
-        StringBuilder text = new StringBuilder();
-        if (hasReference) {
-            text.append(String.format("Dx: %.4f   Dy: %.4f%n", world[0] - referenceWorldX, world[1] - referenceWorldY));
+        cursorScreenX = screenX;
+        cursorScreenY = screenY;
+        cursorInsidePlot = insidePlot(screenX, screenY);
+        double[] world = snappedWorld(screenX, screenY);
+        coordLabel.setText(formatHud(world[0] - referenceWorldX, world[1] - referenceWorldY,
+                world[0], world[1], units));
+        coordinateListener.accept(String.format(java.util.Locale.ROOT,
+                "X: %.4f   Y: %.4f", world[0], world[1]));
+        drawSnapCursor();
+    }
+
+    private void drawSnapCursor() {
+        GraphicsContext gc = snapCursorCanvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, snapCursorCanvas.getWidth(), snapCursorCanvas.getHeight());
+        if (!gridSnapEnabled || !cursorInsidePlot || getWidth() <= RULER_LEFT_WIDTH
+                || getHeight() <= RULER_TOP_HEIGHT) {
+            return;
         }
-        text.append(String.format("X: %.4f   Y: %.4f", world[0], world[1]));
-        coordLabel.setText(text.toString());
+        double[] world = snappedWorld(cursorScreenX, cursorScreenY);
+        double[] screen = worldToScreen(world[0], world[1],
+                getWidth() - RULER_LEFT_WIDTH, getHeight() - RULER_TOP_HEIGHT);
+        double x = screen[0] + RULER_LEFT_WIDTH;
+        double y = screen[1] + RULER_TOP_HEIGHT;
+        if (!insidePlot(x, y)) {
+            return;
+        }
+        gc.save();
+        gc.beginPath();
+        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT,
+                getWidth() - RULER_LEFT_WIDTH, getHeight() - RULER_TOP_HEIGHT);
+        gc.clip();
+        // A pale outline keeps the red mark readable over both dark copper and light backgrounds.
+        gc.setStroke(Color.rgb(255, 255, 255, 0.9));
+        gc.setLineWidth(3.5);
+        gc.strokeLine(x - 8, y, x + 8, y);
+        gc.strokeLine(x, y - 8, x, y + 8);
+        gc.setStroke(SNAP_CURSOR_COLOR);
+        gc.setLineWidth(1.7);
+        gc.strokeLine(x - 8, y, x + 8, y);
+        gc.strokeLine(x, y - 8, x, y + 8);
+        gc.restore();
     }
 
     private static double clamp(double value) {
@@ -697,7 +810,9 @@ final class PlotAreaView extends StackPane {
 
         double step = niceStep(80.0 / scale);
         drawGrid(gc, contentWidth, contentHeight, step);
-        drawAxisCrosshair(gc, contentWidth, contentHeight);
+        if (axisVisible) {
+            drawAxisCrosshair(gc, contentWidth, contentHeight);
+        }
         // Category order (GERBER, then EXCELLON, then OVERLAY) is fixed regardless of each
         // layer's position in the map, so bringToFront (a plain reinsert-at-end) only ever
         // changes a layer's position relative to others in the same category.
@@ -708,10 +823,14 @@ final class PlotAreaView extends StackPane {
                 }
             }
         }
+        if (workspaceVisible) {
+            drawWorkspace(gc, contentWidth, contentHeight);
+        }
         drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
+        drawSnapCursor();
     }
 
     private void drawPlacementPreview(GraphicsContext gc, double contentWidth, double contentHeight) {
@@ -791,6 +910,23 @@ final class PlotAreaView extends StackPane {
         double oy = origin[1] + RULER_TOP_HEIGHT;
         gc.strokeLine(RULER_LEFT_WIDTH, oy, canvas.getWidth(), oy);
         gc.strokeLine(ox, RULER_TOP_HEIGHT, ox, canvas.getHeight());
+    }
+
+    private void drawWorkspace(GraphicsContext gc, double contentWidth, double contentHeight) {
+        double width = "IN".equalsIgnoreCase(units) ? 210.0 / 25.4 : 210.0;
+        double height = "IN".equalsIgnoreCase(units) ? 297.0 / 25.4 : 297.0;
+        double[] lowerLeft = worldToScreen(0, 0, contentWidth, contentHeight);
+        double[] upperRight = worldToScreen(width, height, contentWidth, contentHeight);
+        gc.save();
+        gc.beginPath();
+        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.clip();
+        gc.setStroke(palette.axisLine());
+        gc.setLineWidth(1.2);
+        gc.setLineDashes(7, 4);
+        gc.strokeRect(lowerLeft[0] + RULER_LEFT_WIDTH, upperRight[1] + RULER_TOP_HEIGHT,
+                upperRight[0] - lowerLeft[0], lowerLeft[1] - upperRight[1]);
+        gc.restore();
     }
 
     private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth, double contentHeight) {

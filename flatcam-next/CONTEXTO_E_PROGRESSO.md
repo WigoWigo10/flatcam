@@ -314,8 +314,8 @@ Os rótulos abaixo são deliberadamente conservadores.
 
 | Área | Estado | Observação principal |
 | --- | --- | --- |
-| Shell, temas e layout principal | forte/parcial | base utilizável; botão do Python para recolher/restaurar a barra lateral com largura por monitor preservada; vários menus ainda não têm fluxo completo |
-| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; gestos básicos validados pelo usuário, faltam grade configurável e perfilamento para placas enormes |
+| Shell, temas e layout principal | forte/parcial | base utilizável; botão do Python para recolher/restaurar a barra lateral com largura por monitor preservada; barra inferior com coordenadas, snap X/Y (atalho G), eixos, HUD, A4, console, unidades e atividade, com ajustes persistidos; Preferências ainda desabilitado; vários menus ainda não têm fluxo completo |
+| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |

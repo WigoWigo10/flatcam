@@ -187,8 +187,8 @@
 
 .status-bar {
     -fx-background-color: -fc-panel-bg;
-    -fx-padding: 3 8 3 8;
-    -fx-spacing: 10;
+    -fx-padding: 2 6 2 6;
+    -fx-spacing: 6;
     -fx-border-color: -fc-panel-border;
     -fx-border-width: 1 0 0 0;
 }
@@ -197,17 +197,48 @@
     -fx-text-fill: -fc-panel-text;
 }
 
-/* Flat, icon-only - the legacy app's status bar toggles are plain clickable icons, not buttons with chrome. */
+.plot-status-controls {
+    -fx-alignment: center-right;
+}
+
+.status-coordinates {
+    -fx-min-width: 138;
+    -fx-font-size: 11px;
+}
+
+.status-grid-step {
+    -fx-pref-width: 45;
+    -fx-min-width: 42;
+    -fx-max-width: 50;
+    -fx-pref-height: 20;
+    -fx-max-height: 20;
+    -fx-padding: 1 2 1 2;
+}
+
+.status-control,
 .status-bar-toggle {
     -fx-background-color: transparent;
     -fx-background-insets: 0;
     -fx-border-width: 0;
-    -fx-padding: 2 6 2 6;
+    -fx-padding: 2 3 2 3;
+    -fx-pref-height: 20;
+    -fx-min-height: 20;
 }
 
+.status-control:selected,
 .status-bar-toggle:selected {
     -fx-background-color: derive(-fc-panel-border, 20%);
     -fx-background-radius: 3;
+}
+
+.status-control:hover,
+.status-bar-toggle:hover {
+    -fx-background-color: derive(-fc-panel-bg, 12%);
+}
+
+/* Flat, icon-only - the legacy app's status bar toggles are plain clickable icons, not buttons with chrome. */
+.status-bar-toggle {
+    -fx-padding: 2 3 2 3;
 }
 
 .form-error-label {
