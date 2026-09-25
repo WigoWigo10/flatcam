@@ -294,6 +294,7 @@ final class MainWindow {
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
     private ContextMenu plotContextMenu;
+    private ContextMenu projectContextMenu;
     private final PlotMoveHistory<TreeItem<String>> plotMoveHistory = new PlotMoveHistory<>();
     private boolean applyingPlotMove;
 
@@ -328,8 +329,17 @@ final class MainWindow {
                 }
             }
         });
-        scene.addEventFilter(MouseEvent.MOUSE_PRESSED,
-                event -> sidebarDividerDragging = isSidebarDividerTarget(event.getTarget()));
+        scene.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            // Context menus have their own popup scene. A click anywhere in the
+            // main window should dismiss them before the target handles it.
+            if (projectContextMenu != null && projectContextMenu.isShowing()) {
+                projectContextMenu.hide();
+            }
+            if (plotContextMenu != null && plotContextMenu.isShowing()) {
+                plotContextMenu.hide();
+            }
+            sidebarDividerDragging = isSidebarDividerTarget(event.getTarget());
+        });
         scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
             if (sidebarDividerDragging) {
                 sidebarDividerDragging = false;
@@ -1250,6 +1260,16 @@ final class MainWindow {
                 }
                 ContextMenu menu = buildContextMenuFor(item);
                 if (!menu.getItems().isEmpty()) {
+                    if (projectContextMenu != null) {
+                        projectContextMenu.hide();
+                    }
+                    projectContextMenu = menu;
+                    menu.setAutoHide(true);
+                    menu.setOnHidden(hidden -> {
+                        if (projectContextMenu == menu) {
+                            projectContextMenu = null;
+                        }
+                    });
                     // Anchored on projectTree, NOT cell: a selected+focused TreeCell has
                     // its own -fc-selection-text-focused override on -fx-fill (an inherited
                     // CSS property), and a ContextMenu shown via show(Node, ...) inherits
