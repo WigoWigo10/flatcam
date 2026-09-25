@@ -51,6 +51,15 @@ final class PlotObjectSelection {
         return hits.isEmpty() ? null : hits.get(0);
     }
 
+    /** Keep the object picked by the first click when a double-click overlaps other layers. */
+    static <T> T selectedOrTopmostAt(List<Layer<T>> layers, double x, double y, double tolerance, T selected) {
+        List<T> hits = at(layers, x, y, tolerance);
+        if (selected != null && hits.contains(selected)) {
+            return selected;
+        }
+        return hits.isEmpty() ? null : hits.get(0);
+    }
+
     /** Repeated clicks cycle through overlapping objects, like the Python Plot Area. */
     static <T> T nextAt(List<Layer<T>> layers, double x, double y, double tolerance, T current) {
         List<T> hits = at(layers, x, y, tolerance);

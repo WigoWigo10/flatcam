@@ -1327,6 +1327,23 @@ final class MainWindow {
             }
 
             @Override
+            public void onDoubleClick(double worldX, double worldY) {
+                TreeItem<String> hit = PlotObjectSelection.selectedOrTopmostAt(
+                        selectableObjectsOnPlot(), worldX, worldY, plotAreaView.pickToleranceWorld(),
+                        projectTree.getSelectionModel().getSelectedItem());
+                if (hit == null) {
+                    return;
+                }
+                int row = rowForPlotObject(hit);
+                if (row < 0) {
+                    return;
+                }
+                projectTree.getSelectionModel().clearAndSelect(row);
+                showProperties(hit);
+                leftTabs.getSelectionModel().select(propertiesTab);
+            }
+
+            @Override
             public void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive) {
                 List<TreeItem<String>> hits = PlotObjectSelection.inBox(
                         selectableObjectsOnPlot(), pressX, pressY, releaseX, releaseY);

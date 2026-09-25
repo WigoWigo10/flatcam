@@ -73,6 +73,11 @@ final class PlotAreaView extends StackPane {
     interface SelectionHandler {
         void onClick(double worldX, double worldY, boolean additive);
 
+        /** A plain double-click outside an editor can open the hit object's properties. */
+        default void onDoubleClick(double worldX, double worldY) {
+            onClick(worldX, worldY, false);
+        }
+
         /** From the press point to the release point; direction is the caller's to interpret. */
         void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive);
     }
@@ -569,6 +574,9 @@ final class PlotAreaView extends StackPane {
         if (selectionDragged) {
             double[] release = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
             activeSelectionHandler().onBox(press[0], press[1], release[0], release[1], additive);
+        } else if (event.getClickCount() == 2 && !additive && selectionHandler == null
+                && insidePlot(event.getX(), event.getY())) {
+            activeSelectionHandler().onDoubleClick(press[0], press[1]);
         } else {
             activeSelectionHandler().onClick(press[0], press[1], additive);
         }

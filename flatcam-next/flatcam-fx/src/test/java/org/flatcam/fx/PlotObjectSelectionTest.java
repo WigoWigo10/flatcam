@@ -22,6 +22,10 @@ class PlotObjectSelectionTest {
                 new PlotObjectSelection.Layer<>("Excellon", rectangle(5, 5, 15, 15)));
 
         assertEquals("Excellon", PlotObjectSelection.topmostAt(layers, 7, 7, 0));
+        assertEquals("Excellon", PlotObjectSelection.selectedOrTopmostAt(layers, 7, 7, 0, null));
+        assertEquals("Gerber", PlotObjectSelection.selectedOrTopmostAt(layers, 7, 7, 0, "Gerber"));
+        assertEquals("Excellon", PlotObjectSelection.selectedOrTopmostAt(layers, 7, 7, 0, "Other"));
+        assertNull(PlotObjectSelection.selectedOrTopmostAt(layers, 20, 20, 0, "Gerber"));
         assertEquals("Excellon", PlotObjectSelection.nextAt(layers, 7, 7, 0, null));
         assertEquals("Gerber", PlotObjectSelection.nextAt(layers, 7, 7, 0, "Excellon"));
         assertEquals("Excellon", PlotObjectSelection.nextAt(layers, 7, 7, 0, "Gerber"));
