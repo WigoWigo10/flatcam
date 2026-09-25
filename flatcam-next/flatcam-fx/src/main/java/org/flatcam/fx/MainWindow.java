@@ -80,6 +80,7 @@ import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
+import org.flatcam.cam.gerber.GerberExporter;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
@@ -1907,18 +1908,29 @@ final class MainWindow {
     private void saveObjectAs(TreeItem<String> item) {
         CncJobEntry cncJob = cncJobByItem.get(item);
         GeometryEntry geometry = geometryByItem.get(item);
+        GerberImage gerber = gerberByItem.get(item);
         Path sourcePath = sourcePathByItem.get(item);
-        if (cncJob == null && geometry == null && sourcePath == null) {
+        if (cncJob == null && geometry == null && gerber == null && sourcePath == null) {
             appendConsole("Nao ha conteudo exportavel para " + item.getValue() + ".");
             return;
         }
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar objeto como");
-        chooser.setInitialFileName(item.getValue());
+        String suggestedName = item.getValue();
+        if (gerber != null) {
+            // The editor names objects "board.gbr_edit"; suggest a real
+            // Gerber extension instead of saving an unrecognizable suffix.
+            suggestedName = suggestedName.replaceFirst(
+                    "(?i)\\.(gbr|cmp|gtl|gbl|gm1|txt)(_edit(?:_\\d+)?)$", "$2.$1");
+            if (!suggestedName.matches("(?i).*\\.(gbr|cmp|gtl|gbl|gm1|txt)$")) {
+                suggestedName += ".gbr";
+            }
+        }
+        chooser.setInitialFileName(suggestedName);
         if (geometry != null) {
             chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Well-Known Text", "*.wkt", "*.txt"));
-        } else if (gerberByItem.containsKey(item)) {
+        } else if (gerber != null) {
             chooser.getExtensionFilters().add(
                     new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
         } else if (excellonByItem.containsKey(item)) {
@@ -1945,6 +1957,8 @@ final class MainWindow {
                 Files.writeString(target, geometry.geometry().toText());
             } else if (cncJob != null) {
                 Files.writeString(target, cncJob.gcode());
+            } else if (gerber != null) {
+                new GerberExporter().write(gerber, target);
             } else if (!sourcePath.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
                 Files.copy(sourcePath, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -1954,7 +1968,7 @@ final class MainWindow {
             }
             appendConsole("Objeto salvo em " + target);
             setStatus("Concluido.", IDLE_COLOR);
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
             appendConsole("Falha ao salvar " + target + ": " + e.getMessage());
             setStatus("Falhou.", ERROR_COLOR);
         }

@@ -5,11 +5,11 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-24**. A base anterior ao incremento atual é o commit
-> `ac831dad` (correção de DPI e largura da barra lateral entre monitores).
-> O Gerber Editor agora também exclui, move e copia formas, oferece undo/redo,
-> reconstrói o Gerber no Apply e preserva as formas individuais ao salvar e
-> reabrir um projeto novo (seções 8 e 9.4). Antes de trabalhar,
+> Atualizado em **2026-09-25**. O Gerber Editor exclui, move e copia formas,
+> oferece undo/redo, reconstrói o Gerber no Apply e preserva as formas
+> individuais ao salvar e reabrir um projeto novo. "Salvar como..." agora
+> exporta a geometria Gerber atual, inclusive objetos editados sem arquivo de
+> origem. Antes de trabalhar,
 > confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de
 > passagem, não substitui o código como fonte final da verdade.
 
@@ -592,6 +592,21 @@ formas da fatia 7 foram implementadas juntas:
   Abrir Gerber -> Editar -> selecionar -> mover/copiar/excluir -> undo/redo ->
   Aplicar -> Salvar Projeto -> reabrir.
 
+**Exportação Gerber da imagem atual (2026-09-25).** `GerberExporter` em
+`flatcam-cam` escreve o cobre sólido resolvido em regiões G36/G37, com unidades,
+coordenadas absolutas e polaridade dark/clear. A UI usa esse resultado em
+"Salvar como..." para qualquer Gerber, inclusive um `_edit` sem `sourcePath`;
+antes ela copiava o arquivo original, perdendo alterações, ou recusava objetos
+sem origem. O arquivo é publicado via temporário e substituição atômica quando
+suportada, evitando truncar um destino existente em caso de falha. Testes cobrem
+edição, transformação, vazios com ilhas, imagem vazia,
+limites de coordenadas e exportação/reabertura de uma placa real. O arquivo
+preserva a imagem final, **não** os comandos/apertures/atributos X2 originais;
+essa reconstrução semântica é um passo posterior. Coordenadas usam seis casas
+decimais; regiões que colapsam nessa precisão são recusadas em vez de
+silenciosamente perdidas. Ainda validar visualmente o arquivo exportado no
+FlatCAM Python ou em visualizador Gerber independente.
+
 Alternativa não escolhida agora, mas ainda válida como próximo passo depois
 das próximas fatias do editor: completar 9.3 (Geometry/CNC Job persistence),
 adiando para quando algo realmente força a mão (ex.: um NCC resultado
@@ -937,7 +952,9 @@ Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
 referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/
 Flip/Offset) completas para os três tipos de objeto. O Gerber Editor já
 seleciona, exclui, move e copia formas, tem undo/redo, aplica um novo objeto e
-salva/reabre suas formas individuais em projetos novos. O próximo trabalho
-recomendado é validar esse fluxo na UI e depois adicionar posicionamento por
-cliques no canvas, ferramentas de desenho e tabela editável de aberturas.
+salva/reabre suas formas individuais em projetos novos. "Salvar como..." exporta
+o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
+aberturas originais. O próximo trabalho recomendado é validar visualmente o
+arquivo exportado no Python e depois adicionar posicionamento por cliques no
+canvas, ferramentas de desenho e tabela editável de aberturas.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.
