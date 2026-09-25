@@ -123,6 +123,12 @@ public final class GerberImage {
     /** Rebuilds all derived geometries from the editor's ordered, individual shapes. */
     public GerberImage withEditedShapes(List<GerberShape> editedShapes, CancellationToken cancellation,
                                         ProgressCallback progress) {
+        return withEditedShapes(editedShapes, apertures, cancellation, progress);
+    }
+
+    /** Rebuilds an editor result that may also contain newly defined apertures. */
+    public GerberImage withEditedShapes(List<GerberShape> editedShapes, Map<String, Aperture> editedApertures,
+                                        CancellationToken cancellation, ProgressCallback progress) {
         GeometryFactory factory = solidGeometry != null ? solidGeometry.getFactory() : new GeometryFactory();
         Geometry solid = factory.createPolygon();
         List<Geometry> pending = new ArrayList<>();
@@ -133,7 +139,7 @@ public final class GerberImage {
         for (int i = 0; i < editedShapes.size(); i++) {
             cancellation.throwIfCancellationRequested();
             GerberShape shape = editedShapes.get(i);
-            if (!apertures.containsKey(shape.apertureCode())
+            if (!editedApertures.containsKey(shape.apertureCode())
                     && !GerberShape.REGION_APERTURE.equals(shape.apertureCode())) {
                 throw new IllegalArgumentException("Unknown Gerber aperture: " + shape.apertureCode());
             }
@@ -171,7 +177,7 @@ public final class GerberImage {
         cancellation.throwIfCancellationRequested();
         Geometry followResult = factory.createGeometryCollection(follow.toArray(Geometry[]::new));
         progress.report(1);
-        return new GerberImage(units, apertures, solid, followResult, mergedApertures, editedShapes);
+        return new GerberImage(units, editedApertures, solid, followResult, mergedApertures, editedShapes);
     }
 
     private static Geometry applyPolarityBatch(Geometry solid, List<Geometry> pending,

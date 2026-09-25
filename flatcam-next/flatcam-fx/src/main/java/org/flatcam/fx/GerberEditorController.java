@@ -7,6 +7,8 @@ import java.util.function.Consumer;
 import javafx.scene.Node;
 import javafx.scene.control.TreeItem;
 import javafx.scene.paint.Color;
+import org.flatcam.cam.gerber.Aperture;
+import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
@@ -76,10 +78,12 @@ final class GerberEditorController {
         }
         item = sourceItem;
         session = new GerberEditSession(sourceItem.getValue(), image);
-        panel = new GerberEditToolPanel(sourceItem.getValue(), session.shapesApproximated(), host::icon,
+        panel = new GerberEditToolPanel(sourceItem.getValue(), image.units(), image.apertures(),
+                session.shapesApproximated(), host::icon,
                 this::clearSelection,
                 this::deleteSelected, this::startCanvasMove, this::startCanvasCopy,
-                this::moveSelected, this::copySelected, plotArea::cancelPlacement,
+                this::moveSelected, this::copySelected, this::startCircularPadPlacement,
+                this::addCircularAperture, plotArea::cancelPlacement,
                 this::undo, this::redo, this::apply, this::cancel);
 
         host.setObjectVisible(sourceItem, false);
@@ -178,6 +182,59 @@ final class GerberEditorController {
         startCanvasPlacement(true);
     }
 
+    private void startCircularPadPlacement(String apertureCode) {
+        if (session == null || session.shapesApproximated() || panel.isBusy() || apertureCode == null) {
+            return;
+        }
+        Aperture aperture = session.apertures().get(apertureCode);
+        if (aperture == null || aperture.kind != ApertureKind.CIRCLE
+                || !Double.isFinite(aperture.width) || aperture.width <= 0) {
+            panel.showError("Selecione uma abertura circular com diametro positivo.");
+            return;
+        }
+        GerberEditSession editing = session;
+        boolean started = plotArea.beginEditorFlashPlacement(
+                aperture.footprintAt(0, 0, GEOMETRY_FACTORY), new PlotAreaView.PlacementHandler() {
+                    @Override
+                    public void onCommit(double x, double y) {
+                        if (session != editing) {
+                            return;
+                        }
+                        panel.setPadPlacing(false);
+                        try {
+                            editing.addCircularPad(apertureCode, x, y);
+                            panel.showError("");
+                            refreshSelection();
+                        } catch (RuntimeException exception) {
+                            panel.showError(exception.getMessage());
+                        }
+                    }
+
+                    @Override
+                    public void onCancel() {
+                        if (session == editing) {
+                            panel.setPadPlacing(false);
+                        }
+                    }
+                });
+        if (started) {
+            panel.setPadPlacing(true);
+            panel.showError("");
+            host.log("Editor: clique no Plot Area para adicionar pad D" + apertureCode + "; Esc cancela.");
+        }
+    }
+
+    private String addCircularAperture(double diameter) {
+        if (session == null || session.shapesApproximated() || panel.isBusy()) {
+            throw new IllegalStateException("Editor indisponivel para adicionar abertura.");
+        }
+        String code = session.addCircularAperture(diameter);
+        panel.refreshApertures(session.apertures(), code);
+        refreshSelection();
+        host.log("Editor: abertura circular D" + code + " adicionada.");
+        return code;
+    }
+
     private void startCanvasPlacement(boolean copy) {
         if (session == null || session.shapesApproximated() || session.selectedIndices().isEmpty()
                 || panel.isBusy()) {
@@ -241,6 +298,7 @@ final class GerberEditorController {
     boolean undoFromShortcut() {
         plotArea.cancelPlacement();
         if (session != null && !panel.isBusy() && session.undo()) {
+            panel.refreshApertures(session.apertures(), panel.selectedCircularAperture());
             refreshSelection();
             return true;
         }
@@ -250,6 +308,7 @@ final class GerberEditorController {
     boolean redoFromShortcut() {
         plotArea.cancelPlacement();
         if (session != null && !panel.isBusy() && session.redo()) {
+            panel.refreshApertures(session.apertures(), panel.selectedCircularAperture());
             refreshSelection();
             return true;
         }

@@ -113,6 +113,29 @@ class ProjectFileIOTest {
     }
 
     @Test
+    void roundTripsAFlashedCircularPadFromTheEditor() throws IOException {
+        GerberImage source = new GerberParser().parse(List.of(
+                "%FSLAX24Y24*%", "%MOMM*%", "%ADD10C,1*%", "D10*", "X0Y0D03*", "M02*"));
+        GerberEditSession editor = new GerberEditSession("board", source);
+        String newCode = editor.addCircularAperture(0.5);
+        assertTrue(editor.addCircularPad(newCode, 4, 5));
+        GerberImage edited = editor.apply().image();
+        Path file = tempDir.resolve("pad-edit.fcnproj");
+
+        ProjectFileIO.save(new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "board_edit", edited, null, null, true, true, false, false)), List.of(), List.of()), file);
+        GerberImage reopened = ProjectFileIO.load(file).gerbers().get(0).image();
+
+        assertEquals(2, reopened.shapes().size());
+        assertEquals(newCode, reopened.shapes().get(1).apertureCode());
+        assertEquals(0.5, reopened.apertures().get(newCode).width, 1e-9);
+        assertEquals(4, reopened.shapes().get(1).followGeometry().getCoordinate().x, 1e-9);
+        assertEquals(5, reopened.shapes().get(1).followGeometry().getCoordinate().y, 1e-9);
+        assertTrue(edited.solidGeometry().equalsExact(reopened.solidGeometry(), 1e-9));
+        assertFalse(new GerberEditSession("board_edit", reopened).shapesApproximated());
+    }
+
+    @Test
     void usesPythonApertureNamesAndReadsPreviousJavaNames() {
         GerberImage parsed = new GerberParser().parse(List.of(
                 "%FSLAX23Y23*%", "%MOMM*%", "%ADD10C,1*%", "%ADD11R,2X1*%",

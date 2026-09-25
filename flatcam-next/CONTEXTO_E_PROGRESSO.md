@@ -319,7 +319,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | parcial | seleção, excluir/mover/copiar por X/Y ou posicionamento com prévia no canvas, undo/redo e Aplicar em background; o resultado editado pode ser salvo e reaberto; faltam pads/tracks/regions e tabela editável de aberturas |
+| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background e pad circular por abertura C existente ou nova; o resultado pode ser salvo e reaberto; faltam outros pads, tracks/regions e edição/remoção de aberturas |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -840,7 +840,7 @@ Implementar por fatias verticais, não como um bloco único:
 3. command stack com undo/redo; ✅ concluída para operações em memória;
 4. mover, copiar e excluir; ✅ concluída por deslocamento X/Y; falta o gesto
    de origem/destino no canvas do Python;
-5. pads, tracks, regions e apertures;
+5. pads, tracks, regions e apertures; 🟡 pad circular e criação de abertura C concluídos; demais formas e edição/remoção de aberturas pendentes;
 6. operações avançadas do editor legado;
 7. persistência e reabertura do resultado editado; ✅ concluída para projetos
    novos; projetos antigos só têm uniões por abertura e não podem recuperar
@@ -988,11 +988,14 @@ Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
 referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/
 Flip/Offset) completas para os três tipos de objeto. O Gerber Editor já
 seleciona, exclui, move e copia formas, tem undo/redo, aplica um novo objeto e
-salva/reabre suas formas individuais em projetos novos. "Salvar como..." exporta
+salva/reabre suas formas individuais em projetos novos. Também pode criar uma
+abertura circular C com D-code livre e posicionar um pad com prévia e um clique;
+ambas as operações participam do undo/redo e da persistência do projeto.
+"Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
-menus funcionais no botão direito. O próximo trabalho recomendado é validar
-manualmente esses gestos, o novo posicionamento no Editor Gerber e a exportação
-Gerber no Python, depois adicionar ferramentas de desenho e tabela editável de
-aberturas.
+menus funcionais no botão direito e abre Propriedades com duplo clique. O
+próximo trabalho recomendado é validar manualmente o pad novo, os gestos do
+Editor Gerber e a exportação no Python; depois ampliar pads para R/O e criar
+trilhas/regiões, além de editar/remover aberturas existentes.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

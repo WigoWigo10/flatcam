@@ -433,6 +433,16 @@ final class PlotAreaView extends StackPane {
         return startPlacement(List.of(), preview, 0, 0, false, handler);
     }
 
+    /** A flash is already centered at the origin: the first click places it at the cursor. */
+    boolean beginEditorFlashPlacement(Geometry footprintAtOrigin, PlacementHandler handler) {
+        if (selectionHandler == null || footprintAtOrigin == null || footprintAtOrigin.isEmpty() || handler == null) {
+            return false;
+        }
+        RenderLayer preview = new RenderLayer(footprintAtOrigin, false, PLACEMENT_FILL, PLACEMENT_STROKE,
+                true, LayerCategory.OVERLAY, true, false);
+        return startPlacement(List.of(), List.of(preview), 0, 0, true, handler);
+    }
+
     private boolean startPlacement(List<?> keys, List<RenderLayer> preview, double anchorWorldX,
                                    double anchorWorldY, boolean anchorChosen, PlacementHandler handler) {
         if (!Double.isFinite(anchorWorldX) || !Double.isFinite(anchorWorldY)) {

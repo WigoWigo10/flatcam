@@ -1,28 +1,41 @@
 package org.flatcam.fx;
 
 import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
+import java.util.function.DoubleFunction;
 import java.util.stream.Collectors;
+import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.control.Tooltip;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import org.flatcam.cam.gerber.Aperture;
+import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberShape;
 
 /**
  * The Gerber Editor's sidebar panel (CONTEXTO_E_PROGRESSO.md section 9.4,
  * editor): selection, shape operations, undo/redo and Apply/Cancel. The
- * legacy AppGerberEditorUI shows an apertures table whose rows highlight for
- * the selected shapes' apertures; with no aperture editing yet, a one-line
- * summary of those same apertures stands in for it.
+ * aperture table selects D-codes for the first drawing tool and can add a
+ * circular one; editing/removing existing D-codes is a separate increment.
  */
 final class GerberEditToolPanel {
+
+    private record ApertureOption(String code, Aperture aperture) {
+    }
 
     private final VBox root;
     private final Label selectionLabel = new Label();
@@ -38,7 +51,12 @@ final class GerberEditToolPanel {
     private final Button cancelPlacementButton = new Button("Cancelar posicionamento");
     private final Button applyButton = new Button("Aplicar");
     private final Button cancelButton = new Button("Cancelar");
+    private final Button addCircleButton = new Button("Adicionar abertura C");
+    private final TextField apertureDiameterField = new TextField("1.0");
+    private final TableView<ApertureOption> apertureTable;
     private Button selectToolButton;
+    private Button padToolButton;
+    private String selectedCircularAperture;
     private boolean editable;
     private boolean busy;
     private boolean dirty;
@@ -47,16 +65,20 @@ final class GerberEditToolPanel {
     private boolean placing;
     private int selectedCount;
 
-    GerberEditToolPanel(String objectName, boolean shapesApproximated,
+    GerberEditToolPanel(String objectName, String units, Map<String, Aperture> apertures,
+                        boolean shapesApproximated,
                         BiFunction<String, Double, Node> icon, Runnable onClearSelection,
                         Runnable onDelete, Runnable onMoveCanvas, Runnable onCopyCanvas,
                         BiConsumer<Double, Double> onMove, BiConsumer<Double, Double> onCopy,
+                        Consumer<String> onAddCircularPad, DoubleFunction<String> onAddCircularAperture,
                         Runnable onCancelPlacement, Runnable onUndo, Runnable onRedo,
                         Runnable onApply, Runnable onCancel) {
         editable = !shapesApproximated;
         Label info = new Label("Editando: " + objectName);
         Label help = new Label("Clique seleciona a forma sob o cursor; Ctrl+clique alterna. "
                 + "Arrastar para a direita seleciona as formas envolvidas; para a esquerda, as tocadas. "
+                + "Crie uma abertura C (D-code automatico) ou selecione uma existente na tabela, "
+                + "depois use Adicionar Pad para posiciona-la. "
                 + "Pan: botao direito ou do meio.");
         help.setWrapText(true);
         Label note = new Label("Mover/Copiar usa dois cliques no Plot Area: origem e destino (Esc cancela). "
@@ -69,11 +91,12 @@ final class GerberEditToolPanel {
             Button tool = new Button(null, icon.apply(command.icon(), 20.0));
             boolean available = switch (command.id()) {
                 case "select" -> true;
-                case "copy", "delete", "move" -> !shapesApproximated;
+                case "copy", "delete", "move", "pad" -> !shapesApproximated;
                 default -> false;
             };
             String unavailableReason = shapesApproximated &&
-                    (command.id().equals("copy") || command.id().equals("delete") || command.id().equals("move"))
+                    (command.id().equals("copy") || command.id().equals("delete")
+                            || command.id().equals("move") || command.id().equals("pad"))
                     ? " — indisponível neste projeto antigo" : " — em desenvolvimento";
             tool.setTooltip(new Tooltip(command.label() + (available ? "" : unavailableReason)));
             tool.setDisable(!available);
@@ -86,6 +109,10 @@ final class GerberEditToolPanel {
                     selectToolButton.setOnAction(event -> onClearSelection.run());
                     palette.getChildren().add(selectToolButton);
                     continue;
+                }
+                case "pad" -> {
+                    padToolButton = tool;
+                    padToolButton.setOnAction(event -> onAddCircularPad.accept(selectedCircularAperture));
                 }
                 case "copy" -> {
                     tool.disableProperty().bind(copyButton.disableProperty());
@@ -105,6 +132,27 @@ final class GerberEditToolPanel {
         }
         selectionLabel.setWrapText(true);
         showSelection(0, java.util.List.of());
+        apertureTable = buildApertureTable(apertures);
+        apertureDiameterField.setText("MM".equalsIgnoreCase(units) ? "1.0" : "0.040");
+        apertureDiameterField.setPrefColumnCount(7);
+        apertureDiameterField.setMinWidth(0);
+        addCircleButton.setOnAction(event -> {
+            try {
+                double diameter = Double.parseDouble(apertureDiameterField.getText().trim().replace(',', '.'));
+                if (!Double.isFinite(diameter) || diameter <= 0) {
+                    throw new IllegalArgumentException("Informe um diametro positivo.");
+                }
+                onAddCircularAperture.apply(diameter);
+                showError("");
+            } catch (NumberFormatException exception) {
+                showError("Informe um diametro numerico.");
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                showError(exception.getMessage());
+            }
+        });
+        apertureDiameterField.setOnAction(event -> addCircleButton.fire());
+        FlowPane addApertureRow = new FlowPane(6, 6,
+                new Label("Novo diametro (" + units + "):"), apertureDiameterField, addCircleButton);
 
         TextField offsetX = new TextField("0");
         offsetX.setPromptText("Delta X");
@@ -142,7 +190,9 @@ final class GerberEditToolPanel {
 
         errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("form-error-label");
-        root = new VBox(10, info, palette, help, selectionLabel, historyRow, deleteButton,
+        root = new VBox(10, info, palette, new Label("Aberturas (C = pad circular):"), apertureTable,
+                addApertureRow,
+                help, selectionLabel, historyRow, deleteButton,
                 operationRow, placementLabel, cancelPlacementButton, offsetRow, offsetActions);
         if (shapesApproximated) {
             Label approximated = new Label("Este projeto antigo nao contem formas individuais. "
@@ -188,9 +238,39 @@ final class GerberEditToolPanel {
         return busy;
     }
 
+    void showError(String message) {
+        errorLabel.setText(message);
+    }
+
+    void refreshApertures(Map<String, Aperture> apertures, String selectedCode) {
+        apertureTable.getItems().setAll(apertureRows(apertures));
+        apertureTable.setPrefHeight(Math.min(180, 30 + Math.max(1, apertureTable.getItems().size()) * 27));
+        ApertureOption preferred = apertureTable.getItems().stream()
+                .filter(row -> row.code().equals(selectedCode)).findFirst().orElse(null);
+        ApertureOption fallback = apertureTable.getItems().stream()
+                .filter(row -> row.aperture().kind == ApertureKind.CIRCLE
+                        && Double.isFinite(row.aperture().width) && row.aperture().width > 0)
+                .findFirst().orElse(null);
+        if (preferred != null || fallback != null) {
+            apertureTable.getSelectionModel().select(preferred != null ? preferred : fallback);
+        }
+    }
+
+    String selectedCircularAperture() {
+        return selectedCircularAperture;
+    }
+
     void setPlacing(boolean placing) {
+        setPlacementState(placing, "Clique na origem da selecao no Plot Area.");
+    }
+
+    void setPadPlacing(boolean placing) {
+        setPlacementState(placing, "Clique no Plot Area para posicionar o pad. Esc cancela.");
+    }
+
+    private void setPlacementState(boolean placing, String message) {
         this.placing = placing;
-        placementLabel.setText(placing ? "Clique na origem da selecao no Plot Area." : "");
+        placementLabel.setText(placing ? message : "");
         placementLabel.setVisible(placing);
         placementLabel.setManaged(placing);
         cancelPlacementButton.setVisible(placing);
@@ -216,6 +296,78 @@ final class GerberEditToolPanel {
         applyButton.setDisable(busy || placing || !dirty);
         cancelButton.setDisable(busy);
         selectToolButton.setDisable(busy || placing);
+        padToolButton.setDisable(busy || placing || !editable || selectedCircularAperture == null);
+        addCircleButton.setDisable(busy || placing || !editable);
+        apertureDiameterField.setDisable(busy || placing || !editable);
+        if (apertureTable != null) {
+            apertureTable.setDisable(busy || placing);
+        }
+    }
+
+    private TableView<ApertureOption> buildApertureTable(Map<String, Aperture> apertures) {
+        List<ApertureOption> rows = apertureRows(apertures);
+        TableColumn<ApertureOption, String> code = new TableColumn<>("D");
+        code.setCellValueFactory(cell -> new ReadOnlyStringWrapper(cell.getValue().code()));
+        code.setMinWidth(45);
+        code.setPrefWidth(45);
+        code.setMaxWidth(55);
+        TableColumn<ApertureOption, String> type = new TableColumn<>("Tipo");
+        type.setCellValueFactory(cell -> new ReadOnlyStringWrapper(apertureType(cell.getValue().aperture())));
+        type.setMinWidth(45);
+        type.setPrefWidth(50);
+        type.setMaxWidth(65);
+        TableColumn<ApertureOption, String> size = new TableColumn<>("Dimensoes");
+        size.setCellValueFactory(cell -> new ReadOnlyStringWrapper(apertureSize(cell.getValue().aperture())));
+        size.setMinWidth(85);
+        TableView<ApertureOption> table = new TableView<>();
+        table.getColumns().addAll(List.of(code, type, size));
+        table.getItems().setAll(rows);
+        table.setMinWidth(0);
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
+        table.setPrefHeight(Math.min(180, 30 + Math.max(1, rows.size()) * 27));
+        table.getSelectionModel().selectedItemProperty().addListener((obs, oldRow, selectedRow) -> {
+            selectedCircularAperture = selectedRow != null && selectedRow.aperture().kind == ApertureKind.CIRCLE
+                    && Double.isFinite(selectedRow.aperture().width) && selectedRow.aperture().width > 0
+                    ? selectedRow.code() : null;
+            updateButtons();
+        });
+        rows.stream().filter(row -> row.aperture().kind == ApertureKind.CIRCLE
+                && Double.isFinite(row.aperture().width) && row.aperture().width > 0)
+                .findFirst().ifPresent(table.getSelectionModel()::select);
+        return table;
+    }
+
+    private static List<ApertureOption> apertureRows(Map<String, Aperture> apertures) {
+        return apertures.entrySet().stream()
+                .sorted(Comparator.comparingInt(entry -> apertureCodeOrder(entry.getKey())))
+                .map(entry -> new ApertureOption(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    private static int apertureCodeOrder(String code) {
+        try {
+            return Integer.parseInt(code);
+        } catch (NumberFormatException ignored) {
+            return Integer.MAX_VALUE;
+        }
+    }
+
+    private static String apertureSize(Aperture aperture) {
+        return switch (aperture.kind) {
+            case CIRCLE, POLYGON -> String.format(Locale.ROOT, "%.4f", aperture.width);
+            case RECTANGLE, OBROUND -> String.format(Locale.ROOT, "%.4f x %.4f", aperture.width, aperture.height);
+            case MACRO -> "—";
+        };
+    }
+
+    private static String apertureType(Aperture aperture) {
+        return switch (aperture.kind) {
+            case CIRCLE -> "C";
+            case RECTANGLE -> "R";
+            case OBROUND -> "O";
+            case POLYGON -> "P";
+            case MACRO -> "AM";
+        };
     }
 
     private void runOffsetAction(TextField x, TextField y, BiConsumer<Double, Double> action) {

@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Set;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ProgressCallback;
+import org.flatcam.cam.gerber.Aperture;
+import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.transform.TransformOp;
@@ -53,13 +55,15 @@ public final class GerberEditSession {
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
     private static final int HISTORY_LIMIT = 100;
 
-    private record EditState(List<GerberShape> shapes, Set<Integer> selected) {
+    private record EditState(List<GerberShape> shapes, Map<String, Aperture> apertures, Set<Integer> selected) {
     }
 
     private final String sourceName;
     private final GerberImage sourceImage;
     private final List<GerberShape> originalShapes;
+    private final Map<String, Aperture> originalApertures;
     private List<GerberShape> shapes;
+    private Map<String, Aperture> apertures;
     private final boolean shapesApproximated;
     private final Set<Integer> selected = new LinkedHashSet<>();
     private final Deque<EditState> undoStack = new ArrayDeque<>();
@@ -70,6 +74,8 @@ public final class GerberEditSession {
         this.sourceName = sourceName;
         this.sourceImage = sourceImage;
         this.cachedWorkingImage = sourceImage;
+        this.originalApertures = sourceImage.apertures();
+        this.apertures = originalApertures;
         if (!sourceImage.shapes().isEmpty()) {
             this.shapes = sourceImage.shapes();
             this.shapesApproximated = false;
@@ -84,15 +90,19 @@ public final class GerberEditSession {
         return sourceName;
     }
 
+    public Map<String, Aperture> apertures() {
+        return apertures;
+    }
+
     public GerberImage workingImage() {
         if (cachedWorkingImage == null) {
-            cachedWorkingImage = sourceImage.withEditedShapes(shapes, () -> false, ignored -> {});
+            cachedWorkingImage = sourceImage.withEditedShapes(shapes, apertures, () -> false, ignored -> {});
         }
         return cachedWorkingImage;
     }
 
     public boolean isDirty() {
-        return shapes != originalShapes;
+        return shapes != originalShapes || apertures != originalApertures;
     }
 
     /** Every editable shape, dark and clear, in file order; selection indices refer to this list. */
@@ -267,6 +277,52 @@ public final class GerberEditSession {
         return true;
     }
 
+    /** Flashes an existing circular aperture at one point, preserving its D-code and center. */
+    public boolean addCircularPad(String apertureCode, double x, double y) {
+        requireExactShapes();
+        if (!Double.isFinite(x) || !Double.isFinite(y)) {
+            throw new IllegalArgumentException("Pad coordinates must be finite");
+        }
+        Aperture aperture = apertures.get(apertureCode);
+        if (aperture == null || aperture.kind != ApertureKind.CIRCLE
+                || !Double.isFinite(aperture.width) || aperture.width <= 0) {
+            throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
+        }
+        Point center = GEOMETRY_FACTORY.createPoint(new Coordinate(x, y));
+        GerberShape pad = new GerberShape(apertureCode,
+                aperture.footprintAt(x, y, GEOMETRY_FACTORY), false, center);
+        List<GerberShape> updated = new ArrayList<>(shapes);
+        updated.add(pad);
+        commit(updated, Set.of(updated.size() - 1));
+        return true;
+    }
+
+    /** Creates the next free D-code (D10+) for a circular aperture. */
+    public String addCircularAperture(double diameter) {
+        requireExactShapes();
+        if (!Double.isFinite(diameter) || diameter <= 0) {
+            throw new IllegalArgumentException("Aperture diameter must be finite and positive");
+        }
+        int nextCode = 10;
+        while (nextCode <= 9999 && apertures.containsKey(Integer.toString(nextCode))) {
+            nextCode++;
+        }
+        if (nextCode > 9999) {
+            throw new IllegalStateException("No free Gerber D-code is available");
+        }
+        String code = Integer.toString(nextCode);
+        Map<String, Aperture> updated = new java.util.LinkedHashMap<>(apertures);
+        updated.put(code, Aperture.circle(diameter));
+        undoStack.push(snapshot());
+        if (undoStack.size() > HISTORY_LIMIT) {
+            undoStack.removeLast();
+        }
+        redoStack.clear();
+        apertures = Map.copyOf(updated);
+        cachedWorkingImage = null;
+        return code;
+    }
+
     private static GerberShape translated(GerberShape shape, TransformOp.Offset offset) {
         return new GerberShape(shape.apertureCode(), offset.apply(shape.geometry()), shape.clear(),
                 shape.followGeometry() == null ? null : offset.apply(shape.followGeometry()));
@@ -285,14 +341,15 @@ public final class GerberEditSession {
     }
 
     private EditState snapshot() {
-        return new EditState(shapes, new LinkedHashSet<>(selected));
+        return new EditState(shapes, apertures, new LinkedHashSet<>(selected));
     }
 
     private void restore(EditState state) {
         shapes = state.shapes();
+        apertures = state.apertures();
         selected.clear();
         selected.addAll(state.selected());
-        cachedWorkingImage = shapes == originalShapes ? sourceImage : null;
+        cachedWorkingImage = !isDirty() ? sourceImage : null;
     }
 
     private void commit(List<GerberShape> newShapes, Set<Integer> newSelection) {
@@ -313,18 +370,19 @@ public final class GerberEditSession {
     }
 
     /** Immutable work request safe to generate on a background worker. */
-    public record ApplyRequest(String name, GerberImage sourceImage, List<GerberShape> shapes, boolean dirty) {
+    public record ApplyRequest(String name, GerberImage sourceImage, List<GerberShape> shapes,
+                               Map<String, Aperture> apertures, boolean dirty) {
         public ApplyResult generate(CancellationToken cancellation, ProgressCallback progress) {
             if (!dirty) {
                 progress.report(1);
                 return new ApplyResult(name, sourceImage);
             }
-            return new ApplyResult(name, sourceImage.withEditedShapes(shapes, cancellation, progress));
+            return new ApplyResult(name, sourceImage.withEditedShapes(shapes, apertures, cancellation, progress));
         }
     }
 
     public ApplyRequest prepareApply() {
-        return new ApplyRequest(nextEditedName(sourceName), sourceImage, shapes, isDirty());
+        return new ApplyRequest(nextEditedName(sourceName), sourceImage, shapes, apertures, isDirty());
     }
 
     public ApplyResult apply() {
