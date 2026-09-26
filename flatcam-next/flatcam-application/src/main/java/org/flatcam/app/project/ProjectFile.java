@@ -3,6 +3,8 @@ package org.flatcam.app.project;
 import java.util.List;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.gerber.GerberImage;
+import org.flatcam.cam.geometry.ToolGeometry;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * What a FlatCAM FX project remembers. Gerber/Excellon objects now embed
@@ -14,15 +16,22 @@ import org.flatcam.cam.gerber.GerberImage;
  *
  * <p>CNC Jobs embed their edited G-code text in the Java extension so edits
  * survive a save/reload without overwriting the machine-code file. Geometry
- * objects (e.g. an NCC result) are not persisted yet. A CNC Job's original
+ * objects, including their per-tool paths, are also embedded in the Java
+ * extension. A CNC Job's original
  * tool-diameter metadata and full machine semantics are not serialized; the
  * supported G0/G1 XY preview is reconstructed on reload.
  */
 public record ProjectFile(
         List<GerberEntry> gerbers,
         List<ExcellonEntry> excellons,
+        List<GeometryEntry> geometries,
         List<CncJobRecord> cncJobs
 ) {
+    public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,
+                       List<CncJobRecord> cncJobs) {
+        this(gerbers, excellons, List.of(), cncJobs);
+    }
+
     /**
      * @param fillColorWeb   {@code Color.toString()} form (e.g. "0xrrggbbaa"), or null to use this app's default
      * @param strokeColorWeb same encoding as {@code fillColorWeb}
@@ -33,6 +42,11 @@ public record ProjectFile(
 
     public record ExcellonEntry(String name, ExcellonImage image, String fillColorWeb, String strokeColorWeb,
                                 boolean visible, boolean filled, boolean multicolor) {
+    }
+
+    public record GeometryEntry(String name, String sourceName, String units, Geometry geometry,
+                                boolean strokeOnly, List<ToolGeometry> tools,
+                                String fillColorWeb, String strokeColorWeb, boolean visible) {
     }
 
     /** {@code name}/{@code gcode} are null for older path-only projects. */

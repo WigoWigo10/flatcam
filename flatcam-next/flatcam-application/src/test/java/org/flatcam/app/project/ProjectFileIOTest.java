@@ -16,10 +16,15 @@ import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
+import org.flatcam.cam.geometry.GeometryEditSession;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.json.JSONObject;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 class ProjectFileIOTest {
 
@@ -31,6 +36,35 @@ class ProjectFileIOTest {
 
     private static final ExcellonImage DRILL_EXCELLON = new ExcellonParser().parse(List.of(
             "M48", "METRIC", "T1C1.0", "%", "T1", "X1.0Y1.0", "X3.0Y1.0G85X5.0Y1.0", "M30"));
+
+    @Test
+    void roundTripsEditedGeometryAndToolAssignments() throws IOException {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry first = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(0, 5)});
+        Geometry second = factory.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(10, 5)});
+        List<ToolGeometry> tools = List.of(new ToolGeometry(0.8, first), new ToolGeometry(1.2, second));
+        GeometryEditSession edit = new GeometryEditSession(factory.buildGeometry(List.of(first, second)), tools);
+        edit.clickSelect(0, 2, 0.01, false);
+        assertTrue(edit.deleteSelected());
+        ProjectFile.GeometryEntry geometry = new ProjectFile.GeometryEntry("paths_edit", "top.gbr", "MM",
+                edit.resultGeometry(), true, edit.resultTools(), "0xff0000ff", "0x0000ffff", false);
+        Path file = tempDir.resolve("geometry.fcnproj");
+
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(geometry), List.of()), file);
+        ProjectFile.GeometryEntry loaded = ProjectFileIO.load(file).geometries().get(0);
+
+        assertEquals("paths_edit", loaded.name());
+        assertEquals("top.gbr", loaded.sourceName());
+        assertEquals("MM", loaded.units());
+        assertTrue(loaded.strokeOnly());
+        assertFalse(loaded.visible());
+        assertEquals("0xff0000ff", loaded.fillColorWeb());
+        assertTrue(loaded.geometry().equalsTopo(second));
+        assertEquals(2, loaded.tools().size());
+        assertEquals(0.8, loaded.tools().get(0).toolDiameter());
+        assertTrue(loaded.tools().get(0).geometry().isEmpty());
+        assertTrue(loaded.tools().get(1).geometry().equalsTopo(second));
+    }
 
     @Test
     void roundTripsEmbeddedGerberAndExcellonGeometryAndDisplayState() throws IOException {

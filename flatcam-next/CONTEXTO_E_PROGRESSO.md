@@ -130,7 +130,8 @@ resultados podem mudar.
   contra o código-fonte Python; **não verificado contra uma instalação
   Python+Shapely rodando de verdade**, que não está disponível neste
   ambiente de desenvolvimento). Detalhes técnicos completos na seção 9.3.
-  Geometry ainda não é persistido. CNC Job embute o texto G-code em `_java`,
+  Geometry agora é persistido em `_java.geometries` (WKT e associação por ferramenta),
+  uma extensão do FX não interpretada pelo Python. CNC Job embute o texto G-code em `_java`,
   além do path e nome; na reabertura, reconstrói uma prévia limitada a G0-G3 em XY,
   sem a largura original da ferramenta.
 
@@ -321,9 +322,9 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
-| Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
+| Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor inicial seleciona por clique/retângulo, exclui, desfaz/refaz e aplica/cancela; desenho, Paint, Sub e Panelize faltam |
 | CNC Job | parcial | geração, plot, abertura direta de arquivos G-code, edição de texto, Aplicar/Cancelar e Salvar arquivo; prévia G0-G3 em XY refeita ao aplicar; painel e opções avançadas do legado faltam |
-| Persistência de projeto | forte/parcial (Gerber/Excellon), parcial (CNC Job), inicial (Geometry) | Gerber salva formas individuais e ordem em extensão `_java`; CNC Job embute nome e texto G-code, mesmo se o arquivo externo desaparecer, e reconstrói a prévia G0-G3; Geometry não é persistido |
+| Persistência de projeto | forte/parcial (Gerber/Excellon), parcial (CNC Job/Geometry) | Gerber salva formas individuais e ordem em extensão `_java`; CNC Job embute nome e texto G-code e reconstrói a prévia G0-G3; Geometry embute WKT e associações de ferramentas na extensão `_java.geometries` |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | ausente | necessário para paridade de ferramentas |
@@ -432,7 +433,7 @@ tela) antes/depois da correção.
 - JTS substitui Shapely/GEOS na implementação Java; compare resultados por
   tolerância geométrica, não por igualdade textual ou ordem de coordenadas.
 
-## 8. Próximo passo recomendado
+## 8. Histórico de progresso (2026-09-23; estado atual nas seções 9.5-9.6 e 15)
 
 **NCC multi-tool com Rest Machining, boundary por objeto de referência,
 "Check validity", Transformations, e persistência embutida de Gerber/Excellon
@@ -443,7 +444,7 @@ a cada rodada. A compatibilidade Python é verificada por leitura de código +
 round-trip Java, não contra uma instalação Python real (indisponível neste
 ambiente) - ver seção 9.3 para o aviso completo.
 
-O que resta de 9.3 (Geometry e CNC Job com o mesmo tratamento) precisa de
+Na época, o que restava de 9.3 (Geometry e CNC Job com o mesmo tratamento) precisava de
 mudanças de modelo reais antes de qualquer serialização (Geometry precisa de
 um dict de parâmetros CAM persistente por ferramenta; CNC Job precisa reter
 uma lista por segmento durante a geração) - cada um é essencialmente seu
@@ -886,6 +887,24 @@ da prévia também roda em background; se não for possível interpretá-la, o
 texto ainda é carregado. Falta validar a UI com arquivos reais e ampliar o
 subconjunto modal/planos do parser antes de alegar paridade com o Python.
 
+### 9.6 Editor de Geometry (primeira fatia)
+
+Objetos Geometry abrem pelo botão em Propriedades, menu contextual ou Editar
+Objeto. O editor permite seleção por clique ou retângulo (esquerda-direita
+inclui formas inteiras, direita-esquerda inclui formas tocadas), Ctrl para
+múltipla seleção, Excluir, Desfazer/Refazer e Aplicar/Cancelar. Aplicar altera
+o objeto em memória, preservando suas ferramentas por forma; o projeto salva
+essa Geometry e os caminhos de cada ferramenta em `_java.geometries`. Cancelar
+mantém o objeto original. O modelo de seleção usa índice espacial; o destaque
+usa uma camada Canvas separada para não repintar todos os objetos a cada
+clique. Acima de 2.000 formas selecionadas, só o contorno agregado é exibido,
+mas Excluir ainda opera sobre todas as formas selecionadas.
+
+Ainda faltam as ferramentas de desenho/transformação específicas do editor,
+teste manual com arquivos reais grandes e perfilamento da renderização inicial
+de Geometry muito extensa. A persistência `_java.geometries` é do FX e não
+garante abertura de objetos Geometry no FlatCAM Python.
+
 ## 10. Regras de implementação para qualquer IA
 
 ### Use o Python como oráculo
@@ -968,14 +987,14 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | Caminho | Papel |
 | --- | --- |
 | `flatcam-application/.../job/` | executor, contexto, handle, progresso e cancelamento de jobs |
-| `flatcam-application/.../project/` | schema e IO do `.fcnproj` (v2: Gerber/Excellon com geometria embutida) |
+| `flatcam-application/.../project/` | schema e IO do `.fcnproj` (v2: Gerber/Excellon e Geometry com geometria embutida) |
 | `flatcam-application/.../project/flatprj/` | codecs compatíveis com o `.FlatPrj` do Python - `WktJson`, `GerberFlatPrjCodec`, `ExcellonFlatPrjCodec` |
 | `flatcam-cam/.../gerber/` | parser e geração de geometrias Gerber |
 | `flatcam-cam/.../excellon/` | parser e modelo Excellon |
 | `flatcam-cam/.../isolation/` | Isolation Routing |
 | `flatcam-cam/.../cutout/` | Board Cutout |
 | `flatcam-cam/.../ncc/` | Non-Copper Clearing (multi-tool + Rest Machining) |
-| `flatcam-cam/.../geometry/ToolGeometry.java` | par diâmetro+geometria de uma ferramenta dentro de um objeto Geometry multi-tool ("multigeo") |
+| `flatcam-cam/.../geometry/` | modelo por ferramenta e sessão de seleção/exclusão do Editor Geometry |
 | `flatcam-cam/.../transform/` | motor de Transformations (Rotate/Scale/Skew/Mirror/Offset) - `TransformOp` (sealed) e `TransformReference` |
 | `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code |
 | `flatcam-fx/.../MainWindow.java` | integração principal da UI; atualmente grande demais |
@@ -1035,10 +1054,12 @@ avançadas numéricas ainda não reproduzem todos os gestos do Python.
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O
-Editor de G-Code agora abre arquivos diretamente, edita o texto do CNC Job, aplica em background com
+Editor de Geometry tem seleção/exclusão visual, undo/redo, Aplicar/Cancelar e
+salvamento no projeto, com índice espacial e destaque isolado para evitar
+repintura integral ao clicar. Editor de G-Code agora abre arquivos diretamente, edita o texto do CNC Job, aplica em background com
 progresso/cancelamento e salva o rascunho como arquivo. O projeto embute esse
 texto para que a edição sobreviva à reabertura; a prévia G0-G3 em XY é reconstruída
 sem reutilizar um plot antigo após mudança. O próximo trabalho recomendado é
 validar manualmente os dois editores com arquivos reais e conferir Gerber
-exportado em um visualizador independente. Persistência de Geometry, plot CNC
-com largura de ferramenta e lacunas de NCC seguem no roadmap.
+exportado em um visualizador independente. Ferramentas avançadas do Editor
+Geometry, plot CNC com largura de ferramenta e lacunas de NCC seguem no roadmap.

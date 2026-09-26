@@ -14,12 +14,16 @@ import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberParser;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.tukaani.xz.LZMA2Options;
 import org.tukaani.xz.XZInputStream;
 import org.tukaani.xz.XZOutputStream;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKTReader;
+import org.locationtech.jts.io.WKTWriter;
 
 /**
  * Reads/writes {@link ProjectFile} in the same shape as the legacy app's own
@@ -28,7 +32,7 @@ import org.tukaani.xz.XZOutputStream;
  * (see org.flatcam.app.project.flatprj), optionally XZ-compressed - matching
  * {@code app_Main.py}'s save_project/open_project exactly (lzma preset 3,
  * auto-detect plain-vs-compressed on load by trying plain JSON first). CNC
- * Job entries are carried in a {@code "_java"} extension key a real FlatCAM
+ * Job and Geometry entries are carried in a {@code "_java"} extension key a real FlatCAM
  * Python install would simply ignore (unknown top-level keys are never
  * consulted by its loader) - see {@link ProjectFile}'s own doc for what's
  * intentionally not part of the Python-compatible {@code objs} list yet.
@@ -82,6 +86,31 @@ public final class ProjectFileIO {
         }
         JSONObject javaExtra = new JSONObject();
         javaExtra.put("cncJobs", jobs);
+        JSONArray geometries = new JSONArray();
+        WKTWriter wktWriter = new WKTWriter();
+        for (ProjectFile.GeometryEntry entry : project.geometries()) {
+            JSONObject geometryJson = new JSONObject();
+            geometryJson.put("name", entry.name());
+            geometryJson.put("sourceName", entry.sourceName());
+            geometryJson.put("units", entry.units());
+            geometryJson.put("wkt", wktWriter.write(entry.geometry()));
+            geometryJson.put("strokeOnly", entry.strokeOnly());
+            geometryJson.put("visible", entry.visible());
+            if (entry.fillColorWeb() != null) {
+                geometryJson.put("fillColor", entry.fillColorWeb());
+            }
+            if (entry.strokeColorWeb() != null) {
+                geometryJson.put("strokeColor", entry.strokeColorWeb());
+            }
+            JSONArray tools = new JSONArray();
+            for (ToolGeometry tool : entry.tools()) {
+                tools.put(new JSONObject().put("diameter", tool.toolDiameter())
+                        .put("wkt", wktWriter.write(tool.geometry())));
+            }
+            geometryJson.put("tools", tools);
+            geometries.put(geometryJson);
+        }
+        javaExtra.put("geometries", geometries);
         root.put("_java", javaExtra);
 
         byte[] jsonBytes = root.toString(2).getBytes(StandardCharsets.UTF_8);
@@ -146,7 +175,38 @@ public final class ProjectFileIO {
             }
         }
 
-        return new ProjectFile(gerbers, excellons, readJavaCncJobs(root));
+        return new ProjectFile(gerbers, excellons, readJavaGeometries(root), readJavaCncJobs(root));
+    }
+
+    private static List<ProjectFile.GeometryEntry> readJavaGeometries(JSONObject root) throws IOException {
+        List<ProjectFile.GeometryEntry> result = new ArrayList<>();
+        JSONObject javaExtra = root.optJSONObject("_java");
+        JSONArray array = javaExtra == null ? null : javaExtra.optJSONArray("geometries");
+        if (array == null) {
+            return result;
+        }
+        WKTReader reader = new WKTReader();
+        try {
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject value = array.getJSONObject(i);
+                List<ToolGeometry> tools = new ArrayList<>();
+                JSONArray toolArray = value.optJSONArray("tools");
+                if (toolArray != null) {
+                    for (int j = 0; j < toolArray.length(); j++) {
+                        JSONObject tool = toolArray.getJSONObject(j);
+                        tools.add(new ToolGeometry(tool.getDouble("diameter"), reader.read(tool.getString("wkt"))));
+                    }
+                }
+                result.add(new ProjectFile.GeometryEntry(value.getString("name"),
+                        value.optString("sourceName", ""), value.optString("units", "MM"),
+                        reader.read(value.getString("wkt")), value.optBoolean("strokeOnly", false),
+                        List.copyOf(tools), value.optString("fillColor", null),
+                        value.optString("strokeColor", null), value.optBoolean("visible", true)));
+            }
+        } catch (ParseException | JSONException invalid) {
+            throw new IOException("Invalid embedded Geometry object", invalid);
+        }
+        return result;
     }
 
     private static List<ProjectFile.CncJobRecord> readJavaCncJobs(JSONObject root) {

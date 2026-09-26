@@ -177,6 +177,7 @@ final class MainWindow {
 
     /** Gerber/Excellon entries already carry their own fully-resolved geometry (ProjectFileIO), no re-parsing needed. */
     private record LoadedProject(List<ProjectFile.GerberEntry> gerbers, List<ProjectFile.ExcellonEntry> excellons,
+                                 List<ProjectFile.GeometryEntry> geometries,
                                  List<LoadedCncJob> cncJobs, List<String> warnings) {
     }
 
@@ -238,6 +239,41 @@ final class MainWindow {
                 public boolean generateEditedGerber(GerberEditSession.ApplyRequest request,
                         Consumer<GerberEditSession.ApplyResult> onSuccess, Runnable onFailure) {
                     return MainWindow.this.generateEditedGerber(request, onSuccess, onFailure);
+                }
+
+                @Override
+                public void log(String message) {
+                    appendConsole(message);
+                }
+            });
+
+    private final GeometryEditorController geometryEditor = new GeometryEditorController(plotAreaView,
+            new GeometryEditorController.Host() {
+                @Override
+                public void openToolPanel(String label, Node content) {
+                    MainWindow.this.openToolPanel(label, content);
+                }
+
+                @Override
+                public void closeToolPanel() {
+                    MainWindow.this.closeToolPanel();
+                }
+
+                @Override
+                public void setObjectVisible(TreeItem<String> item, boolean visible) {
+                    MainWindow.this.setObjectVisible(item, visible);
+                }
+
+                @Override
+                public void apply(TreeItem<String> item, Geometry geometry, List<ToolGeometry> tools) {
+                    GeometryEntry old = geometryByItem.get(item);
+                    if (old == null) {
+                        return;
+                    }
+                    geometryByItem.put(item, new GeometryEntry(old.sourceName(), old.units(), geometry,
+                            old.strokeOnly(), tools));
+                    plotAreaView.updateLayerGeometry(item, geometry);
+                    showProperties(item);
                 }
 
                 @Override
@@ -482,6 +518,10 @@ final class MainWindow {
             if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
                 event.consume();
+            } else if (geometryEditor.isActive() && event.getCode() == KeyCode.DELETE
+                    && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && plotAreaView.isFocused() && geometryEditor.deleteFromShortcut()) {
+                event.consume();
             } else if (plotAreaView.isTrackPlacementActive() && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
                     && !isTextInputTarget(event.getTarget())) {
@@ -510,9 +550,11 @@ final class MainWindow {
                     && !isTextInputTarget(event.getTarget())) {
                 boolean handled = false;
                 if (event.getCode() == KeyCode.Z) {
-                    handled = plotAreaView.isEditorActive() ? gerberEditor.undoFromShortcut() : undoPlotMove();
+                    handled = geometryEditor.isActive() ? geometryEditor.undoFromShortcut()
+                            : plotAreaView.isEditorActive() ? gerberEditor.undoFromShortcut() : undoPlotMove();
                 } else if (event.getCode() == KeyCode.Y) {
-                    handled = plotAreaView.isEditorActive() ? gerberEditor.redoFromShortcut() : redoPlotMove();
+                    handled = geometryEditor.isActive() ? geometryEditor.redoFromShortcut()
+                            : plotAreaView.isEditorActive() ? gerberEditor.redoFromShortcut() : redoPlotMove();
                 }
                 if (handled) {
                     event.consume();
@@ -723,8 +765,8 @@ final class MainWindow {
     }
 
     private void editSelectedGerber() {
-        if (gcodeEditor.isActive()) {
-            appendConsole("Conclua ou cancele a edicao de G-code antes de abrir outro editor.");
+        if (gcodeEditor.isActive() || geometryEditor.isActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de abrir outro editor.");
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
@@ -740,14 +782,30 @@ final class MainWindow {
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         if (cncJobByItem.containsKey(item)) {
             editSelectedGCode();
+        } else if (geometryByItem.containsKey(item)) {
+            editSelectedGeometry();
         } else {
             editSelectedGerber();
         }
     }
 
+    private void editSelectedGeometry() {
+        if (gerberEditor.isActive() || gcodeEditor.isActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor Geometry.");
+            return;
+        }
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        GeometryEntry entry = geometryByItem.get(item);
+        if (entry == null) {
+            appendConsole("Selecione um objeto Geometry para editar.");
+            return;
+        }
+        geometryEditor.start(item, entry.geometry(), entry.tools(), entry.strokeOnly());
+    }
+
     private void editSelectedGCode() {
-        if (gerberEditor.isActive()) {
-            appendConsole("Conclua ou cancele a edicao Gerber antes de abrir o Editor G-Code.");
+        if (gerberEditor.isActive() || geometryEditor.isActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor G-Code.");
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
@@ -762,6 +820,8 @@ final class MainWindow {
     private void saveAndCloseEditor() {
         if (gcodeEditor.isActive()) {
             gcodeEditor.saveAndClose();
+        } else if (geometryEditor.isActive()) {
+            geometryEditor.apply();
         } else if (gerberEditor.isActive()) {
             gerberEditor.saveAndClose();
         } else {
@@ -841,6 +901,19 @@ final class MainWindow {
         }
     }
 
+    private void addGeometryEditorCommands(Menu menu) {
+        for (LegacyUiManifest.Command command : LegacyUiManifest.GEOMETRY_EDITOR) {
+            if ("select".equals(command.id())) {
+                menu.getItems().add(chromeItem(command.label(), command.icon(), this::editSelectedGeometry));
+            } else if ("delete".equals(command.id())) {
+                menu.getItems().add(chromeItem(command.label(), command.icon(),
+                        geometryEditor::deleteFromShortcut));
+            } else {
+                menu.getItems().add(plannedItem(command.label(), command.icon()));
+            }
+        }
+    }
+
     private MenuBar buildMenuBar() {
         Menu fileMenu = new Menu("Arquivo");
         Menu newMenu = new Menu("Novo");
@@ -906,7 +979,7 @@ final class MainWindow {
         addPlannedCommands(excellonEditorMenu, LegacyUiManifest.EXCELLON_EDITOR);
         Menu geometryEditorMenu = new Menu("Editor Geometry");
         setLegacyMenuIcon(geometryEditorMenu, "geometry32.png");
-        addPlannedCommands(geometryEditorMenu, LegacyUiManifest.GEOMETRY_EDITOR);
+        addGeometryEditorCommands(geometryEditorMenu);
         editorToolsMenu.getItems().addAll(excellonEditorMenu, geometryEditorMenu);
         editMenu.getItems().addAll(
                 chromeItem("Editar Objeto", "edit_file32.png", this::editSelectedObject),
@@ -2293,6 +2366,13 @@ final class MainWindow {
         setLegacyMenuIcon(cncItem, "cnc32.png");
         cncItem.setOnAction(e -> generateGeometryCncJob(item, entry));
 
+        MenuItem editItem = new MenuItem("Editar Geometry");
+        setLegacyMenuIcon(editItem, "edit_file32.png");
+        editItem.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedGeometry();
+        });
+
         MenuItem viewItem = new MenuItem("Ver WKT");
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
@@ -2312,7 +2392,7 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), cncItem, viewItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), cncItem, editItem, viewItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -3101,8 +3181,13 @@ final class MainWindow {
             appendConsole("Aplique ou cancele a edicao de G-code antes de remover este CNC Job.");
             return;
         }
+        if (geometryEditor.isEditing(item) && geometryEditor.hasUnappliedChanges()) {
+            appendConsole("Aplique ou cancele a edicao de Geometry antes de remover este objeto.");
+            return;
+        }
         plotMoveHistory.clear();
         gerberEditor.cancelIfEditing(item);
+        geometryEditor.cancelIfEditing(item);
         gcodeEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
@@ -3382,6 +3467,14 @@ final class MainWindow {
         cncButton.setMaxWidth(Double.MAX_VALUE);
         cncButton.setOnAction(e -> generateGeometryCncJob(item, entry));
         box.getChildren().add(cncButton);
+
+        Button editButton = new Button("Editar Geometry");
+        editButton.setMaxWidth(Double.MAX_VALUE);
+        editButton.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedGeometry();
+        });
+        box.getChildren().add(editButton);
 
         box.getChildren().add(new Label("Transformations:"));
         box.getChildren().add(transformationsSection(item));
@@ -3866,7 +3959,7 @@ final class MainWindow {
     /**
      * Writes every Gerber/Excellon's own resolved geometry (WKT-embedded,
      * matching the legacy app's .FlatPrj shape - see ProjectFileIO's doc)
-     * plus each CNC Job's current G-code text. Unlike a path, embedded
+     * plus each Geometry object's WKT/per-tool paths and each CNC Job's current G-code text. Unlike a path, embedded
      * geometry survives a save/reload even after an in-memory edit
      * (Transformations) or if the original source file is later moved or
      * deleted.
@@ -3876,8 +3969,8 @@ final class MainWindow {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-        if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()) {
-            appendConsole("Aplique ou cancele as alteracoes do editor antes de salvar o projeto.");
+        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()) {
+            appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
             return;
         }
         List<ProjectFile.GerberEntry> gerbers = new ArrayList<>();
@@ -3903,7 +3996,17 @@ final class MainWindow {
                         entry.getValue().sourceName(), entry.getValue().outputFile().toString(),
                         entry.getValue().gcode()))
                 .toList();
-        ProjectFile project = new ProjectFile(gerbers, excellons, jobs);
+        List<ProjectFile.GeometryEntry> geometries = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
+            TreeItem<String> item = entry.getKey();
+            GeometryEntry geometry = entry.getValue();
+            Color[] colors = plotAreaView.layerColors(item);
+            geometries.add(new ProjectFile.GeometryEntry(item.getValue(), geometry.sourceName(),
+                    geometry.units(), geometry.geometry(), geometry.strokeOnly(), geometry.tools(),
+                    colors != null ? colors[0].toString() : null,
+                    colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item)));
+        }
+        ProjectFile project = new ProjectFile(gerbers, excellons, geometries, jobs);
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
@@ -3958,7 +4061,8 @@ final class MainWindow {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-        if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()) {
+        if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()
+                || geometryEditor.hasUnappliedChanges()) {
             appendConsole("Aplique ou cancele as alteracoes do editor antes de abrir outro projeto.");
             return;
         }
@@ -4023,7 +4127,8 @@ final class MainWindow {
 
             cancellation.throwIfCancellationRequested();
             context.reportProgress(1, "Projeto carregado.");
-            return new LoadedProject(project.gerbers(), project.excellons(), List.copyOf(cncJobs), List.copyOf(warnings));
+            return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
+                    List.copyOf(cncJobs), List.copyOf(warnings));
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -4042,6 +4147,18 @@ final class MainWindow {
                         TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image());
                         applyRestoredExcellonState(item, loaded);
                         setDisplayUnits(loaded.image().units());
+                    }
+                    for (ProjectFile.GeometryEntry loaded : project.geometries()) {
+                        TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
+                                loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools());
+                        if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
+                            plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
+                                    Color.web(loaded.strokeColorWeb()));
+                        }
+                        if (!loaded.visible()) {
+                            setObjectVisible(item, false);
+                        }
+                        setDisplayUnits(loaded.units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
                         addCncJobToProject(loaded.name(), loaded.sourceName(),
@@ -4100,6 +4217,7 @@ final class MainWindow {
         plotAreaView.cancelPlacement();
         plotMoveHistory.clear();
         gerberEditor.cancel();
+        geometryEditor.cancel();
         gcodeEditor.cancel();
         gerbersNode.getChildren().clear();
         excellonNode.getChildren().clear();

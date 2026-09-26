@@ -120,6 +120,7 @@ final class PlotAreaView extends StackPane {
     private static final Color TOUCHING_BOX_FILL = Color.web("#BBF268BF");
     private static final Color TOUCHING_BOX_LINE = Color.web("#006E20BF");
     private static final Color SELECTED_OBJECT_LINE = Color.web("#ffb000");
+    private static final Color EDITOR_HIGHLIGHT_COLOR = Color.web("#0000FFFF");
     private static final Color PLACEMENT_FILL = Color.web("#00bfff", 0.30);
     private static final Color PLACEMENT_STROKE = Color.web("#00bfff", 0.95);
 
@@ -151,11 +152,14 @@ final class PlotAreaView extends StackPane {
             Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
 
     private final Canvas canvas = new Canvas();
+    private final Canvas editorHighlightCanvas = new Canvas();
     private final Canvas snapCursorCanvas = new Canvas();
     private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
     private PlotPalette palette = CUSTOM_LIGHT_PALETTE;
+    private Geometry editorHighlightGeometry;
+    private boolean editorHighlightStrokeOnly;
 
     private double scale = 3.0;
     private double viewCenterX = 50;
@@ -206,7 +210,10 @@ final class PlotAreaView extends StackPane {
     private TrackBendMode placementTrackMode = TrackBendMode.FORTY_FIVE;
 
     PlotAreaView() {
+        setFocusTraversable(true);
         getChildren().add(canvas);
+        editorHighlightCanvas.setMouseTransparent(true);
+        getChildren().add(editorHighlightCanvas);
         snapCursorCanvas.setMouseTransparent(true);
         getChildren().add(snapCursorCanvas);
         StackPane.setAlignment(coordLabel, Pos.BOTTOM_LEFT);
@@ -216,10 +223,14 @@ final class PlotAreaView extends StackPane {
 
         canvas.widthProperty().bind(widthProperty());
         canvas.heightProperty().bind(heightProperty());
+        editorHighlightCanvas.widthProperty().bind(widthProperty());
+        editorHighlightCanvas.heightProperty().bind(heightProperty());
         snapCursorCanvas.widthProperty().bind(widthProperty());
         snapCursorCanvas.heightProperty().bind(heightProperty());
         widthProperty().addListener((obs, oldVal, newVal) -> redraw());
         heightProperty().addListener((obs, oldVal, newVal) -> redraw());
+        editorHighlightCanvas.widthProperty().addListener((obs, oldVal, newVal) -> drawEditorHighlight());
+        editorHighlightCanvas.heightProperty().addListener((obs, oldVal, newVal) -> drawEditorHighlight());
         snapCursorCanvas.widthProperty().addListener((obs, oldVal, newVal) -> drawSnapCursor());
         snapCursorCanvas.heightProperty().addListener((obs, oldVal, newVal) -> drawSnapCursor());
 
@@ -278,6 +289,13 @@ final class PlotAreaView extends StackPane {
                     layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
         }
+    }
+
+    /** Small editor selections redraw on their own canvas, without repainting every project layer. */
+    void setEditorHighlight(Geometry geometry, boolean strokeOnly) {
+        editorHighlightGeometry = geometry;
+        editorHighlightStrokeOnly = strokeOnly;
+        drawEditorHighlight();
     }
 
     void removeLayer(Object key) {
@@ -353,6 +371,7 @@ final class PlotAreaView extends StackPane {
     void clearLayers() {
         cancelPlacement();
         layers.clear();
+        editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
     }
@@ -710,6 +729,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void handlePress(MouseEvent event) {
+        requestFocus();
         lastDragScreenX = event.getX();
         lastDragScreenY = event.getY();
         if (event.getButton() == MouseButton.SECONDARY) {
@@ -816,7 +836,7 @@ final class PlotAreaView extends StackPane {
         } else {
             activeSelectionHandler().onClick(press[0], press[1], additive);
         }
-        redraw();
+        drawEditorHighlight();
     }
 
     private void handleDrag(MouseEvent event) {
@@ -832,7 +852,7 @@ final class PlotAreaView extends StackPane {
                     || Math.abs(event.getY() - selectionPressScreenY) > CLICK_DRAG_THRESHOLD_PX) {
                 selectionDragged = true;
             }
-            redraw();
+            drawEditorHighlight();
             updateCoordLabel(event.getX(), event.getY());
             return;
         }
@@ -1008,9 +1028,29 @@ final class PlotAreaView extends StackPane {
         }
         drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
-        drawSelectionBox(gc);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
+        drawEditorHighlight();
         drawSnapCursor();
+    }
+
+    private void drawEditorHighlight() {
+        double width = editorHighlightCanvas.getWidth();
+        double height = editorHighlightCanvas.getHeight();
+        GraphicsContext gc = editorHighlightCanvas.getGraphicsContext2D();
+        gc.clearRect(0, 0, width, height);
+        if (editorHighlightGeometry != null && !editorHighlightGeometry.isEmpty()) {
+            double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
+            double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+            gc.save();
+            gc.beginPath();
+            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.clip();
+            drawLayer(gc, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
+                    EDITOR_HIGHLIGHT_COLOR, EDITOR_HIGHLIGHT_COLOR, true, LayerCategory.OVERLAY, true, false),
+                    contentWidth, contentHeight);
+            gc.restore();
+        }
+        drawSelectionBox(gc);
     }
 
     private void drawPlacementPreview(GraphicsContext gc, double contentWidth, double contentHeight) {
