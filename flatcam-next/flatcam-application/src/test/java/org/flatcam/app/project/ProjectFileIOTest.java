@@ -166,11 +166,15 @@ class ProjectFileIOTest {
     }
 
     @Test
-    void roundTripsAnEditedStraightTrackAndItsCenterline() throws IOException {
+    void roundTripsAnEditedPolylineTrackAndItsCenterline() throws IOException {
         GerberImage source = new GerberParser().parse(List.of(
                 "%FSLAX24Y24*%", "%MOMM*%", "%ADD10C,1*%", "D10*", "X0Y0D03*", "M02*"));
         GerberEditSession editor = new GerberEditSession("board", source);
-        assertTrue(editor.addTrack("10", 4, 5, 9, 5));
+        assertTrue(editor.addTrack("10", List.of(
+                new org.locationtech.jts.geom.Coordinate(4, 5),
+                new org.locationtech.jts.geom.Coordinate(7, 5),
+                new org.locationtech.jts.geom.Coordinate(7, 8),
+                new org.locationtech.jts.geom.Coordinate(9, 8))));
         GerberImage edited = editor.apply().image();
         Path file = tempDir.resolve("track-edit.fcnproj");
 
@@ -181,9 +185,11 @@ class ProjectFileIOTest {
         assertEquals(2, reopened.shapes().size());
         GerberShape track = reopened.shapes().get(1);
         assertEquals("10", track.apertureCode());
-        assertEquals(2, track.followGeometry().getNumPoints());
+        assertEquals(4, track.followGeometry().getNumPoints());
         assertEquals(4, track.followGeometry().getCoordinates()[0].x, 1e-9);
-        assertEquals(9, track.followGeometry().getCoordinates()[1].x, 1e-9);
+        assertEquals(7, track.followGeometry().getCoordinates()[1].x, 1e-9);
+        assertEquals(8, track.followGeometry().getCoordinates()[2].y, 1e-9);
+        assertEquals(9, track.followGeometry().getCoordinates()[3].x, 1e-9);
         assertTrue(edited.solidGeometry().equalsExact(reopened.solidGeometry(), 1e-9));
         assertFalse(new GerberEditSession("board_edit", reopened).shapesApproximated());
     }

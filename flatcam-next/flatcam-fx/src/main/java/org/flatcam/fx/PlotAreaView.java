@@ -17,6 +17,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.FillRule;
 import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.text.TextAlignment;
+import org.flatcam.cam.gerber.edit.TrackBendMode;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -96,6 +97,15 @@ final class PlotAreaView extends StackPane {
         }
 
         void onCommit(double dx, double dy);
+
+        void onCancel();
+    }
+
+    interface TrackPlacementHandler {
+        default void onPathChanged(int anchorCount, TrackBendMode mode) {
+        }
+
+        void onCommit(List<Coordinate> points);
 
         void onCancel();
     }
@@ -189,6 +199,10 @@ final class PlotAreaView extends StackPane {
     private boolean placementPrimaryPressed;
     private boolean placementAnchorChosen;
     private double placementTrackWidth;
+    private TrackPlacementHandler trackPlacementHandler;
+    private List<Coordinate> placementTrackPoints = new ArrayList<>();
+    private List<Integer> placementTrackUndoSizes = new ArrayList<>();
+    private TrackBendMode placementTrackMode = TrackBendMode.FORTY_FIVE;
 
     PlotAreaView() {
         getChildren().add(canvas);
@@ -353,7 +367,11 @@ final class PlotAreaView extends StackPane {
         gridSnapEnabled = enabled;
         gridStepX = stepX;
         gridStepY = stepY;
-        drawSnapCursor();
+        if (trackPlacementHandler != null) {
+            redraw();
+        } else {
+            drawSnapCursor();
+        }
     }
 
     void setAxisVisible(boolean visible) {
@@ -534,16 +552,32 @@ final class PlotAreaView extends StackPane {
         return startPlacement(List.of(), List.of(preview), 0, 0, true, handler);
     }
 
-    /** A two-click straight track; the preview grows from the first snapped point to the cursor. */
-    boolean beginEditorTrackPlacement(double apertureDiameter, PlacementHandler handler) {
+    /** A multi-point track using the five bend modes from the legacy Gerber editor. */
+    boolean beginEditorTrackPlacement(double apertureDiameter, TrackPlacementHandler handler) {
         if (selectionHandler == null || !Double.isFinite(apertureDiameter)
                 || apertureDiameter <= 0 || handler == null) {
             return false;
         }
-        if (!startPlacement(List.of(), List.of(), 0, 0, false, handler)) {
+        PlacementHandler placementAdapter = new PlacementHandler() {
+            @Override
+            public void onCommit(double dx, double dy) {
+                // Track placement commits through finishEditorTrackPlacement().
+            }
+
+            @Override
+            public void onCancel() {
+                handler.onCancel();
+            }
+        };
+        if (!startPlacement(List.of(), List.of(), 0, 0, false, placementAdapter)) {
             return false;
         }
         placementTrackWidth = apertureDiameter;
+        trackPlacementHandler = handler;
+        placementTrackPoints = new ArrayList<>();
+        placementTrackUndoSizes = new ArrayList<>();
+        placementTrackMode = TrackBendMode.FORTY_FIVE;
+        handler.onPathChanged(0, placementTrackMode);
         return true;
     }
 
@@ -571,6 +605,50 @@ final class PlotAreaView extends StackPane {
         return placementHandler != null;
     }
 
+    boolean isTrackPlacementActive() {
+        return trackPlacementHandler != null;
+    }
+
+    boolean finishEditorTrackPlacement() {
+        if (trackPlacementHandler == null || placementTrackPoints.size() < 2) {
+            return false;
+        }
+        TrackPlacementHandler handler = trackPlacementHandler;
+        List<Coordinate> points = placementTrackPoints.stream().map(Coordinate::new).toList();
+        clearPlacement();
+        handler.onCommit(points);
+        return true;
+    }
+
+    boolean backtrackEditorTrackPlacement() {
+        if (trackPlacementHandler == null || placementTrackPoints.isEmpty()) {
+            return false;
+        }
+        if (placementTrackUndoSizes.isEmpty()) {
+            placementTrackPoints.clear();
+            placementAnchorChosen = false;
+        } else {
+            int previousSize = placementTrackUndoSizes.remove(placementTrackUndoSizes.size() - 1);
+            placementTrackPoints.subList(previousSize, placementTrackPoints.size()).clear();
+            Coordinate last = placementTrackPoints.get(placementTrackPoints.size() - 1);
+            placementAnchorWorldX = last.x;
+            placementAnchorWorldY = last.y;
+        }
+        notifyTrackPathChanged();
+        redraw();
+        return true;
+    }
+
+    boolean cycleEditorTrackBendMode(boolean reverse) {
+        if (trackPlacementHandler == null) {
+            return false;
+        }
+        placementTrackMode = reverse ? placementTrackMode.previous() : placementTrackMode.next();
+        notifyTrackPathChanged();
+        redraw();
+        return true;
+    }
+
     boolean isEditorActive() {
         return selectionHandler != null;
     }
@@ -591,6 +669,10 @@ final class PlotAreaView extends StackPane {
         placementPrimaryPressed = false;
         placementAnchorChosen = false;
         placementTrackWidth = 0;
+        trackPlacementHandler = null;
+        placementTrackPoints = new ArrayList<>();
+        placementTrackUndoSizes = new ArrayList<>();
+        placementTrackMode = TrackBendMode.FORTY_FIVE;
         setCursor(Cursor.DEFAULT);
         redraw();
     }
@@ -648,7 +730,16 @@ final class PlotAreaView extends StackPane {
     private void handleRelease(MouseEvent event) {
         if (event.getButton() == MouseButton.SECONDARY) {
             if (rightPressed && !rightDragged && placementHandler != null) {
-                cancelPlacement();
+                if (trackPlacementHandler != null && !placementTrackPoints.isEmpty()
+                        && insidePlot(event.getX(), event.getY())) {
+                    double[] world = snappedWorld(event.getX(), event.getY());
+                    appendTrackSegment(new Coordinate(world[0], world[1]));
+                    if (!finishEditorTrackPlacement()) {
+                        cancelPlacement();
+                    }
+                } else {
+                    cancelPlacement();
+                }
                 event.consume();
             } else if (rightPressed && !rightDragged && selectionHandler == null
                     && contextRequestHandler != null && insidePlot(event.getX(), event.getY())) {
@@ -662,7 +753,24 @@ final class PlotAreaView extends StackPane {
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
                 double[] world = snappedWorld(event.getX(), event.getY());
-                if (!placementAnchorChosen) {
+                if (trackPlacementHandler != null) {
+                    if (!placementAnchorChosen) {
+                        Coordinate first = new Coordinate(world[0], world[1]);
+                        placementTrackPoints.add(first);
+                        placementAnchorWorldX = first.x;
+                        placementAnchorWorldY = first.y;
+                        placementCurrentWorldX = first.x;
+                        placementCurrentWorldY = first.y;
+                        placementAnchorChosen = true;
+                        notifyTrackPathChanged();
+                    } else {
+                        appendTrackSegment(new Coordinate(world[0], world[1]));
+                        if (event.getClickCount() == 2) {
+                            finishEditorTrackPlacement();
+                        }
+                    }
+                    redraw();
+                } else if (!placementAnchorChosen) {
                     placementAnchorWorldX = world[0];
                     placementAnchorWorldY = world[1];
                     placementCurrentWorldX = world[0];
@@ -749,6 +857,39 @@ final class PlotAreaView extends StackPane {
             placementCurrentWorldY = world[1];
             redraw();
         }
+    }
+
+    private boolean appendTrackSegment(Coordinate end) {
+        if (trackPlacementHandler == null || placementTrackPoints.isEmpty()) {
+            return false;
+        }
+        Coordinate start = placementTrackPoints.get(placementTrackPoints.size() - 1);
+        List<Coordinate> routed = effectiveTrackBendMode().route(start, end);
+        if (routed.size() < 2) {
+            return false;
+        }
+        placementTrackUndoSizes.add(placementTrackPoints.size());
+        for (int i = 1; i < routed.size(); i++) {
+            placementTrackPoints.add(new Coordinate(routed.get(i)));
+        }
+        placementAnchorWorldX = end.x;
+        placementAnchorWorldY = end.y;
+        placementCurrentWorldX = end.x;
+        placementCurrentWorldY = end.y;
+        notifyTrackPathChanged();
+        return true;
+    }
+
+    private void notifyTrackPathChanged() {
+        if (trackPlacementHandler != null) {
+            int anchorCount = placementTrackPoints.isEmpty() ? 0 : placementTrackUndoSizes.size() + 1;
+            trackPlacementHandler.onPathChanged(anchorCount, placementTrackMode);
+        }
+    }
+
+    private TrackBendMode effectiveTrackBendMode() {
+        // AppGerberEditor.py applies bend modes only while grid snap is enabled.
+        return gridSnapEnabled ? placementTrackMode : TrackBendMode.FREE;
     }
 
     private SelectionHandler activeSelectionHandler() {
@@ -869,16 +1010,25 @@ final class PlotAreaView extends StackPane {
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
-        if (placementTrackWidth > 0) {
-            double[] start = worldToScreen(placementAnchorWorldX, placementAnchorWorldY,
-                    contentWidth, contentHeight);
-            double[] end = worldToScreen(placementCurrentWorldX, placementCurrentWorldY,
-                    contentWidth, contentHeight);
+        if (placementTrackWidth > 0 && !placementTrackPoints.isEmpty()) {
+            List<Coordinate> previewPoints = new ArrayList<>(placementTrackPoints);
+            List<Coordinate> pending = effectiveTrackBendMode().route(
+                    placementTrackPoints.get(placementTrackPoints.size() - 1),
+                    new Coordinate(placementCurrentWorldX, placementCurrentWorldY));
+            for (int i = 1; i < pending.size(); i++) {
+                previewPoints.add(pending.get(i));
+            }
             gc.setStroke(PLACEMENT_STROKE);
             gc.setLineCap(StrokeLineCap.ROUND);
             gc.setLineWidth(Math.max(1.5, placementTrackWidth * scale));
-            gc.strokeLine(start[0] + RULER_LEFT_WIDTH, start[1] + RULER_TOP_HEIGHT,
-                    end[0] + RULER_LEFT_WIDTH, end[1] + RULER_TOP_HEIGHT);
+            for (int i = 1; i < previewPoints.size(); i++) {
+                double[] start = worldToScreen(previewPoints.get(i - 1).x, previewPoints.get(i - 1).y,
+                        contentWidth, contentHeight);
+                double[] end = worldToScreen(previewPoints.get(i).x, previewPoints.get(i).y,
+                        contentWidth, contentHeight);
+                gc.strokeLine(start[0] + RULER_LEFT_WIDTH, start[1] + RULER_TOP_HEIGHT,
+                        end[0] + RULER_LEFT_WIDTH, end[1] + RULER_TOP_HEIGHT);
+            }
             gc.restore();
             return;
         }

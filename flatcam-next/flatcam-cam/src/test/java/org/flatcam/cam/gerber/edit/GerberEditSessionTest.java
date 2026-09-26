@@ -263,11 +263,38 @@ class GerberEditSessionTest {
     }
 
     @Test
+    void polylineTrackIsOneEditableShapeAndOneHistoryStep() {
+        GerberEditSession session = session();
+        int originalCount = session.shapes().size();
+
+        assertTrue(session.addTrack("11", List.of(
+                new Coordinate(10, 10), new Coordinate(12, 10),
+                new Coordinate(12, 12), new Coordinate(15, 12))));
+
+        GerberShape track = session.shapes().get(originalCount);
+        assertEquals(4, track.followGeometry().getNumPoints());
+        assertEquals(7.0, track.followGeometry().getLength(), 1e-9);
+        assertTrue(track.geometry().covers(point(12, 11)));
+        assertEquals(Set.of(originalCount), session.selectedIndices());
+
+        assertTrue(session.undo());
+        assertEquals(originalCount, session.shapes().size());
+        assertFalse(session.canUndo());
+        assertTrue(session.redo());
+        assertEquals(4, session.shapes().get(originalCount).followGeometry().getNumPoints());
+    }
+
+    @Test
     void straightTrackRejectsInvalidApertureAndCoordinatesWithoutHistory() {
         GerberEditSession session = session();
         assertFalse(session.addTrack("11", 1, 1, 1, 1));
         assertThrows(IllegalArgumentException.class, () -> session.addTrack("99", 1, 1, 2, 2));
         assertThrows(IllegalArgumentException.class, () -> session.addTrack("11", Double.NaN, 1, 2, 2));
+        assertThrows(IllegalArgumentException.class, () -> session.addTrack("11", (List<Coordinate>) null));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addTrack("11", List.of(new Coordinate(1, 1), new Coordinate(Double.NaN, 2))));
+        assertFalse(session.addTrack("11", List.of(
+                new Coordinate(1, 1), new Coordinate(1, 1), new Coordinate(1, 1))));
         assertFalse(session.isDirty());
         assertFalse(session.canUndo());
 

@@ -318,6 +318,23 @@ final class MainWindow {
             if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
                 event.consume();
+            } else if (plotAreaView.isTrackPlacementActive() && !event.isControlDown()
+                    && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
+                    && !isTextInputTarget(event.getTarget())) {
+                boolean handled = switch (event.getCode()) {
+                    case ENTER -> plotAreaView.finishEditorTrackPlacement();
+                    case BACK_SPACE -> plotAreaView.backtrackEditorTrackPlacement();
+                    case T -> plotAreaView.cycleEditorTrackBendMode(false);
+                    case R -> plotAreaView.cycleEditorTrackBendMode(true);
+                    case G -> {
+                        statusControls.toggleGrid();
+                        yield true;
+                    }
+                    default -> false;
+                };
+                if (handled) {
+                    event.consume();
+                }
             } else if (event.getCode() == KeyCode.G && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
                     && !isTextInputTarget(event.getTarget())) {

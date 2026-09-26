@@ -70,9 +70,9 @@ separação.
 
 ### Verificação mais recente
 
-Após as primeiras operações do Gerber Editor e o round-trip das formas
-individuais, `clean install` passa com **138 testes executados**, sem falhas,
-erros ou testes ignorados (127 antes deste incremento). `JobExecutorTest` registra
+Após as primeiras operações multiponto do Gerber Editor e o round-trip das
+formas individuais, `clean test` passa com **178 testes executados**, sem falhas,
+erros ou testes ignorados. `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
 
@@ -319,7 +319,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
-| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background, pads C/R/O e trilha reta com abertura C; o resultado pode ser salvo e reaberto; faltam trilhas poligonais/modos de curva, regiões, outros pads e edição/remoção de aberturas |
+| Editor Gerber | parcial | seleção, excluir/mover/copiar, undo/redo, Aplicar em background, pads C/R/O e trilhas multiponto com cinco modos de dobra usando abertura C; o resultado pode ser salvo e reaberto; faltam regiões, outros pads e edição/remoção de aberturas |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
 | CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
@@ -587,8 +587,8 @@ formas da fatia 7 foram implementadas juntas:
 - O painel mantém deslocamento numérico X/Y e agora os botões/ícones Mover e
   Copiar iniciam um posicionamento com dois cliques no canvas: origem e destino,
   com prévia entre eles. Esc ou clique direito curto cancela. Ctrl+Z/Y acionam o
-  histórico da sessão sem capturar atalhos dos campos de texto. Ainda faltam
-  ferramentas de desenho e tabela editável de aberturas.
+  histórico da sessão sem capturar atalhos dos campos de texto. Naquele
+  incremento ainda faltavam ferramentas de desenho e tabela editável de aberturas.
   Compatibilidade com um FlatCAM Python executável continua sem validação cruzada real.
 - Verificação automática: `test`, 137 testes, sem falhas; teste de
   inicialização chegou a `MainApp started`. Ainda executar manualmente o fluxo
@@ -609,6 +609,18 @@ essa reconstrução semântica é um passo posterior. Coordenadas usam seis casa
 decimais; regiões que colapsam nessa precisão são recusadas em vez de
 silenciosamente perdidas. Ainda validar visualmente o arquivo exportado no
 FlatCAM Python ou em visualizador Gerber independente.
+
+**Trilhas multiponto no Gerber Editor (2026-09-25).** A ferramenta Track não
+termina mais obrigatoriamente no segundo clique: cada clique adiciona um trecho
+e Enter, duplo clique ou botão direito curto conclui a trilha. Backspace volta
+um ponto; T/R percorre nos dois sentidos os cinco modos do legado (45 graus,
+45 invertido, 90 graus, 90 invertido e ângulo livre). Com grid snap desligado,
+o segmento é livre, como em `TrackEditorGrb.utility_geometry()` do Python. O
+preview mostra o caminho confirmado e o trecho até o cursor. A trilha completa
+é publicada como uma única `GerberShape`, com `LineString` em `follow` e cobre
+bufferizado pela abertura C; por isso todo o gesto é um único passo de
+undo/redo. `TrackBendModeTest` cobre os cinco roteamentos e
+`GerberEditSessionTest` cobre criação, seleção e histórico da polilinha.
 
 **Interação de objetos no Plot Area (2026-09-25).** Fora do Editor Gerber, clique
 esquerdo seleciona o objeto visível no topo (cliques repetidos alternam entre
@@ -839,7 +851,7 @@ Implementar por fatias verticais, não como um bloco único:
    `GerberEditSession.clickSelect/boxSelect`, `GerberEditorController`;
 3. command stack com undo/redo; ✅ concluída para operações em memória;
 4. mover, copiar e excluir; ✅ deslocamento X/Y e gesto de origem/destino no canvas;
-5. pads, tracks, regions e apertures; 🟡 pads C/R/O, criação das respectivas aberturas e trilha reta com abertura C concluídos, com prévia, snap, undo/redo e persistência; trilhas poligonais/modos de curva, regiões, pads P/AM e edição/remoção de aberturas pendentes;
+5. pads, tracks, regions e apertures; 🟡 pads C/R/O, criação das respectivas aberturas e trilhas multiponto com os cinco modos de dobra do legado concluídos, com prévia, snap, backtrack, undo/redo e persistência; regiões, pads P/AM e edição/remoção de aberturas pendentes;
 6. operações avançadas do editor legado;
 7. persistência e reabertura do resultado editado; ✅ concluída para projetos
    novos; projetos antigos só têm uniões por abertura e não podem recuperar
@@ -848,9 +860,8 @@ Implementar por fatias verticais, não como um bloco único:
 Depois disso, repetir a estratégia para o Editor Excellon e ampliar Geometry e
 CNC Job até a paridade necessária.
 
-Ordem acordada em 2026-09-25: concluir primeiro o desenho de trilhas (a fatia
-reta de dois cliques já existe; faltam polilinhas/modos de curva), depois
-regiões e edição/remoção de aberturas; na sequência, iniciar o Editor de
+Ordem acordada em 2026-09-25: desenho de trilhas multiponto/modos de dobra
+concluído; seguir por regiões e edição/remoção de aberturas; na sequência, iniciar o Editor de
 G-Code com carregamento e processamento assíncronos, progresso e cancelamento.
 
 ## 10. Regras de implementação para qualquer IA
@@ -992,15 +1003,15 @@ Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
 referência, Geometry -> CNC, G-code, e Transformations (Rotate/Skew/Scale/
 Flip/Offset) completas para os três tipos de objeto. O Gerber Editor já
 seleciona, exclui, move e copia formas, tem undo/redo, aplica um novo objeto e
-salva/reabre suas formas individuais em projetos novos. Também pode criar uma
-aberturas C/R/O com D-code livre, posicionar pads com prévia e desenhar uma
-trilha reta de dois cliques usando uma abertura C; essas operações participam
+salva/reabre suas formas individuais em projetos novos. Também pode criar
+aberturas C/R/O com D-code livre, posicionar pads com prévia e desenhar trilhas
+multiponto usando os cinco modos de dobra do legado e uma abertura C; essas
+operações participam
 do undo/redo e da persistência do projeto.
 "Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O
-próximo trabalho recomendado é validar manualmente o desenho da trilha e a
-exportação no Python; depois ampliar para trilhas poligonais, regiões e
-editar/remover aberturas existentes.
+próximo trabalho recomendado é validar manualmente o desenho multiponto e a
+exportação no Python; depois ampliar para regiões e editar/remover aberturas existentes.
 Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.

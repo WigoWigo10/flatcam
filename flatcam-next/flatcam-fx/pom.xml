@@ -15,9 +15,8 @@
 
     <name>FlatCAM FX - UI</name>
     <description>
-        JavaFX shell: window, menus, panels, theming. Fase 1 skeleton per
-        CONTEXTO_FLATCAM_FX.md - no real viewport yet (Fase 2), no real
-        Gerber/Excellon loading yet (Fase 3).
+        JavaFX application with project tree, 2D viewport, Gerber/Excellon
+        loading, CAM tool panels and the incremental Gerber editor.
     </description>
 
     <properties>

@@ -307,20 +307,36 @@ public final class GerberEditSession {
 
     /** Adds one straight D01 stroke with its centerline, using an existing circular aperture. */
     public boolean addTrack(String apertureCode, double x1, double y1, double x2, double y2) {
+        return addTrack(apertureCode, List.of(new Coordinate(x1, y1), new Coordinate(x2, y2)));
+    }
+
+    /**
+     * Adds one multi-segment D01 stroke as a single editable shape. Consecutive
+     * duplicate points are ignored, and the entire track is one undo step.
+     */
+    public boolean addTrack(String apertureCode, List<Coordinate> points) {
         requireExactShapes();
-        if (!Double.isFinite(x1) || !Double.isFinite(y1) || !Double.isFinite(x2) || !Double.isFinite(y2)) {
-            throw new IllegalArgumentException("Track coordinates must be finite");
-        }
         Aperture aperture = apertures.get(apertureCode);
         if (aperture == null || aperture.kind != ApertureKind.CIRCLE
                 || !Double.isFinite(aperture.width) || aperture.width <= 0) {
             throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
         }
-        if (x1 == x2 && y1 == y2) {
+        if (points == null) {
+            throw new IllegalArgumentException("Track points are required");
+        }
+        List<Coordinate> normalized = new ArrayList<>(points.size());
+        for (Coordinate point : points) {
+            if (point == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)) {
+                throw new IllegalArgumentException("Track coordinates must be finite");
+            }
+            if (normalized.isEmpty() || !normalized.get(normalized.size() - 1).equals2D(point)) {
+                normalized.add(new Coordinate(point));
+            }
+        }
+        if (normalized.size() < 2) {
             return false;
         }
-        LineString centerline = GEOMETRY_FACTORY.createLineString(new Coordinate[]{
-                new Coordinate(x1, y1), new Coordinate(x2, y2)});
+        LineString centerline = GEOMETRY_FACTORY.createLineString(normalized.toArray(Coordinate[]::new));
         GerberShape track = new GerberShape(apertureCode,
                 centerline.buffer(aperture.strokeRadius(), 16), false, centerline);
         List<GerberShape> updated = new ArrayList<>(shapes);

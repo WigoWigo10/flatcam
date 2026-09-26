@@ -12,6 +12,8 @@ import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
+import org.flatcam.cam.gerber.edit.TrackBendMode;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Polygon;
@@ -237,29 +239,26 @@ final class GerberEditorController {
             return;
         }
         GerberEditSession editing = session;
-        double[] start = new double[2];
-        boolean started = plotArea.beginEditorTrackPlacement(aperture.width, new PlotAreaView.PlacementHandler() {
+        boolean started = plotArea.beginEditorTrackPlacement(aperture.width, new PlotAreaView.TrackPlacementHandler() {
             @Override
-            public void onAnchorChosen(double worldX, double worldY) {
-                start[0] = worldX;
-                start[1] = worldY;
+            public void onPathChanged(int anchorCount, TrackBendMode mode) {
                 if (session == editing) {
-                    panel.setPlacementAnchorChosen();
+                    panel.showTrackProgress(anchorCount, mode);
                 }
             }
 
             @Override
-            public void onCommit(double dx, double dy) {
+            public void onCommit(List<Coordinate> points) {
                 if (session != editing) {
                     return;
                 }
                 panel.setTrackPlacing(false);
                 try {
-                    if (editing.addTrack(apertureCode, start[0], start[1], start[0] + dx, start[1] + dy)) {
+                    if (editing.addTrack(apertureCode, points)) {
                         panel.showError("");
                         refreshSelection();
                     } else {
-                        panel.showError("Escolha dois pontos diferentes para a trilha.");
+                        panel.showError("A trilha precisa de pelo menos dois pontos diferentes.");
                     }
                 } catch (RuntimeException exception) {
                     panel.showError(exception.getMessage());
@@ -275,9 +274,11 @@ final class GerberEditorController {
         });
         if (started) {
             panel.setTrackPlacing(true);
+            panel.showTrackProgress(0, TrackBendMode.FORTY_FIVE);
             panel.showError("");
-            host.log("Editor: trilha reta D" + apertureCode
-                    + " - clique no inicio e no fim; Esc ou botao direito cancela.");
+            host.log("Editor: trilha D" + apertureCode
+                    + " - clique para adicionar pontos; Enter/duplo clique/botao direito conclui; "
+                    + "Backspace volta; T/R muda o modo; Esc cancela.");
         }
     }
 

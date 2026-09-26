@@ -25,6 +25,7 @@ import javafx.scene.layout.VBox;
 import org.flatcam.cam.gerber.Aperture;
 import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberShape;
+import org.flatcam.cam.gerber.edit.TrackBendMode;
 
 /**
  * The Gerber Editor's sidebar panel (CONTEXTO_E_PROGRESSO.md section 9.4,
@@ -90,7 +91,7 @@ final class GerberEditToolPanel {
         Label help = new Label("Clique seleciona a forma sob o cursor; Ctrl+clique alterna. "
                 + "Arrastar para a direita seleciona as formas envolvidas; para a esquerda, as tocadas. "
                 + "Crie uma abertura C, R ou O (D-code automatico) ou selecione uma existente na tabela, "
-                + "depois use Adicionar Pad. Para uma trilha reta, selecione uma abertura C e clique no inicio e no fim. "
+                + "depois use Adicionar Pad. Para uma trilha, selecione uma abertura C e clique nos pontos do caminho. "
                 + "Pan: botao direito ou do meio.");
         help.setWrapText(true);
         Label note = new Label("Mover/Copiar usa dois cliques no Plot Area: origem e destino (Esc cancela). "
@@ -112,7 +113,7 @@ final class GerberEditToolPanel {
                             || command.id().equals("track"))
                     ? " — indisponível neste projeto antigo" : " — em desenvolvimento";
             String helpText = command.id().equals("track") && available
-                    ? " - selecione uma abertura C; clique no inicio e no fim"
+                    ? " - abertura C; clique nos pontos e conclua com Enter ou botao direito"
                     : "";
             tool.setTooltip(new Tooltip(command.label() + helpText + (available ? "" : unavailableReason)));
             tool.setDisable(!available);
@@ -300,7 +301,20 @@ final class GerberEditToolPanel {
     }
 
     void setTrackPlacing(boolean placing) {
-        setPlacementState(placing, "Clique no inicio e depois no fim da trilha reta. Esc cancela.");
+        setPlacementState(placing, "Clique no primeiro ponto da trilha. T/R muda o modo; Esc cancela.");
+    }
+
+    void showTrackProgress(int anchorCount, TrackBendMode mode) {
+        if (!placing) {
+            return;
+        }
+        if (anchorCount == 0) {
+            placementLabel.setText("Clique no primeiro ponto. Modo: " + mode.displayName()
+                    + ". T/R muda o modo; Esc cancela.");
+        } else {
+            placementLabel.setText("Pontos: " + anchorCount + " - modo: " + mode.displayName()
+                    + ". Clique continua; Enter/duplo clique/botao direito conclui; Backspace volta; T/R muda.");
+        }
     }
 
     private void setPlacementState(boolean placing, String message) {
