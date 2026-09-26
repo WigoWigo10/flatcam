@@ -2,6 +2,8 @@ package org.flatcam.cam.isolation;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -9,6 +11,10 @@ import java.nio.file.Path;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.gcode.CncJobResult;
+import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.junit.jupiter.api.Test;
@@ -69,6 +75,31 @@ class IsolationGeneratorTest {
                 gerber.units(), gerber.solidGeometry(),
                 new IsolationParameters(0.02, 3, 0.15, IsolationType.BOTH), cancellation));
         assertTrue(checks.get() >= 3);
+    }
+
+    @Test
+    void isolationGeometryCanBeEditedThenUsedForGeometryCncJob() throws Exception {
+        GerberImage gerber = new GerberParser().parse(
+                findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult isolation = IsolationGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 1, 0.0, IsolationType.BOTH));
+        ToolGeometry tool = new ToolGeometry(0.02, isolation.geometry());
+
+        assertFalse(isolation.isEmpty());
+        assertEquals(isolation.geometry(), tool.geometry());
+        CncJobResult cncJob = GCodeGenerator.generateGeometryCncJob(gerber.units(),
+                java.util.List.of(tool), new GeometryGCodeParameters(0.1, 0.004,
+                        false, 1, 12, 10000, false));
+        assertFalse(cncJob.gcode().isBlank());
+        assertFalse(cncJob.cutGeometry().isEmpty());
+    }
+
+    @Test
+    void rejectsNonFiniteIsolationParameters() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new IsolationParameters(Double.NaN, 1, 0, IsolationType.BOTH));
+        assertThrows(IllegalArgumentException.class,
+                () -> new IsolationParameters(0.2, 1, Double.NaN, IsolationType.BOTH));
     }
 
     private void assertMatches(String repoRelativePath, IsolationParameters params,

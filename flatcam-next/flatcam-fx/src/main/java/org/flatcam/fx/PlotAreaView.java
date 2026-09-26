@@ -643,6 +643,16 @@ final class PlotAreaView extends StackPane {
         return true;
     }
 
+    /** Two-click rectangle used by CAM tools outside an editor session. */
+    boolean beginAreaRectanglePlacement(PlacementHandler handler) {
+        if (handler == null || !startPlacement(List.of(), List.of(), 0, 0, false, handler)) {
+            return false;
+        }
+        placementTwoPointShape = TwoPointShape.RECTANGLE;
+        redraw();
+        return true;
+    }
+
     private boolean startPlacement(List<?> keys, List<RenderLayer> preview, double anchorWorldX,
                                    double anchorWorldY, boolean anchorChosen, PlacementHandler handler) {
         if (!Double.isFinite(anchorWorldX) || !Double.isFinite(anchorWorldY)) {

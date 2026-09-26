@@ -1,6 +1,5 @@
 package org.flatcam.fx;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import javafx.beans.binding.Bindings;
@@ -44,7 +43,13 @@ import org.locationtech.jts.geom.Geometry;
 final class NccToolPanel {
 
     private static final String BOUNDARY_ITSELF = "Itself";
+    private static final String BOUNDARY_AREA = "Area Selection";
     private static final String BOUNDARY_REFERENCE = "Reference Object";
+
+    @FunctionalInterface
+    interface AreaSelector {
+        boolean select(Consumer<Geometry> onSelected, Runnable onCancelled);
+    }
 
     /** One selectable entry for the "Reference Object" boundary combo - see MainWindow.generateNcc. */
     record ReferenceCandidate(String displayName, boolean isGerber, Geometry geometry) {
@@ -60,7 +65,9 @@ final class NccToolPanel {
     private NccToolPanel() {
     }
 
-    static Node build(String units, List<ReferenceCandidate> referenceCandidates,
+    static Node build(String sourceName, String units, boolean gerberSource,
+                      List<ReferenceCandidate> referenceCandidates,
+                      AreaSelector areaSelector,
                       Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(units);
         ObservableList<Double> diameters = FXCollections.observableArrayList(metric ? 0.5 : 0.020);
@@ -109,7 +116,6 @@ final class NccToolPanel {
                     }
                 }
                 diameters.add(dia);
-                diameters.sort(Comparator.naturalOrder());
                 toolError.setText("");
             } catch (RuntimeException ex) {
                 toolError.setText(ex.getMessage());
@@ -135,13 +141,14 @@ final class NccToolPanel {
         });
 
         ComboBox<String> boundaryKindCombo = new ComboBox<>();
-        boundaryKindCombo.getItems().add(BOUNDARY_ITSELF);
+        boundaryKindCombo.getItems().addAll(BOUNDARY_ITSELF, BOUNDARY_AREA);
         if (!referenceCandidates.isEmpty()) {
             boundaryKindCombo.getItems().add(BOUNDARY_REFERENCE);
         }
         boundaryKindCombo.setValue(BOUNDARY_ITSELF);
         boundaryKindCombo.setTooltip(tooltip(
-                "Itself: usa o contorno convexo do proprio Gerber como limite.\n"
+                "Itself: usa o contorno convexo da origem como limite.\n"
+                + "Area Selection: delimita um retangulo por dois cliques no desenho.\n"
                 + "Reference Object: usa outro objeto (Gerber ou Geometry) ja carregado como limite."));
         ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
         referenceCombo.getItems().addAll(referenceCandidates);
@@ -152,15 +159,38 @@ final class NccToolPanel {
                 () -> BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
         referenceCombo.visibleProperty().bind(referenceChosen);
         referenceCombo.managedProperty().bind(referenceChosen);
+        javafx.beans.binding.BooleanBinding areaChosen = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> BOUNDARY_AREA.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
+        Geometry[] selectedArea = {null};
+        Button selectAreaButton = new Button("Selecionar retangulo no desenho");
+        Label selectedAreaLabel = new Label("Nenhuma area selecionada.");
+        selectedAreaLabel.setWrapText(true);
+        selectAreaButton.visibleProperty().bind(areaChosen);
+        selectAreaButton.managedProperty().bind(areaChosen);
+        selectedAreaLabel.visibleProperty().bind(areaChosen);
+        selectedAreaLabel.managedProperty().bind(areaChosen);
+        selectAreaButton.setOnAction(event -> {
+            selectedArea[0] = null;
+            selectedAreaLabel.setText("Clique em dois cantos opostos no Plot Area; Esc cancela.");
+            if (!areaSelector.select(area -> {
+                selectedArea[0] = area;
+                selectedAreaLabel.setText("Area: " + area.getEnvelopeInternal());
+            }, () -> selectedAreaLabel.setText("Selecao de area cancelada."))) {
+                selectedAreaLabel.setText("Nao foi possivel iniciar a selecao de area.");
+            }
+        });
 
         GridPane boundaryGrid = new GridPane();
         boundaryGrid.setHgap(8);
         boundaryGrid.setVgap(8);
         boundaryGrid.addRow(0, new Label("Boundary:"), boundaryKindCombo);
         boundaryGrid.add(referenceCombo, 1, 1);
+        boundaryGrid.add(selectAreaButton, 1, 2);
+        boundaryGrid.add(selectedAreaLabel, 1, 3);
 
         CheckBox checkValidityCb = new CheckBox("Verificar validade dos diametros");
-        checkValidityCb.setSelected(true);
+        checkValidityCb.setSelected(gerberSource);
+        checkValidityCb.setDisable(!gerberSource);
         checkValidityCb.setTooltip(tooltip(
                 "Se marcado, compara cada diametro com a menor distancia entre elementos de\n"
                 + "cobre do Gerber e avisa se alguma ferramenta e grande demais para fazer um\n"
@@ -241,7 +271,12 @@ final class NccToolPanel {
                 double margin = parse(marginField, "Margin");
                 double offset = offsetCb.isSelected() ? parse(offsetField, "Copper offset") : 0;
                 NccBoundary boundary = new NccBoundary.Itself();
-                if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) {
+                if (BOUNDARY_AREA.equals(boundaryKindCombo.getValue())) {
+                    if (selectedArea[0] == null) {
+                        throw new IllegalArgumentException("Selecione uma area retangular no desenho.");
+                    }
+                    boundary = new NccBoundary.Area(selectedArea[0]);
+                } else if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) {
                     ReferenceCandidate candidate = referenceCombo.getValue();
                     if (candidate == null) {
                         throw new IllegalArgumentException("Selecione um objeto de referencia para o Boundary.");
@@ -269,6 +304,7 @@ final class NccToolPanel {
         toolButtons.setAlignment(Pos.CENTER_LEFT);
 
         VBox box = new VBox(6, new Label("NCC Tool (" + units + ")"),
+                new Label("Origem: " + sourceName + (gerberSource ? " (Gerber)" : " (Geometry)")),
                 sectionTitle("FERRAMENTAS"), toolTable, toolButtons, toolError, checkValidityCb,
                 sectionTitle("BOUNDARY"), boundaryGrid,
                 sectionTitle("PARAMETROS DE LIMPEZA"), grid,

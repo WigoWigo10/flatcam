@@ -5,7 +5,9 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-25**. O Plot Area agora seleciona objetos por clique
+> Atualizado em **2026-09-26**. Isolation Routing agora cria Geometry antes do
+> CNC Job; o NCC aceita Geometry preenchida como origem, seleção retangular de
+> área e preserva a ordem manual das ferramentas. O Plot Area seleciona objetos por clique
 > ou retângulo e oferece menu de contexto para ações já implementadas. O Gerber
 > Editor exclui, move e copia formas,
 > oferece undo/redo, reconstrói o Gerber no Apply e preserva as formas
@@ -143,7 +145,8 @@ resultados podem mudar.
 - Geometria sólida e geometria `follow`.
 - Exibição, tabela de apertures, propriedades e visualização da fonte.
 - Operações auxiliares de região não-cobre e bounding box.
-- Isolation Routing com parâmetros, preview/resultado e geração de G-code.
+- Isolation Routing com parâmetros e resultado em Geometry editável; o G-code é
+  gerado depois pelo fluxo Geometry -> CNC Job.
 - Cutout Tool com forma, tipo, margens, gaps/bridges e geração de G-code.
 - NCC Tool em primeira fatia funcional.
 
@@ -155,7 +158,7 @@ resultados podem mudar.
 
 ### Geometry e CNC Job
 
-- Objetos Geometry podem ser produzidos pelo NCC.
+- Objetos Geometry podem ser produzidos por Isolation Routing e NCC.
 - Geometry pode gerar CNC Job com `safe Z`, profundidade, multi-depth,
   profundidade por passe, feed rate e spindle.
 - CNC Job separa e desenha trajetos de viagem e corte.
@@ -267,8 +270,9 @@ citação completa):
   referência, o boundary é a interseção dos dois convex hulls (fonte ∩
   referência); para uma Geometry de referência, a forma é usada **como está**,
   sem convex hull (confirmado no código Python - só o caso Gerber tira hull).
-  "Area Selection" (retângulo desenhado no canvas) continua fora de escopo,
-  por depender de infraestrutura de seleção no canvas que ainda não existe.
+  "Area Selection" permite escolher um retângulo com dois cliques no Plot Area.
+  Uma referência Geometry linear é preservada até a aplicação da margem, para
+  não perder o contorno antes da operação de buffer.
 - **Verificar validade dos diâmetros** (`NccGenerator.minimumCopperClearance`):
   réplica de `find_safe_tooldia_multiprocessing`/`find_optim_mp` do Python -
   calcula a menor distância entre quaisquer duas partes de cobre disjuntas do
@@ -282,7 +286,8 @@ citação completa):
   rodada de polimento de UI/UX após feedback visual direto do usuário: seções
   com título (FERRAMENTAS/PARAMETROS DE LIMPEZA/MULTI-FERRAMENTA), Enter no
   campo de diâmetro adiciona a ferramenta, botão Remover desabilita sem
-  seleção, lista de diâmetros se auto-ordena, tabela com altura dinâmica e
+  seleção, lista de diâmetros preserva a ordem de entrada (para Order = None),
+  tabela com altura dinâmica e
   coluna ocupando 100% da largura (`CONSTRAINED_RESIZE_POLICY`), e tooltips
   explicando Method/Connect/Contour/Copper offset/Rest Machining/Order com
   `showDuration` estendido (`Duration.INDEFINITE`) - o padrão do JavaFX
@@ -298,8 +303,8 @@ local e execute `install` no reactor completo, conforme a seção de comandos.
 
 Ainda falta para paridade NCC:
 
-- seleção de área (retângulo desenhado no canvas) - depende de infraestrutura
-  de interação no canvas que ainda não existe;
+- operação ISO/Clear individual por ferramenta, seleção de subconjunto de
+  ferramentas para a execução e comparação visual com resultados do Python;
 - parâmetros por ferramenta (overlap/método/margem/connect/contour/offset
   individuais - hoje compartilhados, ver acima);
 - integração com Tools Database ("Pick from DB");
@@ -307,7 +312,10 @@ Ainda falta para paridade NCC:
   Machining, boundary por referência e "Check validity" num board real).
 
 Fechados nesta revisão: boundary por objeto de referência (Gerber ou
-Geometry) e validação/sugestão de diâmetro ("Check validity").
+Geometry), seleção retangular de área, ordem manual das ferramentas e
+validação/sugestão de diâmetro ("Check validity"). Uma Geometry usada como
+origem precisa conter área preenchida; contornos puros são rejeitados, como
+no Python.
 
 ## 6. Matriz honesta de paridade
 
@@ -319,7 +327,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
+| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, boundary por referência, seleção de área e "Check validity"; faltam ISO/Clear por ferramenta, parâmetros por ferramenta e Tools DB |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
@@ -735,15 +743,14 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 ### 9.1 Completar a paridade NCC (o que resta)
 
-- área selecionada (retângulo desenhado no canvas) - depende de infraestrutura
-  de seleção no canvas ainda inexistente;
+- ISO/Clear e parâmetros individuais por ferramenta, como no painel Python;
 - Tools Database;
-- opções restantes do painel Python (parâmetros por ferramenta individuais);
 - fixtures diferenciais e casos de desempenho (incl. Rest Machining e
   boundary por referência num board real).
 
-Concluído nesta revisão: boundary por objeto de referência e
-validação/sugestão de diâmetro ("Check validity") - ver seção 5.
+Concluído: boundary por objeto de referência, seleção retangular de área,
+preservação de Order = None e validação/sugestão de diâmetro ("Check validity")
+- ver seção 5.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 

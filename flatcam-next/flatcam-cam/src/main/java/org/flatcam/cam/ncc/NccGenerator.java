@@ -71,17 +71,30 @@ public final class NccGenerator {
             Geometry empty = factory.createGeometryCollection();
             return new NccResult(units, empty, empty, List.of());
         }
+        if (copper.getArea() <= 0) {
+            throw new IllegalArgumentException("A origem do NCC precisa ter area preenchida; "
+                    + "converta o contorno para area.");
+        }
 
         progress.report(0.02);
+        // Python rejects outline-only sources: lines cannot represent copper
+        // to subtract. Repair the filled part before the Boolean operations.
         Geometry cleanCopper = copper.buffer(0);
         cancellation.throwIfCancellationRequested();
         Geometry rawBoundary = switch (params.boundary()) {
             case NccBoundary.Itself ignored -> cleanCopper.convexHull();
+            case NccBoundary.Area area -> area.geometry();
             case NccBoundary.ReferenceGerber ref -> cleanCopper.convexHull()
                     .intersection(ref.geometry().buffer(0).convexHull());
-            case NccBoundary.ReferenceGeometry ref -> ref.geometry().buffer(0);
+            // Keep lines until the margin is applied: buffer(0) erases a LineString.
+            // Python buffers each reference shape by the margin before unioning it.
+            case NccBoundary.ReferenceGeometry ref -> ref.geometry();
         };
         Geometry boundary = mitreBuffer(rawBoundary, params.margin());
+        if (boundary.isEmpty() || boundary.getArea() <= 0) {
+            throw new IllegalArgumentException("O limite do NCC precisa ter area preenchida; "
+                    + "ajuste a referencia ou a margem.");
+        }
         Geometry keepOut = params.copperOffset() == 0
                 ? cleanCopper : cleanCopper.buffer(params.copperOffset(), QUADRANT_SEGMENTS);
         Geometry clearingArea = boundary.difference(keepOut).buffer(0);

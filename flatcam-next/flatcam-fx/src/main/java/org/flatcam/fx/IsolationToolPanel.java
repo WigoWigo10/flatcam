@@ -9,7 +9,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
-import org.flatcam.cam.gcode.IsolationGCodeParameters;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
 
@@ -24,7 +23,7 @@ import org.flatcam.cam.isolation.IsolationType;
  */
 final class IsolationToolPanel {
 
-    record Result(IsolationParameters geometryParams, IsolationGCodeParameters gcodeParams) {
+    record Result(IsolationParameters geometryParams) {
     }
 
     private IsolationToolPanel() {
@@ -44,12 +43,7 @@ final class IsolationToolPanel {
         typeCombo.getItems().addAll(IsolationType.values());
         typeCombo.setValue(IsolationType.BOTH);
 
-        TextField safeZField = new TextField(metric ? "3.0" : "0.1");
-        TextField depthField = new TextField(metric ? "0.1" : "0.004");
-        TextField feedField = new TextField(metric ? "300" : "12");
-        TextField spindleField = new TextField("10000");
-        for (TextField field : new TextField[]{toolDiaField, passesField, overlapField,
-                safeZField, depthField, feedField, spindleField}) {
+        for (TextField field : new TextField[]{toolDiaField, passesField, overlapField}) {
             field.setPrefColumnCount(7);
             field.setMinWidth(0);
         }
@@ -63,19 +57,13 @@ final class IsolationToolPanel {
         grid.addRow(1, new Label("Numero de passes:"), passesField);
         grid.addRow(2, new Label("Sobreposicao entre passes (%):"), overlapField);
         grid.addRow(3, new Label("Aneis a manter:"), typeCombo);
-        grid.addRow(4, new Label("Altura de seguranca (Z):"), safeZField);
-        grid.addRow(5, new Label("Profundidade de corte:"), depthField);
-        grid.addRow(6, new Label("Avanco (feed rate, unid./min):"), feedField);
-        grid.addRow(7, new Label("Spindle (RPM, 0 = nao controlar):"), spindleField);
-
-        Button generateButton = new Button("Gerar");
+        Button generateButton = new Button("Gerar Geometry de isolamento");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         Button closeButton = new Button("Fechar");
         closeButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
-                Result result = parseResult(toolDiaField, passesField, overlapField, typeCombo,
-                        safeZField, depthField, feedField, spindleField);
+                Result result = parseResult(toolDiaField, passesField, overlapField, typeCombo);
                 errorLabel.setText("");
                 onGenerate.accept(result);
             } catch (RuntimeException ex) {
@@ -84,35 +72,37 @@ final class IsolationToolPanel {
         });
         closeButton.setOnAction(e -> onClose.run());
 
+        Label workflowNote = new Label("O resultado sera uma Geometry editavel. Depois, use Geometry -> "
+                + "Criar CNC Job para configurar corte e salvar G-code.");
+        workflowNote.setWrapText(true);
         VBox box = new VBox(10,
                 new Label("Parametros (unidades do arquivo: " + units + ")"),
-                grid, errorLabel, generateButton, closeButton);
+                grid, workflowNote,
+                errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }
 
     private static Result parseResult(
-            TextField toolDiaField, TextField passesField, TextField overlapField, ComboBox<IsolationType> typeCombo,
-            TextField safeZField, TextField depthField, TextField feedField, TextField spindleField) {
+            TextField toolDiaField, TextField passesField, TextField overlapField, ComboBox<IsolationType> typeCombo) {
         double toolDia = parseDouble(toolDiaField.getText(), "Diametro da ferramenta");
-        int passes = (int) parseDouble(passesField.getText(), "Numero de passes");
+        double rawPasses = parseDouble(passesField.getText(), "Numero de passes");
+        if (!Double.isFinite(rawPasses) || rawPasses != Math.rint(rawPasses)
+                || rawPasses < 1 || rawPasses > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Numero de passes deve ser inteiro positivo.");
+        }
+        int passes = (int) rawPasses;
         double overlapPercent = parseDouble(overlapField.getText(), "Sobreposicao");
         IsolationType type = typeCombo.getValue();
 
         IsolationParameters geometryParams = new IsolationParameters(toolDia, passes, overlapPercent / 100.0, type);
 
-        double safeZ = parseDouble(safeZField.getText(), "Altura de seguranca");
-        double depth = parseDouble(depthField.getText(), "Profundidade de corte");
-        double feed = parseDouble(feedField.getText(), "Avanco");
-        int spindle = (int) parseDouble(spindleField.getText(), "Spindle");
-        IsolationGCodeParameters gcodeParams = new IsolationGCodeParameters(safeZ, depth, feed, spindle);
-
-        return new Result(geometryParams, gcodeParams);
+        return new Result(geometryParams);
     }
 
     private static double parseDouble(String text, String fieldName) {
         try {
-            return Double.parseDouble(text.trim());
+            return Double.parseDouble(text.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(fieldName + ": numero invalido");
         }

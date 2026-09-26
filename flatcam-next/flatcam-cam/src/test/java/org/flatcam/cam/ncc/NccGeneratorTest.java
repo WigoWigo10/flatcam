@@ -177,6 +177,92 @@ class NccGeneratorTest {
     }
 
     @Test
+    void lineReferenceReceivesMarginBeforePolygonalCleaning() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry lineReference = FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(10, 0)});
+        NccParameters params = new NccParameters(List.of(0.2), 0.1, 1.0,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.ReferenceGeometry(lineReference));
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertTrue(result.clearingArea().getArea() > 0,
+                "a line reference must become a corridor when a positive margin is requested");
+        assertFalse(result.isEmpty());
+    }
+
+    @Test
+    void lineReferenceWithoutMarginReportsMissingFilledBoundary() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry lineReference = FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(10, 0)});
+        NccParameters params = new NccParameters(List.of(0.2), 0.1, 0,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.ReferenceGeometry(lineReference));
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> NccGenerator.generate("MM", copper, params));
+        assertTrue(error.getMessage().contains("limite do NCC"));
+    }
+
+    @Test
+    void selectedAreaLimitsNccToItsRectanglePlusMargin() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry selected = FACTORY.toGeometry(new Envelope(0, 10, 0, 10));
+        NccParameters params = new NccParameters(List.of(0.5), 0.2, 0.5,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Area(selected));
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertFalse(result.isEmpty());
+        assertTrue(result.clearingArea().covers(FACTORY.createPoint(new Coordinate(-0.25, 5))));
+        assertFalse(result.clearingArea().covers(FACTORY.createPoint(new Coordinate(12, 5))));
+        assertFalse(result.clearingArea().covers(FACTORY.createPoint(new Coordinate(5, 5))));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccBoundary.Area(FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(0, 0), new Coordinate(1, 1)})));
+    }
+
+    @Test
+    void geometryLineSourceIsRejectedInsteadOfClearingItsWholeEnvelope() {
+        Geometry outline = FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(10, 10),
+                new Coordinate(0, 10), new Coordinate(0, 0)});
+        NccParameters params = new NccParameters(0.5, 0.2, 1.0,
+                NccMethod.STANDARD, false, true, 0);
+
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> NccGenerator.generate("MM", outline, params));
+        assertTrue(error.getMessage().contains("area preenchida"));
+    }
+
+    @Test
+    void filledGeometrySourceCanBeCleared() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters params = new NccParameters(0.5, 0.2, 1.0,
+                NccMethod.STANDARD, false, true, 0);
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertTrue(result.clearingArea().getArea() > 0);
+        assertFalse(result.isEmpty());
+    }
+
+    @Test
+    void noOrderPreservesToolTableInsertionOrder() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters params = new NccParameters(List.of(0.8, 0.2, 0.5), 0.1, 2.0,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE);
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertEquals(List.of(0.8, 0.2, 0.5), result.toolResults().stream()
+                .map(NccToolResult::toolDiameter).toList());
+    }
+
+    @Test
     void minimumCopperClearanceFindsTheNarrowestGapBetweenParts() {
         Geometry a = FACTORY.toGeometry(new Envelope(0, 1, 0, 1));
         Geometry b = FACTORY.toGeometry(new Envelope(1.3, 2.3, 0, 1));

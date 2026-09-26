@@ -4,15 +4,22 @@ import java.util.Objects;
 import org.locationtech.jts.geom.Geometry;
 
 /**
- * appTools/ToolNCC.py's "select_combo" boundary source for the area to be
- * cleared. Python also offers "Area Selection" (a canvas-drawn rectangle) -
- * deferred here since this port has no canvas-level area-selection
- * interaction yet (see CONTEXTO_E_PROGRESSO.md).
+ * appTools/ToolNCC.py's "select_combo" boundary source for the area to be cleared.
  */
 public sealed interface NccBoundary {
 
     /** Convex hull of the NCC source's own copper - Python's "Itself", the default. */
     record Itself() implements NccBoundary {
+    }
+
+    /** A rectangle selected on the canvas, before the common margin is applied. */
+    record Area(Geometry geometry) implements NccBoundary {
+        public Area {
+            Objects.requireNonNull(geometry, "geometry");
+            if (geometry.isEmpty() || geometry.getDimension() != 2 || geometry.getArea() <= 0) {
+                throw new IllegalArgumentException("Area selection must have positive area");
+            }
+        }
     }
 
     /**

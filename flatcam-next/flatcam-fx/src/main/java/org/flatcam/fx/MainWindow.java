@@ -158,9 +158,6 @@ final class MainWindow {
     private record CncJobEntry(String sourceName, Path outputFile, String gcode, Geometry travelGeometry, Geometry cutGeometry) {
     }
 
-    private record IsolationJobOutput(IsolationResult toolpath, CncJobResult cncJob) {
-    }
-
     private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
     }
 
@@ -942,10 +939,25 @@ final class MainWindow {
         }
     }
 
+    private void openSelectedNccTool() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        GerberImage gerber = gerberByItem.get(item);
+        if (gerber != null) {
+            generateNcc(item, gerber);
+            return;
+        }
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (geometry != null) {
+            generateNcc(item, geometry);
+            return;
+        }
+        appendConsole("Selecione um Gerber ou Geometry para NCC.");
+    }
+
     private Runnable toolAction(String id) {
         return switch (id) {
             case "cutout" -> () -> openSelectedGerberTool("Cutout", this::generateCutout);
-            case "ncc" -> () -> openSelectedGerberTool("NCC", this::generateNcc);
+            case "ncc" -> this::openSelectedNccTool;
             case "isolation" -> () -> openSelectedGerberTool("Isolamento", this::generateIsolation);
             case "drilling" -> this::openSelectedDrillingTool;
             case "calculators" -> () -> openToolPanel("Calculators", CalculatorsPanel.build());
@@ -2330,7 +2342,7 @@ final class MainWindow {
     /**
      * Context menu for one Gerber. Its ordering follows MainGUI.py's
      * menuproject, with the Next-only "Exibir" convenience action first and
-     * its two available CNC workflows grouped under "Criar CNC Job".
+     * its Isolation-to-Geometry and Cutout-to-CNC workflows kept distinct.
      * Enable/Disable Plot are two separate, always-present items - not one
      * dynamic toggle - matching appGUI/MainGUI.py's actual menuproject
      * (menuprojectenable/menuprojectdisable are both always in the menu;
@@ -2354,7 +2366,7 @@ final class MainWindow {
         setLegacyMenuIcon(editItem, "edit_ok32.png");
         editItem.setOnAction(e -> gerberEditor.start(item, gerberByItem.getOrDefault(item, image)));
 
-        MenuItem isolationItem = new MenuItem("Gerar Isolamento...");
+        MenuItem isolationItem = new MenuItem("Gerar Geometry de Isolamento...");
         setLegacyMenuIcon(isolationItem, "iso_16.png");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
 
@@ -2364,7 +2376,7 @@ final class MainWindow {
 
         Menu createCncMenu = new Menu("Criar CNC Job");
         setLegacyMenuIcon(createCncMenu, "cnc32.png");
-        createCncMenu.getItems().addAll(isolationItem, cutoutItem);
+        createCncMenu.getItems().add(cutoutItem);
 
         MenuItem viewSourceItem = new MenuItem("Ver Fonte");
         setLegacyMenuIcon(viewSourceItem, "source32.png");
@@ -2390,7 +2402,7 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), editItem, createCncMenu, viewSourceItem, renameItem, copyItem, removeItem,
+                new SeparatorMenuItem(), editItem, isolationItem, createCncMenu, viewSourceItem, renameItem, copyItem, removeItem,
                 saveItem, new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -2461,6 +2473,10 @@ final class MainWindow {
         setLegacyMenuIcon(cncItem, "cnc32.png");
         cncItem.setOnAction(e -> generateGeometryCncJob(item, entry));
 
+        MenuItem nccItem = new MenuItem("Gerar NCC...");
+        setLegacyMenuIcon(nccItem, "ncc16.png");
+        nccItem.setOnAction(e -> generateNcc(item, entry));
+
         MenuItem editItem = new MenuItem("Editar Geometry");
         setLegacyMenuIcon(editItem, "edit_file32.png");
         editItem.setOnAction(e -> {
@@ -2487,7 +2503,7 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), cncItem, editItem, viewItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), cncItem, nccItem, editItem, viewItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -2948,17 +2964,7 @@ final class MainWindow {
         }
     }
 
-    /**
-     * Loads IsolationToolPanel into the Tool tab (appTools/ToolIsolation.py's
-     * run() switches app.ui.tool_tab to its own UI the same way - see
-     * {@link #openToolPanel}). Once "Gerar" is clicked, generates an
-     * isolation toolpath around the Gerber's copper (IsolationGenerator,
-     * ported from appTools/ToolIsolation.py + camlib.py's
-     * Gerber.isolation_geometry() - see its class doc for exactly what was
-     * and wasn't carried over), generates its G-code and writes it in one
-     * cancellable background job. The resulting CNC Job supplies the visible
-     * toolpath layer, avoiding a duplicate preview overlay.
-     */
+    /** Creates editable Geometry first, as the Python Isolation tool does. */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
         openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(),
                 params -> runIsolationGeneration(item, image, params), this::closeToolPanel));
@@ -2970,35 +2976,14 @@ final class MainWindow {
             return;
         }
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar G-code de isolamento");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
-        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_isolation.nc");
-        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
-        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
-        if (Files.isDirectory(lastDir)) {
-            chooser.setInitialDirectory(lastDir.toFile());
-        }
-        File outFile = chooser.showSaveDialog(scene.getWindow());
-        if (outFile == null) {
-            return;
-        }
-
-        beginJob("Gerando isolamento...");
-        JobHandle<IsolationJobOutput> handle = jobExecutor.submit(context -> {
-            CancellationToken cancellation = context::isCancelled;
-            IsolationResult isolation = IsolationGenerator.generate(
-                    image.units(), image.solidGeometry(), params.geometryParams(), cancellation);
-            context.reportProgress(0.5, "Gerando G-code de isolamento...");
-            if (isolation.isEmpty()) {
-                return new IsolationJobOutput(isolation, null);
-            }
-            CncJobResult job = GCodeGenerator.generateIsolationCncJob(
-                    isolation, params.gcodeParams(), params.geometryParams().toolDiameter(), cancellation);
+        beginJob("Gerando Geometry de isolamento...");
+        JobHandle<IsolationResult> handle = jobExecutor.submit(context -> {
+            context.reportProgress(0.05, "Calculando caminhos de isolamento...");
+            IsolationResult isolation = IsolationGenerator.generate(image.units(), image.solidGeometry(),
+                    params.geometryParams(), context::isCancelled);
             context.checkCancelled();
-            context.reportProgress(0.9, "Salvando G-code de isolamento...");
-            Files.writeString(outFile.toPath(), job.gcode());
-            return new IsolationJobOutput(isolation, job);
+            context.reportProgress(0.95, "Preparando Geometry de isolamento...");
+            return isolation;
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -3006,28 +2991,39 @@ final class MainWindow {
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(output -> Platform.runLater(() -> {
-                    if (output.toolpath().isEmpty()) {
+                .thenAccept(isolation -> Platform.runLater(() -> {
+                    if (gerberByItem.get(item) != image) {
+                        appendConsole("O Gerber de origem foi removido; Geometry de isolamento descartada.");
+                        setStatus("Origem removida.", ERROR_COLOR);
+                    } else if (isolation.isEmpty()) {
                         appendConsole("Isolamento nao gerou nenhum anel (geometria de cobre vazia?).");
+                        setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
+                        String suffix = switch (params.geometryParams().type()) {
+                            case EXTERIOR -> "_ext_iso";
+                            case INTERIOR -> "_int_iso";
+                            case BOTH -> "_iso";
+                        };
+                        String name = uniqueDerivedName(item.getValue() + suffix);
+                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
+                                isolation.geometry(), true,
+                                List.of(new ToolGeometry(params.geometryParams().toolDiameter(),
+                                        isolation.geometry())));
                         appendConsole(String.format("Isolamento: %d aneis, comprimento total=%.4f, bounds=%s",
-                                output.toolpath().ringCount(), output.toolpath().totalLength(),
-                                Arrays.toString(output.toolpath().bounds())));
-                        CncJobResult job = output.cncJob();
-                        AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-                        appendConsole("G-code de isolamento salvo em " + outFile
-                                + " (" + job.gcode().lines().count() + " linhas).");
-                        addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
-                                job.travelGeometry(), job.cutGeometry());
+                                isolation.ringCount(), isolation.totalLength(), Arrays.toString(isolation.bounds())));
+                        appendConsole("Geometry de isolamento criada: " + name
+                                + ". Confira os caminhos e gere o CNC Job pela Geometry quando estiver pronto.");
+                        selectProjectItem(generated);
+                        plotAreaView.fitToLayer(generated);
                         closeToolPanel();
+                        setStatus("Geometry de isolamento concluida.", IDLE_COLOR);
                     }
                     updateProgress(1);
-                    setStatus("Concluido.", IDLE_COLOR);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao gerar/salvar G-code de isolamento: ");
+                        reportJobError(error, "Falha ao gerar Geometry de isolamento: ");
                         onJobFinished();
                     });
                     return null;
@@ -3042,7 +3038,7 @@ final class MainWindow {
      * (CutoutGenerator, ported from appTools/ToolCutOut.py - see its class
      * doc for exactly what was and wasn't carried over: only the automatic
      * Bridge gap patterns, no Thin/M-Bites, no manual click-to-place gaps,
-     * and no intermediate Geometry object - straight to G-code, same as
+     * and no intermediate Geometry object - straight to G-code, unlike
      * Isolation Routing), then stores the resulting cancellable background
      * job as a CNC Job with its own visible toolpath.
      */
@@ -3125,8 +3121,16 @@ final class MainWindow {
     private record NccJobOutcome(NccResult result, OptionalDouble minCopperClearance) {
     }
 
-    /** Opens the legacy-style NCC form; unlike Isolation/Cutout, NCC produces an intermediate Geometry object. */
+    /** NCC accepts a Gerber or Geometry source and produces an intermediate Geometry object. */
     private void generateNcc(TreeItem<String> item, GerberImage image) {
+        openNccTool(item, image.units(), image.solidGeometry(), true);
+    }
+
+    private void generateNcc(TreeItem<String> item, GeometryEntry entry) {
+        openNccTool(item, entry.units(), entry.geometry(), false);
+    }
+
+    private void openNccTool(TreeItem<String> item, String units, Geometry source, boolean gerberSource) {
         List<NccToolPanel.ReferenceCandidate> referenceCandidates = new ArrayList<>();
         for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
             if (entry.getKey() != item) {
@@ -3135,14 +3139,50 @@ final class MainWindow {
             }
         }
         for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
-            referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
-                    entry.getKey().getValue(), false, entry.getValue().geometry()));
+            if (entry.getKey() != item) {
+                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                        entry.getKey().getValue(), false, entry.getValue().geometry()));
+            }
         }
-        openToolPanel("NCC Tool", NccToolPanel.build(image.units(), referenceCandidates,
-                result -> runNccGeneration(item, image, result), this::closeToolPanel));
+        openToolPanel("NCC Tool", NccToolPanel.build(item.getValue(), units, gerberSource, referenceCandidates,
+                (onSelected, onCancelled) -> beginNccAreaSelection(source, onSelected, onCancelled),
+                result -> {
+                    plotAreaView.cancelPlacement();
+                    runNccGeneration(item, units, source, gerberSource, result);
+                }, () -> {
+                    plotAreaView.cancelPlacement();
+                    closeToolPanel();
+                }));
     }
 
-    private void runNccGeneration(TreeItem<String> item, GerberImage image, NccToolPanel.Result panelResult) {
+    private boolean beginNccAreaSelection(Geometry source, Consumer<Geometry> onSelected, Runnable onCancelled) {
+        double[] anchor = new double[2];
+        return plotAreaView.beginAreaRectanglePlacement(new PlotAreaView.PlacementHandler() {
+            @Override
+            public void onAnchorChosen(double x, double y) {
+                anchor[0] = x;
+                anchor[1] = y;
+            }
+
+            @Override
+            public void onCommit(double dx, double dy) {
+                if (dx == 0 || dy == 0) {
+                    onCancelled.run();
+                    return;
+                }
+                onSelected.accept(source.getFactory().toGeometry(
+                        new Envelope(anchor[0], anchor[0] + dx, anchor[1], anchor[1] + dy)));
+            }
+
+            @Override
+            public void onCancel() {
+                onCancelled.run();
+            }
+        });
+    }
+
+    private void runNccGeneration(TreeItem<String> item, String units, Geometry source, boolean gerberSource,
+                                  NccToolPanel.Result panelResult) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
@@ -3151,10 +3191,10 @@ final class MainWindow {
         NccParameters params = panelResult.parameters();
         beginJob("Gerando Non-Copper Clearing...");
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
-            OptionalDouble minClearance = panelResult.checkValidity()
-                    ? NccGenerator.minimumCopperClearance(image.solidGeometry())
+            OptionalDouble minClearance = gerberSource && panelResult.checkValidity()
+                    ? NccGenerator.minimumCopperClearance(source)
                     : OptionalDouble.empty();
-            NccResult result = NccGenerator.generate(image.units(), image.solidGeometry(), params,
+            NccResult result = NccGenerator.generate(units, source, params,
                     context::isCancelled,
                     fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing..."));
             return new NccJobOutcome(result, minClearance);
@@ -3166,6 +3206,12 @@ final class MainWindow {
 
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
+                    if (gerberSource ? !gerberByItem.containsKey(item) : !geometryByItem.containsKey(item)) {
+                        appendConsole("A origem do NCC foi removida; resultado descartado.");
+                        setStatus("Origem removida.", ERROR_COLOR);
+                        onJobFinished();
+                        return;
+                    }
                     NccResult result = outcome.result();
                     outcome.minCopperClearance().ifPresent(minClearance -> {
                         boolean anySuitable = params.toolDiameters().stream().anyMatch(d -> d <= minClearance);
@@ -3184,7 +3230,7 @@ final class MainWindow {
                                 .filter(toolResult -> !toolResult.isEmpty())
                                 .map(toolResult -> new ToolGeometry(toolResult.toolDiameter(), toolResult.geometry()))
                                 .toList();
-                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
+                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 result.geometry(), true, tools);
                         appendConsole(String.format(
                                 "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
@@ -3566,6 +3612,11 @@ final class MainWindow {
         cncButton.setMaxWidth(Double.MAX_VALUE);
         cncButton.setOnAction(e -> generateGeometryCncJob(item, entry));
         box.getChildren().add(cncButton);
+
+        Button nccButton = new Button("NCC Tool");
+        nccButton.setMaxWidth(Double.MAX_VALUE);
+        nccButton.setOnAction(e -> generateNcc(item, entry));
+        box.getChildren().add(nccButton);
 
         Button editButton = new Button("Editar Geometry");
         editButton.setMaxWidth(Double.MAX_VALUE);
