@@ -520,7 +520,11 @@ final class MainWindow {
                 event.consume();
             } else if (geometryEditor.isActive() && event.getCode() == KeyCode.DELETE
                     && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
-                    && plotAreaView.isFocused() && geometryEditor.deleteFromShortcut()) {
+                    && !isTextInputTarget(event.getTarget())) {
+                // While Geometry is being edited, Delete targets shapes even if a sidebar button
+                // has focus. Consume it with no selection too: the project tree must not remove
+                // the entire object while the editor is open.
+                geometryEditor.deleteFromShortcut();
                 event.consume();
             } else if (plotAreaView.isTrackPlacementActive() && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()

@@ -892,7 +892,9 @@ subconjunto modal/planos do parser antes de alegar paridade com o Python.
 Objetos Geometry abrem pelo botão em Propriedades, menu contextual ou Editar
 Objeto. O editor permite seleção por clique ou retângulo (esquerda-direita
 inclui formas inteiras, direita-esquerda inclui formas tocadas), Ctrl para
-múltipla seleção, Excluir, Desfazer/Refazer e Aplicar/Cancelar. Aplicar altera
+múltipla seleção, Excluir pelo botão ou tecla Delete, Desfazer/Refazer e
+Aplicar/Cancelar. Delete funciona enquanto o editor está ativo mesmo com foco
+no painel lateral, mas não interfere com campos de texto. Aplicar altera
 o objeto em memória, preservando suas ferramentas por forma; o projeto salva
 essa Geometry e os caminhos de cada ferramenta em `_java.geometries`. Cancelar
 mantém o objeto original. O modelo de seleção usa índice espacial; o destaque
