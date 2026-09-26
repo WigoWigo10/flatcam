@@ -887,7 +887,7 @@ da prévia também roda em background; se não for possível interpretá-la, o
 texto ainda é carregado. Falta validar a UI com arquivos reais e ampliar o
 subconjunto modal/planos do parser antes de alegar paridade com o Python.
 
-### 9.6 Editor de Geometry (duas primeiras fatias)
+### 9.6 Editor de Geometry (tres fatias)
 
 Objetos Geometry abrem pelo botão em Propriedades, menu contextual ou Editar
 Objeto. O editor permite seleção por clique ou retângulo (esquerda-direita
@@ -912,7 +912,19 @@ mover/copiar mantém a ferramenta das formas de origem. A prévia de desenho e
 movimento usa a camada Canvas leve, sem repintar o projeto inteiro em cada
 movimento do mouse. O menu Editor Geometry ativa essas seis ferramentas.
 
-Ainda faltam arco, texto, buffer, paint, borracha e operações booleanas,
+A terceira fatia acrescenta Uniao, Intersecao, Subtracao (a primeira forma
+selecionada e o alvo), Buffer arredondado completo/interior/exterior e Explodir
+poligonos em segmentos editaveis. As operacoes booleanas exigem pelo menos
+duas formas da mesma ferramenta. Buffer cria novas formas sem remover as
+originais e preserva a ferramenta de cada uma; os modos interior/exterior
+exigem poligonos. Explodir substitui poligonos selecionados por arestas,
+incluindo contornos de furos, limitado a 10.000 segmentos por acionamento.
+Todas as mudancas participam do undo/redo. Uniao, Intersecao, Subtracao e
+Buffer calculam em background, com cancelamento pelo controle geral da tarefa;
+em erro ou cancelamento, o rascunho permanece intacto. Durante o calculo, o
+editor bloqueia outras alteracoes. O menu Editor Geometry aciona essas funcoes.
+
+Ainda faltam arco, texto, paint, borracha, cortar caminho e transformacoes,
 teste manual com arquivos reais grandes e perfilamento da renderização inicial
 de Geometry muito extensa. A persistência `_java.geometries` é do FX e não
 garante abertura de objetos Geometry no FlatCAM Python. A opção legada de

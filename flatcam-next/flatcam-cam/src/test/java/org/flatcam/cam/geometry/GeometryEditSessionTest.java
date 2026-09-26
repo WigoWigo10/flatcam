@@ -8,10 +8,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
+import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LinearRing;
 
 class GeometryEditSessionTest {
 
@@ -19,6 +24,152 @@ class GeometryEditSessionTest {
 
     private static Geometry line(double x) {
         return FACTORY.createLineString(new Coordinate[]{new Coordinate(x, 0), new Coordinate(x, 10)});
+    }
+
+    private static Geometry rectangle(double x1, double y1, double x2, double y2) {
+        return FACTORY.toGeometry(new Envelope(x1, x2, y1, y2));
+    }
+
+    private static GeometryEditSession overlappingRectangles() {
+        Geometry first = rectangle(0, 0, 2, 2);
+        Geometry second = rectangle(1, 1, 3, 3);
+        GeometryEditSession session = new GeometryEditSession(FACTORY.buildGeometry(List.of(first, second)),
+                List.of());
+        session.clickSelect(0.5, 0.5, 0, false);
+        session.clickSelect(2.5, 2.5, 0, true);
+        return session;
+    }
+
+    private static void executeAndApply(GeometryEditSession session, GeometryEditSession.Operation operation,
+                                        double distance) {
+        var request = session.prepareOperation(operation, distance);
+        assertTrue(session.applyOperation(request.execute(CancellationToken.none(), ProgressCallback.none())));
+    }
+
+    @Test
+    void booleanOperationsUseSelectionOrderAndSupportUndoRedo() {
+        GeometryEditSession union = overlappingRectangles();
+        executeAndApply(union, GeometryEditSession.Operation.UNION, 0);
+        assertEquals(1, union.shapeCount());
+        assertEquals(7, union.resultGeometry().getArea(), 1e-9);
+        assertTrue(union.undo());
+        assertEquals(2, union.shapeCount());
+        assertTrue(union.redo());
+        assertEquals(1, union.shapeCount());
+
+        GeometryEditSession intersection = overlappingRectangles();
+        executeAndApply(intersection, GeometryEditSession.Operation.INTERSECTION, 0);
+        assertEquals(1, intersection.resultGeometry().getArea(), 1e-9);
+
+        GeometryEditSession subtraction = overlappingRectangles();
+        executeAndApply(subtraction, GeometryEditSession.Operation.SUBTRACT, 0);
+        assertEquals(3, subtraction.resultGeometry().getArea(), 1e-9);
+        assertTrue(subtraction.resultGeometry().covers(FACTORY.createPoint(new Coordinate(0.5, 0.5))));
+        assertFalse(subtraction.resultGeometry().covers(FACTORY.createPoint(new Coordinate(2.5, 2.5))));
+    }
+
+    @Test
+    void bufferAddsResultsWithoutRemovingOriginalAndPreservesTools() {
+        Geometry first = rectangle(0, 0, 2, 2);
+        Geometry second = rectangle(10, 0, 12, 2);
+        GeometryEditSession session = new GeometryEditSession(FACTORY.buildGeometry(List.of(first, second)),
+                List.of(new ToolGeometry(0.8, first), new ToolGeometry(1.2, second)));
+        session.clickSelect(1, 1, 0, false);
+        session.clickSelect(11, 1, 0, true);
+        executeAndApply(session, GeometryEditSession.Operation.BUFFER_FULL, 0.2);
+        assertEquals(4, session.shapeCount());
+        assertEquals(2, session.resultTools().get(0).geometry().getNumGeometries());
+        assertEquals(2, session.resultTools().get(1).geometry().getNumGeometries());
+        assertTrue(session.undo());
+        assertEquals(2, session.shapeCount());
+
+        session.clearSelection();
+        session.clickSelect(1, 1, 0, false);
+        executeAndApply(session, GeometryEditSession.Operation.BUFFER_INTERIOR, 0.2);
+        assertEquals(2, session.resultTools().get(0).geometry().getNumGeometries());
+        assertEquals(2.56, session.resultGeometry().getGeometryN(2).getArea(), 1e-9);
+    }
+
+    @Test
+    void rejectsCrossToolBooleanEmptyIntersectionInvalidBufferAndStaleResult() {
+        Geometry first = rectangle(0, 0, 2, 2);
+        Geometry second = rectangle(5, 0, 7, 2);
+        GeometryEditSession tools = new GeometryEditSession(FACTORY.buildGeometry(List.of(first, second)),
+                List.of(new ToolGeometry(0.8, first), new ToolGeometry(1.2, second)));
+        tools.clickSelect(1, 1, 0, false);
+        tools.clickSelect(6, 1, 0, true);
+        assertThrows(IllegalArgumentException.class,
+                () -> tools.prepareOperation(GeometryEditSession.Operation.UNION, 0));
+        assertFalse(tools.isDirty());
+
+        GeometryEditSession session = new GeometryEditSession(FACTORY.buildGeometry(List.of(first, second)),
+                List.of());
+        session.clickSelect(1, 1, 0, false);
+        session.clickSelect(6, 1, 0, true);
+        assertThrows(IllegalArgumentException.class, () -> session.prepareOperation(
+                GeometryEditSession.Operation.BUFFER_FULL, Double.NaN));
+        var request = session.prepareOperation(GeometryEditSession.Operation.INTERSECTION, 0);
+        assertThrows(IllegalArgumentException.class,
+                () -> request.execute(CancellationToken.none(), ProgressCallback.none()));
+        assertEquals(2, session.shapeCount());
+        assertFalse(session.isDirty());
+
+        var union = session.prepareOperation(GeometryEditSession.Operation.UNION, 0);
+        var result = union.execute(CancellationToken.none(), ProgressCallback.none());
+        session.clickSelect(1, 1, 0, false);
+        assertFalse(session.applyOperation(result));
+        assertEquals(2, session.shapeCount());
+        session.clickSelect(6, 1, 0, true);
+        session.moveSelected(1, 0);
+        assertFalse(session.applyOperation(result));
+    }
+
+    @Test
+    void explodeCreatesEditableEdgesAndRejectsNonPolygons() {
+        GeometryEditSession session = new GeometryEditSession(rectangle(0, 0, 2, 2), List.of());
+        session.clickSelect(1, 1, 0, false);
+        assertEquals(4, session.explodeSelected());
+        assertEquals(4, session.shapeCount());
+        assertEquals(8, session.resultGeometry().getLength(), 1e-9);
+        assertTrue(session.undo());
+        assertEquals(1, session.shapeCount());
+        assertTrue(session.redo());
+        session.clickSelect(1, 0, 0, false);
+        assertThrows(IllegalArgumentException.class, session::explodeSelected);
+    }
+
+    @Test
+    void explodeIncludesHoleEdgesAndRejectsOversizedSelectionWithoutMutation() {
+        LinearRing outside = FACTORY.createLinearRing(new Coordinate[]{new Coordinate(0, 0),
+                new Coordinate(10, 0), new Coordinate(10, 10), new Coordinate(0, 10), new Coordinate(0, 0)});
+        LinearRing hole = FACTORY.createLinearRing(new Coordinate[]{new Coordinate(3, 3),
+                new Coordinate(3, 7), new Coordinate(7, 7), new Coordinate(7, 3), new Coordinate(3, 3)});
+        GeometryEditSession withHole = new GeometryEditSession(
+                FACTORY.createPolygon(outside, new LinearRing[]{hole}), List.of());
+        withHole.clickSelect(1, 1, 0, false);
+        assertEquals(8, withHole.explodeSelected());
+        assertEquals(8, withHole.shapeCount());
+
+        Coordinate[] many = new Coordinate[10_002];
+        for (int i = 0; i < many.length - 1; i++) {
+            double angle = Math.PI * 2 * i / (many.length - 1);
+            many[i] = new Coordinate(Math.cos(angle), Math.sin(angle));
+        }
+        many[many.length - 1] = new Coordinate(many[0]);
+        GeometryEditSession oversized = new GeometryEditSession(FACTORY.createPolygon(many), List.of());
+        oversized.clickSelect(0, 0, 0, false);
+        assertThrows(IllegalArgumentException.class, oversized::explodeSelected);
+        assertFalse(oversized.isDirty());
+        assertEquals(1, oversized.shapeCount());
+    }
+
+    @Test
+    void cancelledBackgroundOperationDoesNotMutateDraft() {
+        GeometryEditSession session = overlappingRectangles();
+        var request = session.prepareOperation(GeometryEditSession.Operation.UNION, 0);
+        assertThrows(CancellationException.class, () -> request.execute(() -> true, ProgressCallback.none()));
+        assertFalse(session.isDirty());
+        assertEquals(2, session.shapeCount());
     }
 
     @Test

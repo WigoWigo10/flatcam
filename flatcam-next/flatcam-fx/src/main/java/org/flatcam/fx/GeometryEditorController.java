@@ -2,11 +2,13 @@ package org.flatcam.fx;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -26,6 +28,10 @@ final class GeometryEditorController {
         void setObjectVisible(TreeItem<String> item, boolean visible);
 
         void apply(TreeItem<String> item, Geometry geometry, List<ToolGeometry> tools);
+
+        boolean runOperation(GeometryEditSession.OperationRequest request,
+                             Consumer<GeometryEditSession.OperationResult> onSuccess,
+                             Consumer<String> onFailure);
 
         void log(String message);
     }
@@ -50,6 +56,15 @@ final class GeometryEditorController {
     private Button undoButton;
     private Button redoButton;
     private Button applyButton;
+    private Button unionButton;
+    private Button intersectionButton;
+    private Button subtractButton;
+    private Button bufferButton;
+    private Button explodeButton;
+    private TextField bufferDistance;
+    private ComboBox<String> bufferMode;
+    private List<Button> editorButtons;
+    private boolean busy;
     private boolean initiallyVisible;
     private boolean strokeOnly;
 
@@ -64,6 +79,10 @@ final class GeometryEditorController {
 
     boolean hasUnappliedChanges() {
         return isActive() && session.isDirty();
+    }
+
+    boolean isBusy() {
+        return busy;
     }
 
     boolean isEditing(TreeItem<String> target) {
@@ -85,12 +104,18 @@ final class GeometryEditorController {
         plotArea.setSelectionHandler(new PlotAreaView.SelectionHandler() {
             @Override
             public void onClick(double x, double y, boolean additive) {
+                if (busy) {
+                    return;
+                }
                 session.clickSelect(x, y, plotArea.pickToleranceWorld(), additive);
                 refreshSelection();
             }
 
             @Override
             public void onBox(double x1, double y1, double x2, double y2, boolean additive) {
+                if (busy) {
+                    return;
+                }
                 session.boxSelect(x1, y1, x2, y2, additive);
                 refreshSelection();
             }
@@ -98,7 +123,8 @@ final class GeometryEditorController {
 
         Label help = new Label("Selecione por clique/retangulo; Ctrl alterna a selecao. "
                 + "Delete exclui e Ctrl+Z/Y desfaz/refaz. Nos desenhos de varios pontos, "
-                + "Enter, duplo clique ou botao direito conclui; Backspace remove o ultimo ponto; Esc cancela.");
+                + "Enter, duplo clique ou botao direito conclui; Backspace remove o ultimo ponto; Esc cancela. "
+                + "Para subtrair, clique primeiro no alvo e use Ctrl+clique nas formas a remover.");
         help.setWrapText(true);
         status = new Label();
         instruction = new Label("Escolha uma ferramenta ou selecione formas no desenho.");
@@ -114,9 +140,22 @@ final class GeometryEditorController {
         undoButton = new Button("Desfazer");
         redoButton = new Button("Refazer");
         applyButton = new Button("Aplicar ao objeto");
+        unionButton = new Button("Unir selecionadas");
+        intersectionButton = new Button("Intersecao selecionadas");
+        subtractButton = new Button("Subtrair da primeira selecionada");
+        bufferButton = new Button("Criar buffer arredondado");
+        explodeButton = new Button("Explodir poligonos");
+        bufferDistance = new TextField();
+        bufferDistance.setPromptText("Distancia positiva (unidade do projeto)");
+        bufferMode = new ComboBox<>();
+        bufferMode.getItems().addAll("Completo", "Interior", "Exterior");
+        bufferMode.getSelectionModel().selectFirst();
+        bufferMode.setMaxWidth(Double.MAX_VALUE);
         Button cancelButton = new Button("Cancelar edicao");
-        for (Button button : new Button[]{selectButton, pathButton, polygonButton, rectangleButton, circleButton,
-                deleteButton, moveButton, copyButton, undoButton, redoButton, applyButton, cancelButton}) {
+        editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton,
+                deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
+                bufferButton, explodeButton, undoButton, redoButton, applyButton, cancelButton);
+        for (Button button : editorButtons) {
             button.setMaxWidth(Double.MAX_VALUE);
         }
         selectButton.setOnAction(event -> startSelection());
@@ -127,6 +166,11 @@ final class GeometryEditorController {
         deleteButton.setOnAction(event -> deleteSelected());
         moveButton.setOnAction(event -> startMove());
         copyButton.setOnAction(event -> startCopy());
+        unionButton.setOnAction(event -> startUnion());
+        intersectionButton.setOnAction(event -> startIntersection());
+        subtractButton.setOnAction(event -> startSubtract());
+        bufferButton.setOnAction(event -> startBuffer());
+        explodeButton.setOnAction(event -> explode());
         undoButton.setOnAction(event -> undo());
         redoButton.setOnAction(event -> redo());
         applyButton.setOnAction(event -> apply());
@@ -143,7 +187,9 @@ final class GeometryEditorController {
             panel.getChildren().addAll(new Label("Ferramenta das novas formas:"), toolChoice);
         }
         panel.getChildren().addAll(selectButton, pathButton, polygonButton, rectangleButton, circleButton,
-                moveButton, copyButton, deleteButton, undoButton, redoButton, applyButton, cancelButton);
+                moveButton, copyButton, deleteButton, unionButton, intersectionButton, subtractButton,
+                new Label("Buffer:"), bufferDistance, bufferMode, bufferButton, explodeButton,
+                undoButton, redoButton, applyButton, cancelButton);
         panel.setPadding(new Insets(12));
         host.openToolPanel("Editor Geometry", panel);
         refreshSelection();
@@ -339,15 +385,19 @@ final class GeometryEditorController {
     }
 
     private boolean readyForTool() {
-        if (isActive()) {
+        if (isActive() && !busy) {
             return true;
+        }
+        if (busy) {
+            host.log("Aguarde o calculo geometrico em andamento.");
+            return false;
         }
         host.log("Selecione um objeto Geometry e abra o Editor antes de usar esta ferramenta.");
         return false;
     }
 
     private boolean deleteSelected() {
-        if (!isActive()) {
+        if (!readyForTool()) {
             return false;
         }
         plotArea.cancelPlacement();
@@ -359,7 +409,7 @@ final class GeometryEditorController {
     }
 
     private boolean undo() {
-        if (!isActive()) {
+        if (!readyForTool()) {
             return false;
         }
         plotArea.cancelPlacement();
@@ -371,7 +421,7 @@ final class GeometryEditorController {
     }
 
     private boolean redo() {
-        if (!isActive()) {
+        if (!readyForTool()) {
             return false;
         }
         plotArea.cancelPlacement();
@@ -382,8 +432,94 @@ final class GeometryEditorController {
         return true;
     }
 
+    void startUnion() {
+        runOperation(GeometryEditSession.Operation.UNION, 0);
+    }
+
+    void startIntersection() {
+        runOperation(GeometryEditSession.Operation.INTERSECTION, 0);
+    }
+
+    void startSubtract() {
+        runOperation(GeometryEditSession.Operation.SUBTRACT, 0);
+    }
+
+    void startBuffer() {
+        if (!readyForTool()) {
+            return;
+        }
+        try {
+            String raw = bufferDistance.getText().trim().replace(',', '.');
+            double distance = Double.parseDouble(raw);
+            GeometryEditSession.Operation operation = switch (bufferMode.getSelectionModel().getSelectedIndex()) {
+                case 1 -> GeometryEditSession.Operation.BUFFER_INTERIOR;
+                case 2 -> GeometryEditSession.Operation.BUFFER_EXTERIOR;
+                default -> GeometryEditSession.Operation.BUFFER_FULL;
+            };
+            runOperation(operation, distance);
+        } catch (NumberFormatException invalid) {
+            instruction.setText("Informe uma distancia numerica positiva para o buffer.");
+        }
+    }
+
+    private void runOperation(GeometryEditSession.Operation operation, double distance) {
+        if (!readyForTool()) {
+            return;
+        }
+        plotArea.cancelPlacement();
+        GeometryEditSession editing = session;
+        GeometryEditSession.OperationRequest request;
+        try {
+            request = editing.prepareOperation(operation, distance);
+        } catch (IllegalArgumentException invalid) {
+            instruction.setText(invalid.getMessage());
+            return;
+        }
+        busy = true;
+        refreshSelection();
+        instruction.setText("Calculando " + operation.name().toLowerCase(java.util.Locale.ROOT) + "...");
+        boolean accepted = host.runOperation(request, result -> {
+            if (session != editing) {
+                return;
+            }
+            busy = false;
+            if (editing.applyOperation(result)) {
+                refreshGeometry();
+                instruction.setText("Operacao concluida. Ctrl+Z desfaz.");
+            } else {
+                refreshSelection();
+                instruction.setText("O rascunho mudou durante o calculo; resultado descartado.");
+            }
+        }, error -> {
+            if (session == editing) {
+                busy = false;
+                refreshSelection();
+                instruction.setText(error);
+            }
+        });
+        if (!accepted) {
+            busy = false;
+            refreshSelection();
+            instruction.setText("Nao foi possivel iniciar: ja existe outra operacao em andamento.");
+        }
+    }
+
+    void explode() {
+        if (!readyForTool()) {
+            return;
+        }
+        plotArea.cancelPlacement();
+        try {
+            int edges = session.explodeSelected();
+            refreshGeometry();
+            instruction.setText(edges + " segmentos criados. Ctrl+Z desfaz.");
+        } catch (IllegalArgumentException invalid) {
+            instruction.setText(invalid.getMessage());
+        }
+    }
+
     void apply() {
-        if (!isActive()) {
+        if (!readyForTool()) {
             return;
         }
         plotArea.cancelPlacement();
@@ -401,7 +537,7 @@ final class GeometryEditorController {
     }
 
     void cancel() {
-        if (!isActive()) {
+        if (!isActive() || busy) {
             return;
         }
         plotArea.cancelPlacement();
@@ -427,6 +563,14 @@ final class GeometryEditorController {
         undoButton.setDisable(!session.canUndo());
         redoButton.setDisable(!session.canRedo());
         applyButton.setDisable(!session.isDirty());
+        unionButton.setDisable(session.selectedCount() < 2);
+        intersectionButton.setDisable(session.selectedCount() < 2);
+        subtractButton.setDisable(session.selectedCount() < 2);
+        bufferButton.setDisable(session.selectedCount() == 0);
+        explodeButton.setDisable(session.selectedCount() == 0);
+        if (busy) {
+            editorButtons.forEach(button -> button.setDisable(true));
+        }
     }
 
     private void end() {
@@ -447,5 +591,14 @@ final class GeometryEditorController {
         undoButton = null;
         redoButton = null;
         applyButton = null;
+        unionButton = null;
+        intersectionButton = null;
+        subtractButton = null;
+        bufferButton = null;
+        explodeButton = null;
+        bufferDistance = null;
+        bufferMode = null;
+        editorButtons = null;
+        busy = false;
     }
 }

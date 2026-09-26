@@ -84,6 +84,7 @@ import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
 import org.flatcam.cam.gerber.GerberImage;
@@ -277,6 +278,12 @@ final class MainWindow {
                 }
 
                 @Override
+                public boolean runOperation(GeometryEditSession.OperationRequest request,
+                        Consumer<GeometryEditSession.OperationResult> onSuccess, Consumer<String> onFailure) {
+                    return MainWindow.this.runGeometryOperation(request, onSuccess, onFailure);
+                }
+
+                @Override
                 public void log(String message) {
                     appendConsole(message);
                 }
@@ -336,6 +343,40 @@ final class MainWindow {
                 reportJobError(error, "Falha ao aplicar edicao Gerber: ");
                 onJobFinished();
                 onFailure.run();
+            });
+            return null;
+        });
+        return true;
+    }
+
+    private boolean runGeometryOperation(GeometryEditSession.OperationRequest request,
+            Consumer<GeometryEditSession.OperationResult> onSuccess, Consumer<String> onFailure) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return false;
+        }
+        String message = "Calculando " + request.operation().name().toLowerCase(java.util.Locale.ROOT) + "...";
+        beginJob(message);
+        JobHandle<GeometryEditSession.OperationResult> handle = jobExecutor.submit(context ->
+                request.execute(context::isCancelled,
+                        fraction -> context.reportProgress(fraction, message)),
+                (fraction, progressMessage) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(progressMessage);
+                }));
+        runningJob = handle;
+        handle.completion().thenAccept(result -> Platform.runLater(() -> {
+            onJobFinished();
+            updateProgress(1);
+            setStatus("Operacao Geometry concluida.", IDLE_COLOR);
+            onSuccess.accept(result);
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha na operacao Geometry: ");
+                onJobFinished();
+                Throwable cause = error.getCause() == null ? error : error.getCause();
+                onFailure.accept(isCancellation(error) ? "Operacao cancelada."
+                        : "Falha na operacao: " + cause.getMessage());
             });
             return null;
         });
@@ -922,6 +963,11 @@ final class MainWindow {
                 case "move" -> geometryEditor::startMove;
                 case "copy" -> geometryEditor::startCopy;
                 case "delete" -> geometryEditor::deleteFromShortcut;
+                case "union" -> geometryEditor::startUnion;
+                case "intersection" -> geometryEditor::startIntersection;
+                case "subtract" -> geometryEditor::startSubtract;
+                case "buffer" -> geometryEditor::startBuffer;
+                case "explode" -> geometryEditor::explode;
                 default -> null;
             };
             menu.getItems().add(action == null ? plannedItem(command.label(), command.icon())
@@ -3192,6 +3238,10 @@ final class MainWindow {
     }
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
+        if (geometryEditor.isEditing(item) && geometryEditor.isBusy()) {
+            appendConsole("Aguarde ou cancele a operacao Geometry antes de remover este objeto.");
+            return;
+        }
         if (gcodeEditor.isEditing(item) && gcodeEditor.hasUnappliedChanges()) {
             appendConsole("Aplique ou cancele a edicao de G-code antes de remover este CNC Job.");
             return;

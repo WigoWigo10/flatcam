@@ -2,11 +2,14 @@ package org.flatcam.cam.geometry;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -14,16 +17,122 @@ import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.geom.util.AffineTransformation;
+import org.locationtech.jts.operation.buffer.BufferOp;
+import org.locationtech.jts.operation.buffer.BufferParameters;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /** An in-memory geometry edit. Atomic lines and polygons remain individually selectable. */
 public final class GeometryEditSession {
 
+    public enum Operation {
+        UNION, INTERSECTION, SUBTRACT, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR
+    }
+
+    public record ToolPart(Geometry geometry, int toolIndex) {
+    }
+
+    public record OperationResult(long revision, List<Integer> selectedIndices,
+                                  boolean replaceSelected, List<ToolPart> resultParts) {
+        public OperationResult {
+            selectedIndices = List.copyOf(selectedIndices);
+            resultParts = List.copyOf(resultParts);
+        }
+    }
+
+    /** Immutable input for a potentially expensive JTS operation on a worker thread. */
+    public record OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
+                                   List<ToolPart> inputs, double distance) {
+        public OperationRequest {
+            selectedIndices = List.copyOf(selectedIndices);
+            inputs = List.copyOf(inputs);
+        }
+        public OperationResult execute(CancellationToken cancellation, ProgressCallback progress) {
+            Objects.requireNonNull(cancellation);
+            Objects.requireNonNull(progress);
+            cancellation.throwIfCancellationRequested();
+            progress.report(0.05);
+            List<ToolPart> outputs = new ArrayList<>();
+            boolean replace = operation == Operation.UNION || operation == Operation.INTERSECTION
+                    || operation == Operation.SUBTRACT;
+            if (replace) {
+                List<Geometry> geometries = inputs.stream().map(ToolPart::geometry).toList();
+                Geometry combined = switch (operation) {
+                    case UNION -> UnaryUnionOp.union(geometries);
+                    case INTERSECTION -> {
+                        Geometry result = geometries.get(0);
+                        for (int i = 1; i < geometries.size(); i++) {
+                            cancellation.throwIfCancellationRequested();
+                            result = result.intersection(geometries.get(i));
+                            progress.report(0.05 + 0.85 * i / (geometries.size() - 1));
+                            if (result.isEmpty()) {
+                                break;
+                            }
+                        }
+                        yield result;
+                    }
+                    case SUBTRACT -> geometries.get(0).difference(
+                            UnaryUnionOp.union(geometries.subList(1, geometries.size())));
+                    default -> throw new IllegalStateException("Operacao booleana desconhecida.");
+                };
+                cancellation.throwIfCancellationRequested();
+                if (combined == null || combined.isEmpty() || combined.getDimension() < 1) {
+                    throw new IllegalArgumentException("A operacao nao gerou linhas ou areas editaveis.");
+                }
+                flattenToolParts(combined, inputs.get(0).toolIndex(), outputs, cancellation);
+            } else {
+                BufferParameters parameters = new BufferParameters(16, BufferParameters.CAP_ROUND,
+                        BufferParameters.JOIN_ROUND, BufferParameters.DEFAULT_MITRE_LIMIT);
+                for (int i = 0; i < inputs.size(); i++) {
+                    cancellation.throwIfCancellationRequested();
+                    ToolPart input = inputs.get(i);
+                    Geometry shape = input.geometry();
+                    Geometry buffered = switch (operation) {
+                        case BUFFER_FULL -> BufferOp.bufferOp(
+                                shape instanceof Polygon polygon ? polygon.getExteriorRing() : shape,
+                                distance, parameters);
+                        case BUFFER_INTERIOR -> shape instanceof Polygon
+                                ? BufferOp.bufferOp(shape, -distance, parameters) : null;
+                        case BUFFER_EXTERIOR -> shape instanceof Polygon
+                                ? BufferOp.bufferOp(shape, distance, parameters) : null;
+                        default -> throw new IllegalStateException("Modo de buffer desconhecido.");
+                    };
+                    if (buffered != null && !buffered.isEmpty()) {
+                        flattenToolParts(buffered, input.toolIndex(), outputs, cancellation);
+                    }
+                    progress.report(0.05 + 0.85 * (i + 1) / inputs.size());
+                }
+                if (outputs.isEmpty()) {
+                    throw new IllegalArgumentException("O buffer nao gerou areas; confira o modo e a distancia.");
+                }
+            }
+            cancellation.throwIfCancellationRequested();
+            progress.report(1);
+            return new OperationResult(revision, selectedIndices, replace, List.copyOf(outputs));
+        }
+
+        private static void flattenToolParts(Geometry geometry, int toolIndex, List<ToolPart> outputs,
+                                             CancellationToken cancellation) {
+            cancellation.throwIfCancellationRequested();
+            if (geometry.isEmpty()) {
+                return;
+            }
+            if (geometry instanceof GeometryCollection collection) {
+                for (int i = 0; i < collection.getNumGeometries(); i++) {
+                    flattenToolParts(collection.getGeometryN(i), toolIndex, outputs, cancellation);
+                }
+            } else if (geometry.getDimension() >= 1) {
+                outputs.add(new ToolPart(geometry, toolIndex));
+            }
+        }
+    }
+
     private record Part(Geometry geometry, int toolIndex) {
     }
 
-    private record Snapshot(List<Part> parts, Set<Integer> selection) {
+    private record Snapshot(List<Part> parts, List<Integer> selection) {
     }
 
     private final Geometry source;
@@ -36,6 +145,7 @@ public final class GeometryEditSession {
     private final Set<Integer> selected = new LinkedHashSet<>();
     private STRtree spatialIndex;
     private Geometry cachedResult;
+    private long revision;
 
     public GeometryEditSession(Geometry source, List<ToolGeometry> tools) {
         this.source = Objects.requireNonNull(source);
@@ -138,18 +248,105 @@ public final class GeometryEditSession {
         if (selected.isEmpty()) {
             return false;
         }
-        undo.push(snapshot());
-        redo.clear();
         List<Part> remaining = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
             if (!selected.contains(i)) {
                 remaining.add(parts.get(i));
             }
         }
-        parts = List.copyOf(remaining);
-        selected.clear();
-        rebuildIndex();
+        commit(remaining, List.of());
         return true;
+    }
+
+    public OperationRequest prepareOperation(Operation operation, double distance) {
+        Objects.requireNonNull(operation);
+        boolean booleanOperation = operation == Operation.UNION || operation == Operation.INTERSECTION
+                || operation == Operation.SUBTRACT;
+        if (selected.size() < (booleanOperation ? 2 : 1)) {
+            throw new IllegalArgumentException(booleanOperation
+                    ? "Selecione ao menos duas formas." : "Selecione ao menos uma forma.");
+        }
+        if (!booleanOperation && (!Double.isFinite(distance) || distance <= 0)) {
+            throw new IllegalArgumentException("A distancia do buffer deve ser positiva e finita.");
+        }
+        List<Integer> indices = List.copyOf(selected);
+        List<ToolPart> inputs = new ArrayList<>(indices.size());
+        int firstTool = parts.get(indices.get(0)).toolIndex();
+        for (int index : indices) {
+            Part part = parts.get(index);
+            if (booleanOperation && part.toolIndex() != firstTool) {
+                throw new IllegalArgumentException("Selecione formas da mesma ferramenta para esta operacao.");
+            }
+            if ((operation == Operation.BUFFER_INTERIOR || operation == Operation.BUFFER_EXTERIOR)
+                    && !(part.geometry() instanceof Polygon)) {
+                throw new IllegalArgumentException("Buffer interior/exterior exige apenas poligonos.");
+            }
+            inputs.add(new ToolPart(part.geometry(), part.toolIndex()));
+        }
+        return new OperationRequest(revision, operation, indices, inputs, distance);
+    }
+
+    /** Applies only to the unchanged draft and selection from which the request was prepared. */
+    public boolean applyOperation(OperationResult result) {
+        Objects.requireNonNull(result);
+        if (result.revision() != revision || !result.selectedIndices().equals(List.copyOf(selected))) {
+            return false;
+        }
+        List<Part> updated = new ArrayList<>();
+        for (int i = 0; i < parts.size(); i++) {
+            if (!result.replaceSelected() || !selected.contains(i)) {
+                updated.add(parts.get(i));
+            }
+        }
+        for (ToolPart output : result.resultParts()) {
+            flatten(output.geometry(), output.toolIndex(), updated);
+        }
+        commit(updated, List.of());
+        return true;
+    }
+
+    /** Splits selected polygon rings into editable edges, with a bounded UI-thread workload. */
+    public int explodeSelected() {
+        if (selected.isEmpty()) {
+            throw new IllegalArgumentException("Selecione ao menos um poligono.");
+        }
+        int edges = 0;
+        for (int index : selected) {
+            if (!(parts.get(index).geometry() instanceof Polygon polygon)) {
+                throw new IllegalArgumentException("Explodir exige apenas poligonos.");
+            }
+            edges += polygon.getExteriorRing().getNumPoints() - 1;
+            for (int ring = 0; ring < polygon.getNumInteriorRing(); ring++) {
+                edges += polygon.getInteriorRingN(ring).getNumPoints() - 1;
+            }
+            if (edges > 10_000) {
+                throw new IllegalArgumentException("Explodir excede 10.000 segmentos; selecione menos formas.");
+            }
+        }
+        List<Part> updated = new ArrayList<>(parts.size() - selected.size() + edges);
+        for (int i = 0; i < parts.size(); i++) {
+            if (!selected.contains(i)) {
+                updated.add(parts.get(i));
+            }
+        }
+        for (int index : selected) {
+            Part part = parts.get(index);
+            Polygon polygon = (Polygon) part.geometry();
+            appendEdges(polygon.getExteriorRing(), part.toolIndex(), updated);
+            for (int ring = 0; ring < polygon.getNumInteriorRing(); ring++) {
+                appendEdges(polygon.getInteriorRingN(ring), part.toolIndex(), updated);
+            }
+        }
+        commit(updated, List.of());
+        return edges;
+    }
+
+    private void appendEdges(LineString ring, int toolIndex, List<Part> target) {
+        Coordinate[] coordinates = ring.getCoordinates();
+        for (int i = 1; i < coordinates.length; i++) {
+            target.add(new Part(factory.createLineString(new Coordinate[]{coordinates[i - 1], coordinates[i]}),
+                    toolIndex));
+        }
     }
 
     public boolean moveSelected(double dx, double dy) {
@@ -162,7 +359,7 @@ public final class GeometryEditSession {
             Part part = parts.get(i);
             moved.add(selected.contains(i) ? new Part(translation.transform(part.geometry()), part.toolIndex()) : part);
         }
-        commit(moved, Set.copyOf(selected));
+        commit(moved, List.copyOf(selected));
         return true;
     }
 
@@ -263,12 +460,13 @@ public final class GeometryEditSession {
         commit(updated, Set.of());
     }
 
-    private void commit(List<Part> updated, Set<Integer> newSelection) {
+    private void commit(List<Part> updated, Collection<Integer> newSelection) {
         undo.push(snapshot());
         redo.clear();
         parts = List.copyOf(updated);
         selected.clear();
         selected.addAll(newSelection);
+        revision++;
         rebuildIndex();
     }
 
@@ -291,13 +489,14 @@ public final class GeometryEditSession {
     }
 
     private Snapshot snapshot() {
-        return new Snapshot(parts, Set.copyOf(selected));
+        return new Snapshot(parts, List.copyOf(selected));
     }
 
     private void restore(Snapshot snapshot) {
         parts = snapshot.parts();
         selected.clear();
         selected.addAll(snapshot.selection());
+        revision++;
         rebuildIndex();
     }
 
