@@ -12,15 +12,11 @@ import org.flatcam.cam.gerber.GerberImage;
  * other in-memory edit) survive a save/reload, and what lets the object
  * still load if its original source file is later moved or deleted.
  *
- * <p>Geometry and CNC Job objects aren't part of this yet - CNC Job stays on
- * the older "remember the output path, re-read the G-code text, don't
- * restore toolpath geometry for plotting" behavior, and Geometry objects
- * (e.g. an NCC result) still aren't persisted at all. Both are next in line
- * for the same embedded-geometry treatment (see CONTEXTO_E_PROGRESSO.md
- * section 9.3) - each needs its own real model change first (Geometry needs
- * a persistent per-tool CAM-options dict; CNC Job needs to retain a
- * per-segment kind-tagged path list during generation), not just a
- * serialization-layer change like Gerber/Excellon got.
+ * <p>CNC Jobs embed their edited G-code text in the Java extension so edits
+ * survive a save/reload without overwriting the machine-code file. Geometry
+ * objects (e.g. an NCC result) are not persisted yet. A CNC Job's original
+ * tool-diameter metadata and full machine semantics are not serialized; the
+ * supported G0/G1 XY preview is reconstructed on reload.
  */
 public record ProjectFile(
         List<GerberEntry> gerbers,
@@ -39,6 +35,10 @@ public record ProjectFile(
                                 boolean visible, boolean filled, boolean multicolor) {
     }
 
-    public record CncJobRecord(String sourceName, String outputPath) {
+    /** {@code gcode} is null for older projects that only referenced an output file. */
+    public record CncJobRecord(String sourceName, String outputPath, String gcode) {
+        public CncJobRecord(String sourceName, String outputPath) {
+            this(sourceName, outputPath, null);
+        }
     }
 }

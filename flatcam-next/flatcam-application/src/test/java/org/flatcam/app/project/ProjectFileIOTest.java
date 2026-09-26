@@ -75,6 +75,16 @@ class ProjectFileIOTest {
     }
 
     @Test
+    void roundTripsEditedGCodeWithoutDependingOnOutputFile() throws IOException {
+        String edited = "G21\nG90\nG0 X1 Y1\nG1 Z-0.2\nG1 X3 Y1\n";
+        ProjectFile.CncJobRecord job = new ProjectFile.CncJobRecord(
+                "board.gbr", tempDir.resolve("missing-output.nc").toString(), edited);
+        Path file = tempDir.resolve("edited-cnc.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(job)), file);
+        assertEquals(List.of(job), ProjectFileIO.load(file).cncJobs());
+    }
+
+    @Test
     void roundTripsIndividualGerberShapesAndAnEditedResult() throws IOException {
         GerberImage parsed = new GerberParser().parse(List.of(
                 "%FSLAX23Y23*%", "%MOMM*%", "%ADD10C,1*%", "D10*",

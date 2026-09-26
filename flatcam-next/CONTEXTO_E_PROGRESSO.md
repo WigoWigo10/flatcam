@@ -70,8 +70,8 @@ separação.
 
 ### Verificação mais recente
 
-Após a ampliação das ferramentas do Gerber Editor e o round-trip das
-formas individuais, `clean test` passa com **189 testes executados**, sem falhas,
+Após o primeiro fluxo do Editor de G-Code, `clean test` passa com
+**193 testes executados**, sem falhas,
 erros ou testes ignorados. `JobExecutorTest` registra
 intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
 esse log, isoladamente, não representa falha da suíte.
@@ -130,9 +130,9 @@ resultados podem mudar.
   contra o código-fonte Python; **não verificado contra uma instalação
   Python+Shapely rodando de verdade**, que não está disponível neste
   ambiente de desenvolvimento). Detalhes técnicos completos na seção 9.3.
-  Geometry e CNC Job **ainda não** fazem parte desse formato embutido -
-  continuam como antes (Geometry nem é persistido; CNC Job guarda só o path
-  do G-code e o texto, sem geometria de plot ao reabrir).
+  Geometry ainda não é persistido. CNC Job embute o texto G-code em `_java`,
+  além do path; na reabertura, reconstrói uma prévia limitada a G0/G1 em XY,
+  sem a largura original da ferramenta.
 
 ### Gerber
 
@@ -322,8 +322,8 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | inicial/parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; edição e outras operações (Paint, Sub, Panelize) faltam |
-| CNC Job | parcial | geração/plot/save básicos; painel e opções avançadas do legado faltam |
-| Persistência de projeto | forte/parcial (Gerber/Excellon), inicial (Geometry/CNC Job) | Gerber salva formas individuais e ordem em extensão `_java`, além do WKT padrão Python; Geometry não é persistido, CNC Job só guarda o G-code |
+| CNC Job | parcial | geração, plot, edição de texto G-code, Aplicar/Cancelar e Salvar arquivo; prévia G0/G1 em XY refeita ao aplicar; painel e opções avançadas do legado faltam |
+| Persistência de projeto | forte/parcial (Gerber/Excellon), parcial (CNC Job), inicial (Geometry) | Gerber salva formas individuais e ordem em extensão `_java`; CNC Job embute o texto G-code editado, mesmo se o arquivo externo desaparecer, e reconstrói a prévia G0/G1; Geometry não é persistido |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | ausente | necessário para paridade de ferramentas |
@@ -861,9 +861,26 @@ Depois disso, repetir a estratégia para o Editor Excellon e ampliar Geometry e
 CNC Job até a paridade necessária.
 
 Ordem acordada em 2026-09-25: trilhas multiponto/modos de dobra, regiões e edição
-de aberturas implementados. Próximo passo: validar manualmente o Editor Gerber
-no JavaFX com arquivos reais e, em seguida, iniciar o Editor de G-Code com
-carregamento e processamento assíncronos, progresso e cancelamento.
+de aberturas implementados; o Editor de G-Code agora tem um fluxo inicial de
+edição/aplicação/exportação. Próximo passo: validar manualmente os dois editores
+no JavaFX com arquivos reais e ampliar a prévia G-code conforme corpus.
+
+### 9.5 Editor de G-Code
+
+O Editor de G-Code abre o texto de um CNC Job em aba central protegida, com
+Aplicar, Cancelar e Salvar arquivo no painel lateral. Aplicar substitui o
+texto do objeto em memória, sem sobrescrever automaticamente o arquivo de
+máquina. O processamento roda em job cancelável, com progresso; falhas mantêm
+o rascunho aberto. A prévia é reconstruída apenas para movimentos G0/G1 em
+XY, incluindo G90/G91 e G20/G21. Comandos de movimento não suportados deixam
+a prévia indisponível, nunca conservam a geometria antiga. Isso não é um
+validador de segurança CNC nem reconstrói a largura original da ferramenta.
+
+O projeto salva o texto G-code em `_java.cncJobs`, mantendo leitura dos projetos
+antigos que referenciam somente o arquivo externo. Na reabertura, a análise
+da prévia também roda em background; se não for possível interpretá-la, o
+texto ainda é carregado. Falta validar a UI com arquivos reais e ampliar o
+subconjunto modal/arcos do parser antes de alegar paridade com o Python.
 
 ## 10. Regras de implementação para qualquer IA
 
@@ -1014,7 +1031,10 @@ avançadas numéricas ainda não reproduzem todos os gestos do Python.
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O
-próximo trabalho recomendado é validar manualmente o fluxo completo do editor
-e a exportação em um visualizador Gerber independente; depois iniciar o Editor
-de G-Code.
-Persistência de Geometry/CNC Job e lacunas de NCC seguem no roadmap.
+Editor de G-Code agora edita o texto do CNC Job, aplica em background com
+progresso/cancelamento e salva o rascunho como arquivo. O projeto embute esse
+texto para que a edição sobreviva à reabertura; a prévia G0/G1 é reconstruída
+sem reutilizar um plot antigo após mudança. O próximo trabalho recomendado é
+validar manualmente os dois editores com arquivos reais e conferir Gerber
+exportado em um visualizador independente. Persistência de Geometry, plot CNC
+com largura de ferramenta e lacunas de NCC seguem no roadmap.

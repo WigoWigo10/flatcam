@@ -2,6 +2,7 @@ package org.flatcam.fx;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -81,6 +82,7 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.gcode.GCodeToolpathParser;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
@@ -149,9 +151,8 @@ final class MainWindow {
 
     /**
      * A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator
-     * writes one. travelGeometry/cutGeometry are null when reopening a saved project (the
-     * lightweight .fcnproj format only stores the G-code file path, not its toolpath geometry -
-     * see ProjectFile's doc - so a reloaded CNC Job has no plot until regenerated).
+     * writes one. Edited text is kept here and embedded in project saves;
+     * a supported G0/G1 XY preview can be reconstructed from that text.
      */
     private record CncJobEntry(String sourceName, Path outputFile, String gcode, Geometry travelGeometry, Geometry cutGeometry) {
     }
@@ -162,7 +163,8 @@ final class MainWindow {
     private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
     }
 
-    private record LoadedCncJob(String sourceName, Path outputPath, String gcode) {
+    private record LoadedCncJob(String sourceName, Path outputPath, String gcode,
+                                Geometry travelGeometry, Geometry cutGeometry) {
     }
 
     /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
@@ -241,6 +243,35 @@ final class MainWindow {
                 }
             });
 
+    private final GCodeEditorController gcodeEditor = new GCodeEditorController(centerTabs,
+            new GCodeEditorController.Host() {
+                @Override
+                public void openToolPanel(String label, Node content) {
+                    MainWindow.this.openToolPanel(label, content);
+                }
+
+                @Override
+                public void closeToolPanel() {
+                    MainWindow.this.closeToolPanel();
+                }
+
+                @Override
+                public boolean apply(TreeItem<String> item, String text, Runnable onSuccess,
+                                     Consumer<String> onFailure) {
+                    return MainWindow.this.applyGCodeEdit(item, text, onSuccess, onFailure);
+                }
+
+                @Override
+                public boolean saveAs(String text, Consumer<String> onComplete) {
+                    return MainWindow.this.saveGCodeDraftAs(text, onComplete);
+                }
+
+                @Override
+                public void log(String message) {
+                    appendConsole(message);
+                }
+            });
+
     private boolean generateEditedGerber(GerberEditSession.ApplyRequest request,
             Consumer<GerberEditSession.ApplyResult> onSuccess, Runnable onFailure) {
         if (runningJob != null) {
@@ -266,6 +297,133 @@ final class MainWindow {
                 reportJobError(error, "Falha ao aplicar edicao Gerber: ");
                 onJobFinished();
                 onFailure.run();
+            });
+            return null;
+        });
+        return true;
+    }
+
+    private boolean applyGCodeEdit(TreeItem<String> item, String text, Runnable onSuccess,
+                                   Consumer<String> onFailure) {
+        CncJobEntry original = cncJobByItem.get(item);
+        if (runningJob != null || original == null) {
+            appendConsole(runningJob != null ? "Ja existe uma operacao em andamento."
+                    : "O CNC Job nao esta mais no projeto.");
+            return false;
+        }
+        beginJob("Analisando G-code editado...");
+        JobHandle<GCodeToolpathParser.Result> handle = jobExecutor.submit(context ->
+                GCodeToolpathParser.parse(text, context::isCancelled,
+                        fraction -> context.reportProgress(fraction, "Analisando G-code editado...")),
+                (fraction, message) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(message);
+                }));
+        runningJob = handle;
+        handle.completion().thenAccept(parsed -> Platform.runLater(() -> {
+            onJobFinished();
+            if (!cncJobByItem.containsKey(item)) {
+                onFailure.accept("O CNC Job foi removido durante a edicao.");
+                return;
+            }
+            updateCncJob(item, original, text, parsed);
+            updateProgress(1);
+            setStatus("G-code atualizado.", IDLE_COLOR);
+            appendConsole("Editor G-Code: " + item.getValue() + " atualizado em memoria."
+                    + (parsed.warning() == null ? "" : " " + parsed.warning()));
+            onSuccess.run();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao aplicar G-code: ");
+                onJobFinished();
+                onFailure.accept(isCancellation(error) ? "Analise cancelada; nenhuma alteracao aplicada."
+                        : "Falha ao analisar G-code: "
+                                + (error.getCause() == null ? error : error.getCause()).getMessage());
+            });
+            return null;
+        });
+        return true;
+    }
+
+    private void updateCncJob(TreeItem<String> item, CncJobEntry previous, String text,
+                              GCodeToolpathParser.Result parsed) {
+        CncCutLayerKey cutKey = new CncCutLayerKey(item);
+        CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
+        boolean hadPlot = previous.cutGeometry() != null || previous.travelGeometry() != null;
+        boolean visible = !hadPlot || plotAreaView.isLayerVisible(cutKey) || plotAreaView.isLayerVisible(travelKey);
+        plotAreaView.removeLayer(cutKey);
+        plotAreaView.removeLayer(travelKey);
+        cncJobByItem.put(item, new CncJobEntry(previous.sourceName(), previous.outputFile(), text,
+                parsed.travelGeometry(), parsed.cutGeometry()));
+        if (parsed.cutGeometry() != null && !parsed.cutGeometry().isEmpty()) {
+            plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
+                    parsed.cutGeometry(), CNC_CUT_FILL, CNC_CUT_STROKE, false);
+            plotAreaView.setLayerVisible(cutKey, visible);
+        }
+        if (parsed.travelGeometry() != null && !parsed.travelGeometry().isEmpty()) {
+            plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
+                    parsed.travelGeometry(), CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
+            plotAreaView.setLayerVisible(travelKey, visible);
+        }
+        refreshPlotSelectionOutline();
+        if (projectTree.getSelectionModel().getSelectedItem() == item) {
+            showProperties(item);
+        }
+        for (Tab openTab : centerTabs.getTabs()) {
+            if ((openTab.getText().equals("Fonte - " + item.getValue())
+                    || openTab.getText().equals(item.getValue()))
+                    && openTab.getContent() instanceof TextArea viewer && !viewer.isEditable()) {
+                viewer.setText(text);
+            }
+        }
+    }
+
+    private boolean saveGCodeDraftAs(String text, Consumer<String> onComplete) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return false;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar rascunho G-code");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        chooser.setInitialFileName("gcode_edit.nc");
+        File file = chooser.showSaveDialog(scene.getWindow());
+        if (file == null) {
+            return false;
+        }
+        Path destination = file.toPath().toAbsolutePath();
+        beginJob("Salvando G-code...");
+        // A completed file replacement cannot be rolled back safely; only analysis jobs are cancellable.
+        cancelJobButton.setDisable(true);
+        JobHandle<Path> handle = jobExecutor.submit(context -> {
+            context.reportProgress(0.1, "Preparando arquivo G-code...");
+            Path temporary = Files.createTempFile(destination.getParent(),
+                    "." + destination.getFileName() + ".", ".tmp");
+            try {
+                Files.writeString(temporary, text, StandardCharsets.UTF_8);
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+                context.reportProgress(1, "G-code salvo.");
+                return destination;
+            } finally {
+                Files.deleteIfExists(temporary);
+            }
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(path -> Platform.runLater(() -> {
+            onJobFinished();
+            setStatus("G-code salvo.", IDLE_COLOR);
+            appendConsole("Rascunho G-code salvo em " + path);
+            onComplete.accept("Arquivo salvo em " + path + ". O CNC Job ainda nao foi alterado.");
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao salvar G-code: ");
+                onJobFinished();
+                onComplete.accept(isCancellation(error) ? "Gravacao cancelada."
+                        : "Falha ao salvar G-code: "
+                                + (error.getCause() == null ? error : error.getCause()).getMessage());
             });
             return null;
         });
@@ -559,12 +717,49 @@ final class MainWindow {
     }
 
     private void editSelectedGerber() {
+        if (gcodeEditor.isActive()) {
+            appendConsole("Conclua ou cancele a edicao de G-code antes de abrir outro editor.");
+            return;
+        }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage image = gerberByItem.get(item);
         if (image == null) {
             appendConsole("Selecione um Gerber para editar.");
         } else {
             gerberEditor.start(item, image);
+        }
+    }
+
+    private void editSelectedObject() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        if (cncJobByItem.containsKey(item)) {
+            editSelectedGCode();
+        } else {
+            editSelectedGerber();
+        }
+    }
+
+    private void editSelectedGCode() {
+        if (gerberEditor.isActive()) {
+            appendConsole("Conclua ou cancele a edicao Gerber antes de abrir o Editor G-Code.");
+            return;
+        }
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        CncJobEntry entry = cncJobByItem.get(item);
+        if (entry == null) {
+            appendConsole("Selecione um CNC Job para editar o G-code.");
+            return;
+        }
+        gcodeEditor.start(item, entry.gcode());
+    }
+
+    private void saveAndCloseEditor() {
+        if (gcodeEditor.isActive()) {
+            gcodeEditor.saveAndClose();
+        } else if (gerberEditor.isActive()) {
+            gerberEditor.saveAndClose();
+        } else {
+            appendConsole("Nenhum editor esta aberto.");
         }
     }
 
@@ -708,9 +903,9 @@ final class MainWindow {
         addPlannedCommands(geometryEditorMenu, LegacyUiManifest.GEOMETRY_EDITOR);
         editorToolsMenu.getItems().addAll(excellonEditorMenu, geometryEditorMenu);
         editMenu.getItems().addAll(
-                chromeItem("Editar Objeto", "edit_file32.png", this::editSelectedGerber),
-                plannedItem("Salvar e Fechar Editor", "close_edit_file32.png"),
-                plannedItem("Editor de G-Code", "code_editor32.png"),
+                chromeItem("Editar Objeto", "edit_file32.png", this::editSelectedObject),
+                chromeItem("Salvar e Fechar Editor", "close_edit_file32.png", this::saveAndCloseEditor),
+                chromeItem("Editor de G-Code", "code_editor32.png", this::editSelectedGCode),
                 editorToolsMenu,
                 new SeparatorMenuItem(),
                 chromeItem("Copiar", "copy_file32.png", this::copySelectedObjects),
@@ -926,7 +1121,7 @@ final class MainWindow {
                 chromeButton("Abrir Projeto", "folder32.png", this::openProject),
                 chromeButton("Salvar Projeto", "project_save32.png", this::saveProject),
                 new Separator(),
-                chromeButton("Editor", "edit_file32.png", this::editSelectedGerber),
+                chromeButton("Editor", "edit_file32.png", this::editSelectedObject),
                 chromeButton("Salvar e Fechar Editor", "close_edit_file32.png", null),
                 chromeButton("Copiar", "copy_file32.png", this::copySelectedObjects),
                 chromeButton("Excluir", "trash32.png", this::deleteSelectedObjects),
@@ -2238,6 +2433,13 @@ final class MainWindow {
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
 
+        MenuItem editItem = new MenuItem("Editar G-code");
+        setLegacyMenuIcon(editItem, "code_editor32.png");
+        editItem.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedGCode();
+        });
+
         MenuItem renameItem = new MenuItem("Renomear");
         renameItem.setOnAction(e -> beginRename(item));
 
@@ -2257,7 +2459,7 @@ final class MainWindow {
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
-        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), viewItem, renameItem, copyItem,
+        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), editItem, viewItem, renameItem, copyItem,
                 removeItem, saveItem, new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -2888,8 +3090,13 @@ final class MainWindow {
     }
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
+        if (gcodeEditor.isEditing(item) && gcodeEditor.hasUnappliedChanges()) {
+            appendConsole("Aplique ou cancele a edicao de G-code antes de remover este CNC Job.");
+            return;
+        }
         plotMoveHistory.clear();
         gerberEditor.cancelIfEditing(item);
+        gcodeEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
         gerberFollowItems.remove(item);
@@ -3226,6 +3433,13 @@ final class MainWindow {
         viewButton.setMaxWidth(Double.MAX_VALUE);
         viewButton.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
         box.getChildren().add(viewButton);
+        Button editButton = new Button("Editar G-code");
+        editButton.setMaxWidth(Double.MAX_VALUE);
+        editButton.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedGCode();
+        });
+        box.getChildren().add(editButton);
         box.getChildren().add(propertiesSection(String.format(
                 "Origem: %s%nArquivo: %s%nLinhas: %d",
                 entry.sourceName(), entry.outputFile(), entry.gcode().lines().count()
@@ -3573,7 +3787,7 @@ final class MainWindow {
     /**
      * Writes every Gerber/Excellon's own resolved geometry (WKT-embedded,
      * matching the legacy app's .FlatPrj shape - see ProjectFileIO's doc)
-     * plus which G-code jobs were generated. Unlike a path, embedded
+     * plus each CNC Job's current G-code text. Unlike a path, embedded
      * geometry survives a save/reload even after an in-memory edit
      * (Transformations) or if the original source file is later moved or
      * deleted.
@@ -3581,6 +3795,10 @@ final class MainWindow {
     private void saveProject() {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()) {
+            appendConsole("Aplique ou cancele as alteracoes do editor antes de salvar o projeto.");
             return;
         }
         List<ProjectFile.GerberEntry> gerbers = new ArrayList<>();
@@ -3602,7 +3820,8 @@ final class MainWindow {
                     plotAreaView.isLayerMulticolor(item)));
         }
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.values().stream()
-                .map(entry -> new ProjectFile.CncJobRecord(entry.sourceName(), entry.outputFile().toString()))
+                .map(entry -> new ProjectFile.CncJobRecord(entry.sourceName(),
+                        entry.outputFile().toString(), entry.gcode()))
                 .toList();
         ProjectFile project = new ProjectFile(gerbers, excellons, jobs);
 
@@ -3659,6 +3878,10 @@ final class MainWindow {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
+        if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()) {
+            appendConsole("Aplique ou cancele as alteracoes do editor antes de abrir outro projeto.");
+            return;
+        }
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Abrir Projeto");
@@ -3691,7 +3914,24 @@ final class MainWindow {
                 Path outputPath = Path.of(job.outputPath());
                 context.reportProgress(0.5 + 0.5 * processed / total, "Lendo G-code " + outputPath.getFileName() + "...");
                 try {
-                    cncJobs.add(new LoadedCncJob(job.sourceName(), outputPath, Files.readString(outputPath)));
+                    String gcode = job.gcode() != null ? job.gcode() : Files.readString(outputPath);
+                    Geometry travel = null;
+                    Geometry cut = null;
+                    try {
+                        int jobIndex = processed;
+                        GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(gcode, cancellation,
+                                fraction -> context.reportProgress(0.5 + 0.5 * (jobIndex + fraction) / total,
+                                        "Analisando G-code " + outputPath.getFileName() + "..."));
+                        travel = parsed.travelGeometry();
+                        cut = parsed.cutGeometry();
+                        if (parsed.warning() != null) {
+                            warnings.add("Aviso: " + outputPath.getFileName() + ": " + parsed.warning());
+                        }
+                    } catch (IllegalArgumentException invalidGcode) {
+                        warnings.add("Aviso: pre-visualizacao de " + outputPath.getFileName()
+                                + " indisponivel: " + invalidGcode.getMessage());
+                    }
+                    cncJobs.add(new LoadedCncJob(job.sourceName(), outputPath, gcode, travel, cut));
                 } catch (IOException e) {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
@@ -3721,9 +3961,8 @@ final class MainWindow {
                         setDisplayUnits(loaded.image().units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
-                        // No toolpath geometry to plot on a reload - see CncJobEntry's doc.
                         addCncJobToProject(loaded.outputPath().getFileName().toString(), loaded.sourceName(),
-                                loaded.outputPath(), loaded.gcode(), null, null);
+                                loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry());
                     }
                     project.warnings().forEach(this::appendConsole);
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
@@ -3775,6 +4014,7 @@ final class MainWindow {
         plotAreaView.cancelPlacement();
         plotMoveHistory.clear();
         gerberEditor.cancel();
+        gcodeEditor.cancel();
         gerbersNode.getChildren().clear();
         excellonNode.getChildren().clear();
         geometryNode.getChildren().clear();

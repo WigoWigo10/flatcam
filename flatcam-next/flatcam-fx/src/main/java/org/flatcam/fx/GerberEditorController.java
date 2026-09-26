@@ -287,6 +287,26 @@ final class GerberEditorController {
         }
     }
 
+    void saveAndClose() {
+        if (session == null || panel.isBusy()) {
+            return;
+        }
+        if (session.isDirty()) {
+            apply();
+        } else {
+            end();
+            host.log("Editor: fechado sem alteracoes.");
+        }
+    }
+
+    boolean isActive() {
+        return session != null;
+    }
+
+    boolean hasUnappliedChanges() {
+        return session != null && session.isDirty();
+    }
+
     private void startRegionPlacement() {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
             return;

@@ -10,15 +10,10 @@ import org.locationtech.jts.geom.Geometry;
  * "Plot Kind" categories appObjects/FlatCAMCNCJob.py's CNCjob.plot2() draws
  * a CNCJob object's toolpath in.
  *
- * <p>Deliberately NOT built the way Python does (camlib.py's gcode_parse():
- * a real G-code text interpreter re-deriving geometry from the generated
- * text). This is built directly alongside the text in the same pass that
- * generates it instead - GCodeGenerator already knows exactly which move is
- * a rapid and which is a cut as it writes each line, so re-deriving that
- * from the text afterward would just be redundant parsing of our own
- * output, with no behavioral difference (this app has no G-code import/
- * editor feature that would ever hand this class text it didn't generate
- * itself).
+ * <p>Generation builds exact tool-width geometry alongside the text. The
+ * G-Code Editor uses {@link GCodeToolpathParser} to reconstruct a conservative
+ * centerline preview after textual edits; it cannot recover original tool
+ * widths or plot unsupported motion commands.
  *
  * <p>Both geometries are already buffered by the relevant tool's diameter
  * into filled "ribbon" polygons (matching camlib.py's own
