@@ -22,6 +22,10 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.util.AffineTransformation;
+import org.locationtech.jts.operation.buffer.BufferOp;
+import org.locationtech.jts.operation.buffer.BufferParameters;
+import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
  * An open editing session for one Gerber object - the Gerber Editor's
@@ -278,7 +282,7 @@ public final class GerberEditSession {
         return true;
     }
 
-    /** Flashes an existing C/R/O aperture at one point, preserving its D-code and center. */
+    /** Flashes an existing standard or resolved macro aperture at one point. */
     public boolean addPad(String apertureCode, double x, double y) {
         requireExactShapes();
         if (!Double.isFinite(x) || !Double.isFinite(y)) {
@@ -286,7 +290,7 @@ public final class GerberEditSession {
         }
         Aperture aperture = apertures.get(apertureCode);
         if (aperture == null || !supportsPad(aperture)) {
-            throw new IllegalArgumentException("Select a C, R or O aperture with positive dimensions");
+            throw new IllegalArgumentException("Select a valid C, R, O, P or macro aperture");
         }
         Point center = GEOMETRY_FACTORY.createPoint(new Coordinate(x, y));
         GerberShape pad = new GerberShape(apertureCode,
@@ -303,6 +307,121 @@ public final class GerberEditSession {
             throw new IllegalArgumentException("Select a circular aperture with a positive diameter");
         }
         return addPad(apertureCode, x, y);
+    }
+
+    /** Places a linear pad array; the whole array is one undo step. */
+    public boolean addLinearPadArray(String code, double x, double y, int count,
+                                     double pitch, double angleDegrees) {
+        validateArray(count, x, y, pitch, angleDegrees);
+        if (pitch <= 0 && count > 1) {
+            throw new IllegalArgumentException("Pad pitch must be positive");
+        }
+        double radians = Math.toRadians(angleDegrees);
+        List<Coordinate> centers = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            centers.add(new Coordinate(x + i * pitch * Math.cos(radians),
+                    y + i * pitch * Math.sin(radians)));
+        }
+        return addPadArray(code, centers);
+    }
+
+    /** Places a circular pad array around a center; positive angles rotate counterclockwise. */
+    public boolean addCircularPadArray(String code, double centerX, double centerY, int count,
+                                       double radius, double startDegrees, double stepDegrees) {
+        validateArray(count, centerX, centerY, radius, startDegrees);
+        if (!Double.isFinite(stepDegrees) || radius <= 0) {
+            throw new IllegalArgumentException("Circular pad array needs a positive radius and finite angle");
+        }
+        List<Coordinate> centers = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            double radians = Math.toRadians(startDegrees + i * stepDegrees);
+            centers.add(new Coordinate(centerX + radius * Math.cos(radians),
+                    centerY + radius * Math.sin(radians)));
+        }
+        return addPadArray(code, centers);
+    }
+
+    private static void validateArray(int count, double x, double y, double distance, double angle) {
+        if (count < 1 || count > 1000 || !Double.isFinite(x) || !Double.isFinite(y)
+                || !Double.isFinite(distance) || !Double.isFinite(angle)) {
+            throw new IllegalArgumentException("Pad array needs 1-1000 items and finite coordinates and spacing");
+        }
+    }
+
+    private boolean addPadArray(String code, List<Coordinate> centers) {
+        requireExactShapes();
+        Aperture aperture = apertures.get(code);
+        if (aperture == null || !supportsPad(aperture)) {
+            throw new IllegalArgumentException("Select a valid pad aperture");
+        }
+        List<GerberShape> updated = new ArrayList<>(shapes);
+        Set<Integer> newSelection = new LinkedHashSet<>();
+        for (Coordinate center : centers) {
+            if (!Double.isFinite(center.x) || !Double.isFinite(center.y)) {
+                throw new IllegalArgumentException("Pad array coordinates overflowed");
+            }
+            Point point = GEOMETRY_FACTORY.createPoint(center);
+            updated.add(new GerberShape(code, aperture.footprintAt(center.x, center.y, GEOMETRY_FACTORY),
+                    false, point));
+            newSelection.add(updated.size() - 1);
+        }
+        commit(updated, newSelection);
+        return true;
+    }
+
+    /** Marks dark polygonal shapes whose area is strictly between the limits. */
+    public int selectAreaRange(double lower, double upper) {
+        if (!Double.isFinite(lower) || !Double.isFinite(upper) || lower < 0 || upper <= lower) {
+            throw new IllegalArgumentException("Area limits must be finite, nonnegative and increasing");
+        }
+        selected.clear();
+        for (int index = 0; index < shapes.size(); index++) {
+            GerberShape shape = shapes.get(index);
+            double area = shape.geometry().getArea();
+            if (!shape.clear() && area > lower && area < upper) {
+                selected.add(index);
+            }
+        }
+        return selected.size();
+    }
+
+    /** Subtracts translated selected shapes from dark geometry, as an atomic eraser action. */
+    public boolean eraseWithSelected(double dx, double dy) {
+        requireExactShapes();
+        validateOffset(dx, dy);
+        if (selected.isEmpty()) {
+            return false;
+        }
+        TransformOp.Offset offset = new TransformOp.Offset(dx, dy);
+        Geometry footprint = UnaryUnionOp.union(selected.stream()
+                .map(index -> offset.apply(shapes.get(index).geometry())).toList());
+        if (footprint == null || footprint.isEmpty() || !footprint.isValid()) {
+            throw new IllegalArgumentException("Eraser footprint is invalid");
+        }
+        List<GerberShape> erased = new ArrayList<>(shapes.size());
+        boolean changed = false;
+        for (GerberShape shape : shapes) {
+            if (shape.clear() || !shape.geometry().intersects(footprint)) {
+                erased.add(shape);
+                continue;
+            }
+            Geometry difference = shape.geometry().difference(footprint);
+            if (difference.equalsTopo(shape.geometry())) {
+                erased.add(shape);
+                continue;
+            }
+            changed = true;
+            if (!difference.isEmpty()) {
+                if (!difference.isValid()) {
+                    throw new IllegalArgumentException("Eraser would create invalid geometry");
+                }
+                erased.add(new GerberShape(shape.apertureCode(), difference, false, difference.getBoundary()));
+            }
+        }
+        if (changed) {
+            commit(erased, Set.of());
+        }
+        return changed;
     }
 
     /** Adds one straight D01 stroke with its centerline, using an existing circular aperture. */
@@ -345,6 +464,215 @@ public final class GerberEditSession {
         return true;
     }
 
+    /** Scales each selected shape about its own envelope center, like the legacy editor. */
+    public boolean scaleSelected(double factor) {
+        requireExactShapes();
+        if (!Double.isFinite(factor) || factor <= 0) {
+            throw new IllegalArgumentException("Scale factor must be finite and positive");
+        }
+        if (selected.isEmpty() || factor == 1) {
+            return false;
+        }
+        List<GerberShape> scaled = new ArrayList<>(shapes);
+        for (int index : selected) {
+            GerberShape shape = shapes.get(index);
+            Envelope bounds = shape.geometry().getEnvelopeInternal();
+            double cx = (bounds.getMinX() + bounds.getMaxX()) / 2;
+            double cy = (bounds.getMinY() + bounds.getMaxY()) / 2;
+            AffineTransformation transform = AffineTransformation.scaleInstance(factor, factor, cx, cy);
+            scaled.set(index, new GerberShape(shape.apertureCode(), transform.transform(shape.geometry()),
+                    shape.clear(), shape.followGeometry() == null ? null : transform.transform(shape.followGeometry())));
+        }
+        commit(scaled, selected);
+        return true;
+    }
+
+    /** Applies an affine transform to the current selection around an explicit reference point. */
+    public boolean transformSelected(String operation, double value, double pivotX, double pivotY) {
+        requireExactShapes();
+        if (!Double.isFinite(value) || !Double.isFinite(pivotX) || !Double.isFinite(pivotY)) {
+            throw new IllegalArgumentException("Transform values and reference point must be finite");
+        }
+        if (selected.isEmpty()) {
+            return false;
+        }
+        AffineTransformation transform = switch (operation) {
+            case "rotate" -> AffineTransformation.rotationInstance(Math.toRadians(value), pivotX, pivotY);
+            case "mirror_x" -> AffineTransformation.scaleInstance(1, -1, pivotX, pivotY);
+            case "mirror_y" -> AffineTransformation.scaleInstance(-1, 1, pivotX, pivotY);
+            case "scale_x" -> AffineTransformation.scaleInstance(positiveScale(value), 1, pivotX, pivotY);
+            case "scale_y" -> AffineTransformation.scaleInstance(1, positiveScale(value), pivotX, pivotY);
+            case "skew_x", "skew_y" -> {
+                if (Math.abs(value) >= 89.9) {
+                    throw new IllegalArgumentException("Skew angle must stay below 89.9 degrees");
+                }
+                double tangent = Math.tan(Math.toRadians(value));
+                yield operation.equals("skew_x")
+                        ? new AffineTransformation(1, tangent, -tangent * pivotY, 0, 1, 0)
+                        : new AffineTransformation(1, 0, 0, tangent, 1, -tangent * pivotX);
+            }
+            default -> throw new IllegalArgumentException("Unknown Gerber transform");
+        };
+        if (value == 0 && (operation.equals("rotate") || operation.startsWith("skew_"))
+                || value == 1 && operation.startsWith("scale_")) {
+            return false;
+        }
+        List<GerberShape> changed = new ArrayList<>(shapes);
+        for (int index : selected) {
+            GerberShape shape = shapes.get(index);
+            Geometry geometry = transform.transform(shape.geometry());
+            Geometry follow = shape.followGeometry() == null ? null : transform.transform(shape.followGeometry());
+            if (geometry.isEmpty() || !geometry.isValid()) {
+                throw new IllegalArgumentException("Transform produced invalid geometry");
+            }
+            changed.set(index, new GerberShape(shape.apertureCode(), geometry, shape.clear(), follow));
+        }
+        commit(changed, selected);
+        return true;
+    }
+
+    private static double positiveScale(double factor) {
+        if (factor <= 0) {
+            throw new IllegalArgumentException("Scale factor must be positive");
+        }
+        return factor;
+    }
+
+    /** Buffers selected shapes; the new boundary becomes their editable follow path. */
+    public boolean bufferSelected(double distance, int joinStyle) {
+        requireExactShapes();
+        if (!Double.isFinite(distance) || (joinStyle != BufferParameters.JOIN_ROUND
+                && joinStyle != BufferParameters.JOIN_MITRE && joinStyle != BufferParameters.JOIN_BEVEL)) {
+            throw new IllegalArgumentException("Buffer distance or corner style is invalid");
+        }
+        if (selected.isEmpty() || distance == 0) {
+            return false;
+        }
+        BufferParameters parameters = new BufferParameters(16, BufferParameters.CAP_ROUND, joinStyle, 5);
+        List<GerberShape> buffered = new ArrayList<>(shapes);
+        for (int index : selected) {
+            GerberShape shape = shapes.get(index);
+            Geometry geometry = BufferOp.bufferOp(shape.geometry(), distance, parameters);
+            if (geometry.isEmpty() || !geometry.isValid()) {
+                throw new IllegalArgumentException("Buffer would remove or invalidate a selected shape");
+            }
+            buffered.set(index, new GerberShape(shape.apertureCode(), geometry, shape.clear(), geometry.getBoundary()));
+        }
+        commit(buffered, selected);
+        return true;
+    }
+
+    /** Fuses selected dark shapes into region geometry in one undo step. */
+    public boolean polygonizeSelected() {
+        requireExactShapes();
+        if (selected.isEmpty()) {
+            return false;
+        }
+        int first = selected.stream().mapToInt(Integer::intValue).min().orElseThrow();
+        int last = selected.stream().mapToInt(Integer::intValue).max().orElseThrow();
+        String code = shapes.get(first).apertureCode();
+        for (int index : selected) {
+            GerberShape shape = shapes.get(index);
+            if (shape.clear() || !code.equals(shape.apertureCode()) || !shape.geometry().isValid()
+                    || shape.geometry().getDimension() != 2) {
+                throw new IllegalArgumentException("Poligonizar exige formas validas da mesma abertura");
+            }
+        }
+        for (int index = first; index <= last; index++) {
+            if (shapes.get(index).clear()) {
+                throw new IllegalArgumentException("Nao e seguro poligonizar atraves de uma operacao clear");
+            }
+        }
+        Geometry merged = UnaryUnionOp.union(selected.stream().sorted()
+                .map(index -> shapes.get(index).geometry()).toList());
+        if (merged.isEmpty() || !merged.isValid() || merged.getDimension() != 2) {
+            throw new IllegalArgumentException("As formas nao produziram uma regiao valida");
+        }
+        List<GerberShape> updated = new ArrayList<>(shapes.size() - selected.size() + 1);
+        Set<Integer> newSelection = new LinkedHashSet<>();
+        for (int index = 0; index < shapes.size(); index++) {
+            if (index == first) {
+                newSelection.add(updated.size());
+                updated.add(new GerberShape(GerberShape.REGION_APERTURE, merged, false,
+                        merged.getBoundary()));
+            }
+            if (!selected.contains(index)) {
+                updated.add(shapes.get(index));
+            }
+        }
+        commit(updated, newSelection);
+        return true;
+    }
+
+    /** Adds one filled G36/G37 region, independent of the selected D-code. */
+    public boolean addRegion(List<Coordinate> points) {
+        requireExactShapes();
+        List<Coordinate> ring = normalizedPoints(points);
+        if (ring.size() > 1 && ring.get(0).equals2D(ring.get(ring.size() - 1))) {
+            ring.remove(ring.size() - 1);
+        }
+        if (ring.size() < 3) {
+            return false;
+        }
+        ring.add(new Coordinate(ring.get(0)));
+        Polygon polygon = GEOMETRY_FACTORY.createPolygon(ring.toArray(Coordinate[]::new));
+        if (polygon.isEmpty() || polygon.getArea() <= 0 || !polygon.isValid()) {
+            throw new IllegalArgumentException("Region must be a simple polygon with nonzero area");
+        }
+        List<GerberShape> updated = new ArrayList<>(shapes);
+        updated.add(new GerberShape(GerberShape.REGION_APERTURE, polygon, false, polygon.getExteriorRing()));
+        commit(updated, Set.of(updated.size() - 1));
+        return true;
+    }
+
+    /** Adds a filled circular region with the requested radius. */
+    public boolean addDisc(double centerX, double centerY, double radius) {
+        requireExactShapes();
+        validateCircle(centerX, centerY, radius);
+        Polygon disc = (Polygon) GEOMETRY_FACTORY.createPoint(new Coordinate(centerX, centerY)).buffer(radius, 64);
+        return addRegion(List.of(disc.getExteriorRing().getCoordinates()));
+    }
+
+    /** Adds a filled circular segment between arc endpoints, closed by their chord. */
+    public boolean addSemiDisc(double centerX, double centerY, double radius,
+                               double startDegrees, double sweepDegrees) {
+        requireExactShapes();
+        validateCircle(centerX, centerY, radius);
+        if (!Double.isFinite(startDegrees) || !Double.isFinite(sweepDegrees)
+                || Math.abs(sweepDegrees) < 0.01 || Math.abs(sweepDegrees) >= 360) {
+            throw new IllegalArgumentException("Arc sweep must be finite, nonzero and below 360 degrees");
+        }
+        int segments = Math.max(2, (int) Math.ceil(Math.abs(sweepDegrees) / 360 * 256));
+        List<Coordinate> arc = new ArrayList<>(segments + 1);
+        for (int i = 0; i <= segments; i++) {
+            double angle = Math.toRadians(startDegrees + sweepDegrees * i / segments);
+            arc.add(new Coordinate(centerX + radius * Math.cos(angle), centerY + radius * Math.sin(angle)));
+        }
+        return addRegion(arc);
+    }
+
+    private static void validateCircle(double x, double y, double radius) {
+        if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(radius) || radius <= 0) {
+            throw new IllegalArgumentException("Circle needs finite coordinates and positive radius");
+        }
+    }
+
+    private static List<Coordinate> normalizedPoints(List<Coordinate> points) {
+        if (points == null) {
+            throw new IllegalArgumentException("Points are required");
+        }
+        List<Coordinate> normalized = new ArrayList<>(points.size());
+        for (Coordinate point : points) {
+            if (point == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)) {
+                throw new IllegalArgumentException("Coordinates must be finite");
+            }
+            if (normalized.isEmpty() || !normalized.get(normalized.size() - 1).equals2D(point)) {
+                normalized.add(new Coordinate(point));
+            }
+        }
+        return normalized;
+    }
+
     /** Creates the next free D-code (D10+) for a standard C/R/O aperture. */
     public String addAperture(ApertureKind kind, double width, double height) {
         requireExactShapes();
@@ -384,9 +712,133 @@ public final class GerberEditSession {
         return addAperture(ApertureKind.CIRCLE, diameter, diameter);
     }
 
+    /** Adds a regular polygon aperture with its original diameter, vertex count and rotation. */
+    public String addPolygonAperture(double diameter, int vertices, double rotation) {
+        requireExactShapes();
+        if (!Double.isFinite(diameter) || diameter <= 0 || !Double.isFinite(rotation)
+                || vertices < 3 || vertices > 12) {
+            throw new IllegalArgumentException("Polygon aperture needs a positive diameter, 3-12 vertices and finite rotation");
+        }
+        int nextCode = nextFreeApertureCode();
+        String code = Integer.toString(nextCode);
+        Map<String, Aperture> updated = new java.util.LinkedHashMap<>(apertures);
+        updated.put(code, Aperture.polygon(diameter, vertices, rotation));
+        commitApertures(updated);
+        return code;
+    }
+
+    /** Changes a D-code without changing its geometry. */
+    public boolean renameAperture(String oldCode, String newCode) {
+        requireExactShapes();
+        if (!apertures.containsKey(oldCode)) {
+            throw new IllegalArgumentException("Unknown aperture D" + oldCode);
+        }
+        validateApertureCode(newCode);
+        if (oldCode.equals(newCode)) {
+            return false;
+        }
+        if (apertures.containsKey(newCode)) {
+            throw new IllegalArgumentException("Aperture D" + newCode + " already exists");
+        }
+        Map<String, Aperture> updated = new java.util.LinkedHashMap<>(apertures);
+        Aperture aperture = updated.remove(oldCode);
+        updated.put(newCode, aperture);
+        List<GerberShape> renamed = new ArrayList<>(shapes.size());
+        for (GerberShape shape : shapes) {
+            renamed.add(oldCode.equals(shape.apertureCode())
+                    ? new GerberShape(newCode, shape.geometry(), shape.clear(), shape.followGeometry()) : shape);
+        }
+        commit(renamed, selected);
+        apertures = Map.copyOf(updated);
+        return true;
+    }
+
+    /** Deletes an aperture and every shape drawn with it, as the legacy editor does. */
+    public boolean deleteAperture(String code) {
+        requireExactShapes();
+        if (!apertures.containsKey(code)) {
+            return false;
+        }
+        Map<String, Aperture> updated = new java.util.LinkedHashMap<>(apertures);
+        updated.remove(code);
+        List<GerberShape> remaining = shapes.stream()
+                .filter(shape -> !code.equals(shape.apertureCode())).toList();
+        commit(remaining, Set.of());
+        apertures = Map.copyOf(updated);
+        return true;
+    }
+
+    /** Resizes an aperture and rebuilds its flashes and strokes from their follow geometry. */
+    public boolean resizeAperture(String code, Aperture replacement) {
+        requireExactShapes();
+        Aperture previous = apertures.get(code);
+        if (previous == null || replacement == null || previous.kind != replacement.kind
+                || previous.kind == ApertureKind.MACRO) {
+            throw new IllegalArgumentException("Select an existing standard aperture of the same type");
+        }
+        if (!Double.isFinite(replacement.width) || replacement.width <= 0
+                || !Double.isFinite(replacement.height) || replacement.height <= 0) {
+            throw new IllegalArgumentException("Aperture dimensions must be positive");
+        }
+        List<GerberShape> resized = new ArrayList<>(shapes.size());
+        for (GerberShape shape : shapes) {
+            if (!code.equals(shape.apertureCode())) {
+                resized.add(shape);
+                continue;
+            }
+            Geometry follow = shape.followGeometry();
+            if (follow instanceof Point center) {
+                resized.add(new GerberShape(code,
+                        replacement.footprintAt(center.getX(), center.getY(), GEOMETRY_FACTORY),
+                        shape.clear(), follow));
+            } else if (follow instanceof LineString line && previous.kind == ApertureKind.CIRCLE) {
+                resized.add(new GerberShape(code, line.buffer(replacement.strokeRadius(), 16),
+                        shape.clear(), follow));
+            } else {
+                throw new IllegalStateException("Cannot safely resize an aperture with shapes lacking a supported centerline");
+            }
+        }
+        Map<String, Aperture> updated = new java.util.LinkedHashMap<>(apertures);
+        updated.put(code, replacement);
+        commit(resized, selected);
+        apertures = Map.copyOf(updated);
+        return true;
+    }
+
+    private static void validateApertureCode(String code) {
+        try {
+            int number = Integer.parseInt(code);
+            if (number >= 10 && number <= 9999 && code.equals(Integer.toString(number))) {
+                return;
+            }
+        } catch (NumberFormatException ignored) {
+            // Handled below.
+        }
+        throw new IllegalArgumentException("D-code must be an integer between 10 and 9999");
+    }
+
+    private int nextFreeApertureCode() {
+        int next = 10;
+        while (next <= 9999 && apertures.containsKey(Integer.toString(next))) {
+            next++;
+        }
+        if (next > 9999) {
+            throw new IllegalStateException("No free Gerber D-code is available");
+        }
+        return next;
+    }
+
+    private void commitApertures(Map<String, Aperture> updated) {
+        commit(shapes, selected);
+        apertures = Map.copyOf(updated);
+    }
+
     private static boolean supportsPad(Aperture aperture) {
+        if (aperture.kind == ApertureKind.MACRO) {
+            return true;
+        }
         return (aperture.kind == ApertureKind.CIRCLE || aperture.kind == ApertureKind.RECTANGLE
-                || aperture.kind == ApertureKind.OBROUND)
+                || aperture.kind == ApertureKind.OBROUND || aperture.kind == ApertureKind.POLYGON)
                 && Double.isFinite(aperture.width) && aperture.width > 0
                 && Double.isFinite(aperture.height) && aperture.height > 0;
     }

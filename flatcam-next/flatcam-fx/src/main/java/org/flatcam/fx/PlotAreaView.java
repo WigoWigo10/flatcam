@@ -199,6 +199,7 @@ final class PlotAreaView extends StackPane {
     private boolean placementPrimaryPressed;
     private boolean placementAnchorChosen;
     private double placementTrackWidth;
+    private boolean placementRegion;
     private TrackPlacementHandler trackPlacementHandler;
     private List<Coordinate> placementTrackPoints = new ArrayList<>();
     private List<Integer> placementTrackUndoSizes = new ArrayList<>();
@@ -581,6 +582,15 @@ final class PlotAreaView extends StackPane {
         return true;
     }
 
+    boolean beginEditorRegionPlacement(TrackPlacementHandler handler) {
+        if (!beginEditorTrackPlacement(1, handler)) {
+            return false;
+        }
+        placementRegion = true;
+        redraw();
+        return true;
+    }
+
     private boolean startPlacement(List<?> keys, List<RenderLayer> preview, double anchorWorldX,
                                    double anchorWorldY, boolean anchorChosen, PlacementHandler handler) {
         if (!Double.isFinite(anchorWorldX) || !Double.isFinite(anchorWorldY)) {
@@ -610,7 +620,7 @@ final class PlotAreaView extends StackPane {
     }
 
     boolean finishEditorTrackPlacement() {
-        if (trackPlacementHandler == null || placementTrackPoints.size() < 2) {
+        if (trackPlacementHandler == null || placementTrackUndoSizes.size() < (placementRegion ? 2 : 1)) {
             return false;
         }
         TrackPlacementHandler handler = trackPlacementHandler;
@@ -669,6 +679,7 @@ final class PlotAreaView extends StackPane {
         placementPrimaryPressed = false;
         placementAnchorChosen = false;
         placementTrackWidth = 0;
+        placementRegion = false;
         trackPlacementHandler = null;
         placementTrackPoints = new ArrayList<>();
         placementTrackUndoSizes = new ArrayList<>();
@@ -1020,7 +1031,21 @@ final class PlotAreaView extends StackPane {
             }
             gc.setStroke(PLACEMENT_STROKE);
             gc.setLineCap(StrokeLineCap.ROUND);
-            gc.setLineWidth(Math.max(1.5, placementTrackWidth * scale));
+            gc.setLineWidth(placementRegion ? 2 : Math.max(1.5, placementTrackWidth * scale));
+            if (placementRegion && previewPoints.size() >= 3) {
+                double[] first = worldToScreen(previewPoints.get(0).x, previewPoints.get(0).y,
+                        contentWidth, contentHeight);
+                gc.beginPath();
+                gc.moveTo(first[0] + RULER_LEFT_WIDTH, first[1] + RULER_TOP_HEIGHT);
+                for (int i = 1; i < previewPoints.size(); i++) {
+                    double[] point = worldToScreen(previewPoints.get(i).x, previewPoints.get(i).y,
+                            contentWidth, contentHeight);
+                    gc.lineTo(point[0] + RULER_LEFT_WIDTH, point[1] + RULER_TOP_HEIGHT);
+                }
+                gc.closePath();
+                gc.setFill(PLACEMENT_FILL);
+                gc.fill();
+            }
             for (int i = 1; i < previewPoints.size(); i++) {
                 double[] start = worldToScreen(previewPoints.get(i - 1).x, previewPoints.get(i - 1).y,
                         contentWidth, contentHeight);
@@ -1028,6 +1053,14 @@ final class PlotAreaView extends StackPane {
                         contentWidth, contentHeight);
                 gc.strokeLine(start[0] + RULER_LEFT_WIDTH, start[1] + RULER_TOP_HEIGHT,
                         end[0] + RULER_LEFT_WIDTH, end[1] + RULER_TOP_HEIGHT);
+            }
+            if (placementRegion && previewPoints.size() >= 3) {
+                double[] last = worldToScreen(previewPoints.get(previewPoints.size() - 1).x,
+                        previewPoints.get(previewPoints.size() - 1).y, contentWidth, contentHeight);
+                double[] first = worldToScreen(previewPoints.get(0).x, previewPoints.get(0).y,
+                        contentWidth, contentHeight);
+                gc.strokeLine(last[0] + RULER_LEFT_WIDTH, last[1] + RULER_TOP_HEIGHT,
+                        first[0] + RULER_LEFT_WIDTH, first[1] + RULER_TOP_HEIGHT);
             }
             gc.restore();
             return;

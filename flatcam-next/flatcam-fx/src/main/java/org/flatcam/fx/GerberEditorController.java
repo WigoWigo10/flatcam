@@ -85,7 +85,13 @@ final class GerberEditorController {
                 this::clearSelection,
                 this::deleteSelected, this::startCanvasMove, this::startCanvasCopy,
                 this::moveSelected, this::copySelected, this::startPadPlacement, this::startTrackPlacement,
-                this::addAperture, plotArea::cancelPlacement,
+                this::startRegionPlacement, this::addPadArray, this::addDisc, this::addSemiDisc,
+                this::addAperture,
+                this::renameAperture, this::resizeAperture, this::deleteAperture,
+                this::scaleSelected, this::bufferSelected, this::polygonizeSelected,
+                this::markArea, this::eraseWithSelected,
+                this::transformSelected,
+                plotArea::cancelPlacement,
                 this::undo, this::redo, this::apply, this::cancel);
 
         host.setObjectVisible(sourceItem, false);
@@ -189,11 +195,10 @@ final class GerberEditorController {
             return;
         }
         Aperture aperture = session.apertures().get(apertureCode);
-        if (aperture == null || (aperture.kind != ApertureKind.CIRCLE
-                && aperture.kind != ApertureKind.RECTANGLE && aperture.kind != ApertureKind.OBROUND)
-                || !Double.isFinite(aperture.width) || aperture.width <= 0
-                || !Double.isFinite(aperture.height) || aperture.height <= 0) {
-            panel.showError("Selecione uma abertura C, R ou O com dimensoes positivas.");
+        if (aperture == null || (aperture.kind != ApertureKind.MACRO
+                && (!Double.isFinite(aperture.width) || aperture.width <= 0
+                || !Double.isFinite(aperture.height) || aperture.height <= 0))) {
+            panel.showError("Selecione uma abertura C, R, O, P ou AM valida.");
             return;
         }
         GerberEditSession editing = session;
@@ -282,15 +287,150 @@ final class GerberEditorController {
         }
     }
 
-    private String addAperture(ApertureKind kind, double width, double height) {
+    private void startRegionPlacement() {
+        if (session == null || session.shapesApproximated() || panel.isBusy()) {
+            return;
+        }
+        GerberEditSession editing = session;
+        boolean started = plotArea.beginEditorRegionPlacement(new PlotAreaView.TrackPlacementHandler() {
+            @Override
+            public void onPathChanged(int anchorCount, TrackBendMode mode) {
+                if (session == editing) {
+                    panel.showRegionProgress(anchorCount, mode);
+                }
+            }
+
+            @Override
+            public void onCommit(List<Coordinate> points) {
+                if (session != editing) {
+                    return;
+                }
+                panel.setRegionPlacing(false);
+                try {
+                    if (editing.addRegion(points)) {
+                        panel.showError("");
+                        refreshSelection();
+                    } else {
+                        panel.showError("A regiao precisa de pelo menos tres vertices distintos.");
+                    }
+                } catch (RuntimeException exception) {
+                    panel.showError(exception.getMessage());
+                }
+            }
+
+            @Override
+            public void onCancel() {
+                if (session == editing) {
+                    panel.setRegionPlacing(false);
+                }
+            }
+        });
+        if (started) {
+            panel.setRegionPlacing(true);
+            panel.showRegionProgress(0, TrackBendMode.FORTY_FIVE);
+            panel.showError("");
+            host.log("Editor: regiao - clique nos vertices; Enter/duplo clique/botao direito conclui; "
+                    + "Backspace volta; T/R muda a dobra; Esc cancela.");
+        }
+    }
+
+    private void addPadArray(GerberEditToolPanel.PadArrayRequest request) {
+        if (session == null || session.shapesApproximated() || panel.isBusy()) {
+            throw new IllegalStateException("Editor indisponivel para array de pads.");
+        }
+        boolean changed = request.circular()
+                ? session.addCircularPadArray(request.code(), request.x(), request.y(), request.count(),
+                        request.spacing(), request.angle(), request.stepAngle())
+                : session.addLinearPadArray(request.code(), request.x(), request.y(), request.count(),
+                        request.spacing(), request.angle());
+        if (changed) {
+            refreshSelection();
+        }
+    }
+
+    private void addDisc(GerberEditToolPanel.CircleRequest request) {
+        if (session.addDisc(request.x(), request.y(), request.radius())) {
+            refreshSelection();
+        }
+    }
+
+    private void addSemiDisc(GerberEditToolPanel.CircleRequest request) {
+        if (session.addSemiDisc(request.x(), request.y(), request.radius(),
+                request.startAngle(), request.sweepAngle())) {
+            refreshSelection();
+        }
+    }
+
+    private String addAperture(ApertureKind kind, double width, double height, int vertices, double rotation) {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
             throw new IllegalStateException("Editor indisponivel para adicionar abertura.");
         }
-        String code = session.addAperture(kind, width, height);
+        String code = kind == ApertureKind.POLYGON
+                ? session.addPolygonAperture(width, vertices, rotation)
+                : session.addAperture(kind, width, height);
         panel.refreshApertures(session.apertures(), code);
         refreshSelection();
         host.log("Editor: abertura " + kind + " D" + code + " adicionada.");
         return code;
+    }
+
+    private boolean renameAperture(String oldCode, String newCode) {
+        boolean changed = session.renameAperture(oldCode, newCode);
+        if (changed) {
+            panel.refreshApertures(session.apertures(), newCode);
+            refreshSelection();
+        }
+        return changed;
+    }
+
+    private void resizeAperture(String code, Aperture replacement) {
+        if (session.resizeAperture(code, replacement)) {
+            panel.refreshApertures(session.apertures(), code);
+            refreshSelection();
+        }
+    }
+
+    private void deleteAperture(String code) {
+        if (session.deleteAperture(code)) {
+            panel.refreshApertures(session.apertures(), null);
+            refreshSelection();
+        }
+    }
+
+    private void scaleSelected(double factor) {
+        if (session.scaleSelected(factor)) {
+            refreshSelection();
+        }
+    }
+
+    private void bufferSelected(double distance, int joinStyle) {
+        if (session.bufferSelected(distance, joinStyle)) {
+            refreshSelection();
+        }
+    }
+
+    private void polygonizeSelected() {
+        if (session.polygonizeSelected()) {
+            refreshSelection();
+        }
+    }
+
+    private void markArea(double lower, double upper) {
+        session.selectAreaRange(lower, upper);
+        refreshSelection();
+    }
+
+    private void eraseWithSelected(double dx, double dy) {
+        if (session.eraseWithSelected(dx, dy)) {
+            refreshSelection();
+        }
+    }
+
+    private void transformSelected(GerberEditToolPanel.TransformRequest request) {
+        if (session.transformSelected(request.operation(), request.value(),
+                request.pivotX(), request.pivotY())) {
+            refreshSelection();
+        }
     }
 
     private void startCanvasPlacement(boolean copy) {

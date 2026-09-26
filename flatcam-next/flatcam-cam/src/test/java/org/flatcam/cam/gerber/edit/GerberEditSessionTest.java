@@ -285,6 +285,170 @@ class GerberEditSessionTest {
     }
 
     @Test
+    void regionCreatesFilledCopperAndRoundTripsThroughHistory() {
+        GerberEditSession session = session();
+        int originalCount = session.shapes().size();
+        assertTrue(session.addRegion(List.of(new Coordinate(20, 20), new Coordinate(24, 20),
+                new Coordinate(24, 23), new Coordinate(20, 23))));
+        GerberShape region = session.shapes().get(originalCount);
+        assertEquals(GerberShape.REGION_APERTURE, region.apertureCode());
+        assertEquals(12, region.geometry().getArea(), 1e-9);
+        assertTrue(((org.locationtech.jts.geom.LineString) region.followGeometry()).isClosed());
+        assertTrue(session.apply().image().solidGeometry().covers(point(22, 21)));
+        assertTrue(session.undo());
+        assertFalse(session.apply().image().solidGeometry().covers(point(22, 21)));
+        assertTrue(session.redo());
+        assertTrue(session.apply().image().solidGeometry().covers(point(22, 21)));
+    }
+
+    @Test
+    void regionRejectsDegenerateOrCrossedRingsWithoutChangingHistory() {
+        GerberEditSession session = session();
+        assertFalse(session.addRegion(List.of(new Coordinate(0, 0), new Coordinate(1, 0))));
+        assertThrows(IllegalArgumentException.class, () -> session.addRegion(List.of(
+                new Coordinate(0, 0), new Coordinate(2, 2), new Coordinate(0, 2), new Coordinate(2, 0))));
+        assertThrows(IllegalArgumentException.class, () -> session.addRegion(List.of(
+                new Coordinate(0, 0), new Coordinate(Double.NaN, 1), new Coordinate(1, 1))));
+        assertFalse(session.isDirty());
+    }
+
+    @Test
+    void polygonAperturePadsAndApertureEditsAreUndoable() {
+        GerberEditSession session = session();
+        String code = session.addPolygonAperture(2, 6, 30);
+        assertTrue(session.addPad(code, 20, 20));
+        assertEquals(6, session.apertures().get(code).polygonVertices());
+        assertTrue(session.renameAperture(code, "50"));
+        assertEquals("50", session.shapes().get(session.shapes().size() - 1).apertureCode());
+        assertThrows(IllegalArgumentException.class, () -> session.renameAperture("50", "10"));
+        assertTrue(session.resizeAperture("50", org.flatcam.cam.gerber.Aperture.polygon(4, 6, 30)));
+        assertTrue(session.shapes().get(session.shapes().size() - 1).geometry().getArea() > 8);
+        assertTrue(session.deleteAperture("50"));
+        assertFalse(session.apertures().containsKey("50"));
+        assertTrue(session.undo());
+        assertTrue(session.apertures().containsKey("50"));
+        assertTrue(session.undo());
+        assertEquals(2, session.apertures().get("50").width, 1e-9);
+        assertTrue(session.undo());
+        assertTrue(session.apertures().containsKey(code));
+    }
+
+    @Test
+    void scaleAndBufferSelectedShapesPreserveUndoHistory() {
+        GerberEditSession session = session();
+        session.clickSelect(1, 1, false);
+        double before = session.shapes().get(0).geometry().getArea();
+        assertTrue(session.scaleSelected(2));
+        double scaled = session.shapes().get(0).geometry().getArea();
+        assertEquals(before * 4, scaled, 1e-8);
+        assertTrue(session.bufferSelected(0.1,
+                org.locationtech.jts.operation.buffer.BufferParameters.JOIN_ROUND));
+        assertTrue(session.shapes().get(0).geometry().getArea() > scaled);
+        assertTrue(session.undo());
+        assertEquals(scaled, session.shapes().get(0).geometry().getArea(), 1e-8);
+        assertTrue(session.undo());
+        assertEquals(before, session.shapes().get(0).geometry().getArea(), 1e-8);
+        assertThrows(IllegalArgumentException.class, () -> session.scaleSelected(0));
+        assertThrows(IllegalArgumentException.class, () -> session.bufferSelected(Double.NaN, 1));
+    }
+
+    @Test
+    void padArraysAreAtomicAndValidateGeometry() {
+        GerberEditSession session = session();
+        int before = session.shapes().size();
+        assertTrue(session.addLinearPadArray("10", 20, 20, 3, 2, 90));
+        assertEquals(before + 3, session.shapes().size());
+        assertTrue(session.shapes().get(before + 2).followGeometry().equalsExact(point(20, 24), 1e-9));
+        assertEquals(Set.of(before, before + 1, before + 2), session.selectedIndices());
+        assertTrue(session.undo());
+        assertEquals(before, session.shapes().size());
+        assertFalse(session.canUndo());
+        assertTrue(session.addCircularPadArray("10", 30, 30, 4, 2, 0, 90));
+        assertTrue(session.shapes().get(before).followGeometry().equalsExact(point(32, 30), 1e-9));
+        assertTrue(session.shapes().get(before + 1).followGeometry().equalsExact(point(30, 32), 1e-9));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addLinearPadArray("10", 0, 0, 1001, 1, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.addCircularPadArray("10", 0, 0, 3, 0, 0, 90));
+        assertEquals(before + 4, session.shapes().size());
+    }
+
+    @Test
+    void polygonizeReplacesSameApertureShapesAndPreservesHistory() {
+        GerberEditSession session = session();
+        session.boxSelect(0, 0, 4, 2, false);
+        assertEquals(Set.of(0, 1), session.selectedIndices());
+        assertTrue(session.polygonizeSelected());
+        assertEquals(4, session.shapes().size());
+        assertEquals(GerberShape.REGION_APERTURE, session.shapes().get(0).apertureCode());
+        assertTrue(session.shapes().get(0).geometry().covers(point(1, 1)));
+        assertTrue(session.shapes().get(0).geometry().covers(point(3, 1)));
+        assertTrue(session.undo());
+        assertEquals(5, session.shapes().size());
+        session.boxSelect(0, 0, 9, 6, false);
+        assertThrows(IllegalArgumentException.class, session::polygonizeSelected);
+    }
+
+    @Test
+    void discAndSemiDiscCreateRegionGeometry() {
+        GerberEditSession session = session();
+        int before = session.shapes().size();
+        assertTrue(session.addDisc(20, 20, 2));
+        assertEquals(GerberShape.REGION_APERTURE, session.shapes().get(before).apertureCode());
+        assertTrue(session.shapes().get(before).geometry().covers(point(20, 20)));
+        assertEquals(Math.PI * 4, session.shapes().get(before).geometry().getArea(), 0.01);
+        assertTrue(session.addSemiDisc(30, 30, 2, 0, 180));
+        assertEquals(Math.PI * 2, session.shapes().get(before + 1).geometry().getArea(), 0.01);
+        assertTrue(session.shapes().get(before + 1).geometry().covers(point(30, 31)));
+        assertFalse(session.shapes().get(before + 1).geometry().covers(point(30, 29)));
+        assertTrue(session.undo());
+        assertEquals(before + 1, session.shapes().size());
+        assertThrows(IllegalArgumentException.class, () -> session.addDisc(0, 0, 0));
+        assertThrows(IllegalArgumentException.class, () -> session.addSemiDisc(0, 0, 1, 0, 360));
+    }
+
+    @Test
+    void markAreaSelectsByStrictThresholdWithoutEditing() {
+        GerberEditSession session = session();
+        assertEquals(1, session.selectAreaRange(3, 5));
+        assertEquals(Set.of(3), session.selectedIndices());
+        assertFalse(session.isDirty());
+        assertThrows(IllegalArgumentException.class, () -> session.selectAreaRange(5, 3));
+    }
+
+    @Test
+    void eraserSubtractsSelectedFootprintAtOffsetAndIsUndoable() {
+        GerberEditSession session = session();
+        session.clickSelect(1, 1, false);
+        assertTrue(session.eraseWithSelected(2, 0));
+        assertTrue(session.shapes().get(0).geometry().covers(point(1, 1)));
+        assertFalse(session.shapes().get(1).geometry().covers(point(3, 1)));
+        assertTrue(session.undo());
+        assertTrue(session.shapes().get(1).geometry().covers(point(3, 1)));
+    }
+
+    @Test
+    void affineTransformsUseExplicitPivotAndPreserveFollowPaths() {
+        GerberEditSession session = session();
+        session.clickSelect(1, 1, false);
+        assertTrue(session.transformSelected("rotate", 90, 0, 0));
+        assertTrue(session.shapes().get(0).geometry().covers(point(-1, 1)));
+        assertTrue(session.shapes().get(0).followGeometry().equalsExact(point(-1, 1), 1e-9));
+        assertTrue(session.transformSelected("mirror_y", 0, 0, 0));
+        assertTrue(session.shapes().get(0).geometry().covers(point(1, 1)));
+        assertTrue(session.transformSelected("scale_x", 2, 0, 0));
+        assertTrue(session.shapes().get(0).geometry().covers(point(2, 1)));
+        assertTrue(session.transformSelected("skew_x", 45, 0, 0));
+        assertTrue(session.shapes().get(0).geometry().covers(point(3, 1)));
+        assertTrue(session.undo());
+        assertTrue(session.shapes().get(0).geometry().covers(point(2, 1)));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.transformSelected("scale_y", 0, 0, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> session.transformSelected("skew_x", 90, 0, 0));
+    }
+
+    @Test
     void straightTrackRejectsInvalidApertureAndCoordinatesWithoutHistory() {
         GerberEditSession session = session();
         assertFalse(session.addTrack("11", 1, 1, 1, 1));

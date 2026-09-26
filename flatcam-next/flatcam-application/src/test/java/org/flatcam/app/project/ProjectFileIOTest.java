@@ -195,6 +195,35 @@ class ProjectFileIOTest {
     }
 
     @Test
+    void roundTripsAnEditedRegionAndPolygonAperture() throws IOException {
+        GerberImage source = new GerberParser().parse(List.of(
+                "%FSLAX24Y24*%", "%MOMM*%", "%ADD10C,1*%", "D10*", "X0Y0D03*", "M02*"));
+        GerberEditSession editor = new GerberEditSession("board", source);
+        String code = editor.addPolygonAperture(2, 6, 15);
+        assertTrue(editor.addPad(code, 20, 20));
+        assertTrue(editor.addRegion(List.of(
+                new org.locationtech.jts.geom.Coordinate(30, 30),
+                new org.locationtech.jts.geom.Coordinate(34, 30),
+                new org.locationtech.jts.geom.Coordinate(34, 32),
+                new org.locationtech.jts.geom.Coordinate(30, 32))));
+        GerberImage edited = editor.apply().image();
+        Path file = tempDir.resolve("region-polygon-edit.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(new ProjectFile.GerberEntry(
+                "board_edit", edited, null, null, true, true, false, false)), List.of(), List.of()), file);
+        GerberImage reopened = ProjectFileIO.load(file).gerbers().get(0).image();
+
+        assertEquals(3, reopened.shapes().size());
+        assertEquals(ApertureKind.POLYGON, reopened.apertures().get(code).kind);
+        assertEquals(6, reopened.apertures().get(code).polygonVertices());
+        assertEquals(GerberShape.REGION_APERTURE, reopened.shapes().get(2).apertureCode());
+        assertEquals(8, reopened.shapes().get(2).geometry().getArea(), 1e-9);
+        assertTrue(reopened.solidGeometry().covers(
+                new org.locationtech.jts.geom.GeometryFactory().createPoint(
+                        new org.locationtech.jts.geom.Coordinate(32, 31))));
+        assertFalse(new GerberEditSession("board_edit", reopened).shapesApproximated());
+    }
+
+    @Test
     void usesPythonApertureNamesAndReadsPreviousJavaNames() {
         GerberImage parsed = new GerberParser().parse(List.of(
                 "%FSLAX23Y23*%", "%MOMM*%", "%ADD10C,1*%", "%ADD11R,2X1*%",
