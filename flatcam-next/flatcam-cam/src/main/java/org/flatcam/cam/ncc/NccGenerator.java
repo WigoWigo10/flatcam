@@ -95,8 +95,13 @@ public final class NccGenerator {
             throw new IllegalArgumentException("O limite do NCC precisa ter area preenchida; "
                     + "ajuste a referencia ou a margem.");
         }
-        Geometry keepOut = params.copperOffset() == 0
-                ? cleanCopper : cleanCopper.buffer(params.copperOffset(), QUADRANT_SEGMENTS);
+        // ISO contours precede clearing, and the widest selected ISO cutter
+        // sets the copper envelope the CLEAR cutters must stay outside.
+        double isolationRadius = params.isolationToolDiameters().stream()
+                .mapToDouble(Double::doubleValue).max().orElse(0) / 2.0;
+        double keepOutOffset = isolationRadius + params.copperOffset();
+        Geometry keepOut = keepOutOffset == 0
+                ? cleanCopper : cleanCopper.buffer(keepOutOffset, QUADRANT_SEGMENTS);
         Geometry clearingArea = boundary.difference(keepOut).buffer(0);
         cancellation.throwIfCancellationRequested();
         progress.report(0.08);
@@ -104,6 +109,23 @@ public final class NccGenerator {
         List<Double> orderedTools = orderedToolDiameters(params);
         List<NccToolResult> toolResults = new ArrayList<>();
         List<Geometry> combinedPaths = new ArrayList<>();
+        for (double diameter : params.isolationToolDiameters()) {
+            cancellation.throwIfCancellationRequested();
+            Geometry envelope = cleanCopper.buffer(diameter / 2.0, QUADRANT_SEGMENTS);
+            List<LineString> rings = new ArrayList<>();
+            collectBoundaryLines(envelope, rings);
+            List<LineString> clipped = new ArrayList<>();
+            for (LineString ring : rings) {
+                cancellation.throwIfCancellationRequested();
+                collectLines(ring.intersection(boundary), clipped);
+            }
+            Geometry paths = clipped.isEmpty() ? factory.createGeometryCollection()
+                    : factory.buildGeometry(new ArrayList<>(clipped));
+            toolResults.add(new NccToolResult(diameter, paths, 0, NccOperation.ISO));
+            if (!paths.isEmpty()) {
+                combinedPaths.add(paths);
+            }
+        }
         Geometry remainingArea = clearingArea;
 
         for (int t = 0; t < orderedTools.size(); t++) {
@@ -113,7 +135,8 @@ public final class NccGenerator {
             int toolCount = orderedTools.size();
             ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, params, cancellation,
                     fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
-            toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures()));
+            toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures(),
+                    NccOperation.CLEAR));
             if (!toolClear.geometry().isEmpty()) {
                 combinedPaths.add(toolClear.geometry());
             }

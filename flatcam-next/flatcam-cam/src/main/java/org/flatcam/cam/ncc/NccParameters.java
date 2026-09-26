@@ -22,18 +22,18 @@ import java.util.Objects;
  * @param boundary        what delimits the area to be cleared before subtracting copper - see
  *                        {@link NccBoundary}; defaults to {@code Itself} via the convenience
  *                        constructors below
+ * @param isolationToolDiameters selected tools marked ISO in the Python NCC table; they create
+ *                        isolation contours before the CLEAR tools run
  *
- * <p>appTools/ToolNCC.py lets overlap/margin/method/connect/contour/copperOffset vary PER TOOL (each
- * row keeps its own copy of these in its "data" dict) when Rest Machining is off, and collapses them
- * to a single shared value (the "rest_ncc_*" widgets) only once Rest Machining is on. This port always
- * shares one set of values across every tool, in both modes - a deliberate v1 simplification, since a
- * full per-tool parameter table is a much larger UI lift than the Rest Machining algorithm itself.
- * Revisit if per-tool tuning turns out to matter in practice.
+ * <p>appTools/ToolNCC.py uses per-tool overlap/method/connect/contour/copperOffset
+ * when Rest Machining is off, and shared rest settings when it is on. Margin is
+ * read from the common NCC field. This port still shares one set of clearing
+ * parameters across all tools in both modes; per-tool settings remain a gap.
  */
 public record NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
                             NccMethod method, boolean connect, boolean contour,
                             double copperOffset, boolean restMachining, NccOrder order,
-                            NccBoundary boundary) {
+                            NccBoundary boundary, List<Double> isolationToolDiameters) {
 
     private static final double DUPLICATE_TOLERANCE = 1e-6;
 
@@ -42,15 +42,18 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
             throw new IllegalArgumentException("At least one tool diameter is required");
         }
         toolDiameters = List.copyOf(toolDiameters);
-        for (double diameter : toolDiameters) {
+        isolationToolDiameters = List.copyOf(isolationToolDiameters);
+        List<Double> allDiameters = java.util.stream.Stream.concat(toolDiameters.stream(),
+                isolationToolDiameters.stream()).toList();
+        for (double diameter : allDiameters) {
             if (!Double.isFinite(diameter) || diameter <= 0) {
                 throw new IllegalArgumentException("toolDiameter must be positive: " + diameter);
             }
         }
-        for (int i = 0; i < toolDiameters.size(); i++) {
-            for (int j = i + 1; j < toolDiameters.size(); j++) {
-                if (Math.abs(toolDiameters.get(i) - toolDiameters.get(j)) < DUPLICATE_TOLERANCE) {
-                    throw new IllegalArgumentException("Duplicate tool diameter: " + toolDiameters.get(i));
+        for (int i = 0; i < allDiameters.size(); i++) {
+            for (int j = i + 1; j < allDiameters.size(); j++) {
+                if (Math.abs(allDiameters.get(i) - allDiameters.get(j)) < DUPLICATE_TOLERANCE) {
+                    throw new IllegalArgumentException("Duplicate tool diameter: " + allDiameters.get(i));
                 }
             }
         }
@@ -66,6 +69,13 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(order, "order");
         Objects.requireNonNull(boundary, "boundary");
+    }
+
+    public NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
+                         NccMethod method, boolean connect, boolean contour, double copperOffset,
+                         boolean restMachining, NccOrder order, NccBoundary boundary) {
+        this(toolDiameters, overlapFraction, margin, method, connect, contour, copperOffset,
+                restMachining, order, boundary, List.of());
     }
 
     /** Convenience defaulting {@link #boundary()} to {@code Itself} - this port's original multi-tool shape. */

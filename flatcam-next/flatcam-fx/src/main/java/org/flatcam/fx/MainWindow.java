@@ -93,6 +93,7 @@ import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.ncc.NccGenerator;
+import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccResult;
 import org.flatcam.cam.transform.TransformOp;
@@ -3214,13 +3215,24 @@ final class MainWindow {
                     }
                     NccResult result = outcome.result();
                     outcome.minCopperClearance().ifPresent(minClearance -> {
-                        boolean anySuitable = params.toolDiameters().stream().anyMatch(d -> d <= minClearance);
+                        boolean anySuitable = java.util.stream.Stream.concat(params.toolDiameters().stream(),
+                                params.isolationToolDiameters().stream()).anyMatch(d -> d <= minClearance);
                         appendConsole(String.format(java.util.Locale.ROOT,
                                 anySuitable
                                         ? "Verificacao de validade: ao menos uma ferramenta consegue fazer isolamento completo (distancia minima de cobre = %.4f)."
                                         : "Verificacao de validade: nenhuma ferramenta selecionada consegue fazer isolamento completo (distancia minima de cobre = %.4f).",
                                 minClearance));
                     });
+                    for (var toolResult : result.toolResults()) {
+                        if (toolResult.operation() == NccOperation.ISO && toolResult.isEmpty()) {
+                            appendConsole("NCC: a ferramenta ISO de diametro " + toolResult.toolDiameter()
+                                    + " nao gerou contorno dentro do limite selecionado.");
+                        }
+                    }
+                    if (params.isolationToolDiameters().stream().anyMatch(d -> d > params.margin())) {
+                        appendConsole("NCC: a margem e menor que o diametro de uma ferramenta ISO; "
+                                + "confira se os contornos nao foram cortados pelo limite.");
+                    }
                     if (result.isEmpty()) {
                         appendConsole("NCC nao gerou caminhos. A ferramenta pode ser grande demais para a area livre.");
                         setStatus("Sem caminhos.", ERROR_COLOR);

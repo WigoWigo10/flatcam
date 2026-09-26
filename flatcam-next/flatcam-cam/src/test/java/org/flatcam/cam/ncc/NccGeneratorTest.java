@@ -11,6 +11,10 @@ import java.util.OptionalDouble;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.gcode.CncJobResult;
+import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.locationtech.jts.geom.Coordinate;
@@ -100,6 +104,68 @@ class NccGeneratorTest {
                 () -> new NccParameters(List.of(0.5, 0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, NccOrder.NONE));
         assertThrows(NullPointerException.class,
                 () -> new NccParameters(List.of(0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0, false, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccParameters(List.of(), 0.15, 1, NccMethod.STANDARD, true, true, 0,
+                        false, NccOrder.NONE, new NccBoundary.Itself(), List.of(0.2)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new NccParameters(List.of(0.5), 0.15, 1, NccMethod.STANDARD, true, true, 0,
+                        false, NccOrder.NONE, new NccBoundary.Itself(), List.of(0.5)));
+    }
+
+    @Test
+    void isoToolCreatesItsOwnClippedContourBeforeClearTools() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters params = new NccParameters(List.of(0.2), 0.15, 2.0,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Itself(), List.of(0.4));
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+        NccResult withoutIso = NccGenerator.generate("MM", copper,
+                new NccParameters(0.2, 0.15, 2.0, NccMethod.STANDARD, false, true, 0));
+
+        assertEquals(2, result.toolResults().size());
+        assertEquals(NccOperation.ISO, result.toolResults().get(0).operation());
+        assertEquals(0.4, result.toolResults().get(0).toolDiameter());
+        assertFalse(result.toolResults().get(0).isEmpty());
+        assertEquals(0.2, result.toolResults().get(0).geometry().distance(copper), 0.005);
+        assertEquals(NccOperation.CLEAR, result.toolResults().get(1).operation());
+        assertFalse(result.toolResults().get(1).isEmpty());
+        assertTrue(result.clearingArea().getArea() < withoutIso.clearingArea().getArea());
+    }
+
+    @Test
+    void isoContourRespectsSelectedAreaBoundary() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry selected = FACTORY.toGeometry(new Envelope(4, 5, 3, 7));
+        NccParameters params = new NccParameters(List.of(0.2), 0.15, 0,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Area(selected), List.of(0.4));
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        Geometry isoPaths = result.toolResults().get(0).geometry();
+        assertFalse(isoPaths.isEmpty());
+        assertTrue(selected.buffer(1e-9).covers(isoPaths));
+    }
+
+    @Test
+    void mixedIsoAndClearGeometryCanBecomeOneMultiToolCncJob() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters params = new NccParameters(List.of(0.2), 0.15, 2,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Itself(), List.of(0.4));
+        NccResult result = NccGenerator.generate("MM", copper, params);
+        List<ToolGeometry> tools = result.toolResults().stream()
+                .filter(tool -> !tool.isEmpty())
+                .map(tool -> new ToolGeometry(tool.toolDiameter(), tool.geometry()))
+                .toList();
+
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob("MM", tools,
+                new GeometryGCodeParameters(3, 0.1, false, 1, 300, 10_000, true));
+
+        assertEquals(2, tools.size());
+        assertTrue(job.gcode().contains("M0"));
+        assertFalse(job.cutGeometry().isEmpty());
     }
 
     @Test

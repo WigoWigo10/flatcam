@@ -28,6 +28,7 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.flatcam.cam.ncc.NccBoundary;
 import org.flatcam.cam.ncc.NccMethod;
+import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
 import org.locationtech.jts.geom.Geometry;
@@ -41,6 +42,16 @@ import org.locationtech.jts.geom.Geometry;
  * this port shares one set of clearing parameters across every tool.
  */
 final class NccToolPanel {
+
+    private static final class ToolRow {
+        final double diameter;
+        NccOperation operation;
+
+        ToolRow(double diameter) {
+            this.diameter = diameter;
+            this.operation = NccOperation.CLEAR;
+        }
+    }
 
     private static final String BOUNDARY_ITSELF = "Itself";
     private static final String BOUNDARY_AREA = "Area Selection";
@@ -70,14 +81,15 @@ final class NccToolPanel {
                       AreaSelector areaSelector,
                       Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(units);
-        ObservableList<Double> diameters = FXCollections.observableArrayList(metric ? 0.5 : 0.020);
+        ObservableList<ToolRow> tools = FXCollections.observableArrayList(new ToolRow(metric ? 0.5 : 0.020));
 
-        TableView<Double> toolTable = new TableView<>(diameters);
+        TableView<ToolRow> toolTable = new TableView<>(tools);
         toolTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         toolTable.setPlaceholder(new Label("Nenhuma ferramenta"));
-        TableColumn<Double, Double> diaColumn = new TableColumn<>("Diametro");
+        TableColumn<ToolRow, Double> diaColumn = new TableColumn<>("Diametro");
         diaColumn.setSortable(false);
-        diaColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleObjectProperty<>(cellData.getValue()));
+        diaColumn.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleObjectProperty<>(cellData.getValue().diameter));
         diaColumn.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(Double item, boolean empty) {
@@ -85,13 +97,18 @@ final class NccToolPanel {
                 setText(empty || item == null ? null : format(item));
             }
         });
-        toolTable.getColumns().add(diaColumn);
+        TableColumn<ToolRow, String> operationColumn = new TableColumn<>("Operacao");
+        operationColumn.setSortable(false);
+        operationColumn.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleStringProperty(cellData.getValue().operation.name()));
+        toolTable.getColumns().addAll(diaColumn, operationColumn);
         toolTable.setMinWidth(0);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         Runnable updateTableHeight = () ->
-                toolTable.setPrefHeight(Math.min(150, 32 + Math.max(diameters.size(), 1) * 28));
-        diameters.addListener((javafx.collections.ListChangeListener<Double>) change -> updateTableHeight.run());
+                toolTable.setPrefHeight(Math.min(150, 32 + Math.max(tools.size(), 1) * 28));
+        tools.addListener((javafx.collections.ListChangeListener<ToolRow>) change -> updateTableHeight.run());
         updateTableHeight.run();
+        toolTable.getSelectionModel().selectAll();
 
         TextField newDiaField = new TextField(metric ? "1.0" : "0.040");
         newDiaField.setPrefColumnCount(8);
@@ -110,12 +127,14 @@ final class NccToolPanel {
                 if (dia <= 0) {
                     throw new IllegalArgumentException("Diametro da ferramenta deve ser positivo");
                 }
-                for (double existing : diameters) {
-                    if (Math.abs(existing - dia) < 1e-6) {
+                for (ToolRow existing : tools) {
+                    if (Math.abs(existing.diameter - dia) < 1e-6) {
                         throw new IllegalArgumentException("Cancelado. Ferramenta ja esta na tabela.");
                     }
                 }
-                diameters.add(dia);
+                ToolRow added = new ToolRow(dia);
+                tools.add(added);
+                toolTable.getSelectionModel().selectAll();
                 toolError.setText("");
             } catch (RuntimeException ex) {
                 toolError.setText(ex.getMessage());
@@ -128,16 +147,49 @@ final class NccToolPanel {
             }
         });
         removeToolButton.setOnAction(e -> {
-            List<Double> selected = List.copyOf(toolTable.getSelectionModel().getSelectedItems());
+            List<ToolRow> selected = List.copyOf(toolTable.getSelectionModel().getSelectedItems());
             if (selected.isEmpty()) {
                 return;
             }
-            if (diameters.size() - selected.size() < 1) {
+            if (tools.size() - selected.size() < 1) {
                 toolError.setText("E preciso manter ao menos uma ferramenta.");
                 return;
             }
-            diameters.removeAll(selected);
+            tools.removeAll(selected);
+            toolTable.getSelectionModel().selectAll();
             toolError.setText("");
+        });
+
+        ComboBox<NccOperation> operationCombo = new ComboBox<>();
+        operationCombo.getItems().add(NccOperation.CLEAR);
+        if (gerberSource) {
+            operationCombo.getItems().add(NccOperation.ISO);
+        }
+        operationCombo.setValue(NccOperation.CLEAR);
+        operationCombo.setTooltip(tooltip("CLEAR: limpa a area nao-cobre. ISO: contorna o cobre antes da limpeza. "
+                + "A operacao e aplicada a todas as linhas selecionadas."));
+        operationCombo.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
+        boolean[] synchronizingOperation = {false};
+        toolTable.getSelectionModel().getSelectedItems().addListener(
+                (javafx.collections.ListChangeListener<ToolRow>) change -> {
+                    List<ToolRow> selected = toolTable.getSelectionModel().getSelectedItems();
+                    NccOperation shown = selected.isEmpty() ? null : selected.get(0).operation;
+                    NccOperation first = shown;
+                    if (first != null && selected.stream().anyMatch(row -> row.operation != first)) {
+                        shown = null;
+                    }
+                    synchronizingOperation[0] = true;
+                    operationCombo.setValue(shown);
+                    synchronizingOperation[0] = false;
+                });
+        operationCombo.setOnAction(event -> {
+            if (synchronizingOperation[0] || operationCombo.getValue() == null) {
+                return;
+            }
+            for (ToolRow row : toolTable.getSelectionModel().getSelectedItems()) {
+                row.operation = operationCombo.getValue();
+            }
+            toolTable.refresh();
         });
 
         ComboBox<String> boundaryKindCombo = new ComboBox<>();
@@ -257,7 +309,8 @@ final class NccToolPanel {
         restGrid.addRow(0, restCb, orderCombo);
         restGrid.add(restHint, 1, 1);
 
-        Label note = new Label("O resultado sera criado em Geometry, uma entrada por ferramenta.");
+        Label note = new Label("Selecione na tabela as ferramentas a executar. ISO contorna o cobre; "
+                + "ao menos uma ferramenta CLEAR e necessaria. O objeto Geometry tera uma entrada por ferramenta.");
         note.setWrapText(true);
         note.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
         Label errorLabel = new Label();
@@ -285,9 +338,20 @@ final class NccToolPanel {
                             ? new NccBoundary.ReferenceGerber(candidate.geometry())
                             : new NccBoundary.ReferenceGeometry(candidate.geometry());
                 }
-                NccParameters params = new NccParameters(List.copyOf(diameters), overlap, margin,
+                List<Double> clearDiameters = new java.util.ArrayList<>();
+                List<Double> isoDiameters = new java.util.ArrayList<>();
+                for (int i = 0; i < tools.size(); i++) {
+                    if (toolTable.getSelectionModel().isSelected(i)) {
+                        ToolRow row = tools.get(i);
+                        (row.operation == NccOperation.ISO ? isoDiameters : clearDiameters).add(row.diameter);
+                    }
+                }
+                if (clearDiameters.isEmpty()) {
+                    throw new IllegalArgumentException("Selecione ao menos uma ferramenta CLEAR na tabela.");
+                }
+                NccParameters params = new NccParameters(clearDiameters, overlap, margin,
                         methodCombo.getValue(), connectCb.isSelected(), contourCb.isSelected(), offset,
-                        restCb.isSelected(), orderCombo.getValue(), boundary);
+                        restCb.isSelected(), orderCombo.getValue(), boundary, isoDiameters);
                 errorLabel.setText("");
                 onGenerate.accept(new Result(params, checkValidityCb.isSelected()));
             } catch (RuntimeException ex) {
@@ -305,7 +369,9 @@ final class NccToolPanel {
 
         VBox box = new VBox(6, new Label("NCC Tool (" + units + ")"),
                 new Label("Origem: " + sourceName + (gerberSource ? " (Gerber)" : " (Geometry)")),
-                sectionTitle("FERRAMENTAS"), toolTable, toolButtons, toolError, checkValidityCb,
+                sectionTitle("FERRAMENTAS"), toolTable, toolButtons,
+                new HBox(8, new Label("Operacao das selecionadas:"), operationCombo),
+                toolError, checkValidityCb,
                 sectionTitle("BOUNDARY"), boundaryGrid,
                 sectionTitle("PARAMETROS DE LIMPEZA"), grid,
                 sectionTitle("MULTI-FERRAMENTA"), restGrid,

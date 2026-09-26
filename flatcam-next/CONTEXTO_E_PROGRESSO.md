@@ -7,7 +7,8 @@ e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-09-26**. Isolation Routing agora cria Geometry antes do
 > CNC Job; o NCC aceita Geometry preenchida como origem, seleção retangular de
-> área e preserva a ordem manual das ferramentas. O Plot Area seleciona objetos por clique
+> área, ferramentas ISO/CLEAR e seleção de subconjunto da tabela. Preserva a
+> ordem manual das ferramentas. O Plot Area seleciona objetos por clique
 > ou retângulo e oferece menu de contexto para ações já implementadas. O Gerber
 > Editor exclui, move e copia formas,
 > oferece undo/redo, reconstrói o Gerber no Apply e preserva as formas
@@ -296,6 +297,13 @@ citação completa):
   `setCancelButton` nos painéis desta app: nenhum dos 4 temas estiliza o
   pseudo-estado `:default` do JavaFX, e o botão fica com a aparência pálida
   do Modena por baixo do tema (foi tentado e revertido nesta mesma revisão).
+- A tabela NCC agora distingue `ISO` e `CLEAR` por linha e executa apenas as
+  ferramentas selecionadas. `ISO` só aparece para origem Gerber: cria contornos
+  próprios, recortados pelo boundary, antes do clearing. Pelo menos uma
+  ferramenta `CLEAR` é obrigatória, como no fluxo Python. O maior diâmetro ISO
+  define o envelope de cobre a preservar na limpeza; isso evita deixar a
+  ferramenta CLEAR invadir uma faixa reservada ao isolamento. Ainda falta a
+  opção Python de direção de fresagem (climb/conventional) para esses contornos.
 
 O botão NCC já deve abrir o painel da ferramenta. Se voltar a “não fazer nada”,
 primeiro suspeite de snapshots internos desatualizados no repositório Maven
@@ -303,16 +311,17 @@ local e execute `install` no reactor completo, conforme a seção de comandos.
 
 Ainda falta para paridade NCC:
 
-- operação ISO/Clear individual por ferramenta, seleção de subconjunto de
-  ferramentas para a execução e comparação visual com resultados do Python;
-- parâmetros por ferramenta (overlap/método/margem/connect/contour/offset
+- direção de fresagem (climb/conventional) dos contornos ISO e comparação
+  visual com resultados do Python;
+- parâmetros por ferramenta (overlap/método/connect/contour/offset
   individuais - hoje compartilhados, ver acima);
 - integração com Tools Database ("Pick from DB");
 - comparação diferencial mais ampla com resultados do Python (incl. Rest
   Machining, boundary por referência e "Check validity" num board real).
 
 Fechados nesta revisão: boundary por objeto de referência (Gerber ou
-Geometry), seleção retangular de área, ordem manual das ferramentas e
+Geometry), seleção retangular de área, ordem manual das ferramentas,
+seleção de subconjunto e operação ISO/CLEAR por linha e
 validação/sugestão de diâmetro ("Check validity"). Uma Geometry usada como
 origem precisa conter área preenchida; contornos puros são rejeitados, como
 no Python.
@@ -327,7 +336,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, boundary por referência, seleção de área e "Check validity"; faltam ISO/Clear por ferramenta, parâmetros por ferramenta e Tools DB |
+| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, seleção de ferramentas, boundary por referência/área e "Check validity"; faltam parâmetros por ferramenta, direção de fresagem ISO e Tools DB |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
@@ -743,13 +752,14 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 ### 9.1 Completar a paridade NCC (o que resta)
 
-- ISO/Clear e parâmetros individuais por ferramenta, como no painel Python;
+- parâmetros individuais por ferramenta e direção de fresagem ISO;
 - Tools Database;
 - fixtures diferenciais e casos de desempenho (incl. Rest Machining e
   boundary por referência num board real).
 
 Concluído: boundary por objeto de referência, seleção retangular de área,
-preservação de Order = None e validação/sugestão de diâmetro ("Check validity")
+preservação de Order = None, seleção de ferramentas, ISO/CLEAR e
+validação/sugestão de diâmetro ("Check validity")
 - ver seção 5.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)

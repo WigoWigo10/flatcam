@@ -8,7 +8,12 @@ import org.locationtech.jts.geom.Geometry;
  * this tool could not clear at all (e.g. too large to fit); in Rest Machining
  * mode those polygons simply remain available for the next, smaller tool.
  */
-public record NccToolResult(double toolDiameter, Geometry geometry, int failedPolygonCount) {
+public record NccToolResult(double toolDiameter, Geometry geometry, int failedPolygonCount,
+                            NccOperation operation) {
+    public NccToolResult(double toolDiameter, Geometry geometry, int failedPolygonCount) {
+        this(toolDiameter, geometry, failedPolygonCount, NccOperation.CLEAR);
+    }
+
     public boolean isEmpty() {
         return geometry == null || geometry.isEmpty();
     }
