@@ -163,8 +163,11 @@ final class MainWindow {
     private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
     }
 
-    private record LoadedCncJob(String sourceName, Path outputPath, String gcode,
-                                Geometry travelGeometry, Geometry cutGeometry) {
+    private record LoadedCncJob(String name, String sourceName, Path outputPath, String gcode,
+                                Geometry travelGeometry, Geometry cutGeometry, String units) {
+    }
+
+    private record ImportedGCode(String text, GCodeToolpathParser.Result preview) {
     }
 
     /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
@@ -355,6 +358,9 @@ final class MainWindow {
         plotAreaView.removeLayer(travelKey);
         cncJobByItem.put(item, new CncJobEntry(previous.sourceName(), previous.outputFile(), text,
                 parsed.travelGeometry(), parsed.cutGeometry()));
+        if (parsed.plotAvailable()) {
+            setDisplayUnits(parsed.units());
+        }
         if (parsed.cutGeometry() != null && !parsed.cutGeometry().isEmpty()) {
             plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
                     parsed.cutGeometry(), CNC_CUT_FILL, CNC_CUT_STROKE, false);
@@ -850,7 +856,7 @@ final class MainWindow {
                 chromeItem("Projeto...", "folder32.png", this::openProject),
                 chromeItem("Gerber...", "flatcam_icon32.png", this::openGerberPrototype),
                 chromeItem("Excellon...", "drill32.png", this::openExcellonPrototype),
-                plannedItem("G-Code...", "cnc32.png"),
+                chromeItem("G-Code...", "cnc32.png", this::openGCode),
                 plannedItem("Configuracao...", "settings18.png"));
         Menu importMenu = new Menu("Importar");
         setLegacyMenuIcon(importMenu, "import.png");
@@ -1106,6 +1112,7 @@ final class MainWindow {
     private ToolBar buildToolBar() {
         Button openGerberButton = chromeButton("Abrir Gerber", "flatcam_icon32.png", this::openGerberPrototype);
         Button openExcellonButton = chromeButton("Abrir Excellon", "drill32.png", this::openExcellonPrototype);
+        Button openGCodeButton = chromeButton("Abrir G-Code", "cnc32.png", this::openGCode);
 
         runDemoJobButton.setGraphic(Icons.play(16));
         runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
@@ -1117,7 +1124,7 @@ final class MainWindow {
         cancelJobButton.setOnAction(e -> cancelDemoJob());
 
         return new ToolBar(
-                openGerberButton, openExcellonButton, new Separator(),
+                openGerberButton, openExcellonButton, openGCodeButton, new Separator(),
                 chromeButton("Abrir Projeto", "folder32.png", this::openProject),
                 chromeButton("Salvar Projeto", "project_save32.png", this::saveProject),
                 new Separator(),
@@ -3628,6 +3635,78 @@ final class MainWindow {
         }
     }
 
+    private void openGCode() {
+        List<File> files = pickCamFiles("Abrir G-Code",
+                new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt"));
+        if (!files.isEmpty()) {
+            openGCodeQueue(files, 0);
+        }
+    }
+
+    private void openGCodeQueue(List<File> files, int index) {
+        if (index >= files.size()) {
+            updateProgress(1);
+            setStatus("Concluido.", IDLE_COLOR);
+            onJobFinished();
+            return;
+        }
+        File file = files.get(index);
+        String message = "Lendo G-code " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
+        if (index == 0) {
+            beginJob(message);
+        } else {
+            setStatus(message, RUNNING_COLOR);
+            appendConsole(message);
+        }
+        JobHandle<ImportedGCode> handle = jobExecutor.submit(context -> {
+            context.checkCancelled();
+            String text = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            context.checkCancelled();
+            GCodeToolpathParser.Result preview;
+            try {
+                preview = GCodeToolpathParser.parse(text, context::isCancelled,
+                        fraction -> context.reportProgress((index + fraction) / files.size(), message));
+            } catch (RuntimeException invalidCode) {
+                if (invalidCode instanceof CancellationException) {
+                    throw invalidCode;
+                }
+                preview = new GCodeToolpathParser.Result(null, null,
+                        "Pre-visualizacao indisponivel: " + invalidCode.getMessage(),
+                        (int) text.lines().count(), "MM");
+            }
+            return new ImportedGCode(text, preview);
+        }, (fraction, progressMessage) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(progressMessage);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(imported -> Platform.runLater(() -> {
+            GCodeToolpathParser.Result preview = imported.preview();
+            String name = uniqueDerivedName(file.getName());
+            TreeItem<String> item = addCncJobToProject(name, file.getName(), file.toPath(),
+                    imported.text(), preview.travelGeometry(), preview.cutGeometry());
+            selectProjectItem(item);
+            if (preview.plotAvailable()) {
+                setDisplayUnits(preview.units());
+                focusCncJob(item, cncJobByItem.get(item));
+            } else {
+                appendConsole(file.getName() + ": " + preview.warning());
+            }
+            appendConsole("G-code aberto: " + file.getName() + " (" + preview.lineCount() + " linhas).");
+            openGCodeQueue(files, index + 1);
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao abrir G-code " + file.getName() + ": ");
+                if (isCancellation(error)) {
+                    onJobFinished();
+                } else {
+                    openGCodeQueue(files, index + 1);
+                }
+            });
+            return null;
+        });
+    }
+
     private void openGerberQueue(List<File> files, int index) {
         if (index >= files.size()) {
             updateProgress(1);
@@ -3819,9 +3898,10 @@ final class MainWindow {
                     plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
                     plotAreaView.isLayerMulticolor(item)));
         }
-        List<ProjectFile.CncJobRecord> jobs = cncJobByItem.values().stream()
-                .map(entry -> new ProjectFile.CncJobRecord(entry.sourceName(),
-                        entry.outputFile().toString(), entry.gcode()))
+        List<ProjectFile.CncJobRecord> jobs = cncJobByItem.entrySet().stream()
+                .map(entry -> new ProjectFile.CncJobRecord(entry.getKey().getValue(),
+                        entry.getValue().sourceName(), entry.getValue().outputFile().toString(),
+                        entry.getValue().gcode()))
                 .toList();
         ProjectFile project = new ProjectFile(gerbers, excellons, jobs);
 
@@ -3917,6 +3997,7 @@ final class MainWindow {
                     String gcode = job.gcode() != null ? job.gcode() : Files.readString(outputPath);
                     Geometry travel = null;
                     Geometry cut = null;
+                    String units = null;
                     try {
                         int jobIndex = processed;
                         GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(gcode, cancellation,
@@ -3924,6 +4005,7 @@ final class MainWindow {
                                         "Analisando G-code " + outputPath.getFileName() + "..."));
                         travel = parsed.travelGeometry();
                         cut = parsed.cutGeometry();
+                        units = parsed.plotAvailable() ? parsed.units() : null;
                         if (parsed.warning() != null) {
                             warnings.add("Aviso: " + outputPath.getFileName() + ": " + parsed.warning());
                         }
@@ -3931,7 +4013,8 @@ final class MainWindow {
                         warnings.add("Aviso: pre-visualizacao de " + outputPath.getFileName()
                                 + " indisponivel: " + invalidGcode.getMessage());
                     }
-                    cncJobs.add(new LoadedCncJob(job.sourceName(), outputPath, gcode, travel, cut));
+                    String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
+                    cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode, travel, cut, units));
                 } catch (IOException e) {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
@@ -3961,8 +4044,11 @@ final class MainWindow {
                         setDisplayUnits(loaded.image().units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
-                        addCncJobToProject(loaded.outputPath().getFileName().toString(), loaded.sourceName(),
+                        addCncJobToProject(loaded.name(), loaded.sourceName(),
                                 loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry());
+                        if (loaded.units() != null) {
+                            setDisplayUnits(loaded.units());
+                        }
                     }
                     project.warnings().forEach(this::appendConsole);
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());

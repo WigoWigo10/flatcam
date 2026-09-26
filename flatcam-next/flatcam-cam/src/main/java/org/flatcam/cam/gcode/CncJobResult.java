@@ -13,7 +13,7 @@ import org.locationtech.jts.geom.Geometry;
  * <p>Generation builds exact tool-width geometry alongside the text. The
  * G-Code Editor uses {@link GCodeToolpathParser} to reconstruct a conservative
  * centerline preview after textual edits; it cannot recover original tool
- * widths or plot unsupported motion commands.
+ * widths or plot unsupported motion commands and planes.
  *
  * <p>Both geometries are already buffered by the relevant tool's diameter
  * into filled "ribbon" polygons (matching camlib.py's own

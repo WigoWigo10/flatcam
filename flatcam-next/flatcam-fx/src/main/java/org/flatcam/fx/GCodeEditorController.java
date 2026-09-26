@@ -79,7 +79,7 @@ final class GCodeEditorController {
         Label info = new Label("Editando: " + item.getValue());
         Label help = new Label("Edite o texto e clique Aplicar para atualizar o CNC Job em memoria. "
                 + "Salvar arquivo grava uma copia do rascunho; nao altera o arquivo original automaticamente. "
-                + "Cancelar descarta as alteracoes. A pre-visualizacao cobre apenas movimentos G0/G1 em XY "
+                + "Cancelar descarta as alteracoes. A pre-visualizacao cobre movimentos G0/G1 e arcos G2/G3 em XY "
                 + "e nao valida a seguranca do programa para uma maquina CNC.");
         help.setWrapText(true);
         stateLabel = new Label();

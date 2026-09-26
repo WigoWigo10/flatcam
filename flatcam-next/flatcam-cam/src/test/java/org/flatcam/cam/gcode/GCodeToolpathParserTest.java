@@ -42,7 +42,7 @@ class GCodeToolpathParserTest {
     }
 
     @Test
-    void relativeMovesAndUnsupportedArcsNeverShowStalePlot() {
+    void relativeMovesAndUnsupportedModesNeverShowStalePlot() {
         GCodeToolpathParser.Result relative = GCodeToolpathParser.parse("""
                 G0 X1 Y1
                 G91
@@ -50,10 +50,53 @@ class GCodeToolpathParserTest {
                 G1 X2 Y0
                 """, () -> false, ignored -> {});
         assertTrue(anyPartCovers(relative.cutGeometry(), 2, 1));
-        GCodeToolpathParser.Result arc = GCodeToolpathParser.parse("G0 X0 Y0\nG2 X1 Y1 I0 J1\n",
+        GCodeToolpathParser.Result arc = GCodeToolpathParser.parse("G0 X0 Y0\nG18\nG2 X1 Y1 I0 J1\n",
                 () -> false, ignored -> {});
         assertFalse(arc.plotAvailable());
         assertEquals(null, arc.cutGeometry());
+    }
+
+    @Test
+    void plotsClockwiseAndCounterclockwiseIjArcs() {
+        GCodeToolpathParser.Result ccw = parse("G0 X1 Y0\nG1 Z-1\nG3 X-1 Y0 I-1 J0\n");
+        GCodeToolpathParser.Result cw = parse("G0 X1 Y0\nG1 Z-1\nG2 X-1 Y0 I-1 J0\n");
+        assertTrue(ccw.plotAvailable());
+        assertTrue(cw.plotAvailable());
+        assertTrue(anyPartCovers(ccw.cutGeometry(), 0, 1));
+        assertFalse(anyPartCovers(ccw.cutGeometry(), 0, -1));
+        assertTrue(anyPartCovers(cw.cutGeometry(), 0, -1));
+        assertFalse(anyPartCovers(cw.cutGeometry(), 0, 1));
+    }
+
+    @Test
+    void radiusSignChoosesMinorOrMajorArc() {
+        GCodeToolpathParser.Result minor = parse("G0 X1 Y0\nG1 Z-1\nG3 X0 Y1 R1\n");
+        GCodeToolpathParser.Result major = parse("G0 X1 Y0\nG1 Z-1\nG3 X0 Y1 R-1\n");
+        assertTrue(anyPartCovers(minor.cutGeometry(), Math.sqrt(0.5), Math.sqrt(0.5)));
+        assertFalse(anyPartCovers(minor.cutGeometry(), 2, 1));
+        assertTrue(anyPartCovers(major.cutGeometry(), 2, 1));
+    }
+
+    @Test
+    void fullCircleAndAbsoluteCenterAreSupported() {
+        GCodeToolpathParser.Result circle = parse("G0 X1 Y0\nG1 Z-1\nG3 I-1 J0\n");
+        GCodeToolpathParser.Result absolute = parse("G0 X1 Y0\nG1 Z-1\nG90.1\nG3 X-1 Y0 I0 J0\n");
+        assertTrue(anyPartCovers(circle.cutGeometry(), 0, 1));
+        assertTrue(anyPartCovers(circle.cutGeometry(), 0, -1));
+        assertTrue(anyPartCovers(absolute.cutGeometry(), 0, 1));
+        assertEquals("MM", absolute.units());
+    }
+
+    @Test
+    void invalidArcAndMixedUnitsSuppressPreviewWithoutDiscardingText() {
+        GCodeToolpathParser.Result radiusMismatch = parse("G0 X1 Y0\nG3 X2 Y0 I-1 J0\n");
+        GCodeToolpathParser.Result mixedUnits = parse("G21\nG0 X1 Y0\nG20\nG1 X2 Y0\n");
+        GCodeToolpathParser.Result helicalCrossing = parse("G0 X1 Y0\nG3 X-1 Y0 Z-1 I-1 J0\n");
+        assertFalse(radiusMismatch.plotAvailable());
+        assertFalse(mixedUnits.plotAvailable());
+        assertFalse(helicalCrossing.plotAvailable());
+        assertEquals(null, radiusMismatch.travelGeometry());
+        assertEquals(null, mixedUnits.cutGeometry());
     }
 
     @Test
@@ -73,5 +116,9 @@ class GCodeToolpathParserTest {
             }
         }
         return false;
+    }
+
+    private static GCodeToolpathParser.Result parse(String gcode) {
+        return GCodeToolpathParser.parse(gcode, () -> false, ignored -> {});
     }
 }

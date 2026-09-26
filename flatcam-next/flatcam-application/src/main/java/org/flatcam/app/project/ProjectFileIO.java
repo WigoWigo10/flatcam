@@ -70,6 +70,9 @@ public final class ProjectFileIO {
         JSONArray jobs = new JSONArray();
         for (ProjectFile.CncJobRecord job : project.cncJobs()) {
             JSONObject jobJson = new JSONObject();
+            if (job.name() != null) {
+                jobJson.put("name", job.name());
+            }
             jobJson.put("sourceName", job.sourceName());
             jobJson.put("outputPath", job.outputPath());
             if (job.gcode() != null) {
@@ -153,8 +156,9 @@ public final class ProjectFileIO {
         if (jobsArray != null) {
             for (int i = 0; i < jobsArray.length(); i++) {
                 JSONObject jobJson = jobsArray.getJSONObject(i);
-                jobs.add(new ProjectFile.CncJobRecord(jobJson.getString("sourceName"),
-                        jobJson.getString("outputPath"), jobJson.optString("gcode", null)));
+                jobs.add(new ProjectFile.CncJobRecord(jobJson.optString("name", null),
+                        jobJson.getString("sourceName"), jobJson.getString("outputPath"),
+                        jobJson.optString("gcode", null)));
             }
         }
         return jobs;
