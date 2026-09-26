@@ -261,6 +261,21 @@ final class MainWindow {
                 }
 
                 @Override
+                public void showEditorToolbar(Node toolbar) {
+                    MainWindow.this.showGeometryEditorToolbar(toolbar);
+                }
+
+                @Override
+                public void hideEditorToolbar() {
+                    MainWindow.this.hideGeometryEditorToolbar();
+                }
+
+                @Override
+                public Node icon(String fileName) {
+                    return legacyIcon(fileName, 18);
+                }
+
+                @Override
                 public void setObjectVisible(TreeItem<String> item, boolean visible) {
                     MainWindow.this.setObjectVisible(item, visible);
                 }
@@ -526,6 +541,9 @@ final class MainWindow {
     private TreeItem<String> geometryNode;
     private TreeItem<String> cncJobsNode;
     private VBox bottomPanel;
+    private VBox topBars;
+    private ToolBar regularToolsToolbar;
+    private Menu geometryEditorMenu;
     private double dividerBeforeConsoleCollapse = 0.75;
     /** Set by MainApp (initially, and again after each DPI-rescale Stage recreation) - see setCurrentScreenId. */
     private String currentScreenId = "default";
@@ -549,7 +567,9 @@ final class MainWindow {
 
     Scene createScene() {
         BorderPane root = new BorderPane();
-        root.setTop(new VBox(buildMenuRow(), buildToolBar(), buildToolsToolBar()));
+        regularToolsToolbar = buildToolsToolBar();
+        topBars = new VBox(buildMenuRow(), buildToolBar(), regularToolsToolbar);
+        root.setTop(topBars);
         root.setCenter(buildMainSplit());
         root.setBottom(buildStatusBar());
 
@@ -1038,10 +1058,11 @@ final class MainWindow {
         Menu excellonEditorMenu = new Menu("Editor Excellon");
         setLegacyMenuIcon(excellonEditorMenu, "drill32.png");
         addPlannedCommands(excellonEditorMenu, LegacyUiManifest.EXCELLON_EDITOR);
-        Menu geometryEditorMenu = new Menu("Editor Geometry");
+        geometryEditorMenu = new Menu("Geo Editor");
         setLegacyMenuIcon(geometryEditorMenu, "geometry32.png");
         addGeometryEditorCommands(geometryEditorMenu);
-        editorToolsMenu.getItems().addAll(excellonEditorMenu, geometryEditorMenu);
+        geometryEditorMenu.setVisible(false);
+        editorToolsMenu.getItems().add(excellonEditorMenu);
         editMenu.getItems().addAll(
                 chromeItem("Editar Objeto", "edit_file32.png", this::editSelectedObject),
                 chromeItem("Salvar e Fechar Editor", "close_edit_file32.png", this::saveAndCloseEditor),
@@ -1187,7 +1208,8 @@ final class MainWindow {
                         appendConsole("FlatCAM FX - em desenvolvimento.")),
                 chromeItem("Executar job de demonstracao", "code.png", this::runDemoJob));
 
-        return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, objectsMenu, toolsMenu, helpMenu);
+        return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, objectsMenu, toolsMenu, helpMenu,
+                geometryEditorMenu);
     }
 
     /**
@@ -1295,6 +1317,18 @@ final class MainWindow {
         toolbar.getItems().add(new Separator());
         addToolbarCommands(toolbar, LegacyUiManifest.TOOLS_UTILITIES);
         return toolbar;
+    }
+
+    private void showGeometryEditorToolbar(Node toolbar) {
+        topBars.getChildren().set(2, toolbar);
+        geometryEditorMenu.setVisible(true);
+    }
+
+    private void hideGeometryEditorToolbar() {
+        if (topBars != null && regularToolsToolbar != null) {
+            topBars.getChildren().set(2, regularToolsToolbar);
+            geometryEditorMenu.setVisible(false);
+        }
     }
 
     private void addToolbarCommands(ToolBar toolbar, List<LegacyUiManifest.Command> commands) {

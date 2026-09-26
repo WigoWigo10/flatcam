@@ -1,14 +1,24 @@
 package org.flatcam.fx;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import javafx.beans.property.ReadOnlyStringWrapper;
+import javafx.collections.FXCollections;
+import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableView;
+import javafx.scene.control.ToolBar;
+import javafx.scene.control.Tooltip;
+import javafx.scene.control.SelectionMode;
+import javafx.scene.control.Separator;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
@@ -24,6 +34,12 @@ final class GeometryEditorController {
         void openToolPanel(String label, Node content);
 
         void closeToolPanel();
+
+        void showEditorToolbar(Node toolbar);
+
+        void hideEditorToolbar();
+
+        Node icon(String fileName);
 
         void setObjectVisible(TreeItem<String> item, boolean visible);
 
@@ -50,12 +66,18 @@ final class GeometryEditorController {
     private Label status;
     private Label instruction;
     private ComboBox<String> toolChoice;
+    private int implicitToolIndex;
+    private TableView<GeometryEditSession.ShapeRow> shapeTable;
+    private final Set<Integer> tableSelectionOrder = new LinkedHashSet<>();
+    private boolean syncingTable;
     private Button deleteButton;
     private Button moveButton;
     private Button copyButton;
     private Button undoButton;
     private Button redoButton;
     private Button applyButton;
+    private Button exitButton;
+    private Button discardButton;
     private Button unionButton;
     private Button intersectionButton;
     private Button subtractButton;
@@ -96,6 +118,7 @@ final class GeometryEditorController {
         }
         item = sourceItem;
         session = new GeometryEditSession(geometry, tools);
+        implicitToolIndex = tools.isEmpty() ? -1 : 0;
         initiallyVisible = plotArea.isLayerVisible(sourceItem);
         this.strokeOnly = strokeOnly;
         host.setObjectVisible(sourceItem, false);
@@ -121,14 +144,42 @@ final class GeometryEditorController {
             }
         });
 
-        Label help = new Label("Selecione por clique/retangulo; Ctrl alterna a selecao. "
-                + "Delete exclui e Ctrl+Z/Y desfaz/refaz. Nos desenhos de varios pontos, "
-                + "Enter, duplo clique ou botao direito conclui; Backspace remove o ultimo ponto; Esc cancela. "
-                + "Para subtrair, clique primeiro no alvo e use Ctrl+clique nas formas a remover.");
-        help.setWrapText(true);
         status = new Label();
-        instruction = new Label("Escolha uma ferramenta ou selecione formas no desenho.");
+        instruction = new Label("Selecione uma linha na tabela ou uma forma no desenho.");
         instruction.setWrapText(true);
+        shapeTable = new TableView<>(FXCollections.observableArrayList(session.shapeRows()));
+        shapeTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+        shapeTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
+        TableColumn<GeometryEditSession.ShapeRow, String> idColumn = new TableColumn<>("ID");
+        idColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(Long.toString(row.getValue().id())));
+        idColumn.setPrefWidth(72);
+        idColumn.setSortable(false);
+        TableColumn<GeometryEditSession.ShapeRow, String> typeColumn = new TableColumn<>("Type");
+        typeColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().type()));
+        typeColumn.setPrefWidth(65);
+        typeColumn.setSortable(false);
+        TableColumn<GeometryEditSession.ShapeRow, String> nameColumn = new TableColumn<>("Name");
+        nameColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().name()));
+        nameColumn.setPrefWidth(95);
+        nameColumn.setSortable(false);
+        shapeTable.getColumns().addAll(idColumn, typeColumn, nameColumn);
+        shapeTable.setPrefHeight(360);
+        shapeTable.setTooltip(new Tooltip("Clique para selecionar; Ctrl+clique seleciona varias linhas. "
+                + "Delete exclui as formas selecionadas no desenho."));
+        shapeTable.getSelectionModel().getSelectedIndices().addListener((ListChangeListener<Integer>) change -> {
+            if (syncingTable || busy || session == null) {
+                return;
+            }
+            Set<Integer> current = new LinkedHashSet<>(shapeTable.getSelectionModel().getSelectedIndices());
+            tableSelectionOrder.retainAll(current);
+            for (int index : current) {
+                tableSelectionOrder.add(index);
+            }
+            syncingTable = true;
+            session.selectIndices(tableSelectionOrder);
+            refreshSelection();
+            syncingTable = false;
+        });
         Button selectButton = new Button("Selecionar");
         Button pathButton = new Button("Caminho");
         Button polygonButton = new Button("Poligono");
@@ -155,9 +206,25 @@ final class GeometryEditorController {
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
                 bufferButton, explodeButton, undoButton, redoButton, applyButton, cancelButton);
-        for (Button button : editorButtons) {
-            button.setMaxWidth(Double.MAX_VALUE);
-        }
+        iconize(selectButton, "pointer32.png");
+        iconize(pathButton, "path32.png");
+        iconize(polygonButton, "polygon32.png");
+        iconize(rectangleButton, "rectangle32.png");
+        iconize(circleButton, "circle32.png");
+        iconize(deleteButton, "trash32.png");
+        iconize(moveButton, "move32.png");
+        iconize(copyButton, "copy32.png");
+        undoButton.setText("↶");
+        undoButton.setTooltip(new Tooltip("Desfazer (Ctrl+Z)"));
+        redoButton.setText("↷");
+        redoButton.setTooltip(new Tooltip("Refazer (Ctrl+Y)"));
+        iconize(applyButton, "close_edit_file32.png");
+        iconize(unionButton, "union32.png");
+        iconize(intersectionButton, "intersection32.png");
+        iconize(subtractButton, "subtract32.png");
+        iconize(bufferButton, "buffer16-2.png");
+        iconize(explodeButton, "explode32.png");
+        iconize(cancelButton, "power16.png");
         selectButton.setOnAction(event -> startSelection());
         pathButton.setOnAction(event -> startPath());
         polygonButton.setOnAction(event -> startPolygon());
@@ -175,8 +242,8 @@ final class GeometryEditorController {
         redoButton.setOnAction(event -> redo());
         applyButton.setOnAction(event -> apply());
         cancelButton.setOnAction(event -> cancel());
-        VBox panel = new VBox(10, new Label("Editando: " + sourceItem.getValue()), help, status, instruction);
-        if (!tools.isEmpty()) {
+        VBox panel = new VBox(8, new Label("Geometry Editor"), shapeTable, status, instruction);
+        if (tools.size() > 1) {
             toolChoice = new ComboBox<>();
             for (int i = 0; i < tools.size(); i++) {
                 toolChoice.getItems().add(String.format(java.util.Locale.ROOT,
@@ -184,15 +251,50 @@ final class GeometryEditorController {
             }
             toolChoice.getSelectionModel().selectFirst();
             toolChoice.setMaxWidth(Double.MAX_VALUE);
-            panel.getChildren().addAll(new Label("Ferramenta das novas formas:"), toolChoice);
         }
-        panel.getChildren().addAll(selectButton, pathButton, polygonButton, rectangleButton, circleButton,
-                moveButton, copyButton, deleteButton, unionButton, intersectionButton, subtractButton,
-                new Label("Buffer:"), bufferDistance, bufferMode, bufferButton, explodeButton,
-                undoButton, redoButton, applyButton, cancelButton);
+        exitButton = new Button("Salvar e sair do editor");
+        exitButton.setMaxWidth(Double.MAX_VALUE);
+        exitButton.setOnAction(event -> apply());
+        discardButton = new Button("Descartar alteracoes");
+        discardButton.setMaxWidth(Double.MAX_VALUE);
+        discardButton.setOnAction(event -> cancel());
+        panel.getChildren().addAll(exitButton, discardButton);
+        ToolBar toolbar = new ToolBar(selectButton, circleButton,
+                plannedToolButton("Arco", "arc32.png"), rectangleButton,
+                new Separator(), pathButton, polygonButton,
+                new Separator(), plannedToolButton("Texto", "text32.png"), bufferButton,
+                plannedToolButton("Paint Shape", "paint20_1.png"),
+                plannedToolButton("Borracha", "eraser26.png"),
+                new Separator(), unionButton, explodeButton, intersectionButton, subtractButton,
+                new Separator(), plannedToolButton("Cortar Caminho", "cutpath32.png"),
+                copyButton, deleteButton, plannedToolButton("Transformacoes", "transform.png"), moveButton,
+                new Separator(), undoButton, redoButton, applyButton, cancelButton);
+        if (toolChoice != null) {
+            toolbar.getItems().addAll(new Separator(), toolChoice);
+        }
+        toolbar.getItems().addAll(new Separator(), new Label("Buffer"), bufferDistance, bufferMode);
+        bufferDistance.setPrefColumnCount(6);
+        bufferDistance.setMaxWidth(75);
+        bufferMode.setPrefWidth(90);
+        bufferMode.setMaxWidth(90);
         panel.setPadding(new Insets(12));
         host.openToolPanel("Editor Geometry", panel);
+        host.showEditorToolbar(toolbar);
         refreshSelection();
+    }
+
+    private void iconize(Button button, String icon) {
+        String label = button.getText();
+        button.setText(null);
+        button.setGraphic(host.icon(icon));
+        button.setTooltip(new Tooltip(label));
+    }
+
+    private Button plannedToolButton(String label, String icon) {
+        Button button = new Button(null, host.icon(icon));
+        button.setTooltip(new Tooltip(label + " — em desenvolvimento"));
+        button.setDisable(true);
+        return button;
     }
 
     boolean deleteFromShortcut() {
@@ -381,7 +483,7 @@ final class GeometryEditorController {
     }
 
     private int selectedToolIndex() {
-        return toolChoice == null ? -1 : toolChoice.getSelectionModel().getSelectedIndex();
+        return toolChoice == null ? implicitToolIndex : toolChoice.getSelectionModel().getSelectedIndex();
     }
 
     private boolean readyForTool() {
@@ -546,11 +648,28 @@ final class GeometryEditorController {
     }
 
     private void refreshGeometry() {
+        syncingTable = true;
+        shapeTable.getItems().setAll(session.shapeRows());
+        syncingTable = false;
         plotArea.updateLayerGeometry(SHAPES_LAYER, session.resultGeometry());
         refreshSelection();
     }
 
     private void refreshSelection() {
+        if (!syncingTable) {
+            syncingTable = true;
+            tableSelectionOrder.clear();
+            tableSelectionOrder.addAll(session.selectedIndexOrder());
+            shapeTable.getSelectionModel().clearSelection();
+            if (tableSelectionOrder.size() == shapeTable.getItems().size() && !tableSelectionOrder.isEmpty()) {
+                shapeTable.getSelectionModel().selectAll();
+            } else {
+                for (int index : tableSelectionOrder) {
+                    shapeTable.getSelectionModel().select(index);
+                }
+            }
+            syncingTable = false;
+        }
         boolean simplified = session.selectedCount() > EXACT_HIGHLIGHT_LIMIT;
         plotArea.setEditorHighlight(simplified ? session.selectedBounds() : session.selectedGeometry(),
                 strokeOnly || simplified);
@@ -571,6 +690,9 @@ final class GeometryEditorController {
         if (busy) {
             editorButtons.forEach(button -> button.setDisable(true));
         }
+        shapeTable.setDisable(busy);
+        exitButton.setDisable(busy);
+        discardButton.setDisable(busy);
     }
 
     private void end() {
@@ -579,18 +701,24 @@ final class GeometryEditorController {
         plotArea.removeLayer(SHAPES_LAYER);
         plotArea.setEditorHighlight(null, false);
         host.setObjectVisible(item, initiallyVisible);
+        host.hideEditorToolbar();
         host.closeToolPanel();
         item = null;
         session = null;
         status = null;
         instruction = null;
         toolChoice = null;
+        implicitToolIndex = -1;
+        shapeTable = null;
+        tableSelectionOrder.clear();
         deleteButton = null;
         moveButton = null;
         copyButton = null;
         undoButton = null;
         redoButton = null;
         applyButton = null;
+        exitButton = null;
+        discardButton = null;
         unionButton = null;
         intersectionButton = null;
         subtractButton = null;

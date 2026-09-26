@@ -69,6 +69,33 @@ class GeometryEditSessionTest {
     }
 
     @Test
+    void tableRowsHaveStableIdsAndTableSelectionControlsSubtractionOrder() {
+        GeometryEditSession session = overlappingRectangles();
+        List<GeometryEditSession.ShapeRow> originalRows = session.shapeRows();
+        assertEquals(List.of("Polygon", "Polygon"), originalRows.stream()
+                .map(GeometryEditSession.ShapeRow::type).toList());
+        assertEquals(List.of("Geo Elem", "Geo Elem"), originalRows.stream()
+                .map(GeometryEditSession.ShapeRow::name).toList());
+        assertEquals(2, originalRows.stream().map(GeometryEditSession.ShapeRow::id).distinct().count());
+        session.selectIndices(List.of(1, 0));
+        assertEquals(List.of(1, 0), session.selectedIndexOrder());
+        executeAndApply(session, GeometryEditSession.Operation.SUBTRACT, 0);
+        assertTrue(session.resultGeometry().covers(FACTORY.createPoint(new Coordinate(2.5, 2.5))));
+        assertFalse(session.resultGeometry().covers(FACTORY.createPoint(new Coordinate(0.5, 0.5))));
+        assertTrue(session.undo());
+        assertEquals(originalRows, session.shapeRows());
+        assertEquals(List.of(1, 0), session.selectedIndexOrder());
+        assertTrue(session.moveSelected(1, 0));
+        assertEquals(originalRows.stream().map(GeometryEditSession.ShapeRow::id).toList(),
+                session.shapeRows().stream().map(GeometryEditSession.ShapeRow::id).toList());
+        session.selectIndices(List.of(0));
+        assertTrue(session.deleteSelected());
+        assertEquals(1, session.shapeRows().size());
+        assertTrue(session.undo());
+        assertEquals(originalRows, session.shapeRows());
+    }
+
+    @Test
     void bufferAddsResultsWithoutRemovingOriginalAndPreservesTools() {
         Geometry first = rectangle(0, 0, 2, 2);
         Geometry second = rectangle(10, 0, 12, 2);

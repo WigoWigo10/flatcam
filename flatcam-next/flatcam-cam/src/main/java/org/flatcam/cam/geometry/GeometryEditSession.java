@@ -18,6 +18,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.LinearRing;
 import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.operation.buffer.BufferOp;
@@ -26,6 +27,9 @@ import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /** An in-memory geometry edit. Atomic lines and polygons remain individually selectable. */
 public final class GeometryEditSession {
+
+    public record ShapeRow(long id, String type, String name) {
+    }
 
     public enum Operation {
         UNION, INTERSECTION, SUBTRACT, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR
@@ -129,7 +133,7 @@ public final class GeometryEditSession {
         }
     }
 
-    private record Part(Geometry geometry, int toolIndex) {
+    private record Part(long id, Geometry geometry, int toolIndex) {
     }
 
     private record Snapshot(List<Part> parts, List<Integer> selection) {
@@ -146,6 +150,7 @@ public final class GeometryEditSession {
     private STRtree spatialIndex;
     private Geometry cachedResult;
     private long revision;
+    private long nextId = 1;
 
     public GeometryEditSession(Geometry source, List<ToolGeometry> tools) {
         this.source = Objects.requireNonNull(source);
@@ -164,7 +169,7 @@ public final class GeometryEditSession {
         rebuildIndex();
     }
 
-    private static void flatten(Geometry geometry, int toolIndex, List<Part> out) {
+    private void flatten(Geometry geometry, int toolIndex, List<Part> out) {
         if (geometry.isEmpty()) {
             return;
         }
@@ -173,7 +178,7 @@ public final class GeometryEditSession {
                 flatten(collection.getGeometryN(i), toolIndex, out);
             }
         } else {
-            out.add(new Part(geometry, toolIndex));
+            out.add(new Part(nextId++, geometry, toolIndex));
         }
     }
 
@@ -187,6 +192,34 @@ public final class GeometryEditSession {
 
     public Set<Integer> selectedIndices() {
         return Set.copyOf(selected);
+    }
+
+    public List<Integer> selectedIndexOrder() {
+        return List.copyOf(selected);
+    }
+
+    /** Table rows correspond to current shape indices; IDs remain stable through move/undo. */
+    public List<ShapeRow> shapeRows() {
+        List<ShapeRow> rows = new ArrayList<>(parts.size());
+        for (Part part : parts) {
+            Geometry geometry = part.geometry();
+            String type = geometry instanceof LinearRing ? "Ring"
+                    : geometry instanceof LineString ? "Line"
+                    : geometry instanceof Polygon ? "Polygon" : geometry.getGeometryType();
+            rows.add(new ShapeRow(part.id(), type, "Geo Elem"));
+        }
+        return List.copyOf(rows);
+    }
+
+    public void selectIndices(Collection<Integer> indices) {
+        Objects.requireNonNull(indices);
+        for (int index : indices) {
+            if (index < 0 || index >= parts.size()) {
+                throw new IllegalArgumentException("Indice de forma fora da tabela.");
+            }
+        }
+        selected.clear();
+        selected.addAll(indices);
     }
 
     public boolean isDirty() {
@@ -344,7 +377,7 @@ public final class GeometryEditSession {
     private void appendEdges(LineString ring, int toolIndex, List<Part> target) {
         Coordinate[] coordinates = ring.getCoordinates();
         for (int i = 1; i < coordinates.length; i++) {
-            target.add(new Part(factory.createLineString(new Coordinate[]{coordinates[i - 1], coordinates[i]}),
+            target.add(new Part(nextId++, factory.createLineString(new Coordinate[]{coordinates[i - 1], coordinates[i]}),
                     toolIndex));
         }
     }
@@ -357,7 +390,8 @@ public final class GeometryEditSession {
         List<Part> moved = new ArrayList<>(parts.size());
         for (int i = 0; i < parts.size(); i++) {
             Part part = parts.get(i);
-            moved.add(selected.contains(i) ? new Part(translation.transform(part.geometry()), part.toolIndex()) : part);
+            moved.add(selected.contains(i) ? new Part(part.id(), translation.transform(part.geometry()),
+                    part.toolIndex()) : part);
         }
         commit(moved, List.copyOf(selected));
         return true;
@@ -374,7 +408,7 @@ public final class GeometryEditSession {
             if (selected.contains(i)) {
                 Part part = parts.get(i);
                 newSelection.add(copied.size());
-                copied.add(new Part(translation.transform(part.geometry()), part.toolIndex()));
+                copied.add(new Part(nextId++, translation.transform(part.geometry()), part.toolIndex()));
             }
         }
         commit(copied, newSelection);
@@ -456,7 +490,7 @@ public final class GeometryEditSession {
             throw new IllegalArgumentException("Selecione uma ferramenta valida para a nova forma.");
         }
         List<Part> updated = new ArrayList<>(parts);
-        updated.add(new Part(shape, toolIndex));
+        updated.add(new Part(nextId++, shape, toolIndex));
         commit(updated, Set.of());
     }
 

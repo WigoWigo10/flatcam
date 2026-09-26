@@ -889,6 +889,17 @@ subconjunto modal/planos do parser antes de alegar paridade com o Python.
 
 ### 9.6 Editor de Geometry (tres fatias)
 
+A interface foi reorganizada para corresponder ao Python: a aba lateral
+"Editor Geometry" mostra a tabela virtualizada `ID | Type | Name` e os
+controles de sair/descartar. Os IDs sao estaveis durante mover/desfazer; a
+selecao da tabela e do desenho e sincronizada nos dois sentidos, inclusive
+para Delete. As ferramentas agora ficam em uma barra superior dedicada, que
+substitui a barra geral de ferramentas enquanto o editor esta aberto. O menu
+de topo "Geo Editor" so aparece durante a edicao. Funcoes ainda nao portadas
+(arco, texto, paint, borracha, cortar caminho, transformacoes) aparecem
+desabilitadas na barra, sem sugerir que ja funcionam. A escolha de ferramenta
+de corte aparece na barra apenas para Geometry multi-tool.
+
 Objetos Geometry abrem pelo botão em Propriedades, menu contextual ou Editar
 Objeto. O editor permite seleção por clique ou retângulo (esquerda-direita
 inclui formas inteiras, direita-esquerda inclui formas tocadas), Ctrl para
