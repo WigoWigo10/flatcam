@@ -907,14 +907,25 @@ final class MainWindow {
 
     private void addGeometryEditorCommands(Menu menu) {
         for (LegacyUiManifest.Command command : LegacyUiManifest.GEOMETRY_EDITOR) {
-            if ("select".equals(command.id())) {
-                menu.getItems().add(chromeItem(command.label(), command.icon(), this::editSelectedGeometry));
-            } else if ("delete".equals(command.id())) {
-                menu.getItems().add(chromeItem(command.label(), command.icon(),
-                        geometryEditor::deleteFromShortcut));
-            } else {
-                menu.getItems().add(plannedItem(command.label(), command.icon()));
-            }
+            Runnable action = switch (command.id()) {
+                case "select" -> () -> {
+                    if (geometryEditor.isActive()) {
+                        geometryEditor.startSelection();
+                    } else {
+                        editSelectedGeometry();
+                    }
+                };
+                case "circle" -> geometryEditor::startCircle;
+                case "rectangle" -> geometryEditor::startRectangle;
+                case "path" -> geometryEditor::startPath;
+                case "polygon" -> geometryEditor::startPolygon;
+                case "move" -> geometryEditor::startMove;
+                case "copy" -> geometryEditor::startCopy;
+                case "delete" -> geometryEditor::deleteFromShortcut;
+                default -> null;
+            };
+            menu.getItems().add(action == null ? plannedItem(command.label(), command.icon())
+                    : chromeItem(command.label(), command.icon(), action));
         }
     }
 

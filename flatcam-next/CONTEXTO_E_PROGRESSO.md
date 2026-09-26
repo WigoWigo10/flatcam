@@ -322,7 +322,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber | parcial | Isolation, Cutout e NCC existem; NCC agora é multi-tool com Rest Machining, boundary por referência e "Check validity" - falta seleção de área no canvas e Tools DB |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
-| Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor inicial seleciona por clique/retângulo, exclui, desfaz/refaz e aplica/cancela; desenho, Paint, Sub e Panelize faltam |
+| Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
 | CNC Job | parcial | geração, plot, abertura direta de arquivos G-code, edição de texto, Aplicar/Cancelar e Salvar arquivo; prévia G0-G3 em XY refeita ao aplicar; painel e opções avançadas do legado faltam |
 | Persistência de projeto | forte/parcial (Gerber/Excellon), parcial (CNC Job/Geometry) | Gerber salva formas individuais e ordem em extensão `_java`; CNC Job embute nome e texto G-code e reconstrói a prévia G0-G3; Geometry embute WKT e associações de ferramentas na extensão `_java.geometries` |
 | Calculadoras | parcial | três calculadoras implementadas |
@@ -887,7 +887,7 @@ da prévia também roda em background; se não for possível interpretá-la, o
 texto ainda é carregado. Falta validar a UI com arquivos reais e ampliar o
 subconjunto modal/planos do parser antes de alegar paridade com o Python.
 
-### 9.6 Editor de Geometry (primeira fatia)
+### 9.6 Editor de Geometry (duas primeiras fatias)
 
 Objetos Geometry abrem pelo botão em Propriedades, menu contextual ou Editar
 Objeto. O editor permite seleção por clique ou retângulo (esquerda-direita
@@ -902,10 +902,22 @@ usa uma camada Canvas separada para não repintar todos os objetos a cada
 clique. Acima de 2.000 formas selecionadas, só o contorno agregado é exibido,
 mas Excluir ainda opera sobre todas as formas selecionadas.
 
-Ainda faltam as ferramentas de desenho/transformação específicas do editor,
+A segunda fatia inclui Caminho/Polígono por múltiplos cliques (Enter, duplo
+clique ou botão direito
+conclui; Backspace remove o último ponto), Retângulo/Círculo por dois
+cliques e Mover/Copiar pela origem e destino no Plot Area. As formas novas são
+editáveis, participam do undo/redo e entram no projeto salvo. Em Geometry
+multi-tool, o painel permite escolher a ferramenta que receberá a nova forma;
+mover/copiar mantém a ferramenta das formas de origem. A prévia de desenho e
+movimento usa a camada Canvas leve, sem repintar o projeto inteiro em cada
+movimento do mouse. O menu Editor Geometry ativa essas seis ferramentas.
+
+Ainda faltam arco, texto, buffer, paint, borracha e operações booleanas,
 teste manual com arquivos reais grandes e perfilamento da renderização inicial
 de Geometry muito extensa. A persistência `_java.geometries` é do FX e não
-garante abertura de objetos Geometry no FlatCAM Python.
+garante abertura de objetos Geometry no FlatCAM Python. A opção legada de
+sentido de fresagem CL/CV para novas formas ainda não foi portada; não use o
+G-code gerado sem conferir o trajeto e a direção de corte.
 
 ## 10. Regras de implementação para qualquer IA
 
@@ -1056,7 +1068,8 @@ avançadas numéricas ainda não reproduzem todos os gestos do Python.
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O
-Editor de Geometry tem seleção/exclusão visual, undo/redo, Aplicar/Cancelar e
+Editor de Geometry tem seleção/exclusão visual, desenho básico, mover/copiar,
+undo/redo, Aplicar/Cancelar e
 salvamento no projeto, com índice espacial e destaque isolado para evitar
 repintura integral ao clicar. Editor de G-Code agora abre arquivos diretamente, edita o texto do CNC Job, aplica em background com
 progresso/cancelamento e salva o rascunho como arquivo. O projeto embute esse

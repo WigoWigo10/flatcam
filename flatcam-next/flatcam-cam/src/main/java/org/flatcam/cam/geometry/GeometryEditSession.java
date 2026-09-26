@@ -13,7 +13,9 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.index.strtree.STRtree;
+import org.locationtech.jts.geom.util.AffineTransformation;
 
 /** An in-memory geometry edit. Atomic lines and polygons remain individually selectable. */
 public final class GeometryEditSession {
@@ -71,6 +73,10 @@ public final class GeometryEditSession {
 
     public int selectedCount() {
         return selected.size();
+    }
+
+    public Set<Integer> selectedIndices() {
+        return Set.copyOf(selected);
     }
 
     public boolean isDirty() {
@@ -144,6 +150,126 @@ public final class GeometryEditSession {
         selected.clear();
         rebuildIndex();
         return true;
+    }
+
+    public boolean moveSelected(double dx, double dy) {
+        if (selected.isEmpty() || !finiteDisplacement(dx, dy)) {
+            return false;
+        }
+        AffineTransformation translation = AffineTransformation.translationInstance(dx, dy);
+        List<Part> moved = new ArrayList<>(parts.size());
+        for (int i = 0; i < parts.size(); i++) {
+            Part part = parts.get(i);
+            moved.add(selected.contains(i) ? new Part(translation.transform(part.geometry()), part.toolIndex()) : part);
+        }
+        commit(moved, Set.copyOf(selected));
+        return true;
+    }
+
+    public boolean copySelected(double dx, double dy) {
+        if (selected.isEmpty() || !finiteDisplacement(dx, dy)) {
+            return false;
+        }
+        AffineTransformation translation = AffineTransformation.translationInstance(dx, dy);
+        List<Part> copied = new ArrayList<>(parts);
+        Set<Integer> newSelection = new LinkedHashSet<>();
+        for (int i = 0; i < parts.size(); i++) {
+            if (selected.contains(i)) {
+                Part part = parts.get(i);
+                newSelection.add(copied.size());
+                copied.add(new Part(translation.transform(part.geometry()), part.toolIndex()));
+            }
+        }
+        commit(copied, newSelection);
+        return true;
+    }
+
+    private static boolean finiteDisplacement(double dx, double dy) {
+        if (!Double.isFinite(dx) || !Double.isFinite(dy)) {
+            throw new IllegalArgumentException("Deslocamento X/Y deve ser finito.");
+        }
+        return dx != 0 || dy != 0;
+    }
+
+    public void addPath(List<Coordinate> points, int toolIndex) {
+        Coordinate[] coordinates = coordinates(points, 2);
+        Geometry path = factory.createLineString(coordinates);
+        if (path.getLength() <= 0) {
+            throw new IllegalArgumentException("O caminho precisa de dois pontos distintos.");
+        }
+        addShape(path, toolIndex);
+    }
+
+    public void addPolygon(List<Coordinate> points, int toolIndex) {
+        Coordinate[] coordinates = coordinates(points, 3);
+        if (coordinates[0].equals2D(coordinates[coordinates.length - 1])) {
+            coordinates = java.util.Arrays.copyOf(coordinates, coordinates.length - 1);
+        }
+        if (coordinates.length < 3) {
+            throw new IllegalArgumentException("O poligono precisa de tres pontos distintos.");
+        }
+        Coordinate[] ring = java.util.Arrays.copyOf(coordinates, coordinates.length + 1);
+        ring[ring.length - 1] = new Coordinate(coordinates[0]);
+        Polygon polygon = factory.createPolygon(ring);
+        if (polygon.isEmpty() || polygon.getArea() <= 0 || !polygon.isValid()) {
+            throw new IllegalArgumentException("O poligono precisa ter area positiva e nao pode se cruzar.");
+        }
+        addShape(polygon, toolIndex);
+    }
+
+    public void addRectangle(double x1, double y1, double x2, double y2, int toolIndex) {
+        if (!Double.isFinite(x1) || !Double.isFinite(y1) || !Double.isFinite(x2) || !Double.isFinite(y2)
+                || x1 == x2 || y1 == y2) {
+            throw new IllegalArgumentException("Escolha dois cantos diferentes para o retangulo.");
+        }
+        addShape(factory.toGeometry(new Envelope(x1, x2, y1, y2)), toolIndex);
+    }
+
+    public void addCircle(double centerX, double centerY, double perimeterX, double perimeterY, int toolIndex) {
+        if (!Double.isFinite(centerX) || !Double.isFinite(centerY)
+                || !Double.isFinite(perimeterX) || !Double.isFinite(perimeterY)) {
+            throw new IllegalArgumentException("As coordenadas do circulo devem ser finitas.");
+        }
+        double radius = Math.hypot(perimeterX - centerX, perimeterY - centerY);
+        if (!(radius > 0) || !Double.isFinite(radius)) {
+            throw new IllegalArgumentException("Escolha um ponto do perimetro diferente do centro.");
+        }
+        // Python's geometry_circle_steps defaults to 64 segments: 16 per quadrant.
+        addShape(factory.createPoint(new Coordinate(centerX, centerY)).buffer(radius, 16), toolIndex);
+    }
+
+    private static Coordinate[] coordinates(List<Coordinate> points, int minimum) {
+        Objects.requireNonNull(points);
+        if (points.size() < minimum) {
+            throw new IllegalArgumentException("Pontos insuficientes para criar a forma.");
+        }
+        Coordinate[] result = new Coordinate[points.size()];
+        for (int i = 0; i < points.size(); i++) {
+            Coordinate point = Objects.requireNonNull(points.get(i));
+            if (!Double.isFinite(point.x) || !Double.isFinite(point.y)) {
+                throw new IllegalArgumentException("As coordenadas devem ser finitas.");
+            }
+            result[i] = new Coordinate(point);
+        }
+        return result;
+    }
+
+    private void addShape(Geometry shape, int toolIndex) {
+        if (sourceTools.isEmpty() ? toolIndex != -1 : toolIndex < 0 || toolIndex >= sourceTools.size()) {
+            throw new IllegalArgumentException("Selecione uma ferramenta valida para a nova forma.");
+        }
+        List<Part> updated = new ArrayList<>(parts);
+        updated.add(new Part(shape, toolIndex));
+        commit(updated, Set.of());
+    }
+
+    private void commit(List<Part> updated, Set<Integer> newSelection) {
+        undo.push(snapshot());
+        redo.clear();
+        parts = List.copyOf(updated);
+        selected.clear();
+        selected.addAll(newSelection);
+        rebuildIndex();
     }
 
     public boolean undo() {

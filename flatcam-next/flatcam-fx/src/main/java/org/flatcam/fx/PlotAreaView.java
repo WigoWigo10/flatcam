@@ -110,6 +110,10 @@ final class PlotAreaView extends StackPane {
         void onCancel();
     }
 
+    enum TwoPointShape {
+        RECTANGLE, CIRCLE
+    }
+
     record SelectableLayer(Object key, Geometry geometry) {
     }
 
@@ -204,6 +208,8 @@ final class PlotAreaView extends StackPane {
     private boolean placementAnchorChosen;
     private double placementTrackWidth;
     private boolean placementRegion;
+    private boolean placementFreePath;
+    private TwoPointShape placementTwoPointShape;
     private TrackPlacementHandler trackPlacementHandler;
     private List<Coordinate> placementTrackPoints = new ArrayList<>();
     private List<Integer> placementTrackUndoSizes = new ArrayList<>();
@@ -548,6 +554,10 @@ final class PlotAreaView extends StackPane {
 
     /** Editor shapes have no project layer keys; previewing them never mutates the edit session. */
     boolean beginEditorPlacement(List<Geometry> geometries, PlacementHandler handler) {
+        return beginEditorPlacement(geometries, false, handler);
+    }
+
+    boolean beginEditorPlacement(List<Geometry> geometries, boolean strokeOnly, PlacementHandler handler) {
         if (selectionHandler == null || geometries.isEmpty() || handler == null) {
             return false;
         }
@@ -556,7 +566,7 @@ final class PlotAreaView extends StackPane {
             if (geometry == null || geometry.isEmpty()) {
                 return false;
             }
-            preview.add(new RenderLayer(geometry, false, PLACEMENT_FILL, PLACEMENT_STROKE,
+            preview.add(new RenderLayer(geometry, strokeOnly, PLACEMENT_FILL, PLACEMENT_STROKE,
                     true, LayerCategory.OVERLAY, true, false));
         }
         return startPlacement(List.of(), preview, 0, 0, false, handler);
@@ -606,6 +616,29 @@ final class PlotAreaView extends StackPane {
             return false;
         }
         placementRegion = true;
+        redraw();
+        return true;
+    }
+
+    /** Free-angle Geometry path/polygon, without Gerber's constrained bend modes. */
+    boolean beginEditorGeometryPathPlacement(boolean polygon, TrackPlacementHandler handler) {
+        if (!beginEditorTrackPlacement(1.5 / scale, handler)) {
+            return false;
+        }
+        placementFreePath = true;
+        placementTrackMode = TrackBendMode.FREE;
+        placementRegion = polygon;
+        notifyTrackPathChanged();
+        redraw();
+        return true;
+    }
+
+    boolean beginEditorTwoPointPlacement(TwoPointShape shape, PlacementHandler handler) {
+        if (selectionHandler == null || shape == null || handler == null
+                || !startPlacement(List.of(), List.of(), 0, 0, false, handler)) {
+            return false;
+        }
+        placementTwoPointShape = shape;
         redraw();
         return true;
     }
@@ -669,7 +702,7 @@ final class PlotAreaView extends StackPane {
     }
 
     boolean cycleEditorTrackBendMode(boolean reverse) {
-        if (trackPlacementHandler == null) {
+        if (trackPlacementHandler == null || placementFreePath) {
             return false;
         }
         placementTrackMode = reverse ? placementTrackMode.previous() : placementTrackMode.next();
@@ -699,6 +732,8 @@ final class PlotAreaView extends StackPane {
         placementAnchorChosen = false;
         placementTrackWidth = 0;
         placementRegion = false;
+        placementFreePath = false;
+        placementTwoPointShape = null;
         trackPlacementHandler = null;
         placementTrackPoints = new ArrayList<>();
         placementTrackUndoSizes = new ArrayList<>();
@@ -761,7 +796,11 @@ final class PlotAreaView extends StackPane {
     private void handleRelease(MouseEvent event) {
         if (event.getButton() == MouseButton.SECONDARY) {
             if (rightPressed && !rightDragged && placementHandler != null) {
-                if (trackPlacementHandler != null && !placementTrackPoints.isEmpty()
+                if (placementFreePath && trackPlacementHandler != null) {
+                    if (!finishEditorTrackPlacement()) {
+                        cancelPlacement();
+                    }
+                } else if (trackPlacementHandler != null && !placementTrackPoints.isEmpty()
                         && insidePlot(event.getX(), event.getY())) {
                     double[] world = snappedWorld(event.getX(), event.getY());
                     appendTrackSegment(new Coordinate(world[0], world[1]));
@@ -886,7 +925,7 @@ final class PlotAreaView extends StackPane {
             double[] world = snappedWorld(screenX, screenY);
             placementCurrentWorldX = world[0];
             placementCurrentWorldY = world[1];
-            redraw();
+            drawEditorHighlight();
         }
     }
 
@@ -920,7 +959,7 @@ final class PlotAreaView extends StackPane {
 
     private TrackBendMode effectiveTrackBendMode() {
         // AppGerberEditor.py applies bend modes only while grid snap is enabled.
-        return gridSnapEnabled ? placementTrackMode : TrackBendMode.FREE;
+        return placementFreePath || !gridSnapEnabled ? TrackBendMode.FREE : placementTrackMode;
     }
 
     private SelectionHandler activeSelectionHandler() {
@@ -1026,7 +1065,6 @@ final class PlotAreaView extends StackPane {
         if (workspaceVisible) {
             drawWorkspace(gc, contentWidth, contentHeight);
         }
-        drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
         drawEditorHighlight();
@@ -1038,9 +1076,9 @@ final class PlotAreaView extends StackPane {
         double height = editorHighlightCanvas.getHeight();
         GraphicsContext gc = editorHighlightCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, width, height);
+        double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
+        double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
         if (editorHighlightGeometry != null && !editorHighlightGeometry.isEmpty()) {
-            double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
-            double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
             gc.save();
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
@@ -1050,6 +1088,7 @@ final class PlotAreaView extends StackPane {
                     contentWidth, contentHeight);
             gc.restore();
         }
+        drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
     }
 
@@ -1061,6 +1100,33 @@ final class PlotAreaView extends StackPane {
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
+        if (placementTwoPointShape != null) {
+            double[] first = worldToScreen(placementAnchorWorldX, placementAnchorWorldY,
+                    contentWidth, contentHeight);
+            double[] second = worldToScreen(placementCurrentWorldX, placementCurrentWorldY,
+                    contentWidth, contentHeight);
+            double firstX = first[0] + RULER_LEFT_WIDTH;
+            double firstY = first[1] + RULER_TOP_HEIGHT;
+            double secondX = second[0] + RULER_LEFT_WIDTH;
+            double secondY = second[1] + RULER_TOP_HEIGHT;
+            gc.setStroke(PLACEMENT_STROKE);
+            gc.setFill(PLACEMENT_FILL);
+            gc.setLineWidth(1.5);
+            if (placementTwoPointShape == TwoPointShape.RECTANGLE) {
+                double x = Math.min(firstX, secondX);
+                double y = Math.min(firstY, secondY);
+                double width = Math.abs(secondX - firstX);
+                double height = Math.abs(secondY - firstY);
+                gc.fillRect(x, y, width, height);
+                gc.strokeRect(x, y, width, height);
+            } else {
+                double radius = Math.hypot(secondX - firstX, secondY - firstY);
+                gc.fillOval(firstX - radius, firstY - radius, radius * 2, radius * 2);
+                gc.strokeOval(firstX - radius, firstY - radius, radius * 2, radius * 2);
+            }
+            gc.restore();
+            return;
+        }
         if (placementTrackWidth > 0 && !placementTrackPoints.isEmpty()) {
             List<Coordinate> previewPoints = new ArrayList<>(placementTrackPoints);
             List<Coordinate> pending = effectiveTrackBendMode().route(
@@ -1221,6 +1287,10 @@ final class PlotAreaView extends StackPane {
                 // An isolation ring's own coordinates already repeat the start point as
                 // the end point, so leaving this open draws it correctly too either way.
                 addRing(gc, coordinates, contentWidth, contentHeight, false);
+                gc.stroke();
+            } else if (part instanceof LineString line) {
+                gc.beginPath();
+                addRing(gc, line.getCoordinates(), contentWidth, contentHeight, false);
                 gc.stroke();
             } else if (part instanceof Polygon polygon) {
                 gc.beginPath();
