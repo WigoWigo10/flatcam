@@ -19,13 +19,13 @@ public record DrillGCodeParameters(
         boolean pauseForToolChange
 ) {
     public DrillGCodeParameters {
-        if (safeZ <= 0) {
+        if (!Double.isFinite(safeZ) || safeZ <= 0) {
             throw new IllegalArgumentException("safeZ must be positive (retract height above the surface): " + safeZ);
         }
-        if (drillDepth <= 0) {
+        if (!Double.isFinite(drillDepth) || drillDepth <= 0) {
             throw new IllegalArgumentException("drillDepth must be positive (distance below the surface): " + drillDepth);
         }
-        if (feedRate <= 0) {
+        if (!Double.isFinite(feedRate) || feedRate <= 0) {
             throw new IllegalArgumentException("feedRate must be positive: " + feedRate);
         }
         if (spindleSpeedRpm < 0) {

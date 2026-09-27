@@ -104,6 +104,33 @@ class GCodeGeneratorTest {
     }
 
     @Test
+    void drillingUsesSelectedToolOrderAndEachToolsOwnMachiningValues() {
+        ExcellonImage image = parse("M48", "METRIC", "T1C0.8", "T2C1.0", "%",
+                "T1", "X1.0Y1.0", "T2", "X3.0Y3.0", "M30");
+        var first = new DrillGCodeParameters(2, 0.7, 150, 0, false);
+        var second = new DrillGCodeParameters(3, 1.2, 300, 12000, false);
+        var options = new GCodeGenerator.DrillJobOptions(true, 15, 0.5, 10.0, 20.0);
+
+        String gcode = GCodeGenerator.generateDrillCncJob(image,
+                java.util.Map.of(1, first, 2, second), List.of(2, 1), options).gcode();
+
+        assertTrue(gcode.indexOf("X3.0000 Y3.0000") < gcode.indexOf("X1.0000 Y1.0000"));
+        assertTrue(gcode.contains("G1 Z-1.2000 F300.0000"));
+        assertTrue(gcode.contains("G1 Z-0.7000 F150.0000"));
+        assertTrue(gcode.contains("M3 S12000"));
+        assertTrue(gcode.contains("G0 Z15.0000\nM0"));
+        assertTrue(gcode.contains("G0 Z0.5000\nG0 X10.0000 Y20.0000\nM30"));
+    }
+
+    @Test
+    void rejectsNonFiniteDrillingSettings() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new DrillGCodeParameters(Double.NaN, 1, 100, 0, false));
+        assertThrows(IllegalArgumentException.class,
+                () -> new DrillGCodeParameters(2, Double.POSITIVE_INFINITY, 100, 0, false));
+    }
+
+    @Test
     void slotIsPlungeThenLinearCutThenRetract() {
         ExcellonImage image = parse("M48", "METRIC", "T1C1.0", "%", "T1", "X1.0Y1.0G85X5.0Y1.0", "M30");
         String gcode = GCodeGenerator.generateDrillGCode(image,

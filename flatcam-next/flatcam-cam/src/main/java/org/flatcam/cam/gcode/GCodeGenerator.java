@@ -60,6 +60,40 @@ public final class GCodeGenerator {
 
     /** Same as {@link #generateDrillGCode(ExcellonImage, DrillGCodeParameters, Set)}, plus the CNCJob's own toolpath geometry (see {@link CncJobResult}). */
     public static CncJobResult generateDrillCncJob(ExcellonImage image, DrillGCodeParameters params, Set<Integer> selectedToolIds) {
+        SortedSet<Integer> activeIds = new TreeSet<>();
+        image.drills().forEach(drill -> activeIds.add(drill.toolId()));
+        image.slots().forEach(slot -> activeIds.add(slot.toolId()));
+        if (selectedToolIds != null && !selectedToolIds.isEmpty()) activeIds.retainAll(selectedToolIds);
+        Map<Integer, DrillGCodeParameters> byTool = new java.util.LinkedHashMap<>();
+        activeIds.forEach(id -> byTool.put(id, params));
+        return generateDrillCncJob(image, byTool, List.copyOf(activeIds),
+                new DrillJobOptions(params.pauseForToolChange(), params.safeZ(), params.safeZ(), null, null));
+    }
+
+    /** Common job-level moves; null end X/Y keeps the tool at the final hole. */
+    public record DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
+                                  double endMoveZ, Double endMoveX, Double endMoveY) {
+        public DrillJobOptions {
+            if (!Double.isFinite(toolChangeZ) || toolChangeZ <= 0)
+                throw new IllegalArgumentException("Tool change Z must be positive");
+            if (!Double.isFinite(endMoveZ) || endMoveZ <= 0)
+                throw new IllegalArgumentException("End move Z must be positive");
+            if ((endMoveX == null) != (endMoveY == null))
+                throw new IllegalArgumentException("End move X/Y must both be set or both be empty");
+            if (endMoveX != null && (!Double.isFinite(endMoveX) || !Double.isFinite(endMoveY)))
+                throw new IllegalArgumentException("End move X/Y must be finite");
+        }
+    }
+
+    /** Drilling with per-tool machining settings and explicit tool order. */
+    public static CncJobResult generateDrillCncJob(ExcellonImage image,
+                                                    Map<Integer, DrillGCodeParameters> settingsByTool,
+                                                    List<Integer> orderedToolIds,
+                                                    DrillJobOptions options) {
+        Objects.requireNonNull(image, "image");
+        Objects.requireNonNull(settingsByTool, "settingsByTool");
+        Objects.requireNonNull(orderedToolIds, "orderedToolIds");
+        Objects.requireNonNull(options, "options");
         Map<Integer, List<ExcellonImage.Drill>> drillsByTool =
                 image.drills().stream().collect(Collectors.groupingBy(ExcellonImage.Drill::toolId));
         Map<Integer, List<ExcellonImage.Slot>> slotsByTool =
@@ -68,8 +102,11 @@ public final class GCodeGenerator {
         SortedSet<Integer> toolIds = new TreeSet<>();
         toolIds.addAll(drillsByTool.keySet());
         toolIds.addAll(slotsByTool.keySet());
-        if (selectedToolIds != null && !selectedToolIds.isEmpty()) {
-            toolIds.retainAll(selectedToolIds);
+        List<Integer> ordered = orderedToolIds.isEmpty() ? List.copyOf(toolIds)
+                : orderedToolIds.stream().distinct().filter(toolIds::contains).toList();
+        for (int id : ordered) {
+            if (!settingsByTool.containsKey(id))
+                throw new IllegalArgumentException("Missing drilling parameters for tool " + id);
         }
 
         StringBuilder gcode = new StringBuilder();
@@ -78,31 +115,43 @@ public final class GCodeGenerator {
         line(gcode, image.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
         line(gcode, "G94");
-        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        double initialZ = ordered.isEmpty() ? options.endMoveZ() : settingsByTool.get(ordered.get(0)).safeZ();
+        line(gcode, "G0 Z%s", fmt(initialZ));
 
         List<Geometry> travelShapes = new ArrayList<>();
         List<Geometry> cutShapes = new ArrayList<>();
         double lastX = 0;
         double lastY = 0;
+        double lastRadius = 0.1;
 
         boolean firstTool = true;
-        for (int toolId : toolIds) {
+        DrillGCodeParameters previous = null;
+        for (int toolId : ordered) {
+            DrillGCodeParameters params = settingsByTool.get(toolId);
             // Falls back to a thin nominal radius for a tool diameter this Excellon file
             // never declared - only the toolpath preview is affected, not the G-code itself.
             double toolDiameter = image.toolDiameters().getOrDefault(toolId, 0.2);
             double radius = toolDiameter / 2.0;
+            lastRadius = radius;
 
             if (!firstTool) {
-                if (params.spindleSpeedRpm() > 0) {
+                if (previous != null && previous.spindleSpeedRpm() > 0) {
                     line(gcode, "M5");
                 }
-                if (params.pauseForToolChange()) {
+                if (options.pauseForToolChange()) {
+                    if (Double.compare(options.toolChangeZ(), previous.safeZ()) != 0)
+                        line(gcode, "G0 Z%s", fmt(options.toolChangeZ()));
                     Double diameter = image.toolDiameters().get(toolId);
                     line(gcode, "M0 ; troque para a ferramenta T%d (diametro %s %s) e continue",
                             toolId, diameter != null ? fmt(diameter) : "?", image.units());
+                    if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
+                        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                } else if (Double.compare(previous.safeZ(), params.safeZ()) != 0) {
+                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
                 }
             }
             firstTool = false;
+            previous = params;
 
             if (params.spindleSpeedRpm() > 0) {
                 line(gcode, "M3 S%d", params.spindleSpeedRpm());
@@ -132,10 +181,14 @@ public final class GCodeGenerator {
                 line(gcode, "G0 Z%s", fmt(params.safeZ()));
             }
         }
-        if (params.spindleSpeedRpm() > 0) {
+        if (previous != null && previous.spindleSpeedRpm() > 0) {
             line(gcode, "M5");
         }
-        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        line(gcode, "G0 Z%s", fmt(options.endMoveZ()));
+        if (options.endMoveX() != null) {
+            addTravel(travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius);
+            line(gcode, "G0 X%s Y%s", fmt(options.endMoveX()), fmt(options.endMoveY()));
+        }
         line(gcode, "M30");
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
     }

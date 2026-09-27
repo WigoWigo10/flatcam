@@ -3009,8 +3009,19 @@ final class MainWindow {
      * if a pathological input ever makes it worth it.
      */
     private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
-        openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(image,
-                result -> runDrillGCodeGeneration(item, image, result), this::closeToolPanel));
+        List<DrillGCodeToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
+                .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
+                .map(entry -> new DrillGCodeToolPanel.SourceCandidate(entry.getKey(), entry.getValue()))
+                .toList();
+        DrillGCodeToolPanel.SourceCandidate initialSource = sources.stream()
+                .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
+        if (initialSource == null) {
+            appendConsole("Drilling Tool: o Excellon selecionado nao esta disponivel.");
+            return;
+        }
+        openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(sources, initialSource,
+                result -> runDrillGCodeGeneration(result.source().item(), result.source().image(), result),
+                this::closeToolPanel));
     }
 
     private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeToolPanel.Result result) {
@@ -3029,7 +3040,8 @@ final class MainWindow {
         }
 
         try {
-            CncJobResult job = GCodeGenerator.generateDrillCncJob(image, result.params(), result.selectedToolIds());
+            CncJobResult job = GCodeGenerator.generateDrillCncJob(image, result.settingsByTool(),
+                    result.orderedToolIds(), result.options());
             Files.writeString(outFile.toPath(), job.gcode());
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
