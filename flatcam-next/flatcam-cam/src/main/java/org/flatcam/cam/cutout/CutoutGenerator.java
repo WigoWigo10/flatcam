@@ -21,8 +21,8 @@ import org.locationtech.jts.operation.linemerge.LineMerger;
  * Ports appTools/ToolCutOut.py's automatic (non-manual) cutout generation:
  * buffers a Gerber's copper outward into a cut path, then subtracts small
  * rectangles at bridge-gap positions so the finished board can be snapped
- * free of the surrounding stock. Only a Gerber source is supported (Python
- * also accepts existing Geometry). Bridge paths, Thin bridge segments and
+ * free of the surrounding stock. The source may be Gerber copper or a filled
+ * Geometry. Bridge paths, Thin bridge segments and
  * automatic or manually located M-Bites drill points are available. Thin segments become a
  * separate Geometry so the user can choose their shallower Cut Z at the
  * Geometry-to-CNC step. Manual masks can cut one or more arbitrary gap areas;

@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
@@ -3309,14 +3310,27 @@ final class MainWindow {
 
     /** Creates an editable cutout Geometry, as appTools/ToolCutOut.py does. */
     private void generateCutout(TreeItem<String> item, GerberImage image) {
-        openToolPanel("Cutout Tool", CutoutToolPanel.build(image.units(),
-                (polygon, onSelected, onCancelled) -> beginNccAreaSelection(image.solidGeometry(),
+        openCutoutTool(item, image.units(), image.solidGeometry(), () -> gerberByItem.get(item) == image);
+    }
+
+    private void generateCutout(TreeItem<String> item, GeometryEntry entry) {
+        openCutoutTool(item, entry.units(), entry.geometry(), () -> geometryByItem.get(item) == entry);
+    }
+
+    private void openCutoutTool(TreeItem<String> item, String units, Geometry source,
+                                BooleanSupplier sourceAvailable) {
+        if (source == null || source.isEmpty() || source.getDimension() != 2) {
+            appendConsole("Cutout exige um Gerber ou Geometry preenchida como origem.");
+            return;
+        }
+        openToolPanel("Cutout Tool", CutoutToolPanel.build(units,
+                (polygon, onSelected, onCancelled) -> beginNccAreaSelection(source,
                         polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
                         onSelected, onCancelled),
                 plotAreaView::cancelPlacement,
                 result -> {
                     plotAreaView.cancelPlacement();
-                    runCutoutGeneration(item, image, result);
+                    runCutoutGeneration(item, units, source, sourceAvailable, result);
                 }, () -> {
                     plotAreaView.cancelPlacement();
                     closeToolPanel();
@@ -3326,7 +3340,8 @@ final class MainWindow {
     private record CutoutJobOutcome(CutoutResult cutout, ExcellonImage mouseBites) {
     }
 
-    private void runCutoutGeneration(TreeItem<String> item, GerberImage image, CutoutToolPanel.Result result) {
+    private void runCutoutGeneration(TreeItem<String> item, String units, Geometry source,
+                                     BooleanSupplier sourceAvailable, CutoutToolPanel.Result result) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
@@ -3336,10 +3351,10 @@ final class MainWindow {
         JobHandle<CutoutJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de cutout...");
             CutoutResult cutout = CutoutGenerator.generate(
-                    image.units(), image.solidGeometry(), result.cutoutParams(),
+                    units, source, result.cutoutParams(),
                     result.manualGapAreas(), context::isCancelled);
             ExcellonImage mouseBites = result.gapType() == CutoutToolPanel.GapType.M_BITES
-                    ? CutoutGenerator.generateMouseBites(image.units(), image.solidGeometry(),
+                    ? CutoutGenerator.generateMouseBites(units, source,
                             result.cutoutParams(), result.biteDiameter(), result.biteSpacing(),
                             result.manualGapAreas(), context::isCancelled)
                     : null;
@@ -3355,8 +3370,8 @@ final class MainWindow {
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
                     CutoutResult cutout = outcome.cutout();
-                    if (gerberByItem.get(item) != image) {
-                        appendConsole("O Gerber de origem foi removido; Geometry de cutout descartada.");
+                    if (!sourceAvailable.getAsBoolean()) {
+                        appendConsole("A origem foi removida ou alterada; Geometry de cutout descartada.");
                         setStatus("Origem removida.", ERROR_COLOR);
                     } else if (cutout.isEmpty()) {
                         appendConsole("Cutout nao gerou nenhum caminho (geometria de cobre vazia?).");
@@ -3365,7 +3380,7 @@ final class MainWindow {
                         appendConsole(String.format("Cutout: %d caminhos, comprimento total=%.4f, bounds=%s",
                                 cutout.partCount(), cutout.totalLength(), Arrays.toString(cutout.bounds())));
                         String name = uniqueDerivedName(item.getValue() + "_cutout");
-                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
+                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 cutout.geometry(), true,
                                 List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry())));
                         if (result.gapType() == CutoutToolPanel.GapType.THIN) {
@@ -3373,7 +3388,7 @@ final class MainWindow {
                                 appendConsole("Thin: nenhuma ponte restante para usinagem rasa.");
                             } else {
                                 String thinName = uniqueDerivedName(item.getValue() + "_cutout_thin");
-                                addGeometryToProject(thinName, item.getValue(), image.units(),
+                                addGeometryToProject(thinName, item.getValue(), units,
                                         cutout.gapGeometry(), true,
                                         List.of(new ToolGeometry(result.cutoutParams().toolDiameter(),
                                                 cutout.gapGeometry())));
@@ -4053,6 +4068,13 @@ final class MainWindow {
         nccButton.setMaxWidth(Double.MAX_VALUE);
         nccButton.setOnAction(e -> generateNcc(item, entry));
         box.getChildren().add(nccButton);
+
+        if (entry.geometry() != null && !entry.geometry().isEmpty() && entry.geometry().getDimension() == 2) {
+            Button cutoutButton = new Button("Cutout Tool");
+            cutoutButton.setMaxWidth(Double.MAX_VALUE);
+            cutoutButton.setOnAction(e -> generateCutout(item, entry));
+            box.getChildren().add(cutoutButton);
+        }
 
         Button editButton = new Button("Editar Geometry");
         editButton.setMaxWidth(Double.MAX_VALUE);
