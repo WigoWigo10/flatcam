@@ -3043,6 +3043,17 @@ final class MainWindow {
 
     /** Creates editable Geometry first, as the Python Isolation tool does. */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
+        List<IsolationToolPanel.SourceCandidate> sources = gerberByItem.entrySet().stream()
+                .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
+                .filter(entry -> !entry.getValue().isEmpty())
+                .map(entry -> new IsolationToolPanel.SourceCandidate(entry.getKey(), entry.getValue()))
+                .toList();
+        IsolationToolPanel.SourceCandidate initialSource = sources.stream()
+                .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
+        if (initialSource == null) {
+            appendConsole("Isolation: o Gerber selecionado nao esta disponivel.");
+            return;
+        }
         List<IsolationToolPanel.ExceptionArea> exceptionAreas = geometryByItem.entrySet().stream()
                 .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
                 .filter(entry -> entry.getValue().geometry() != null
@@ -3051,14 +3062,27 @@ final class MainWindow {
                 .map(entry -> new IsolationToolPanel.ExceptionArea(
                         entry.getKey().getValue(), entry.getValue().geometry()))
                 .toList();
-        openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(), exceptionAreas,
-                (polygon, onSelected, onCancelled) -> beginNccAreaSelection(image.solidGeometry(),
+        openToolPanel("Isolation Tool", IsolationToolPanel.build(sources, initialSource, exceptionAreas,
+                (source, polygon, onSelected, onCancelled) -> beginNccAreaSelection(source.image().solidGeometry(),
                         polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
                         onSelected, onCancelled),
                 plotAreaView::cancelPlacement,
+                () -> {
+                    FileChooser chooser = new FileChooser();
+                    chooser.setTitle("Abrir Tools Database do FlatCAM Python");
+                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                            "Tools Database (*.FlatDB, *.json)", "*.FlatDB", "*.json"));
+                    File selected = chooser.showOpenDialog(scene.getWindow());
+                    if (selected == null) return List.of();
+                    try {
+                        return LegacyToolsDatabase.loadIsolationTools(selected.toPath());
+                    } catch (IOException error) {
+                        throw new IllegalArgumentException(error.getMessage(), error);
+                    }
+                },
                 params -> {
                     plotAreaView.cancelPlacement();
-                    runIsolationGeneration(item, image, params);
+                    runIsolationGeneration(params.source().item(), params.source().image(), params);
                 }, () -> {
                     plotAreaView.cancelPlacement();
                     closeToolPanel();
@@ -3072,23 +3096,23 @@ final class MainWindow {
         }
 
         beginJob("Gerando Geometry de isolamento...");
-        JobHandle<List<IsolationGenerator.ToolResult>> handle = jobExecutor.submit(context -> {
+        record IsolationJobOutcome(List<IsolationGenerator.ToolResult> results, OptionalDouble clearance) { }
+        JobHandle<IsolationJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de isolamento...");
+            OptionalDouble clearance = params.checkValidity()
+                    ? NccGenerator.minimumCopperClearance(image.solidGeometry()) : OptionalDouble.empty();
             List<IsolationGenerator.ToolResult> results;
             if (params.restMachining() && !params.follow()) {
-                List<IsolationParameters> tools = params.toolDiameters().stream()
-                        .map(diameter -> new IsolationParameters(diameter,
-                                params.geometryParams().passes(), params.geometryParams().overlapFraction(),
-                                params.geometryParams().type()))
-                        .toList();
                 results = IsolationGenerator.generateRest(image.units(), image.solidGeometry(),
-                        tools, context::isCancelled);
+                        params.tools(), context::isCancelled);
             } else {
-                IsolationResult isolation = params.follow()
-                        ? IsolationGenerator.generateFollow(image.units(), image.followGeometry(), context::isCancelled)
-                        : IsolationGenerator.generate(image.units(), image.solidGeometry(),
-                                params.geometryParams(), context::isCancelled);
-                results = List.of(new IsolationGenerator.ToolResult(params.geometryParams(), isolation));
+                results = new ArrayList<>();
+                for (IsolationParameters tool : params.tools()) {
+                    IsolationResult isolation = params.follow()
+                            ? IsolationGenerator.generateFollow(image.units(), image.followGeometry(), context::isCancelled)
+                            : IsolationGenerator.generate(image.units(), image.solidGeometry(), tool, context::isCancelled);
+                    results.add(new IsolationGenerator.ToolResult(tool, isolation));
+                }
             }
             if (params.exceptionMask() != null) {
                 results = results.stream().map(result -> new IsolationGenerator.ToolResult(result.parameters(),
@@ -3097,7 +3121,7 @@ final class MainWindow {
             }
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de isolamento...");
-            return results;
+            return new IsolationJobOutcome(results, clearance);
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -3105,7 +3129,17 @@ final class MainWindow {
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(results -> Platform.runLater(() -> {
+                .thenAccept(outcome -> Platform.runLater(() -> {
+                    List<IsolationGenerator.ToolResult> results = outcome.results();
+                    outcome.clearance().ifPresent(clearance -> {
+                        boolean anySuitable = params.tools().stream()
+                                .anyMatch(tool -> tool.toolDiameter() <= clearance);
+                        appendConsole(String.format(java.util.Locale.ROOT,
+                                anySuitable ? "Isolation: ao menos uma ferramenta pode isolar completamente "
+                                        + "(distancia minima %.4f)."
+                                        : "Isolation: nenhuma ferramenta pode isolar completamente "
+                                        + "(distancia minima %.4f).", clearance));
+                    });
                     if (gerberByItem.get(item) != image) {
                         appendConsole("O Gerber de origem foi removido; Geometry de isolamento descartada.");
                         setStatus("Origem removida.", ERROR_COLOR);
@@ -3117,7 +3151,7 @@ final class MainWindow {
                         }
                         setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
-                        String suffix = params.follow() ? "_follow" : switch (params.geometryParams().type()) {
+                        String suffix = params.follow() ? "_follow" : switch (params.tools().get(0).type()) {
                             case EXTERIOR -> "_ext_iso";
                             case INTERIOR -> "_int_iso";
                             case BOTH -> "_iso";
@@ -3128,7 +3162,8 @@ final class MainWindow {
                             List<ToolGeometry> tools = results.stream()
                                     .filter(result -> !result.isolation().isEmpty())
                                     .map(result -> new ToolGeometry(result.parameters().toolDiameter(),
-                                            result.isolation().geometry())).toList();
+                                            result.isolation().geometry(), params.profiles().getOrDefault(
+                                                    result.parameters().toolDiameter(), ToolProfile.C1))).toList();
                             Geometry combined = image.solidGeometry().getFactory().buildGeometry(
                                     tools.stream().map(ToolGeometry::geometry).toList());
                             String name = uniqueDerivedName(item.getValue()
@@ -3142,13 +3177,15 @@ final class MainWindow {
                                 for (int pass = 0; pass < outputs.size(); pass++) {
                                     Geometry path = outputs.get(pass);
                                     if (path.isEmpty()) continue;
-                                    String toolSuffix = params.restMachining()
+                                    String toolSuffix = results.size() > 1
                                             ? "_" + result.parameters().toolDiameter() : "";
                                     String passSuffix = outputs.size() > 1 ? "_p" + (pass + 1) : "";
                                     String name = uniqueDerivedName(item.getValue() + suffix + toolSuffix
                                             + passSuffix);
                                     lastGenerated = addGeometryToProject(name, item.getValue(), image.units(), path,
-                                            true, List.of(new ToolGeometry(result.parameters().toolDiameter(), path)));
+                                            true, List.of(new ToolGeometry(result.parameters().toolDiameter(), path,
+                                                    params.profiles().getOrDefault(
+                                                            result.parameters().toolDiameter(), ToolProfile.C1))));
                                     created++;
                                 }
                             }

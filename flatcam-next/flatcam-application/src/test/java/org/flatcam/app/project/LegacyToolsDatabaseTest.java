@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.geometry.ToolProfile;
+import org.flatcam.cam.isolation.IsolationType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -70,5 +71,33 @@ class LegacyToolsDatabaseTest {
         var tool = LegacyToolsDatabase.loadNccTools(file).get(0);
         assertEquals(ToolProfile.V, tool.toolProfile());
         assertEquals(NccOperation.ISO, tool.operation());
+    }
+
+    @Test
+    void readsPythonIsolationToolsWithPerToolParameters() throws Exception {
+        Path file = tempDir.resolve("isolation.FlatDB");
+        Files.writeString(file, """
+                {
+                  "1":{"name":"v-bit","tooldia":0.1,"tool_type":"V","data":{
+                    "tool_target":3,"tools_iso_passes":2,"tools_iso_overlap":12.5,
+                    "tools_iso_isotype":"ext"}},
+                  "2":{"name":"ncc","tooldia":0.5,"data":{"tool_target":5}}
+                }
+                """);
+        var tools = LegacyToolsDatabase.loadIsolationTools(file);
+        assertEquals(1, tools.size());
+        assertEquals(ToolProfile.V, tools.get(0).toolProfile());
+        assertEquals(2, tools.get(0).parameters().passes());
+        assertEquals(0.125, tools.get(0).parameters().overlapFraction());
+        assertEquals(IsolationType.EXTERIOR, tools.get(0).parameters().type());
+    }
+
+    @Test
+    void rejectsInvalidIsolationToolInsteadOfChangingItsMeaning() throws Exception {
+        Path file = tempDir.resolve("invalid-isolation.FlatDB");
+        Files.writeString(file, """
+                {"1":{"tooldia":0.1,"data":{"tool_target":3,"tools_iso_isotype":"unknown"}}}
+                """);
+        assertThrows(IOException.class, () -> LegacyToolsDatabase.loadIsolationTools(file));
     }
 }
