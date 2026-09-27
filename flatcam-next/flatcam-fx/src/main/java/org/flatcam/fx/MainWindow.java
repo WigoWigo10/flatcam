@@ -159,9 +159,6 @@ final class MainWindow {
     private record CncJobEntry(String sourceName, Path outputFile, String gcode, Geometry travelGeometry, Geometry cutGeometry) {
     }
 
-    private record CutoutJobOutput(CutoutResult toolpath, CncJobResult cncJob) {
-    }
-
     private record LoadedCncJob(String name, String sourceName, Path outputPath, String gcode,
                                 Geometry travelGeometry, Geometry cutGeometry, String units) {
     }
@@ -2343,7 +2340,7 @@ final class MainWindow {
     /**
      * Context menu for one Gerber. Its ordering follows MainGUI.py's
      * menuproject, with the Next-only "Exibir" convenience action first and
-     * its Isolation-to-Geometry and Cutout-to-CNC workflows kept distinct.
+     * its Isolation/Cutout-to-Geometry workflows grouped together.
      * Enable/Disable Plot are two separate, always-present items - not one
      * dynamic toggle - matching appGUI/MainGUI.py's actual menuproject
      * (menuprojectenable/menuprojectdisable are both always in the menu;
@@ -2375,9 +2372,9 @@ final class MainWindow {
         setLegacyMenuIcon(cutoutItem, "cut32_bis.png");
         cutoutItem.setOnAction(e -> generateCutout(item, image));
 
-        Menu createCncMenu = new Menu("Criar CNC Job");
-        setLegacyMenuIcon(createCncMenu, "cnc32.png");
-        createCncMenu.getItems().add(cutoutItem);
+        Menu createGeometryMenu = new Menu("Criar Geometry");
+        setLegacyMenuIcon(createGeometryMenu, "geometry32.png");
+        createGeometryMenu.getItems().addAll(isolationItem, cutoutItem);
 
         MenuItem viewSourceItem = new MenuItem("Ver Fonte");
         setLegacyMenuIcon(viewSourceItem, "source32.png");
@@ -2403,7 +2400,7 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), editItem, isolationItem, createCncMenu, viewSourceItem, renameItem, copyItem, removeItem,
+                new SeparatorMenuItem(), editItem, createGeometryMenu, viewSourceItem, renameItem, copyItem, removeItem,
                 saveItem, new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -3031,18 +3028,7 @@ final class MainWindow {
                 });
     }
 
-    /**
-     * Loads CutoutToolPanel into the Tool tab (appTools/ToolCutOut.py's
-     * run() switches app.ui.tool_tab to its own UI the same way - see
-     * {@link #openToolPanel}). Once either "Gerar" button is clicked,
-     * generates a board-cutout toolpath around the Gerber's outline
-     * (CutoutGenerator, ported from appTools/ToolCutOut.py - see its class
-     * doc for exactly what was and wasn't carried over: only the automatic
-     * Bridge gap patterns, no Thin/M-Bites, no manual click-to-place gaps,
-     * and no intermediate Geometry object - straight to G-code, unlike
-     * Isolation Routing), then stores the resulting cancellable background
-     * job as a CNC Job with its own visible toolpath.
-     */
+    /** Creates an editable cutout Geometry, as appTools/ToolCutOut.py does. */
     private void generateCutout(TreeItem<String> item, GerberImage image) {
         openToolPanel("Cutout Tool", CutoutToolPanel.build(image.units(),
                 result -> runCutoutGeneration(item, image, result), this::closeToolPanel));
@@ -3054,35 +3040,14 @@ final class MainWindow {
             return;
         }
 
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar G-code de cutout");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
-        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cutout.nc");
-        String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
-        Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
-        if (Files.isDirectory(lastDir)) {
-            chooser.setInitialDirectory(lastDir.toFile());
-        }
-        File outFile = chooser.showSaveDialog(scene.getWindow());
-        if (outFile == null) {
-            return;
-        }
-
-        beginJob("Gerando cutout...");
-        JobHandle<CutoutJobOutput> handle = jobExecutor.submit(context -> {
-            CancellationToken cancellation = context::isCancelled;
+        beginJob("Gerando Geometry de cutout...");
+        JobHandle<CutoutResult> handle = jobExecutor.submit(context -> {
+            context.reportProgress(0.05, "Calculando caminhos de cutout...");
             CutoutResult cutout = CutoutGenerator.generate(
-                    image.units(), image.solidGeometry(), result.cutoutParams(), cancellation);
-            context.reportProgress(0.5, "Gerando G-code de cutout...");
-            if (cutout.isEmpty()) {
-                return new CutoutJobOutput(cutout, null);
-            }
-            CncJobResult job = GCodeGenerator.generateCutoutCncJob(
-                    cutout, result.gcodeParams(), result.cutoutParams().toolDiameter(), cancellation);
+                    image.units(), image.solidGeometry(), result.cutoutParams(), context::isCancelled);
             context.checkCancelled();
-            context.reportProgress(0.9, "Salvando G-code de cutout...");
-            Files.writeString(outFile.toPath(), job.gcode());
-            return new CutoutJobOutput(cutout, job);
+            context.reportProgress(0.95, "Preparando Geometry de cutout...");
+            return cutout;
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -3090,28 +3055,33 @@ final class MainWindow {
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(output -> Platform.runLater(() -> {
-                    if (output.toolpath().isEmpty()) {
+                .thenAccept(cutout -> Platform.runLater(() -> {
+                    if (gerberByItem.get(item) != image) {
+                        appendConsole("O Gerber de origem foi removido; Geometry de cutout descartada.");
+                        setStatus("Origem removida.", ERROR_COLOR);
+                    } else if (cutout.isEmpty()) {
                         appendConsole("Cutout nao gerou nenhum caminho (geometria de cobre vazia?).");
+                        setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
                         appendConsole(String.format("Cutout: %d caminhos, comprimento total=%.4f, bounds=%s",
-                                output.toolpath().partCount(), output.toolpath().totalLength(),
-                                Arrays.toString(output.toolpath().bounds())));
-                        CncJobResult job = output.cncJob();
-                        AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-                        appendConsole("G-code de cutout salvo em " + outFile
-                                + " (" + job.gcode().lines().count() + " linhas).");
-                        addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
-                                job.travelGeometry(), job.cutGeometry());
+                                cutout.partCount(), cutout.totalLength(), Arrays.toString(cutout.bounds())));
+                        String name = uniqueDerivedName(item.getValue() + "_cutout");
+                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
+                                cutout.geometry(), true,
+                                List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry())));
+                        appendConsole("Geometry de cutout criada: " + name
+                                + ". Gere o CNC Job pela Geometry apos revisar os caminhos.");
+                        selectProjectItem(generated);
+                        plotAreaView.fitToLayer(generated);
                         closeToolPanel();
+                        setStatus("Geometry de cutout concluida.", IDLE_COLOR);
                     }
                     updateProgress(1);
-                    setStatus("Concluido.", IDLE_COLOR);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao gerar/salvar G-code de cutout: ");
+                        reportJobError(error, "Falha ao gerar Geometry de cutout: ");
                         onJobFinished();
                     });
                     return null;

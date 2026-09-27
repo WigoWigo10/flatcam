@@ -148,7 +148,8 @@ resultados podem mudar.
 - Operações auxiliares de região não-cobre e bounding box.
 - Isolation Routing com parâmetros e resultado em Geometry editável; o G-code é
   gerado depois pelo fluxo Geometry -> CNC Job.
-- Cutout Tool com forma, tipo, margens, gaps/bridges e geração de G-code.
+- Cutout Tool com forma, tipo, margens e gaps/bridges; produz Geometry editável,
+  que depois gera CNC Job/G-code pelo fluxo Geometry -> CNC Job.
 - NCC Tool em primeira fatia funcional.
 
 ### Excellon
@@ -159,7 +160,7 @@ resultados podem mudar.
 
 ### Geometry e CNC Job
 
-- Objetos Geometry podem ser produzidos por Isolation Routing e NCC.
+- Objetos Geometry podem ser produzidos por Isolation Routing, Cutout e NCC.
 - Geometry pode gerar CNC Job com `safe Z`, profundidade, multi-depth,
   profundidade por passe, feed rate e spindle.
 - CNC Job separa e desenha trajetos de viagem e corte.
@@ -335,7 +336,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, Climb/Conventional para ISO, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área retangular ou poligonal e "Check validity"; falta Tools DB |
+| Ferramentas Gerber | parcial | Isolation e Cutout criam Geometry; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, Climb/Conventional para ISO, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área retangular ou poligonal e "Check validity"; faltam Tools DB e opções avançadas de Cutout/Isolation |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
@@ -771,7 +772,8 @@ pequenos, adicionáveis quando houver demanda real.
 ### 9.3 Modelo de objetos e projeto versionado
 
 **Fase 1 concluída nesta revisão (2026-09-22): Gerber + Excellon com
-compatibilidade real de arquivo com o `.FlatPrj` do Python.** O usuário pediu
+estrutura de dados inspirada no `.FlatPrj` do Python, mas sem suporte completo
+de importação/exportação desse formato.** O usuário pediu
 explicitamente para usar o modelo real do Python em vez de inventar um
 formato próprio mais leve - decisão registrada e pesquisada a fundo em
 `camlib.py`/`app_Main.py` antes de implementar.
@@ -853,9 +855,15 @@ compatibilidade.
 - CNC Job: precisa reter uma lista por segmento com "kind" (`gcode_parsed`
   do Python) durante a geração - `GCodeGenerator` hoje só produz duas
   geometrias já unidas (viagem/corte), não uma lista ordenada por segmento.
-- Extensão do arquivo continua `.fcnproj` (não `.FlatPrj`) por convenção -
-  deixa claro qual app salvou, mesmo os dois lendo/escrevendo formatos
-  equivalentes para Gerber/Excellon.
+- O leitor `ProjectFileIO.load()` aceita as versões internas 1 e 2, mas não a
+  versão 8.994 gravada por este Python: um `.FlatPrj` real é rejeitado hoje.
+  O seletor de arquivos da interface só oferece `.fcnproj`.
+- O FX grava Geometry e CNC Job em `_java`, não em `objs`; o Python ignora essa
+  extensão e não restaura esses objetos. `options` é gravado vazio, portanto
+  preferências de projeto do Python também não fazem ida e volta.
+- O futuro suporte dual deve preservar `.fcnproj` como formato nativo e ter
+  importador/exportador `.FlatPrj` separados, com teste em arquivos Python
+  reais e aviso explícito quando uma conversão perder objetos ou metadados.
 - O undo/redo do Gerber Editor cobre a sessão em memória; histórico de
   comandos entre sessões não é serializado (o resultado aplicado é salvo).
 

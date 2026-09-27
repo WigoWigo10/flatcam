@@ -26,21 +26,20 @@ import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
 
 /**
- * Reads/writes {@link ProjectFile} in the same shape as the legacy app's own
- * .FlatPrj format: a JSON tree ({@code {"objs": [...], "options": {...},
- * "version": ...}}), each Gerber/Excellon embedding its own geometry as WKT
- * (see org.flatcam.app.project.flatprj), optionally XZ-compressed - matching
- * {@code app_Main.py}'s save_project/open_project exactly (lzma preset 3,
- * auto-detect plain-vs-compressed on load by trying plain JSON first). CNC
- * Job and Geometry entries are carried in a {@code "_java"} extension key a real FlatCAM
+ * Reads/writes the native {@code .fcnproj} format. Its outer JSON tree and
+ * Gerber/Excellon WKT encoding follow the Python {@code .FlatPrj} conventions,
+ * and it supports plain JSON or XZ compression. This is not yet a full
+ * {@code .FlatPrj} reader/writer: the native version is 2, whereas this
+ * Python writes 8.994, and only native project versions 1/2 are accepted.
+ * CNC Job and Geometry entries are carried in a {@code "_java"} extension key a real FlatCAM
  * Python install would simply ignore (unknown top-level keys are never
  * consulted by its loader) - see {@link ProjectFile}'s own doc for what's
- * intentionally not part of the Python-compatible {@code objs} list yet.
+ * intentionally not part of Python's {@code objs} list yet.
  *
  * <p>Still uses the {@code .fcnproj} extension by convention (not
  * {@code .FlatPrj}) so a file's extension keeps telling a user which app
- * saved it, even though the two are now largely interchangeable for Gerber/
- * Excellon content.
+ * saved it. A separate compatibility codec and real Python fixtures are
+ * needed before advertising import/export of {@code .FlatPrj} files.
  */
 public final class ProjectFileIO {
 

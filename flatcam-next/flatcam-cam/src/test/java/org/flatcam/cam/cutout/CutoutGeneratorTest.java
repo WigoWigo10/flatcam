@@ -1,6 +1,7 @@
 package org.flatcam.cam.cutout;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,10 @@ import java.nio.file.Path;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.gcode.CncJobResult;
+import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.junit.jupiter.api.Test;
@@ -35,6 +40,22 @@ class CutoutGeneratorTest {
         assertEquals(1, result.partCount(), "Single kind, no gaps: one closed outline");
         assertTrue(result.geometry().getGeometryN(0) instanceof LineString path && path.isClosed(),
                 "with no gaps the outline ring must still be closed");
+    }
+
+    @Test
+    void cutoutGeometryCanBeReviewedThenConvertedToCncJob() throws Exception {
+        GerberImage gerber = simple1();
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE,
+                        CutoutShape.FREEFORM, 0.05, GapPattern.FOUR));
+        ToolGeometry tool = new ToolGeometry(0.02, cutout.geometry());
+
+        assertFalse(cutout.isEmpty());
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob(gerber.units(),
+                java.util.List.of(tool), new GeometryGCodeParameters(0.1, 0.004,
+                        true, 0.002, 12, 10000, false));
+        assertFalse(job.gcode().isBlank());
+        assertFalse(job.cutGeometry().isEmpty());
     }
 
     @Test
