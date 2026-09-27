@@ -3012,6 +3012,19 @@ final class MainWindow {
             return;
         }
         openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(sources, initialSource,
+                () -> {
+                    FileChooser chooser = new FileChooser();
+                    chooser.setTitle("Abrir Tools Database do FlatCAM Python");
+                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                            "Tools Database (*.FlatDB, *.json)", "*.FlatDB", "*.json"));
+                    File selected = chooser.showOpenDialog(scene.getWindow());
+                    if (selected == null) return List.of();
+                    try {
+                        return LegacyToolsDatabase.loadDrillTools(selected.toPath());
+                    } catch (IOException error) {
+                        throw new IllegalArgumentException(error.getMessage(), error);
+                    }
+                },
                 result -> runDrillGCodeGeneration(result.source().item(), result.source().image(), result),
                 this::closeToolPanel));
     }

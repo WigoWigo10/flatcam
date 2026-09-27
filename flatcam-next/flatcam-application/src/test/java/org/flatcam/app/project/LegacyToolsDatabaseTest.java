@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.geometry.ToolProfile;
@@ -99,5 +101,58 @@ class LegacyToolsDatabaseTest {
                 {"1":{"tooldia":0.1,"data":{"tool_target":3,"tools_iso_isotype":"unknown"}}}
                 """);
         assertThrows(IOException.class, () -> LegacyToolsDatabase.loadIsolationTools(file));
+    }
+
+    @Test
+    void readsPythonDrillingParametersAndDiameterTolerance() throws Exception {
+        Path file = tempDir.resolve("drilling.FlatDB");
+        Files.writeString(file, """
+                {
+                  "1":{"name":"small drill","tooldia":0.8,"data":{
+                    "tool_target":2,"tol_min":0.75,"tol_max":0.85,
+                    "tools_drill_cutz":-1.5,"tools_drill_multidepth":true,
+                    "tools_drill_depthperpass":0.4,"tools_drill_travelz":2.5,
+                    "tools_drill_feedrate_z":250,"tools_drill_spindlespeed":12000,
+                    "tools_drill_dwell":true,"tools_drill_dwelltime":1.25,
+                    "tools_drill_offset":0.2}},
+                  "2":{"name":"ncc","tooldia":0.5,"data":{"tool_target":5}}
+                }
+                """);
+
+        var tools = LegacyToolsDatabase.loadDrillTools(file);
+
+        assertEquals(1, tools.size());
+        var drill = tools.get(0);
+        assertEquals("small drill", drill.name());
+        assertEquals(0.8, drill.diameter());
+        assertEquals(true, drill.matchesDiameter(0.82));
+        assertEquals(false, drill.matchesDiameter(0.9));
+        assertEquals(1.7, drill.parameters().effectiveDepth());
+        assertEquals(true, drill.parameters().multiDepth());
+        assertEquals(0.4, drill.parameters().depthPerPass());
+        assertEquals(12000, drill.parameters().spindleSpeedRpm());
+        assertEquals(true, drill.parameters().dwell());
+        assertEquals(1.25, drill.parameters().dwellSeconds());
+    }
+
+    @Test
+    void invalidPythonDrillOffsetIsRejected() throws Exception {
+        Path file = tempDir.resolve("invalid-drill.FlatDB");
+        Files.writeString(file, """
+                {"1":{"tooldia":0.8,"data":{"tool_target":2,
+                    "tools_drill_cutz":-1.0,"tools_drill_offset":-1.0}}}
+                """);
+        assertThrows(IOException.class, () -> LegacyToolsDatabase.loadDrillTools(file));
+    }
+
+    @Test
+    void exactDrillDiameterWinsOverToleranceAndAmbiguityIsRejected() {
+        var params = new DrillGCodeParameters(2, 1, 100, 0, false);
+        var wide = new LegacyToolsDatabase.DrillTool("wide", 1.0, 0.7, 1.2, params);
+        var exact = new LegacyToolsDatabase.DrillTool("exact", 0.8, 0, 0, params);
+        assertEquals(exact, LegacyToolsDatabase.matchDrillTool(List.of(wide, exact), 0.8).orElseThrow());
+        assertEquals(true, LegacyToolsDatabase.matchDrillTool(List.of(wide), 0.9).isPresent());
+        assertThrows(IllegalArgumentException.class,
+                () -> LegacyToolsDatabase.matchDrillTool(List.of(wide, wide), 0.9));
     }
 }

@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javafx.beans.binding.Bindings;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
@@ -31,6 +32,7 @@ import javafx.scene.layout.VBox;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.app.project.LegacyToolsDatabase;
 
 /** Python-style drilling panel. Machining values are stored per Excellon tool. */
 final class DrillGCodeToolPanel {
@@ -81,11 +83,25 @@ final class DrillGCodeToolPanel {
                     dwell, dwell ? parse(dwellTime, "Dwell time (Tool " + id + ")") : 0,
                     parse(offsetZ, "Offset Z (Tool " + id + ")"));
         }
+
+        void applyDatabaseTool(LegacyToolsDatabase.DrillTool tool) {
+            DrillGCodeParameters values = tool.parameters();
+            cutZ = Double.toString(-values.drillDepth());
+            travelZ = Double.toString(values.safeZ());
+            feedZ = Double.toString(values.feedRate());
+            spindle = Integer.toString(values.spindleSpeedRpm());
+            multiDepth = values.multiDepth();
+            depthPerPass = Double.toString(values.depthPerPass());
+            dwell = values.dwell();
+            dwellTime = Double.toString(values.dwellSeconds());
+            offsetZ = Double.toString(values.offsetZ());
+        }
     }
 
     private DrillGCodeToolPanel() { }
 
     static Node build(List<SourceCandidate> sources, SourceCandidate initialSource,
+                      Supplier<List<LegacyToolsDatabase.DrillTool>> databaseLoader,
                       Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(initialSource.image().units());
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
@@ -140,8 +156,7 @@ final class DrillGCodeToolPanel {
         orderRow.setAlignment(Pos.CENTER_LEFT);
         Button searchDb = new Button("Search DB");
         searchDb.setMaxWidth(Double.MAX_VALUE);
-        searchDb.setDisable(true);
-        searchDb.setTooltip(new Tooltip("Busca automatica de parametros de furacao na Tools Database ainda indisponivel."));
+        searchDb.setTooltip(new Tooltip("Carrega parametros das ferramentas de furacao da Tools Database do Python."));
 
         Label selectedTitle = heading("Parameters for: Multiple Tools");
         TextField cutZ = field(metric ? "-1.7" : "-0.07");
@@ -228,6 +243,37 @@ final class DrillGCodeToolPanel {
         Label feedback = new Label();
         feedback.setWrapText(true);
         feedback.managedProperty().bind(feedback.textProperty().isNotEmpty());
+        searchDb.setOnAction(event -> {
+            try {
+                List<LegacyToolsDatabase.DrillTool> database = databaseLoader.get();
+                if (database.isEmpty()) {
+                    feedback.setText("Nenhuma ferramenta de furacao carregada da base.");
+                    return;
+                }
+                Map<ToolRow, LegacyToolsDatabase.DrillTool> matches = new LinkedHashMap<>();
+                List<String> ambiguous = new ArrayList<>();
+                for (ToolRow row : table.getItems()) {
+                    try {
+                        LegacyToolsDatabase.matchDrillTool(database, row.diameter)
+                                .ifPresent(tool -> matches.put(row, tool));
+                    } catch (IllegalArgumentException error) {
+                        ambiguous.add("T" + row.id);
+                    }
+                }
+                if (!ambiguous.isEmpty()) {
+                    feedback.setText("Base ambigua para " + String.join(", ", ambiguous)
+                            + "; nenhum parametro foi alterado.");
+                    return;
+                }
+                matches.forEach(ToolRow::applyDatabaseTool);
+                loadSelection.run();
+                feedback.setText(matches.size() + " ferramenta(s) atualizada(s) pela base; "
+                        + (table.getItems().size() - matches.size()) + " sem correspondencia. "
+                        + "Diametros do Excellon preservados.");
+            } catch (RuntimeException error) {
+                feedback.setText("Tools Database: " + error.getMessage());
+            }
+        });
         applyAll.setOnAction(event -> {
             ToolRow source = table.getSelectionModel().getSelectedItem();
             if (source == null) return;
