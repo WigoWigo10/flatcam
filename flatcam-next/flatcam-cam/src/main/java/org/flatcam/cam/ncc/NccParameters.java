@@ -1,6 +1,7 @@
 package org.flatcam.cam.ncc;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -24,16 +25,18 @@ import java.util.Objects;
  *                        constructors below
  * @param isolationToolDiameters selected tools marked ISO in the Python NCC table; they create
  *                        isolation contours before the CLEAR tools run
+ * @param toolSettings    per-CLEAR-tool settings; omitted tools use the common defaults above
  *
  * <p>appTools/ToolNCC.py uses per-tool overlap/method/connect/contour/copperOffset
  * when Rest Machining is off, and shared rest settings when it is on. Margin is
  * read from the common NCC field. This port still shares one set of clearing
- * parameters across all tools in both modes; per-tool settings remain a gap.
+ * parameters as defaults and accepts per-tool overrides.
  */
 public record NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
                             NccMethod method, boolean connect, boolean contour,
                             double copperOffset, boolean restMachining, NccOrder order,
-                            NccBoundary boundary, List<Double> isolationToolDiameters) {
+                            NccBoundary boundary, List<Double> isolationToolDiameters,
+                            Map<Double, NccToolSettings> toolSettings) {
 
     private static final double DUPLICATE_TOLERANCE = 1e-6;
 
@@ -69,6 +72,30 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(order, "order");
         Objects.requireNonNull(boundary, "boundary");
+        toolSettings = Map.copyOf(toolSettings);
+        for (Double diameter : toolSettings.keySet()) {
+            if (!toolDiameters.contains(diameter)) {
+                throw new IllegalArgumentException("Settings for unknown CLEAR tool: " + diameter);
+            }
+        }
+    }
+
+    /** Per-tool overlap/method always apply; Rest Machining shares connect/contour/offset. */
+    public NccToolSettings settingsFor(double diameter) {
+        NccToolSettings defaults = new NccToolSettings(overlapFraction, method, connect, contour, copperOffset);
+        NccToolSettings selected = toolSettings.getOrDefault(diameter, defaults);
+        return restMachining
+                ? new NccToolSettings(selected.overlapFraction(), selected.method(),
+                        connect, contour, copperOffset)
+                : selected;
+    }
+
+    public NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
+                         NccMethod method, boolean connect, boolean contour, double copperOffset,
+                         boolean restMachining, NccOrder order, NccBoundary boundary,
+                         List<Double> isolationToolDiameters) {
+        this(toolDiameters, overlapFraction, margin, method, connect, contour, copperOffset,
+                restMachining, order, boundary, isolationToolDiameters, Map.of());
     }
 
     public NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,

@@ -1,8 +1,11 @@
 package org.flatcam.fx;
 
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.function.Consumer;
 import javafx.beans.binding.Bindings;
+import javafx.beans.binding.BooleanBinding;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -31,25 +34,37 @@ import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
+import org.flatcam.cam.ncc.NccToolSettings;
 import org.locationtech.jts.geom.Geometry;
 
 /**
  * Multi-tool NCC form; the result is a multigeo Geometry object (one entry
  * per tool), matching Python's workflow. The tool list is a simple ordered
- * table of diameters (add/remove) - appTools/ToolNCC.py's own tools_table
- * also lets each row carry its own overlap/method/margin/etc. and offers a
- * Tools Database lookup, both deferred here (see NccParameters's class doc):
- * this port shares one set of clearing parameters across every tool.
+ * table of diameters and per-CLEAR-tool settings. Tools Database remains a
+ * separate gap; margin/boundary are common just as in ToolNCC.py.
  */
 final class NccToolPanel {
 
     private static final class ToolRow {
         final double diameter;
         NccOperation operation;
+        String overlapPercent = "40";
+        NccMethod method = NccMethod.STANDARD;
+        boolean connect = true;
+        boolean contour = true;
+        boolean offsetEnabled;
+        String offset = "0.0";
 
         ToolRow(double diameter) {
             this.diameter = diameter;
             this.operation = NccOperation.CLEAR;
+        }
+
+        NccToolSettings settings() {
+            String prefix = "Ferramenta " + format(diameter) + ": ";
+            return new NccToolSettings(parseNumber(overlapPercent, prefix + "Overlap") / 100.0,
+                    method, connect, contour,
+                    offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0);
         }
     }
 
@@ -250,6 +265,9 @@ final class NccToolPanel {
 
         TextField overlapField = new TextField("40");
         TextField marginField = new TextField(metric ? "1.0" : "0.040");
+        marginField.setPrefColumnCount(7);
+        marginField.setMinWidth(0);
+        boundaryGrid.addRow(4, new Label("Margin (comum):"), marginField);
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
         methodCombo.getItems().addAll(NccMethod.values());
         methodCombo.setValue(NccMethod.STANDARD);
@@ -267,12 +285,10 @@ final class NccToolPanel {
         CheckBox offsetCb = new CheckBox("Copper offset");
         offsetCb.setTooltip(tooltip("Aumenta a distancia minima mantida em torno do cobre, alem da margem."));
         TextField offsetField = new TextField("0.0");
-        for (TextField field : List.of(overlapField, marginField, offsetField)) {
+        for (TextField field : List.of(overlapField, offsetField)) {
             field.setPrefColumnCount(7);
             field.setMinWidth(0);
         }
-        offsetField.disableProperty().bind(offsetCb.selectedProperty().not());
-
         CheckBox restCb = new CheckBox("Rest Machining");
         restCb.setStyle("-fx-font-weight: bold;");
         restCb.setTooltip(tooltip(
@@ -294,20 +310,99 @@ final class NccToolPanel {
         restHint.visibleProperty().bind(restCb.selectedProperty());
         restHint.managedProperty().bind(restHint.visibleProperty());
 
+        BooleanBinding noSingleTool = Bindings.createBooleanBinding(
+                () -> toolTable.getSelectionModel().getSelectedItems().size() != 1,
+                toolTable.getSelectionModel().getSelectedItems());
+        overlapField.disableProperty().bind(noSingleTool);
+        methodCombo.disableProperty().bind(noSingleTool);
+        connectCb.disableProperty().bind(noSingleTool.or(restCb.selectedProperty()));
+        contourCb.disableProperty().bind(noSingleTool.or(restCb.selectedProperty()));
+        offsetCb.disableProperty().bind(noSingleTool.or(restCb.selectedProperty()));
+        offsetField.disableProperty().bind(noSingleTool.or(restCb.selectedProperty())
+                .or(offsetCb.selectedProperty().not()));
+
+        boolean[] loadingToolSettings = {false};
+        Runnable loadSelectedSettings = () -> {
+            List<ToolRow> selected = toolTable.getSelectionModel().getSelectedItems();
+            if (selected.size() != 1) {
+                return;
+            }
+            ToolRow row = selected.get(0);
+            loadingToolSettings[0] = true;
+            overlapField.setText(row.overlapPercent);
+            methodCombo.setValue(row.method);
+            connectCb.setSelected(row.connect);
+            contourCb.setSelected(row.contour);
+            offsetCb.setSelected(row.offsetEnabled);
+            offsetField.setText(row.offset);
+            loadingToolSettings[0] = false;
+        };
+        toolTable.getSelectionModel().getSelectedItems().addListener(
+                (javafx.collections.ListChangeListener<ToolRow>) change -> loadSelectedSettings.run());
+        loadSelectedSettings.run();
+        overlapField.textProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().overlapPercent = value;
+            }
+        });
+        methodCombo.valueProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && value != null
+                    && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().method = value;
+            }
+        });
+        connectCb.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().connect = value;
+            }
+        });
+        contourCb.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().contour = value;
+            }
+        });
+        offsetCb.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().offsetEnabled = value;
+            }
+        });
+        offsetField.textProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().offset = value;
+            }
+        });
+
+        CheckBox restConnectCb = new CheckBox("Connect");
+        restConnectCb.setSelected(true);
+        CheckBox restContourCb = new CheckBox("Contour");
+        restContourCb.setSelected(true);
+        CheckBox restOffsetCb = new CheckBox("Copper offset");
+        TextField restOffsetField = new TextField("0.0");
+        restOffsetField.setPrefColumnCount(7);
+        restOffsetField.setMinWidth(0);
+        restOffsetField.disableProperty().bind(restOffsetCb.selectedProperty().not());
+        GridPane restSettingsGrid = new GridPane();
+        restSettingsGrid.setHgap(8);
+        restSettingsGrid.setVgap(8);
+        restSettingsGrid.addRow(0, restConnectCb, restContourCb);
+        restSettingsGrid.addRow(1, restOffsetCb, restOffsetField);
+        restSettingsGrid.visibleProperty().bind(restCb.selectedProperty());
+        restSettingsGrid.managedProperty().bind(restSettingsGrid.visibleProperty());
+
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
         grid.addRow(0, new Label("Overlap (%):"), overlapField);
-        grid.addRow(1, new Label("Margin:"), marginField);
-        grid.addRow(2, new Label("Method:"), methodCombo);
-        grid.addRow(3, connectCb, contourCb);
-        grid.addRow(4, offsetCb, offsetField);
+        grid.addRow(1, new Label("Method:"), methodCombo);
+        grid.addRow(2, connectCb, contourCb);
+        grid.addRow(3, offsetCb, offsetField);
 
         GridPane restGrid = new GridPane();
         restGrid.setHgap(8);
         restGrid.setVgap(8);
         restGrid.addRow(0, restCb, orderCombo);
         restGrid.add(restHint, 1, 1);
+        restGrid.add(restSettingsGrid, 0, 2, 2, 1);
 
         Label note = new Label("Selecione na tabela as ferramentas a executar. ISO contorna o cobre; "
                 + "ao menos uma ferramenta CLEAR e necessaria. O objeto Geometry tera uma entrada por ferramenta.");
@@ -320,9 +415,7 @@ final class NccToolPanel {
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
-                double overlap = parse(overlapField, "Overlap") / 100.0;
                 double margin = parse(marginField, "Margin");
-                double offset = offsetCb.isSelected() ? parse(offsetField, "Copper offset") : 0;
                 NccBoundary boundary = new NccBoundary.Itself();
                 if (BOUNDARY_AREA.equals(boundaryKindCombo.getValue())) {
                     if (selectedArea[0] == null) {
@@ -340,18 +433,29 @@ final class NccToolPanel {
                 }
                 List<Double> clearDiameters = new java.util.ArrayList<>();
                 List<Double> isoDiameters = new java.util.ArrayList<>();
+                Map<Double, NccToolSettings> individualSettings = new LinkedHashMap<>();
                 for (int i = 0; i < tools.size(); i++) {
                     if (toolTable.getSelectionModel().isSelected(i)) {
                         ToolRow row = tools.get(i);
-                        (row.operation == NccOperation.ISO ? isoDiameters : clearDiameters).add(row.diameter);
+                        if (row.operation == NccOperation.ISO) {
+                            isoDiameters.add(row.diameter);
+                        } else {
+                            clearDiameters.add(row.diameter);
+                            individualSettings.put(row.diameter, row.settings());
+                        }
                     }
                 }
                 if (clearDiameters.isEmpty()) {
                     throw new IllegalArgumentException("Selecione ao menos uma ferramenta CLEAR na tabela.");
                 }
-                NccParameters params = new NccParameters(clearDiameters, overlap, margin,
-                        methodCombo.getValue(), connectCb.isSelected(), contourCb.isSelected(), offset,
-                        restCb.isSelected(), orderCombo.getValue(), boundary, isoDiameters);
+                NccToolSettings first = individualSettings.get(clearDiameters.get(0));
+                double commonOffset = restCb.isSelected()
+                        ? (restOffsetCb.isSelected() ? parse(restOffsetField, "Rest copper offset") : 0)
+                        : first.copperOffset();
+                NccParameters params = new NccParameters(clearDiameters, first.overlapFraction(), margin,
+                        first.method(), restCb.isSelected() ? restConnectCb.isSelected() : first.connect(),
+                        restCb.isSelected() ? restContourCb.isSelected() : first.contour(), commonOffset,
+                        restCb.isSelected(), orderCombo.getValue(), boundary, isoDiameters, individualSettings);
                 errorLabel.setText("");
                 onGenerate.accept(new Result(params, checkValidityCb.isSelected()));
             } catch (RuntimeException ex) {
@@ -373,7 +477,8 @@ final class NccToolPanel {
                 new HBox(8, new Label("Operacao das selecionadas:"), operationCombo),
                 toolError, checkValidityCb,
                 sectionTitle("BOUNDARY"), boundaryGrid,
-                sectionTitle("PARAMETROS DE LIMPEZA"), grid,
+                sectionTitle("PARAMETROS DA FERRAMENTA CLEAR"),
+                new Label("Selecione uma linha para editar; os valores ficam salvos na ferramenta."), grid,
                 sectionTitle("MULTI-FERRAMENTA"), restGrid,
                 new Separator(), note, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
@@ -399,8 +504,12 @@ final class NccToolPanel {
     }
 
     private static double parse(TextField field, String name) {
+        return parseNumber(field.getText(), name);
+    }
+
+    private static double parseNumber(String value, String name) {
         try {
-            return Double.parseDouble(field.getText().trim().replace(',', '.'));
+            return Double.parseDouble(value.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(name + ": numero invalido");
         }

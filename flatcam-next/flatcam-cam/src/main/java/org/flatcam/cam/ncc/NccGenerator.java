@@ -3,6 +3,8 @@ package org.flatcam.cam.ncc;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.DoubleConsumer;
 import org.flatcam.cam.CancellationToken;
@@ -99,16 +101,20 @@ public final class NccGenerator {
         // sets the copper envelope the CLEAR cutters must stay outside.
         double isolationRadius = params.isolationToolDiameters().stream()
                 .mapToDouble(Double::doubleValue).max().orElse(0) / 2.0;
-        double keepOutOffset = isolationRadius + params.copperOffset();
-        Geometry keepOut = keepOutOffset == 0
-                ? cleanCopper : cleanCopper.buffer(keepOutOffset, QUADRANT_SEGMENTS);
-        Geometry clearingArea = boundary.difference(keepOut).buffer(0);
+        List<Double> orderedTools = orderedToolDiameters(params);
+        double initialOffset = params.restMachining() ? params.copperOffset()
+                : params.settingsFor(orderedTools.get(0)).copperOffset();
+        Geometry clearingArea = clearingArea(boundary, cleanCopper,
+                isolationRadius + initialOffset);
         cancellation.throwIfCancellationRequested();
         progress.report(0.08);
 
-        List<Double> orderedTools = orderedToolDiameters(params);
+        Map<Double, Geometry> areaByOffset = new HashMap<>();
+        areaByOffset.put(initialOffset, clearingArea);
         List<NccToolResult> toolResults = new ArrayList<>();
         List<Geometry> combinedPaths = new ArrayList<>();
+        Geometry representedArea = clearingArea;
+        double smallestToolOffset = Double.POSITIVE_INFINITY;
         for (double diameter : params.isolationToolDiameters()) {
             cancellation.throwIfCancellationRequested();
             Geometry envelope = cleanCopper.buffer(diameter / 2.0, QUADRANT_SEGMENTS);
@@ -130,10 +136,20 @@ public final class NccGenerator {
 
         for (int t = 0; t < orderedTools.size(); t++) {
             double toolDiameter = orderedTools.get(t);
-            Geometry areaForThisTool = params.restMachining() ? remainingArea : clearingArea;
+            NccToolSettings settings = params.settingsFor(toolDiameter);
+            Geometry areaForThisTool = params.restMachining() ? remainingArea
+                    : areaByOffset.computeIfAbsent(settings.copperOffset(), offset ->
+                            clearingArea(boundary, cleanCopper, isolationRadius + offset));
+            // All tools share one boundary and their copper keep-outs are
+            // nested. The union of their clearable areas is the one with the
+            // smallest offset; no expensive polygon union is needed here.
+            if (!params.restMachining() && settings.copperOffset() < smallestToolOffset) {
+                representedArea = areaForThisTool;
+                smallestToolOffset = settings.copperOffset();
+            }
             int toolIndex = t;
             int toolCount = orderedTools.size();
-            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, params, cancellation,
+            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, settings, cancellation,
                     fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
             toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures(),
                     NccOperation.CLEAR));
@@ -148,7 +164,13 @@ public final class NccGenerator {
 
         Geometry combined = unionGeometries(factory, combinedPaths);
         progress.report(1.0);
-        return new NccResult(units, combined, clearingArea, toolResults);
+        return new NccResult(units, combined, representedArea, toolResults);
+    }
+
+    private static Geometry clearingArea(Geometry boundary, Geometry copper, double keepOutOffset) {
+        Geometry keepOut = keepOutOffset == 0 ? copper
+                : copper.buffer(keepOutOffset, QUADRANT_SEGMENTS);
+        return boundary.difference(keepOut).buffer(0);
     }
 
     /**
@@ -198,7 +220,7 @@ public final class NccGenerator {
     }
 
     /** Clears every polygon in {@code area} with one tool, and reports the actual swept footprint (for Rest Machining). */
-    private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccParameters params,
+    private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccToolSettings settings,
                                              CancellationToken cancellation, DoubleConsumer progressWithinTool) {
         GeometryFactory factory = area.getFactory();
         List<Polygon> polygons = new ArrayList<>();
@@ -210,11 +232,11 @@ public final class NccGenerator {
         for (int i = 0; i < polygons.size(); i++) {
             cancellation.throwIfCancellationRequested();
             Polygon polygon = polygons.get(i);
-            List<LineString> paths = clearPolygon(polygon, toolDiameter, params, cancellation);
+            List<LineString> paths = clearPolygon(polygon, toolDiameter, settings, cancellation);
             if (paths.isEmpty()) {
                 failures++;
             } else {
-                if (params.connect()) {
+                if (settings.connect()) {
                     Geometry safeCenterArea = polygon.buffer(-toolDiameter / 2.0, QUADRANT_SEGMENTS);
                     paths = connectSafePaths(paths, safeCenterArea, factory, cancellation);
                 }
@@ -240,19 +262,19 @@ public final class NccGenerator {
         return BufferOp.bufferOp(geometry, distance, parameters);
     }
 
-    private static List<LineString> clearPolygon(Polygon polygon, double toolDiameter, NccParameters params,
+    private static List<LineString> clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                   CancellationToken cancellation) {
-        return switch (params.method()) {
-            case STANDARD -> standardPaths(polygon, toolDiameter, params, cancellation);
-            case SEED -> seedPaths(polygon, toolDiameter, params, cancellation);
-            case LINES -> linePaths(polygon, toolDiameter, params, cancellation);
+        return switch (settings.method()) {
+            case STANDARD -> standardPaths(polygon, toolDiameter, settings, cancellation);
+            case SEED -> seedPaths(polygon, toolDiameter, settings, cancellation);
+            case LINES -> linePaths(polygon, toolDiameter, settings, cancellation);
             case COMBO -> {
-                List<LineString> paths = linePaths(polygon, toolDiameter, params, cancellation);
+                List<LineString> paths = linePaths(polygon, toolDiameter, settings, cancellation);
                 if (paths.isEmpty()) {
-                    paths = seedPaths(polygon, toolDiameter, params, cancellation);
+                    paths = seedPaths(polygon, toolDiameter, settings, cancellation);
                 }
                 if (paths.isEmpty()) {
-                    paths = standardPaths(polygon, toolDiameter, params, cancellation);
+                    paths = standardPaths(polygon, toolDiameter, settings, cancellation);
                 }
                 yield paths;
             }
@@ -260,11 +282,11 @@ public final class NccGenerator {
     }
 
     /** Inward-offset strategy: the legacy clear_polygon() method. */
-    private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccParameters params,
+    private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                    CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
         double radius = toolDiameter / 2.0;
-        double step = toolDiameter * (1.0 - params.overlapFraction());
+        double step = toolDiameter * (1.0 - settings.overlapFraction());
         Geometry current = polygon.buffer(-radius, QUADRANT_SEGMENTS);
         Envelope envelope = polygon.getEnvelopeInternal();
         int maxPasses = (int) Math.ceil(Math.max(envelope.getWidth(), envelope.getHeight()) / step) + 4;
@@ -281,11 +303,11 @@ public final class NccGenerator {
     }
 
     /** Expanding-ring strategy: the legacy clear_polygon2() method. */
-    private static List<LineString> seedPaths(Polygon polygon, double toolDiameter, NccParameters params,
+    private static List<LineString> seedPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
         double toolRadius = toolDiameter / 2.0;
-        double step = toolDiameter * (1.0 - params.overlapFraction());
+        double step = toolDiameter * (1.0 - settings.overlapFraction());
         Geometry safeArea = polygon.buffer(-toolRadius, QUADRANT_SEGMENTS);
         if (safeArea.isEmpty()) {
             return paths;
@@ -297,7 +319,7 @@ public final class NccGenerator {
                          seed.distance(new Coordinate(envelope.getMaxX(), envelope.getMinY()))),
                 Math.max(seed.distance(new Coordinate(envelope.getMinX(), envelope.getMaxY())),
                          seed.distance(new Coordinate(envelope.getMaxX(), envelope.getMaxY()))));
-        double radius = toolRadius * (1.0 - params.overlapFraction());
+        double radius = toolRadius * (1.0 - settings.overlapFraction());
         int maxPasses = (int) Math.ceil((farthest + step) / step) + 2;
         for (int pass = 0; pass < maxPasses; pass++, radius += step) {
             cancellation.throwIfCancellationRequested();
@@ -309,18 +331,18 @@ public final class NccGenerator {
                 break;
             }
         }
-        if (params.contour()) {
+        if (settings.contour()) {
             collectBoundaryLines(safeArea, paths);
         }
         return paths;
     }
 
     /** Parallel raster strategy: the legacy clear_polygon3() method. */
-    private static List<LineString> linePaths(Polygon polygon, double toolDiameter, NccParameters params,
+    private static List<LineString> linePaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
         double toolRadius = toolDiameter / 2.0;
-        double step = toolDiameter * (1.0 - params.overlapFraction());
+        double step = toolDiameter * (1.0 - settings.overlapFraction());
         Geometry safeArea = polygon.buffer(-toolRadius, QUADRANT_SEGMENTS);
         if (safeArea.isEmpty()) {
             return paths;
@@ -356,7 +378,7 @@ public final class NccGenerator {
                 paths.addAll(columnLines);
             }
         }
-        if (params.contour()) {
+        if (settings.contour()) {
             collectBoundaryLines(safeArea, paths);
         }
         return paths;

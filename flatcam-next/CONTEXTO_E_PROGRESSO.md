@@ -232,12 +232,10 @@ algoritmo exato antes da implementação (ver `NccGenerator`'s class doc para a
 citação completa):
 
 - `NccParameters.toolDiameters()` é uma lista ordenada de diâmetros (não mais
-  um único `double`); overlap/margem/método/connect/contour/copperOffset
-  continuam **compartilhados entre todas as ferramentas** - Python permite
-  variar isso por ferramenta quando Rest Machining está desligado, mas força
-  um único valor global quando está ligado. Este port sempre compartilha, nos
-  dois modos - simplificação deliberada de v1, documentada no Javadoc do
-  record.
+  um único `double`). `NccToolSettings` guarda overlap/método/connect/contour/
+  copperOffset por ferramenta CLEAR; a margem e o boundary são comuns. Com
+  Rest Machining, overlap/método continuam por ferramenta, enquanto
+  connect/contour/offset vêm dos controles comuns, como no Python.
 - `NccOrder` (`NONE`/`FORWARD`/`REVERSE`) replica o `ncc_order_radio` do
   Python; ignorado quando `restMachining=true`, que sempre processa da maior
   para a menor ferramenta (mesmo comportamento do Python, que desabilita o
@@ -313,8 +311,8 @@ Ainda falta para paridade NCC:
 
 - direção de fresagem (climb/conventional) dos contornos ISO e comparação
   visual com resultados do Python;
-- parâmetros por ferramenta (overlap/método/connect/contour/offset
-  individuais - hoje compartilhados, ver acima);
+- teste manual dos parâmetros por ferramenta e comparação diferencial com
+  resultados do Python;
 - integração com Tools Database ("Pick from DB");
 - comparação diferencial mais ampla com resultados do Python (incl. Rest
   Machining, boundary por referência e "Check validity" num board real).
@@ -336,7 +334,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, seleção de ferramentas, boundary por referência/área e "Check validity"; faltam parâmetros por ferramenta, direção de fresagem ISO e Tools DB |
+| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área e "Check validity"; faltam direção de fresagem ISO e Tools DB |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
@@ -752,7 +750,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 ### 9.1 Completar a paridade NCC (o que resta)
 
-- parâmetros individuais por ferramenta e direção de fresagem ISO;
+- direção de fresagem ISO e validação manual dos parâmetros por ferramenta;
 - Tools Database;
 - fixtures diferenciais e casos de desempenho (incl. Rest Machining e
   boundary por referência num board real).

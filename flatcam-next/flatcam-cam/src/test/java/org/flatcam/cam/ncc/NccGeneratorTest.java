@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -240,6 +241,43 @@ class NccGeneratorTest {
         Geometry notchPoint = FACTORY.createPoint(new Coordinate(2, 2));
         assertFalse(result.clearingArea().contains(notchPoint),
                 "the L-shaped reference's own notch must stay excluded - a convex hull would fill it in");
+    }
+
+    @Test
+    void nonRestToolsUseTheirOwnMethodOverlapAndCopperOffset() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccToolSettings first = new NccToolSettings(0.1, NccMethod.STANDARD, false, true, 0);
+        NccToolSettings second = new NccToolSettings(0.4, NccMethod.LINES, true, false, 0.6);
+        NccParameters params = new NccParameters(List.of(0.2, 0.5), 0.1, 2,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Itself(), List.of(), Map.of(0.2, first, 0.5, second));
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+        NccResult firstAlone = NccGenerator.generate("MM", copper,
+                new NccParameters(0.2, 0.1, 2, NccMethod.STANDARD, false, true, 0));
+        NccResult secondAlone = NccGenerator.generate("MM", copper,
+                new NccParameters(0.5, 0.4, 2, NccMethod.LINES, true, false, 0.6));
+
+        assertEquals(firstAlone.totalLength(), result.toolResults().get(0).geometry().getLength(), 1e-8);
+        assertEquals(secondAlone.totalLength(), result.toolResults().get(1).geometry().getLength(), 1e-8);
+        assertEquals(firstAlone.clearingArea().getArea(), result.clearingArea().getArea(), 1e-8,
+                "the represented area is the union of the tool-specific clearing areas");
+    }
+
+    @Test
+    void restKeepsPerToolMethodAndOverlapButUsesCommonOffsetConnectAndContour() {
+        NccToolSettings override = new NccToolSettings(0.6, NccMethod.LINES, false, false, 0.8);
+        NccParameters params = new NccParameters(List.of(0.2), 0.1, 1,
+                NccMethod.STANDARD, true, true, 0.1, true, NccOrder.NONE,
+                new NccBoundary.Itself(), List.of(), Map.of(0.2, override));
+
+        NccToolSettings resolved = params.settingsFor(0.2);
+
+        assertEquals(0.6, resolved.overlapFraction());
+        assertEquals(NccMethod.LINES, resolved.method());
+        assertTrue(resolved.connect());
+        assertTrue(resolved.contour());
+        assertEquals(0.1, resolved.copperOffset());
     }
 
     @Test
