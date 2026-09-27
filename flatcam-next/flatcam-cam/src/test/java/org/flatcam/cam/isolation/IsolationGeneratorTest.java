@@ -144,6 +144,19 @@ class IsolationGeneratorTest {
         assertEquals(1, output.get(0).isolation().passGeometries().size());
         assertEquals(1, output.get(1).isolation().passGeometries().size());
         assertEquals(0, output.get(1).remainingCopperCount());
+
+        var onlyLarge = IsolationGenerator.generateRest("MM", copper, List.of(large),
+                CancellationToken.none());
+        assertEquals(2, onlyLarge.get(0).remainingCopperCount());
+
+        List<ToolGeometry> assigned = output.stream()
+                .map(result -> new ToolGeometry(result.parameters().toolDiameter(),
+                        result.isolation().geometry()))
+                .toList();
+        CncJobResult cnc = GCodeGenerator.generateGeometryCncJob("MM", assigned,
+                new GeometryGCodeParameters(1, 0.1, false, 1, 12, 10000, false));
+        assertFalse(cnc.gcode().isBlank());
+        assertFalse(cnc.cutGeometry().isEmpty());
     }
 
     @Test
