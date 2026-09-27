@@ -2964,7 +2964,15 @@ final class MainWindow {
 
     /** Creates editable Geometry first, as the Python Isolation tool does. */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
-        openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(),
+        List<IsolationToolPanel.ExceptionArea> exceptionAreas = geometryByItem.entrySet().stream()
+                .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
+                .filter(entry -> entry.getValue().geometry() != null
+                        && !entry.getValue().geometry().isEmpty()
+                        && entry.getValue().geometry().getDimension() == 2)
+                .map(entry -> new IsolationToolPanel.ExceptionArea(
+                        entry.getKey().getValue(), entry.getValue().geometry()))
+                .toList();
+        openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(), exceptionAreas,
                 params -> runIsolationGeneration(item, image, params), this::closeToolPanel));
     }
 
@@ -2977,8 +2985,14 @@ final class MainWindow {
         beginJob("Gerando Geometry de isolamento...");
         JobHandle<IsolationResult> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de isolamento...");
-            IsolationResult isolation = IsolationGenerator.generate(image.units(), image.solidGeometry(),
-                    params.geometryParams(), context::isCancelled);
+            IsolationResult isolation = params.follow()
+                    ? IsolationGenerator.generateFollow(image.units(), image.followGeometry(), context::isCancelled)
+                    : IsolationGenerator.generate(image.units(), image.solidGeometry(),
+                            params.geometryParams(), context::isCancelled);
+            if (params.exceptionArea() != null && params.exceptionArea().geometry() != null) {
+                isolation = IsolationGenerator.excludeArea(
+                        isolation, params.exceptionArea().geometry(), context::isCancelled);
+            }
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de isolamento...");
             return isolation;
@@ -2994,25 +3008,38 @@ final class MainWindow {
                         appendConsole("O Gerber de origem foi removido; Geometry de isolamento descartada.");
                         setStatus("Origem removida.", ERROR_COLOR);
                     } else if (isolation.isEmpty()) {
-                        appendConsole("Isolamento nao gerou nenhum anel (geometria de cobre vazia?).");
+                        appendConsole("Isolation nao gerou caminhos (origem vazia ou area de excecao cobriu tudo).");
                         setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
-                        String suffix = switch (params.geometryParams().type()) {
+                        String suffix = params.follow() ? "_follow" : switch (params.geometryParams().type()) {
                             case EXTERIOR -> "_ext_iso";
                             case INTERIOR -> "_int_iso";
                             case BOTH -> "_iso";
                         };
-                        String name = uniqueDerivedName(item.getValue() + suffix);
-                        TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
-                                isolation.geometry(), true,
-                                List.of(new ToolGeometry(params.geometryParams().toolDiameter(),
-                                        isolation.geometry())));
-                        appendConsole(String.format("Isolamento: %d aneis, comprimento total=%.4f, bounds=%s",
+                        List<Geometry> outputs = params.combinePasses()
+                                ? List.of(isolation.geometry()) : isolation.passGeometries();
+                        TreeItem<String> lastGenerated = null;
+                        int created = 0;
+                        for (int pass = 0; pass < outputs.size(); pass++) {
+                            Geometry path = outputs.get(pass);
+                            if (path.isEmpty()) {
+                                continue;
+                            }
+                            String passSuffix = !params.combinePasses() && outputs.size() > 1
+                                    ? suffix + (pass + 1) : suffix;
+                            String name = uniqueDerivedName(item.getValue() + passSuffix);
+                            lastGenerated = addGeometryToProject(name, item.getValue(), image.units(), path, true,
+                                    List.of(new ToolGeometry(params.geometryParams().toolDiameter(), path)));
+                            created++;
+                        }
+                        appendConsole(String.format("Isolation: %d elementos, comprimento total=%.4f, bounds=%s",
                                 isolation.ringCount(), isolation.totalLength(), Arrays.toString(isolation.bounds())));
-                        appendConsole("Geometry de isolamento criada: " + name
-                                + ". Confira os caminhos e gere o CNC Job pela Geometry quando estiver pronto.");
-                        selectProjectItem(generated);
-                        plotAreaView.fitToLayer(generated);
+                        appendConsole("Isolation criou " + created + " Geometry(s). Confira os caminhos "
+                                + "e gere o CNC Job pela Geometry quando estiver pronto.");
+                        if (lastGenerated != null) {
+                            selectProjectItem(lastGenerated);
+                            plotAreaView.fitToLayer(lastGenerated);
+                        }
                         closeToolPanel();
                         setStatus("Geometry de isolamento concluida.", IDLE_COLOR);
                     }

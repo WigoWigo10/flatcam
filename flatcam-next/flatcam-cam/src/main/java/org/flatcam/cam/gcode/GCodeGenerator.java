@@ -18,6 +18,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.union.UnaryUnionOp;
 
@@ -364,12 +365,13 @@ public final class GCodeGenerator {
             for (Coordinate[] coordinates : orderedByNearestNeighbor(
                     tool.geometry(), lastX, lastY, cancellationToken)) {
                 cancellationToken.throwIfCancellationRequested();
-                if (coordinates.length < 2) {
+                if (coordinates.length == 0) {
                     continue;
                 }
                 addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
-                cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates)
-                        .buffer(radius, STROKE_QUADRANT_SEGMENTS));
+                cutShapes.add(coordinates.length == 1
+                        ? GEOMETRY_FACTORY.createPoint(coordinates[0]).buffer(radius, STROKE_QUADRANT_SEGMENTS)
+                        : GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
                 Coordinate last = coordinates[coordinates.length - 1];
                 lastX = last.x;
                 lastY = last.y;
@@ -512,6 +514,12 @@ public final class GCodeGenerator {
     private static void collectCoordinatePaths(Geometry geometry, List<Coordinate[]> target,
                                                CancellationToken cancellationToken) {
         cancellationToken.throwIfCancellationRequested();
+        if (geometry instanceof Point point) {
+            if (!point.isEmpty()) {
+                target.add(new Coordinate[]{point.getCoordinate()});
+            }
+            return;
+        }
         if (geometry instanceof LineString line) {
             if (!line.isEmpty() && line.getNumPoints() >= 2) {
                 target.add(line.getCoordinates());

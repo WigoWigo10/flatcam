@@ -17,6 +17,7 @@ import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.locationtech.jts.io.WKTReader;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -75,6 +76,51 @@ class IsolationGeneratorTest {
                 gerber.units(), gerber.solidGeometry(),
                 new IsolationParameters(0.02, 3, 0.15, IsolationType.BOTH), cancellation));
         assertTrue(checks.get() >= 3);
+    }
+
+    @Test
+    void retainsEachIsolationPassForSeparateGeometryOutputs() throws IOException {
+        GerberImage gerber = new GerberParser().parse(
+                findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult result = IsolationGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 2, 0.15, IsolationType.BOTH));
+
+        assertEquals(2, result.passGeometries().size());
+        assertFalse(result.passGeometries().get(0).isEmpty());
+        assertFalse(result.passGeometries().get(1).isEmpty());
+        assertEquals(result.geometry().getLength(),
+                result.passGeometries().stream().mapToDouble(g -> g.getLength()).sum(), 1e-9);
+        assertTrue(result.passGeometries().get(1).getEnvelopeInternal().getWidth()
+                > result.passGeometries().get(0).getEnvelopeInternal().getWidth());
+    }
+
+    @Test
+    void followReturnsUnbufferedGerberPaths() throws IOException {
+        GerberImage gerber = new GerberParser().parse(
+                findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult result = IsolationGenerator.generateFollow(
+                gerber.units(), gerber.followGeometry(), CancellationToken.none());
+
+        assertFalse(result.isEmpty());
+        assertEquals(gerber.followGeometry(), result.geometry());
+        assertEquals(1, result.passGeometries().size());
+    }
+
+    @Test
+    void exceptionAreaRemovesOnlyCoveredPartsOfEveryPass() throws Exception {
+        WKTReader reader = new WKTReader();
+        var first = reader.read("LINESTRING (0 0, 10 0)");
+        var second = reader.read("LINESTRING (0 1, 10 1)");
+        var combined = reader.read("MULTILINESTRING ((0 0, 10 0), (0 1, 10 1))");
+        var mask = reader.read("POLYGON ((4 -1, 6 -1, 6 2, 4 2, 4 -1))");
+        IsolationResult source = new IsolationResult("MM", combined, java.util.List.of(first, second));
+
+        IsolationResult clipped = IsolationGenerator.excludeArea(source, mask, CancellationToken.none());
+
+        assertEquals(2, clipped.passGeometries().size());
+        assertEquals(8, clipped.passGeometries().get(0).getLength(), 1e-9);
+        assertEquals(8, clipped.passGeometries().get(1).getLength(), 1e-9);
+        assertEquals(16, clipped.totalLength(), 1e-9);
     }
 
     @Test

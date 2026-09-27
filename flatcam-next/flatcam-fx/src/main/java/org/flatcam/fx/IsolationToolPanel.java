@@ -1,9 +1,11 @@
 package org.flatcam.fx;
 
+import java.util.List;
 import java.util.function.Consumer;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
@@ -11,6 +13,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
+import org.locationtech.jts.geom.Geometry;
 
 /**
  * Parameters for isolation routing, as an embeddable panel rather than a
@@ -23,7 +26,15 @@ import org.flatcam.cam.isolation.IsolationType;
  */
 final class IsolationToolPanel {
 
-    record Result(IsolationParameters geometryParams) {
+    record ExceptionArea(String name, Geometry geometry) {
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    record Result(IsolationParameters geometryParams, boolean combinePasses, boolean follow,
+                  ExceptionArea exceptionArea) {
     }
 
     private IsolationToolPanel() {
@@ -33,7 +44,8 @@ final class IsolationToolPanel {
      * @param onGenerate called with the parsed parameters when "Gerar" is clicked and they're valid.
      * @param onClose    called when "Fechar" is clicked - MainWindow uses it to restore the tool tab's placeholder.
      */
-    static Node build(String units, Consumer<Result> onGenerate, Runnable onClose) {
+    static Node build(String units, List<ExceptionArea> exceptionAreas,
+                      Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equals(units);
 
         TextField toolDiaField = new TextField(metric ? "0.2" : "0.008");
@@ -42,6 +54,22 @@ final class IsolationToolPanel {
         ComboBox<IsolationType> typeCombo = new ComboBox<>();
         typeCombo.getItems().addAll(IsolationType.values());
         typeCombo.setValue(IsolationType.BOTH);
+        CheckBox combinePasses = new CheckBox("Combinar passes em uma Geometry");
+        combinePasses.setSelected(true);
+        CheckBox follow = new CheckBox("Follow: seguir centros de trilhas e pads sem afastamento");
+        follow.setWrapText(true);
+        follow.selectedProperty().addListener((observable, oldValue, selected) -> {
+            passesField.setDisable(selected);
+            overlapField.setDisable(selected);
+            typeCombo.setDisable(selected);
+            combinePasses.setDisable(selected);
+        });
+        ComboBox<ExceptionArea> exceptionCombo = new ComboBox<>();
+        ExceptionArea none = new ExceptionArea("Nenhuma", null);
+        exceptionCombo.getItems().add(none);
+        exceptionCombo.getItems().addAll(exceptionAreas);
+        exceptionCombo.setValue(none);
+        exceptionCombo.setMaxWidth(Double.MAX_VALUE);
 
         for (TextField field : new TextField[]{toolDiaField, passesField, overlapField}) {
             field.setPrefColumnCount(7);
@@ -57,13 +85,15 @@ final class IsolationToolPanel {
         grid.addRow(1, new Label("Numero de passes:"), passesField);
         grid.addRow(2, new Label("Sobreposicao entre passes (%):"), overlapField);
         grid.addRow(3, new Label("Aneis a manter:"), typeCombo);
+        grid.addRow(4, new Label("Excluir area (Geometry preenchida):"), exceptionCombo);
         Button generateButton = new Button("Gerar Geometry de isolamento");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         Button closeButton = new Button("Fechar");
         closeButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
-                Result result = parseResult(toolDiaField, passesField, overlapField, typeCombo);
+                Result result = parseResult(toolDiaField, passesField, overlapField, typeCombo,
+                        combinePasses.isSelected(), follow.isSelected(), exceptionCombo.getValue());
                 errorLabel.setText("");
                 onGenerate.accept(result);
             } catch (RuntimeException ex) {
@@ -77,14 +107,16 @@ final class IsolationToolPanel {
         workflowNote.setWrapText(true);
         VBox box = new VBox(10,
                 new Label("Parametros (unidades do arquivo: " + units + ")"),
-                grid, workflowNote,
+                grid, combinePasses, follow, workflowNote,
                 errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }
 
     private static Result parseResult(
-            TextField toolDiaField, TextField passesField, TextField overlapField, ComboBox<IsolationType> typeCombo) {
+            TextField toolDiaField, TextField passesField, TextField overlapField,
+            ComboBox<IsolationType> typeCombo, boolean combinePasses, boolean follow,
+            ExceptionArea exceptionArea) {
         double toolDia = parseDouble(toolDiaField.getText(), "Diametro da ferramenta");
         double rawPasses = parseDouble(passesField.getText(), "Numero de passes");
         if (!Double.isFinite(rawPasses) || rawPasses != Math.rint(rawPasses)
@@ -97,7 +129,7 @@ final class IsolationToolPanel {
 
         IsolationParameters geometryParams = new IsolationParameters(toolDia, passes, overlapPercent / 100.0, type);
 
-        return new Result(geometryParams);
+        return new Result(geometryParams, combinePasses, follow, exceptionArea);
     }
 
     private static double parseDouble(String text, String fieldName) {

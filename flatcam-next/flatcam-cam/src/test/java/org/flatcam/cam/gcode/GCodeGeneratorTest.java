@@ -28,6 +28,19 @@ import org.junit.jupiter.api.Test;
 
 class GCodeGeneratorTest {
 
+    @Test
+    void geometryPointProducesPlungeInsteadOfBeingSilentlySkipped() {
+        GeometryFactory factory = new GeometryFactory();
+        var point = factory.createPoint(new Coordinate(3, 4));
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob("MM",
+                List.of(new ToolGeometry(0.8, point)),
+                new GeometryGCodeParameters(2, 1, false, 1, 100, 0, false));
+
+        assertTrue(job.gcode().contains("G0 X3.0000 Y4.0000"));
+        assertTrue(job.gcode().contains("G1 Z-1.0000 F100.0000"));
+        assertFalse(job.cutGeometry().isEmpty());
+    }
+
     private static ExcellonImage parse(String... lines) {
         return new ExcellonParser().parse(List.of(lines));
     }

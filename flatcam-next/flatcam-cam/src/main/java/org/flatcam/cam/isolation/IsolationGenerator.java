@@ -31,26 +31,57 @@ import org.locationtech.jts.geom.Polygon;
  *       follows a path, it doesn't mill an area.</li>
  * </ul>
  *
- * <p>Deliberately NOT ported (documented gaps, not oversights): "follow"
- * mode (traces the Gerber's raw draw centerlines instead of buffering -
- * needs the parser to retain that centerline data, which GerberParser
- * doesn't yet), exception areas (subtracting a user-chosen object from the
- * result), and rest-machining (per-polygon self-intersection checks to
+ * <p>Exception areas are supported through a filled Geometry mask. Interactive
+ * area drawing and rest-machining (per-polygon self-intersection checks to
  * detect copper too tight for the chosen tool, escalating to a smaller
- * tool). All three are real features, just out of scope for this first
- * pass - see CONTEXTO_FLATCAM_FX.md's rule against reaching for scope a
- * vertical slice doesn't need yet.
+ * tool) remain future work.
  *
- * <p>Always produces one combined result (equivalent to the legacy tool's
- * "combine passes" option) rather than the legacy default of one output
- * object per tool/pass - this app has no per-object management overhead to
- * make separate outputs worth the complexity yet.
+ * <p>Retains each pass separately as well as a combined view, allowing the UI
+ * to create either one Geometry or one Geometry per pass.
  */
 public final class IsolationGenerator {
 
     private static final int QUADRANT_SEGMENTS = 64;
 
     private IsolationGenerator() {
+    }
+
+    /** Python's follow mode returns the Gerber's unbuffered follow_geometry unchanged. */
+    public static IsolationResult generateFollow(String units, Geometry followGeometry,
+                                                 CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        cancellationToken.throwIfCancellationRequested();
+        if (followGeometry == null || followGeometry.isEmpty()) {
+            return new IsolationResult(units, new GeometryFactory().createGeometryCollection(), List.of());
+        }
+        return new IsolationResult(units, followGeometry, List.of(followGeometry));
+    }
+
+    /** Removes paths inside a filled Geometry mask while retaining pass boundaries. */
+    public static IsolationResult excludeArea(IsolationResult source, Geometry mask,
+                                              CancellationToken cancellationToken) {
+        Objects.requireNonNull(source, "source");
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        if (mask == null || mask.isEmpty()) {
+            return source;
+        }
+        if (mask.getDimension() != 2 || !mask.isValid()) {
+            throw new IllegalArgumentException("Exception area must be valid, filled Geometry");
+        }
+        GeometryFactory factory = source.geometry().getFactory();
+        List<Geometry> passes = new ArrayList<>();
+        List<Geometry> paths = new ArrayList<>();
+        for (Geometry pass : source.passGeometries()) {
+            cancellationToken.throwIfCancellationRequested();
+            Geometry clipped = pass.difference(mask);
+            passes.add(clipped);
+            for (int i = 0; i < clipped.getNumGeometries(); i++) {
+                paths.add(clipped.getGeometryN(i));
+            }
+        }
+        cancellationToken.throwIfCancellationRequested();
+        return new IsolationResult(source.units(),
+                paths.isEmpty() ? factory.createGeometryCollection() : factory.buildGeometry(paths), passes);
     }
 
     public static IsolationResult generate(String units, Geometry copperGeometry, IsolationParameters params) {
@@ -62,23 +93,27 @@ public final class IsolationGenerator {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         cancellationToken.throwIfCancellationRequested();
         if (copperGeometry == null || copperGeometry.isEmpty()) {
-            return new IsolationResult(units, new GeometryFactory().createGeometryCollection());
+            return new IsolationResult(units, new GeometryFactory().createGeometryCollection(), List.of());
         }
 
         GeometryFactory geometryFactory = copperGeometry.getFactory();
         List<LineString> rings = new ArrayList<>();
+        List<Geometry> passGeometries = new ArrayList<>();
 
         for (int pass = 0; pass < params.passes(); pass++) {
             cancellationToken.throwIfCancellationRequested();
             double offset = params.toolDiameter() * (pass + 0.5 - pass * params.overlapFraction());
             Geometry buffered = copperGeometry.buffer(offset, QUADRANT_SEGMENTS);
             cancellationToken.throwIfCancellationRequested();
-            collectRings(buffered, params.type(), rings, geometryFactory, cancellationToken);
+            List<LineString> passRings = new ArrayList<>();
+            collectRings(buffered, params.type(), passRings, geometryFactory, cancellationToken);
+            rings.addAll(passRings);
+            passGeometries.add(geometryFactory.createGeometryCollection(passRings.toArray(new LineString[0])));
         }
 
         cancellationToken.throwIfCancellationRequested();
         Geometry combined = geometryFactory.createGeometryCollection(rings.toArray(new LineString[0]));
-        return new IsolationResult(units, combined);
+        return new IsolationResult(units, combined, passGeometries);
     }
 
     private static void collectRings(Geometry buffered, IsolationType type, List<LineString> rings,
