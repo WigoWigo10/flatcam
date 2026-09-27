@@ -3146,7 +3146,8 @@ final class MainWindow {
             }
         }
         openToolPanel("NCC Tool", NccToolPanel.build(item.getValue(), units, gerberSource, referenceCandidates,
-                (onSelected, onCancelled) -> beginNccAreaSelection(source, onSelected, onCancelled),
+                (shape, onSelected, onCancelled) ->
+                        beginNccAreaSelection(source, shape, onSelected, onCancelled),
                 result -> {
                     plotAreaView.cancelPlacement();
                     runNccGeneration(item, units, source, gerberSource, result);
@@ -3156,7 +3157,45 @@ final class MainWindow {
                 }));
     }
 
-    private boolean beginNccAreaSelection(Geometry source, Consumer<Geometry> onSelected, Runnable onCancelled) {
+    private boolean beginNccAreaSelection(Geometry source, NccToolPanel.AreaShape shape,
+                                          Consumer<Geometry> onSelected, Runnable onCancelled) {
+        if (shape == NccToolPanel.AreaShape.POLYGON) {
+            return plotAreaView.beginAreaPolygonPlacement(new PlotAreaView.TrackPlacementHandler() {
+                @Override
+                public void onCommit(List<Coordinate> points) {
+                    List<Coordinate> ring = new ArrayList<>();
+                    for (Coordinate point : points) {
+                        if (ring.isEmpty() || !ring.get(ring.size() - 1).equals2D(point)) {
+                            ring.add(new Coordinate(point));
+                        }
+                    }
+                    if (ring.size() > 1 && ring.get(0).equals2D(ring.get(ring.size() - 1))) {
+                        ring.remove(ring.size() - 1);
+                    }
+                    if (ring.size() < 3) {
+                        appendConsole("NCC: o poligono precisa de pelo menos tres vertices distintos.");
+                        onCancelled.run();
+                        return;
+                    }
+                    ring.add(new Coordinate(ring.get(0)));
+                    try {
+                        Geometry area = source.getFactory().createPolygon(ring.toArray(new Coordinate[0]));
+                        if (!area.isValid() || area.getArea() <= 0) {
+                            throw new IllegalArgumentException("poligono sem area valida");
+                        }
+                        onSelected.accept(area);
+                    } catch (RuntimeException error) {
+                        appendConsole("NCC: selecao poligonal invalida: " + error.getMessage());
+                        onCancelled.run();
+                    }
+                }
+
+                @Override
+                public void onCancel() {
+                    onCancelled.run();
+                }
+            });
+        }
         double[] anchor = new double[2];
         return plotAreaView.beginAreaRectanglePlacement(new PlotAreaView.PlacementHandler() {
             @Override

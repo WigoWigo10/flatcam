@@ -584,8 +584,14 @@ final class PlotAreaView extends StackPane {
 
     /** A multi-point track using the five bend modes from the legacy Gerber editor. */
     boolean beginEditorTrackPlacement(double apertureDiameter, TrackPlacementHandler handler) {
-        if (selectionHandler == null || !Double.isFinite(apertureDiameter)
-                || apertureDiameter <= 0 || handler == null) {
+        if (selectionHandler == null) {
+            return false;
+        }
+        return beginTrackPlacement(apertureDiameter, handler);
+    }
+
+    private boolean beginTrackPlacement(double apertureDiameter, TrackPlacementHandler handler) {
+        if (!Double.isFinite(apertureDiameter) || apertureDiameter <= 0 || handler == null) {
             return false;
         }
         PlacementHandler placementAdapter = new PlacementHandler() {
@@ -649,6 +655,19 @@ final class PlotAreaView extends StackPane {
             return false;
         }
         placementTwoPointShape = TwoPointShape.RECTANGLE;
+        redraw();
+        return true;
+    }
+
+    /** Multi-click free-angle polygon used for NCC area selection outside an editor. */
+    boolean beginAreaPolygonPlacement(TrackPlacementHandler handler) {
+        if (selectionHandler != null || !beginTrackPlacement(1.5 / scale, handler)) {
+            return false;
+        }
+        placementFreePath = true;
+        placementTrackMode = TrackBendMode.FREE;
+        placementRegion = true;
+        notifyTrackPathChanged();
         redraw();
         return true;
     }

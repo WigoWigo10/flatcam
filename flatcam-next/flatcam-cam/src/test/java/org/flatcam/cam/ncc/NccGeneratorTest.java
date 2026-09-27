@@ -360,6 +360,24 @@ class NccGeneratorTest {
     }
 
     @Test
+    void polygonAreaSelectionRespectsItsConcaveNotch() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        Geometry polygon = FACTORY.createPolygon(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(10, 10),
+                new Coordinate(7, 10), new Coordinate(7, 3), new Coordinate(0, 3),
+                new Coordinate(0, 0)});
+        NccParameters params = new NccParameters(List.of(0.2), 0.1, 0,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Area(polygon));
+
+        NccResult result = NccGenerator.generate("MM", copper, params);
+
+        assertTrue(result.clearingArea().covers(FACTORY.createPoint(new Coordinate(2, 1))));
+        assertFalse(result.clearingArea().covers(FACTORY.createPoint(new Coordinate(2, 8))));
+        assertTrue(polygon.buffer(1e-8).covers(result.geometry()));
+    }
+
+    @Test
     void geometryLineSourceIsRejectedInsteadOfClearingItsWholeEnvelope() {
         Geometry outline = FACTORY.createLineString(new Coordinate[]{
                 new Coordinate(0, 0), new Coordinate(10, 0), new Coordinate(10, 10),

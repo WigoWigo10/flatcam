@@ -7,7 +7,7 @@ e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-09-27**. Isolation Routing agora cria Geometry antes do
 > CNC Job; o NCC aceita Geometry preenchida como origem, seleção retangular de
-> área, ferramentas ISO/CLEAR e seleção de subconjunto da tabela. Preserva a
+> área (retângulo ou polígono), ferramentas ISO/CLEAR e seleção de subconjunto da tabela. Preserva a
 > ordem manual das ferramentas. O Plot Area seleciona objetos por clique
 > ou retângulo e oferece menu de contexto para ações já implementadas. O Gerber
 > Editor exclui, move e copia formas,
@@ -269,7 +269,8 @@ citação completa):
   referência, o boundary é a interseção dos dois convex hulls (fonte ∩
   referência); para uma Geometry de referência, a forma é usada **como está**,
   sem convex hull (confirmado no código Python - só o caso Gerber tira hull).
-  "Area Selection" permite escolher um retângulo com dois cliques no Plot Area.
+  "Area Selection" permite escolher um retângulo com dois cliques ou um
+  polígono por vértices no Plot Area (Enter/botão direito conclui, Esc cancela).
   Uma referência Geometry linear é preservada até a aplicação da margem, para
   não perder o contorno antes da operação de buffer.
 - **Verificar validade dos diâmetros** (`NccGenerator.minimumCopperClearance`):
@@ -334,7 +335,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, Climb/Conventional para ISO, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área e "Check validity"; faltam Tools DB e seleção poligonal de área |
+| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, Climb/Conventional para ISO, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área retangular ou poligonal e "Check validity"; falta Tools DB |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
@@ -755,7 +756,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 - fixtures diferenciais e casos de desempenho (incl. Rest Machining e
   boundary por referência num board real).
 
-Concluído: boundary por objeto de referência, seleção retangular de área,
+Concluído: boundary por objeto de referência, seleção retangular/poligonal de área,
 preservação de Order = None, seleção de ferramentas, ISO/CLEAR e
 validação/sugestão de diâmetro ("Check validity")
 - ver seção 5.

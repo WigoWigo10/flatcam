@@ -73,9 +73,25 @@ final class NccToolPanel {
     private static final String BOUNDARY_AREA = "Area Selection";
     private static final String BOUNDARY_REFERENCE = "Reference Object";
 
+    enum AreaShape {
+        RECTANGLE("Retangulo"),
+        POLYGON("Poligono");
+
+        private final String label;
+
+        AreaShape(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     @FunctionalInterface
     interface AreaSelector {
-        boolean select(Consumer<Geometry> onSelected, Runnable onCancelled);
+        boolean select(AreaShape shape, Consumer<Geometry> onSelected, Runnable onCancelled);
     }
 
     /** One selectable entry for the "Reference Object" boundary combo - see MainWindow.generateNcc. */
@@ -225,7 +241,7 @@ final class NccToolPanel {
         boundaryKindCombo.setValue(BOUNDARY_ITSELF);
         boundaryKindCombo.setTooltip(tooltip(
                 "Itself: usa o contorno convexo da origem como limite.\n"
-                + "Area Selection: delimita um retangulo por dois cliques no desenho.\n"
+                + "Area Selection: delimita um retangulo ou poligono no desenho.\n"
                 + "Reference Object: usa outro objeto (Gerber ou Geometry) ja carregado como limite."));
         ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
         referenceCombo.getItems().addAll(referenceCandidates);
@@ -239,17 +255,32 @@ final class NccToolPanel {
         javafx.beans.binding.BooleanBinding areaChosen = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> BOUNDARY_AREA.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
         Geometry[] selectedArea = {null};
-        Button selectAreaButton = new Button("Selecionar retangulo no desenho");
+        ComboBox<AreaShape> areaShapeCombo = new ComboBox<>();
+        areaShapeCombo.getItems().addAll(AreaShape.values());
+        areaShapeCombo.setValue(AreaShape.RECTANGLE);
+        areaShapeCombo.visibleProperty().bind(areaChosen);
+        areaShapeCombo.managedProperty().bind(areaChosen);
+        Button selectAreaButton = new Button("Selecionar area no desenho");
         Label selectedAreaLabel = new Label("Nenhuma area selecionada.");
         selectedAreaLabel.setWrapText(true);
+        areaShapeCombo.valueProperty().addListener((observable, oldShape, newShape) -> {
+            selectedArea[0] = null;
+            selectedAreaLabel.setText("Nenhuma area selecionada.");
+        });
         selectAreaButton.visibleProperty().bind(areaChosen);
         selectAreaButton.managedProperty().bind(areaChosen);
         selectedAreaLabel.visibleProperty().bind(areaChosen);
         selectedAreaLabel.managedProperty().bind(areaChosen);
         selectAreaButton.setOnAction(event -> {
             selectedArea[0] = null;
-            selectedAreaLabel.setText("Clique em dois cantos opostos no Plot Area; Esc cancela.");
-            if (!areaSelector.select(area -> {
+            AreaShape requestedShape = areaShapeCombo.getValue();
+            selectedAreaLabel.setText(requestedShape == AreaShape.POLYGON
+                    ? "Clique nos vertices; Enter ou botao direito conclui, Esc cancela."
+                    : "Clique em dois cantos opostos no Plot Area; Esc cancela.");
+            if (!areaSelector.select(requestedShape, area -> {
+                if (areaShapeCombo.getValue() != requestedShape) {
+                    return;
+                }
                 selectedArea[0] = area;
                 selectedAreaLabel.setText("Area: " + area.getEnvelopeInternal());
             }, () -> selectedAreaLabel.setText("Selecao de area cancelada."))) {
@@ -262,8 +293,9 @@ final class NccToolPanel {
         boundaryGrid.setVgap(8);
         boundaryGrid.addRow(0, new Label("Boundary:"), boundaryKindCombo);
         boundaryGrid.add(referenceCombo, 1, 1);
-        boundaryGrid.add(selectAreaButton, 1, 2);
-        boundaryGrid.add(selectedAreaLabel, 1, 3);
+        boundaryGrid.add(areaShapeCombo, 1, 2);
+        boundaryGrid.add(selectAreaButton, 1, 3);
+        boundaryGrid.add(selectedAreaLabel, 1, 4);
 
         CheckBox checkValidityCb = new CheckBox("Verificar validade dos diametros");
         checkValidityCb.setSelected(gerberSource);
@@ -277,7 +309,7 @@ final class NccToolPanel {
         TextField marginField = new TextField(metric ? "1.0" : "0.040");
         marginField.setPrefColumnCount(7);
         marginField.setMinWidth(0);
-        boundaryGrid.addRow(4, new Label("Margin (comum):"), marginField);
+        boundaryGrid.addRow(5, new Label("Margin (comum):"), marginField);
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
         methodCombo.getItems().addAll(NccMethod.values());
         methodCombo.setValue(NccMethod.STANDARD);
