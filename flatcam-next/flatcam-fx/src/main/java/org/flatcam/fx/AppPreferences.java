@@ -38,6 +38,7 @@ final class AppPreferences {
     private static final String KEY_SPLIT_VERTICAL = "splitVertical";
     private static final String KEY_CONSOLE_OPEN = "consoleOpen";
     private static final String KEY_GRID_SNAP = "gridSnap";
+    private static final String KEY_GRID_VISIBLE = "gridVisible";
     private static final String KEY_GRID_X = "gridX";
     private static final String KEY_GRID_Y = "gridY";
     private static final String KEY_GRID_LINKED = "gridLinked";
@@ -147,7 +148,8 @@ final class AppPreferences {
         flush();
     }
 
-    record PlotStatusSettings(boolean gridSnap, double gridX, double gridY, boolean gridLinked,
+    record PlotStatusSettings(boolean gridSnap, boolean gridVisible,
+                              double gridX, double gridY, boolean gridLinked,
                               boolean axisVisible, boolean hudVisible, boolean workspaceVisible) {
     }
 
@@ -161,13 +163,15 @@ final class AppPreferences {
             gridY = 1.0;
         }
         boolean linked = PREFS.getBoolean(KEY_GRID_LINKED, true);
-        return new PlotStatusSettings(PREFS.getBoolean(KEY_GRID_SNAP, true), gridX,
+        return new PlotStatusSettings(PREFS.getBoolean(KEY_GRID_SNAP, true),
+                PREFS.getBoolean(KEY_GRID_VISIBLE, true), gridX,
                 linked ? gridX : gridY, linked, PREFS.getBoolean(KEY_AXIS_VISIBLE, true),
                 PREFS.getBoolean(KEY_HUD_VISIBLE, true), PREFS.getBoolean(KEY_WORKSPACE_VISIBLE, false));
     }
 
     static void savePlotStatusSettings(PlotStatusSettings settings) {
         PREFS.putBoolean(KEY_GRID_SNAP, settings.gridSnap());
+        PREFS.putBoolean(KEY_GRID_VISIBLE, settings.gridVisible());
         PREFS.putDouble(KEY_GRID_X, settings.gridX());
         PREFS.putDouble(KEY_GRID_Y, settings.gridY());
         PREFS.putBoolean(KEY_GRID_LINKED, settings.gridLinked());

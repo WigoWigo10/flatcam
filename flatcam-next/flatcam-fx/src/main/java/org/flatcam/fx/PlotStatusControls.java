@@ -28,12 +28,15 @@ final class PlotStatusControls {
     private final ToggleButton workspace;
     private double stepX = 1.0;
     private double stepY = 1.0;
+    private boolean gridVisible = true;
 
     PlotStatusControls(PlotAreaView plot, Function<String, Node> icon, Node consoleToggle,
                        Consumer<String> feedback, Runnable openPreferences) {
         this.plot = plot;
         this.feedback = feedback;
         AppPreferences.PlotStatusSettings saved = AppPreferences.loadPlotStatusSettings();
+        gridVisible = saved.gridVisible();
+        plot.setGridVisible(gridVisible);
         stepX = saved.gridX();
         stepY = saved.gridY();
         gridX.setText(Double.toString(stepX));
@@ -123,6 +126,7 @@ final class PlotStatusControls {
 
     void applySettings(AppPreferences.PlotStatusSettings settings) {
         gridSnap.setSelected(settings.gridSnap());
+        gridVisible = settings.gridVisible();
         stepX = settings.gridX();
         stepY = settings.gridLinked() ? settings.gridX() : settings.gridY();
         gridX.setText(Double.toString(stepX));
@@ -133,6 +137,7 @@ final class PlotStatusControls {
         hud.setSelected(settings.hudVisible());
         workspace.setSelected(settings.workspaceVisible());
         plot.setGridSnap(settings.gridSnap(), stepX, stepY);
+        plot.setGridVisible(gridVisible);
         plot.setAxisVisible(settings.axisVisible());
         plot.setHudVisible(settings.hudVisible());
         plot.setWorkspaceVisible(settings.workspaceVisible());
@@ -191,7 +196,7 @@ final class PlotStatusControls {
 
     private void save() {
         AppPreferences.savePlotStatusSettings(new AppPreferences.PlotStatusSettings(
-                gridSnap.isSelected(), stepX, stepY, link.isSelected(), axis.isSelected(),
+                gridSnap.isSelected(), gridVisible, stepX, stepY, link.isSelected(), axis.isSelected(),
                 hud.isSelected(), workspace.isSelected()));
     }
 

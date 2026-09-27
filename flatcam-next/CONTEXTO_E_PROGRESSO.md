@@ -344,7 +344,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Área | Estado | Observação principal |
 | --- | --- | --- |
 | Shell, temas e layout principal | forte/parcial | base utilizável; barra lateral recolhível, barra inferior com coordenadas, snap X/Y, eixos, HUD, A4, console, unidades e atividade; aba básica de Preferências para tema e Plot Area; vários menus ainda não têm fluxo completo |
-| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
+| Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento, grade visual pode ser ocultada independentemente do snap, eixos/HUD/A4 alternáveis; faltam estilos avançados da grade e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
@@ -356,7 +356,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | parcial | NCC, Isolation e Drilling leem ferramentas de um `.FlatDB` escolhido pelo usuário; editor/salvamento do banco e integração com outras ferramentas faltam |
-| Preferências globais | inicial/parcial | aba funcional para tema, snap e visibilidade do Plot Area; ainda longe da cobertura do Python |
+| Preferências globais | inicial/parcial | aba funcional para tema, snap, grade visual e visibilidade do Plot Area; ainda longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
 
 “Forte/parcial” não significa compatibilidade certificada. Significa que o

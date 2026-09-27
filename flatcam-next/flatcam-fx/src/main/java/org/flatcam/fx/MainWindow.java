@@ -4252,6 +4252,9 @@ final class MainWindow {
         theme.setValue(currentTheme);
         CheckBox snap = new CheckBox("Ativar snap na grade");
         snap.setSelected(saved.gridSnap());
+        CheckBox showGrid = new CheckBox("Mostrar grade visual");
+        showGrid.setSelected(saved.gridVisible());
+        showGrid.setTooltip(new Tooltip("A grade visual pode ficar oculta sem desativar o snap."));
         CheckBox linked = new CheckBox("Usar passo X tambem em Y");
         linked.setSelected(saved.gridLinked());
         TextField gridX = new TextField(Double.toString(saved.gridX()));
@@ -4281,7 +4284,7 @@ final class MainWindow {
                 double x = preferenceStep(gridX.getText(), "Passo X");
                 double y = linked.isSelected() ? x : preferenceStep(gridY.getText(), "Passo Y");
                 AppPreferences.PlotStatusSettings settings = new AppPreferences.PlotStatusSettings(
-                        snap.isSelected(), x, y, linked.isSelected(), axis.isSelected(),
+                        snap.isSelected(), showGrid.isSelected(), x, y, linked.isSelected(), axis.isSelected(),
                         hud.isSelected(), workspace.isSelected());
                 statusControls.applySettings(settings);
                 applyTheme(theme.getValue());
@@ -4293,7 +4296,7 @@ final class MainWindow {
         });
         VBox panel = new VBox(12, title,
                 new Label("Aparencia"), grid,
-                new Separator(), new Label("Plot Area"), snap, linked, axis, hud, workspace,
+                new Separator(), new Label("Plot Area"), snap, showGrid, linked, axis, hud, workspace,
                 feedback, apply);
         panel.setPadding(new Insets(18));
         panel.setMaxWidth(460);

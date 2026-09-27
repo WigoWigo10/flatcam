@@ -173,6 +173,7 @@ final class PlotAreaView extends StackPane {
     private double referenceWorldX;
     private double referenceWorldY;
     private boolean gridSnapEnabled = true;
+    private boolean gridVisible = true;
     private double gridStepX = 1.0;
     private double gridStepY = 1.0;
     private boolean axisVisible = true;
@@ -397,6 +398,13 @@ final class PlotAreaView extends StackPane {
             redraw();
         } else {
             drawSnapCursor();
+        }
+    }
+
+    void setGridVisible(boolean visible) {
+        if (gridVisible != visible) {
+            gridVisible = visible;
+            redraw();
         }
     }
 
@@ -1082,7 +1090,7 @@ final class PlotAreaView extends StackPane {
         gc.fillRect(0, 0, width, height);
 
         double step = niceStep(80.0 / scale);
-        drawGrid(gc, contentWidth, contentHeight, step);
+        if (gridVisible) drawGrid(gc, contentWidth, contentHeight, step);
         if (axisVisible) {
             drawAxisCrosshair(gc, contentWidth, contentHeight);
         }
