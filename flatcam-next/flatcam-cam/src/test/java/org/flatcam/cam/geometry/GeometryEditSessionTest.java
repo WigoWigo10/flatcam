@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import org.junit.jupiter.api.Test;
 import org.flatcam.cam.CancellationToken;
@@ -69,6 +70,37 @@ class GeometryEditSessionTest {
         session.clickSelect(0.5, 0.5, 0, false);
         session.clickSelect(2.5, 2.5, 0, true);
         return session;
+    }
+
+    @Test
+    void selectedTransformationsKeepOtherShapesAndSupportUndo() {
+        GeometryEditSession session = new GeometryEditSession(
+                FACTORY.buildGeometry(List.of(line(0), line(20))), List.of());
+        session.selectIndices(List.of(0));
+        assertTrue(session.rotateSelected(90));
+        Envelope turned = session.resultGeometry().getGeometryN(0).getEnvelopeInternal();
+        assertEquals(-5, turned.getMinX(), 1e-9);
+        assertEquals(5, turned.getMaxX(), 1e-9);
+        assertEquals(5, turned.getMinY(), 1e-9);
+        assertEquals(20, session.resultGeometry().getGeometryN(1).getEnvelopeInternal().getMinX(), 1e-9);
+        assertEquals(Set.of(0), session.selectedIndices());
+        assertTrue(session.undo());
+        assertEquals(0, session.resultGeometry().getGeometryN(0).getEnvelopeInternal().getMinX(), 1e-9);
+        assertTrue(session.redo());
+        assertEquals(-5, session.resultGeometry().getGeometryN(0).getEnvelopeInternal().getMinX(), 1e-9);
+    }
+
+    @Test
+    void scaleAndMirrorsUseSelectionCentreAndRejectInvalidFactors() {
+        GeometryEditSession session = new GeometryEditSession(line(0), List.of());
+        session.selectIndices(List.of(0));
+        assertTrue(session.scaleSelected(2));
+        assertEquals(-5, session.resultGeometry().getEnvelopeInternal().getMinY(), 1e-9);
+        assertEquals(15, session.resultGeometry().getEnvelopeInternal().getMaxY(), 1e-9);
+        assertTrue(session.mirrorSelected(false));
+        assertEquals(15, session.resultGeometry().getCoordinates()[0].y, 1e-9);
+        assertThrows(IllegalArgumentException.class, () -> session.scaleSelected(0));
+        assertThrows(IllegalArgumentException.class, () -> session.rotateSelected(Double.NaN));
     }
 
     private static void executeAndApply(GeometryEditSession session, GeometryEditSession.Operation operation,

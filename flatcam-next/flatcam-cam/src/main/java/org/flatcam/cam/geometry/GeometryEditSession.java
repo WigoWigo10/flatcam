@@ -430,6 +430,60 @@ public final class GeometryEditSession {
         return true;
     }
 
+    /** Transforms selected shapes about the centre of their combined bounds. */
+    public boolean rotateSelected(double degrees) {
+        if (!Double.isFinite(degrees)) throw new IllegalArgumentException("Angulo deve ser finito.");
+        if (degrees == 0) return false;
+        Envelope bounds = selectionEnvelope();
+        if (bounds == null) return false;
+        return transformSelected(AffineTransformation.rotationInstance(
+                Math.toRadians(degrees), bounds.centre().x, bounds.centre().y));
+    }
+
+    public boolean scaleSelected(double factor) {
+        if (!Double.isFinite(factor) || factor <= 0)
+            throw new IllegalArgumentException("A escala deve ser positiva.");
+        if (factor == 1) return false;
+        Envelope bounds = selectionEnvelope();
+        if (bounds == null) return false;
+        return transformSelected(AffineTransformation.scaleInstance(factor, factor,
+                bounds.centre().x, bounds.centre().y));
+    }
+
+    /** Horizontal mirrors left/right; vertical mirrors top/bottom. */
+    public boolean mirrorSelected(boolean horizontal) {
+        Envelope bounds = selectionEnvelope();
+        if (bounds == null) return false;
+        return transformSelected(AffineTransformation.scaleInstance(horizontal ? -1 : 1,
+                horizontal ? 1 : -1, bounds.centre().x, bounds.centre().y));
+    }
+
+    private Envelope selectionEnvelope() {
+        if (selected.isEmpty()) return null;
+        Envelope bounds = new Envelope();
+        for (int index : selected) bounds.expandToInclude(parts.get(index).geometry().getEnvelopeInternal());
+        return bounds;
+    }
+
+    private boolean transformSelected(AffineTransformation transformation) {
+        List<Part> transformed = new ArrayList<>(parts.size());
+        for (int i = 0; i < parts.size(); i++) {
+            Part part = parts.get(i);
+            if (selected.contains(i)) {
+                Geometry geometry = transformation.transform(part.geometry());
+                for (Coordinate point : geometry.getCoordinates()) {
+                    if (!Double.isFinite(point.x) || !Double.isFinite(point.y))
+                        throw new IllegalArgumentException("Transformacao excede o limite de coordenadas.");
+                }
+                transformed.add(new Part(part.id(), geometry, part.toolIndex()));
+            } else {
+                transformed.add(part);
+            }
+        }
+        commit(transformed, List.copyOf(selected));
+        return true;
+    }
+
     private static boolean finiteDisplacement(double dx, double dy) {
         if (!Double.isFinite(dx) || !Double.isFinite(dy)) {
             throw new IllegalArgumentException("Deslocamento X/Y deve ser finito.");

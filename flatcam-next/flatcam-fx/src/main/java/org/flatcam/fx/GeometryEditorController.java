@@ -4,6 +4,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.BooleanSupplier;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
@@ -17,10 +18,12 @@ import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.Tooltip;
+import javafx.scene.control.TitledPane;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.geometry.ToolGeometry;
@@ -84,6 +87,7 @@ final class GeometryEditorController {
     private Button cutPathButton;
     private Button bufferButton;
     private Button explodeButton;
+    private Button transformButton;
     private TextField bufferDistance;
     private ComboBox<String> bufferMode;
     private List<Button> editorButtons;
@@ -200,6 +204,7 @@ final class GeometryEditorController {
         cutPathButton = new Button("Cortar Caminho");
         bufferButton = new Button("Criar buffer arredondado");
         explodeButton = new Button("Explodir poligonos");
+        transformButton = new Button("Transformacoes");
         bufferDistance = new TextField();
         bufferDistance.setPromptText("Distancia positiva (unidade do projeto)");
         bufferMode = new ComboBox<>();
@@ -209,7 +214,8 @@ final class GeometryEditorController {
         Button cancelButton = new Button("Cancelar edicao");
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
-                bufferButton, explodeButton, cutPathButton, undoButton, redoButton, applyButton, cancelButton);
+                bufferButton, explodeButton, cutPathButton, transformButton,
+                undoButton, redoButton, applyButton, cancelButton);
         iconize(selectButton, "pointer32.png");
         iconize(pathButton, "path32.png");
         iconize(polygonButton, "polygon32.png");
@@ -230,6 +236,7 @@ final class GeometryEditorController {
         iconize(cutPathButton, "cutpath32.png");
         iconize(bufferButton, "buffer16-2.png");
         iconize(explodeButton, "explode32.png");
+        iconize(transformButton, "transform.png");
         iconize(cancelButton, "power16.png");
         selectButton.setOnAction(event -> startSelection());
         pathButton.setOnAction(event -> startPath());
@@ -251,6 +258,34 @@ final class GeometryEditorController {
         applyButton.setOnAction(event -> apply());
         cancelButton.setOnAction(event -> cancel());
         VBox panel = new VBox(8, new Label("Geometry Editor"), shapeTable, status, instruction);
+        TextField angleField = new TextField("90");
+        angleField.setPrefColumnCount(6);
+        TextField scaleField = new TextField("1.0");
+        scaleField.setPrefColumnCount(6);
+        Button rotate = new Button("Girar");
+        Button scale = new Button("Escalar");
+        Button mirrorHorizontal = new Button("Espelhar horizontal");
+        Button mirrorVertical = new Button("Espelhar vertical");
+        rotate.setOnAction(event -> runTransform("Rotacao aplicada.", () ->
+                session.rotateSelected(parseTransformNumber(angleField, "Angulo"))));
+        scale.setOnAction(event -> runTransform("Escala aplicada.", () ->
+                session.scaleSelected(parseTransformNumber(scaleField, "Escala"))));
+        mirrorHorizontal.setOnAction(event -> runTransform("Espelhamento horizontal aplicado.",
+                () -> session.mirrorSelected(true)));
+        mirrorVertical.setOnAction(event -> runTransform("Espelhamento vertical aplicado.",
+                () -> session.mirrorSelected(false)));
+        for (Button button : List.of(rotate, scale, mirrorHorizontal, mirrorVertical)) {
+            button.disableProperty().bind(transformButton.disableProperty());
+        }
+        VBox transformControls = new VBox(8,
+                new Label("Centro: meio dos limites das formas selecionadas."),
+                new HBox(8, new Label("Graus:"), angleField, rotate),
+                new HBox(8, new Label("Fator:"), scaleField, scale),
+                mirrorHorizontal, mirrorVertical);
+        TitledPane transformsPane = new TitledPane("Transformacoes das selecionadas", transformControls);
+        transformsPane.setExpanded(false);
+        transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
+        panel.getChildren().add(transformsPane);
         if (tools.size() > 1) {
             toolChoice = new ComboBox<>();
             for (int i = 0; i < tools.size(); i++) {
@@ -275,7 +310,7 @@ final class GeometryEditorController {
                 plannedToolButton("Borracha", "eraser26.png"),
                 new Separator(), unionButton, explodeButton, intersectionButton, subtractButton,
                 new Separator(), cutPathButton,
-                copyButton, deleteButton, plannedToolButton("Transformacoes", "transform.png"), moveButton,
+                copyButton, deleteButton, transformButton, moveButton,
                 new Separator(), undoButton, redoButton, applyButton, cancelButton);
         if (toolChoice != null) {
             toolbar.getItems().addAll(new Separator(), toolChoice);
@@ -296,6 +331,33 @@ final class GeometryEditorController {
         button.setText(null);
         button.setGraphic(host.icon(icon));
         button.setTooltip(new Tooltip(label));
+    }
+
+    private double parseTransformNumber(TextField field, String name) {
+        try {
+            return Double.parseDouble(field.getText().trim().replace(',', '.'));
+        } catch (NumberFormatException error) {
+            throw new IllegalArgumentException(name + " deve ser numerico.");
+        }
+    }
+
+    private void runTransform(String success, BooleanSupplier operation) {
+        if (!readyForTool()) return;
+        if (session.selectedCount() == 0) {
+            instruction.setText("Selecione ao menos uma forma para transformar.");
+            return;
+        }
+        plotArea.cancelPlacement();
+        try {
+            if (operation.getAsBoolean()) {
+                refreshGeometry();
+                instruction.setText(success + " Ctrl+Z desfaz.");
+            } else {
+                instruction.setText("Nenhuma transformacao aplicada.");
+            }
+        } catch (IllegalArgumentException error) {
+            instruction.setText(error.getMessage());
+        }
     }
 
     private Button plannedToolButton(String label, String icon) {
@@ -745,6 +807,7 @@ final class GeometryEditorController {
         cutPathButton.setDisable(session.selectedCount() < 2);
         bufferButton.setDisable(session.selectedCount() == 0);
         explodeButton.setDisable(session.selectedCount() == 0);
+        transformButton.setDisable(session.selectedCount() == 0);
         if (busy) {
             editorButtons.forEach(button -> button.setDisable(true));
         }
@@ -783,6 +846,7 @@ final class GeometryEditorController {
         cutPathButton = null;
         bufferButton = null;
         explodeButton = null;
+        transformButton = null;
         bufferDistance = null;
         bufferMode = null;
         editorButtons = null;
