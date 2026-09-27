@@ -3860,9 +3860,9 @@ final class MainWindow {
         });
     }
 
-    /** Same shape as {@link #buildGerberPropertiesPanel}, minus isolation, plus drilling G-code - see ObjectUI.py's ExcellonObjectUI. */
+    /** ExcellonObjectUI's Basic layout: editor, properties, tool totals, actions, utilities and transforms. */
     private Node buildExcellonPropertiesPanel(TreeItem<String> item, ExcellonImage image) {
-        VBox box = objectPropertiesHeader("Excellon Object", DRILL_FILL);
+        VBox box = objectPropertiesHeader("Excellon Object", DRILL_FILL, "drill32.png");
 
         CheckBox solidCb = new CheckBox("Solid");
         solidCb.setSelected(plotAreaView.isLayerFilled(item));
@@ -3874,12 +3874,8 @@ final class MainWindow {
 
         box.getChildren().add(nameRow(item));
 
-        CheckBox plotCb = new CheckBox();
-        plotCb.setSelected(plotAreaView.isLayerVisible(item));
-        plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
-        box.getChildren().add(labeledRow("Plot:", plotCb));
-
-        Button editButton = new Button("Editar furos e slots...");
+        Button editButton = new Button("Excellon Editor");
+        editButton.setGraphic(legacyIcon("edit_file32.png", 18));
         editButton.setMaxWidth(Double.MAX_VALUE);
         editButton.setOnAction(e -> {
             selectProjectItem(item);
@@ -3887,24 +3883,55 @@ final class MainWindow {
         });
         box.getChildren().add(editButton);
 
-        Button gcodeButton = new Button("Gerar G-code de furacao...");
-        gcodeButton.setMaxWidth(Double.MAX_VALUE);
-        gcodeButton.setOnAction(e -> generateDrillGCode(item, image));
-        box.getChildren().add(gcodeButton);
-
-        // Read-only per-tool breakdown - ObjectUI.py's tools_table, minus the per-tool
-        // "P" plot-visibility checkbox (needs per-tool sub-layers our renderer doesn't
-        // have yet) and the milling-conversion buttons (no milling tool ported yet).
-        box.getChildren().add(new Label("Tools Table:"));
-        box.getChildren().add(DrillGCodeToolPanel.buildToolsTableView(image));
-
-        box.getChildren().add(new Label("Transformations:"));
-        box.getChildren().add(transformationsSection(item));
-
         box.getChildren().add(propertiesSection(String.format(
                 "Unidades: %s%nFuros totais: %d%nSlots totais: %d%nBounds: %s",
                 image.units(), image.totalDrills(), image.totalSlots(), Arrays.toString(image.bounds())
         )));
+
+        CheckBox plotCb = new CheckBox("Plot");
+        plotCb.setSelected(plotAreaView.isLayerVisible(item));
+        plotCb.setTooltip(new Tooltip("Exibe ou oculta este objeto Excellon no desenho."));
+        plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
+        Label tableLabel = new Label("Tools Table");
+        tableLabel.setStyle("-fx-font-weight: bold;");
+        Region tableHeaderSpacer = new Region();
+        HBox.setHgrow(tableHeaderSpacer, Priority.ALWAYS);
+        HBox tableHeader = new HBox(8, tableLabel, tableHeaderSpacer, plotCb);
+        tableHeader.setAlignment(Pos.CENTER_LEFT);
+        box.getChildren().add(tableHeader);
+        box.getChildren().add(ExcellonObjectToolsTable.build(image));
+
+        box.getChildren().add(new Separator());
+        Label toolsLabel = new Label("TOOLS");
+        toolsLabel.setStyle("-fx-font-weight: bold;");
+        box.getChildren().add(toolsLabel);
+
+        Button gcodeButton = new Button("Drilling Tool");
+        gcodeButton.setGraphic(legacyIcon("drilling_tool32.png", 18));
+        gcodeButton.setMaxWidth(Double.MAX_VALUE);
+        gcodeButton.setOnAction(e -> generateDrillGCode(item, image));
+        box.getChildren().add(gcodeButton);
+
+        Button millingButton = new Button("Milling Tool");
+        millingButton.setGraphic(legacyIcon("milling_tool32.png", 18));
+        millingButton.setMaxWidth(Double.MAX_VALUE);
+        millingButton.setDisable(true);
+        millingButton.setTooltip(new Tooltip("Ferramenta de fresagem de furos/slots ainda nao implementada no FX."));
+        box.getChildren().add(millingButton);
+
+        VBox utilitiesContent = new VBox(8);
+        utilitiesContent.setPadding(new Insets(8));
+        Label utilitiesNote = new Label("Mill Drills e Mill Slots ainda nao estao disponiveis no FX.");
+        utilitiesNote.setWrapText(true);
+        utilitiesContent.getChildren().add(utilitiesNote);
+        TitledPane utilities = new TitledPane("UTILITIES", utilitiesContent);
+        utilities.setGraphic(legacyIcon("settings18.png", 18));
+        utilities.setExpanded(false);
+        box.getChildren().add(new Separator());
+        box.getChildren().add(utilities);
+
+        box.getChildren().add(new Label("Transformations"));
+        box.getChildren().add(transformationsSection(item));
         return box;
     }
 
