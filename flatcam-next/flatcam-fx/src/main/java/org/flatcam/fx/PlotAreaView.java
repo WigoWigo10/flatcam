@@ -111,7 +111,7 @@ final class PlotAreaView extends StackPane {
     }
 
     enum TwoPointShape {
-        RECTANGLE, CIRCLE
+        RECTANGLE, CIRCLE, SLOT
     }
 
     record SelectableLayer(Object key, Geometry geometry) {
@@ -640,11 +640,16 @@ final class PlotAreaView extends StackPane {
     }
 
     boolean beginEditorTwoPointPlacement(TwoPointShape shape, PlacementHandler handler) {
+        return beginEditorTwoPointPlacement(shape, 0, handler);
+    }
+
+    boolean beginEditorTwoPointPlacement(TwoPointShape shape, double strokeWidth, PlacementHandler handler) {
         if (selectionHandler == null || shape == null || handler == null
                 || !startPlacement(List.of(), List.of(), 0, 0, false, handler)) {
             return false;
         }
         placementTwoPointShape = shape;
+        placementTrackWidth = strokeWidth;
         redraw();
         return true;
     }
@@ -1148,6 +1153,10 @@ final class PlotAreaView extends StackPane {
                 double height = Math.abs(secondY - firstY);
                 gc.fillRect(x, y, width, height);
                 gc.strokeRect(x, y, width, height);
+            } else if (placementTwoPointShape == TwoPointShape.SLOT) {
+                gc.setLineCap(StrokeLineCap.ROUND);
+                gc.setLineWidth(Math.max(1.5, placementTrackWidth * scale));
+                gc.strokeLine(firstX, firstY, secondX, secondY);
             } else {
                 double radius = Math.hypot(secondX - firstX, secondY - firstY);
                 gc.fillOval(firstX - radius, firstY - radius, radius * 2, radius * 2);

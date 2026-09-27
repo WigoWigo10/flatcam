@@ -78,6 +78,27 @@ class GeometryEditSessionTest {
     }
 
     @Test
+    void cutPathSplitsFirstSelectedLineAndKeepsCutter() {
+        Geometry target = FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(10, 0)});
+        Geometry cutter = rectangle(4, -1, 6, 1);
+        GeometryEditSession session = new GeometryEditSession(FACTORY.buildGeometry(List.of(target, cutter)),
+                List.of());
+        session.selectIndices(List.of(0, 1));
+
+        executeAndApply(session, GeometryEditSession.Operation.CUT_PATH, 0);
+
+        assertEquals(3, session.shapeCount());
+        assertTrue(session.resultGeometry().getGeometryN(0).equalsTopo(cutter));
+        assertEquals(8, session.resultGeometry().getGeometryN(1).getLength()
+                + session.resultGeometry().getGeometryN(2).getLength(), 1e-9);
+        assertTrue(session.undo());
+        assertEquals(2, session.shapeCount());
+        assertTrue(session.redo());
+        assertEquals(3, session.shapeCount());
+    }
+
+    @Test
     void booleanOperationsUseSelectionOrderAndSupportUndoRedo() {
         GeometryEditSession union = overlappingRectangles();
         executeAndApply(union, GeometryEditSession.Operation.UNION, 0);

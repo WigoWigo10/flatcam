@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.excellon.ExcellonEditSession;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.ApertureKind;
@@ -36,6 +37,27 @@ class ProjectFileIOTest {
 
     private static final ExcellonImage DRILL_EXCELLON = new ExcellonParser().parse(List.of(
             "M48", "METRIC", "T1C1.0", "%", "T1", "X1.0Y1.0", "X3.0Y1.0G85X5.0Y1.0", "M30"));
+
+    @Test
+    void roundTripsExcellonEditorChanges() throws IOException {
+        ExcellonEditSession edit = new ExcellonEditSession(DRILL_EXCELLON);
+        edit.clickSelect(1, 1, 0, false);
+        assertTrue(edit.deleteSelected());
+        edit.addDrill(1, 8, 9);
+        edit.addSlot(1, 10, 11, 12, 13);
+        Path file = tempDir.resolve("edited-excellon.fcnproj");
+        ProjectFile.ExcellonEntry entry = new ProjectFile.ExcellonEntry("edited.drl", edit.resultImage(),
+                null, null, true, true, false);
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(entry), List.of()), file);
+        ExcellonImage loaded = ProjectFileIO.load(file).excellons().get(0).image();
+
+        assertEquals(1, loaded.totalDrills());
+        assertEquals(2, loaded.totalSlots());
+        assertEquals(8, loaded.drills().get(0).x(), 1e-9);
+        assertEquals(9, loaded.drills().get(0).y(), 1e-9);
+        assertEquals(12, loaded.slots().get(1).x2(), 1e-9);
+        assertFalse(loaded.solidGeometry().isEmpty());
+    }
 
     @Test
     void roundTripsEditedGeometryAndToolAssignments() throws IOException {

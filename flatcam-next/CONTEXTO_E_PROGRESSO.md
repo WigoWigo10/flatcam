@@ -18,6 +18,16 @@ e continuar a migração sem recomeçar a investigação.
 > confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de
 > passagem, não substitui o código como fonte final da verdade.
 
+> Atualização incremental de 2026-09-27: Editor Excellon funcional para
+> seleção visual/tabela de IDs, furos, slots, mover, copiar, excluir,
+> desfazer/refazer e persistência em `.fcnproj`. Isolation agora aceita
+> múltiplos diâmetros separados por `;` com Rest Machining (maior para menor),
+> resultados combinados com associação por ferramenta ou separados por
+> ferramenta/passe. Geometry Editor acrescentou Cortar Caminho e arco por três
+> pontos. Ainda faltam testes visuais com projetos reais e outros controles
+> avançados do Python; as tabelas históricas abaixo devem ser lidas junto
+> desta atualização.
+
 ## 1. Objetivo do projeto
 
 O FlatCAM FX é uma reimplementação gradual do FlatCAM Python/PyQt5 em
@@ -920,7 +930,7 @@ selecao da tabela e do desenho e sincronizada nos dois sentidos, inclusive
 para Delete. As ferramentas agora ficam em uma barra superior dedicada, que
 substitui a barra geral de ferramentas enquanto o editor esta aberto. O menu
 de topo "Geo Editor" so aparece durante a edicao. Funcoes ainda nao portadas
-(arco, texto, paint, borracha, cortar caminho, transformacoes) aparecem
+(texto, paint, borracha, transformacoes) aparecem
 desabilitadas na barra, sem sugerir que ja funcionam. A escolha de ferramenta
 de corte aparece na barra apenas para Geometry multi-tool.
 
@@ -959,7 +969,7 @@ Buffer calculam em background, com cancelamento pelo controle geral da tarefa;
 em erro ou cancelamento, o rascunho permanece intacto. Durante o calculo, o
 editor bloqueia outras alteracoes. O menu Editor Geometry aciona essas funcoes.
 
-Ainda faltam arco, texto, paint, borracha, cortar caminho e transformacoes,
+Ainda faltam texto, paint, borracha e transformacoes,
 teste manual com arquivos reais grandes e perfilamento da renderização inicial
 de Geometry muito extensa. A persistência `_java.geometries` é do FX e não
 garante abertura de objetos Geometry no FlatCAM Python. A opção legada de

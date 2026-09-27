@@ -32,14 +32,15 @@ public final class GeometryEditSession {
     }
 
     public enum Operation {
-        UNION, INTERSECTION, SUBTRACT, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR
+        UNION, INTERSECTION, SUBTRACT, CUT_PATH, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR
     }
 
     public record ToolPart(Geometry geometry, int toolIndex) {
     }
 
     public record OperationResult(long revision, List<Integer> selectedIndices,
-                                  boolean replaceSelected, List<ToolPart> resultParts) {
+                                  boolean replaceSelected, boolean keepCutters,
+                                  List<ToolPart> resultParts) {
         public OperationResult {
             selectedIndices = List.copyOf(selectedIndices);
             resultParts = List.copyOf(resultParts);
@@ -60,7 +61,7 @@ public final class GeometryEditSession {
             progress.report(0.05);
             List<ToolPart> outputs = new ArrayList<>();
             boolean replace = operation == Operation.UNION || operation == Operation.INTERSECTION
-                    || operation == Operation.SUBTRACT;
+                    || operation == Operation.SUBTRACT || operation == Operation.CUT_PATH;
             if (replace) {
                 List<Geometry> geometries = inputs.stream().map(ToolPart::geometry).toList();
                 Geometry combined = switch (operation) {
@@ -79,13 +80,20 @@ public final class GeometryEditSession {
                     }
                     case SUBTRACT -> geometries.get(0).difference(
                             UnaryUnionOp.union(geometries.subList(1, geometries.size())));
+                    case CUT_PATH -> {
+                        Geometry target = geometries.get(0);
+                        Geometry path = target instanceof Polygon ? target.getBoundary() : target;
+                        yield path.difference(UnaryUnionOp.union(geometries.subList(1, geometries.size())));
+                    }
                     default -> throw new IllegalStateException("Operacao booleana desconhecida.");
                 };
                 cancellation.throwIfCancellationRequested();
-                if (combined == null || combined.isEmpty() || combined.getDimension() < 1) {
+                if (operation != Operation.CUT_PATH
+                        && (combined == null || combined.isEmpty() || combined.getDimension() < 1)) {
                     throw new IllegalArgumentException("A operacao nao gerou linhas ou areas editaveis.");
                 }
-                flattenToolParts(combined, inputs.get(0).toolIndex(), outputs, cancellation);
+                if (combined != null && !combined.isEmpty())
+                    flattenToolParts(combined, inputs.get(0).toolIndex(), outputs, cancellation);
             } else {
                 BufferParameters parameters = new BufferParameters(16, BufferParameters.CAP_ROUND,
                         BufferParameters.JOIN_ROUND, BufferParameters.DEFAULT_MITRE_LIMIT);
@@ -114,7 +122,8 @@ public final class GeometryEditSession {
             }
             cancellation.throwIfCancellationRequested();
             progress.report(1);
-            return new OperationResult(revision, selectedIndices, replace, List.copyOf(outputs));
+            return new OperationResult(revision, selectedIndices, replace,
+                    operation == Operation.CUT_PATH, List.copyOf(outputs));
         }
 
         private static void flattenToolParts(Geometry geometry, int toolIndex, List<ToolPart> outputs,
@@ -294,7 +303,7 @@ public final class GeometryEditSession {
     public OperationRequest prepareOperation(Operation operation, double distance) {
         Objects.requireNonNull(operation);
         boolean booleanOperation = operation == Operation.UNION || operation == Operation.INTERSECTION
-                || operation == Operation.SUBTRACT;
+                || operation == Operation.SUBTRACT || operation == Operation.CUT_PATH;
         if (selected.size() < (booleanOperation ? 2 : 1)) {
             throw new IllegalArgumentException(booleanOperation
                     ? "Selecione ao menos duas formas." : "Selecione ao menos uma forma.");
@@ -305,9 +314,14 @@ public final class GeometryEditSession {
         List<Integer> indices = List.copyOf(selected);
         List<ToolPart> inputs = new ArrayList<>(indices.size());
         int firstTool = parts.get(indices.get(0)).toolIndex();
+        if (operation == Operation.CUT_PATH) {
+            Geometry target = parts.get(indices.get(0)).geometry();
+            if (!(target instanceof Polygon) && target.getDimension() != 1)
+                throw new IllegalArgumentException("Cortar Caminho exige uma linha ou poligono como primeira forma.");
+        }
         for (int index : indices) {
             Part part = parts.get(index);
-            if (booleanOperation && part.toolIndex() != firstTool) {
+            if (booleanOperation && operation != Operation.CUT_PATH && part.toolIndex() != firstTool) {
                 throw new IllegalArgumentException("Selecione formas da mesma ferramenta para esta operacao.");
             }
             if ((operation == Operation.BUFFER_INTERIOR || operation == Operation.BUFFER_EXTERIOR)
@@ -327,7 +341,8 @@ public final class GeometryEditSession {
         }
         List<Part> updated = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
-            if (!result.replaceSelected() || !selected.contains(i)) {
+            if (!result.replaceSelected() || !selected.contains(i)
+                    || (result.keepCutters() && i != result.selectedIndices().get(0))) {
                 updated.add(parts.get(i));
             }
         }

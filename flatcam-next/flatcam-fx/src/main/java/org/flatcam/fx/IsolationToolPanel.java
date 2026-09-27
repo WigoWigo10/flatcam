@@ -38,7 +38,8 @@ final class IsolationToolPanel {
         }
     }
 
-    record Result(IsolationParameters geometryParams, boolean combinePasses, boolean follow,
+    record Result(IsolationParameters geometryParams, List<Double> toolDiameters,
+                  boolean restMachining, boolean combinePasses, boolean follow,
                   Geometry exceptionMask) {
     }
 
@@ -55,6 +56,7 @@ final class IsolationToolPanel {
         boolean metric = "MM".equals(units);
 
         TextField toolDiaField = new TextField(metric ? "0.2" : "0.008");
+        toolDiaField.setPromptText("Ex.: 0.4; 0.2; 0.1");
         TextField passesField = new TextField("1");
         TextField overlapField = new TextField("15");
         ComboBox<IsolationType> typeCombo = new ComboBox<>();
@@ -62,6 +64,8 @@ final class IsolationToolPanel {
         typeCombo.setValue(IsolationType.BOTH);
         CheckBox combinePasses = new CheckBox("Combinar passes em uma Geometry");
         combinePasses.setSelected(true);
+        CheckBox restMachining = new CheckBox("Rest Machining: ferramentas maior para menor");
+        restMachining.setWrapText(true);
         CheckBox follow = new CheckBox("Follow: seguir centros de trilhas e pads sem afastamento");
         follow.setWrapText(true);
         follow.selectedProperty().addListener((observable, oldValue, selected) -> {
@@ -69,6 +73,7 @@ final class IsolationToolPanel {
             overlapField.setDisable(selected);
             typeCombo.setDisable(selected);
             combinePasses.setDisable(selected);
+            restMachining.setDisable(selected);
         });
         ComboBox<ExceptionArea> exceptionCombo = new ComboBox<>();
         ExceptionArea none = new ExceptionArea("Nenhuma", null);
@@ -120,7 +125,7 @@ final class IsolationToolPanel {
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
-        grid.addRow(0, new Label("Diametro da ferramenta:"), toolDiaField);
+        grid.addRow(0, new Label("Diametro(s), separados por ;:"), toolDiaField);
         grid.addRow(1, new Label("Numero de passes:"), passesField);
         grid.addRow(2, new Label("Sobreposicao entre passes (%):"), overlapField);
         grid.addRow(3, new Label("Aneis a manter:"), typeCombo);
@@ -132,7 +137,7 @@ final class IsolationToolPanel {
         generateButton.setOnAction(e -> {
             try {
                 Result result = parseResult(toolDiaField, passesField, overlapField, typeCombo,
-                        combinePasses.isSelected(), follow.isSelected(),
+                        restMachining.isSelected(), combinePasses.isSelected(), follow.isSelected(),
                         drawnMask[0] != null ? drawnMask[0] : exceptionCombo.getValue().geometry());
                 errorLabel.setText("");
                 onGenerate.accept(result);
@@ -148,7 +153,7 @@ final class IsolationToolPanel {
         VBox box = new VBox(10,
                 new Label("Parametros (unidades do arquivo: " + units + ")"),
                 grid, rectangleButton, polygonButton, clearAreaButton, areaStatus,
-                combinePasses, follow, workflowNote,
+                combinePasses, restMachining, follow, workflowNote,
                 errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
@@ -156,9 +161,18 @@ final class IsolationToolPanel {
 
     private static Result parseResult(
             TextField toolDiaField, TextField passesField, TextField overlapField,
-            ComboBox<IsolationType> typeCombo, boolean combinePasses, boolean follow,
+            ComboBox<IsolationType> typeCombo, boolean restMachining, boolean combinePasses, boolean follow,
             Geometry exceptionMask) {
-        double toolDia = parseDouble(toolDiaField.getText(), "Diametro da ferramenta");
+        List<Double> diameters = java.util.Arrays.stream(toolDiaField.getText().split(";"))
+                .map(value -> parseDouble(value, "Diametro da ferramenta"))
+                .toList();
+        if (diameters.isEmpty() || diameters.stream().distinct().count() != diameters.size()) {
+            throw new IllegalArgumentException("Informe diametros distintos separados por ponto e virgula.");
+        }
+        if (!restMachining && diameters.size() > 1) {
+            throw new IllegalArgumentException("Ative Rest Machining para usar varias ferramentas.");
+        }
+        double toolDia = diameters.get(0);
         double rawPasses = parseDouble(passesField.getText(), "Numero de passes");
         if (!Double.isFinite(rawPasses) || rawPasses != Math.rint(rawPasses)
                 || rawPasses < 1 || rawPasses > Integer.MAX_VALUE) {
@@ -170,7 +184,10 @@ final class IsolationToolPanel {
 
         IsolationParameters geometryParams = new IsolationParameters(toolDia, passes, overlapPercent / 100.0, type);
 
-        return new Result(geometryParams, combinePasses, follow, exceptionMask);
+        for (double diameter : diameters) {
+            new IsolationParameters(diameter, passes, overlapPercent / 100.0, type);
+        }
+        return new Result(geometryParams, diameters, restMachining, combinePasses, follow, exceptionMask);
     }
 
     private static double parseDouble(String text, String fieldName) {

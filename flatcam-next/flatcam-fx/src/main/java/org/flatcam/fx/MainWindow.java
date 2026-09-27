@@ -92,6 +92,7 @@ import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.isolation.IsolationGenerator;
+import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.flatcam.cam.ncc.NccGenerator;
 import org.flatcam.cam.ncc.NccOperation;
@@ -298,6 +299,32 @@ final class MainWindow {
                 public void log(String message) {
                     appendConsole(message);
                 }
+            });
+
+    private final ExcellonEditorController excellonEditor = new ExcellonEditorController(plotAreaView,
+            new ExcellonEditorController.Host() {
+                @Override public void openToolPanel(String label, Node content) {
+                    MainWindow.this.openToolPanel(label, content);
+                }
+                @Override public void closeToolPanel() { MainWindow.this.closeToolPanel(); }
+                @Override public void showToolbar(Node toolbar) {
+                    topBars.getChildren().set(2, toolbar);
+                    excellonEditorMenu.setVisible(true);
+                }
+                @Override public void hideToolbar() {
+                    topBars.getChildren().set(2, regularToolsToolbar);
+                    excellonEditorMenu.setVisible(false);
+                }
+                @Override public void setObjectVisible(TreeItem<String> item, boolean visible) {
+                    MainWindow.this.setObjectVisible(item, visible);
+                }
+                @Override public void apply(TreeItem<String> item, ExcellonImage image) {
+                    excellonByItem.put(item, image);
+                    plotAreaView.updateLayerGeometry(item, image.solidGeometry());
+                    showProperties(item);
+                }
+                @Override public Node icon(String fileName) { return legacyIcon(fileName, 18); }
+                @Override public void log(String message) { appendConsole(message); }
             });
 
     private final GCodeEditorController gcodeEditor = new GCodeEditorController(centerTabs,
@@ -540,6 +567,7 @@ final class MainWindow {
     private VBox topBars;
     private ToolBar regularToolsToolbar;
     private Menu geometryEditorMenu;
+    private Menu excellonEditorMenu;
     private double dividerBeforeConsoleCollapse = 0.75;
     /** Set by MainApp (initially, and again after each DPI-rescale Stage recreation) - see setCurrentScreenId. */
     private String currentScreenId = "default";
@@ -575,13 +603,14 @@ final class MainWindow {
             if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
                 event.consume();
-            } else if (geometryEditor.isActive() && event.getCode() == KeyCode.DELETE
+            } else if ((geometryEditor.isActive() || excellonEditor.isActive()) && event.getCode() == KeyCode.DELETE
                     && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
                     && !isTextInputTarget(event.getTarget())) {
                 // While Geometry is being edited, Delete targets shapes even if a sidebar button
                 // has focus. Consume it with no selection too: the project tree must not remove
                 // the entire object while the editor is open.
-                geometryEditor.deleteFromShortcut();
+                if (excellonEditor.isActive()) excellonEditor.deleteFromShortcut();
+                else geometryEditor.deleteFromShortcut();
                 event.consume();
             } else if (plotAreaView.isTrackPlacementActive() && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
@@ -611,10 +640,12 @@ final class MainWindow {
                     && !isTextInputTarget(event.getTarget())) {
                 boolean handled = false;
                 if (event.getCode() == KeyCode.Z) {
-                    handled = geometryEditor.isActive() ? geometryEditor.undoFromShortcut()
+                    handled = excellonEditor.isActive() ? excellonEditor.undoFromShortcut()
+                            : geometryEditor.isActive() ? geometryEditor.undoFromShortcut()
                             : plotAreaView.isEditorActive() ? gerberEditor.undoFromShortcut() : undoPlotMove();
                 } else if (event.getCode() == KeyCode.Y) {
-                    handled = geometryEditor.isActive() ? geometryEditor.redoFromShortcut()
+                    handled = excellonEditor.isActive() ? excellonEditor.redoFromShortcut()
+                            : geometryEditor.isActive() ? geometryEditor.redoFromShortcut()
                             : plotAreaView.isEditorActive() ? gerberEditor.redoFromShortcut() : redoPlotMove();
                 }
                 if (handled) {
@@ -826,7 +857,7 @@ final class MainWindow {
     }
 
     private void editSelectedGerber() {
-        if (gcodeEditor.isActive() || geometryEditor.isActive()) {
+        if (gcodeEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive()) {
             appendConsole("Conclua ou cancele o editor atual antes de abrir outro editor.");
             return;
         }
@@ -845,13 +876,29 @@ final class MainWindow {
             editSelectedGCode();
         } else if (geometryByItem.containsKey(item)) {
             editSelectedGeometry();
+        } else if (excellonByItem.containsKey(item)) {
+            editSelectedExcellon();
         } else {
             editSelectedGerber();
         }
     }
 
+    private void editSelectedExcellon() {
+        if (gerberEditor.isActive() || geometryEditor.isActive() || gcodeEditor.isActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor Excellon.");
+            return;
+        }
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        ExcellonImage image = excellonByItem.get(item);
+        if (image == null) {
+            appendConsole("Selecione um objeto Excellon para editar.");
+            return;
+        }
+        excellonEditor.start(item, image);
+    }
+
     private void editSelectedGeometry() {
-        if (gerberEditor.isActive() || gcodeEditor.isActive()) {
+        if (gerberEditor.isActive() || gcodeEditor.isActive() || excellonEditor.isActive()) {
             appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor Geometry.");
             return;
         }
@@ -865,7 +912,7 @@ final class MainWindow {
     }
 
     private void editSelectedGCode() {
-        if (gerberEditor.isActive() || geometryEditor.isActive()) {
+        if (gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive()) {
             appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor G-Code.");
             return;
         }
@@ -883,6 +930,8 @@ final class MainWindow {
             gcodeEditor.saveAndClose();
         } else if (geometryEditor.isActive()) {
             geometryEditor.apply();
+        } else if (excellonEditor.isActive()) {
+            excellonEditor.apply();
         } else if (gerberEditor.isActive()) {
             gerberEditor.saveAndClose();
         } else {
@@ -997,8 +1046,25 @@ final class MainWindow {
                 case "union" -> geometryEditor::startUnion;
                 case "intersection" -> geometryEditor::startIntersection;
                 case "subtract" -> geometryEditor::startSubtract;
+                case "cut_path" -> geometryEditor::startCutPath;
                 case "buffer" -> geometryEditor::startBuffer;
                 case "explode" -> geometryEditor::explode;
+                default -> null;
+            };
+            menu.getItems().add(action == null ? plannedItem(command.label(), command.icon())
+                    : chromeItem(command.label(), command.icon(), action));
+        }
+    }
+
+    private void addExcellonEditorCommands(Menu menu) {
+        for (LegacyUiManifest.Command command : LegacyUiManifest.EXCELLON_EDITOR) {
+            Runnable action = switch (command.id()) {
+                case "select" -> excellonEditor::startSelection;
+                case "drill" -> excellonEditor::startDrill;
+                case "slot" -> excellonEditor::startSlot;
+                case "copy" -> () -> excellonEditor.startMoveOrCopy(true);
+                case "delete" -> excellonEditor::deleteFromShortcut;
+                case "move" -> () -> excellonEditor.startMoveOrCopy(false);
                 default -> null;
             };
             menu.getItems().add(action == null ? plannedItem(command.label(), command.icon())
@@ -1066,9 +1132,10 @@ final class MainWindow {
                 plannedItem("Objeto → Excellon", "drill32.png"));
         Menu editorToolsMenu = new Menu("Ferramentas dos editores");
         setLegacyMenuIcon(editorToolsMenu, "edit_file32.png");
-        Menu excellonEditorMenu = new Menu("Editor Excellon");
+        excellonEditorMenu = new Menu("Editor Excellon");
         setLegacyMenuIcon(excellonEditorMenu, "drill32.png");
-        addPlannedCommands(excellonEditorMenu, LegacyUiManifest.EXCELLON_EDITOR);
+        addExcellonEditorCommands(excellonEditorMenu);
+        excellonEditorMenu.setVisible(false);
         geometryEditorMenu = new Menu("Geo Editor");
         setLegacyMenuIcon(geometryEditorMenu, "geometry32.png");
         addGeometryEditorCommands(geometryEditorMenu);
@@ -2420,6 +2487,13 @@ final class MainWindow {
 
         Menu colorMenu = buildLayerColorMenu(item, DRILL_FILL, DRILL_STROKE);
 
+        MenuItem editItem = new MenuItem("Editar Excellon");
+        setLegacyMenuIcon(editItem, "edit_file32.png");
+        editItem.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedExcellon();
+        });
+
         MenuItem gcodeItem = new MenuItem("Criar CNC Job...");
         setLegacyMenuIcon(gcodeItem, "cnc32.png");
         gcodeItem.setOnAction(e -> generateDrillGCode(item, image));
@@ -2448,7 +2522,7 @@ final class MainWindow {
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
         return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
-                new SeparatorMenuItem(), gcodeItem, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
+                new SeparatorMenuItem(), editItem, gcodeItem, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
 
@@ -2994,18 +3068,32 @@ final class MainWindow {
         }
 
         beginJob("Gerando Geometry de isolamento...");
-        JobHandle<IsolationResult> handle = jobExecutor.submit(context -> {
+        JobHandle<List<IsolationGenerator.ToolResult>> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de isolamento...");
-            IsolationResult isolation = params.follow()
-                    ? IsolationGenerator.generateFollow(image.units(), image.followGeometry(), context::isCancelled)
-                    : IsolationGenerator.generate(image.units(), image.solidGeometry(),
-                            params.geometryParams(), context::isCancelled);
+            List<IsolationGenerator.ToolResult> results;
+            if (params.restMachining() && !params.follow()) {
+                List<IsolationParameters> tools = params.toolDiameters().stream()
+                        .map(diameter -> new IsolationParameters(diameter,
+                                params.geometryParams().passes(), params.geometryParams().overlapFraction(),
+                                params.geometryParams().type()))
+                        .toList();
+                results = IsolationGenerator.generateRest(image.units(), image.solidGeometry(),
+                        tools, context::isCancelled);
+            } else {
+                IsolationResult isolation = params.follow()
+                        ? IsolationGenerator.generateFollow(image.units(), image.followGeometry(), context::isCancelled)
+                        : IsolationGenerator.generate(image.units(), image.solidGeometry(),
+                                params.geometryParams(), context::isCancelled);
+                results = List.of(new IsolationGenerator.ToolResult(params.geometryParams(), isolation));
+            }
             if (params.exceptionMask() != null) {
-                isolation = IsolationGenerator.excludeArea(isolation, params.exceptionMask(), context::isCancelled);
+                results = results.stream().map(result -> new IsolationGenerator.ToolResult(result.parameters(),
+                        IsolationGenerator.excludeArea(result.isolation(), params.exceptionMask(),
+                                context::isCancelled), result.remainingCopperCount())).toList();
             }
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de isolamento...");
-            return isolation;
+            return results;
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -3013,12 +3101,16 @@ final class MainWindow {
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(isolation -> Platform.runLater(() -> {
+                .thenAccept(results -> Platform.runLater(() -> {
                     if (gerberByItem.get(item) != image) {
                         appendConsole("O Gerber de origem foi removido; Geometry de isolamento descartada.");
                         setStatus("Origem removida.", ERROR_COLOR);
-                    } else if (isolation.isEmpty()) {
+                    } else if (results.stream().allMatch(result -> result.isolation().isEmpty())) {
                         appendConsole("Isolation nao gerou caminhos (origem vazia ou area de excecao cobriu tudo).");
+                        if (params.restMachining() && results.get(results.size() - 1).remainingCopperCount() > 0) {
+                            appendConsole("Aviso: " + results.get(results.size() - 1).remainingCopperCount()
+                                    + " regioes de cobre nao foram isoladas por nenhuma ferramenta selecionada.");
+                        }
                         setStatus("Sem caminhos.", ERROR_COLOR);
                     } else {
                         String suffix = params.follow() ? "_follow" : switch (params.geometryParams().type()) {
@@ -3026,26 +3118,48 @@ final class MainWindow {
                             case INTERIOR -> "_int_iso";
                             case BOTH -> "_iso";
                         };
-                        List<Geometry> outputs = params.combinePasses()
-                                ? List.of(isolation.geometry()) : isolation.passGeometries();
                         TreeItem<String> lastGenerated = null;
                         int created = 0;
-                        for (int pass = 0; pass < outputs.size(); pass++) {
-                            Geometry path = outputs.get(pass);
-                            if (path.isEmpty()) {
-                                continue;
-                            }
-                            String passSuffix = !params.combinePasses() && outputs.size() > 1
-                                    ? suffix + (pass + 1) : suffix;
-                            String name = uniqueDerivedName(item.getValue() + passSuffix);
-                            lastGenerated = addGeometryToProject(name, item.getValue(), image.units(), path, true,
-                                    List.of(new ToolGeometry(params.geometryParams().toolDiameter(), path)));
+                        if (params.combinePasses()) {
+                            List<ToolGeometry> tools = results.stream()
+                                    .filter(result -> !result.isolation().isEmpty())
+                                    .map(result -> new ToolGeometry(result.parameters().toolDiameter(),
+                                            result.isolation().geometry())).toList();
+                            Geometry combined = image.solidGeometry().getFactory().buildGeometry(
+                                    tools.stream().map(ToolGeometry::geometry).toList());
+                            String name = uniqueDerivedName(item.getValue()
+                                    + (params.restMachining() ? "_iso_rest" : suffix));
+                            lastGenerated = addGeometryToProject(name, item.getValue(), image.units(), combined,
+                                    true, tools);
                             created++;
+                        } else {
+                            for (IsolationGenerator.ToolResult result : results) {
+                                List<Geometry> outputs = result.isolation().passGeometries();
+                                for (int pass = 0; pass < outputs.size(); pass++) {
+                                    Geometry path = outputs.get(pass);
+                                    if (path.isEmpty()) continue;
+                                    String toolSuffix = params.restMachining()
+                                            ? "_" + result.parameters().toolDiameter() : "";
+                                    String passSuffix = outputs.size() > 1 ? "_p" + (pass + 1) : "";
+                                    String name = uniqueDerivedName(item.getValue() + suffix + toolSuffix
+                                            + passSuffix);
+                                    lastGenerated = addGeometryToProject(name, item.getValue(), image.units(), path,
+                                            true, List.of(new ToolGeometry(result.parameters().toolDiameter(), path)));
+                                    created++;
+                                }
+                            }
                         }
                         appendConsole(String.format("Isolation: %d elementos, comprimento total=%.4f, bounds=%s",
-                                isolation.ringCount(), isolation.totalLength(), Arrays.toString(isolation.bounds())));
+                                results.stream().mapToInt(result -> result.isolation().ringCount()).sum(),
+                                results.stream().mapToDouble(result -> result.isolation().totalLength()).sum(),
+                                lastGenerated == null ? "vazio"
+                                        : geometryByItem.get(lastGenerated).geometry().getEnvelopeInternal()));
                         appendConsole("Isolation criou " + created + " Geometry(s). Confira os caminhos "
                                 + "e gere o CNC Job pela Geometry quando estiver pronto.");
+                        if (params.restMachining() && results.get(results.size() - 1).remainingCopperCount() > 0) {
+                            appendConsole("Aviso: " + results.get(results.size() - 1).remainingCopperCount()
+                                    + " regioes de cobre nao foram isoladas por nenhuma ferramenta selecionada.");
+                        }
                         if (lastGenerated != null) {
                             selectProjectItem(lastGenerated);
                             plotAreaView.fitToLayer(lastGenerated);
@@ -3441,9 +3555,14 @@ final class MainWindow {
             appendConsole("Aplique ou cancele a edicao de Geometry antes de remover este objeto.");
             return;
         }
+        if (excellonEditor.isEditing(item) && excellonEditor.hasUnappliedChanges()) {
+            appendConsole("Aplique ou cancele a edicao de Excellon antes de remover este objeto.");
+            return;
+        }
         plotMoveHistory.clear();
         gerberEditor.cancelIfEditing(item);
         geometryEditor.cancelIfEditing(item);
+        excellonEditor.cancelIfEditing(item);
         gcodeEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
@@ -3687,6 +3806,14 @@ final class MainWindow {
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         box.getChildren().add(labeledRow("Plot:", plotCb));
+
+        Button editButton = new Button("Editar furos e slots...");
+        editButton.setMaxWidth(Double.MAX_VALUE);
+        editButton.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedExcellon();
+        });
+        box.getChildren().add(editButton);
 
         Button gcodeButton = new Button("Gerar G-code de furacao...");
         gcodeButton.setMaxWidth(Double.MAX_VALUE);
@@ -4230,7 +4357,8 @@ final class MainWindow {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()) {
+        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
+                || excellonEditor.isActive()) {
             appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
             return;
         }
@@ -4323,7 +4451,7 @@ final class MainWindow {
             return;
         }
         if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()
-                || geometryEditor.hasUnappliedChanges()) {
+                || geometryEditor.hasUnappliedChanges() || excellonEditor.hasUnappliedChanges()) {
             appendConsole("Aplique ou cancele as alteracoes do editor antes de abrir outro projeto.");
             return;
         }
@@ -4479,6 +4607,7 @@ final class MainWindow {
         plotMoveHistory.clear();
         gerberEditor.cancel();
         geometryEditor.cancel();
+        excellonEditor.cancel();
         gcodeEditor.cancel();
         gerbersNode.getChildren().clear();
         excellonNode.getChildren().clear();

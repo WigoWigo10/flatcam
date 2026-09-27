@@ -81,6 +81,7 @@ final class GeometryEditorController {
     private Button unionButton;
     private Button intersectionButton;
     private Button subtractButton;
+    private Button cutPathButton;
     private Button bufferButton;
     private Button explodeButton;
     private TextField bufferDistance;
@@ -195,6 +196,7 @@ final class GeometryEditorController {
         unionButton = new Button("Unir selecionadas");
         intersectionButton = new Button("Intersecao selecionadas");
         subtractButton = new Button("Subtrair da primeira selecionada");
+        cutPathButton = new Button("Cortar Caminho");
         bufferButton = new Button("Criar buffer arredondado");
         explodeButton = new Button("Explodir poligonos");
         bufferDistance = new TextField();
@@ -206,7 +208,7 @@ final class GeometryEditorController {
         Button cancelButton = new Button("Cancelar edicao");
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
-                bufferButton, explodeButton, undoButton, redoButton, applyButton, cancelButton);
+                bufferButton, explodeButton, cutPathButton, undoButton, redoButton, applyButton, cancelButton);
         iconize(selectButton, "pointer32.png");
         iconize(pathButton, "path32.png");
         iconize(polygonButton, "polygon32.png");
@@ -224,6 +226,7 @@ final class GeometryEditorController {
         iconize(unionButton, "union32.png");
         iconize(intersectionButton, "intersection32.png");
         iconize(subtractButton, "subtract32.png");
+        iconize(cutPathButton, "cutpath32.png");
         iconize(bufferButton, "buffer16-2.png");
         iconize(explodeButton, "explode32.png");
         iconize(cancelButton, "power16.png");
@@ -239,6 +242,7 @@ final class GeometryEditorController {
         unionButton.setOnAction(event -> startUnion());
         intersectionButton.setOnAction(event -> startIntersection());
         subtractButton.setOnAction(event -> startSubtract());
+        cutPathButton.setOnAction(event -> startCutPath());
         bufferButton.setOnAction(event -> startBuffer());
         explodeButton.setOnAction(event -> explode());
         undoButton.setOnAction(event -> undo());
@@ -268,7 +272,7 @@ final class GeometryEditorController {
                 plannedToolButton("Paint Shape", "paint20_1.png"),
                 plannedToolButton("Borracha", "eraser26.png"),
                 new Separator(), unionButton, explodeButton, intersectionButton, subtractButton,
-                new Separator(), plannedToolButton("Cortar Caminho", "cutpath32.png"),
+                new Separator(), cutPathButton,
                 copyButton, deleteButton, plannedToolButton("Transformacoes", "transform.png"), moveButton,
                 new Separator(), undoButton, redoButton, applyButton, cancelButton);
         if (toolChoice != null) {
@@ -593,6 +597,10 @@ final class GeometryEditorController {
         runOperation(GeometryEditSession.Operation.SUBTRACT, 0);
     }
 
+    void startCutPath() {
+        runOperation(GeometryEditSession.Operation.CUT_PATH, 0);
+    }
+
     void startBuffer() {
         if (!readyForTool()) {
             return;
@@ -732,6 +740,7 @@ final class GeometryEditorController {
         unionButton.setDisable(session.selectedCount() < 2);
         intersectionButton.setDisable(session.selectedCount() < 2);
         subtractButton.setDisable(session.selectedCount() < 2);
+        cutPathButton.setDisable(session.selectedCount() < 2);
         bufferButton.setDisable(session.selectedCount() == 0);
         explodeButton.setDisable(session.selectedCount() == 0);
         if (busy) {
@@ -769,6 +778,7 @@ final class GeometryEditorController {
         unionButton = null;
         intersectionButton = null;
         subtractButton = null;
+        cutPathButton = null;
         bufferButton = null;
         explodeButton = null;
         bufferDistance = null;

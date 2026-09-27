@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
@@ -121,6 +122,28 @@ class IsolationGeneratorTest {
         assertEquals(8, clipped.passGeometries().get(0).getLength(), 1e-9);
         assertEquals(8, clipped.passGeometries().get(1).getLength(), 1e-9);
         assertEquals(16, clipped.totalLength(), 1e-9);
+    }
+
+    @Test
+    void restMachiningLeavesTightCopperForSmallerTool() throws Exception {
+        WKTReader reader = new WKTReader();
+        var copper = reader.read("MULTIPOLYGON ("
+                + "((0 0, 1 0, 1 1, 0 1, 0 0)),"
+                + "((1.3 0, 2.3 0, 2.3 1, 1.3 1, 1.3 0)),"
+                + "((10 0, 11 0, 11 1, 10 1, 10 0)))");
+        var small = new IsolationParameters(0.1, 1, 0, IsolationType.BOTH);
+        var large = new IsolationParameters(0.4, 1, 0, IsolationType.BOTH);
+
+        var output = IsolationGenerator.generateRest("MM", copper, List.of(small, large),
+                CancellationToken.none());
+
+        assertEquals(List.of(0.4, 0.1), output.stream()
+                .map(result -> result.parameters().toolDiameter()).toList());
+        assertEquals(1, output.get(0).isolation().ringCount());
+        assertEquals(2, output.get(1).isolation().ringCount());
+        assertEquals(1, output.get(0).isolation().passGeometries().size());
+        assertEquals(1, output.get(1).isolation().passGeometries().size());
+        assertEquals(0, output.get(1).remainingCopperCount());
     }
 
     @Test
