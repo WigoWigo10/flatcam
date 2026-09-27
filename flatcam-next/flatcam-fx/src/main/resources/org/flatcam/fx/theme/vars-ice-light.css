@@ -1,7 +1,5 @@
 /*
- * "CSS puro" family, light palette. No AtlantaFX involved - the base look is
- * plain JavaFX (Modena), tweaked via -fx-base/-fx-accent, in the same spirit
- * as UGS-FX's root.css (a small hand-written palette on top of the default).
+ * Ice light palette: the current FlatCAM FX look on plain JavaFX (Modena).
  */
 .root {
     -fx-base: #f0f5f8;

@@ -52,14 +52,7 @@ final class AppPreferences {
 
     static ThemeOption loadTheme(ThemeOption fallback) {
         String name = PREFS.get(KEY_THEME, null);
-        if (name == null) {
-            return fallback;
-        }
-        try {
-            return ThemeOption.valueOf(name);
-        } catch (IllegalArgumentException e) {
-            return fallback;
-        }
+        return ThemeOption.fromSavedName(name, fallback);
     }
 
     static void saveTheme(ThemeOption option) {

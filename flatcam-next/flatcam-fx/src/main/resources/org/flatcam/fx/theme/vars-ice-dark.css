@@ -1,6 +1,5 @@
 /*
- * "CSS puro" family, dark palette. Same idea as vars-custom-light.css, just
- * darker - still plain JavaFX (Modena) underneath, no AtlantaFX.
+ * Ice dark palette: the current FlatCAM FX look on plain JavaFX (Modena).
  */
 .root {
     -fx-base: #1d2937;

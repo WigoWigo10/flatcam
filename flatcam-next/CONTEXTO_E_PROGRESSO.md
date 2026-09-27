@@ -66,7 +66,7 @@ prefira o estado descrito aqui e confirme no código.
 - Java 21.
 - Maven Wrapper; Maven global não é necessário.
 - JavaFX 21.0.12.
-- AtlantaFX 2.1.0, além dos temas CSS próprios.
+- Quatro temas próprios sobre JavaFX Modena: original branco/preto e gelo branco/preto; sem AtlantaFX.
 - JTS 1.20.0 para geometria.
 - JUnit 5 para testes.
 
@@ -109,7 +109,7 @@ resultados podem mudar.
   ativas e ferramentas futuras desabilitadas. Os comandos dos editores
   Excellon/Geometry estão catalogados em Editar → Ferramentas dos editores,
   desabilitados até esses editores existirem.
-- Temas claro/escuro próprios e variantes AtlantaFX.
+- Temas Original (branco/preto) e Gelo (branco/preto), todos próprios e alternáveis no menu Tema.
 - A Plot Area acompanha o tema ativo, inclusive fundo, grade, eixos e textos.
 - Canvas com pan, zoom, enquadramento, réguas, grade adaptativa, origem, posição
   e delta do cursor.
@@ -407,36 +407,19 @@ Ainda há textos fixos e mistura de idiomas em pontos da UI. Não espalhe novas
 strings sem necessidade. A internacionalização completa pode vir depois, mas
 novos painéis devem manter terminologia consistente com o produto.
 
-### Limitação conhecida: alternar entre variantes AtlantaFX em tempo de execução
+### Temas disponíveis
 
-Achado durante revisão de ícones (2026-09-23), não relacionado a nenhuma
-mudança de CSS deste port: trocar entre `ATLANTAFX_LIGHT` e `ATLANTAFX_DARK`
-via o menu Tema, sem reiniciar o app, deixa a variável CSS interna do
-próprio AtlantaFX (`-color-fg-default`) sem resolver dentro do
-`primer-light.bss` (aviso do JavaFX no console: `Could not resolve
-'-color-fg-default' while resolving lookups for '-fx-text-fill' from rule
-'*.menu-item>*.label'`) - o texto de itens de menu de contexto não-hover
-fica invisível (preto sobre preto, aparentemente, já que o fallback também
-falha a resolver). Confirmado isoladamente com um harness fora da tela: a
-mesma stylesheet carregada **direto** (sem troca prévia) funciona
-perfeitamente; só quebra após uma troca `Application.setUserAgentStylesheet()`
-para outra variante AtlantaFX na mesma JVM. O tema "CSS puro" (`CUSTOM_*`,
-UA stylesheet nulo nos dois) não tem esse problema.
-
-A correção correta (recriar a `Scene` inteira ao trocar) perderia todo o
-estado da sessão (projeto aberto, árvore, plot) - pior que o bug. Em vez
-disso, `MainWindow.themeItem()` agora avisa no console quando essa troca
-específica acontece (`ATLANTAFX_LIGHT` <-> `ATLANTAFX_DARK`), recomendando
-reabrir o app. Não testado: se a troca `CUSTOM_*` <-> `ATLANTAFX_*` (indo de
-UA nulo para não-nulo, ou vice-versa) sofre do mesmo problema - não afirme
-que funciona sem verificar.
+Original restaura o CSS e a paleta anteriores à revisão visual de gelo, com
+branco e grafite. Gelo mantém a interface recente em branco azulado e azul
+escuro. Ambos usam o Modena do JavaFX; a dependência e o menu AtlantaFX foram
+removidos. Preferências antigas `CUSTOM_*` migram para Gelo e `ATLANTAFX_*`
+para Original, preservando claro/escuro. A limitação anterior de troca do
+user-agent stylesheet do AtlantaFX deixou de se aplicar.
 
 ### Corrigido: menu de contexto herdando texto branco da célula selecionada
 
-Achado e corrigido na mesma revisão (2026-09-23), **distinto** da limitação
-AtlantaFX acima (aquela é uma falha de resolução do JavaFX/AtlantaFX ao
-trocar tema; esta era causada pela própria correção de contraste da árvore
-descrita mais abaixo). Ao clicar com o botão direito num item **já
+Achado e corrigido na revisão de 2026-09-23, causado pela própria correção
+de contraste da árvore descrita mais abaixo. Ao clicar com o botão direito num item **já
 selecionado**, `MainWindow` chamava `menu.show(cell, ...)` - ancorando o
 popup na `TreeCell` em si. Uma célula selecionada+focada tem
 `-fx-fill: -fc-selection-text-focused` (branco); `-fx-fill` é uma

@@ -578,7 +578,7 @@ final class MainWindow {
     private ToggleButton sidebarToggle;
     private PlotStatusControls statusControls;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
-    private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.CUSTOM_LIGHT);
+    private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.ICE_LIGHT);
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
     private ContextMenu plotContextMenu;
@@ -1295,28 +1295,24 @@ final class MainWindow {
                 geometryEditorMenu);
     }
 
-    /**
-     * Both theme families side by side (CSS puro / AtlantaFX), light and
-     * dark in each, one ToggleGroup shared across both submenus so only one
-     * option is ever selected at a time.
-     */
+    /** Original and ice palettes, each with light and dark variants. */
     private Menu buildThemeMenu() {
         ToggleGroup themeGroup = new ToggleGroup();
 
-        Menu customMenu = new Menu("CSS puro");
-        customMenu.getItems().addAll(
-                themeItem(ThemeOption.CUSTOM_LIGHT, themeGroup),
-                themeItem(ThemeOption.CUSTOM_DARK, themeGroup)
+        Menu classicMenu = new Menu("Original");
+        classicMenu.getItems().addAll(
+                themeItem(ThemeOption.CLASSIC_LIGHT, themeGroup),
+                themeItem(ThemeOption.CLASSIC_DARK, themeGroup)
         );
 
-        Menu atlantaFxMenu = new Menu("AtlantaFX");
-        atlantaFxMenu.getItems().addAll(
-                themeItem(ThemeOption.ATLANTAFX_LIGHT, themeGroup),
-                themeItem(ThemeOption.ATLANTAFX_DARK, themeGroup)
+        Menu iceMenu = new Menu("Gelo");
+        iceMenu.getItems().addAll(
+                themeItem(ThemeOption.ICE_LIGHT, themeGroup),
+                themeItem(ThemeOption.ICE_DARK, themeGroup)
         );
 
         Menu themeMenu = new Menu("Tema");
-        themeMenu.getItems().addAll(customMenu, atlantaFxMenu);
+        themeMenu.getItems().addAll(classicMenu, iceMenu);
         return themeMenu;
     }
 
@@ -1326,8 +1322,6 @@ final class MainWindow {
         item.setToggleGroup(group);
         item.setSelected(option == currentTheme);
         item.setOnAction(e -> {
-            boolean switchingBetweenAtlantaFxVariants = currentTheme.isAtlantaFx() && option.isAtlantaFx()
-                    && currentTheme != option;
             option.applyTo(scene);
             currentTheme = option;
             darkIcons.set(option.isDark());
@@ -1337,11 +1331,6 @@ final class MainWindow {
             // icon outlines appear/disappear immediately with the theme.
             if (projectTree != null) {
                 projectTree.refresh();
-            }
-            if (switchingBetweenAtlantaFxVariants) {
-                appendConsole("Aviso: alternar entre variantes AtlantaFX sem reiniciar pode deixar texto de "
-                        + "menus de contexto ilegivel (limitacao conhecida do AtlantaFX/JavaFX ao trocar "
-                        + "Application.setUserAgentStylesheet() em tempo de execucao - reabra o app se notar isso).");
             }
         });
         return item;

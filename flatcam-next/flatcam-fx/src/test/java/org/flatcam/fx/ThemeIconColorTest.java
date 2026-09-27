@@ -13,11 +13,13 @@ class ThemeIconColorTest {
 
     @Test
     void vectorIconsUseReadableColorDefinedByEveryTheme() throws IOException {
-        String components = resource("components.css");
-        assertTrue(components.contains("-fx-stroke: -fc-panel-text;"));
-        assertTrue(components.contains("-fx-fill: -fc-panel-text;"));
+        for (String file : new String[]{"components-classic.css", "components.css"}) {
+            String components = resource(file);
+            assertTrue(components.contains("-fx-stroke: -fc-panel-text;"), file);
+            assertTrue(components.contains("-fx-fill: -fc-panel-text;"), file);
+        }
 
-        for (String theme : new String[]{"custom-light", "custom-dark", "atlantafx-light", "atlantafx-dark"}) {
+        for (String theme : new String[]{"classic-light", "classic-dark", "ice-light", "ice-dark"}) {
             String css = resource("vars-" + theme + ".css");
             double contrast = contrast(color(css, "-fc-panel-text"), color(css, "-fc-panel-bg"));
             assertTrue(contrast >= 4.5, () -> theme + " icon contrast is " + contrast);

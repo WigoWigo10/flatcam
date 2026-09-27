@@ -1,0 +1,308 @@
+/*
+ * Structure/layout rules for our own custom panes, shared by every palette
+ * (vars-classic-*.css). This is the pre-gelo component stylesheet, retained
+ * for users who prefer the original Modena look.
+ */
+
+.side-panel {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 6;
+    -fx-spacing: 4;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 0 1 0 0;
+}
+
+.side-panel .label {
+    -fx-text-fill: -fc-panel-text;
+}
+
+/* Python places the notebook toggle immediately before File on the menu bar. */
+.menu-bar-row {
+    -fx-background-color: -fc-panel-bg;
+}
+
+.sidebar-toggle,
+.sidebar-toggle:selected {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+    -fx-padding: 2 5 2 5;
+}
+
+.sidebar-toggle:hover {
+    -fx-background-color: derive(-fc-panel-bg, 12%);
+}
+
+.bottom-panel {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 4;
+    -fx-spacing: 4;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+.bottom-panel .label {
+    -fx-text-fill: -fc-panel-text;
+}
+
+/*
+ * Base text color for every filled row, selected or not - Modena's own
+ * default .tree-cell .text fill (derived from -fx-text-background-color,
+ * itself derived from -fx-background) renders black once a row has been
+ * selected and then deselected again (confirmed with an isolated JavaFX
+ * harness dumping the cell's actual computed text fill before/after
+ * reselecting a different row), unreadable on a dark palette. Setting it
+ * explicitly here, unconditionally, also becomes the fallback the two
+ * selected-state rules below override.
+ */
+.tree-cell:filled .text {
+    -fx-fill: -fc-panel-text;
+}
+
+/*
+ * A row selected while its TreeView doesn't have focus (e.g. focus moved to
+ * the Properties/Ferramenta tab, or to the Plot Area) gets the plain
+ * ".tree-cell:selected" style below; only when the TREE ITSELF has focus
+ * does the selected row get the stronger accent one. Both use dedicated
+ * -fc-selection-* colors instead of Modena's own defaults - the unfocused
+ * Modena default derives its background from -fx-control-inner-background,
+ * which on a dark palette ends up too close to white with barely-visible
+ * text (the original bug report this fixes).
+ *
+ * Deliberately scoped by ".tree-view:focused", NOT by a ":focused"
+ * pseudo-class on .tree-cell itself: a TreeCell's own :focused pseudo-class
+ * tracks the tree's internal FocusModel row index, which does NOT clear when
+ * focus actually leaves the TreeView for another control (confirmed the same
+ * way as above) - so a rule scoped to ".tree-cell:selected:focused" alone
+ * stays permanently "focused"-looking once any row was ever selected.
+ */
+.tree-cell:filled:selected {
+    -fx-background-color: -fc-selection-bg-unfocused;
+}
+
+.tree-cell:filled:selected .text {
+    -fx-fill: -fc-selection-text-unfocused;
+}
+
+.tree-view:focused .tree-cell:filled:selected {
+    -fx-background-color: -fc-selection-bg-focused;
+}
+
+.tree-view:focused .tree-cell:filled:selected .text {
+    -fx-fill: -fc-selection-text-focused;
+}
+
+/* Plot Area popups must not keep a dark/disabled-looking label on the blue
+ * focused row. The popup is a separate scene, so style labels and Text nodes. */
+.plot-context-menu .menu-item .label {
+    -fx-text-fill: -fc-plot-menu-text;
+}
+
+.plot-context-menu .menu-item .label .text {
+    -fx-fill: -fc-plot-menu-text;
+}
+
+.plot-context-menu .menu-item:focused {
+    -fx-background-color: -fc-plot-menu-focus-bg;
+}
+
+.plot-context-menu .menu-item:focused .label {
+    -fx-text-fill: -fc-plot-menu-focus-text;
+}
+
+.plot-context-menu .menu-item:focused .label .text {
+    -fx-fill: -fc-plot-menu-focus-text;
+}
+
+.progress-percentage {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: white;
+    -fx-background-color: rgba(0, 0, 0, 0.58);
+    -fx-background-radius: 3;
+    -fx-padding: 0 5 0 5;
+}
+
+.viewport-placeholder {
+    -fx-background-color: -fc-viewport-bg;
+}
+
+.viewport-placeholder .label {
+    -fx-text-fill: -fc-viewport-fg;
+}
+
+.plot-coord-label {
+    -fx-background-color: -fc-viewport-overlay-bg;
+    -fx-text-fill: -fc-viewport-fg;
+    -fx-padding: 4 8 4 8;
+    -fx-font-size: 11px;
+    -fx-background-radius: 3;
+}
+
+/* Vector toolbar icons (Icons.java) - use our palette, which every theme defines. */
+.icon-glyph-stroke {
+    -fx-fill: transparent;
+    -fx-stroke: -fc-panel-text;
+    -fx-stroke-width: 2;
+    -fx-stroke-line-cap: round;
+    -fx-stroke-line-join: round;
+}
+
+.icon-glyph-fill {
+    -fx-fill: -fc-panel-text;
+}
+
+/* Future commands are discoverable without looking like working controls. */
+.tool-bar .button.planned-command:disabled,
+.editor-tool-palette .button.planned-command:disabled {
+    -fx-opacity: 0.58;
+}
+
+.editor-tool-palette {
+    -fx-padding: 3;
+    -fx-background-color: -fc-panel-bg;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+/*
+ * The legacy project-tree bitmaps are predominantly black. Dark themes keep
+ * the original artwork but give it a compact, modern light outline so its
+ * silhouette remains legible against the sidebar.
+ */
+.sidebar-object-icon-frame-dark {
+    -fx-background-color: rgba(255, 255, 255, 0.07);
+    -fx-background-radius: 4;
+    -fx-border-color: rgba(255, 255, 255, 0.52);
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+}
+
+.sidebar-object-icon-glyph-dark {
+    -fx-effect: dropshadow(one-pass-box, rgba(255, 255, 255, 0.78), 1.2, 0.82, 0, 0);
+}
+
+.status-bar {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 2 6 2 6;
+    -fx-spacing: 6;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 1 0 0 0;
+}
+
+.status-bar .label {
+    -fx-text-fill: -fc-panel-text;
+}
+
+.plot-status-controls {
+    -fx-alignment: center-right;
+}
+
+.status-coordinates {
+    -fx-min-width: 138;
+    -fx-font-size: 11px;
+}
+
+.status-grid-step {
+    -fx-pref-width: 45;
+    -fx-min-width: 42;
+    -fx-max-width: 50;
+    -fx-pref-height: 20;
+    -fx-max-height: 20;
+    -fx-padding: 1 2 1 2;
+}
+
+.status-control,
+.status-bar-toggle {
+    -fc-status-active: -fc-status-grid;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-border-color: transparent;
+    -fx-border-radius: 4;
+    -fx-border-width: 1;
+    -fx-padding: 2 3 2 3;
+    -fx-pref-height: 20;
+    -fx-min-height: 20;
+    -fx-cursor: hand;
+}
+
+/* Keep each control's Python hue, with theme-specific values from vars-*.css. */
+.status-axis { -fc-status-active: -fc-status-axis; }
+.status-hud { -fc-status-active: -fc-status-hud; }
+.status-workspace { -fc-status-active: -fc-status-workspace; }
+.status-console { -fc-status-active: -fc-status-console; }
+.status-preferences { -fc-status-active: -fc-status-preferences; }
+
+.status-control:selected,
+.status-bar-toggle:selected {
+    -fx-background-color: -fc-status-active;
+    -fx-border-color: derive(-fc-status-active, -18%);
+}
+
+.status-bar .status-control:selected .label {
+    -fx-text-fill: -fc-status-active-text;
+}
+
+.status-control:hover,
+.status-bar-toggle:hover {
+    -fx-background-color: -fc-status-hover;
+    -fx-border-color: -fc-status-hover-border;
+}
+
+.status-control:selected:hover,
+.status-bar-toggle:selected:hover {
+    -fx-background-color: derive(-fc-status-active, 4%);
+    -fx-border-color: derive(-fc-status-active, 28%);
+}
+
+.status-control:disabled,
+.status-bar-toggle:disabled {
+    -fx-cursor: default;
+}
+
+/* Flat, icon-only - the legacy app's status bar toggles are plain clickable icons, not buttons with chrome. */
+.status-bar-toggle {
+    -fx-padding: 2 3 2 3;
+}
+
+.form-error-label {
+    -fx-text-fill: #e53935;
+    -fx-font-size: 11px;
+}
+
+/* Small bold divider label grouping a tool panel's fields into sections - see NccToolPanel. */
+.form-section-title {
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-opacity: 0.85;
+    -fx-padding: 4 0 0 0;
+}
+
+/* Functionality added since the original palette: preserve clear titles,
+ * table totals and a scrollable object inspector without applying ice cards. */
+.tool-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.object-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.object-panel .table-cell.total-cell {
+    -fx-font-weight: bold;
+    -fx-text-fill: -fc-accent;
+}
+
+.object-panel-scroll,
+.object-panel-scroll > .viewport {
+    -fx-background-color: -fc-panel-bg;
+}
+
+.tool-panel .combo-box > .list-cell,
+.object-panel .combo-box > .list-cell {
+    -fx-text-fill: -fc-panel-text;
+}

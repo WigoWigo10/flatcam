@@ -138,21 +138,21 @@ final class PlotAreaView extends StackPane {
                        Color axisLine, Color rulerText, Color snapCursor, Color snapOutline) {
     }
 
-    private static final PlotPalette CUSTOM_LIGHT_PALETTE = new PlotPalette(
+    private static final PlotPalette CLASSIC_LIGHT_PALETTE = new PlotPalette(
             Color.web("#f7f7f7"), Color.web("#e7e7e7"), Color.web("#dedede"),
             Color.web("#c44747"), Color.web("#606060"),
             Color.web("#e53935"), Color.rgb(255, 255, 255, 0.9));
-    private static final PlotPalette CUSTOM_DARK_PALETTE = new PlotPalette(
+    private static final PlotPalette CLASSIC_DARK_PALETTE = new PlotPalette(
             Color.web("#101010"), Color.web("#202020"), Color.web("#2b2b2b"),
             Color.web("#b33a3a"), Color.web("#9a9a9a"),
             Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
-    private static final PlotPalette ATLANTAFX_LIGHT_PALETTE = new PlotPalette(
-            Color.web("#f6f8fa"), Color.web("#eaeef2"), Color.web("#d8dee4"),
+    private static final PlotPalette ICE_LIGHT_PALETTE = new PlotPalette(
+            Color.web("#f7fafc"), Color.web("#e8f0f5"), Color.web("#d7e3ec"),
             Color.web("#cf4a4a"), Color.web("#57606a"),
             Color.web("#e53935"), Color.rgb(255, 255, 255, 0.9));
-    private static final PlotPalette ATLANTAFX_DARK_PALETTE = new PlotPalette(
-            Color.web("#0d1117"), Color.web("#161b22"), Color.web("#21262d"),
-            Color.web("#c44b55"), Color.web("#8b949e"),
+    private static final PlotPalette ICE_DARK_PALETTE = new PlotPalette(
+            Color.web("#0d141d"), Color.web("#141e2a"), Color.web("#253443"),
+            Color.web("#c44b55"), Color.web("#a6b9c8"),
             Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
 
     private final Canvas canvas = new Canvas();
@@ -161,7 +161,7 @@ final class PlotAreaView extends StackPane {
     private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
-    private PlotPalette palette = CUSTOM_LIGHT_PALETTE;
+    private PlotPalette palette = ICE_LIGHT_PALETTE;
     private Geometry editorHighlightGeometry;
     private boolean editorHighlightStrokeOnly;
 
@@ -262,10 +262,10 @@ final class PlotAreaView extends StackPane {
 
     static PlotPalette paletteForTheme(ThemeOption theme) {
         return switch (theme) {
-            case CUSTOM_LIGHT -> CUSTOM_LIGHT_PALETTE;
-            case CUSTOM_DARK -> CUSTOM_DARK_PALETTE;
-            case ATLANTAFX_LIGHT -> ATLANTAFX_LIGHT_PALETTE;
-            case ATLANTAFX_DARK -> ATLANTAFX_DARK_PALETTE;
+            case CLASSIC_LIGHT -> CLASSIC_LIGHT_PALETTE;
+            case CLASSIC_DARK -> CLASSIC_DARK_PALETTE;
+            case ICE_LIGHT -> ICE_LIGHT_PALETTE;
+            case ICE_DARK -> ICE_DARK_PALETTE;
         };
     }
 

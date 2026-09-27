@@ -1,43 +1,26 @@
 package org.flatcam.fx;
 
-import atlantafx.base.theme.PrimerDark;
-import atlantafx.base.theme.PrimerLight;
 import javafx.application.Application;
 import javafx.scene.Scene;
 
 /**
- * Two theme families, each with a light and a dark variant, kept side by
- * side on purpose (CONTEXTO_FLATCAM_FX.md, secao 6 - "temas claro e
- * escuro"):
- *
- * <ul>
- *   <li>{@code CUSTOM_*} - plain JavaFX (Modena) with a small hand-written
- *       palette, same spirit as UGS-FX's own root.css: no third-party theme
- *       library, just -fx-base/-fx-accent plus our own -fc-* variables.</li>
- *   <li>{@code ATLANTAFX_*} - AtlantaFX's Primer theme supplies the full
- *       user-agent stylesheet (replaces Modena outright); our -fc-* palette
- *       only covers the panes AtlantaFX doesn't know about (viewport
- *       placeholder, side/bottom panels).</li>
- * </ul>
- *
- * Either way, structure lives in theme/components.css and only the palette
- * (theme/vars-*.css) changes - see that file for the -fc-* properties both
- * families must define.
+ * Four first-party themes on JavaFX Modena. CLASSIC retains the pre-refresh
+ * white/charcoal interface; ICE uses the newer pale-blue/navy visual system.
  */
 public enum ThemeOption {
-    CUSTOM_LIGHT("CSS puro - Claro", null, "vars-custom-light.css"),
-    CUSTOM_DARK("CSS puro - Escuro", null, "vars-custom-dark.css"),
-    ATLANTAFX_LIGHT("AtlantaFX - Claro (Primer)", new PrimerLight(), "vars-atlantafx-light.css"),
-    ATLANTAFX_DARK("AtlantaFX - Escuro (Primer)", new PrimerDark(), "vars-atlantafx-dark.css");
+    CLASSIC_LIGHT("Branco", "vars-classic-light.css", "components-classic.css"),
+    CLASSIC_DARK("Preto", "vars-classic-dark.css", "components-classic.css"),
+    ICE_LIGHT("Branco gelo", "vars-ice-light.css", "components.css"),
+    ICE_DARK("Preto gelo", "vars-ice-dark.css", "components.css");
 
     private final String label;
-    private final atlantafx.base.theme.Theme atlantaFxTheme;
     private final String varsResource;
+    private final String componentsResource;
 
-    ThemeOption(String label, atlantafx.base.theme.Theme atlantaFxTheme, String varsResource) {
+    ThemeOption(String label, String varsResource, String componentsResource) {
         this.label = label;
-        this.atlantaFxTheme = atlantaFxTheme;
         this.varsResource = varsResource;
+        this.componentsResource = componentsResource;
     }
 
     public String label() {
@@ -45,18 +28,33 @@ public enum ThemeOption {
     }
 
     public boolean isDark() {
-        return this == CUSTOM_DARK || this == ATLANTAFX_DARK;
+        return this == CLASSIC_DARK || this == ICE_DARK;
     }
 
-    public boolean isAtlantaFx() {
-        return atlantaFxTheme != null;
+    static ThemeOption fromSavedName(String name, ThemeOption fallback) {
+        if (name == null) return fallback;
+        return switch (name) {
+            case "CUSTOM_LIGHT" -> ICE_LIGHT;
+            case "CUSTOM_DARK" -> ICE_DARK;
+            case "ATLANTAFX_LIGHT" -> CLASSIC_LIGHT;
+            case "ATLANTAFX_DARK" -> CLASSIC_DARK;
+            default -> {
+                try {
+                    yield valueOf(name);
+                } catch (IllegalArgumentException e) {
+                    yield fallback;
+                }
+            }
+        };
     }
 
     public void applyTo(Scene scene) {
-        Application.setUserAgentStylesheet(atlantaFxTheme != null ? atlantaFxTheme.getUserAgentStylesheet() : null);
+        if (!Application.STYLESHEET_MODENA.equals(Application.getUserAgentStylesheet())) {
+            Application.setUserAgentStylesheet(Application.STYLESHEET_MODENA);
+        }
         scene.getStylesheets().setAll(
                 resource(varsResource),
-                resource("components.css")
+                resource(componentsResource)
         );
     }
 

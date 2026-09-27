@@ -13,7 +13,7 @@ class PlotContextMenuContrastTest {
 
     @Test
     void focusedMenuTextHasAtLeastNormalTextContrastInEveryTheme() throws IOException {
-        for (String theme : new String[]{"custom-light", "custom-dark", "atlantafx-light", "atlantafx-dark"}) {
+        for (String theme : new String[]{"classic-light", "classic-dark", "ice-light", "ice-dark"}) {
             String css = resource("vars-" + theme + ".css");
             double contrast = contrast(color(css, "-fc-plot-menu-focus-text"),
                     color(css, "-fc-plot-menu-focus-bg"));

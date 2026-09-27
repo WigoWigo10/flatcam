@@ -28,7 +28,7 @@ class PlotStatusControlsStyleTest {
                 assertTrue(components.contains(".status-" + control
                         + " { -fc-status-active: -fc-status-" + control + "; }"), control);
             }
-            for (String family : new String[]{"custom", "atlantafx"}) {
+            for (String family : new String[]{"classic", "ice"}) {
                 String light = color(resource("vars-" + family + "-light.css"), control);
                 String dark = color(resource("vars-" + family + "-dark.css"), control);
                 assertTrue(lightColors.get(control).equalsIgnoreCase(light), family + " " + control);
@@ -40,7 +40,7 @@ class PlotStatusControlsStyleTest {
             }
         }
         assertTrue(components.contains("-fx-text-fill: -fc-status-active-text;"));
-        for (String family : new String[]{"custom", "atlantafx"}) {
+        for (String family : new String[]{"classic", "ice"}) {
             assertTrue(resource("vars-" + family + "-light.css")
                     .contains("-fc-status-active-text: #111111;"));
             assertTrue(resource("vars-" + family + "-dark.css")
@@ -52,7 +52,7 @@ class PlotStatusControlsStyleTest {
 
     @Test
     void everyThemeDefinesInactiveHoverColors() throws IOException {
-        for (String theme : new String[]{"custom-light", "custom-dark", "atlantafx-light", "atlantafx-dark"}) {
+        for (String theme : new String[]{"classic-light", "classic-dark", "ice-light", "ice-dark"}) {
             String css = resource("vars-" + theme + ".css");
             assertTrue(css.contains("-fc-status-hover:"), theme);
             assertTrue(css.contains("-fc-status-hover-border:"), theme);
