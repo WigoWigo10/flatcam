@@ -4,6 +4,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Deque;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -25,9 +26,12 @@ public final class ExcellonEditSession {
         Hit translated(long newId, double dx, double dy) {
             return new Hit(newId, toolId, slot, x1 + dx, y1 + dy, x2 + dx, y2 + dy);
         }
+        Hit withTool(int newToolId) {
+            return new Hit(id, newToolId, slot, x1, y1, x2, y2);
+        }
     }
 
-    private record Snapshot(List<Hit> hits, Set<Long> selected, boolean dirty) {
+    private record Snapshot(List<Hit> hits, Set<Long> selected, Map<Integer, Double> tools, boolean dirty) {
     }
 
     private final GeometryFactory factory = new GeometryFactory();
@@ -44,7 +48,7 @@ public final class ExcellonEditSession {
     public ExcellonEditSession(ExcellonImage source) {
         Objects.requireNonNull(source, "source");
         units = source.units();
-        toolDiameters = source.toolDiameters();
+        toolDiameters = new LinkedHashMap<>(source.toolDiameters());
         List<Hit> initial = new ArrayList<>();
         for (ExcellonImage.Drill drill : source.drills()) {
             initial.add(new Hit(nextId++, drill.toolId(), false, drill.x(), drill.y(), drill.x(), drill.y()));
@@ -57,7 +61,7 @@ public final class ExcellonEditSession {
         rebuildIndex();
     }
 
-    public Map<Integer, Double> toolDiameters() { return toolDiameters; }
+    public Map<Integer, Double> toolDiameters() { return Map.copyOf(toolDiameters); }
     public int size() { return hits.size(); }
     public int selectedCount() { return selected.size(); }
     public boolean isDirty() { return dirty; }
@@ -150,6 +154,63 @@ public final class ExcellonEditSession {
         return true;
     }
 
+    /** Copies selected drills or slots into a bounded rectangular array. */
+    public int arraySelected(boolean slots, int columns, int rows, double pitchX, double pitchY) {
+        if (columns < 1 || rows < 1 || (long) columns * rows <= 1
+                || !Double.isFinite(pitchX) || !Double.isFinite(pitchY)
+                || (columns > 1 && pitchX == 0) || (rows > 1 && pitchY == 0)) {
+            throw new IllegalArgumentException("Array exige linhas/colunas positivas e passos finitos nao nulos.");
+        }
+        long cells = (long) columns * rows;
+        if (cells > 10_001) throw new IllegalArgumentException("Array limitado a 10.000 novas formas.");
+        List<Hit> sources = hits.stream().filter(hit -> selected.contains(hit.id()) && hit.slot() == slots).toList();
+        if (sources.isEmpty()) throw new IllegalArgumentException("Selecione furos ou slots do tipo escolhido.");
+        long added = (long) sources.size() * (cells - 1);
+        if (added > 10_000) throw new IllegalArgumentException("Array limitado a 10.000 novas formas.");
+        double maxDx = (columns - 1.0) * pitchX;
+        double maxDy = (rows - 1.0) * pitchY;
+        for (Hit source : sources) {
+            if (!Double.isFinite(source.x1() + maxDx) || !Double.isFinite(source.x2() + maxDx)
+                    || !Double.isFinite(source.y1() + maxDy) || !Double.isFinite(source.y2() + maxDy))
+                throw new IllegalArgumentException("Coordenadas do array excedem o intervalo valido.");
+        }
+        List<Hit> result = new ArrayList<>(hits);
+        Set<Long> copies = new LinkedHashSet<>();
+        for (int row = 0; row < rows; row++) {
+            for (int column = 0; column < columns; column++) {
+                if (row == 0 && column == 0) continue;
+                for (Hit source : sources) {
+                    Hit copy = source.translated(nextId++, column * pitchX, row * pitchY);
+                    result.add(copy);
+                    copies.add(copy.id());
+                }
+            }
+        }
+        commit(result, copies);
+        return (int) added;
+    }
+
+    /** Reassigns selected hits to a tool of the requested diameter, creating it if needed. */
+    public int resizeSelected(double diameter) {
+        if (selected.isEmpty()) throw new IllegalArgumentException("Selecione furos ou slots para redimensionar.");
+        if (!Double.isFinite(diameter) || diameter <= 0)
+            throw new IllegalArgumentException("Diametro deve ser positivo e finito.");
+        int toolId = toolDiameters.entrySet().stream()
+                .filter(entry -> Math.abs(entry.getValue() - diameter) <= 1e-9)
+                .mapToInt(Map.Entry::getKey).min().orElse(-1);
+        Map<Integer, Double> nextTools = new LinkedHashMap<>(toolDiameters);
+        if (toolId < 0) {
+            toolId = toolDiameters.keySet().stream().mapToInt(Integer::intValue).max().orElse(0) + 1;
+            nextTools.put(toolId, diameter);
+        }
+        final int chosenTool = toolId;
+        if (hits.stream().filter(hit -> selected.contains(hit.id()))
+                .allMatch(hit -> hit.toolId() == chosenTool)) return toolId;
+        commit(hits.stream().map(hit -> selected.contains(hit.id()) ? hit.withTool(chosenTool) : hit).toList(),
+                selected, nextTools);
+        return toolId;
+    }
+
     private static boolean finiteMove(double dx, double dy) {
         if (!Double.isFinite(dx) || !Double.isFinite(dy))
             throw new IllegalArgumentException("Deslocamento precisa ser finito.");
@@ -214,15 +275,23 @@ public final class ExcellonEditSession {
                 : factory.createPoint(new Coordinate(hit.x1(), hit.y1())).buffer(radius, 16);
     }
 
-    private Snapshot snapshot() { return new Snapshot(hits, Set.copyOf(selected), dirty); }
+    private Snapshot snapshot() { return new Snapshot(hits, Set.copyOf(selected), Map.copyOf(toolDiameters), dirty); }
 
     private void commit(List<Hit> changed, Collection<Long> nextSelection) {
+        commit(changed, nextSelection, toolDiameters);
+    }
+
+    private void commit(List<Hit> changed, Collection<Long> nextSelection, Map<Integer, Double> nextTools) {
         Set<Long> retainedSelection = new LinkedHashSet<>(nextSelection);
         undo.push(snapshot());
         redo.clear();
         hits = List.copyOf(changed);
         selected.clear();
         selected.addAll(retainedSelection);
+        if (nextTools != toolDiameters) {
+            toolDiameters.clear();
+            toolDiameters.putAll(nextTools);
+        }
         dirty = true;
         rebuildIndex();
     }
@@ -231,6 +300,8 @@ public final class ExcellonEditSession {
         hits = snapshot.hits();
         selected.clear();
         selected.addAll(snapshot.selected());
+        toolDiameters.clear();
+        toolDiameters.putAll(snapshot.tools());
         dirty = snapshot.dirty();
         rebuildIndex();
     }

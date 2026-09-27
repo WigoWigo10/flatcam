@@ -14,9 +14,11 @@ import javafx.scene.control.Label;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.control.ToolBar;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.VBox;
+import javafx.scene.layout.GridPane;
 import javafx.scene.paint.Color;
 import org.flatcam.cam.excellon.ExcellonEditSession;
 import org.flatcam.cam.excellon.ExcellonImage;
@@ -57,6 +59,14 @@ final class ExcellonEditorController {
     private Button undoButton;
     private Button redoButton;
     private Button applyButton;
+    private Button drillArrayButton;
+    private Button slotArrayButton;
+    private Button resizeButton;
+    private TextField diameterField;
+    private TextField columnsField;
+    private TextField rowsField;
+    private TextField pitchXField;
+    private TextField pitchYField;
     private boolean syncing;
 
     ExcellonEditorController(PlotAreaView plotArea, Host host) {
@@ -119,6 +129,17 @@ final class ExcellonEditorController {
         toolChoice.getItems().addAll(image.toolDiameters().keySet().stream().sorted().toList());
         toolChoice.getSelectionModel().selectFirst();
         toolChoice.setMaxWidth(Double.MAX_VALUE);
+        diameterField = new TextField(toolChoice.getValue() == null ? ""
+                : Double.toString(session.toolDiameters().get(toolChoice.getValue())));
+        toolChoice.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (newValue != null) diameterField.setText(Double.toString(session.toolDiameters().get(newValue)));
+        });
+        columnsField = new TextField("2");
+        rowsField = new TextField("2");
+        pitchXField = new TextField("1");
+        pitchYField = new TextField("1");
+        for (TextField field : List.of(diameterField, columnsField, rowsField, pitchXField, pitchYField))
+            field.setPrefColumnCount(6);
         status = new Label();
         instruction = new Label("Selecione furos/slots na tabela ou no desenho; Ctrl adiciona a selecao.");
         instruction.setWrapText(true);
@@ -128,6 +149,9 @@ final class ExcellonEditorController {
         });
         Button drillButton = button("Adicionar furo", "drill32.png", this::startDrill);
         Button slotButton = button("Adicionar slot", "slot26.png", this::startSlot);
+        drillArrayButton = button("Array de furos", "addarray16.png", () -> startArray(false));
+        slotArrayButton = button("Array de slots", "slot_array26.png", () -> startArray(true));
+        resizeButton = button("Redimensionar", "resize16.png", this::resizeSelected);
         moveButton = button("Mover", "move32.png", () -> startMoveOrCopy(false));
         copyButton = button("Copiar", "copy32.png", () -> startMoveOrCopy(true));
         deleteButton = button("Excluir", "trash32.png", this::deleteSelected);
@@ -143,12 +167,22 @@ final class ExcellonEditorController {
         Button discardPanel = new Button("Descartar alteracoes");
         discardPanel.setMaxWidth(Double.MAX_VALUE);
         discardPanel.setOnAction(event -> cancel());
+        GridPane controls = new GridPane();
+        controls.setHgap(6);
+        controls.setVgap(6);
+        controls.addRow(0, new Label("Novo diametro:"), diameterField);
+        controls.addRow(1, new Label("Colunas / linhas:"), columnsField, rowsField);
+        controls.addRow(2, new Label("Passo X / Y:"), pitchXField, pitchYField);
         VBox panel = new VBox(8, new Label("Excellon Editor"), table,
-                new Label("Ferramenta para novos furos/slots:"), toolChoice,
+                new Label("Ferramenta para novos furos/slots:"), toolChoice, controls,
+                button("Redimensionar selecionados", "resize16.png", this::resizeSelected),
+                button("Array de furos selecionados", "addarray16.png", () -> startArray(false)),
+                button("Array de slots selecionados", "slot_array26.png", () -> startArray(true)),
                 status, instruction, applyPanel, discardPanel);
         panel.setPadding(new Insets(12));
         host.openToolPanel("Editor Excellon", panel);
-        host.showToolbar(new ToolBar(selectButton, drillButton, slotButton, moveButton,
+        host.showToolbar(new ToolBar(selectButton, drillButton, slotButton,
+                drillArrayButton, slotArrayButton, resizeButton, moveButton,
                 copyButton, deleteButton, undoButton, redoButton, applyButton, cancelButton));
         refreshSelection();
     }
@@ -169,6 +203,42 @@ final class ExcellonEditorController {
         if (!isActive()) return;
         plotArea.cancelPlacement();
         instruction.setText("Clique ou arraste no desenho; Ctrl adiciona a selecao.");
+    }
+
+    void startArray(boolean slots) {
+        if (!isActive()) return;
+        plotArea.cancelPlacement();
+        try {
+            int added = session.arraySelected(slots,
+                    Integer.parseInt(columnsField.getText().trim()),
+                    Integer.parseInt(rowsField.getText().trim()),
+                    parseDecimal(pitchXField.getText()), parseDecimal(pitchYField.getText()));
+            refreshGeometry();
+            instruction.setText(added + (slots ? " slots" : " furos") + " adicionados ao array.");
+        } catch (NumberFormatException error) {
+            instruction.setText("Informe colunas/linhas inteiras e passos X/Y numericos.");
+        } catch (IllegalArgumentException error) {
+            instruction.setText(error.getMessage());
+        }
+    }
+
+    void resizeSelected() {
+        if (!isActive()) return;
+        plotArea.cancelPlacement();
+        try {
+            int id = session.resizeSelected(parseDecimal(diameterField.getText()));
+            refreshGeometry();
+            toolChoice.setValue(id);
+            instruction.setText("Formas associadas a ferramenta T" + id + ".");
+        } catch (NumberFormatException error) {
+            instruction.setText("Informe um diametro numerico positivo.");
+        } catch (IllegalArgumentException error) {
+            instruction.setText(error.getMessage());
+        }
+    }
+
+    private static double parseDecimal(String text) {
+        return Double.parseDouble(text.trim().replace(',', '.'));
     }
 
     void startDrill() {
@@ -260,6 +330,13 @@ final class ExcellonEditorController {
     }
 
     private void refreshGeometry() {
+        List<Integer> availableTools = session.toolDiameters().keySet().stream().sorted().toList();
+        if (!toolChoice.getItems().equals(availableTools)) {
+            Integer current = toolChoice.getValue();
+            toolChoice.getItems().setAll(availableTools);
+            toolChoice.setValue(availableTools.contains(current) ? current
+                    : availableTools.isEmpty() ? null : availableTools.get(0));
+        }
         syncing = true;
         table.getItems().setAll(session.rows());
         syncing = false;
@@ -283,6 +360,9 @@ final class ExcellonEditorController {
         status.setText(session.size() + " furos/slots; " + session.selectedCount()
                 + " selecionados" + (session.isDirty() ? "; alteracoes pendentes." : "; sem alteracoes."));
         deleteButton.setDisable(session.selectedCount() == 0);
+        drillArrayButton.setDisable(session.selectedCount() == 0);
+        slotArrayButton.setDisable(session.selectedCount() == 0);
+        resizeButton.setDisable(session.selectedCount() == 0);
         moveButton.setDisable(session.selectedCount() == 0);
         copyButton.setDisable(session.selectedCount() == 0);
         undoButton.setDisable(!session.canUndo());

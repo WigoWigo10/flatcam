@@ -59,4 +59,37 @@ class ExcellonEditSessionTest {
         assertTrue(editor.undo());
         assertFalse(editor.isDirty());
     }
+
+    @Test
+    void drillArrayCopiesOnlyDrillsAndUndoRestoresSelection() {
+        ExcellonEditSession editor = new ExcellonEditSession(sample());
+        editor.selectIds(editor.rows().stream().map(ExcellonEditSession.Row::id).toList());
+
+        assertEquals(3, editor.arraySelected(false, 2, 2, 2, 3));
+        assertEquals(4, editor.resultImage().totalDrills());
+        assertEquals(1, editor.resultImage().totalSlots());
+        assertEquals(3, editor.selectedCount());
+        assertTrue(editor.undo());
+        assertEquals(1, editor.resultImage().totalDrills());
+        assertEquals(2, editor.selectedCount());
+        assertTrue(editor.redo());
+        assertEquals(4, editor.resultImage().totalDrills());
+        assertThrows(IllegalArgumentException.class, () -> editor.arraySelected(false, 101, 101, 1, 1));
+    }
+
+    @Test
+    void resizingCreatesToolAndUndoRestoresOriginalDiameterTable() {
+        ExcellonEditSession editor = new ExcellonEditSession(sample());
+        editor.clickSelect(1, 1, 0, false);
+
+        int newTool = editor.resizeSelected(0.5);
+
+        assertEquals(0.5, editor.resultImage().toolDiameters().get(newTool));
+        assertEquals(newTool, editor.resultImage().drills().get(0).toolId());
+        assertTrue(editor.undo());
+        assertEquals(sample().toolDiameters(), editor.resultImage().toolDiameters());
+        assertEquals(1, editor.resultImage().drills().get(0).toolId());
+        assertTrue(editor.redo());
+        assertEquals(newTool, editor.resultImage().drills().get(0).toolId());
+    }
 }

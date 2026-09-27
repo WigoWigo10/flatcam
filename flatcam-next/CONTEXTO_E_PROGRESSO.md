@@ -20,6 +20,7 @@ e continuar a migração sem recomeçar a investigação.
 
 > Atualização incremental de 2026-09-27: Editor Excellon funcional para
 > seleção visual/tabela de IDs, furos, slots, mover, copiar, excluir,
+> arrays retangulares de furos/slots, redimensionamento por diâmetro,
 > desfazer/refazer e persistência em `.fcnproj`. Isolation agora aceita
 > múltiplos diâmetros separados por `;` com Rest Machining (maior para menor),
 > resultados combinados com associação por ferramenta ou separados por

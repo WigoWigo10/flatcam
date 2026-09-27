@@ -45,6 +45,8 @@ class ProjectFileIOTest {
         assertTrue(edit.deleteSelected());
         edit.addDrill(1, 8, 9);
         edit.addSlot(1, 10, 11, 12, 13);
+        edit.clickSelect(8, 9, 0, false);
+        int newTool = edit.resizeSelected(0.6);
         Path file = tempDir.resolve("edited-excellon.fcnproj");
         ProjectFile.ExcellonEntry entry = new ProjectFile.ExcellonEntry("edited.drl", edit.resultImage(),
                 null, null, true, true, false);
@@ -55,6 +57,8 @@ class ProjectFileIOTest {
         assertEquals(2, loaded.totalSlots());
         assertEquals(8, loaded.drills().get(0).x(), 1e-9);
         assertEquals(9, loaded.drills().get(0).y(), 1e-9);
+        assertEquals(newTool, loaded.drills().get(0).toolId());
+        assertEquals(0.6, loaded.toolDiameters().get(newTool), 1e-9);
         assertEquals(12, loaded.slots().get(1).x2(), 1e-9);
         assertFalse(loaded.solidGeometry().isEmpty());
     }

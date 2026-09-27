@@ -1061,7 +1061,10 @@ final class MainWindow {
             Runnable action = switch (command.id()) {
                 case "select" -> excellonEditor::startSelection;
                 case "drill" -> excellonEditor::startDrill;
+                case "drill_array" -> () -> excellonEditor.startArray(false);
                 case "slot" -> excellonEditor::startSlot;
+                case "slot_array" -> () -> excellonEditor.startArray(true);
+                case "resize" -> excellonEditor::resizeSelected;
                 case "copy" -> () -> excellonEditor.startMoveOrCopy(true);
                 case "delete" -> excellonEditor::deleteFromShortcut;
                 case "move" -> () -> excellonEditor.startMoveOrCopy(false);
