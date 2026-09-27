@@ -31,8 +31,8 @@ import org.locationtech.jts.geom.Polygon;
  *       follows a path, it doesn't mill an area.</li>
  * </ul>
  *
- * <p>Exception areas are supported through a filled Geometry mask. Interactive
- * area drawing and rest-machining (per-polygon self-intersection checks to
+ * <p>Exception areas are supported through a filled Geometry mask, including
+ * a rectangle/polygon drawn in the UI. Rest-machining (per-polygon self-intersection checks to
  * detect copper too tight for the chosen tool, escalating to a smaller
  * tool) remain future work.
  *

@@ -26,6 +26,11 @@ import org.locationtech.jts.geom.Geometry;
  */
 final class IsolationToolPanel {
 
+    @FunctionalInterface
+    interface AreaSelectionStarter {
+        boolean begin(boolean polygon, Consumer<Geometry> onSelected, Runnable onCancelled);
+    }
+
     record ExceptionArea(String name, Geometry geometry) {
         @Override
         public String toString() {
@@ -34,7 +39,7 @@ final class IsolationToolPanel {
     }
 
     record Result(IsolationParameters geometryParams, boolean combinePasses, boolean follow,
-                  ExceptionArea exceptionArea) {
+                  Geometry exceptionMask) {
     }
 
     private IsolationToolPanel() {
@@ -44,7 +49,8 @@ final class IsolationToolPanel {
      * @param onGenerate called with the parsed parameters when "Gerar" is clicked and they're valid.
      * @param onClose    called when "Fechar" is clicked - MainWindow uses it to restore the tool tab's placeholder.
      */
-    static Node build(String units, List<ExceptionArea> exceptionAreas,
+    static Node build(String units, List<ExceptionArea> exceptionAreas, AreaSelectionStarter areaStarter,
+                      Runnable cancelArea,
                       Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equals(units);
 
@@ -70,6 +76,39 @@ final class IsolationToolPanel {
         exceptionCombo.getItems().addAll(exceptionAreas);
         exceptionCombo.setValue(none);
         exceptionCombo.setMaxWidth(Double.MAX_VALUE);
+        Geometry[] drawnMask = new Geometry[1];
+        Label areaStatus = new Label("Nenhuma area desenhada.");
+        areaStatus.setWrapText(true);
+        exceptionCombo.valueProperty().addListener((observable, oldValue, selected) -> {
+            cancelArea.run();
+            drawnMask[0] = null;
+            areaStatus.setText("Nenhuma area desenhada.");
+        });
+        Button rectangleButton = new Button("Desenhar retangulo de excecao");
+        Button polygonButton = new Button("Desenhar poligono de excecao");
+        for (Button button : new Button[]{rectangleButton, polygonButton}) {
+            button.setMaxWidth(Double.MAX_VALUE);
+            button.setOnAction(event -> {
+                boolean polygon = button == polygonButton;
+                if (areaStarter.begin(polygon, area -> {
+                    drawnMask[0] = area;
+                    areaStatus.setText((polygon ? "Poligono" : "Retangulo") + " de excecao selecionado.");
+                }, () -> areaStatus.setText("Selecao de area cancelada."))) {
+                    areaStatus.setText(polygon
+                            ? "Clique nos vertices; Enter ou botao direito conclui; Esc cancela."
+                            : "Clique em dois cantos do retangulo; Esc cancela.");
+                } else {
+                    areaStatus.setText("Nao foi possivel iniciar a selecao de area.");
+                }
+            });
+        }
+        Button clearAreaButton = new Button("Limpar area desenhada");
+        clearAreaButton.setMaxWidth(Double.MAX_VALUE);
+        clearAreaButton.setOnAction(event -> {
+            cancelArea.run();
+            drawnMask[0] = null;
+            areaStatus.setText("Nenhuma area desenhada.");
+        });
 
         for (TextField field : new TextField[]{toolDiaField, passesField, overlapField}) {
             field.setPrefColumnCount(7);
@@ -93,7 +132,8 @@ final class IsolationToolPanel {
         generateButton.setOnAction(e -> {
             try {
                 Result result = parseResult(toolDiaField, passesField, overlapField, typeCombo,
-                        combinePasses.isSelected(), follow.isSelected(), exceptionCombo.getValue());
+                        combinePasses.isSelected(), follow.isSelected(),
+                        drawnMask[0] != null ? drawnMask[0] : exceptionCombo.getValue().geometry());
                 errorLabel.setText("");
                 onGenerate.accept(result);
             } catch (RuntimeException ex) {
@@ -107,7 +147,8 @@ final class IsolationToolPanel {
         workflowNote.setWrapText(true);
         VBox box = new VBox(10,
                 new Label("Parametros (unidades do arquivo: " + units + ")"),
-                grid, combinePasses, follow, workflowNote,
+                grid, rectangleButton, polygonButton, clearAreaButton, areaStatus,
+                combinePasses, follow, workflowNote,
                 errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
@@ -116,7 +157,7 @@ final class IsolationToolPanel {
     private static Result parseResult(
             TextField toolDiaField, TextField passesField, TextField overlapField,
             ComboBox<IsolationType> typeCombo, boolean combinePasses, boolean follow,
-            ExceptionArea exceptionArea) {
+            Geometry exceptionMask) {
         double toolDia = parseDouble(toolDiaField.getText(), "Diametro da ferramenta");
         double rawPasses = parseDouble(passesField.getText(), "Numero de passes");
         if (!Double.isFinite(rawPasses) || rawPasses != Math.rint(rawPasses)
@@ -129,7 +170,7 @@ final class IsolationToolPanel {
 
         IsolationParameters geometryParams = new IsolationParameters(toolDia, passes, overlapPercent / 100.0, type);
 
-        return new Result(geometryParams, combinePasses, follow, exceptionArea);
+        return new Result(geometryParams, combinePasses, follow, exceptionMask);
     }
 
     private static double parseDouble(String text, String fieldName) {

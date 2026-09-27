@@ -2973,7 +2973,17 @@ final class MainWindow {
                         entry.getKey().getValue(), entry.getValue().geometry()))
                 .toList();
         openToolPanel("Isolation Tool", IsolationToolPanel.build(image.units(), exceptionAreas,
-                params -> runIsolationGeneration(item, image, params), this::closeToolPanel));
+                (polygon, onSelected, onCancelled) -> beginNccAreaSelection(image.solidGeometry(),
+                        polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
+                        onSelected, onCancelled),
+                plotAreaView::cancelPlacement,
+                params -> {
+                    plotAreaView.cancelPlacement();
+                    runIsolationGeneration(item, image, params);
+                }, () -> {
+                    plotAreaView.cancelPlacement();
+                    closeToolPanel();
+                }));
     }
 
     private void runIsolationGeneration(TreeItem<String> item, GerberImage image, IsolationToolPanel.Result params) {
@@ -2989,9 +2999,8 @@ final class MainWindow {
                     ? IsolationGenerator.generateFollow(image.units(), image.followGeometry(), context::isCancelled)
                     : IsolationGenerator.generate(image.units(), image.solidGeometry(),
                             params.geometryParams(), context::isCancelled);
-            if (params.exceptionArea() != null && params.exceptionArea().geometry() != null) {
-                isolation = IsolationGenerator.excludeArea(
-                        isolation, params.exceptionArea().geometry(), context::isCancelled);
+            if (params.exceptionMask() != null) {
+                isolation = IsolationGenerator.excludeArea(isolation, params.exceptionMask(), context::isCancelled);
             }
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de isolamento...");
