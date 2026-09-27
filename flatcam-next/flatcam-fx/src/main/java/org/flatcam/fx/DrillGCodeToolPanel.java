@@ -51,6 +51,11 @@ final class DrillGCodeToolPanel {
         String travelZ;
         String feedZ;
         String spindle;
+        boolean multiDepth;
+        String depthPerPass;
+        boolean dwell;
+        String dwellTime;
+        String offsetZ;
 
         ToolRow(int id, double diameter, int drills, int slots, boolean metric) {
             this.id = id;
@@ -61,6 +66,9 @@ final class DrillGCodeToolPanel {
             travelZ = metric ? "2.0" : "0.1";
             feedZ = metric ? "300" : "12";
             spindle = "0";
+            depthPerPass = metric ? "0.7" : "0.03";
+            dwellTime = "1.0";
+            offsetZ = "0.0";
         }
 
         DrillGCodeParameters parameters(boolean toolChange) {
@@ -68,7 +76,10 @@ final class DrillGCodeToolPanel {
             if (cut >= 0) throw new IllegalArgumentException("Cut Z deve ser negativo para Tool " + id + ".");
             return new DrillGCodeParameters(parse(travelZ, "Travel Z (Tool " + id + ")"), -cut,
                     parse(feedZ, "Feedrate Z (Tool " + id + ")"),
-                    parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange);
+                    parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange,
+                    multiDepth, multiDepth ? parse(depthPerPass, "Depth per pass (Tool " + id + ")") : 0,
+                    dwell, dwell ? parse(dwellTime, "Dwell time (Tool " + id + ")") : 0,
+                    parse(offsetZ, "Offset Z (Tool " + id + ")"));
         }
     }
 
@@ -103,11 +114,12 @@ final class DrillGCodeToolPanel {
         totals.setStyle("-fx-font-weight: bold; -fx-text-fill: #70a7ff;");
         Runnable updateRows = () -> {
             ExcellonImage image = sourceCombo.getValue().image();
+            boolean sourceMetric = "MM".equalsIgnoreCase(image.units());
             List<ToolRow> rows = image.toolDiameters().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
                     .map(entry -> new ToolRow(entry.getKey(), entry.getValue(),
                             image.drillCounts().getOrDefault(entry.getKey(), 0),
-                            image.slotCounts().getOrDefault(entry.getKey(), 0), metric))
+                            image.slotCounts().getOrDefault(entry.getKey(), 0), sourceMetric))
                     .toList();
             table.getItems().setAll(rows);
             table.setPrefHeight(Math.min(200, 32 + rows.size() * 27));
@@ -141,10 +153,9 @@ final class DrillGCodeToolPanel {
         TextField offsetZ = field("0.0");
         CheckBox multiDepth = new CheckBox("Multi-Depth");
         CheckBox dwell = new CheckBox("Dwell");
-        for (Node node : List.of(multiDepth, depthPerPass, dwell, dwellTime, offsetZ)) node.setDisable(true);
-        String pending = "Opcao ainda nao aplicada ao G-code pelo FX.";
-        for (Node node : List.of(multiDepth, depthPerPass, dwell, dwellTime, offsetZ))
-            Tooltip.install(node, new Tooltip(pending));
+        multiDepth.setTooltip(new Tooltip("Desce em etapas e retrai entre passes."));
+        dwell.setTooltip(new Tooltip("Espera apos ligar o spindle antes de furar."));
+        offsetZ.setTooltip(new Tooltip("Valor positivo aumenta a profundidade; negativo reduz."));
         boolean[] loading = {false};
         Runnable loadSelection = () -> {
             List<ToolRow> selected = table.getSelectionModel().getSelectedItems();
@@ -158,6 +169,14 @@ final class DrillGCodeToolPanel {
             travelZ.setText(selected.stream().allMatch(tool -> tool.travelZ.equals(row.travelZ)) ? row.travelZ : "");
             feedZ.setText(selected.stream().allMatch(tool -> tool.feedZ.equals(row.feedZ)) ? row.feedZ : "");
             spindle.setText(selected.stream().allMatch(tool -> tool.spindle.equals(row.spindle)) ? row.spindle : "");
+            multiDepth.setSelected(selected.stream().allMatch(tool -> tool.multiDepth));
+            depthPerPass.setText(selected.stream().allMatch(tool -> tool.depthPerPass.equals(row.depthPerPass))
+                    ? row.depthPerPass : "");
+            dwell.setSelected(selected.stream().allMatch(tool -> tool.dwell));
+            dwellTime.setText(selected.stream().allMatch(tool -> tool.dwellTime.equals(row.dwellTime))
+                    ? row.dwellTime : "");
+            offsetZ.setText(selected.stream().allMatch(tool -> tool.offsetZ.equals(row.offsetZ))
+                    ? row.offsetZ : "");
             loading[0] = false;
         };
         table.getSelectionModel().getSelectedItems().addListener(
@@ -167,10 +186,26 @@ final class DrillGCodeToolPanel {
         bindDraft(travelZ, table, loading, (row, value) -> row.travelZ = value);
         bindDraft(feedZ, table, loading, (row, value) -> row.feedZ = value);
         bindDraft(spindle, table, loading, (row, value) -> row.spindle = value);
+        bindDraft(depthPerPass, table, loading, (row, value) -> row.depthPerPass = value);
+        bindDraft(dwellTime, table, loading, (row, value) -> row.dwellTime = value);
+        bindDraft(offsetZ, table, loading, (row, value) -> row.offsetZ = value);
+        multiDepth.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loading[0]) List.copyOf(table.getSelectionModel().getSelectedItems())
+                    .forEach(row -> row.multiDepth = value);
+        });
+        dwell.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loading[0]) List.copyOf(table.getSelectionModel().getSelectedItems())
+                    .forEach(row -> row.dwell = value);
+        });
         var noneSelected = Bindings.createBooleanBinding(
                 () -> table.getSelectionModel().getSelectedItems().isEmpty(),
                 table.getSelectionModel().getSelectedItems());
         for (TextField field : List.of(cutZ, travelZ, feedZ, spindle)) field.disableProperty().bind(noneSelected);
+        multiDepth.disableProperty().bind(noneSelected);
+        dwell.disableProperty().bind(noneSelected);
+        depthPerPass.disableProperty().bind(noneSelected.or(multiDepth.selectedProperty().not()));
+        dwellTime.disableProperty().bind(noneSelected.or(dwell.selectedProperty().not()));
+        offsetZ.disableProperty().bind(noneSelected);
 
         GridPane perTool = new GridPane();
         perTool.setHgap(8);
@@ -182,9 +217,9 @@ final class DrillGCodeToolPanel {
         perTool.addRow(4, new Label("Spindle speed:"), spindle);
         perTool.addRow(5, dwell, dwellTime);
         perTool.addRow(6, new Label("Offset Z:"), offsetZ);
-        Label unsupportedNote = new Label("Multi-Depth, Dwell e Offset Z ainda nao geram comandos no FX.");
-        unsupportedNote.setWrapText(true);
-        unsupportedNote.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
+        Label machiningNote = new Label("Dwell espera apos iniciar o spindle; Offset Z altera Cut Z.");
+        machiningNote.setWrapText(true);
+        machiningNote.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
         Button applyAll = new Button("Apply parameters to all tools");
         applyAll.setMaxWidth(Double.MAX_VALUE);
         applyAll.disableProperty().bind(Bindings.createBooleanBinding(
@@ -203,6 +238,11 @@ final class DrillGCodeToolPanel {
                     row.travelZ = source.travelZ;
                     row.feedZ = source.feedZ;
                     row.spindle = source.spindle;
+                    row.multiDepth = source.multiDepth;
+                    row.depthPerPass = source.depthPerPass;
+                    row.dwell = source.dwell;
+                    row.dwellTime = source.dwellTime;
+                    row.offsetZ = source.offsetZ;
                 }
                 feedback.setText("Parametros copiados para todas as ferramentas.");
             } catch (RuntimeException error) { feedback.setText(error.getMessage()); }
@@ -294,7 +334,7 @@ final class DrillGCodeToolPanel {
         title.getStyleClass().add("tool-title");
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
-                selectedTitle, perTool, unsupportedNote, applyAll, feedback, new Separator(),
+                selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
                 heading("Common Parameters"), common, errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         return box;

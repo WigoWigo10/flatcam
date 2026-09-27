@@ -26,16 +26,14 @@ import org.locationtech.jts.operation.union.UnaryUnionOp;
 /**
  * Generates GRBL-compatible drilling G-code from a parsed {@link ExcellonImage}:
  * absolute positioning, one rapid+plunge+retract per hole and per slot
- * (a straight plunge-cut-retract, single pass - no stepped/pecking cycles),
+ * (optionally with stepped passes and a retract between them),
  * grouped and ordered by tool. Deliberately avoids canned cycles (G81/G82) -
  * GRBL (the firmware on common hobby routers, e.g. the Genmitsu 3030) does
  * not support them - so this is plain G0/G1 rather than the shorter but
  * less portable canned-cycle form.
  *
- * <p>This is new functionality, not a port of legacy behavior - there is no
- * Python oracle to diff against here (see the Fase 0 baseline tests for
- * that pattern elsewhere in this codebase). Correctness is covered by a
- * plain unit test (GCodeGeneratorTest) instead.
+ * <p>The UI and per-tool settings follow appTools/ToolDrilling.py and
+ * camlib.py; this generator deliberately keeps a portable G0/G1 dialect.
  */
 public final class GCodeGenerator {
 
@@ -156,6 +154,12 @@ public final class GCodeGenerator {
             if (params.spindleSpeedRpm() > 0) {
                 line(gcode, "M3 S%d", params.spindleSpeedRpm());
             }
+            if (params.dwell()) {
+                line(gcode, "G4 P%s", fmt(params.dwellSeconds()));
+            }
+
+            List<Double> depths = passDepths(params.effectiveDepth(),
+                    params.multiDepth(), params.depthPerPass());
 
             for (ExcellonImage.Drill drill : drillsByTool.getOrDefault(toolId, List.of())) {
                 addTravel(travelShapes, lastX, lastY, drill.x(), drill.y(), radius);
@@ -166,8 +170,10 @@ public final class GCodeGenerator {
                 lastY = drill.y();
 
                 line(gcode, "G0 X%s Y%s", fmt(drill.x()), fmt(drill.y()));
-                line(gcode, "G1 Z-%s F%s", fmt(params.drillDepth()), fmt(params.feedRate()));
-                line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                for (double depth : depths) {
+                    line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
+                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                }
             }
             for (ExcellonImage.Slot slot : slotsByTool.getOrDefault(toolId, List.of())) {
                 addTravel(travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius);
@@ -176,9 +182,12 @@ public final class GCodeGenerator {
                 lastY = slot.y2();
 
                 line(gcode, "G0 X%s Y%s", fmt(slot.x1()), fmt(slot.y1()));
-                line(gcode, "G1 Z-%s F%s", fmt(params.drillDepth()), fmt(params.feedRate()));
-                line(gcode, "G1 X%s Y%s F%s", fmt(slot.x2()), fmt(slot.y2()), fmt(params.feedRate()));
-                line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                for (int pass = 0; pass < depths.size(); pass++) {
+                    if (pass > 0) line(gcode, "G0 X%s Y%s", fmt(slot.x1()), fmt(slot.y1()));
+                    line(gcode, "G1 Z-%s F%s", fmt(depths.get(pass)), fmt(params.feedRate()));
+                    line(gcode, "G1 X%s Y%s F%s", fmt(slot.x2()), fmt(slot.y2()), fmt(params.feedRate()));
+                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                }
             }
         }
         if (previous != null && previous.spindleSpeedRpm() > 0) {
@@ -471,8 +480,13 @@ public final class GCodeGenerator {
         }
         double depth = depthPerPass;
         while (depth < cutDepth) {
+            if (depths.size() >= 10_000)
+                throw new IllegalArgumentException("Depth per pass would require over 10000 passes");
             depths.add(depth);
-            depth += depthPerPass;
+            double next = depth + depthPerPass;
+            if (next <= depth)
+                throw new IllegalArgumentException("Depth per pass is too small to advance Z");
+            depth = next;
         }
         depths.add(cutDepth);
         return depths;

@@ -84,6 +84,36 @@ class GCodeGeneratorTest {
     }
 
     @Test
+    void drillingAppliesOffsetSteppedDepthAndSpindleDwell() {
+        ExcellonImage image = parse("M48", "METRIC", "T1C0.8", "%", "T1", "X1.0Y2.0", "M30");
+        var params = new DrillGCodeParameters(3.0, 1.7, 300, 12000, false,
+                true, 0.7, true, 1.25, 0.3);
+
+        String gcode = GCodeGenerator.generateDrillGCode(image, params);
+
+        assertEquals(2.0, params.effectiveDepth());
+        assertTrue(gcode.contains("M3 S12000\nG4 P1.2500\nG0 X1.0000 Y2.0000"));
+        assertEquals(1, countOccurrences(gcode, "G1 Z-0.7000 F300.0000"));
+        assertEquals(1, countOccurrences(gcode, "G1 Z-1.4000 F300.0000"));
+        assertEquals(1, countOccurrences(gcode, "G1 Z-2.0000 F300.0000"));
+        assertTrue(gcode.contains("G1 Z-0.7000 F300.0000\nG0 Z3.0000\nG1 Z-1.4000"));
+    }
+
+    @Test
+    void steppedSlotReturnsToStartAtSafeHeightForEachPass() {
+        ExcellonImage image = parse("M48", "METRIC", "T1C1.0", "%", "T1",
+                "X1.0Y1.0G85X5.0Y1.0", "M30");
+        var params = new DrillGCodeParameters(2, 1.2, 300, 0, false,
+                true, 0.6, false, 0, 0);
+
+        String gcode = GCodeGenerator.generateDrillGCode(image, params);
+
+        assertEquals(2, countOccurrences(gcode, "G1 X5.0000 Y1.0000 F300.0000"));
+        assertTrue(gcode.contains("G1 X5.0000 Y1.0000 F300.0000\nG0 Z2.0000\n"
+                + "G0 X1.0000 Y1.0000\nG1 Z-1.2000"));
+    }
+
+    @Test
     void multipleToolsPauseAndCycleSpindleBetweenThem() {
         ExcellonImage image = parse(
                 "M48", "METRIC", "T1C0.8", "T2C1.0", "%",
@@ -128,6 +158,17 @@ class GCodeGeneratorTest {
                 () -> new DrillGCodeParameters(Double.NaN, 1, 100, 0, false));
         assertThrows(IllegalArgumentException.class,
                 () -> new DrillGCodeParameters(2, Double.POSITIVE_INFINITY, 100, 0, false));
+        assertThrows(IllegalArgumentException.class,
+                () -> new DrillGCodeParameters(2, 1, 100, 0, false, true, 0, false, 0, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> new DrillGCodeParameters(2, 1, 100, 0, false, false, 0, false, 0, -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> new DrillGCodeParameters(2, 1, 100, 0, false, false, 0, true, -1, 0));
+        ExcellonImage image = parse("M48", "METRIC", "T1C0.8", "%", "T1", "X1.0Y2.0", "M30");
+        var unreasonablySmallStep = new DrillGCodeParameters(2, 1, 100, 0, false,
+                true, 0.00001, false, 0, 0);
+        assertThrows(IllegalArgumentException.class,
+                () -> GCodeGenerator.generateDrillGCode(image, unreasonablySmallStep));
     }
 
     @Test
