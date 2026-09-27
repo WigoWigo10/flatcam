@@ -74,6 +74,7 @@ import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.app.project.ProjectFile;
+import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
@@ -3192,6 +3193,21 @@ final class MainWindow {
         openToolPanel("NCC Tool", NccToolPanel.build(item.getValue(), units, gerberSource, referenceCandidates,
                 (shape, onSelected, onCancelled) ->
                         beginNccAreaSelection(source, shape, onSelected, onCancelled),
+                () -> {
+                    FileChooser chooser = new FileChooser();
+                    chooser.setTitle("Abrir Tools Database do FlatCAM Python");
+                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
+                            "Tools Database (*.FlatDB, *.json)", "*.FlatDB", "*.json"));
+                    File selected = chooser.showOpenDialog(scene.getWindow());
+                    if (selected == null) {
+                        return List.of();
+                    }
+                    try {
+                        return LegacyToolsDatabase.loadNccTools(selected.toPath());
+                    } catch (IOException error) {
+                        throw new IllegalArgumentException(error.getMessage(), error);
+                    }
+                },
                 result -> {
                     plotAreaView.cancelPlacement();
                     runNccGeneration(item, units, source, gerberSource, result);

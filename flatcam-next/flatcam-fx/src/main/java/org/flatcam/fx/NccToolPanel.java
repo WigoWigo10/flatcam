@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
 import javafx.collections.FXCollections;
@@ -13,6 +14,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ChoiceDialog;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SelectionMode;
@@ -36,13 +38,14 @@ import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccToolSettings;
+import org.flatcam.app.project.LegacyToolsDatabase;
 import org.locationtech.jts.geom.Geometry;
 
 /**
  * Multi-tool NCC form; the result is a multigeo Geometry object (one entry
  * per tool), matching Python's workflow. The tool list is a simple ordered
- * table of diameters and per-CLEAR-tool settings. Tools Database remains a
- * separate gap; margin/boundary are common just as in ToolNCC.py.
+ * table of diameters and per-CLEAR-tool settings. Python's Tools Database can
+ * be read to insert an NCC row; margin/boundary remain common.
  */
 final class NccToolPanel {
 
@@ -111,6 +114,7 @@ final class NccToolPanel {
     static Node build(String sourceName, String units, boolean gerberSource,
                       List<ReferenceCandidate> referenceCandidates,
                       AreaSelector areaSelector,
+                      Supplier<List<LegacyToolsDatabase.NccTool>> databaseLoader,
                       Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(units);
         ObservableList<ToolRow> tools = FXCollections.observableArrayList(new ToolRow(metric ? 0.5 : 0.020));
@@ -147,6 +151,7 @@ final class NccToolPanel {
         newDiaField.setMinWidth(0);
         Tooltip.install(newDiaField, tooltip("Diametro da nova ferramenta a adicionar"));
         Button addToolButton = new Button("Adicionar");
+        Button databaseButton = new Button("Pick from DB");
         Button removeToolButton = new Button("Remover");
         removeToolButton.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
         Label toolError = new Label();
@@ -173,6 +178,44 @@ final class NccToolPanel {
             }
         };
         addToolButton.setOnAction(e -> addTool.run());
+        databaseButton.setOnAction(e -> {
+            try {
+                List<LegacyToolsDatabase.NccTool> entries = databaseLoader.get();
+                if (entries.isEmpty()) {
+                    toolError.setText("Nenhuma ferramenta NCC encontrada no arquivo, ou selecao cancelada.");
+                    return;
+                }
+                ChoiceDialog<LegacyToolsDatabase.NccTool> dialog = new ChoiceDialog<>(entries.get(0), entries);
+                dialog.setTitle("Tools Database");
+                dialog.setHeaderText("Escolha uma ferramenta NCC ou General. Confirme se o diametro "
+                        + "do banco esta nas unidades do objeto (" + units + ").");
+                dialog.setContentText("Ferramenta:");
+                dialog.showAndWait().ifPresent(selected -> {
+                    if (!gerberSource && selected.operation() == NccOperation.ISO) {
+                        toolError.setText("Ferramenta ISO exige Gerber como origem.");
+                        return;
+                    }
+                    if (tools.stream().anyMatch(row -> Math.abs(row.diameter - selected.diameter()) < 1e-6)) {
+                        toolError.setText("Ferramenta com este diametro ja esta na tabela.");
+                        return;
+                    }
+                    ToolRow row = new ToolRow(selected.diameter());
+                    row.operation = selected.operation();
+                    NccToolSettings settings = selected.settings();
+                    row.overlapPercent = format(settings.overlapFraction() * 100);
+                    row.method = settings.method();
+                    row.connect = settings.connect();
+                    row.contour = settings.contour();
+                    row.offsetEnabled = settings.copperOffset() > 0;
+                    row.offset = format(settings.copperOffset());
+                    tools.add(row);
+                    toolTable.getSelectionModel().clearAndSelect(tools.size() - 1);
+                    toolError.setText("");
+                });
+            } catch (RuntimeException error) {
+                toolError.setText("Falha ao ler Tools Database: " + error.getMessage());
+            }
+        });
         newDiaField.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.ENTER) {
                 addTool.run();
@@ -511,7 +554,8 @@ final class NccToolPanel {
 
         Region toolButtonsSpacer = new Region();
         HBox.setHgrow(toolButtonsSpacer, Priority.ALWAYS);
-        HBox toolButtons = new HBox(8, newDiaField, addToolButton, toolButtonsSpacer, removeToolButton);
+        HBox toolButtons = new HBox(8, newDiaField, addToolButton, databaseButton,
+                toolButtonsSpacer, removeToolButton);
         toolButtons.setAlignment(Pos.CENTER_LEFT);
 
         VBox box = new VBox(6, new Label("NCC Tool (" + units + ")"),
