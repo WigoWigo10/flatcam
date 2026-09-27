@@ -48,6 +48,7 @@ final class ExcellonObjectToolsTable {
         table.getItems().setAll(rows);
         table.setFixedCellSize(27);
         table.setPrefHeight(30 + rows.size() * 27 + 2);
+        table.setMinHeight(table.getPrefHeight());
         table.setMaxHeight(table.getPrefHeight());
         table.getSelectionModel().clearSelection();
         table.setFocusTraversable(false);

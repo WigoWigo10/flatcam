@@ -3691,7 +3691,15 @@ final class MainWindow {
         } else {
             content = propertiesPlaceholder;
         }
-        propertiesContainer.getChildren().setAll(content);
+        if (content == propertiesPlaceholder) {
+            propertiesContainer.getChildren().setAll(content);
+            return;
+        }
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.getStyleClass().add("object-panel-scroll");
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        propertiesContainer.getChildren().setAll(scroll);
     }
 
     /** "Gerber Object" header, Plot Options (Solid/Multi-Color), Name, Plot, Properties, Isolation Routing - see ObjectUI.py's GerberObjectUI. */

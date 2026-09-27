@@ -379,8 +379,16 @@
 .tool-panel,
 .object-panel,
 .tool-panel-scroll,
-.tool-panel-scroll > .viewport {
+.tool-panel-scroll > .viewport,
+.object-panel-scroll,
+.object-panel-scroll > .viewport {
     -fx-background-color: -fc-panel-bg;
+}
+
+.object-panel-scroll {
+    -fx-background-insets: 0;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
 }
 
 .tool-panel,
