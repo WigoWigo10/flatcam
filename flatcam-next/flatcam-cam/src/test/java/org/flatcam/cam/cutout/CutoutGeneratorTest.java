@@ -106,6 +106,26 @@ class CutoutGeneratorTest {
     }
 
     @Test
+    void manualMouseBitesUseOnlyDrawnAreaAndWorkWithoutAutomaticPattern() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = square(factory, 0, 0, 10);
+        CutoutParameters params = new CutoutParameters(2, 0, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 0, GapPattern.NONE);
+        Geometry area = factory.toGeometry(new Envelope(4, 6, -2, 2));
+        ExcellonImage bites = CutoutGenerator.generateMouseBites("MM", source, params,
+                0.8, 0.4, java.util.List.of(area), CancellationToken.none());
+        assertTrue(bites.totalDrills() > 0);
+        for (ExcellonImage.Drill drill : bites.drills()) {
+            assertTrue(area.covers(factory.createPoint(
+                    new org.locationtech.jts.geom.Coordinate(drill.x(), drill.y()))));
+        }
+        assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generateMouseBites(
+                "MM", source, params, 0.8, 0.4,
+                java.util.List.of(factory.toGeometry(new Envelope(20, 21, 20, 21))),
+                CancellationToken.none()));
+    }
+
+    @Test
     void drawnManualGapReplacesAutomaticPatternAndRetainsThinSegment() {
         GeometryFactory factory = new GeometryFactory();
         Geometry source = square(factory, 0, 0, 10);

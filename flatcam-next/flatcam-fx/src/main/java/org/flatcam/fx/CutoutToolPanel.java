@@ -29,8 +29,8 @@ import org.locationtech.jts.geom.Geometry;
  * Rectangular) mirror Python's own two separate generation buttons sharing
  * this one form.
  *
- * <p>Bridge, Thin and automatic M-Bites are offered. Manual gaps are drawn
- * as filled rectangle/polygon masks for Bridge or Thin. The output is editable
+ * <p>Bridge, Thin and M-Bites are offered. Manual gaps are drawn
+ * as filled rectangle/polygon masks for all three modes. The output is editable
  * Geometry, followed by a separate Geometry-to-CNC step as in Python.
  */
 final class CutoutToolPanel {
@@ -180,11 +180,8 @@ final class CutoutToolPanel {
             double biteDiameter = bites ? parseDouble(biteDiameterField.getText(), "M-Bites dia") : 0;
             double biteSpacing = bites ? parseDouble(biteSpacingField.getText(), "M-Bites spacing") : 0;
             if (bites && (biteDiameter <= 0 || biteSpacing < 0
-                    || gapSize <= 0 || gapPatternCombo.getValue() == GapPattern.NONE)) {
+                    || manualAreas.isEmpty() && (gapSize <= 0 || gapPatternCombo.getValue() == GapPattern.NONE))) {
                 throw new IllegalArgumentException("M-Bites exige diametro positivo, espacamento valido e gaps.");
-            }
-            if (bites && !manualAreas.isEmpty()) {
-                throw new IllegalArgumentException("M-Bites com gaps manuais ainda nao e suportado.");
             }
 
             errorLabel.setText("");

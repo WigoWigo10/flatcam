@@ -23,7 +23,7 @@ import org.locationtech.jts.operation.linemerge.LineMerger;
  * rectangles at bridge-gap positions so the finished board can be snapped
  * free of the surrounding stock. Only a Gerber source is supported (Python
  * also accepts existing Geometry). Bridge paths, Thin bridge segments and
- * automatic M-Bites drill points are available. Thin segments become a
+ * automatic or manually located M-Bites drill points are available. Thin segments become a
  * separate Geometry so the user can choose their shallower Cut Z at the
  * Geometry-to-CNC step. Manual masks can cut one or more arbitrary gap areas;
  * the Python cursor-oriented gap gesture is not reproduced yet.
@@ -119,13 +119,27 @@ public final class CutoutGenerator {
     public static ExcellonImage generateMouseBites(String units, Geometry copperGeometry,
                                                    CutoutParameters params, double holeDiameter,
                                                    double holeSpacing, CancellationToken cancellationToken) {
+        return generateMouseBites(units, copperGeometry, params, holeDiameter, holeSpacing,
+                List.of(), cancellationToken);
+    }
+
+    /** Manual gap masks replace the automatic gap pattern for M-Bites too. */
+    public static ExcellonImage generateMouseBites(String units, Geometry copperGeometry,
+                                                   CutoutParameters params, double holeDiameter,
+                                                   double holeSpacing, List<Geometry> manualGapAreas,
+                                                   CancellationToken cancellationToken) {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
+        Objects.requireNonNull(manualGapAreas, "manualGapAreas");
         if (!Double.isFinite(holeDiameter) || holeDiameter <= 0
                 || !Double.isFinite(holeSpacing) || holeSpacing < 0) {
             throw new IllegalArgumentException("M-Bites diameter must be positive and spacing nonnegative");
         }
-        if (params.gapPattern() == GapPattern.NONE || params.gapSize() <= 0) {
+        if (manualGapAreas.isEmpty() && (params.gapPattern() == GapPattern.NONE || params.gapSize() <= 0)) {
             throw new IllegalArgumentException("M-Bites requires at least one nonzero gap");
+        }
+        for (Geometry area : manualGapAreas) {
+            if (area == null || area.isEmpty() || area.getDimension() != 2 || !area.isValid())
+                throw new IllegalArgumentException("Manual M-Bites gap must be a valid filled area");
         }
         cancellationToken.throwIfCancellationRequested();
         GeometryFactory factory = copperGeometry.getFactory();
@@ -143,14 +157,18 @@ public final class CutoutGenerator {
             Geometry shape = params.shape() == CutoutShape.RECTANGULAR
                     ? boxFromEnvelope(part.getEnvelopeInternal(), factory) : part;
             Geometry outline = exteriorRings(shape.buffer(offset, QUADRANT_SEGMENTS));
-            Envelope envelope = outline.getEnvelopeInternal();
-            for (Geometry band : buildGapBands(envelope, params.gapPattern(),
-                    params.gapSize() / 2.0, factory)) {
+            List<Geometry> bands = manualGapAreas.isEmpty()
+                    ? buildGapBands(outline.getEnvelopeInternal(), params.gapPattern(),
+                            params.gapSize() / 2.0, factory)
+                    : manualGapAreas;
+            for (Geometry band : bands) {
                 cancellationToken.throwIfCancellationRequested();
                 addBiteHoles(outline.intersection(band), holeDiameter, step,
                         drills, footprints, factory, cancellationToken);
             }
         }
+        if (!manualGapAreas.isEmpty() && drills.isEmpty())
+            throw new IllegalArgumentException("Os gaps manuais nao cruzam a linha de M-Bites.");
         Geometry solid = footprints.isEmpty()
                 ? factory.createGeometryCollection() : factory.buildGeometry(footprints);
         return ExcellonImage.of(units, Map.of(1, holeDiameter), drills, List.of(), solid);

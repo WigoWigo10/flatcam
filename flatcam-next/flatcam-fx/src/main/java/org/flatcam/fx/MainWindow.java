@@ -3332,7 +3332,8 @@ final class MainWindow {
                     result.manualGapAreas(), context::isCancelled);
             ExcellonImage mouseBites = result.gapType() == CutoutToolPanel.GapType.M_BITES
                     ? CutoutGenerator.generateMouseBites(image.units(), image.solidGeometry(),
-                            result.cutoutParams(), result.biteDiameter(), result.biteSpacing(), context::isCancelled)
+                            result.cutoutParams(), result.biteDiameter(), result.biteSpacing(),
+                            result.manualGapAreas(), context::isCancelled)
                     : null;
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de cutout...");
