@@ -3067,7 +3067,17 @@ final class MainWindow {
     /** Creates an editable cutout Geometry, as appTools/ToolCutOut.py does. */
     private void generateCutout(TreeItem<String> item, GerberImage image) {
         openToolPanel("Cutout Tool", CutoutToolPanel.build(image.units(),
-                result -> runCutoutGeneration(item, image, result), this::closeToolPanel));
+                (polygon, onSelected, onCancelled) -> beginNccAreaSelection(image.solidGeometry(),
+                        polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
+                        onSelected, onCancelled),
+                plotAreaView::cancelPlacement,
+                result -> {
+                    plotAreaView.cancelPlacement();
+                    runCutoutGeneration(item, image, result);
+                }, () -> {
+                    plotAreaView.cancelPlacement();
+                    closeToolPanel();
+                }));
     }
 
     private record CutoutJobOutcome(CutoutResult cutout, ExcellonImage mouseBites) {
@@ -3083,7 +3093,8 @@ final class MainWindow {
         JobHandle<CutoutJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de cutout...");
             CutoutResult cutout = CutoutGenerator.generate(
-                    image.units(), image.solidGeometry(), result.cutoutParams(), context::isCancelled);
+                    image.units(), image.solidGeometry(), result.cutoutParams(),
+                    result.manualGapAreas(), context::isCancelled);
             ExcellonImage mouseBites = result.gapType() == CutoutToolPanel.GapType.M_BITES
                     ? CutoutGenerator.generateMouseBites(image.units(), image.solidGeometry(),
                             result.cutoutParams(), result.biteDiameter(), result.biteSpacing(), context::isCancelled)

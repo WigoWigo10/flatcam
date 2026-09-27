@@ -25,7 +25,8 @@ import org.locationtech.jts.operation.linemerge.LineMerger;
  * also accepts existing Geometry). Bridge paths, Thin bridge segments and
  * automatic M-Bites drill points are available. Thin segments become a
  * separate Geometry so the user can choose their shallower Cut Z at the
- * Geometry-to-CNC step. Interactive manual placement remains future work.
+ * Geometry-to-CNC step. Manual masks can cut one or more arbitrary gap areas;
+ * the Python cursor-oriented gap gesture is not reproduced yet.
  */
 public final class CutoutGenerator {
 
@@ -40,7 +41,19 @@ public final class CutoutGenerator {
 
     public static CutoutResult generate(String units, Geometry copperGeometry, CutoutParameters params,
                                         CancellationToken cancellationToken) {
+        return generate(units, copperGeometry, params, List.of(), cancellationToken);
+    }
+
+    /** Manual masks directly remove the enclosed portions of the cut path. */
+    public static CutoutResult generate(String units, Geometry copperGeometry, CutoutParameters params,
+                                        List<Geometry> manualGapAreas, CancellationToken cancellationToken) {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
+        Objects.requireNonNull(manualGapAreas, "manualGapAreas");
+        for (Geometry area : manualGapAreas) {
+            if (area == null || area.isEmpty() || area.getDimension() != 2 || !area.isValid()) {
+                throw new IllegalArgumentException("Manual gap area must be a valid, filled shape");
+            }
+        }
         cancellationToken.throwIfCancellationRequested();
         GeometryFactory geometryFactory = copperGeometry.getFactory();
         Geometry source = params.convexShape() ? copperGeometry.convexHull() : copperGeometry;
@@ -66,8 +79,11 @@ public final class CutoutGenerator {
                 continue;
             }
             cancellationToken.throwIfCancellationRequested();
-            Geometry withGaps = applyGaps(outline, params, geometryFactory, cancellationToken);
-            if (params.gapPattern() != GapPattern.NONE && params.gapSize() > 0) {
+            Geometry withGaps = manualGapAreas.isEmpty()
+                    ? applyGaps(outline, params, geometryFactory, cancellationToken)
+                    : applyManualGaps(outline, manualGapAreas, geometryFactory, cancellationToken);
+            if (!manualGapAreas.isEmpty()
+                    || params.gapPattern() != GapPattern.NONE && params.gapSize() > 0) {
                 Geometry inGaps = outline.difference(withGaps);
                 for (int i = 0; i < inGaps.getNumGeometries(); i++) {
                     cancellationToken.throwIfCancellationRequested();
@@ -87,6 +103,16 @@ public final class CutoutGenerator {
         Geometry gaps = gapPaths.isEmpty() ? geometryFactory.createGeometryCollection()
                 : geometryFactory.buildGeometry(gapPaths);
         return new CutoutResult(units, combined, gaps);
+    }
+
+    private static Geometry applyManualGaps(Geometry outline, List<Geometry> areas,
+                                             GeometryFactory factory, CancellationToken cancellationToken) {
+        Geometry result = outline;
+        for (Geometry area : areas) {
+            cancellationToken.throwIfCancellationRequested();
+            result = result.difference(area);
+        }
+        return lineMerge(result, factory);
     }
 
     /** Creates the separate Excellon object used by Python's automatic M-Bites mode. */

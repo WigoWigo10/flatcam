@@ -20,6 +20,7 @@ import org.flatcam.cam.gerber.GerberParser;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.LineString;
 
 class CutoutGeneratorTest {
@@ -102,6 +103,24 @@ class CutoutGeneratorTest {
                 CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 0.05, GapPattern.NONE);
         assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generateMouseBites(
                 gerber.units(), gerber.solidGeometry(), params, 0.006, 0.004, CancellationToken.none()));
+    }
+
+    @Test
+    void drawnManualGapReplacesAutomaticPatternAndRetainsThinSegment() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = square(factory, 0, 0, 10);
+        CutoutParameters params = new CutoutParameters(2, 0, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 1, GapPattern.FOUR);
+        Geometry manualArea = factory.toGeometry(new Envelope(4, 6, -2, 2));
+
+        CutoutResult automatic = CutoutGenerator.generate("MM", source, params);
+        CutoutResult manual = CutoutGenerator.generate("MM", source, params,
+                java.util.List.of(manualArea), CancellationToken.none());
+
+        assertEquals(4, automatic.partCount());
+        assertEquals(1, manual.partCount());
+        assertTrue(manual.gapGeometry().getLength() > 0);
+        assertEquals(0, manual.geometry().intersection(manualArea).getLength(), 1e-9);
     }
 
     private static int piecesFor(GerberImage gerber, CutoutParameters base, GapPattern pattern) {
