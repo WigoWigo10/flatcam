@@ -11,16 +11,21 @@ import org.locationtech.jts.geom.Geometry;
  * outline/bounding-box shape) is represented elsewhere as a bare
  * {@link Geometry}, not this type.
  */
-public record ToolGeometry(double toolDiameter, Geometry geometry) {
+public record ToolGeometry(double toolDiameter, Geometry geometry, ToolProfile toolProfile) {
+    public ToolGeometry(double toolDiameter, Geometry geometry) {
+        this(toolDiameter, geometry, ToolProfile.C1);
+    }
+
     public ToolGeometry {
         if (!Double.isFinite(toolDiameter) || toolDiameter <= 0) {
             throw new IllegalArgumentException("toolDiameter must be positive: " + toolDiameter);
         }
         Objects.requireNonNull(geometry, "geometry");
+        Objects.requireNonNull(toolProfile, "toolProfile");
     }
 
     /** GeometryObject.scale()/.offset() etc. keep each tool's own solid_geometry in sync - same idea here. */
     public ToolGeometry transformed(TransformOp op) {
-        return new ToolGeometry(toolDiameter, op.apply(geometry));
+        return new ToolGeometry(toolDiameter, op.apply(geometry), toolProfile);
     }
 }

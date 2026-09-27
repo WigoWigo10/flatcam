@@ -14,6 +14,7 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.locationtech.jts.geom.Geometry;
 
 /**
@@ -49,7 +50,10 @@ final class GeometryCncToolPanel {
             TableColumn<ToolGeometry, Number> diaColumn = new TableColumn<>("Diametro");
             diaColumn.setCellValueFactory(cellData ->
                     new javafx.beans.property.SimpleDoubleProperty(cellData.getValue().toolDiameter()));
-            toolTable.getColumns().addAll(List.of(idColumn, diaColumn));
+            TableColumn<ToolGeometry, String> typeColumn = new TableColumn<>("TT");
+            typeColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
+                    cellData.getValue().toolProfile().name()));
+            toolTable.getColumns().addAll(List.of(idColumn, diaColumn, typeColumn));
             toolTable.getItems().setAll(tools);
             toolTable.setPrefHeight(Math.min(160, 28 + tools.size() * 28));
         } else if (tools.size() == 1) {
@@ -90,6 +94,15 @@ final class GeometryCncToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         Button generateButton = new Button("Gerar CNC Job...");
         generateButton.setMaxWidth(Double.MAX_VALUE);
+        boolean hasVTool = tools.stream().anyMatch(tool -> tool.toolProfile() == ToolProfile.V
+                && !tool.geometry().isEmpty());
+        generateButton.setDisable(hasVTool);
+        Label vToolWarning = new Label("Ferramenta V selecionada: o FX ainda nao calcula Cut Z por V-Tip Dia/Angle. "
+                + "A Geometry foi preservada, mas o CNC Job V esta bloqueado para evitar profundidade incorreta.");
+        vToolWarning.setWrapText(true);
+        vToolWarning.setVisible(hasVTool);
+        vToolWarning.setManaged(hasVTool);
+        vToolWarning.getStyleClass().add("form-error-label");
         generateButton.setOnAction(e -> {
             try {
                 double safeZ = parse(safeZField, "Travel Z");
@@ -117,7 +130,7 @@ final class GeometryCncToolPanel {
         if (multiTool) {
             box.getChildren().addAll(new Label("Ferramentas (associadas ao NCC):"), toolTable);
         }
-        box.getChildren().addAll(grid, errorLabel, generateButton, closeButton);
+        box.getChildren().addAll(grid, vToolWarning, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }

@@ -15,6 +15,7 @@ import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -104,6 +105,7 @@ public final class ProjectFileIO {
             JSONArray tools = new JSONArray();
             for (ToolGeometry tool : entry.tools()) {
                 tools.put(new JSONObject().put("diameter", tool.toolDiameter())
+                        .put("toolType", tool.toolProfile().name())
                         .put("wkt", wktWriter.write(tool.geometry())));
             }
             geometryJson.put("tools", tools);
@@ -193,7 +195,8 @@ public final class ProjectFileIO {
                 if (toolArray != null) {
                     for (int j = 0; j < toolArray.length(); j++) {
                         JSONObject tool = toolArray.getJSONObject(j);
-                        tools.add(new ToolGeometry(tool.getDouble("diameter"), reader.read(tool.getString("wkt"))));
+                        tools.add(new ToolGeometry(tool.getDouble("diameter"), reader.read(tool.getString("wkt")),
+                                ToolProfile.fromLegacy(tool.optString("toolType", "C1"))));
                     }
                 }
                 result.add(new ProjectFile.GeometryEntry(value.getString("name"),

@@ -3,10 +3,12 @@ package org.flatcam.fx;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import javafx.beans.binding.Bindings;
 import javafx.beans.binding.BooleanBinding;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
@@ -19,6 +21,10 @@ import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.control.Separator;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.ToggleGroup;
+import javafx.scene.control.Spinner;
+import javafx.scene.control.SpinnerValueFactory;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -28,16 +34,19 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.control.TreeItem;
+import javafx.util.StringConverter;
 import javafx.util.Duration;
 import org.flatcam.cam.ncc.NccBoundary;
+import org.flatcam.cam.ncc.NccGenerator;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccMillingType;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccToolSettings;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.locationtech.jts.geom.Geometry;
 
@@ -49,11 +58,14 @@ import org.locationtech.jts.geom.Geometry;
  */
 final class NccToolPanel {
 
+    private static final List<ToolProfile> TOOL_TYPES = List.of(ToolProfile.values());
+
     private static final class ToolRow {
         final double diameter;
+        ToolProfile toolProfile = ToolProfile.C1;
         NccOperation operation;
         String overlapPercent = "40";
-        NccMethod method = NccMethod.STANDARD;
+        NccMethod method = NccMethod.SEED;
         boolean connect = true;
         boolean contour = true;
         boolean offsetEnabled;
@@ -94,34 +106,88 @@ final class NccToolPanel {
 
     @FunctionalInterface
     interface AreaSelector {
-        boolean select(AreaShape shape, Consumer<Geometry> onSelected, Runnable onCancelled);
+        boolean select(SourceCandidate source, AreaShape shape,
+                       Consumer<Geometry> onSelected, Runnable onCancelled);
+    }
+
+    record SourceCandidate(TreeItem<String> item, String name, String units,
+                           boolean gerber, Geometry geometry) {
+        @Override
+        public String toString() { return name; }
     }
 
     /** One selectable entry for the "Reference Object" boundary combo - see MainWindow.generateNcc. */
-    record ReferenceCandidate(String displayName, boolean isGerber, Geometry geometry) {
+    record ReferenceCandidate(TreeItem<String> item, String displayName, boolean isGerber, Geometry geometry) {
         @Override
         public String toString() {
             return displayName + (isGerber ? " (Gerber)" : " (Geometry)");
         }
     }
 
-    record Result(NccParameters parameters, boolean checkValidity) {
+    record Result(SourceCandidate source, NccParameters parameters, boolean checkValidity,
+                  Map<Double, ToolProfile> toolProfiles) {
     }
 
     private NccToolPanel() {
     }
 
-    static Node build(String sourceName, String units, boolean gerberSource,
+    static Node build(List<SourceCandidate> sourceCandidates, SourceCandidate initialSource,
                       List<ReferenceCandidate> referenceCandidates,
                       AreaSelector areaSelector,
+                      Runnable cancelArea,
                       Supplier<List<LegacyToolsDatabase.NccTool>> databaseLoader,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        String units = initialSource.units();
         boolean metric = "MM".equalsIgnoreCase(units);
-        ObservableList<ToolRow> tools = FXCollections.observableArrayList(new ToolRow(metric ? 0.5 : 0.020));
+        ComboBox<SourceCandidate> sourceCombo = new ComboBox<>();
+        sourceCombo.setMinWidth(0);
+        sourceCombo.setPrefWidth(180);
+        sourceCombo.setMaxWidth(Double.MAX_VALUE);
+        ToggleGroup sourceTypeGroup = new ToggleGroup();
+        RadioButton geometrySourceRadio = radio("Geometry", sourceTypeGroup);
+        RadioButton gerberSourceRadio = radio("Gerber", sourceTypeGroup);
+        geometrySourceRadio.setDisable(sourceCandidates.stream().noneMatch(candidate -> !candidate.gerber()));
+        gerberSourceRadio.setDisable(sourceCandidates.stream().noneMatch(SourceCandidate::gerber));
+        (initialSource.gerber() ? gerberSourceRadio : geometrySourceRadio).setSelected(true);
+        Runnable updateSourceList = () -> {
+            boolean gerber = gerberSourceRadio.isSelected();
+            SourceCandidate current = sourceCombo.getValue();
+            List<SourceCandidate> available = sourceCandidates.stream()
+                    .filter(candidate -> candidate.gerber() == gerber).toList();
+            sourceCombo.getItems().setAll(available);
+            sourceCombo.setValue(available.contains(current) ? current
+                    : available.contains(initialSource) ? initialSource
+                    : available.isEmpty() ? null : available.get(0));
+        };
+        sourceTypeGroup.selectedToggleProperty().addListener((observable, oldValue, newValue) -> updateSourceList.run());
+        updateSourceList.run();
+        GridPane sourceGrid = new GridPane();
+        sourceGrid.setHgap(8);
+        sourceGrid.setVgap(6);
+        sourceGrid.addRow(0, new Label("Obj Type:"), new HBox(10, geometrySourceRadio, gerberSourceRadio));
+        sourceGrid.addRow(1, new Label("Object:"), sourceCombo);
+        GridPane.setHgrow(sourceCombo, Priority.ALWAYS);
+        ObservableList<ToolRow> tools = FXCollections.observableArrayList(
+                new ToolRow(metric ? 1.0 : 0.040), new ToolRow(metric ? 0.5 : 0.020));
+        Label toolError = new Label();
+        toolError.getStyleClass().add("form-error-label");
+        toolError.setWrapText(true);
+        Runnable[] refreshOperation = {() -> { }};
 
         TableView<ToolRow> toolTable = new TableView<>(tools);
         toolTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         toolTable.setPlaceholder(new Label("Nenhuma ferramenta"));
+        TableColumn<ToolRow, String> numberColumn = new TableColumn<>("#");
+        numberColumn.setSortable(false);
+        numberColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(""));
+        numberColumn.setCellFactory(column -> new TableCell<>() {
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty ? null : Integer.toString(getIndex() + 1));
+            }
+        });
+        numberColumn.setMinWidth(32);
+        numberColumn.setMaxWidth(32);
         TableColumn<ToolRow, Double> diaColumn = new TableColumn<>("Diametro");
         diaColumn.setSortable(false);
         diaColumn.setCellValueFactory(cellData ->
@@ -133,30 +199,93 @@ final class NccToolPanel {
                 setText(empty || item == null ? null : format(item));
             }
         });
-        TableColumn<ToolRow, String> operationColumn = new TableColumn<>("Operacao");
-        operationColumn.setSortable(false);
-        operationColumn.setCellValueFactory(cellData ->
-                new javafx.beans.property.SimpleStringProperty(cellData.getValue().operation.name()));
-        toolTable.getColumns().addAll(diaColumn, operationColumn);
+        TableColumn<ToolRow, ToolProfile> typeColumn = new TableColumn<>("TT");
+        typeColumn.setSortable(false);
+        typeColumn.setCellValueFactory(cellData ->
+                new javafx.beans.property.SimpleObjectProperty<>(cellData.getValue().toolProfile));
+        typeColumn.setCellFactory(column -> new TableCell<>() {
+            private final ComboBox<ToolProfile> choice = new ComboBox<>(FXCollections.observableArrayList(TOOL_TYPES));
+            private boolean updating;
+            {
+                choice.setMaxWidth(Double.MAX_VALUE);
+                choice.setOnAction(event -> {
+                    if (updating || getTableRow() == null) return;
+                    ToolRow row = getTableRow().getItem();
+                    ToolProfile profile = choice.getValue();
+                    if (row == null || profile == null) return;
+                    if (profile == ToolProfile.V && (sourceCombo.getValue() == null
+                            || !sourceCombo.getValue().gerber())) {
+                        toolError.setText("Ferramenta V exige origem Gerber e operacao Isolation.");
+                        updating = true;
+                        choice.setValue(row.toolProfile);
+                        updating = false;
+                        return;
+                    }
+                    row.toolProfile = profile;
+                    if (profile == ToolProfile.V) row.operation = NccOperation.ISO;
+                    refreshOperation[0].run();
+                });
+            }
+            @Override protected void updateItem(ToolProfile profile, boolean empty) {
+                super.updateItem(profile, empty);
+                updating = true;
+                choice.setValue(profile);
+                setGraphic(empty ? null : choice);
+                updating = false;
+            }
+        });
+        Label typeHeader = new Label("TT");
+        typeHeader.setTooltip(tooltip("C1-C4: fresas circulares (numero de dentes). B: ball nose. "
+                + "V: exige Gerber e Isolation; CNC Job V permanece bloqueado ate haver V-Tip Dia/Angle."));
+        typeColumn.setText(null);
+        typeColumn.setGraphic(typeHeader);
+        typeColumn.setMinWidth(58);
+        typeColumn.setMaxWidth(58);
+        toolTable.getColumns().addAll(numberColumn, diaColumn, typeColumn);
         toolTable.setMinWidth(0);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         Runnable updateTableHeight = () ->
                 toolTable.setPrefHeight(Math.min(150, 32 + Math.max(tools.size(), 1) * 28));
-        tools.addListener((javafx.collections.ListChangeListener<ToolRow>) change -> updateTableHeight.run());
+        tools.addListener((javafx.collections.ListChangeListener<ToolRow>) change -> {
+            updateTableHeight.run();
+            toolTable.refresh();
+        });
         updateTableHeight.run();
-        toolTable.getSelectionModel().selectAll();
+        toolTable.getSelectionModel().selectFirst();
 
-        TextField newDiaField = new TextField(metric ? "1.0" : "0.040");
-        newDiaField.setPrefColumnCount(8);
-        newDiaField.setMinWidth(0);
-        Tooltip.install(newDiaField, tooltip("Diametro da nova ferramenta a adicionar"));
+        Spinner<Double> newDiaSpinner = spinner(0.0001, 10_000, metric ? 0.1 : 0.004,
+                metric ? 0.1 : 0.001);
+        TextField newDiaField = newDiaSpinner.getEditor();
+        newDiaSpinner.setMaxWidth(Double.MAX_VALUE);
+        Tooltip.install(newDiaSpinner, tooltip("Diametro da nova ferramenta a adicionar"));
         Button addToolButton = new Button("Adicionar");
         Button databaseButton = new Button("Pick from DB");
+        Button optimalButton = new Button("Optimal");
         Button removeToolButton = new Button("Remover");
         removeToolButton.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
-        Label toolError = new Label();
-        toolError.getStyleClass().add("form-error-label");
-        toolError.setWrapText(true);
+        optimalButton.setDisable(!initialSource.gerber());
+        optimalButton.setTooltip(tooltip("Calcula em segundo plano a menor distancia entre regioes de cobre."));
+        optimalButton.setOnAction(event -> {
+            SourceCandidate selectedSource = sourceCombo.getValue();
+            if (selectedSource == null || !selectedSource.gerber()) return;
+            optimalButton.setDisable(true);
+            toolError.setText("Calculando diametro seguro...");
+            CompletableFuture.supplyAsync(() -> NccGenerator.minimumCopperClearance(selectedSource.geometry()))
+                    .whenComplete((clearance, error) -> Platform.runLater(() -> {
+                        if (optimalButton.getScene() == null) return;
+                        optimalButton.setDisable(sourceCombo.getValue() == null
+                                || !sourceCombo.getValue().gerber());
+                        if (error != null) {
+                            toolError.setText("Falha ao calcular diametro: " + error.getMessage());
+                        } else if (clearance.isEmpty() || clearance.getAsDouble() <= 0) {
+                            toolError.setText("Nao ha distancia positiva entre regioes de cobre.");
+                        } else if (sourceCombo.getValue() == selectedSource) {
+                            newDiaSpinner.getValueFactory().setValue(clearance.getAsDouble());
+                            toolError.setText("Diametro seguro estimado: " + format(clearance.getAsDouble())
+                                    + " " + units + ". Confira antes de usinar.");
+                        }
+                    }));
+        });
 
         Runnable addTool = () -> {
             try {
@@ -171,7 +300,7 @@ final class NccToolPanel {
                 }
                 ToolRow added = new ToolRow(dia);
                 tools.add(added);
-                toolTable.getSelectionModel().selectAll();
+                toolTable.getSelectionModel().clearAndSelect(tools.size() - 1);
                 toolError.setText("");
             } catch (RuntimeException ex) {
                 toolError.setText(ex.getMessage());
@@ -191,7 +320,7 @@ final class NccToolPanel {
                         + "do banco esta nas unidades do objeto (" + units + ").");
                 dialog.setContentText("Ferramenta:");
                 dialog.showAndWait().ifPresent(selected -> {
-                    if (!gerberSource && selected.operation() == NccOperation.ISO) {
+                    if (!sourceCombo.getValue().gerber() && selected.operation() == NccOperation.ISO) {
                         toolError.setText("Ferramenta ISO exige Gerber como origem.");
                         return;
                     }
@@ -201,6 +330,7 @@ final class NccToolPanel {
                     }
                     ToolRow row = new ToolRow(selected.diameter());
                     row.operation = selected.operation();
+                    row.toolProfile = selected.toolProfile();
                     NccToolSettings settings = selected.settings();
                     row.overlapPercent = format(settings.overlapFraction() * 100);
                     row.method = settings.method();
@@ -231,54 +361,64 @@ final class NccToolPanel {
                 return;
             }
             tools.removeAll(selected);
-            toolTable.getSelectionModel().selectAll();
+            toolTable.getSelectionModel().selectFirst();
             toolError.setText("");
         });
 
-        ComboBox<NccOperation> operationCombo = new ComboBox<>();
-        operationCombo.getItems().add(NccOperation.CLEAR);
-        if (gerberSource) {
-            operationCombo.getItems().add(NccOperation.ISO);
-        }
-        operationCombo.setValue(NccOperation.CLEAR);
-        operationCombo.setTooltip(tooltip("CLEAR: limpa a area nao-cobre. ISO: contorna o cobre antes da limpeza. "
-                + "A operacao e aplicada a todas as linhas selecionadas."));
-        operationCombo.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
-        boolean[] synchronizingOperation = {false};
+        ToggleGroup operationGroup = new ToggleGroup();
+        RadioButton clearRadio = radio("Clear", operationGroup);
+        RadioButton isoRadio = radio("Isolation", operationGroup);
+        clearRadio.setSelected(true);
+        isoRadio.setDisable(!sourceCombo.getValue().gerber());
+        HBox operationRow = new HBox(10, new Label("Operation:"), clearRadio, isoRadio);
+        operationRow.setAlignment(Pos.CENTER_LEFT);
+        Tooltip operationHelp = tooltip("Clear: limpa a area nao-cobre. Isolation: contorna o cobre antes da limpeza.");
+        clearRadio.setTooltip(operationHelp);
+        isoRadio.setTooltip(operationHelp);
+        Label selectedToolTitle = sectionTitle("Parameters for: Tool 1");
+        Runnable updateOperation = () -> {
+            List<ToolRow> selected = toolTable.getSelectionModel().getSelectedItems();
+            int index = selected.isEmpty() ? -1 : tools.indexOf(selected.get(0));
+            selectedToolTitle.setText(selected.isEmpty() ? "Parameters for: No Tool Selected"
+                    : selected.size() > 1 ? "Parameters for: Multiple Tools"
+                    : "Parameters for: Tool " + (index + 1));
+            NccOperation operation = selected.isEmpty() ? null : selected.get(0).operation;
+            NccOperation firstOperation = operation;
+            if (firstOperation != null && selected.stream().anyMatch(row -> row.operation != firstOperation))
+                operation = null;
+            operationGroup.selectToggle(operation == NccOperation.CLEAR ? clearRadio
+                    : operation == NccOperation.ISO ? isoRadio : null);
+        };
         toolTable.getSelectionModel().getSelectedItems().addListener(
-                (javafx.collections.ListChangeListener<ToolRow>) change -> {
-                    List<ToolRow> selected = toolTable.getSelectionModel().getSelectedItems();
-                    NccOperation shown = selected.isEmpty() ? null : selected.get(0).operation;
-                    NccOperation first = shown;
-                    if (first != null && selected.stream().anyMatch(row -> row.operation != first)) {
-                        shown = null;
-                    }
-                    synchronizingOperation[0] = true;
-                    operationCombo.setValue(shown);
-                    synchronizingOperation[0] = false;
-                });
-        operationCombo.setOnAction(event -> {
-            if (synchronizingOperation[0] || operationCombo.getValue() == null) {
-                return;
-            }
-            for (ToolRow row : toolTable.getSelectionModel().getSelectedItems()) {
-                row.operation = operationCombo.getValue();
-            }
+                (javafx.collections.ListChangeListener<ToolRow>) change -> updateOperation.run());
+        clearRadio.setOnAction(event -> {
+            boolean hadVTool = toolTable.getSelectionModel().getSelectedItems().stream()
+                    .anyMatch(row -> row.toolProfile == ToolProfile.V);
+            toolTable.getSelectionModel().getSelectedItems().forEach(row -> {
+                row.operation = NccOperation.CLEAR;
+                if (row.toolProfile == ToolProfile.V) row.toolProfile = ToolProfile.C1;
+            });
             toolTable.refresh();
+            if (hadVTool) toolError.setText("TT V mudou para C1: V exige operacao Isolation.");
         });
-        ComboBox<NccMillingType> millingCombo = new ComboBox<>();
-        millingCombo.getItems().addAll(NccMillingType.values());
-        millingCombo.setValue(NccMillingType.CLIMB);
-        millingCombo.setTooltip(tooltip("Sentido de fresagem dos contornos ISO: "
-                + "Climb inverte o contorno externo; Conventional mantem o sentido original."));
-        HBox millingRow = new HBox(8, new Label("Milling Type ISO:"), millingCombo);
+        isoRadio.setOnAction(event -> {
+            toolTable.getSelectionModel().getSelectedItems().forEach(row -> row.operation = NccOperation.ISO);
+        });
+        updateOperation.run();
+        refreshOperation[0] = updateOperation;
+        ToggleGroup millingGroup = new ToggleGroup();
+        RadioButton climbRadio = radio("Climb", millingGroup);
+        RadioButton conventionalRadio = radio("Conventional", millingGroup);
+        climbRadio.setSelected(true);
+        HBox millingRow = new HBox(10, new Label("Milling Type:"), climbRadio, conventionalRadio);
         millingRow.setAlignment(Pos.CENTER_LEFT);
-        millingRow.setVisible(gerberSource);
-        millingRow.setManaged(gerberSource);
+        Tooltip millingHelp = tooltip("Sentido de fresagem dos contornos ISO; e comum a todas as ferramentas ISO.");
+        climbRadio.setTooltip(millingHelp);
+        conventionalRadio.setTooltip(millingHelp);
 
         ComboBox<String> boundaryKindCombo = new ComboBox<>();
         boundaryKindCombo.getItems().addAll(BOUNDARY_ITSELF, BOUNDARY_AREA);
-        if (!referenceCandidates.isEmpty()) {
+        if (sourceCandidates.size() > 1) {
             boundaryKindCombo.getItems().add(BOUNDARY_REFERENCE);
         }
         boundaryKindCombo.setValue(BOUNDARY_ITSELF);
@@ -287,10 +427,20 @@ final class NccToolPanel {
                 + "Area Selection: delimita um retangulo ou poligono no desenho.\n"
                 + "Reference Object: usa outro objeto (Gerber ou Geometry) ja carregado como limite."));
         ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
-        referenceCombo.getItems().addAll(referenceCandidates);
-        if (!referenceCandidates.isEmpty()) {
-            referenceCombo.setValue(referenceCandidates.get(0));
-        }
+        referenceCombo.setMinWidth(0);
+        referenceCombo.setPrefWidth(180);
+        referenceCombo.setMaxWidth(Double.MAX_VALUE);
+        Runnable updateReferences = () -> {
+            ReferenceCandidate previous = referenceCombo.getValue();
+            SourceCandidate selectedSource = sourceCombo.getValue();
+            List<ReferenceCandidate> available = referenceCandidates.stream()
+                    .filter(candidate -> selectedSource == null || candidate.item() != selectedSource.item())
+                    .toList();
+            referenceCombo.getItems().setAll(available);
+            referenceCombo.setValue(available.contains(previous) ? previous
+                    : available.isEmpty() ? null : available.get(0));
+        };
+        updateReferences.run();
         javafx.beans.binding.BooleanBinding referenceChosen = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
         referenceCombo.visibleProperty().bind(referenceChosen);
@@ -298,15 +448,23 @@ final class NccToolPanel {
         javafx.beans.binding.BooleanBinding areaChosen = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> BOUNDARY_AREA.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
         Geometry[] selectedArea = {null};
-        ComboBox<AreaShape> areaShapeCombo = new ComboBox<>();
-        areaShapeCombo.getItems().addAll(AreaShape.values());
-        areaShapeCombo.setValue(AreaShape.RECTANGLE);
-        areaShapeCombo.visibleProperty().bind(areaChosen);
-        areaShapeCombo.managedProperty().bind(areaChosen);
+        ToggleGroup areaShapeGroup = new ToggleGroup();
+        RadioButton rectangleShapeRadio = radio("Retangulo", areaShapeGroup);
+        RadioButton polygonShapeRadio = radio("Poligono", areaShapeGroup);
+        rectangleShapeRadio.setSelected(true);
+        HBox areaShapeRow = new HBox(8, rectangleShapeRadio, polygonShapeRadio);
+        areaShapeRow.visibleProperty().bind(areaChosen);
+        areaShapeRow.managedProperty().bind(areaChosen);
         Button selectAreaButton = new Button("Selecionar area no desenho");
         Label selectedAreaLabel = new Label("Nenhuma area selecionada.");
         selectedAreaLabel.setWrapText(true);
-        areaShapeCombo.valueProperty().addListener((observable, oldShape, newShape) -> {
+        areaShapeGroup.selectedToggleProperty().addListener((observable, oldShape, newShape) -> {
+            cancelArea.run();
+            selectedArea[0] = null;
+            selectedAreaLabel.setText("Nenhuma area selecionada.");
+        });
+        boundaryKindCombo.valueProperty().addListener((observable, oldKind, newKind) -> {
+            cancelArea.run();
             selectedArea[0] = null;
             selectedAreaLabel.setText("Nenhuma area selecionada.");
         });
@@ -316,12 +474,16 @@ final class NccToolPanel {
         selectedAreaLabel.managedProperty().bind(areaChosen);
         selectAreaButton.setOnAction(event -> {
             selectedArea[0] = null;
-            AreaShape requestedShape = areaShapeCombo.getValue();
+            AreaShape requestedShape = polygonShapeRadio.isSelected()
+                    ? AreaShape.POLYGON : AreaShape.RECTANGLE;
             selectedAreaLabel.setText(requestedShape == AreaShape.POLYGON
                     ? "Clique nos vertices; Enter ou botao direito conclui, Esc cancela."
                     : "Clique em dois cantos opostos no Plot Area; Esc cancela.");
-            if (!areaSelector.select(requestedShape, area -> {
-                if (areaShapeCombo.getValue() != requestedShape) {
+            SourceCandidate areaSource = sourceCombo.getValue();
+            if (!areaSelector.select(areaSource, requestedShape, area -> {
+                if (sourceCombo.getValue() != areaSource) return;
+                if ((polygonShapeRadio.isSelected() ? AreaShape.POLYGON : AreaShape.RECTANGLE)
+                        != requestedShape) {
                     return;
                 }
                 selectedArea[0] = area;
@@ -334,28 +496,28 @@ final class NccToolPanel {
         GridPane boundaryGrid = new GridPane();
         boundaryGrid.setHgap(8);
         boundaryGrid.setVgap(8);
-        boundaryGrid.addRow(0, new Label("Boundary:"), boundaryKindCombo);
+        boundaryGrid.addRow(0, new Label("Selection:"), boundaryKindCombo);
         boundaryGrid.add(referenceCombo, 1, 1);
-        boundaryGrid.add(areaShapeCombo, 1, 2);
+        boundaryGrid.add(areaShapeRow, 1, 2);
         boundaryGrid.add(selectAreaButton, 1, 3);
         boundaryGrid.add(selectedAreaLabel, 1, 4);
 
         CheckBox checkValidityCb = new CheckBox("Verificar validade dos diametros");
-        checkValidityCb.setSelected(gerberSource);
-        checkValidityCb.setDisable(!gerberSource);
+        checkValidityCb.setSelected(initialSource.gerber());
+        checkValidityCb.setDisable(!initialSource.gerber());
         checkValidityCb.setTooltip(tooltip(
                 "Se marcado, compara cada diametro com a menor distancia entre elementos de\n"
                 + "cobre do Gerber e avisa se alguma ferramenta e grande demais para fazer um\n"
                 + "isolamento completo. Apenas informativo - nao impede a geracao."));
 
-        TextField overlapField = new TextField("40");
-        TextField marginField = new TextField(metric ? "1.0" : "0.040");
-        marginField.setPrefColumnCount(7);
-        marginField.setMinWidth(0);
-        boundaryGrid.addRow(5, new Label("Margin (comum):"), marginField);
+        Spinner<Double> overlapSpinner = spinner(0, 99.9999, 40, 0.1);
+        TextField overlapField = overlapSpinner.getEditor();
+        Spinner<Double> marginSpinner = spinner(0, 10_000, metric ? 1.0 : 0.040,
+                metric ? 0.1 : 0.01);
+        TextField marginField = marginSpinner.getEditor();
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
         methodCombo.getItems().addAll(NccMethod.values());
-        methodCombo.setValue(NccMethod.STANDARD);
+        methodCombo.setValue(NccMethod.SEED);
         methodCombo.setTooltip(tooltip(
                 "Standard: passes concentricas para dentro.\n"
                 + "Seed: aneis crescentes a partir de um ponto central.\n"
@@ -369,42 +531,52 @@ final class NccToolPanel {
         contourCb.setTooltip(tooltip("Adiciona um passe final contornando a borda interna da area limpa."));
         CheckBox offsetCb = new CheckBox("Copper offset");
         offsetCb.setTooltip(tooltip("Aumenta a distancia minima mantida em torno do cobre, alem da margem."));
-        TextField offsetField = new TextField("0.0");
-        for (TextField field : List.of(overlapField, offsetField)) {
-            field.setPrefColumnCount(7);
-            field.setMinWidth(0);
-        }
+        Spinner<Double> offsetSpinner = spinner(0, 10, 0, metric ? 0.1 : 0.01);
+        TextField offsetField = offsetSpinner.getEditor();
         CheckBox restCb = new CheckBox("Rest Machining");
         restCb.setStyle("-fx-font-weight: bold;");
         restCb.setTooltip(tooltip(
                 "Quando ativado, as ferramentas sao processadas da maior para a menor e cada uma\n"
                 + "so limpa o que a anterior, maior, nao conseguiu alcancar. Forca a ordem Reverse\n"
                 + "e desativa o controle de Order abaixo, assim como no FlatCAM Python."));
-        ComboBox<NccOrder> orderCombo = new ComboBox<>();
-        orderCombo.getItems().addAll(NccOrder.values());
-        orderCombo.setValue(NccOrder.NONE);
-        orderCombo.setTooltip(tooltip(
+        ToggleGroup orderGroup = new ToggleGroup();
+        RadioButton noOrderRadio = radio("No", orderGroup);
+        RadioButton forwardOrderRadio = radio("Forward", orderGroup);
+        RadioButton reverseOrderRadio = radio("Reverse", orderGroup);
+        reverseOrderRadio.setSelected(true);
+        Tooltip orderHelp = tooltip(
                 "No: usa a ordem da tabela acima.\n"
                 + "Forward: da menor para a maior ferramenta.\n"
-                + "Reverse: da maior para a menor ferramenta."));
+                + "Reverse: da maior para a menor ferramenta.");
+        for (RadioButton radio : List.of(noOrderRadio, forwardOrderRadio, reverseOrderRadio))
+            radio.setTooltip(orderHelp);
         // Rest Machining always forces largest-tool-first, same as Python
         // disabling its order radio the moment Rest Machining is checked.
-        orderCombo.disableProperty().bind(restCb.selectedProperty());
-        Label restHint = new Label("(ignorado - Rest Machining sempre usa a ordem Reverse)");
+        for (RadioButton radio : List.of(noOrderRadio, forwardOrderRadio, reverseOrderRadio))
+            radio.disableProperty().bind(restCb.selectedProperty());
+        Label restHint = new Label("Rest usa a ordem Reverse.");
         restHint.setStyle("-fx-font-size: 10px; -fx-opacity: 0.75;");
+        restHint.setWrapText(true);
         restHint.visibleProperty().bind(restCb.selectedProperty());
         restHint.managedProperty().bind(restHint.visibleProperty());
 
         BooleanBinding noSingleTool = Bindings.createBooleanBinding(
                 () -> toolTable.getSelectionModel().getSelectedItems().size() != 1,
                 toolTable.getSelectionModel().getSelectedItems());
-        overlapField.disableProperty().bind(noSingleTool);
-        methodCombo.disableProperty().bind(noSingleTool);
-        connectCb.disableProperty().bind(noSingleTool.or(restCb.selectedProperty()));
-        contourCb.disableProperty().bind(noSingleTool.or(restCb.selectedProperty()));
-        offsetCb.disableProperty().bind(noSingleTool.or(restCb.selectedProperty()));
-        offsetField.disableProperty().bind(noSingleTool.or(restCb.selectedProperty())
+        BooleanBinding noClearTool = noSingleTool.or(isoRadio.selectedProperty());
+        overlapSpinner.disableProperty().bind(noClearTool);
+        methodCombo.disableProperty().bind(noClearTool);
+        connectCb.disableProperty().bind(noClearTool.or(restCb.selectedProperty()));
+        contourCb.disableProperty().bind(noClearTool.or(restCb.selectedProperty()));
+        offsetCb.disableProperty().bind(noClearTool.or(restCb.selectedProperty()));
+        offsetSpinner.disableProperty().bind(noClearTool.or(restCb.selectedProperty())
                 .or(offsetCb.selectedProperty().not()));
+        clearRadio.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
+        isoRadio.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems())
+                .or(Bindings.createBooleanBinding(() -> sourceCombo.getValue() == null
+                        || !sourceCombo.getValue().gerber(), sourceCombo.valueProperty())));
+        climbRadio.disableProperty().bind(noSingleTool.or(isoRadio.selectedProperty().not()));
+        conventionalRadio.disableProperty().bind(noSingleTool.or(isoRadio.selectedProperty().not()));
 
         boolean[] loadingToolSettings = {false};
         Runnable loadSelectedSettings = () -> {
@@ -415,11 +587,15 @@ final class NccToolPanel {
             ToolRow row = selected.get(0);
             loadingToolSettings[0] = true;
             overlapField.setText(row.overlapPercent);
+            try { overlapSpinner.getValueFactory().setValue(parseNumber(row.overlapPercent, "Overlap")); }
+            catch (IllegalArgumentException ignored) { /* Preserve invalid draft for validation on Generate. */ }
             methodCombo.setValue(row.method);
             connectCb.setSelected(row.connect);
             contourCb.setSelected(row.contour);
             offsetCb.setSelected(row.offsetEnabled);
             offsetField.setText(row.offset);
+            try { offsetSpinner.getValueFactory().setValue(parseNumber(row.offset, "Offset")); }
+            catch (IllegalArgumentException ignored) { /* Preserve invalid draft for validation on Generate. */ }
             loadingToolSettings[0] = false;
         };
         toolTable.getSelectionModel().getSelectedItems().addListener(
@@ -462,32 +638,85 @@ final class NccToolPanel {
         CheckBox restContourCb = new CheckBox("Contour");
         restContourCb.setSelected(true);
         CheckBox restOffsetCb = new CheckBox("Copper offset");
-        TextField restOffsetField = new TextField("0.0");
-        restOffsetField.setPrefColumnCount(7);
-        restOffsetField.setMinWidth(0);
-        restOffsetField.disableProperty().bind(restOffsetCb.selectedProperty().not());
+        Spinner<Double> restOffsetSpinner = spinner(0, 10, 0, metric ? 0.1 : 0.01);
+        TextField restOffsetField = restOffsetSpinner.getEditor();
+        restOffsetSpinner.disableProperty().bind(restOffsetCb.selectedProperty().not());
         GridPane restSettingsGrid = new GridPane();
         restSettingsGrid.setHgap(8);
         restSettingsGrid.setVgap(8);
         restSettingsGrid.addRow(0, restConnectCb, restContourCb);
-        restSettingsGrid.addRow(1, restOffsetCb, restOffsetField);
+        restSettingsGrid.addRow(1, restOffsetCb, restOffsetSpinner);
         restSettingsGrid.visibleProperty().bind(restCb.selectedProperty());
         restSettingsGrid.managedProperty().bind(restSettingsGrid.visibleProperty());
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
-        grid.addRow(0, new Label("Overlap (%):"), overlapField);
+        grid.addRow(0, new Label("Overlap (%):"), overlapSpinner);
         grid.addRow(1, new Label("Method:"), methodCombo);
-        grid.addRow(2, connectCb, contourCb);
-        grid.addRow(3, offsetCb, offsetField);
+        grid.addRow(2, new Label("Margin (comum):"), marginSpinner);
+        grid.addRow(3, connectCb, contourCb);
+        grid.addRow(4, offsetCb, offsetSpinner);
 
         GridPane restGrid = new GridPane();
         restGrid.setHgap(8);
         restGrid.setVgap(8);
-        restGrid.addRow(0, restCb, orderCombo);
-        restGrid.add(restHint, 1, 1);
-        restGrid.add(restSettingsGrid, 0, 2, 2, 1);
+        restGrid.addRow(0, restCb);
+        restGrid.add(restHint, 0, 1);
+        restGrid.add(restSettingsGrid, 0, 2);
+
+        Button applyAllButton = new Button("Aplicar parametros a todas as ferramentas");
+        applyAllButton.setMaxWidth(Double.MAX_VALUE);
+        applyAllButton.setWrapText(true);
+        applyAllButton.disableProperty().bind(noSingleTool.or(Bindings.size(tools).lessThan(2)));
+        applyAllButton.setTooltip(tooltip("Copia a operacao e os parametros da ferramenta selecionada para toda a tabela."));
+        applyAllButton.setOnAction(event -> {
+            ToolRow selected = toolTable.getSelectionModel().getSelectedItem();
+            if (selected == null) return;
+            try {
+                selected.settings();
+                for (ToolRow row : tools) {
+                    if (row == selected) continue;
+                    row.operation = selected.operation;
+                    row.overlapPercent = selected.overlapPercent;
+                    row.method = selected.method;
+                    row.connect = selected.connect;
+                    row.contour = selected.contour;
+                    row.offsetEnabled = selected.offsetEnabled;
+                    row.offset = selected.offset;
+                }
+                toolError.setText("Parametros copiados para todas as ferramentas.");
+            } catch (IllegalArgumentException invalid) {
+                toolError.setText(invalid.getMessage());
+            }
+        });
+
+        sourceCombo.valueProperty().addListener((observable, oldSource, newSource) -> {
+            if (newSource == null) return;
+            cancelArea.run();
+            selectedArea[0] = null;
+            selectedAreaLabel.setText("Nenhuma area selecionada.");
+            updateReferences.run();
+            optimalButton.setDisable(!newSource.gerber());
+            checkValidityCb.setDisable(!newSource.gerber());
+            checkValidityCb.setSelected(newSource.gerber());
+            if (!newSource.gerber()) {
+                boolean changed = false;
+                for (ToolRow row : tools) {
+                    if (row.operation == NccOperation.ISO) {
+                        row.operation = NccOperation.CLEAR;
+                        changed = true;
+                    }
+                    if (row.toolProfile == ToolProfile.V) {
+                        row.toolProfile = ToolProfile.C1;
+                        changed = true;
+                    }
+                }
+                if (changed) toolError.setText("Ferramentas ISO/V mudaram para Clear/C1: Geometry nao aceita ISO/V.");
+                toolTable.refresh();
+            }
+            updateOperation.run();
+        });
 
         Label note = new Label("Selecione na tabela as ferramentas a executar. ISO contorna o cobre; "
                 + "ao menos uma ferramenta CLEAR e necessaria. O objeto Geometry tera uma entrada por ferramenta.");
@@ -496,15 +725,17 @@ final class NccToolPanel {
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
-        Button generateButton = new Button("Gerar Geometry NCC");
+        Button generateButton = new Button("Gerar Geometry");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
+                SourceCandidate chosenSource = sourceCombo.getValue();
+                if (chosenSource == null) throw new IllegalArgumentException("Selecione um objeto de origem.");
                 double margin = parse(marginField, "Margin");
                 NccBoundary boundary = new NccBoundary.Itself();
                 if (BOUNDARY_AREA.equals(boundaryKindCombo.getValue())) {
                     if (selectedArea[0] == null) {
-                        throw new IllegalArgumentException("Selecione uma area retangular no desenho.");
+                        throw new IllegalArgumentException("Selecione uma area no desenho.");
                     }
                     boundary = new NccBoundary.Area(selectedArea[0]);
                 } else if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) {
@@ -519,9 +750,11 @@ final class NccToolPanel {
                 List<Double> clearDiameters = new java.util.ArrayList<>();
                 List<Double> isoDiameters = new java.util.ArrayList<>();
                 Map<Double, NccToolSettings> individualSettings = new LinkedHashMap<>();
+                Map<Double, ToolProfile> selectedProfiles = new LinkedHashMap<>();
                 for (int i = 0; i < tools.size(); i++) {
                     if (toolTable.getSelectionModel().isSelected(i)) {
                         ToolRow row = tools.get(i);
+                        selectedProfiles.put(row.diameter, row.toolProfile);
                         if (row.operation == NccOperation.ISO) {
                             isoDiameters.add(row.diameter);
                         } else {
@@ -540,10 +773,13 @@ final class NccToolPanel {
                 NccParameters params = new NccParameters(clearDiameters, first.overlapFraction(), margin,
                         first.method(), restCb.isSelected() ? restConnectCb.isSelected() : first.connect(),
                         restCb.isSelected() ? restContourCb.isSelected() : first.contour(), commonOffset,
-                        restCb.isSelected(), orderCombo.getValue(), boundary, isoDiameters, individualSettings,
-                        millingCombo.getValue());
+                        restCb.isSelected(), forwardOrderRadio.isSelected() ? NccOrder.FORWARD
+                                : reverseOrderRadio.isSelected() ? NccOrder.REVERSE : NccOrder.NONE,
+                        boundary, isoDiameters, individualSettings,
+                        conventionalRadio.isSelected() ? NccMillingType.CONVENTIONAL : NccMillingType.CLIMB);
                 errorLabel.setText("");
-                onGenerate.accept(new Result(params, checkValidityCb.isSelected()));
+                onGenerate.accept(new Result(chosenSource, params, checkValidityCb.isSelected(),
+                        Map.copyOf(selectedProfiles)));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }
@@ -552,22 +788,57 @@ final class NccToolPanel {
         closeButton.setMaxWidth(Double.MAX_VALUE);
         closeButton.setOnAction(e -> onClose.run());
 
-        Region toolButtonsSpacer = new Region();
-        HBox.setHgrow(toolButtonsSpacer, Priority.ALWAYS);
-        HBox toolButtons = new HBox(8, newDiaField, addToolButton, databaseButton,
-                toolButtonsSpacer, removeToolButton);
-        toolButtons.setAlignment(Pos.CENTER_LEFT);
-
-        VBox box = new VBox(6, new Label("NCC Tool (" + units + ")"),
-                new Label("Origem: " + sourceName + (gerberSource ? " (Gerber)" : " (Geometry)")),
-                sectionTitle("FERRAMENTAS"), toolTable, toolButtons,
-                new HBox(8, new Label("Operacao das selecionadas:"), operationCombo),
-                millingRow, toolError, checkValidityCb,
-                sectionTitle("BOUNDARY"), boundaryGrid,
-                sectionTitle("PARAMETROS DA FERRAMENTA CLEAR"),
-                new Label("Selecione uma linha para editar; os valores ficam salvos na ferramenta."), grid,
-                sectionTitle("MULTI-FERRAMENTA"), restGrid,
-                new Separator(), note, errorLabel, generateButton, closeButton);
+        HBox orderRow = new HBox(8, new Label("Tool order:"), noOrderRadio,
+                forwardOrderRadio, reverseOrderRadio);
+        orderRow.setAlignment(Pos.CENTER_LEFT);
+        HBox diameterRow = new HBox(6, new Label("Tool Dia:"), newDiaSpinner, optimalButton);
+        diameterRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(newDiaSpinner, Priority.ALWAYS);
+        HBox addRow = new HBox(6, addToolButton, databaseButton);
+        addToolButton.setMaxWidth(Double.MAX_VALUE);
+        databaseButton.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(addToolButton, Priority.ALWAYS);
+        HBox.setHgrow(databaseButton, Priority.ALWAYS);
+        removeToolButton.setMaxWidth(Double.MAX_VALUE);
+        Button resetButton = new Button("Reset Tool");
+        resetButton.setMaxWidth(Double.MAX_VALUE);
+        resetButton.setOnAction(event -> {
+            cancelArea.run();
+            (initialSource.gerber() ? gerberSourceRadio : geometrySourceRadio).setSelected(true);
+            sourceCombo.setValue(initialSource);
+            tools.setAll(new ToolRow(metric ? 1.0 : 0.040), new ToolRow(metric ? 0.5 : 0.020));
+            toolTable.getSelectionModel().clearAndSelect(0);
+            newDiaSpinner.getValueFactory().setValue(metric ? 0.1 : 0.004);
+            marginSpinner.getValueFactory().setValue(metric ? 1.0 : 0.040);
+            reverseOrderRadio.setSelected(true);
+            climbRadio.setSelected(true);
+            restCb.setSelected(false);
+            restConnectCb.setSelected(true);
+            restContourCb.setSelected(true);
+            restOffsetCb.setSelected(false);
+            restOffsetSpinner.getValueFactory().setValue(0.0);
+            boundaryKindCombo.setValue(BOUNDARY_ITSELF);
+            rectangleShapeRadio.setSelected(true);
+            selectedArea[0] = null;
+            selectedAreaLabel.setText("Nenhuma area selecionada.");
+            checkValidityCb.setSelected(initialSource.gerber());
+            toolError.setText("");
+            errorLabel.setText("");
+            updateOperation.run();
+            loadSelectedSettings.run();
+        });
+        HBox finalButtons = new HBox(6, resetButton, closeButton);
+        HBox.setHgrow(resetButton, Priority.ALWAYS);
+        HBox.setHgrow(closeButton, Priority.ALWAYS);
+        Label title = new Label("Non-Copper Clearing");
+        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        VBox box = new VBox(8, title, sourceGrid, new Separator(),
+                sectionTitle("Tools Table"), toolTable, orderRow, new Separator(),
+                sectionTitle("Add from DB"), diameterRow, addRow, removeToolButton,
+                toolError, new Separator(), selectedToolTitle, operationRow, millingRow,
+                grid, applyAllButton, new Separator(), sectionTitle("Common Parameters"),
+                restGrid, boundaryGrid, checkValidityCb,
+                new Separator(), note, errorLabel, generateButton, finalButtons);
         box.setPadding(new Insets(12));
         return box;
     }
@@ -576,6 +847,31 @@ final class NccToolPanel {
         Label label = new Label(text);
         label.getStyleClass().add("form-section-title");
         return label;
+    }
+
+    private static RadioButton radio(String text, ToggleGroup group) {
+        RadioButton button = new RadioButton(text);
+        button.setToggleGroup(group);
+        return button;
+    }
+
+    private static Spinner<Double> spinner(double min, double max, double initial, double step) {
+        SpinnerValueFactory.DoubleSpinnerValueFactory values =
+                new SpinnerValueFactory.DoubleSpinnerValueFactory(min, max, initial, step);
+        values.setConverter(new StringConverter<>() {
+            @Override public String toString(Double value) {
+                return value == null ? "" : format(value);
+            }
+            @Override public Double fromString(String text) {
+                return parseNumber(text, "Valor");
+            }
+        });
+        Spinner<Double> spinner = new Spinner<>(values);
+        spinner.setEditable(true);
+        spinner.setMinWidth(0);
+        spinner.setPrefWidth(115);
+        spinner.getEditor().setMinWidth(0);
+        return spinner;
     }
 
     /**

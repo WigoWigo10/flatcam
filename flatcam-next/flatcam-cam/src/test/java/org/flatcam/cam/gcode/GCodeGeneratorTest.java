@@ -17,6 +17,7 @@ import org.flatcam.cam.cutout.GapPattern;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationParameters;
@@ -27,6 +28,17 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.junit.jupiter.api.Test;
 
 class GCodeGeneratorTest {
+
+    @Test
+    void vTipGeometryCannotGenerateCncWithOrdinaryFixedDepth() {
+        GeometryFactory factory = new GeometryFactory();
+        var line = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 0)});
+        var params = new GeometryGCodeParameters(2, 1, false, 1, 100, 0, false);
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+                () -> GCodeGenerator.generateGeometryCncJob("MM",
+                        List.of(new ToolGeometry(0.2, line, ToolProfile.V)), params));
+        assertTrue(error.getMessage().contains("V"));
+    }
 
     @Test
     void geometryPointProducesPlungeInsteadOfBeingSilentlySkipped() {

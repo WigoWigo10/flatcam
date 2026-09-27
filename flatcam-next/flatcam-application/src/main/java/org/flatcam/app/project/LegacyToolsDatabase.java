@@ -9,12 +9,14 @@ import java.util.List;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccToolSettings;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.json.JSONObject;
 
 /** Read-only adapter for Python's JSON tools_db.FlatDB entries targeted at NCC. */
 public final class LegacyToolsDatabase {
 
-    public record NccTool(String name, double diameter, NccOperation operation, NccToolSettings settings) {
+    public record NccTool(String name, double diameter, NccOperation operation,
+                          NccToolSettings settings, ToolProfile toolProfile) {
         @Override
         public String toString() {
             return name + " - Ø " + diameter + " (" + operation + ")";
@@ -61,7 +63,10 @@ public final class LegacyToolsDatabase {
                         offsetEnabled ? data.optDouble("tools_ncc_offset_value", 0) : 0);
                 NccOperation operation = "iso".equalsIgnoreCase(data.optString("tools_ncc_operation", "clear"))
                         ? NccOperation.ISO : NccOperation.CLEAR;
-                tools.add(new NccTool(entry.optString("name", "Tool " + id), diameter, operation, settings));
+                ToolProfile profile = ToolProfile.fromLegacy(entry.optString("tool_type", "C1"));
+                if (profile == ToolProfile.V) operation = NccOperation.ISO;
+                tools.add(new NccTool(entry.optString("name", "Tool " + id), diameter, operation,
+                        settings, profile));
             } catch (RuntimeException error) {
                 throw new IOException("Invalid NCC tool " + id + " in Tools Database", error);
             }

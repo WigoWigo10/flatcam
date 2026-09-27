@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOperation;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -20,7 +21,7 @@ class LegacyToolsDatabaseTest {
         Path file = tempDir.resolve("tools_db.FlatDB");
         Files.writeString(file, """
                 {
-                  "1": {"name":"fine", "tooldia":0.3, "data":{
+                  "1": {"name":"fine", "tooldia":0.3, "tool_type":"C2", "data":{
                     "tool_target":5, "tools_ncc_operation":"iso", "tools_ncc_method":1,
                     "tools_ncc_overlap":35, "tools_ncc_connect":false,
                     "tools_ncc_contour":true, "tools_ncc_offset_choice":true,
@@ -34,6 +35,7 @@ class LegacyToolsDatabaseTest {
         assertEquals(1, tools.size());
         assertEquals("fine", tools.get(0).name());
         assertEquals(0.3, tools.get(0).diameter());
+        assertEquals(ToolProfile.C2, tools.get(0).toolProfile());
         assertEquals(NccOperation.ISO, tools.get(0).operation());
         assertEquals(NccMethod.SEED, tools.get(0).settings().method());
         assertEquals(0.35, tools.get(0).settings().overlapFraction());
@@ -56,5 +58,17 @@ class LegacyToolsDatabaseTest {
                 {"1":{"name":"general cutter","tooldia":0.5,"data":{"tool_target":0}}}
                 """);
         assertEquals(1, LegacyToolsDatabase.loadNccTools(file).size());
+    }
+
+    @Test
+    void vTipFromPythonDatabaseUsesIsolationOperation() throws Exception {
+        Path file = tempDir.resolve("v-tip.FlatDB");
+        Files.writeString(file, """
+                {"1":{"name":"v-bit","tooldia":0.2,"tool_type":"V",
+                      "data":{"tool_target":5,"tools_ncc_operation":"clear"}}}
+                """);
+        var tool = LegacyToolsDatabase.loadNccTools(file).get(0);
+        assertEquals(ToolProfile.V, tool.toolProfile());
+        assertEquals(NccOperation.ISO, tool.operation());
     }
 }

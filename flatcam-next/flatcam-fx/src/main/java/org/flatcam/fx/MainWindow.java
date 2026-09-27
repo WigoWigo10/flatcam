@@ -85,6 +85,7 @@ import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
@@ -3286,30 +3287,58 @@ final class MainWindow {
 
     /** NCC accepts a Gerber or Geometry source and produces an intermediate Geometry object. */
     private void generateNcc(TreeItem<String> item, GerberImage image) {
-        openNccTool(item, image.units(), image.solidGeometry(), true);
+        openNccTool(item, image.units(), image.solidGeometry());
     }
 
     private void generateNcc(TreeItem<String> item, GeometryEntry entry) {
-        openNccTool(item, entry.units(), entry.geometry(), false);
+        openNccTool(item, entry.units(), entry.geometry());
     }
 
-    private void openNccTool(TreeItem<String> item, String units, Geometry source, boolean gerberSource) {
-        List<NccToolPanel.ReferenceCandidate> referenceCandidates = new ArrayList<>();
+    private void openNccTool(TreeItem<String> item, String units, Geometry source) {
+        if (source == null || source.isEmpty() || source.getDimension() != 2) {
+            appendConsole("NCC exige um Gerber ou Geometry preenchida como origem.");
+            return;
+        }
+        List<NccToolPanel.SourceCandidate> sourceCandidates = new ArrayList<>();
         for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
-            if (entry.getKey() != item) {
-                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
-                        entry.getKey().getValue(), true, entry.getValue().solidGeometry()));
+            if (units.equalsIgnoreCase(entry.getValue().units()) && !entry.getValue().isEmpty()) {
+                sourceCandidates.add(new NccToolPanel.SourceCandidate(entry.getKey(), entry.getKey().getValue(),
+                        units, true, entry.getValue().solidGeometry()));
             }
         }
         for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
-            if (entry.getKey() != item) {
-                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
-                        entry.getKey().getValue(), false, entry.getValue().geometry()));
+            Geometry geometry = entry.getValue().geometry();
+            if (units.equalsIgnoreCase(entry.getValue().units()) && geometry != null
+                    && !geometry.isEmpty() && geometry.getDimension() == 2) {
+                sourceCandidates.add(new NccToolPanel.SourceCandidate(entry.getKey(), entry.getKey().getValue(),
+                        units, false, geometry));
             }
         }
-        openToolPanel("NCC Tool", NccToolPanel.build(item.getValue(), units, gerberSource, referenceCandidates,
-                (shape, onSelected, onCancelled) ->
-                        beginNccAreaSelection(source, shape, onSelected, onCancelled),
+        NccToolPanel.SourceCandidate initialSource = sourceCandidates.stream()
+                .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
+        if (initialSource == null) {
+            appendConsole("NCC: a origem selecionada nao esta disponivel.");
+            return;
+        }
+        List<NccToolPanel.ReferenceCandidate> referenceCandidates = new ArrayList<>();
+        for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
+            if (units.equalsIgnoreCase(entry.getValue().units()) && !entry.getValue().isEmpty()) {
+                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                        entry.getKey(), entry.getKey().getValue(), true, entry.getValue().solidGeometry()));
+            }
+        }
+        for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
+            Geometry geometry = entry.getValue().geometry();
+            if (units.equalsIgnoreCase(entry.getValue().units()) && geometry != null
+                    && !geometry.isEmpty() && geometry.getDimension() == 2) {
+                referenceCandidates.add(new NccToolPanel.ReferenceCandidate(
+                        entry.getKey(), entry.getKey().getValue(), false, geometry));
+            }
+        }
+        openToolPanel("NCC Tool", NccToolPanel.build(sourceCandidates, initialSource, referenceCandidates,
+                (chosen, shape, onSelected, onCancelled) ->
+                        beginNccAreaSelection(chosen.geometry(), shape, onSelected, onCancelled),
+                plotAreaView::cancelPlacement,
                 () -> {
                     FileChooser chooser = new FileChooser();
                     chooser.setTitle("Abrir Tools Database do FlatCAM Python");
@@ -3327,7 +3356,8 @@ final class MainWindow {
                 },
                 result -> {
                     plotAreaView.cancelPlacement();
-                    runNccGeneration(item, units, source, gerberSource, result);
+                    NccToolPanel.SourceCandidate chosen = result.source();
+                    runNccGeneration(chosen.item(), chosen.units(), chosen.geometry(), chosen.gerber(), result);
                 }, () -> {
                     plotAreaView.cancelPlacement();
                     closeToolPanel();
@@ -3456,7 +3486,9 @@ final class MainWindow {
                         String name = uniqueDerivedName(item.getValue() + "_ncc");
                         List<ToolGeometry> tools = result.toolResults().stream()
                                 .filter(toolResult -> !toolResult.isEmpty())
-                                .map(toolResult -> new ToolGeometry(toolResult.toolDiameter(), toolResult.geometry()))
+                                .map(toolResult -> new ToolGeometry(toolResult.toolDiameter(),
+                                        toolResult.geometry(), panelResult.toolProfiles().getOrDefault(
+                                                toolResult.toolDiameter(), ToolProfile.C1)))
                                 .toList();
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 result.geometry(), true, tools);

@@ -19,6 +19,7 @@ import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -68,7 +69,8 @@ class ProjectFileIOTest {
         GeometryFactory factory = new GeometryFactory();
         Geometry first = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(0, 5)});
         Geometry second = factory.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(10, 5)});
-        List<ToolGeometry> tools = List.of(new ToolGeometry(0.8, first), new ToolGeometry(1.2, second));
+        List<ToolGeometry> tools = List.of(new ToolGeometry(0.8, first, ToolProfile.C2),
+                new ToolGeometry(1.2, second, ToolProfile.B));
         GeometryEditSession edit = new GeometryEditSession(factory.buildGeometry(List.of(first, second)), tools);
         edit.clickSelect(0, 2, 0.01, false);
         assertTrue(edit.deleteSelected());
@@ -76,7 +78,7 @@ class ProjectFileIOTest {
                 edit.resultGeometry(), true, edit.resultTools(), "0xff0000ff", "0x0000ffff", false);
         Path file = tempDir.resolve("geometry.fcnproj");
 
-        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(geometry), List.of()), file);
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(geometry), List.of()), file, false);
         ProjectFile.GeometryEntry loaded = ProjectFileIO.load(file).geometries().get(0);
 
         assertEquals("paths_edit", loaded.name());
@@ -88,8 +90,17 @@ class ProjectFileIOTest {
         assertTrue(loaded.geometry().equalsTopo(second));
         assertEquals(2, loaded.tools().size());
         assertEquals(0.8, loaded.tools().get(0).toolDiameter());
+        assertEquals(ToolProfile.C2, loaded.tools().get(0).toolProfile());
         assertTrue(loaded.tools().get(0).geometry().isEmpty());
+        assertEquals(ToolProfile.B, loaded.tools().get(1).toolProfile());
         assertTrue(loaded.tools().get(1).geometry().equalsTopo(second));
+
+        JSONObject olderProject = new JSONObject(Files.readString(file));
+        olderProject.getJSONObject("_java").getJSONArray("geometries").getJSONObject(0)
+                .getJSONArray("tools").getJSONObject(0).remove("toolType");
+        Files.writeString(file, olderProject.toString());
+        assertEquals(ToolProfile.C1, ProjectFileIO.load(file).geometries().get(0)
+                .tools().get(0).toolProfile());
     }
 
     @Test

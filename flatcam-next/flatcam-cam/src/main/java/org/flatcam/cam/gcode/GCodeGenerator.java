@@ -13,6 +13,7 @@ import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.isolation.IsolationResult;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -324,6 +325,11 @@ public final class GCodeGenerator {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         if (tools.isEmpty()) {
             throw new IllegalArgumentException("At least one tool geometry is required");
+        }
+        if (tools.stream().anyMatch(tool -> tool.toolProfile() == ToolProfile.V
+                && !tool.geometry().isEmpty())) {
+            throw new IllegalArgumentException("Ferramenta V exige calculo de Cut Z por V-Tip Dia/Angle; "
+                    + "CNC Job V ainda nao e suportado no FX.");
         }
         cancellationToken.throwIfCancellationRequested();
 

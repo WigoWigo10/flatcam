@@ -635,7 +635,8 @@ public final class GeometryEditSession {
         }
         List<ToolGeometry> result = new ArrayList<>(sourceTools.size());
         for (int i = 0; i < sourceTools.size(); i++) {
-            result.add(new ToolGeometry(sourceTools.get(i).toolDiameter(), geometryFor(i)));
+            ToolGeometry sourceTool = sourceTools.get(i);
+            result.add(new ToolGeometry(sourceTool.toolDiameter(), geometryFor(i), sourceTool.toolProfile()));
         }
         return List.copyOf(result);
     }
