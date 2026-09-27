@@ -343,20 +343,20 @@ Os rótulos abaixo são deliberadamente conservadores.
 
 | Área | Estado | Observação principal |
 | --- | --- | --- |
-| Shell, temas e layout principal | forte/parcial | base utilizável; botão do Python para recolher/restaurar a barra lateral com largura por monitor preservada; barra inferior com coordenadas, snap X/Y (atalho G), eixos, HUD, A4, console, unidades e atividade, com ajustes persistidos; Preferências ainda desabilitado; vários menus ainda não têm fluxo completo |
+| Shell, temas e layout principal | forte/parcial | base utilizável; barra lateral recolhível, barra inferior com coordenadas, snap X/Y, eixos, HUD, A4, console, unidades e atividade; aba básica de Preferências para tema e Plot Area; vários menus ainda não têm fluxo completo |
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation e Cutout criam Geometry; Isolation oferece Follow, saídas separadas por passe e máscara de exceção por Geometry preenchida ou área desenhada como retângulo/polígono (ainda sem Rest Machining); Cutout oferece Bridge, Thin como segunda Geometry para Cut Z raso configurado depois, M-Bites com Excellon separado e gaps manuais por retângulo/polígono em Bridge/Thin (ainda sem gesto do cursor Python ou M-Bites manual); NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, Climb/Conventional para ISO, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área retangular ou poligonal, "Check validity" e leitura de ferramentas NCC/General de um `.FlatDB` legado escolhido pelo usuário (sem editor do banco); faltam validação visual com projetos reais e opções avançadas |
+| Ferramentas Gerber | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
-| Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
-| Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo, círculo e arco por três pontos com undo/redo; texto, Paint, Sub e Panelize faltam |
-| CNC Job | parcial | geração, plot, abertura direta de arquivos G-code, edição de texto, Aplicar/Cancelar e Salvar arquivo; prévia G0-G3 em XY refeita ao aplicar; painel e opções avançadas do legado faltam |
-| Persistência de projeto | forte/parcial (Gerber/Excellon), parcial (CNC Job/Geometry) | Gerber salva formas individuais e ordem em extensão `_java`; CNC Job embute nome e texto G-code e reconstrói a prévia G0-G3; Geometry embute WKT e associações de ferramentas na extensão `_java.geometries` |
+| Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`, e Milling Tool que cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
+| Geometry | parcial | multi-tool via NCC; Geometry → CNC preserva cada ferramenta e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, Paint, borracha e Panelize faltam |
+| CNC Job | parcial | geração, plot, abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; faltam pós-processadores e várias opções avançadas do legado |
+| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry e texto G-code; abrir/salvar projetos `.FlatPrj` reais do Python ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
-| Tools Database | parcial | NCC importa uma ferramenta do arquivo `.FlatDB` do Python, inclusive operação e parâmetros de limpeza; editor/salvamento do banco e uso pelas demais ferramentas ainda faltam |
-| Preferências globais | inicial/parcial | tema e algumas opções; longe da cobertura do Python |
+| Tools Database | parcial | NCC, Isolation e Drilling leem ferramentas de um `.FlatDB` escolhido pelo usuário; editor/salvamento do banco e integração com outras ferramentas faltam |
+| Preferências globais | inicial/parcial | aba funcional para tema, snap e visibilidade do Plot Area; ainda longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
 
 “Forte/parcial” não significa compatibilidade certificada. Significa que o
