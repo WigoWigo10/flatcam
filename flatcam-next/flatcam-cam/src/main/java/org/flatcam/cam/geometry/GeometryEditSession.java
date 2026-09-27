@@ -469,6 +469,59 @@ public final class GeometryEditSession {
         addShape(factory.createPoint(new Coordinate(centerX, centerY)).buffer(radius, 16), toolIndex);
     }
 
+    /** Adds the circular arc passing through start, intermediate and end, in that order. */
+    public void addArc(Coordinate start, Coordinate through, Coordinate end, int toolIndex) {
+        Coordinate[] input = coordinates(List.of(start, through, end), 3);
+        double ax = input[0].x, ay = input[0].y;
+        double bx = input[1].x, by = input[1].y;
+        double cx = input[2].x, cy = input[2].y;
+        double determinant = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+        double scale = Math.max(1, Math.max(Math.hypot(bx - ax, by - ay), Math.hypot(cx - ax, cy - ay)));
+        if (Math.abs(determinant) <= 1e-12 * scale * scale) {
+            throw new IllegalArgumentException("Os tres pontos do arco precisam ser distintos e nao colineares.");
+        }
+        double a2 = ax * ax + ay * ay;
+        double b2 = bx * bx + by * by;
+        double c2 = cx * cx + cy * cy;
+        double centerX = (a2 * (by - cy) + b2 * (cy - ay) + c2 * (ay - by)) / determinant;
+        double centerY = (a2 * (cx - bx) + b2 * (ax - cx) + c2 * (bx - ax)) / determinant;
+        double radius = Math.hypot(ax - centerX, ay - centerY);
+        if (!Double.isFinite(centerX) || !Double.isFinite(centerY) || !Double.isFinite(radius) || radius <= 0) {
+            throw new IllegalArgumentException("Nao foi possivel calcular o arco com esses pontos.");
+        }
+        double startAngle = Math.atan2(ay - centerY, ax - centerX);
+        double throughAngle = Math.atan2(by - centerY, bx - centerX);
+        double endAngle = Math.atan2(cy - centerY, cx - centerX);
+        boolean ccw = positiveAngle(throughAngle - startAngle) < positiveAngle(endAngle - startAngle);
+        List<Coordinate> arc = new ArrayList<>();
+        arc.add(input[0]);
+        appendArcLeg(arc, centerX, centerY, radius, startAngle, throughAngle, ccw, input[1]);
+        appendArcLeg(arc, centerX, centerY, radius, throughAngle, endAngle, ccw, input[2]);
+        addShape(factory.createLineString(arc.toArray(new Coordinate[0])), toolIndex);
+    }
+
+    private static double positiveAngle(double angle) {
+        double fullTurn = 2 * Math.PI;
+        double result = angle % fullTurn;
+        return result < 0 ? result + fullTurn : result;
+    }
+
+    private static void appendArcLeg(List<Coordinate> arc, double centerX, double centerY,
+                                     double radius, double start, double end, boolean ccw,
+                                     Coordinate exactEnd) {
+        double sweep = ccw ? positiveAngle(end - start) : positiveAngle(start - end);
+        int segments = Math.max(1, (int) Math.ceil(sweep * 64 / (2 * Math.PI)));
+        for (int step = 1; step <= segments; step++) {
+            if (step == segments) {
+                arc.add(exactEnd);
+            } else {
+                double angle = start + (ccw ? 1 : -1) * sweep * step / segments;
+                arc.add(new Coordinate(centerX + radius * Math.cos(angle),
+                        centerY + radius * Math.sin(angle)));
+            }
+        }
+    }
+
     private static Coordinate[] coordinates(List<Coordinate> points, int minimum) {
         Objects.requireNonNull(points);
         if (points.size() < minimum) {

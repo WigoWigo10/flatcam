@@ -185,6 +185,7 @@ final class GeometryEditorController {
         Button polygonButton = new Button("Poligono");
         Button rectangleButton = new Button("Retangulo");
         Button circleButton = new Button("Circulo");
+        Button arcButton = new Button("Arco");
         deleteButton = new Button("Excluir selecionadas");
         moveButton = new Button("Mover selecionadas");
         copyButton = new Button("Copiar selecionadas");
@@ -203,7 +204,7 @@ final class GeometryEditorController {
         bufferMode.getSelectionModel().selectFirst();
         bufferMode.setMaxWidth(Double.MAX_VALUE);
         Button cancelButton = new Button("Cancelar edicao");
-        editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton,
+        editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
                 bufferButton, explodeButton, undoButton, redoButton, applyButton, cancelButton);
         iconize(selectButton, "pointer32.png");
@@ -211,6 +212,7 @@ final class GeometryEditorController {
         iconize(polygonButton, "polygon32.png");
         iconize(rectangleButton, "rectangle32.png");
         iconize(circleButton, "circle32.png");
+        iconize(arcButton, "arc32.png");
         iconize(deleteButton, "trash32.png");
         iconize(moveButton, "move32.png");
         iconize(copyButton, "copy32.png");
@@ -230,6 +232,7 @@ final class GeometryEditorController {
         polygonButton.setOnAction(event -> startPolygon());
         rectangleButton.setOnAction(event -> startRectangle());
         circleButton.setOnAction(event -> startCircle());
+        arcButton.setOnAction(event -> startArc());
         deleteButton.setOnAction(event -> deleteSelected());
         moveButton.setOnAction(event -> startMove());
         copyButton.setOnAction(event -> startCopy());
@@ -259,8 +262,7 @@ final class GeometryEditorController {
         discardButton.setMaxWidth(Double.MAX_VALUE);
         discardButton.setOnAction(event -> cancel());
         panel.getChildren().addAll(exitButton, discardButton);
-        ToolBar toolbar = new ToolBar(selectButton, circleButton,
-                plannedToolButton("Arco", "arc32.png"), rectangleButton,
+        ToolBar toolbar = new ToolBar(selectButton, circleButton, arcButton, rectangleButton,
                 new Separator(), pathButton, polygonButton,
                 new Separator(), plannedToolButton("Texto", "text32.png"), bufferButton,
                 plannedToolButton("Paint Shape", "paint20_1.png"),
@@ -323,6 +325,51 @@ final class GeometryEditorController {
 
     void startPolygon() {
         startMultiPoint(true);
+    }
+
+    void startArc() {
+        if (!readyForTool()) {
+            return;
+        }
+        GeometryEditSession editing = session;
+        int toolIndex = selectedToolIndex();
+        if (plotArea.beginEditorGeometryPathPlacement(false, new PlotAreaView.TrackPlacementHandler() {
+            @Override
+            public void onPathChanged(int anchorCount, org.flatcam.cam.gerber.edit.TrackBendMode mode) {
+                if (session == editing) {
+                    instruction.setText("Arco: " + anchorCount
+                            + " ponto(s). Escolha inicio, ponto intermediario e fim; "
+                            + "Enter ou botao direito conclui; Esc cancela.");
+                }
+            }
+
+            @Override
+            public void onCommit(List<Coordinate> points) {
+                if (session != editing) {
+                    return;
+                }
+                if (points.size() != 3) {
+                    instruction.setText("O arco exige exatamente tres pontos: inicio, meio e fim.");
+                    return;
+                }
+                try {
+                    editing.addArc(points.get(0), points.get(1), points.get(2), toolIndex);
+                    refreshGeometry();
+                    instruction.setText("Arco adicionado. Ctrl+Z desfaz.");
+                } catch (IllegalArgumentException invalid) {
+                    instruction.setText(invalid.getMessage());
+                }
+            }
+
+            @Override
+            public void onCancel() {
+                if (session == editing) {
+                    instruction.setText("Arco cancelado.");
+                }
+            }
+        })) {
+            instruction.setText("Clique no inicio, em um ponto do arco e no fim; Enter conclui.");
+        }
     }
 
     private void startMultiPoint(boolean polygon) {

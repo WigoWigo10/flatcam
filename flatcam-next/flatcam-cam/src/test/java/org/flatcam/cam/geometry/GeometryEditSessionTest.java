@@ -20,6 +20,37 @@ import org.locationtech.jts.geom.LinearRing;
 
 class GeometryEditSessionTest {
 
+    @Test
+    void threePointArcPassesThroughMiddleAndSupportsUndo() {
+        GeometryEditSession session = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
+        session.addArc(new Coordinate(1, 0), new Coordinate(0, 1), new Coordinate(-1, 0), -1);
+
+        assertEquals(1, session.shapeCount());
+        Geometry arc = session.resultGeometry().getGeometryN(0);
+        assertTrue(arc.covers(FACTORY.createPoint(new Coordinate(0, 1))));
+        assertFalse(arc.covers(FACTORY.createPoint(new Coordinate(0, -1))));
+        assertTrue(session.undo());
+        assertEquals(0, session.shapeCount());
+        assertTrue(session.redo());
+        assertEquals(1, session.shapeCount());
+    }
+
+    @Test
+    void arcRejectsCollinearPoints() {
+        GeometryEditSession session = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
+        assertThrows(IllegalArgumentException.class, () -> session.addArc(
+                new Coordinate(0, 0), new Coordinate(1, 0), new Coordinate(2, 0), -1));
+    }
+
+    @Test
+    void arcDirectionFollowsTheIntermediatePoint() {
+        GeometryEditSession session = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
+        session.addArc(new Coordinate(1, 0), new Coordinate(0, -1), new Coordinate(-1, 0), -1);
+        Geometry arc = session.resultGeometry().getGeometryN(0);
+        assertTrue(arc.covers(FACTORY.createPoint(new Coordinate(0, -1))));
+        assertFalse(arc.covers(FACTORY.createPoint(new Coordinate(0, 1))));
+    }
+
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     private static Geometry line(double x) {
