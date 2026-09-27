@@ -80,6 +80,7 @@ import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.excellon.ExcellonMillingGenerator;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
@@ -3058,6 +3059,67 @@ final class MainWindow {
         }
     }
 
+    private void generateExcellonMilling(TreeItem<String> item, ExcellonImage image) {
+        List<ExcellonMillingToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
+                .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
+                .map(entry -> new ExcellonMillingToolPanel.SourceCandidate(entry.getKey(), entry.getValue()))
+                .toList();
+        ExcellonMillingToolPanel.SourceCandidate initial = sources.stream()
+                .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
+        if (initial == null) return;
+        openToolPanel("Milling Tool", ExcellonMillingToolPanel.build(sources, initial,
+                this::runExcellonMilling, this::closeToolPanel));
+    }
+
+    private void runExcellonMilling(ExcellonMillingToolPanel.Result result) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        TreeItem<String> item = result.source().item();
+        ExcellonImage image = result.source().image();
+        beginJob("Gerando Geometry de fresagem Excellon...");
+        JobHandle<Geometry> handle = jobExecutor.submit(context -> {
+            context.reportProgress(0.1, "Calculando caminhos de fresagem...");
+            Geometry geometry = ExcellonMillingGenerator.generate(image, result.toolIds(),
+                    result.millDiameter(), result.kind(), context::isCancelled);
+            context.checkCancelled();
+            context.reportProgress(0.95, "Preparando Geometry...");
+            return geometry;
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(geometry -> Platform.runLater(() -> {
+            if (excellonByItem.get(item) != image) {
+                appendConsole("O Excellon de origem foi removido; Geometry de fresagem descartada.");
+                setStatus("Origem removida.", ERROR_COLOR);
+            } else if (geometry.isEmpty()) {
+                appendConsole("Nenhum caminho foi gerado para as ferramentas selecionadas.");
+                setStatus("Sem caminhos.", ERROR_COLOR);
+            } else {
+                String suffix = result.kind() == ExcellonMillingGenerator.Kind.DRILLS ? "_mill_drills" : "_mill_slots";
+                String name = uniqueDerivedName(item.getValue() + suffix);
+                TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
+                        geometry, true, List.of(new ToolGeometry(result.millDiameter(), geometry)));
+                appendConsole("Geometry de fresagem criada: " + name + ". Revise os caminhos antes de gerar CNC Job.");
+                selectProjectItem(generated);
+                plotAreaView.fitToLayer(generated);
+                closeToolPanel();
+                setStatus("Geometry de fresagem concluida.", IDLE_COLOR);
+            }
+            updateProgress(1);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao gerar Geometry de fresagem: ");
+                onJobFinished();
+            });
+            return null;
+        });
+    }
+
     /** Creates editable Geometry first, as the Python Isolation tool does. */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
         List<IsolationToolPanel.SourceCandidate> sources = gerberByItem.entrySet().stream()
@@ -3942,13 +4004,13 @@ final class MainWindow {
         Button millingButton = new Button("Milling Tool");
         millingButton.setGraphic(legacyIcon("milling_tool32.png", 18));
         millingButton.setMaxWidth(Double.MAX_VALUE);
-        millingButton.setDisable(true);
-        millingButton.setTooltip(new Tooltip("Ferramenta de fresagem de furos/slots ainda nao implementada no FX."));
+        millingButton.setTooltip(new Tooltip("Cria Geometry editavel para fresar furos ou slots selecionados."));
+        millingButton.setOnAction(e -> generateExcellonMilling(item, image));
         box.getChildren().add(millingButton);
 
         VBox utilitiesContent = new VBox(8);
         utilitiesContent.setPadding(new Insets(8));
-        Label utilitiesNote = new Label("Mill Drills e Mill Slots ainda nao estao disponiveis no FX.");
+        Label utilitiesNote = new Label("Mill Drills e Mill Slots estao no Milling Tool acima.");
         utilitiesNote.setWrapText(true);
         utilitiesContent.getChildren().add(utilitiesNote);
         TitledPane utilities = new TitledPane("UTILITIES", utilitiesContent);
