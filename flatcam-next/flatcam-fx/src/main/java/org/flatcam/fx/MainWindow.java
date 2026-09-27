@@ -592,6 +592,7 @@ final class MainWindow {
 
     Scene createScene() {
         BorderPane root = new BorderPane();
+        root.getStyleClass().add("app-shell");
         regularToolsToolbar = buildToolsToolBar();
         topBars = new VBox(buildMenuRow(), buildToolBar(), regularToolsToolbar);
         root.setTop(topBars);
@@ -1524,7 +1525,9 @@ final class MainWindow {
     private void openToolPanel(String label, Node content) {
         setSidebarVisible(true);
         toolTab.setText(label);
+        if (!content.getStyleClass().contains("tool-panel")) content.getStyleClass().add("tool-panel");
         ScrollPane scroll = new ScrollPane(content);
+        scroll.getStyleClass().add("tool-panel-scroll");
         scroll.setFitToWidth(true);
         toolTab.setContent(scroll);
         leftTabs.getSelectionModel().select(toolTab);
@@ -3726,6 +3729,7 @@ final class MainWindow {
         box.getChildren().add(labeledRow("Plot:", plotCb, followCb));
 
         Button isolationButton = new Button("Isolation Routing");
+        isolationButton.getStyleClass().add("primary-action");
         isolationButton.setMaxWidth(Double.MAX_VALUE);
         isolationButton.setOnAction(e -> generateIsolation(item, image));
         box.getChildren().add(isolationButton);
@@ -3919,6 +3923,7 @@ final class MainWindow {
         box.getChildren().add(toolsLabel);
 
         Button gcodeButton = new Button("Drilling Tool");
+        gcodeButton.getStyleClass().add("primary-action");
         gcodeButton.setGraphic(legacyIcon("drilling_tool32.png", 18));
         gcodeButton.setMaxWidth(Double.MAX_VALUE);
         gcodeButton.setOnAction(e -> generateDrillGCode(item, image));
@@ -3957,6 +3962,7 @@ final class MainWindow {
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
         Button cncButton = new Button("Generate CNC Job");
+        cncButton.getStyleClass().add("primary-action");
         cncButton.setGraphic(legacyIcon("cnc16.png", 16));
         cncButton.setMaxWidth(Double.MAX_VALUE);
         cncButton.setOnAction(e -> generateGeometryCncJob(item, entry));
@@ -4029,6 +4035,7 @@ final class MainWindow {
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
         Button viewButton = new Button("Ver G-code");
+        viewButton.getStyleClass().add("primary-action");
         viewButton.setMaxWidth(Double.MAX_VALUE);
         viewButton.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
         box.getChildren().add(viewButton);
@@ -4061,11 +4068,13 @@ final class MainWindow {
             leadingGraphic = legacyIcon(iconFile, 24);
         }
         Label titleLabel = new Label(title);
-        titleLabel.setStyle("-fx-font-weight: bold; -fx-font-size: 14px;");
+        titleLabel.getStyleClass().add("object-title");
         HBox header = new HBox(6, leadingGraphic, titleLabel);
+        header.getStyleClass().add("object-header");
         header.setAlignment(Pos.CENTER_LEFT);
 
         VBox box = new VBox(8, header);
+        box.getStyleClass().add("object-panel");
         box.setPadding(new Insets(10));
         return box;
     }
@@ -4103,6 +4112,7 @@ final class MainWindow {
     /** The legacy "PROPERTIES" toggle button + inline stats frame, done here as a collapsible section. */
     private TitledPane propertiesSection(String text) {
         Label label = new Label(text);
+        label.setWrapText(true);
         TitledPane pane = new TitledPane("PROPERTIES", label);
         pane.setGraphic(legacyIcon("properties32.png", 18));
         pane.setExpanded(false);

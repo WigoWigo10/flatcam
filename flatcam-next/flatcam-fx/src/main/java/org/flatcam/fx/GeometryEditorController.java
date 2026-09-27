@@ -193,6 +193,7 @@ final class GeometryEditorController {
         undoButton = new Button("Desfazer");
         redoButton = new Button("Refazer");
         applyButton = new Button("Aplicar ao objeto");
+        applyButton.getStyleClass().add("primary-action");
         unionButton = new Button("Unir selecionadas");
         intersectionButton = new Button("Intersecao selecionadas");
         subtractButton = new Button("Subtrair da primeira selecionada");
@@ -260,6 +261,7 @@ final class GeometryEditorController {
             toolChoice.setMaxWidth(Double.MAX_VALUE);
         }
         exitButton = new Button("Salvar e sair do editor");
+        exitButton.getStyleClass().add("primary-action");
         exitButton.setMaxWidth(Double.MAX_VALUE);
         exitButton.setOnAction(event -> apply());
         discardButton = new Button("Descartar alteracoes");

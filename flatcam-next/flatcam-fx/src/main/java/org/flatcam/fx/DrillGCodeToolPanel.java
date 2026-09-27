@@ -233,6 +233,7 @@ final class DrillGCodeToolPanel {
         errorLabel.setWrapText(true);
         errorLabel.managedProperty().bind(errorLabel.textProperty().isNotEmpty());
         Button generate = new Button("Generate CNC Job");
+        generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
             try {
@@ -288,7 +289,10 @@ final class DrillGCodeToolPanel {
         close.setMaxWidth(Double.MAX_VALUE);
         close.setOnAction(event -> onClose.run());
 
-        VBox box = new VBox(8, heading("Drilling Tool"), heading("EXCELLON:"), sourceCombo,
+        Label title = heading("Drilling Tool");
+        title.getStyleClass().remove("form-section-title");
+        title.getStyleClass().add("tool-title");
+        VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
                 selectedTitle, perTool, unsupportedNote, applyAll, feedback, new Separator(),
                 heading("Common Parameters"), common, errorLabel, generate, reset, close);

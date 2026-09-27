@@ -131,8 +131,10 @@ final class CutoutToolPanel {
         grid.addRow(8, new Label("M-Bites spacing:"), biteSpacingField);
 
         Button freeformButton = new Button("Gerar (Free-form)");
+        freeformButton.getStyleClass().add("primary-action");
         freeformButton.setMaxWidth(Double.MAX_VALUE);
         Button rectangularButton = new Button("Gerar (Rectangular)");
+        rectangularButton.getStyleClass().add("primary-action");
         rectangularButton.setMaxWidth(Double.MAX_VALUE);
         Button closeButton = new Button("Fechar");
         closeButton.setMaxWidth(Double.MAX_VALUE);
@@ -151,8 +153,10 @@ final class CutoutToolPanel {
                 + "se houver alguma, substituem o padrao automatico de gaps. "
                 + "Configure Multi-Depth, avanco e spindle ao criar cada CNC Job.");
         workflowNote.setWrapText(true);
+        Label title = new Label("Cutout Tool");
+        title.getStyleClass().add("tool-title");
         VBox box = new VBox(10,
-                new Label("Parametros (unidades do arquivo: " + units + ")"),
+                title, new Label("Unidades do arquivo: " + units),
                 grid, rectangleGapButton, polygonGapButton, clearManualButton, manualStatus, workflowNote,
                 errorLabel, freeformButton, rectangularButton, closeButton);
         box.setPadding(new Insets(12));

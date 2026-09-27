@@ -270,14 +270,328 @@
 }
 
 .form-error-label {
-    -fx-text-fill: #e53935;
+    -fx-text-fill: -fc-danger;
     -fx-font-size: 11px;
 }
 
 /* Small bold divider label grouping a tool panel's fields into sections - see NccToolPanel. */
 .form-section-title {
     -fx-font-weight: bold;
-    -fx-font-size: 11px;
-    -fx-opacity: 0.85;
-    -fx-padding: 4 0 0 0;
+    -fx-font-size: 12px;
+    -fx-text-fill: -fc-accent;
+    -fx-border-color: transparent transparent transparent -fc-accent;
+    -fx-border-width: 0 0 0 3;
+    -fx-padding: 5 0 5 9;
+}
+
+/* Shared visual language for every theme and every sidebar workflow. */
+.app-shell {
+    -fx-background-color: -fc-viewport-bg;
+}
+
+.menu-bar-row {
+    -fx-background-color: -fc-chrome-bg;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 0 0 1 0;
+}
+
+.tool-bar {
+    -fx-background-color: -fc-chrome-bg;
+    -fx-padding: 4 7 4 7;
+    -fx-spacing: 4;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 0 0 1 0;
+}
+
+.tool-bar .button,
+.editor-tool-palette .button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 5;
+    -fx-border-color: transparent;
+    -fx-border-radius: 5;
+    -fx-padding: 5 7 5 7;
+    -fx-cursor: hand;
+}
+
+.tool-bar .button:hover,
+.editor-tool-palette .button:hover {
+    -fx-background-color: -fc-accent-soft;
+    -fx-border-color: -fc-panel-border;
+}
+
+.tool-bar .button:pressed,
+.editor-tool-palette .button:pressed {
+    -fx-background-color: derive(-fc-accent-soft, -9%);
+}
+
+.tool-bar .button.primary-action {
+    -fx-background-color: -fc-accent-soft;
+    -fx-border-color: -fc-accent;
+}
+
+.tool-bar .button.danger-action {
+    -fx-border-color: -fc-danger;
+}
+
+.tool-bar .button:disabled,
+.editor-tool-palette .button:disabled {
+    -fx-cursor: default;
+}
+
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: -fc-chrome-bg;
+}
+
+.tab-pane .tab {
+    -fx-background-color: -fc-surface-alt;
+    -fx-background-insets: 0;
+    -fx-background-radius: 5 5 0 0;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 1 1 0 1;
+    -fx-border-radius: 5 5 0 0;
+    -fx-padding: 5 11 5 11;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: -fc-panel-bg;
+    -fx-border-color: -fc-accent -fc-panel-border transparent -fc-panel-border;
+    -fx-border-width: 3 1 0 1;
+}
+
+.tab-pane .tab .tab-label {
+    -fx-text-fill: -fc-muted-text;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: -fc-panel-text;
+    -fx-font-weight: bold;
+}
+
+.side-panel {
+    -fx-background-color: -fc-panel-bg;
+    -fx-padding: 0;
+}
+
+.side-panel .tab-content-area {
+    -fx-background-color: -fc-panel-bg;
+}
+
+.tool-panel,
+.object-panel,
+.tool-panel-scroll,
+.tool-panel-scroll > .viewport {
+    -fx-background-color: -fc-panel-bg;
+}
+
+.tool-panel,
+.object-panel {
+    -fx-font-size: 13px;
+}
+
+.tool-panel .label,
+.object-panel .label {
+    -fx-text-fill: -fc-panel-text;
+}
+
+.object-title {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -fc-panel-text;
+}
+
+.object-panel .label.object-title {
+    -fx-text-fill: -fc-panel-text;
+}
+
+.object-header {
+    -fx-background-color: -fc-surface-alt;
+    -fx-background-radius: 6;
+    -fx-border-color: -fc-accent -fc-panel-border -fc-panel-border -fc-panel-border;
+    -fx-border-width: 3 1 1 1;
+    -fx-border-radius: 6;
+    -fx-padding: 9 10 9 10;
+}
+
+.tool-panel .label.tool-title {
+    -fx-background-color: -fc-surface-alt;
+    -fx-background-radius: 6;
+    -fx-border-color: transparent transparent -fc-accent transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-padding: 9 10 9 10;
+    -fx-text-fill: -fc-panel-text;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.tool-panel .label.form-section-title,
+.object-panel .label.form-section-title {
+    -fx-text-fill: -fc-accent;
+}
+
+.tool-panel .label.form-error-label,
+.object-panel .label.form-error-label {
+    -fx-text-fill: -fc-danger;
+}
+
+.tool-panel .button,
+.object-panel .button {
+    -fx-background-color: -fc-surface;
+    -fx-background-insets: 0;
+    -fx-background-radius: 6;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+    -fx-text-fill: -fc-panel-text;
+    -fx-padding: 7 10 7 10;
+    -fx-cursor: hand;
+}
+
+.tool-panel .button:hover,
+.object-panel .button:hover {
+    -fx-background-color: -fc-accent-soft;
+    -fx-border-color: -fc-accent;
+}
+
+.tool-panel .button:pressed,
+.object-panel .button:pressed {
+    -fx-background-color: derive(-fc-accent-soft, -12%);
+}
+
+.tool-panel .button:disabled,
+.object-panel .button:disabled {
+    -fx-opacity: 0.48;
+    -fx-cursor: default;
+}
+
+.tool-panel .button.primary-action,
+.object-panel .button.primary-action {
+    -fx-background-color: -fc-accent;
+    -fx-border-color: derive(-fc-accent, -20%);
+    -fx-text-fill: -fc-on-accent;
+    -fx-font-weight: bold;
+}
+
+.tool-panel .button.primary-action:hover,
+.object-panel .button.primary-action:hover {
+    -fx-background-color: derive(-fc-accent, 10%);
+    -fx-border-color: derive(-fc-accent, 23%);
+}
+
+.tool-panel .button.danger-action,
+.object-panel .button.danger-action {
+    -fx-border-color: -fc-danger;
+    -fx-text-fill: -fc-danger;
+}
+
+.tool-panel .text-field,
+.tool-panel .text-area,
+.tool-panel .combo-box-base,
+.tool-panel .spinner,
+.object-panel .text-field,
+.object-panel .combo-box-base {
+    -fx-background-color: -fc-input-bg;
+    -fx-background-insets: 0;
+    -fx-background-radius: 5;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-text-fill: -fc-panel-text;
+    -fx-prompt-text-fill: -fc-muted-text;
+}
+
+.tool-panel .text-field:focused,
+.tool-panel .text-area:focused,
+.tool-panel .combo-box-base:focused,
+.tool-panel .spinner:focused,
+.object-panel .text-field:focused,
+.object-panel .combo-box-base:focused {
+    -fx-border-color: -fc-accent;
+    -fx-border-width: 2;
+}
+
+.tool-panel .spinner .text-field,
+.tool-panel .spinner .text-field:focused,
+.tool-panel .combo-box-base .text-field {
+    -fx-border-width: 0;
+}
+
+.tool-panel .table-view,
+.object-panel .table-view {
+    -fx-background-color: -fc-surface;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+}
+
+.tool-panel .table-view .column-header,
+.tool-panel .table-view .column-header-background,
+.object-panel .table-view .column-header,
+.object-panel .table-view .column-header-background {
+    -fx-background-color: -fc-table-head;
+}
+
+.tool-panel .table-view .column-header .label,
+.object-panel .table-view .column-header .label {
+    -fx-text-fill: -fc-panel-text;
+    -fx-font-weight: bold;
+}
+
+.tool-panel .table-row-cell:even,
+.object-panel .table-row-cell:even {
+    -fx-background-color: -fc-table-even;
+}
+
+.tool-panel .table-row-cell:odd,
+.object-panel .table-row-cell:odd {
+    -fx-background-color: -fc-table-odd;
+}
+
+.tool-panel .table-row-cell:selected,
+.object-panel .table-row-cell:selected {
+    -fx-background-color: -fc-selection-row;
+}
+
+.tool-panel .table-row-cell:selected .table-cell,
+.object-panel .table-row-cell:selected .table-cell {
+    -fx-text-fill: -fc-selection-row-text;
+}
+
+.tool-panel .table-cell,
+.object-panel .table-cell {
+    -fx-text-fill: -fc-panel-text;
+    -fx-border-color: transparent -fc-panel-border transparent transparent;
+}
+
+.object-panel .table-cell.total-cell {
+    -fx-font-weight: bold;
+    -fx-text-fill: -fc-accent;
+}
+
+.object-panel .table-row-cell:selected .table-cell.total-cell {
+    -fx-text-fill: -fc-selection-row-text;
+}
+
+.tool-panel .titled-pane > .title,
+.object-panel .titled-pane > .title {
+    -fx-background-color: -fc-surface-alt;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-padding: 8 10 8 10;
+}
+
+.tool-panel .titled-pane > .content,
+.object-panel .titled-pane > .content {
+    -fx-background-color: -fc-panel-bg;
+    -fx-border-color: -fc-panel-border;
+}
+
+.tool-panel .separator .line,
+.object-panel .separator .line {
+    -fx-border-color: -fc-panel-border;
+}
+
+.status-bar {
+    -fx-background-color: -fc-chrome-bg;
+    -fx-padding: 4 8 4 8;
 }

@@ -505,6 +505,7 @@ final class GerberEditToolPanel {
         FlowPane offsetActions = new FlowPane(6, 6, moveOffsetButton, copyOffsetButton);
 
         applyButton.setMaxWidth(Double.MAX_VALUE);
+        applyButton.getStyleClass().add("primary-action");
         applyButton.setOnAction(e -> onApply.run());
         cancelButton.setMaxWidth(Double.MAX_VALUE);
         cancelButton.setOnAction(e -> onCancel.run());

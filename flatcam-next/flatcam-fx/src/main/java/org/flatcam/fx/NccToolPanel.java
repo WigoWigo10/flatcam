@@ -726,6 +726,7 @@ final class NccToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
         Button generateButton = new Button("Gerar Geometry");
+        generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
@@ -831,7 +832,7 @@ final class NccToolPanel {
         HBox.setHgrow(resetButton, Priority.ALWAYS);
         HBox.setHgrow(closeButton, Priority.ALWAYS);
         Label title = new Label("Non-Copper Clearing");
-        title.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        title.getStyleClass().add("tool-title");
         VBox box = new VBox(8, title, sourceGrid, new Separator(),
                 sectionTitle("Tools Table"), toolTable, orderRow, new Separator(),
                 sectionTitle("Add from DB"), diameterRow, addRow, removeToolButton,

@@ -410,6 +410,7 @@ final class IsolationToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.managedProperty().bind(errorLabel.textProperty().isNotEmpty());
         Button generate = new Button("Generate Geometry");
+        generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
             try {
@@ -474,7 +475,10 @@ final class IsolationToolPanel {
         parametersGrid.setVgap(8);
         parametersGrid.addRow(0, new Label("Passes:"), passesSpinner);
         parametersGrid.addRow(1, new Label("Overlap (%):"), overlapSpinner);
-        VBox box = new VBox(8, heading("Isolation Tool"), heading("GERBER:"), sourceCombo,
+        Label title = heading("Isolation Tool");
+        title.getStyleClass().remove("form-section-title");
+        title.getStyleClass().add("tool-title");
+        VBox box = new VBox(8, title, heading("GERBER:"), sourceCombo,
                 new Separator(), heading("Tools Table"), table, orderRow, new Separator(),
                 heading("Add from DB"), newDiaRow, addRow, deleteButton, toolMessage,
                 new Separator(), parameterTitle, parametersGrid, applyAll, new Separator(),

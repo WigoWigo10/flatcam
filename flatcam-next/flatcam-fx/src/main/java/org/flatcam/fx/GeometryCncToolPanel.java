@@ -93,6 +93,7 @@ final class GeometryCncToolPanel {
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
         Button generateButton = new Button("Gerar CNC Job...");
+        generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         boolean hasVTool = tools.stream().anyMatch(tool -> tool.toolProfile() == ToolProfile.V
                 && !tool.geometry().isEmpty());
@@ -126,7 +127,9 @@ final class GeometryCncToolPanel {
         closeButton.setMaxWidth(Double.MAX_VALUE);
         closeButton.setOnAction(e -> onClose.run());
 
-        VBox box = new VBox(10, new Label("Geometry -> CNC Job (" + units + ")"));
+        Label title = new Label("Geometry -> CNC Job");
+        title.getStyleClass().add("tool-title");
+        VBox box = new VBox(10, title, new Label("Unidades: " + units));
         if (multiTool) {
             box.getChildren().addAll(new Label("Ferramentas (associadas ao NCC):"), toolTable);
         }

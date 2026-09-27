@@ -65,7 +65,11 @@ final class ExcellonObjectToolsTable {
                 setText(empty ? null : item);
                 boolean total = !empty && getTableRow() != null
                         && getTableRow().getItem() != null && getTableRow().getItem().total();
-                setStyle(total ? "-fx-font-weight: bold; -fx-text-fill: #70a7ff;" : "");
+                if (total) {
+                    if (!getStyleClass().contains("total-cell")) getStyleClass().add("total-cell");
+                } else {
+                    getStyleClass().remove("total-cell");
+                }
             }
         });
         return column;

@@ -160,6 +160,7 @@ final class ExcellonEditorController {
         redoButton = new Button("↷");
         redoButton.setOnAction(event -> redo());
         applyButton = button("Aplicar", "close_edit_file32.png", this::apply);
+        applyButton.getStyleClass().add("primary-action");
         Button cancelButton = button("Cancelar", "power16.png", this::cancel);
         Button applyPanel = new Button("Aplicar e sair");
         applyPanel.setMaxWidth(Double.MAX_VALUE);
