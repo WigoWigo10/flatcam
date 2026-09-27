@@ -1165,7 +1165,7 @@ final class MainWindow {
                 plannedItem("Localizar no Objeto", "locate32.png"),
                 new SeparatorMenuItem(),
                 plannedItem("Alternar Unidades", "toggle_units32.png"),
-                plannedItem("Preferencias", "settings18.png"));
+                chromeItem("Preferencias", "settings18.png", this::openPreferences));
 
         Menu optionsMenu = new Menu("Opcoes");
         MenuItem toolsDbItem = plannedItem("Tools Database", "search_db32.png");
@@ -1314,6 +1314,14 @@ final class MainWindow {
 
         Menu themeMenu = new Menu("Tema");
         themeMenu.getItems().addAll(classicMenu, iceMenu);
+        themeMenu.setOnShowing(event -> {
+            for (Menu submenu : List.of(classicMenu, iceMenu)) {
+                for (MenuItem item : submenu.getItems()) {
+                    if (item instanceof RadioMenuItem radio)
+                        radio.setSelected(radio.getUserData() == currentTheme);
+                }
+            }
+        });
         return themeMenu;
     }
 
@@ -1322,19 +1330,19 @@ final class MainWindow {
         RadioMenuItem item = new RadioMenuItem(option.label());
         item.setToggleGroup(group);
         item.setSelected(option == currentTheme);
-        item.setOnAction(e -> {
-            option.applyTo(scene);
-            currentTheme = option;
-            darkIcons.set(option.isDark());
-            plotAreaView.applyTheme(option);
-            AppPreferences.saveTheme(option);
-            // Tree cells cache their graphic nodes; rebuild them so dark-only
-            // icon outlines appear/disappear immediately with the theme.
-            if (projectTree != null) {
-                projectTree.refresh();
-            }
-        });
+        item.setUserData(option);
+        item.setOnAction(e -> applyTheme(option));
         return item;
+    }
+
+    private void applyTheme(ThemeOption option) {
+        option.applyTo(scene);
+        currentTheme = option;
+        darkIcons.set(option.isDark());
+        plotAreaView.applyTheme(option);
+        AppPreferences.saveTheme(option);
+        // Tree cells cache their graphic nodes; rebuild them for the new icon contrast.
+        if (projectTree != null) projectTree.refresh();
     }
 
     /** The Python file/edit/view/shell toolbar groups, with unavailable commands visibly disabled. */
@@ -1420,7 +1428,7 @@ final class MainWindow {
 
         statusControls = new PlotStatusControls(plotAreaView,
                 file -> legacyIcon(file, 16), consoleToggle,
-                statusLabel::setText);
+                statusLabel::setText, this::openPreferences);
         unitsLabel.setTooltip(new Tooltip("Unidades do projeto"));
         statusLabel.setMinWidth(0);
         statusLabel.setMaxWidth(Double.MAX_VALUE);
@@ -4223,8 +4231,83 @@ final class MainWindow {
         centerTabs.getSelectionModel().select(tab);
     }
 
-    private StackPane buildPreferencesPlaceholder() {
-        return centeredPlaceholder("Preferencias\n(placeholder - ver UI_INVENTORY.md secao 4)");
+    private void openPreferences() {
+        openAuxiliaryTab("Preferencias", this::buildPreferencesPanel);
+    }
+
+    private Node buildPreferencesPanel() {
+        AppPreferences.PlotStatusSettings saved = AppPreferences.loadPlotStatusSettings();
+        Label title = new Label("Preferencias");
+        title.getStyleClass().add("tool-title");
+        ComboBox<ThemeOption> theme = new ComboBox<>();
+        theme.getItems().addAll(ThemeOption.values());
+        theme.setConverter(new javafx.util.StringConverter<>() {
+            @Override public String toString(ThemeOption option) {
+                return option == null ? "" : option.label();
+            }
+            @Override public ThemeOption fromString(String value) {
+                return theme.getValue();
+            }
+        });
+        theme.setValue(currentTheme);
+        CheckBox snap = new CheckBox("Ativar snap na grade");
+        snap.setSelected(saved.gridSnap());
+        CheckBox linked = new CheckBox("Usar passo X tambem em Y");
+        linked.setSelected(saved.gridLinked());
+        TextField gridX = new TextField(Double.toString(saved.gridX()));
+        TextField gridY = new TextField(Double.toString(saved.gridY()));
+        gridX.setPrefColumnCount(8);
+        gridY.setPrefColumnCount(8);
+        gridY.setDisable(linked.isSelected());
+        linked.selectedProperty().addListener((obs, oldValue, value) -> gridY.setDisable(value));
+        CheckBox axis = new CheckBox("Mostrar eixos");
+        axis.setSelected(saved.axisVisible());
+        CheckBox hud = new CheckBox("Mostrar HUD de coordenadas");
+        hud.setSelected(saved.hudVisible());
+        CheckBox workspace = new CheckBox("Mostrar area A4");
+        workspace.setSelected(saved.workspaceVisible());
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(8);
+        grid.addRow(0, new Label("Tema:"), theme);
+        grid.addRow(1, new Label("Passo X:"), gridX);
+        grid.addRow(2, new Label("Passo Y:"), gridY);
+        Label feedback = new Label();
+        feedback.setWrapText(true);
+        Button apply = new Button("Aplicar preferencias");
+        apply.getStyleClass().add("primary-action");
+        apply.setOnAction(event -> {
+            try {
+                double x = preferenceStep(gridX.getText(), "Passo X");
+                double y = linked.isSelected() ? x : preferenceStep(gridY.getText(), "Passo Y");
+                AppPreferences.PlotStatusSettings settings = new AppPreferences.PlotStatusSettings(
+                        snap.isSelected(), x, y, linked.isSelected(), axis.isSelected(),
+                        hud.isSelected(), workspace.isSelected());
+                statusControls.applySettings(settings);
+                applyTheme(theme.getValue());
+                feedback.setText("Preferencias aplicadas e salvas.");
+                setStatus("Preferencias salvas.", IDLE_COLOR);
+            } catch (IllegalArgumentException error) {
+                feedback.setText(error.getMessage());
+            }
+        });
+        VBox panel = new VBox(12, title,
+                new Label("Aparencia"), grid,
+                new Separator(), new Label("Plot Area"), snap, linked, axis, hud, workspace,
+                feedback, apply);
+        panel.setPadding(new Insets(18));
+        panel.setMaxWidth(460);
+        ScrollPane scroll = new ScrollPane(panel);
+        scroll.setFitToWidth(true);
+        return scroll;
+    }
+
+    private static double preferenceStep(String text, String label) {
+        try {
+            double value = Double.parseDouble(text.trim().replace(',', '.'));
+            if (Double.isFinite(value) && value > 0) return value;
+        } catch (NumberFormatException ignored) { }
+        throw new IllegalArgumentException(label + " deve ser numerico e positivo.");
     }
 
     private StackPane buildToolsDbPlaceholder() {

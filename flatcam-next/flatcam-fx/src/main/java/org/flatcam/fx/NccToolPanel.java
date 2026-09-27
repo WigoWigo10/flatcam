@@ -240,7 +240,7 @@ final class NccToolPanel {
         });
         Label typeHeader = new Label("TT");
         typeHeader.setTooltip(tooltip("C1-C4: fresas circulares (numero de dentes). B: ball nose. "
-                + "V: exige Gerber e Isolation; CNC Job V permanece bloqueado ate haver V-Tip Dia/Angle."));
+                + "V: exige Gerber e Isolation; configure V-Tip Dia/Angle ao gerar CNC Job."));
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
         typeColumn.setMinWidth(80);

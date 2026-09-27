@@ -151,7 +151,7 @@ final class IsolationToolPanel {
                     if (!updating && getTableRow() != null && getTableRow().getItem() != null) {
                         getTableRow().getItem().profile = choice.getValue();
                         if (choice.getValue() == ToolProfile.V)
-                            toolMessage.setText("TT V: o CNC Job fica bloqueado ate o FX calcular V-Tip Dia/Angle.");
+                            toolMessage.setText("TT V: configure V-Tip Dia e Angle ao criar o CNC Job da Geometry.");
                     }
                 });
             }
@@ -240,7 +240,7 @@ final class IsolationToolPanel {
                             parameters.passes(), parameters.overlapFraction(), parameters.type()));
                     table.getSelectionModel().clearAndSelect(rows.size() - 1);
                     toolMessage.setText(chosen.toolProfile() == ToolProfile.V
-                            ? "TT V: o CNC Job fica bloqueado ate o FX calcular V-Tip Dia/Angle." : "");
+                            ? "TT V: configure V-Tip Dia e Angle ao criar o CNC Job da Geometry." : "");
                 });
             } catch (RuntimeException error) { toolMessage.setText(error.getMessage()); }
         });

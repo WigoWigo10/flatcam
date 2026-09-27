@@ -30,7 +30,7 @@ final class PlotStatusControls {
     private double stepY = 1.0;
 
     PlotStatusControls(PlotAreaView plot, Function<String, Node> icon, Node consoleToggle,
-                       Consumer<String> feedback) {
+                       Consumer<String> feedback, Runnable openPreferences) {
         this.plot = plot;
         this.feedback = feedback;
         AppPreferences.PlotStatusSettings saved = AppPreferences.loadPlotStatusSettings();
@@ -106,10 +106,10 @@ final class PlotStatusControls {
         plot.setWorkspaceVisible(saved.workspaceVisible());
 
         Button preferences = new Button(null, icon.apply("settings18.png"));
-        preferences.getStyleClass().addAll("status-control", "planned-command");
+        preferences.getStyleClass().add("status-control");
         preferences.getStyleClass().add("status-preferences");
-        preferences.setTooltip(new Tooltip("Preferencias - em desenvolvimento"));
-        preferences.setDisable(true);
+        preferences.setTooltip(new Tooltip("Abrir Preferencias"));
+        preferences.setOnAction(event -> openPreferences.run());
 
         root = new HBox(4, coordinates, gridSnap, gridX, link, gridY,
                 axis, preferences, consoleToggle, hud, workspace);
@@ -119,6 +119,24 @@ final class PlotStatusControls {
 
     Node node() {
         return root;
+    }
+
+    void applySettings(AppPreferences.PlotStatusSettings settings) {
+        gridSnap.setSelected(settings.gridSnap());
+        stepX = settings.gridX();
+        stepY = settings.gridLinked() ? settings.gridX() : settings.gridY();
+        gridX.setText(Double.toString(stepX));
+        gridY.setText(Double.toString(stepY));
+        link.setSelected(settings.gridLinked());
+        gridY.setDisable(settings.gridLinked());
+        axis.setSelected(settings.axisVisible());
+        hud.setSelected(settings.hudVisible());
+        workspace.setSelected(settings.workspaceVisible());
+        plot.setGridSnap(settings.gridSnap(), stepX, stepY);
+        plot.setAxisVisible(settings.axisVisible());
+        plot.setHudVisible(settings.hudVisible());
+        plot.setWorkspaceVisible(settings.workspaceVisible());
+        save();
     }
 
     void toggleGrid() {
