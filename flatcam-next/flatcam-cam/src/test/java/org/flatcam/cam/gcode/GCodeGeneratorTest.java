@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CancellationException;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
@@ -81,6 +82,38 @@ class GCodeGeneratorTest {
         String gcode = GCodeGenerator.generateDrillGCode(image,
                 new DrillGCodeParameters(3.0, 1.7, 300, 0, false));
         assertTrue(gcode.contains("G21"));
+    }
+
+    @Test
+    void vTipUsesItsCalculatedDepthAndNotTheOrdinaryCutZ() {
+        GeometryFactory factory = new GeometryFactory();
+        var line = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 0)});
+        var params = new GeometryGCodeParameters(2, 0.1, false, 1, 100, 0, false);
+        double expectedDepth = new VTipSettings(0.1, 60).cutDepth(0.5);
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob("MM",
+                List.of(new ToolGeometry(0.5, line, ToolProfile.V)), params,
+                Map.of(0, new VTipSettings(0.1, 60)), CancellationToken.none());
+        assertTrue(job.gcode().contains("G1 Z-" + String.format(java.util.Locale.ROOT, "%.4f", expectedDepth)));
+        assertFalse(job.gcode().contains("G1 Z-0.1000"));
+        assertTrue(job.gcode().contains("V tool 1"));
+    }
+
+    @Test
+    void eachVToolGetsItsOwnDepthAndInvalidTipsAreRejected() {
+        GeometryFactory factory = new GeometryFactory();
+        var line = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 0)});
+        var tools = List.of(new ToolGeometry(0.5, line, ToolProfile.V),
+                new ToolGeometry(1.0, line, ToolProfile.V));
+        var params = new GeometryGCodeParameters(2, 0.1, false, 1, 100, 0, true);
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob("MM", tools, params,
+                Map.of(0, new VTipSettings(0.1, 60), 1, new VTipSettings(0.2, 90)),
+                CancellationToken.none());
+        assertTrue(job.gcode().contains("G1 Z-0.3464"));
+        assertTrue(job.gcode().contains("G1 Z-0.4000"));
+        assertThrows(IllegalArgumentException.class, () -> new VTipSettings(0, 180));
+        assertThrows(IllegalArgumentException.class, () -> new VTipSettings(0.5, 60).cutDepth(0.5));
+        assertThrows(IllegalArgumentException.class, () -> GCodeGenerator.generateGeometryCncJob(
+                "MM", tools, params, Map.of(0, new VTipSettings(0.1, 60)), CancellationToken.none()));
     }
 
     @Test

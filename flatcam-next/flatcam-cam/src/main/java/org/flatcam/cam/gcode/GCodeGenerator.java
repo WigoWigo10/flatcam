@@ -381,17 +381,34 @@ public final class GCodeGenerator {
     public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
                                                        GeometryGCodeParameters params,
                                                        CancellationToken cancellationToken) {
+        return generateGeometryCncJob(units, tools, params, Map.of(), cancellationToken);
+    }
+
+    /** V-tool settings are keyed by the tool's zero-based position in {@code tools}. */
+    public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
+                                                       GeometryGCodeParameters params,
+                                                       Map<Integer, VTipSettings> vTools,
+                                                       CancellationToken cancellationToken) {
         Objects.requireNonNull(units, "units");
         Objects.requireNonNull(tools, "tools");
         Objects.requireNonNull(params, "params");
+        Objects.requireNonNull(vTools, "vTools");
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         if (tools.isEmpty()) {
             throw new IllegalArgumentException("At least one tool geometry is required");
         }
-        if (tools.stream().anyMatch(tool -> tool.toolProfile() == ToolProfile.V
-                && !tool.geometry().isEmpty())) {
-            throw new IllegalArgumentException("Ferramenta V exige calculo de Cut Z por V-Tip Dia/Angle; "
-                    + "CNC Job V ainda nao e suportado no FX.");
+        List<List<Double>> depthsByTool = new ArrayList<>(tools.size());
+        for (int i = 0; i < tools.size(); i++) {
+            ToolGeometry tool = tools.get(i);
+            double depth = params.cutDepth();
+            if (tool.toolProfile() == ToolProfile.V && !tool.geometry().isEmpty()) {
+                VTipSettings settings = vTools.get(i);
+                if (settings == null)
+                    throw new IllegalArgumentException("Ferramenta V " + (i + 1)
+                            + " exige V-Tip Dia e V-Tip Angle.");
+                depth = settings.cutDepth(tool.toolDiameter());
+            }
+            depthsByTool.add(passDepths(depth, params.multiDepth(), params.depthPerPass()));
         }
         cancellationToken.throwIfCancellationRequested();
 
@@ -405,16 +422,17 @@ public final class GCodeGenerator {
 
         List<Geometry> travelShapes = new ArrayList<>();
         List<Geometry> cutShapes = new ArrayList<>();
-        List<Double> depths = passDepths(params.cutDepth(), params.multiDepth(), params.depthPerPass());
         double lastX = 0;
         double lastY = 0;
         boolean firstTool = true;
 
-        for (ToolGeometry tool : tools) {
+        for (int toolIndex = 0; toolIndex < tools.size(); toolIndex++) {
+            ToolGeometry tool = tools.get(toolIndex);
             cancellationToken.throwIfCancellationRequested();
             if (tool.geometry() == null || tool.geometry().isEmpty()) {
                 continue;
             }
+            List<Double> depths = depthsByTool.get(toolIndex);
             if (!firstTool) {
                 if (params.spindleSpeedRpm() > 0) {
                     line(gcode, "M5");
@@ -425,6 +443,12 @@ public final class GCodeGenerator {
                 }
             }
             firstTool = false;
+            if (tool.toolProfile() == ToolProfile.V) {
+                VTipSettings settings = vTools.get(toolIndex);
+                line(gcode, "; V tool %d: dia %s, tip %s, angle %s deg, cut Z -%s",
+                        toolIndex + 1, fmt(tool.toolDiameter()), fmt(settings.tipDiameter()),
+                        fmt(settings.angleDegrees()), fmt(depths.get(depths.size() - 1)));
+            }
             if (params.spindleSpeedRpm() > 0) {
                 line(gcode, "M3 S%d", params.spindleSpeedRpm());
             }

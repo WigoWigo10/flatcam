@@ -1,6 +1,8 @@
 package org.flatcam.fx;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.function.Consumer;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -13,6 +15,7 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.locationtech.jts.geom.Geometry;
@@ -28,7 +31,8 @@ import org.locationtech.jts.geom.Geometry;
  */
 final class GeometryCncToolPanel {
 
-    record Result(List<ToolGeometry> tools, GeometryGCodeParameters parameters) {
+    record Result(List<ToolGeometry> tools, GeometryGCodeParameters parameters,
+                  Map<Integer, VTipSettings> vTools) {
     }
 
     private GeometryCncToolPanel() {
@@ -84,7 +88,7 @@ final class GeometryCncToolPanel {
             grid.addRow(row++, new Label("Tool Dia:"), toolDiaField);
         }
         grid.addRow(row++, new Label("Travel Z:"), safeZField);
-        grid.addRow(row++, new Label("Cut Z:"), cutDepthField);
+        grid.addRow(row++, new Label("Cut Z (nao V):"), cutDepthField);
         grid.addRow(row++, multiDepthCb, depthPerPassField);
         grid.addRow(row++, new Label("Feed rate:"), feedField);
         grid.addRow(row++, new Label("Spindle RPM:"), spindleField);
@@ -92,18 +96,41 @@ final class GeometryCncToolPanel {
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
+        Map<Integer, TextField[]> vFields = new LinkedHashMap<>();
+        VBox vSettings = new VBox(8);
+        for (int i = 0; i < tools.size(); i++) {
+            ToolGeometry tool = tools.get(i);
+            if (tool.toolProfile() != ToolProfile.V || tool.geometry().isEmpty()) continue;
+            TextField tipDia = new TextField(metric ? "0.1" : "0.004");
+            TextField tipAngle = new TextField("30");
+            tipDia.setPrefColumnCount(6);
+            tipAngle.setPrefColumnCount(6);
+            Label calculated = new Label();
+            calculated.setWrapText(true);
+            Runnable updateDepth = () -> {
+                try {
+                    double depth = new VTipSettings(parse(tipDia, "V-Tip Dia"),
+                            parse(tipAngle, "V-Tip Angle")).cutDepth(tool.toolDiameter());
+                    calculated.setText("Cut Z calculado: -" + format(depth) + " " + units);
+                } catch (RuntimeException error) {
+                    calculated.setText("Cut Z: " + error.getMessage());
+                }
+            };
+            tipDia.textProperty().addListener((obs, oldValue, value) -> updateDepth.run());
+            tipAngle.textProperty().addListener((obs, oldValue, value) -> updateDepth.run());
+            updateDepth.run();
+            GridPane vGrid = new GridPane();
+            vGrid.setHgap(8);
+            vGrid.setVgap(6);
+            vGrid.addRow(0, new Label("V-Tip Dia:"), tipDia);
+            vGrid.addRow(1, new Label("V-Tip Angle (graus):"), tipAngle);
+            vSettings.getChildren().addAll(new Label("Ferramenta " + (i + 1)
+                    + " — largura " + format(tool.toolDiameter()) + " " + units), vGrid, calculated);
+            vFields.put(i, new TextField[]{tipDia, tipAngle});
+        }
         Button generateButton = new Button("Gerar CNC Job...");
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
-        boolean hasVTool = tools.stream().anyMatch(tool -> tool.toolProfile() == ToolProfile.V
-                && !tool.geometry().isEmpty());
-        generateButton.setDisable(hasVTool);
-        Label vToolWarning = new Label("Ferramenta V selecionada: o FX ainda nao calcula Cut Z por V-Tip Dia/Angle. "
-                + "A Geometry foi preservada, mas o CNC Job V esta bloqueado para evitar profundidade incorreta.");
-        vToolWarning.setWrapText(true);
-        vToolWarning.setVisible(hasVTool);
-        vToolWarning.setManaged(hasVTool);
-        vToolWarning.getStyleClass().add("form-error-label");
         generateButton.setOnAction(e -> {
             try {
                 double safeZ = parse(safeZField, "Travel Z");
@@ -117,8 +144,16 @@ final class GeometryCncToolPanel {
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
                         : List.of(new ToolGeometry(parse(toolDiaField, "Tool Dia"), combinedGeometry));
+                Map<Integer, VTipSettings> vTools = new LinkedHashMap<>();
+                for (var entry : vFields.entrySet()) {
+                    TextField[] fields = entry.getValue();
+                    VTipSettings settings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
+                            parse(fields[1], "V-Tip Angle"));
+                    settings.cutDepth(resultTools.get(entry.getKey()).toolDiameter());
+                    vTools.put(entry.getKey(), settings);
+                }
                 errorLabel.setText("");
-                onGenerate.accept(new Result(resultTools, params));
+                onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools)));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }
@@ -133,7 +168,9 @@ final class GeometryCncToolPanel {
         if (multiTool) {
             box.getChildren().addAll(new Label("Ferramentas (associadas ao NCC):"), toolTable);
         }
-        box.getChildren().addAll(grid, vToolWarning, errorLabel, generateButton, closeButton);
+        box.getChildren().add(grid);
+        if (!vFields.isEmpty()) box.getChildren().add(vSettings);
+        box.getChildren().addAll(errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }

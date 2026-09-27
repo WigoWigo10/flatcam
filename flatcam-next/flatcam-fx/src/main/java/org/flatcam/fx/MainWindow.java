@@ -3659,7 +3659,7 @@ final class MainWindow {
         JobHandle<CncJobResult> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
             CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), result.tools(),
-                    result.parameters(), context::isCancelled);
+                    result.parameters(), result.vTools(), context::isCancelled);
             context.checkCancelled();
             context.reportProgress(0.90, "Salvando G-code de Geometry...");
             Files.writeString(outFile.toPath(), job.gcode());
