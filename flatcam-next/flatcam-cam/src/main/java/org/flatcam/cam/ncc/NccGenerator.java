@@ -119,7 +119,7 @@ public final class NccGenerator {
             cancellation.throwIfCancellationRequested();
             Geometry envelope = cleanCopper.buffer(diameter / 2.0, QUADRANT_SEGMENTS);
             List<LineString> rings = new ArrayList<>();
-            collectBoundaryLines(envelope, rings);
+            collectIsoBoundaryLines(envelope, params.millingType(), rings);
             List<LineString> clipped = new ArrayList<>();
             for (LineString ring : rings) {
                 cancellation.throwIfCancellationRequested();
@@ -481,6 +481,24 @@ public final class NccGenerator {
         } else {
             for (int i = 0; i < geometry.getNumGeometries(); i++) {
                 collectBoundaryLines(geometry.getGeometryN(i), target);
+            }
+        }
+    }
+
+    /** Python's Climb mode reverses envelope exteriors, leaving hole rings as generated. */
+    private static void collectIsoBoundaryLines(Geometry geometry, NccMillingType millingType,
+                                                List<LineString> target) {
+        if (geometry instanceof Polygon polygon) {
+            LineString exterior = polygon.getFactory().createLineString(
+                    polygon.getExteriorRing().getCoordinateSequence());
+            target.add(millingType == NccMillingType.CLIMB ? (LineString) exterior.reverse() : exterior);
+            for (int i = 0; i < polygon.getNumInteriorRing(); i++) {
+                target.add(polygon.getFactory().createLineString(
+                        polygon.getInteriorRingN(i).getCoordinateSequence()));
+            }
+        } else if (geometry instanceof MultiPolygon || geometry instanceof GeometryCollection) {
+            for (int i = 0; i < geometry.getNumGeometries(); i++) {
+                collectIsoBoundaryLines(geometry.getGeometryN(i), millingType, target);
             }
         }
     }

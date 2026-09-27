@@ -170,6 +170,36 @@ class NccGeneratorTest {
     }
 
     @Test
+    void climbReversesIsoExteriorWithoutChangingClearingArea() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
+        NccParameters climb = new NccParameters(List.of(0.2), 0.15, 2,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Itself(), List.of(0.4), Map.of(), NccMillingType.CLIMB);
+        NccParameters conventional = new NccParameters(List.of(0.2), 0.15, 2,
+                NccMethod.STANDARD, false, true, 0, false, NccOrder.NONE,
+                new NccBoundary.Itself(), List.of(0.4), Map.of(), NccMillingType.CONVENTIONAL);
+
+        NccResult climbResult = NccGenerator.generate("MM", copper, climb);
+        NccResult conventionalResult = NccGenerator.generate("MM", copper, conventional);
+        Geometry climbPath = climbResult.toolResults().get(0).geometry();
+        Geometry conventionalPath = conventionalResult.toolResults().get(0).geometry();
+
+        assertTrue(climbPath.equalsTopo(conventionalPath));
+        assertTrue(signedArea(climbPath.getGeometryN(0).getCoordinates())
+                * signedArea(conventionalPath.getGeometryN(0).getCoordinates()) < 0,
+                "milling modes must travel around the same exterior in opposite directions");
+        assertTrue(climbResult.clearingArea().equalsTopo(conventionalResult.clearingArea()));
+    }
+
+    private static double signedArea(Coordinate[] points) {
+        double twiceArea = 0;
+        for (int i = 0; i < points.length - 1; i++) {
+            twiceArea += points[i].x * points[i + 1].y - points[i + 1].x * points[i].y;
+        }
+        return twiceArea / 2;
+    }
+
+    @Test
     void restMachiningLimitsASmallerToolToWhatALargerToolLeftBehind() {
         Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
         NccResult smallAlone = NccGenerator.generate("MM", copper,

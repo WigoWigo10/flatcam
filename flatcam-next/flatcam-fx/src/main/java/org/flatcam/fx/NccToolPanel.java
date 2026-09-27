@@ -31,6 +31,7 @@ import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 import org.flatcam.cam.ncc.NccBoundary;
 import org.flatcam.cam.ncc.NccMethod;
+import org.flatcam.cam.ncc.NccMillingType;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
@@ -206,6 +207,15 @@ final class NccToolPanel {
             }
             toolTable.refresh();
         });
+        ComboBox<NccMillingType> millingCombo = new ComboBox<>();
+        millingCombo.getItems().addAll(NccMillingType.values());
+        millingCombo.setValue(NccMillingType.CLIMB);
+        millingCombo.setTooltip(tooltip("Sentido de fresagem dos contornos ISO: "
+                + "Climb inverte o contorno externo; Conventional mantem o sentido original."));
+        HBox millingRow = new HBox(8, new Label("Milling Type ISO:"), millingCombo);
+        millingRow.setAlignment(Pos.CENTER_LEFT);
+        millingRow.setVisible(gerberSource);
+        millingRow.setManaged(gerberSource);
 
         ComboBox<String> boundaryKindCombo = new ComboBox<>();
         boundaryKindCombo.getItems().addAll(BOUNDARY_ITSELF, BOUNDARY_AREA);
@@ -455,7 +465,8 @@ final class NccToolPanel {
                 NccParameters params = new NccParameters(clearDiameters, first.overlapFraction(), margin,
                         first.method(), restCb.isSelected() ? restConnectCb.isSelected() : first.connect(),
                         restCb.isSelected() ? restContourCb.isSelected() : first.contour(), commonOffset,
-                        restCb.isSelected(), orderCombo.getValue(), boundary, isoDiameters, individualSettings);
+                        restCb.isSelected(), orderCombo.getValue(), boundary, isoDiameters, individualSettings,
+                        millingCombo.getValue());
                 errorLabel.setText("");
                 onGenerate.accept(new Result(params, checkValidityCb.isSelected()));
             } catch (RuntimeException ex) {
@@ -475,7 +486,7 @@ final class NccToolPanel {
                 new Label("Origem: " + sourceName + (gerberSource ? " (Gerber)" : " (Geometry)")),
                 sectionTitle("FERRAMENTAS"), toolTable, toolButtons,
                 new HBox(8, new Label("Operacao das selecionadas:"), operationCombo),
-                toolError, checkValidityCb,
+                millingRow, toolError, checkValidityCb,
                 sectionTitle("BOUNDARY"), boundaryGrid,
                 sectionTitle("PARAMETROS DA FERRAMENTA CLEAR"),
                 new Label("Selecione uma linha para editar; os valores ficam salvos na ferramenta."), grid,

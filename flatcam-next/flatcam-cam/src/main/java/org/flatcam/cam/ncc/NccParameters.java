@@ -26,6 +26,7 @@ import java.util.Objects;
  * @param isolationToolDiameters selected tools marked ISO in the Python NCC table; they create
  *                        isolation contours before the CLEAR tools run
  * @param toolSettings    per-CLEAR-tool settings; omitted tools use the common defaults above
+ * @param millingType     direction of ISO exterior contours (global for the NCC operation)
  *
  * <p>appTools/ToolNCC.py uses per-tool overlap/method/connect/contour/copperOffset
  * when Rest Machining is off, and shared rest settings when it is on. Margin is
@@ -36,7 +37,7 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
                             NccMethod method, boolean connect, boolean contour,
                             double copperOffset, boolean restMachining, NccOrder order,
                             NccBoundary boundary, List<Double> isolationToolDiameters,
-                            Map<Double, NccToolSettings> toolSettings) {
+                            Map<Double, NccToolSettings> toolSettings, NccMillingType millingType) {
 
     private static final double DUPLICATE_TOLERANCE = 1e-6;
 
@@ -72,12 +73,21 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(order, "order");
         Objects.requireNonNull(boundary, "boundary");
+        Objects.requireNonNull(millingType, "millingType");
         toolSettings = Map.copyOf(toolSettings);
         for (Double diameter : toolSettings.keySet()) {
             if (!toolDiameters.contains(diameter)) {
                 throw new IllegalArgumentException("Settings for unknown CLEAR tool: " + diameter);
             }
         }
+    }
+
+    public NccParameters(List<Double> toolDiameters, double overlapFraction, double margin,
+                         NccMethod method, boolean connect, boolean contour, double copperOffset,
+                         boolean restMachining, NccOrder order, NccBoundary boundary,
+                         List<Double> isolationToolDiameters, Map<Double, NccToolSettings> toolSettings) {
+        this(toolDiameters, overlapFraction, margin, method, connect, contour, copperOffset,
+                restMachining, order, boundary, isolationToolDiameters, toolSettings, NccMillingType.CLIMB);
     }
 
     /** Per-tool overlap/method always apply; Rest Machining shares connect/contour/offset. */

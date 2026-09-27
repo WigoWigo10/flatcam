@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-26**. Isolation Routing agora cria Geometry antes do
+> Atualizado em **2026-09-27**. Isolation Routing agora cria Geometry antes do
 > CNC Job; o NCC aceita Geometry preenchida como origem, seleção retangular de
 > área, ferramentas ISO/CLEAR e seleção de subconjunto da tabela. Preserva a
 > ordem manual das ferramentas. O Plot Area seleciona objetos por clique
@@ -300,8 +300,9 @@ citação completa):
   próprios, recortados pelo boundary, antes do clearing. Pelo menos uma
   ferramenta `CLEAR` é obrigatória, como no fluxo Python. O maior diâmetro ISO
   define o envelope de cobre a preservar na limpeza; isso evita deixar a
-  ferramenta CLEAR invadir uma faixa reservada ao isolamento. Ainda falta a
-  opção Python de direção de fresagem (climb/conventional) para esses contornos.
+  ferramenta CLEAR invadir uma faixa reservada ao isolamento. O painel oferece
+  Climb/Conventional para inverter o sentido do contorno externo ISO; o sentido
+  dos anéis internos permanece como gerado, seguindo `generate_envelope()`.
 
 O botão NCC já deve abrir o painel da ferramenta. Se voltar a “não fazer nada”,
 primeiro suspeite de snapshots internos desatualizados no repositório Maven
@@ -309,8 +310,7 @@ local e execute `install` no reactor completo, conforme a seção de comandos.
 
 Ainda falta para paridade NCC:
 
-- direção de fresagem (climb/conventional) dos contornos ISO e comparação
-  visual com resultados do Python;
+- comparação visual dos contornos ISO e resultados NCC com o Python;
 - teste manual dos parâmetros por ferramenta e comparação diferencial com
   resultados do Python;
 - integração com Tools Database ("Pick from DB");
@@ -334,7 +334,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot 2D e interação | forte/parcial | Canvas com seleção por clique/retângulo, menu contextual e mover/copiar objetos com prévia; snap configurável atua no posicionamento e mostra cruz vermelha no cursor ajustado, eixos/HUD/A4 alternáveis; faltam grade visual configurável e perfilamento para placas enormes |
 | Árvore lateral Gerber | forte/parcial | aparência e ações principais implementadas; editor inicial (menu "Editar") |
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
-| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área e "Check validity"; faltam direção de fresagem ISO e Tools DB |
+| Ferramentas Gerber | parcial | Isolation cria Geometry; Cutout gera CNC Job direto; NCC é multi-tool com Rest Machining, ISO/CLEAR por linha, Climb/Conventional para ISO, parâmetros CLEAR por ferramenta, seleção de ferramentas, boundary por referência/área e "Check validity"; faltam Tools DB e seleção poligonal de área |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot e drill G-code existem; editor e opções avançadas faltam |
 | Geometry | parcial | multi-tool ("multigeo") via NCC, com Geometry -> CNC preservando a ferramenta de cada trajeto; editor seleciona/exclui/move/copia e desenha caminho, polígono, retângulo e círculo com undo/redo; arco, texto, Paint, Sub e Panelize faltam |
@@ -750,7 +750,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 ### 9.1 Completar a paridade NCC (o que resta)
 
-- direção de fresagem ISO e validação manual dos parâmetros por ferramenta;
+- validação manual dos parâmetros por ferramenta e contornos ISO;
 - Tools Database;
 - fixtures diferenciais e casos de desempenho (incl. Rest Machining e
   boundary por referência num board real).
