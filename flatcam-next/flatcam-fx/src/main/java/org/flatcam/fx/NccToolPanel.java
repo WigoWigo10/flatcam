@@ -207,7 +207,11 @@ final class NccToolPanel {
             private final ComboBox<ToolProfile> choice = new ComboBox<>(FXCollections.observableArrayList(TOOL_TYPES));
             private boolean updating;
             {
+                setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                setPadding(new javafx.geometry.Insets(1, 2, 1, 2));
+                choice.getStyleClass().add("table-editor-combo");
                 choice.setMaxWidth(Double.MAX_VALUE);
+                choice.prefWidthProperty().bind(typeColumn.widthProperty().subtract(6));
                 choice.setOnAction(event -> {
                     if (updating || getTableRow() == null) return;
                     ToolRow row = getTableRow().getItem();
@@ -239,8 +243,8 @@ final class NccToolPanel {
                 + "V: exige Gerber e Isolation; CNC Job V permanece bloqueado ate haver V-Tip Dia/Angle."));
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
-        typeColumn.setMinWidth(58);
-        typeColumn.setMaxWidth(58);
+        typeColumn.setMinWidth(80);
+        typeColumn.setPrefWidth(84);
         toolTable.getColumns().addAll(numberColumn, diaColumn, typeColumn);
         toolTable.setMinWidth(0);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);

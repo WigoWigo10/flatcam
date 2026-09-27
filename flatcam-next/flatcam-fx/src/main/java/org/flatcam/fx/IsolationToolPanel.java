@@ -133,8 +133,8 @@ final class IsolationToolPanel {
                 new javafx.beans.property.SimpleDoubleProperty(cell.getValue().diameter));
         TableColumn<ToolRow, ToolProfile> typeColumn = new TableColumn<>("TT");
         typeColumn.setSortable(false);
-        typeColumn.setMinWidth(60);
-        typeColumn.setMaxWidth(60);
+        typeColumn.setMinWidth(80);
+        typeColumn.setPrefWidth(84);
         typeColumn.setCellValueFactory(cell ->
                 new javafx.beans.property.SimpleObjectProperty<>(cell.getValue().profile));
         typeColumn.setCellFactory(column -> new TableCell<>() {
@@ -142,7 +142,11 @@ final class IsolationToolPanel {
                     FXCollections.observableArrayList(ToolProfile.values()));
             private boolean updating;
             {
+                setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                setPadding(new javafx.geometry.Insets(1, 2, 1, 2));
+                choice.getStyleClass().add("table-editor-combo");
                 choice.setMaxWidth(Double.MAX_VALUE);
+                choice.prefWidthProperty().bind(typeColumn.widthProperty().subtract(6));
                 choice.setOnAction(event -> {
                     if (!updating && getTableRow() != null && getTableRow().getItem() != null) {
                         getTableRow().getItem().profile = choice.getValue();

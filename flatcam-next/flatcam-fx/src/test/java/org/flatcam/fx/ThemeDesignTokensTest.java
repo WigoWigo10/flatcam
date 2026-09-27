@@ -16,13 +16,16 @@ class ThemeDesignTokensTest {
         String components = resource("components.css");
         for (String selector : new String[]{".tool-panel .button.primary-action",
                 ".tool-panel .table-row-cell:selected", ".object-panel .label.object-title",
-                ".tool-panel .label.form-error-label"}) {
+                ".tool-panel .label.form-error-label",
+                ".tool-panel .combo-box > .list-cell",
+                ".combo-box-popup .list-view .list-cell:filled:selected"}) {
             assertTrue(components.contains(selector), selector);
         }
         for (String theme : new String[]{"custom-light", "custom-dark", "atlantafx-light", "atlantafx-dark"}) {
             String css = resource("vars-" + theme + ".css");
             assertContrast(css, theme, "-fc-panel-text", "-fc-panel-bg", 4.5);
             assertContrast(css, theme, "-fc-muted-text", "-fc-panel-bg", 4.5);
+            assertContrast(css, theme, "-fc-panel-text", "-fc-input-bg", 4.5);
             assertContrast(css, theme, "-fc-on-accent", "-fc-accent", 4.5);
             assertContrast(css, theme, "-fc-selection-row-text", "-fc-selection-row", 4.5);
         }

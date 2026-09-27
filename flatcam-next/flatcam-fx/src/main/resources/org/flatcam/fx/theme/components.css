@@ -514,13 +514,55 @@
 .object-panel .text-field:focused,
 .object-panel .combo-box-base:focused {
     -fx-border-color: -fc-accent;
-    -fx-border-width: 2;
+    -fx-border-width: 1;
 }
 
 .tool-panel .spinner .text-field,
 .tool-panel .spinner .text-field:focused,
 .tool-panel .combo-box-base .text-field {
     -fx-border-width: 0;
+}
+
+/* A closed ComboBox uses a ListCell; selected table rows must not turn its
+ * value white against the independent, light input background. */
+.tool-panel .combo-box > .list-cell,
+.object-panel .combo-box > .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -fc-panel-text;
+    -fx-padding: 3 5 3 7;
+}
+
+.tool-panel .combo-box .arrow-button,
+.object-panel .combo-box .arrow-button {
+    -fx-background-color: -fc-surface-alt;
+    -fx-background-radius: 0 5 5 0;
+    -fx-padding: 4 7 4 7;
+}
+
+.tool-panel .combo-box .arrow,
+.object-panel .combo-box .arrow {
+    -fx-background-color: -fc-panel-text;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: -fc-surface;
+    -fx-border-color: -fc-panel-border;
+}
+
+.combo-box-popup .list-view .list-cell:filled {
+    -fx-background-color: -fc-surface;
+    -fx-text-fill: -fc-panel-text;
+}
+
+.combo-box-popup .list-view .list-cell:filled:hover,
+.combo-box-popup .list-view .list-cell:filled:selected {
+    -fx-background-color: -fc-selection-row;
+    -fx-text-fill: -fc-selection-row-text;
+}
+
+.tool-panel .table-cell .combo-box.table-editor-combo {
+    -fx-background-insets: 0;
+    -fx-border-width: 1;
 }
 
 .tool-panel .table-view,
