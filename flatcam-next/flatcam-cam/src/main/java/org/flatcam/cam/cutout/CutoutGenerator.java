@@ -3,8 +3,10 @@ package org.flatcam.cam.cutout;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.excellon.ExcellonImage;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -12,6 +14,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.linearref.LengthIndexedLine;
 import org.locationtech.jts.operation.linemerge.LineMerger;
 
 /**
@@ -19,26 +22,10 @@ import org.locationtech.jts.operation.linemerge.LineMerger;
  * buffers a Gerber's copper outward into a cut path, then subtracts small
  * rectangles at bridge-gap positions so the finished board can be snapped
  * free of the surrounding stock. Only a Gerber source is supported (Python
- * also accepts an existing Geometry object as source, used as-is with no
- * buffering - this port has no Geometry object type at all yet); only the
- * "Bridge" gap type is implemented ("Thin" - a second, shallower toolpath
- * just at the gaps - and "M-Bites" - a row of drill holes instead of a
- * physical gap, exported as a separate Excellon object - are both deferred);
- * and the manual click-to-place gap workflow (a dedicated interactive canvas
- * mode with a rotating preview shape - appTools/ToolCutOut.py's
- * on_manual_gap_click()) is deferred too.
- *
- * <p>Also deliberately NOT built the way Python does: appTools/ToolCutOut.py
- * always produces an intermediate multi-tool "Geometry" object in the
- * project tree, which the user must then separately run "Generate CNCJob"
- * on. This port has no Geometry object type, and building one solely so
- * Cutout could immediately consume it - with no other current beneficiary -
- * would be a large detour for zero user-facing difference, since a cutout
- * always has exactly one (Bridge) or two (Thin, deferred) fixed-purpose
- * tools, never arbitrary per-tool milling parameters the way a real Geometry
- * object supports. This generates the toolpath geometry directly, the same
- * shape MainWindow already uses for Isolation Routing (straight to G-code +
- * a CNC Job in the tree).
+ * also accepts existing Geometry). Bridge paths, Thin bridge segments and
+ * automatic M-Bites drill points are available. Thin segments become a
+ * separate Geometry so the user can choose their shallower Cut Z at the
+ * Geometry-to-CNC step. Interactive manual placement remains future work.
  */
 public final class CutoutGenerator {
 
@@ -69,6 +56,7 @@ public final class CutoutGenerator {
         // nested one level too deep (a 1-element GeometryCollection wrapping the real
         // MultiLineString) instead of the flat MultiLineString itself.
         List<Geometry> paths = new ArrayList<>();
+        List<Geometry> gapPaths = new ArrayList<>();
         for (Geometry part : parts) {
             cancellationToken.throwIfCancellationRequested();
             Geometry outline = params.shape() == CutoutShape.RECTANGULAR
@@ -79,6 +67,15 @@ public final class CutoutGenerator {
             }
             cancellationToken.throwIfCancellationRequested();
             Geometry withGaps = applyGaps(outline, params, geometryFactory, cancellationToken);
+            if (params.gapPattern() != GapPattern.NONE && params.gapSize() > 0) {
+                Geometry inGaps = outline.difference(withGaps);
+                for (int i = 0; i < inGaps.getNumGeometries(); i++) {
+                    cancellationToken.throwIfCancellationRequested();
+                    if (!inGaps.getGeometryN(i).isEmpty()) {
+                        gapPaths.add(inGaps.getGeometryN(i));
+                    }
+                }
+            }
             for (int i = 0; i < withGaps.getNumGeometries(); i++) {
                 cancellationToken.throwIfCancellationRequested();
                 paths.add(withGaps.getGeometryN(i));
@@ -87,7 +84,80 @@ public final class CutoutGenerator {
 
         cancellationToken.throwIfCancellationRequested();
         Geometry combined = paths.isEmpty() ? geometryFactory.createGeometryCollection() : geometryFactory.buildGeometry(paths);
-        return new CutoutResult(units, combined);
+        Geometry gaps = gapPaths.isEmpty() ? geometryFactory.createGeometryCollection()
+                : geometryFactory.buildGeometry(gapPaths);
+        return new CutoutResult(units, combined, gaps);
+    }
+
+    /** Creates the separate Excellon object used by Python's automatic M-Bites mode. */
+    public static ExcellonImage generateMouseBites(String units, Geometry copperGeometry,
+                                                   CutoutParameters params, double holeDiameter,
+                                                   double holeSpacing, CancellationToken cancellationToken) {
+        Objects.requireNonNull(cancellationToken, "cancellationToken");
+        if (!Double.isFinite(holeDiameter) || holeDiameter <= 0
+                || !Double.isFinite(holeSpacing) || holeSpacing < 0) {
+            throw new IllegalArgumentException("M-Bites diameter must be positive and spacing nonnegative");
+        }
+        if (params.gapPattern() == GapPattern.NONE || params.gapSize() <= 0) {
+            throw new IllegalArgumentException("M-Bites requires at least one nonzero gap");
+        }
+        cancellationToken.throwIfCancellationRequested();
+        GeometryFactory factory = copperGeometry.getFactory();
+        Geometry source = params.convexShape() ? copperGeometry.convexHull() : copperGeometry;
+        List<Geometry> parts = params.kind() == CutoutKind.PANEL
+                ? explode(source) : List.of(unionOrBox(source, factory));
+        List<ExcellonImage.Drill> drills = new ArrayList<>();
+        List<Geometry> footprints = new ArrayList<>();
+        double step = holeDiameter + holeSpacing;
+        for (Geometry part : parts) {
+            cancellationToken.throwIfCancellationRequested();
+            // Python shifts the M-Bites row by half the drill diameter instead of
+            // half the cutter diameter, so the holes touch the remaining bridge.
+            double offset = params.margin() + holeDiameter / 2.0;
+            Geometry shape = params.shape() == CutoutShape.RECTANGULAR
+                    ? boxFromEnvelope(part.getEnvelopeInternal(), factory) : part;
+            Geometry outline = exteriorRings(shape.buffer(offset, QUADRANT_SEGMENTS));
+            Envelope envelope = outline.getEnvelopeInternal();
+            for (Geometry band : buildGapBands(envelope, params.gapPattern(),
+                    params.gapSize() / 2.0, factory)) {
+                cancellationToken.throwIfCancellationRequested();
+                addBiteHoles(outline.intersection(band), holeDiameter, step,
+                        drills, footprints, factory, cancellationToken);
+            }
+        }
+        Geometry solid = footprints.isEmpty()
+                ? factory.createGeometryCollection() : factory.buildGeometry(footprints);
+        return ExcellonImage.of(units, Map.of(1, holeDiameter), drills, List.of(), solid);
+    }
+
+    private static void addBiteHoles(Geometry geometry, double diameter, double step,
+                                     List<ExcellonImage.Drill> drills, List<Geometry> footprints,
+                                     GeometryFactory factory, CancellationToken cancellationToken) {
+        cancellationToken.throwIfCancellationRequested();
+        if (geometry instanceof LineString line && line.getLength() > 0) {
+            LengthIndexedLine indexed = new LengthIndexedLine(line);
+            for (int index = 0; index < 100_000; index++) {
+                cancellationToken.throwIfCancellationRequested();
+                double distance = index * step;
+                if (distance >= line.getLength()) {
+                    return;
+                }
+                if (drills.size() >= 100_000) {
+                    throw new IllegalArgumentException("M-Bites would exceed 100000 drill holes");
+                }
+                Coordinate point = indexed.extractPoint(distance);
+                drills.add(new ExcellonImage.Drill(1, point.x, point.y));
+                footprints.add(factory.createPoint(point).buffer(diameter / 2.0, QUADRANT_SEGMENTS));
+            }
+            throw new IllegalArgumentException("M-Bites would exceed 100000 drill holes");
+        }
+        if (geometry.getNumGeometries() == 1 && geometry.getGeometryN(0) == geometry) {
+            return;
+        }
+        for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            addBiteHoles(geometry.getGeometryN(i), diameter, step,
+                    drills, footprints, factory, cancellationToken);
+        }
     }
 
     /** A single-mode source's own copper: if it's already one shape, use it as-is; a disjoint Gerber gets boxed instead of outlined part-by-part. */

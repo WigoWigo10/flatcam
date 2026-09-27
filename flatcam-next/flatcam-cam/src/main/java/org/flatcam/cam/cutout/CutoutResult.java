@@ -13,10 +13,12 @@ public final class CutoutResult {
 
     private final String units;
     private final Geometry geometry;
+    private final Geometry gapGeometry;
 
-    CutoutResult(String units, Geometry geometry) {
+    CutoutResult(String units, Geometry geometry, Geometry gapGeometry) {
         this.units = units;
         this.geometry = geometry;
+        this.gapGeometry = gapGeometry;
     }
 
     public String units() {
@@ -25,6 +27,11 @@ public final class CutoutResult {
 
     public Geometry geometry() {
         return geometry;
+    }
+
+    /** Segments left in the bridge gaps, for optional shallow Thin milling. */
+    public Geometry gapGeometry() {
+        return gapGeometry;
     }
 
     public boolean isEmpty() {

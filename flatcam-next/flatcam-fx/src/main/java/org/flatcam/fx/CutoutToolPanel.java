@@ -26,13 +26,16 @@ import org.flatcam.cam.cutout.GapPattern;
  * Rectangular) mirror Python's own two separate generation buttons sharing
  * this one form.
  *
- * <p>Only the "Bridge" gap type is offered ("Thin" and "M-Bites" are
- * deferred - see CutoutGenerator's class doc). The output is editable
+ * <p>Bridge, Thin and automatic M-Bites are offered. Manual gap
+ * placement is still deferred. The output is editable
  * Geometry, followed by a separate Geometry-to-CNC step as in Python.
  */
 final class CutoutToolPanel {
 
-    record Result(CutoutParameters cutoutParams) {
+    enum GapType { BRIDGE, THIN, M_BITES }
+
+    record Result(CutoutParameters cutoutParams, GapType gapType,
+                  double biteDiameter, double biteSpacing) {
     }
 
     private CutoutToolPanel() {
@@ -57,12 +60,20 @@ final class CutoutToolPanel {
         TextField toolDiaField = new TextField(metric ? "2.4" : "0.094");
         TextField marginField = new TextField(metric ? "0.1" : "0.004");
         TextField gapSizeField = new TextField(metric ? "4" : "0.16");
+        ComboBox<GapType> gapTypeCombo = new ComboBox<>();
+        gapTypeCombo.getItems().addAll(GapType.values());
+        gapTypeCombo.setValue(GapType.BRIDGE);
+        TextField biteDiameterField = new TextField(metric ? "0.8" : "0.031");
+        TextField biteSpacingField = new TextField(metric ? "0.4" : "0.016");
+        biteDiameterField.disableProperty().bind(gapTypeCombo.valueProperty().isNotEqualTo(GapType.M_BITES));
+        biteSpacingField.disableProperty().bind(gapTypeCombo.valueProperty().isNotEqualTo(GapType.M_BITES));
 
         ComboBox<GapPattern> gapPatternCombo = new ComboBox<>();
         gapPatternCombo.getItems().addAll(GapPattern.values());
         gapPatternCombo.setValue(GapPattern.FOUR);
 
-        for (TextField field : new TextField[]{toolDiaField, marginField, gapSizeField}) {
+        for (TextField field : new TextField[]{toolDiaField, marginField, gapSizeField,
+                biteDiameterField, biteSpacingField}) {
             field.setPrefColumnCount(7);
             field.setMinWidth(0);
         }
@@ -78,6 +89,9 @@ final class CutoutToolPanel {
         grid.addRow(3, new Label("Margin:"), marginField);
         grid.addRow(4, new Label("Gap size:"), gapSizeField);
         grid.addRow(5, new Label("Gaps:"), gapPatternCombo);
+        grid.addRow(6, new Label("Tipo de gap:"), gapTypeCombo);
+        grid.addRow(7, new Label("M-Bites dia:"), biteDiameterField);
+        grid.addRow(8, new Label("M-Bites spacing:"), biteSpacingField);
 
         Button freeformButton = new Button("Gerar (Free-form)");
         freeformButton.setMaxWidth(Double.MAX_VALUE);
@@ -87,13 +101,16 @@ final class CutoutToolPanel {
         closeButton.setMaxWidth(Double.MAX_VALUE);
 
         freeformButton.setOnAction(e -> tryGenerate(CutoutShape.FREEFORM, singleRadio, convexShapeCb, toolDiaField,
-                marginField, gapSizeField, gapPatternCombo, errorLabel, onGenerate));
+                marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
+                biteSpacingField, errorLabel, onGenerate));
         rectangularButton.setOnAction(e -> tryGenerate(CutoutShape.RECTANGULAR, singleRadio, convexShapeCb, toolDiaField,
-                marginField, gapSizeField, gapPatternCombo, errorLabel, onGenerate));
+                marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
+                biteSpacingField, errorLabel, onGenerate));
         closeButton.setOnAction(e -> onClose.run());
 
-        Label workflowNote = new Label("O Cutout cria Geometry. Configure Cut Z, Multi-Depth, "
-                + "avanco e spindle ao criar o CNC Job.");
+        Label workflowNote = new Label("O Cutout cria Geometry. Em Thin, cria outra Geometry "
+                + "para as pontes: gere seu CNC Job separadamente com Cut Z mais raso. "
+                + "Configure Multi-Depth, avanco e spindle ao criar cada CNC Job.");
         workflowNote.setWrapText(true);
         VBox box = new VBox(10,
                 new Label("Parametros (unidades do arquivo: " + units + ")"),
@@ -105,7 +122,8 @@ final class CutoutToolPanel {
 
     private static void tryGenerate(CutoutShape shape, RadioButton singleRadio, CheckBox convexShapeCb,
             TextField toolDiaField, TextField marginField, TextField gapSizeField,
-            ComboBox<GapPattern> gapPatternCombo, Label errorLabel,
+            ComboBox<GapPattern> gapPatternCombo, ComboBox<GapType> gapTypeCombo,
+            TextField biteDiameterField, TextField biteSpacingField, Label errorLabel,
             Consumer<Result> onGenerate) {
         try {
             double toolDia = parseDouble(toolDiaField.getText(), "Tool Dia");
@@ -114,9 +132,16 @@ final class CutoutToolPanel {
             CutoutKind kind = singleRadio.isSelected() ? CutoutKind.SINGLE : CutoutKind.PANEL;
             CutoutParameters cutoutParams = new CutoutParameters(toolDia, margin, convexShapeCb.isSelected(),
                     kind, shape, gapSize, gapPatternCombo.getValue());
+            boolean bites = gapTypeCombo.getValue() == GapType.M_BITES;
+            double biteDiameter = bites ? parseDouble(biteDiameterField.getText(), "M-Bites dia") : 0;
+            double biteSpacing = bites ? parseDouble(biteSpacingField.getText(), "M-Bites spacing") : 0;
+            if (bites && (biteDiameter <= 0 || biteSpacing < 0
+                    || gapSize <= 0 || gapPatternCombo.getValue() == GapPattern.NONE)) {
+                throw new IllegalArgumentException("M-Bites exige diametro positivo, espacamento valido e gaps.");
+            }
 
             errorLabel.setText("");
-            onGenerate.accept(new Result(cutoutParams));
+            onGenerate.accept(new Result(cutoutParams, gapTypeCombo.getValue(), biteDiameter, biteSpacing));
         } catch (RuntimeException ex) {
             errorLabel.setText(ex.getMessage());
         }

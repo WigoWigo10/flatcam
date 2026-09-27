@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
@@ -37,6 +38,7 @@ class CutoutGeneratorTest {
                 new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE, CutoutShape.FREEFORM, 0.05, GapPattern.NONE));
 
         assertTrue(!result.isEmpty());
+        assertTrue(result.gapGeometry().isEmpty());
         assertEquals(1, result.partCount(), "Single kind, no gaps: one closed outline");
         assertTrue(result.geometry().getGeometryN(0) instanceof LineString path && path.isClosed(),
                 "with no gaps the outline ring must still be closed");
@@ -51,6 +53,9 @@ class CutoutGeneratorTest {
         ToolGeometry tool = new ToolGeometry(0.02, cutout.geometry());
 
         assertFalse(cutout.isEmpty());
+        assertFalse(cutout.gapGeometry().isEmpty());
+        assertTrue(cutout.gapGeometry().getLength() > 0);
+        assertTrue(cutout.geometry().intersection(cutout.gapGeometry()).getLength() < 1e-9);
         CncJobResult job = GCodeGenerator.generateGeometryCncJob(gerber.units(),
                 java.util.List.of(tool), new GeometryGCodeParameters(0.1, 0.004,
                         true, 0.002, 12, 10000, false));
@@ -70,6 +75,33 @@ class CutoutGeneratorTest {
         assertEquals(4, piecesFor(gerber, base, GapPattern.TWO_LR));
         assertEquals(4, piecesFor(gerber, base, GapPattern.TWO_TB));
         assertEquals(8, piecesFor(gerber, base, GapPattern.EIGHT));
+    }
+
+    @Test
+    void mouseBitesProducesDrillableExcellonBesideCutoutGeometry() throws Exception {
+        GerberImage gerber = simple1();
+        CutoutParameters params = new CutoutParameters(0.02, 0.02, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 0.05, GapPattern.FOUR);
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(), params);
+        ExcellonImage bites = CutoutGenerator.generateMouseBites(gerber.units(),
+                gerber.solidGeometry(), params, 0.006, 0.004, CancellationToken.none());
+
+        assertFalse(cutout.isEmpty());
+        assertTrue(bites.totalDrills() >= 4);
+        assertEquals(0.006, bites.toolDiameters().get(1), 1e-12);
+        assertFalse(bites.solidGeometry().isEmpty());
+        String gcode = GCodeGenerator.generateDrillGCode(bites,
+                new org.flatcam.cam.gcode.DrillGCodeParameters(0.1, 0.02, 12, 0, false));
+        assertTrue(gcode.contains("G1 Z-0.0200"));
+    }
+
+    @Test
+    void mouseBitesRejectsMissingGaps() throws Exception {
+        GerberImage gerber = simple1();
+        CutoutParameters params = new CutoutParameters(0.02, 0.02, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 0.05, GapPattern.NONE);
+        assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generateMouseBites(
+                gerber.units(), gerber.solidGeometry(), params, 0.006, 0.004, CancellationToken.none()));
     }
 
     private static int piecesFor(GerberImage gerber, CutoutParameters base, GapPattern pattern) {

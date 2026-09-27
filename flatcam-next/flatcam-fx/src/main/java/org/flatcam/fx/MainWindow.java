@@ -3061,6 +3061,9 @@ final class MainWindow {
                 result -> runCutoutGeneration(item, image, result), this::closeToolPanel));
     }
 
+    private record CutoutJobOutcome(CutoutResult cutout, ExcellonImage mouseBites) {
+    }
+
     private void runCutoutGeneration(TreeItem<String> item, GerberImage image, CutoutToolPanel.Result result) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
@@ -3068,13 +3071,17 @@ final class MainWindow {
         }
 
         beginJob("Gerando Geometry de cutout...");
-        JobHandle<CutoutResult> handle = jobExecutor.submit(context -> {
+        JobHandle<CutoutJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de cutout...");
             CutoutResult cutout = CutoutGenerator.generate(
                     image.units(), image.solidGeometry(), result.cutoutParams(), context::isCancelled);
+            ExcellonImage mouseBites = result.gapType() == CutoutToolPanel.GapType.M_BITES
+                    ? CutoutGenerator.generateMouseBites(image.units(), image.solidGeometry(),
+                            result.cutoutParams(), result.biteDiameter(), result.biteSpacing(), context::isCancelled)
+                    : null;
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de cutout...");
-            return cutout;
+            return new CutoutJobOutcome(cutout, mouseBites);
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -3082,7 +3089,8 @@ final class MainWindow {
         runningJob = handle;
 
         handle.completion()
-                .thenAccept(cutout -> Platform.runLater(() -> {
+                .thenAccept(outcome -> Platform.runLater(() -> {
+                    CutoutResult cutout = outcome.cutout();
                     if (gerberByItem.get(item) != image) {
                         appendConsole("O Gerber de origem foi removido; Geometry de cutout descartada.");
                         setStatus("Origem removida.", ERROR_COLOR);
@@ -3096,6 +3104,25 @@ final class MainWindow {
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
                                 cutout.geometry(), true,
                                 List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry())));
+                        if (result.gapType() == CutoutToolPanel.GapType.THIN) {
+                            if (cutout.gapGeometry().isEmpty()) {
+                                appendConsole("Thin: nenhuma ponte restante para usinagem rasa.");
+                            } else {
+                                String thinName = uniqueDerivedName(item.getValue() + "_cutout_thin");
+                                addGeometryToProject(thinName, item.getValue(), image.units(),
+                                        cutout.gapGeometry(), true,
+                                        List.of(new ToolGeometry(result.cutoutParams().toolDiameter(),
+                                                cutout.gapGeometry())));
+                                appendConsole("Thin criou Geometry para as pontes: " + thinName
+                                        + ". Gere um CNC Job separado com Cut Z mais raso.");
+                            }
+                        }
+                        if (outcome.mouseBites() != null && !outcome.mouseBites().isEmpty()) {
+                            String biteName = uniqueDerivedName(item.getValue() + "_mouse_bites");
+                            addExcellonToProject(biteName, null, outcome.mouseBites());
+                            appendConsole("M-Bites criou Excellon com " + outcome.mouseBites().totalDrills()
+                                    + " furos: " + biteName);
+                        }
                         appendConsole("Geometry de cutout criada: " + name
                                 + ". Gere o CNC Job pela Geometry apos revisar os caminhos.");
                         selectProjectItem(generated);
