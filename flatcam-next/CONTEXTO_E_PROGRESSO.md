@@ -349,7 +349,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
-| Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`, e Milling Tool que cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
+| Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`, e Milling Tool que cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
 | Geometry | parcial | multi-tool via NCC; Geometry → CNC preserva cada ferramenta e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, Paint, borracha e Panelize faltam |
 | CNC Job | parcial | geração, plot, abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; faltam pós-processadores e várias opções avançadas do legado |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry e texto G-code; importação somente leitura de `.FlatPrj` Python 8.9xx para esses quatro tipos, validada com um projeto real 8.994; salvar como `.FlatPrj` ainda não é suportado |
@@ -832,15 +832,11 @@ suposto):
   de formato Excellon não são escritos - o Python tolera a ausência (usa o
   default do construtor); nenhum é necessário para visualizar/gerar CAM.
 
-**Importante**: a compatibilidade Python foi verificada **lendo o
-código-fonte** e testada de ponta a ponta **do lado Java** (round-trip via
-`ProjectFileIOTest`). Não foi verificada abrindo um arquivo salvo por este
-app numa instalação real do FlatCAM Python + Shapely - este ambiente de
-desenvolvimento não tem Python com as dependências do FlatCAM instaladas
-(só Python puro, sem `shapely`/`PyQt5`, e sem acesso à internet para
-instalar). Se o usuário tiver uma instalação Python funcional, vale testar
-abrir um `.fcnproj` salvo por este port lá antes de confiar cegamente na
-compatibilidade.
+**Importante**: a importação foi verificada com um `.FlatPrj` 8.994 real e
+com conversão/reabertura do `.fcnproj` resultante do lado Java. Ainda não
+houve validação visual da abertura no FX nem escrita de `.FlatPrj` pelo FX.
+O `.fcnproj` é formato nativo do FX e não deve ser apresentado como projeto
+diretamente abrível pelo FlatCAM Python.
 
 **O que falta para completar 9.3**:
 - Geometry: precisa de um dict `data` persistente por ferramenta (parâmetros
@@ -849,15 +845,17 @@ compatibilidade.
 - CNC Job: precisa reter uma lista por segmento com "kind" (`gcode_parsed`
   do Python) durante a geração - `GCodeGenerator` hoje só produz duas
   geometrias já unidas (viagem/corte), não uma lista ordenada por segmento.
-- O leitor `ProjectFileIO.load()` aceita as versões internas 1 e 2, mas não a
-  versão 8.994 gravada por este Python: um `.FlatPrj` real é rejeitado hoje.
-  O seletor de arquivos da interface só oferece `.fcnproj`.
+- O leitor nativo `ProjectFileIO.load()` continua restrito às versões internas
+  1 e 2; `PythonProjectIO.load()` importa `.FlatPrj` Python 8.9xx em modo
+  somente leitura. O seletor da interface oferece ambos, mas salva apenas
+  `.fcnproj`. A conversão de um projeto real 8.994 para `.fcnproj` foi testada
+  com os quatro tipos de objeto; a abertura visual ainda requer teste manual.
 - O FX grava Geometry e CNC Job em `_java`, não em `objs`; o Python ignora essa
   extensão e não restaura esses objetos. `options` é gravado vazio, portanto
   preferências de projeto do Python também não fazem ida e volta.
 - O futuro suporte dual deve preservar `.fcnproj` como formato nativo e ter
-  importador/exportador `.FlatPrj` separados, com teste em arquivos Python
-  reais e aviso explícito quando uma conversão perder objetos ou metadados.
+  um exportador `.FlatPrj` separado, validado na instalação Python real e com
+  aviso explícito quando uma conversão perder objetos ou metadados.
 - O undo/redo do Gerber Editor cobre a sessão em memória; histórico de
   comandos entre sessões não é serializado (o resultado aplicado é salvo).
 

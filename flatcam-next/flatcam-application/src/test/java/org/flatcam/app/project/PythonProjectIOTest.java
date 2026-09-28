@@ -121,5 +121,37 @@ class PythonProjectIOTest {
         }
         assertTrue(project.geometries().stream().allMatch(entry -> !entry.geometry().isEmpty()));
         assertTrue(project.cncJobs().stream().allMatch(entry -> !entry.gcode().isBlank()));
+
+        Path nativeCopy = tempDir.resolve("imported.fcnproj");
+        ProjectFileIO.save(project, nativeCopy);
+        ProjectFile reopened = ProjectFileIO.load(nativeCopy);
+        assertEquals(project.gerbers().size(), reopened.gerbers().size());
+        assertEquals(project.excellons().size(), reopened.excellons().size());
+        assertEquals(project.geometries().size(), reopened.geometries().size());
+        assertEquals(project.cncJobs().size(), reopened.cncJobs().size());
+        for (int index = 0; index < project.gerbers().size(); index++) {
+            var original = project.gerbers().get(index);
+            var saved = reopened.gerbers().get(index);
+            assertEquals(original.name(), saved.name());
+            assertEquals(original.image().solidGeometry().getArea(),
+                    saved.image().solidGeometry().getArea(), 1e-6);
+        }
+        for (int index = 0; index < project.excellons().size(); index++) {
+            assertEquals(project.excellons().get(index).image().drills(),
+                    reopened.excellons().get(index).image().drills());
+            assertEquals(project.excellons().get(index).image().slots(),
+                    reopened.excellons().get(index).image().slots());
+        }
+        for (int index = 0; index < project.geometries().size(); index++) {
+            var original = project.geometries().get(index);
+            var saved = reopened.geometries().get(index);
+            assertEquals(original.name(), saved.name());
+            assertEquals(original.tools().size(), saved.tools().size());
+            assertEquals(original.geometry().getNumPoints(), saved.geometry().getNumPoints());
+        }
+        for (int index = 0; index < project.cncJobs().size(); index++) {
+            assertEquals(project.cncJobs().get(index).gcode(), reopened.cncJobs().get(index).gcode());
+            assertEquals(project.cncJobs().get(index).visible(), reopened.cncJobs().get(index).visible());
+        }
     }
 }
