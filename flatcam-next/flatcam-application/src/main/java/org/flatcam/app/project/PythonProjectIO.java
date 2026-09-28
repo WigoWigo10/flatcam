@@ -5,13 +5,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.app.project.flatprj.WktJson;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.locationtech.jts.geom.Geometry;
@@ -52,7 +55,7 @@ public final class PythonProjectIO {
                         ExcellonFlatPrjCodec.Decoded decoded = ExcellonFlatPrjCodec.fromJson(object);
                         excellons.add(new ProjectFile.ExcellonEntry(decoded.name(), decoded.image(),
                                 decoded.fillColorWeb(), decoded.strokeColorWeb(), plot(object),
-                                decoded.filled(), decoded.multicolor()));
+                                decoded.filled(), decoded.multicolor(), readDrillDefaults(object)));
                     }
                     case "geometry" -> geometries.add(readGeometry(object));
                     case "cncjob" -> jobs.add(readCncJob(object));
@@ -143,6 +146,33 @@ public final class PythonProjectIO {
             // Optional CAM settings must not make otherwise valid project geometry disappear.
             return null;
         }
+    }
+
+    private static Map<Integer, DrillGCodeParameters> readDrillDefaults(JSONObject object) {
+        JSONObject tools = object.optJSONObject("tools");
+        if (tools == null) return Map.of();
+        Map<Integer, DrillGCodeParameters> defaults = new LinkedHashMap<>();
+        for (String id : tools.keySet()) {
+            JSONObject tool = tools.optJSONObject(id);
+            JSONObject data = tool == null ? null : tool.optJSONObject("data");
+            if (data == null) continue;
+            try {
+                defaults.put(Integer.parseInt(id), new DrillGCodeParameters(
+                        data.getDouble("tools_drill_travelz"),
+                        Math.abs(data.getDouble("tools_drill_cutz")),
+                        data.getDouble("tools_drill_feedrate_z"),
+                        data.optInt("tools_drill_spindlespeed", 0),
+                        data.optBoolean("tools_drill_toolchange", false),
+                        data.optBoolean("tools_drill_multidepth", false),
+                        data.optDouble("tools_drill_depthperpass", 0),
+                        data.optBoolean("tools_drill_dwell", false),
+                        data.optDouble("tools_drill_dwelltime", 0),
+                        data.optDouble("tools_drill_offset", 0)));
+            } catch (RuntimeException invalid) {
+                // Invalid optional CAM defaults must not discard the drills themselves.
+            }
+        }
+        return Map.copyOf(defaults);
     }
 
     private static ProjectFile.CncJobRecord readCncJob(JSONObject object) {

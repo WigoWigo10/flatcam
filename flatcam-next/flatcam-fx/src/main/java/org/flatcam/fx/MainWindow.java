@@ -86,6 +86,7 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonMillingGenerator;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
+import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
@@ -205,6 +206,7 @@ final class MainWindow {
     /** Files opened/generated so far, keyed by their tree item - back the Properties tab and the item context menu. */
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, Map<Integer, DrillGCodeParameters>> drillDefaultsByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, GeometryEntry> geometryByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, CncJobEntry> cncJobByItem = new LinkedHashMap<>();
     /** Conversion caveats remain attached when an imported Python project is saved as native .fcnproj. */
@@ -2912,7 +2914,8 @@ final class MainWindow {
             }
             copyLayerAppearance(sourceItem, copyItem);
         } else if (excellon != null) {
-            copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon);
+            copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon,
+                    drillDefaultsByItem.getOrDefault(sourceItem, Map.of()));
             copyLayerAppearance(sourceItem, copyItem);
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
@@ -3029,7 +3032,8 @@ final class MainWindow {
     private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
         List<DrillGCodeToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
                 .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
-                .map(entry -> new DrillGCodeToolPanel.SourceCandidate(entry.getKey(), entry.getValue()))
+                .map(entry -> new DrillGCodeToolPanel.SourceCandidate(entry.getKey(), entry.getValue(),
+                        drillDefaultsByItem.getOrDefault(entry.getKey(), Map.of())))
                 .toList();
         DrillGCodeToolPanel.SourceCandidate initialSource = sources.stream()
                 .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
@@ -3074,6 +3078,10 @@ final class MainWindow {
             CncJobResult job = GCodeGenerator.generateDrillCncJob(image, result.settingsByTool(),
                     result.orderedToolIds(), result.options());
             Files.writeString(outFile.toPath(), job.gcode());
+            Map<Integer, DrillGCodeParameters> updatedDefaults = new LinkedHashMap<>(
+                    drillDefaultsByItem.getOrDefault(item, Map.of()));
+            updatedDefaults.putAll(result.settingsByTool());
+            drillDefaultsByItem.put(item, Map.copyOf(updatedDefaults));
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
             addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
@@ -3758,6 +3766,7 @@ final class MainWindow {
         gcodeEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
+        drillDefaultsByItem.remove(item);
         gerberFollowItems.remove(item);
         sourcePathByItem.remove(item);
         plotAreaView.removeLayer(item);
@@ -4697,7 +4706,8 @@ final class MainWindow {
             excellons.add(new ProjectFile.ExcellonEntry(item.getValue(), entry.getValue(),
                     colors != null ? colors[0].toString() : null, colors != null ? colors[1].toString() : null,
                     plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
-                    plotAreaView.isLayerMulticolor(item)));
+                    plotAreaView.isLayerMulticolor(item),
+                    drillDefaultsByItem.getOrDefault(item, Map.of())));
         }
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.entrySet().stream()
                 .map(entry -> new ProjectFile.CncJobRecord(entry.getKey().getValue(),
@@ -4865,7 +4875,8 @@ final class MainWindow {
                         setDisplayUnits(loaded.image().units());
                     }
                     for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
-                        TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image());
+                        TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
+                                loaded.drillDefaults());
                         applyRestoredExcellonState(item, loaded);
                         setDisplayUnits(loaded.image().units());
                     }
@@ -4953,6 +4964,7 @@ final class MainWindow {
         cncJobsNode.getChildren().clear();
         gerberByItem.clear();
         excellonByItem.clear();
+        drillDefaultsByItem.clear();
         geometryByItem.clear();
         cncJobByItem.clear();
         gerberFollowItems.clear();
@@ -4981,8 +4993,14 @@ final class MainWindow {
     }
 
     private TreeItem<String> addExcellonToProject(String displayName, Path sourcePath, ExcellonImage image) {
+        return addExcellonToProject(displayName, sourcePath, image, Map.of());
+    }
+
+    private TreeItem<String> addExcellonToProject(String displayName, Path sourcePath, ExcellonImage image,
+                                                  Map<Integer, DrillGCodeParameters> drillDefaults) {
         TreeItem<String> item = new TreeItem<>(displayName);
         excellonByItem.put(item, image);
+        drillDefaultsByItem.put(item, Map.copyOf(drillDefaults));
         sourcePathByItem.put(item, sourcePath);
         excellonNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.EXCELLON, image.solidGeometry(), DRILL_FILL, DRILL_STROKE, false);

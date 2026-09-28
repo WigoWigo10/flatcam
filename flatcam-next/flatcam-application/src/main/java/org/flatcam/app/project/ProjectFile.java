@@ -1,7 +1,9 @@
 package org.flatcam.app.project;
 
 import java.util.List;
+import java.util.Map;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.geometry.ToolGeometry;
@@ -52,7 +54,16 @@ public record ProjectFile(
     }
 
     public record ExcellonEntry(String name, ExcellonImage image, String fillColorWeb, String strokeColorWeb,
-                                boolean visible, boolean filled, boolean multicolor) {
+                                boolean visible, boolean filled, boolean multicolor,
+                                Map<Integer, DrillGCodeParameters> drillDefaults) {
+        public ExcellonEntry {
+            drillDefaults = Map.copyOf(drillDefaults);
+        }
+
+        public ExcellonEntry(String name, ExcellonImage image, String fillColorWeb, String strokeColorWeb,
+                             boolean visible, boolean filled, boolean multicolor) {
+            this(name, image, fillColorWeb, strokeColorWeb, visible, filled, multicolor, Map.of());
+        }
     }
 
     public record GeometryEntry(String name, String sourceName, String units, Geometry geometry,

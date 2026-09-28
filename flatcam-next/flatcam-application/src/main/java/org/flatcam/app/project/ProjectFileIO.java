@@ -9,11 +9,14 @@ import java.nio.file.Path;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
@@ -64,8 +67,11 @@ public final class ProjectFileIO {
                     gerber.strokeColorWeb(), gerber.visible(), gerber.filled(), gerber.multicolor(), gerber.followMode()));
         }
         for (ProjectFile.ExcellonEntry excellon : project.excellons()) {
-            objs.put(ExcellonFlatPrjCodec.toJson(excellon.name(), excellon.image(), excellon.fillColorWeb(),
-                    excellon.strokeColorWeb(), excellon.visible(), excellon.filled(), excellon.multicolor()));
+            JSONObject object = ExcellonFlatPrjCodec.toJson(excellon.name(), excellon.image(),
+                    excellon.fillColorWeb(), excellon.strokeColorWeb(), excellon.visible(),
+                    excellon.filled(), excellon.multicolor());
+            object.getJSONObject("_java").put("drillDefaults", drillDefaultsToJson(excellon.drillDefaults()));
+            objs.put(object);
         }
 
         JSONObject root = new JSONObject();
@@ -182,7 +188,8 @@ public final class ProjectFileIO {
                         ExcellonFlatPrjCodec.Decoded decoded = ExcellonFlatPrjCodec.fromJson(obj);
                         excellons.add(new ProjectFile.ExcellonEntry(decoded.name(), decoded.image(),
                                 decoded.fillColorWeb(), decoded.strokeColorWeb(), decoded.visible(),
-                                decoded.filled(), decoded.multicolor()));
+                                decoded.filled(), decoded.multicolor(),
+                                readDrillDefaults(obj.optJSONObject("_java"))));
                     }
                     default -> {
                         // Not-yet-embedded kinds (geometry/cncjob-as-a-Python-obj) - see ProjectFile's doc.
@@ -205,6 +212,37 @@ public final class ProjectFileIO {
             }
         }
         return warnings;
+    }
+
+    private static JSONObject drillDefaultsToJson(Map<Integer, DrillGCodeParameters> defaults) {
+        JSONObject result = new JSONObject();
+        for (Map.Entry<Integer, DrillGCodeParameters> entry : defaults.entrySet()) {
+            DrillGCodeParameters value = entry.getValue();
+            result.put(Integer.toString(entry.getKey()), new JSONObject()
+                    .put("safeZ", value.safeZ()).put("drillDepth", value.drillDepth())
+                    .put("feedRate", value.feedRate()).put("spindleSpeedRpm", value.spindleSpeedRpm())
+                    .put("pauseForToolChange", value.pauseForToolChange())
+                    .put("multiDepth", value.multiDepth()).put("depthPerPass", value.depthPerPass())
+                    .put("dwell", value.dwell()).put("dwellSeconds", value.dwellSeconds())
+                    .put("offsetZ", value.offsetZ()));
+        }
+        return result;
+    }
+
+    private static Map<Integer, DrillGCodeParameters> readDrillDefaults(JSONObject javaExtra) {
+        JSONObject json = javaExtra == null ? null : javaExtra.optJSONObject("drillDefaults");
+        if (json == null) return Map.of();
+        Map<Integer, DrillGCodeParameters> result = new LinkedHashMap<>();
+        for (String id : json.keySet()) {
+            JSONObject value = json.getJSONObject(id);
+            result.put(Integer.parseInt(id), new DrillGCodeParameters(
+                    value.getDouble("safeZ"), value.getDouble("drillDepth"),
+                    value.getDouble("feedRate"), value.getInt("spindleSpeedRpm"),
+                    value.getBoolean("pauseForToolChange"), value.getBoolean("multiDepth"),
+                    value.getDouble("depthPerPass"), value.getBoolean("dwell"),
+                    value.getDouble("dwellSeconds"), value.getDouble("offsetZ")));
+        }
+        return Map.copyOf(result);
     }
 
     private static List<ProjectFile.GeometryEntry> readJavaGeometries(JSONObject root) throws IOException {

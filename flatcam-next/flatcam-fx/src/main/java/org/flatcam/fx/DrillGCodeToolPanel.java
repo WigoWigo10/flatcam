@@ -37,7 +37,8 @@ import org.flatcam.app.project.LegacyToolsDatabase;
 /** Python-style drilling panel. Machining values are stored per Excellon tool. */
 final class DrillGCodeToolPanel {
 
-    record SourceCandidate(TreeItem<String> item, ExcellonImage image) {
+    record SourceCandidate(TreeItem<String> item, ExcellonImage image,
+                           Map<Integer, DrillGCodeParameters> drillDefaults) {
         @Override public String toString() { return item.getValue(); }
     }
 
@@ -85,7 +86,10 @@ final class DrillGCodeToolPanel {
         }
 
         void applyDatabaseTool(LegacyToolsDatabase.DrillTool tool) {
-            DrillGCodeParameters values = tool.parameters();
+            applyDefaults(tool.parameters());
+        }
+
+        void applyDefaults(DrillGCodeParameters values) {
             cutZ = Double.toString(-values.drillDepth());
             travelZ = Double.toString(values.safeZ());
             feedZ = Double.toString(values.feedRate());
@@ -133,9 +137,14 @@ final class DrillGCodeToolPanel {
             boolean sourceMetric = "MM".equalsIgnoreCase(image.units());
             List<ToolRow> rows = image.toolDiameters().entrySet().stream()
                     .sorted(Map.Entry.comparingByKey())
-                    .map(entry -> new ToolRow(entry.getKey(), entry.getValue(),
-                            image.drillCounts().getOrDefault(entry.getKey(), 0),
-                            image.slotCounts().getOrDefault(entry.getKey(), 0), sourceMetric))
+                    .map(entry -> {
+                        ToolRow row = new ToolRow(entry.getKey(), entry.getValue(),
+                                image.drillCounts().getOrDefault(entry.getKey(), 0),
+                                image.slotCounts().getOrDefault(entry.getKey(), 0), sourceMetric);
+                        DrillGCodeParameters defaults = sourceCombo.getValue().drillDefaults().get(row.id);
+                        if (defaults != null) row.applyDefaults(defaults);
+                        return row;
+                    })
                     .toList();
             table.getItems().setAll(rows);
             table.setPrefHeight(Math.min(200, 32 + rows.size() * 27));
@@ -295,6 +304,12 @@ final class DrillGCodeToolPanel {
         });
 
         CheckBox toolChange = new CheckBox("Tool change");
+        toolChange.setSelected(initialSource.drillDefaults().values().stream()
+                .anyMatch(DrillGCodeParameters::pauseForToolChange));
+        sourceCombo.valueProperty().addListener((observable, oldValue, value) -> {
+            if (value != null) toolChange.setSelected(value.drillDefaults().values().stream()
+                    .anyMatch(DrillGCodeParameters::pauseForToolChange));
+        });
         TextField toolChangeZ = field(metric ? "15.0" : "0.6");
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not());
         TextField endMoveZ = field(metric ? "0.5" : "0.02");

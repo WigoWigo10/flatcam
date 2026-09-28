@@ -39,6 +39,12 @@ class PythonProjectIOTest {
         JSONObject excellonJson = ExcellonFlatPrjCodec.toJson("holes.drl", excellon,
                 "#FF00FFbf", "#b200b2", true, true, false);
         excellonJson.put("solid_geometry", new JSONArray().put(excellonJson.get("solid_geometry")));
+        excellonJson.getJSONObject("tools").getJSONObject("1").put("data", new JSONObject()
+                .put("tools_drill_cutz", -1.7).put("tools_drill_travelz", 2.0)
+                .put("tools_drill_feedrate_z", 300.0).put("tools_drill_spindlespeed", 0)
+                .put("tools_drill_multidepth", true).put("tools_drill_depthperpass", 0.7)
+                .put("tools_drill_dwell", false).put("tools_drill_dwelltime", 1.0)
+                .put("tools_drill_offset", 0.1));
         Geometry path = new GeometryFactory().createLineString(new Coordinate[]{
                 new Coordinate(0, 0), new Coordinate(10, 0)});
         JSONObject geometryJson = new JSONObject().put("kind", "geometry").put("units", "MM")
@@ -66,6 +72,8 @@ class PythonProjectIOTest {
         assertFalse(project.gerbers().get(0).image().solidGeometry().isEmpty());
         assertEquals(1, project.excellons().size());
         assertEquals(1, project.excellons().get(0).image().totalDrills());
+        assertEquals(1.8, project.excellons().get(0).drillDefaults().get(1).effectiveDepth());
+        assertTrue(project.excellons().get(0).drillDefaults().get(1).multiDepth());
         assertFalse(project.excellons().get(0).image().solidGeometry().isEmpty());
         assertEquals(1, project.geometries().size());
         assertTrue(project.geometries().get(0).strokeOnly());
@@ -84,6 +92,8 @@ class PythonProjectIOTest {
         assertEquals(project.importWarnings(), ProjectFileIO.load(nativeCopy).importWarnings());
         assertEquals(project.geometries().get(0).cncDefaults(),
                 ProjectFileIO.load(nativeCopy).geometries().get(0).cncDefaults());
+        assertEquals(project.excellons().get(0).drillDefaults(),
+                ProjectFileIO.load(nativeCopy).excellons().get(0).drillDefaults());
         assertThrows(IOException.class, () -> ProjectFileIO.load(file));
     }
 
@@ -127,6 +137,8 @@ class PythonProjectIOTest {
         assertTrue(project.gerbers().stream().allMatch(entry ->
                 "MM".equals(entry.image().units()) || "IN".equals(entry.image().units())));
         assertTrue(project.excellons().stream().allMatch(entry -> !entry.image().isEmpty()));
+        assertTrue(project.excellons().stream().allMatch(entry ->
+                entry.drillDefaults().size() == entry.image().toolDiameters().size()));
         ExcellonExporter exporter = new ExcellonExporter();
         ExcellonParser parser = new ExcellonParser();
         for (ProjectFile.ExcellonEntry entry : project.excellons()) {
@@ -163,6 +175,8 @@ class PythonProjectIOTest {
                     reopened.excellons().get(index).image().drills());
             assertEquals(project.excellons().get(index).image().slots(),
                     reopened.excellons().get(index).image().slots());
+            assertEquals(project.excellons().get(index).drillDefaults(),
+                    reopened.excellons().get(index).drillDefaults());
         }
         for (int index = 0; index < project.geometries().size(); index++) {
             var original = project.geometries().get(index);
