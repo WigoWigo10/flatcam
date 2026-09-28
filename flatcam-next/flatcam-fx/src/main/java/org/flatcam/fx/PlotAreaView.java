@@ -10,6 +10,7 @@ import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
+import javafx.scene.control.TreeItem;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
@@ -163,6 +164,7 @@ final class PlotAreaView extends StackPane {
     private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
+    private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
     private PlotPalette palette = ICE_LIGHT_PALETTE;
     private Geometry editorHighlightGeometry;
     private boolean editorHighlightStrokeOnly;
@@ -1082,6 +1084,8 @@ final class PlotAreaView extends StackPane {
     // --- Drawing --------------------------------------------------------
 
     private void redraw() {
+        boolean profiling = performance.enabled();
+        long redrawStart = profiling ? System.nanoTime() : 0;
         double width = canvas.getWidth();
         double height = canvas.getHeight();
         double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
@@ -1096,13 +1100,27 @@ final class PlotAreaView extends StackPane {
         if (axisVisible) {
             drawAxisCrosshair(gc, contentWidth, contentHeight);
         }
+        long baseNanos = profiling ? System.nanoTime() - redrawStart : 0;
+        long layerNanos = 0;
+        int visibleLayers = 0;
+        List<PlotAreaPerformance.LayerSample> samples = profiling ? new ArrayList<>() : List.of();
         // Category order (GERBER, then EXCELLON, then OVERLAY) is fixed regardless of each
         // layer's position in the map, so bringToFront (a plain reinsert-at-end) only ever
         // changes a layer's position relative to others in the same category.
         for (LayerCategory category : LayerCategory.values()) {
-            for (RenderLayer layer : layers.values()) {
+            for (Map.Entry<Object, RenderLayer> entry : layers.entrySet()) {
+                RenderLayer layer = entry.getValue();
                 if (layer.category() == category && layer.visible() && layer.geometry() != null && !layer.geometry().isEmpty()) {
+                    long layerStart = profiling ? System.nanoTime() : 0;
                     drawLayer(gc, layer, contentWidth, contentHeight);
+                    if (profiling) {
+                        long elapsed = System.nanoTime() - layerStart;
+                        layerNanos += elapsed;
+                        visibleLayers++;
+                        Object key = entry.getKey();
+                        String name = key instanceof TreeItem<?> item ? String.valueOf(item.getValue()) : String.valueOf(key);
+                        samples.add(new PlotAreaPerformance.LayerSample(category + ":" + name, elapsed));
+                    }
                 }
             }
         }
@@ -1113,6 +1131,18 @@ final class PlotAreaView extends StackPane {
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
         drawEditorHighlight();
         drawSnapCursor();
+        if (profiling) {
+            performance.recordRedraw(System.nanoTime() - redrawStart, baseNanos,
+                    layerNanos, visibleLayers, samples);
+        }
+    }
+
+    boolean profilingEnabled() {
+        return performance.enabled();
+    }
+
+    void logPerformancePhase(String phase, long startNanos) {
+        performance.logPhase(phase, startNanos);
     }
 
     private void drawEditorHighlight() {

@@ -4815,8 +4815,10 @@ final class MainWindow {
             CancellationToken cancellation = context::isCancelled;
             cancellation.throwIfCancellationRequested();
             context.reportProgress(0.05, "Lendo " + file.getName() + "...");
+            long decodeStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
             ProjectFile project = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")
                     ? PythonProjectIO.load(file.toPath()) : ProjectFileIO.load(file.toPath());
+            plotAreaView.logPerformancePhase("project decode (worker)", decodeStart);
             cancellation.throwIfCancellationRequested();
             context.reportProgress(0.5, "Projeto decodificado.");
 
@@ -4870,6 +4872,7 @@ final class MainWindow {
 
         handle.completion()
                 .thenAccept(project -> Platform.runLater(() -> {
+                    long restoreStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
                     clearProject();
                     currentProjectImportWarnings = project.importWarnings();
                     for (ProjectFile.GerberEntry loaded : project.gerbers()) {
@@ -4904,6 +4907,7 @@ final class MainWindow {
                             setDisplayUnits(loaded.units());
                         }
                     }
+                    plotAreaView.logPerformancePhase("project restore (FX thread)", restoreStart);
                     project.warnings().forEach(this::appendConsole);
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                     appendConsole("Projeto aberto: " + file);
