@@ -181,7 +181,8 @@ final class MainWindow {
     /** Gerber/Excellon entries already carry their own fully-resolved geometry (ProjectFileIO), no re-parsing needed. */
     private record LoadedProject(List<ProjectFile.GerberEntry> gerbers, List<ProjectFile.ExcellonEntry> excellons,
                                  List<ProjectFile.GeometryEntry> geometries,
-                                 List<LoadedCncJob> cncJobs, List<String> warnings) {
+                                 List<LoadedCncJob> cncJobs, List<String> warnings,
+                                 List<String> importWarnings) {
     }
 
     /** PlotAreaView layer keys for a CNC Job's two toolpath layers - see {@link #addCncJobToProject}. */
@@ -200,6 +201,8 @@ final class MainWindow {
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, GeometryEntry> geometryByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, CncJobEntry> cncJobByItem = new LinkedHashMap<>();
+    /** Conversion caveats remain attached when an imported Python project is saved as native .fcnproj. */
+    private List<String> currentProjectImportWarnings = List.of();
     /** Gerber objects currently plotted as unbuffered trace centerlines instead of solid copper. */
     private final Set<TreeItem<String>> gerberFollowItems = new LinkedHashSet<>();
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
@@ -4704,7 +4707,8 @@ final class MainWindow {
                     colors != null ? colors[0].toString() : null,
                     colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item)));
         }
-        ProjectFile project = new ProjectFile(gerbers, excellons, geometries, jobs);
+        ProjectFile project = new ProjectFile(gerbers, excellons, geometries, jobs,
+                currentProjectImportWarnings);
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
@@ -4797,6 +4801,7 @@ final class MainWindow {
 
             List<LoadedCncJob> cncJobs = new ArrayList<>();
             List<String> warnings = new ArrayList<>();
+            warnings.addAll(project.importWarnings());
             int total = Math.max(1, project.cncJobs().size());
             int processed = 0;
             for (ProjectFile.CncJobRecord job : project.cncJobs()) {
@@ -4835,7 +4840,7 @@ final class MainWindow {
             cancellation.throwIfCancellationRequested();
             context.reportProgress(1, "Projeto carregado.");
             return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
-                    List.copyOf(cncJobs), List.copyOf(warnings));
+                    List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings());
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -4845,6 +4850,7 @@ final class MainWindow {
         handle.completion()
                 .thenAccept(project -> Platform.runLater(() -> {
                     clearProject();
+                    currentProjectImportWarnings = project.importWarnings();
                     for (ProjectFile.GerberEntry loaded : project.gerbers()) {
                         TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
                         applyRestoredGerberState(item, loaded.image(), loaded);
@@ -4942,6 +4948,7 @@ final class MainWindow {
         cncJobByItem.clear();
         gerberFollowItems.clear();
         sourcePathByItem.clear();
+        currentProjectImportWarnings = List.of();
         plotAreaView.clearLayers();
         setDisplayUnits("MM");
     }

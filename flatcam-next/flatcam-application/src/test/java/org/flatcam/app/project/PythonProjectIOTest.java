@@ -47,10 +47,13 @@ class PythonProjectIOTest {
                 .put("tools", new JSONObject().put("1", new JSONObject().put("tooldia", 0.2)
                         .put("tool_type", "C2")
                         .put("solid_geometry", new JSONArray().put(WktJson.wrap(path)))));
+        geometryJson.getJSONObject("tools").getJSONObject("1")
+                .put("data", new JSONObject().put("cutz", -0.1));
         JSONObject jobJson = new JSONObject().put("kind", "cncjob")
                 .put("options", new JSONObject().put("name", "isolation_top_cnc").put("plot", false))
                 .put("gcode", "G21\nG0 X0 Y0\nG1 Z-0.1\nG1 X10\nM30\n");
         JSONObject root = new JSONObject().put("version", 8.994)
+                .put("options", new JSONObject().put("units", "MM"))
                 .put("objs", new JSONArray().put(gerberJson).put(excellonJson).put(geometryJson).put(jobJson));
         Path file = tempDir.resolve("python.FlatPrj");
         Files.writeString(file, root.toString());
@@ -68,6 +71,10 @@ class PythonProjectIOTest {
         assertEquals(1, project.cncJobs().size());
         assertFalse(project.cncJobs().get(0).visible());
         assertTrue(project.cncJobs().get(0).gcode().contains("G1 X10"));
+        assertEquals(2, project.importWarnings().size());
+        Path nativeCopy = tempDir.resolve("converted.fcnproj");
+        ProjectFileIO.save(project, nativeCopy);
+        assertEquals(project.importWarnings(), ProjectFileIO.load(nativeCopy).importWarnings());
         assertThrows(IOException.class, () -> ProjectFileIO.load(file));
     }
 
@@ -121,6 +128,7 @@ class PythonProjectIOTest {
         }
         assertTrue(project.geometries().stream().allMatch(entry -> !entry.geometry().isEmpty()));
         assertTrue(project.cncJobs().stream().allMatch(entry -> !entry.gcode().isBlank()));
+        assertTrue(project.importWarnings().stream().anyMatch(message -> message.contains("550")));
 
         Path nativeCopy = tempDir.resolve("imported.fcnproj");
         ProjectFileIO.save(project, nativeCopy);
@@ -129,6 +137,7 @@ class PythonProjectIOTest {
         assertEquals(project.excellons().size(), reopened.excellons().size());
         assertEquals(project.geometries().size(), reopened.geometries().size());
         assertEquals(project.cncJobs().size(), reopened.cncJobs().size());
+        assertEquals(project.importWarnings(), reopened.importWarnings());
         for (int index = 0; index < project.gerbers().size(); index++) {
             var original = project.gerbers().get(index);
             var saved = reopened.gerbers().get(index);

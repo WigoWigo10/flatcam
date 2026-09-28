@@ -88,6 +88,7 @@ public final class ProjectFileIO {
         }
         JSONObject javaExtra = new JSONObject();
         javaExtra.put("cncJobs", jobs);
+        javaExtra.put("importWarnings", new JSONArray(project.importWarnings()));
         JSONArray geometries = new JSONArray();
         WKTWriter wktWriter = new WKTWriter();
         for (ProjectFile.GeometryEntry entry : project.geometries()) {
@@ -178,7 +179,20 @@ public final class ProjectFileIO {
             }
         }
 
-        return new ProjectFile(gerbers, excellons, readJavaGeometries(root), readJavaCncJobs(root));
+        return new ProjectFile(gerbers, excellons, readJavaGeometries(root), readJavaCncJobs(root),
+                readImportWarnings(root));
+    }
+
+    private static List<String> readImportWarnings(JSONObject root) {
+        JSONObject javaExtra = root.optJSONObject("_java");
+        JSONArray array = javaExtra == null ? null : javaExtra.optJSONArray("importWarnings");
+        List<String> warnings = new ArrayList<>();
+        if (array != null) {
+            for (int index = 0; index < array.length(); index++) {
+                warnings.add(array.getString(index));
+            }
+        }
+        return warnings;
     }
 
     private static List<ProjectFile.GeometryEntry> readJavaGeometries(JSONObject root) throws IOException {

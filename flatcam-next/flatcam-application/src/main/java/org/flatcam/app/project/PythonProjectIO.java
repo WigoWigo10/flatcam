@@ -34,6 +34,8 @@ public final class PythonProjectIO {
         List<ProjectFile.ExcellonEntry> excellons = new ArrayList<>();
         List<ProjectFile.GeometryEntry> geometries = new ArrayList<>();
         List<ProjectFile.CncJobRecord> jobs = new ArrayList<>();
+        int objectsWithUnappliedOptions = 0;
+        int toolsWithUnappliedData = 0;
         for (int index = 0; index < objects.length(); index++) {
             try {
                 JSONObject object = objects.getJSONObject(index);
@@ -55,13 +57,42 @@ public final class PythonProjectIO {
                     case "cncjob" -> jobs.add(readCncJob(object));
                     default -> throw new IllegalArgumentException("Tipo de objeto nao suportado: " + kind);
                 }
+                JSONObject options = object.optJSONObject("options");
+                if (options != null && options.keySet().stream()
+                        .anyMatch(key -> !"name".equals(key) && !"plot".equals(key))) {
+                    objectsWithUnappliedOptions++;
+                }
+                JSONObject tools = object.optJSONObject("tools");
+                if (tools != null) {
+                    for (String toolId : tools.keySet()) {
+                        JSONObject tool = tools.optJSONObject(toolId);
+                        if (tool != null && tool.optJSONObject("data") != null
+                                && !tool.getJSONObject("data").isEmpty()) {
+                            toolsWithUnappliedData++;
+                        }
+                    }
+                }
             } catch (RuntimeException invalid) {
                 throw new IOException("Objeto " + (index + 1) + " invalido no projeto Python: "
                         + invalid.getMessage(), invalid);
             }
         }
+        List<String> warnings = new ArrayList<>();
+        JSONObject globalOptions = root.optJSONObject("options");
+        if (globalOptions != null && !globalOptions.isEmpty()) {
+            warnings.add("Projeto Python: " + globalOptions.length()
+                    + " preferencias globais nao foram aplicadas no FX.");
+        }
+        if (objectsWithUnappliedOptions > 0) {
+            warnings.add("Projeto Python: opcoes avancadas de " + objectsWithUnappliedOptions
+                    + " objetos nao foram restauradas (nome e visibilidade foram preservados).");
+        }
+        if (toolsWithUnappliedData > 0) {
+            warnings.add("Projeto Python: parametros de usinagem de " + toolsWithUnappliedData
+                    + " ferramentas nao foram restaurados. Confira-os antes de gerar G-code.");
+        }
         return new ProjectFile(List.copyOf(gerbers), List.copyOf(excellons),
-                List.copyOf(geometries), List.copyOf(jobs));
+                List.copyOf(geometries), List.copyOf(jobs), warnings);
     }
 
     private static ProjectFile.GeometryEntry readGeometry(JSONObject object) {

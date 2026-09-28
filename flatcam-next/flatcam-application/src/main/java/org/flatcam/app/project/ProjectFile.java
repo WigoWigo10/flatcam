@@ -25,11 +25,21 @@ public record ProjectFile(
         List<GerberEntry> gerbers,
         List<ExcellonEntry> excellons,
         List<GeometryEntry> geometries,
-        List<CncJobRecord> cncJobs
+        List<CncJobRecord> cncJobs,
+        List<String> importWarnings
 ) {
+    public ProjectFile {
+        importWarnings = List.copyOf(importWarnings);
+    }
+
+    public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,
+                       List<GeometryEntry> geometries, List<CncJobRecord> cncJobs) {
+        this(gerbers, excellons, geometries, cncJobs, List.of());
+    }
+
     public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,
                        List<CncJobRecord> cncJobs) {
-        this(gerbers, excellons, List.of(), cncJobs);
+        this(gerbers, excellons, List.of(), cncJobs, List.of());
     }
 
     /**
