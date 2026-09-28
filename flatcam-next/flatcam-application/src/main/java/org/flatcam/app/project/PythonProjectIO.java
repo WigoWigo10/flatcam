@@ -11,6 +11,7 @@ import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.app.project.flatprj.WktJson;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.locationtech.jts.geom.Geometry;
@@ -88,8 +89,8 @@ public final class PythonProjectIO {
                     + " objetos nao foram restauradas (nome e visibilidade foram preservados).");
         }
         if (toolsWithUnappliedData > 0) {
-            warnings.add("Projeto Python: parametros de usinagem de " + toolsWithUnappliedData
-                    + " ferramentas nao foram restaurados. Confira-os antes de gerar G-code.");
+            warnings.add("Projeto Python: parte dos parametros de usinagem de " + toolsWithUnappliedData
+                    + " ferramentas nao foi restaurada. Confira-os antes de gerar G-code.");
         }
         return new ProjectFile(List.copyOf(gerbers), List.copyOf(excellons),
                 List.copyOf(geometries), List.copyOf(jobs), warnings);
@@ -122,7 +123,26 @@ public final class PythonProjectIO {
         if (geometry == null) geometry = FACTORY.createGeometryCollection();
         return new ProjectFile.GeometryEntry(name, "", object.optString("units", "MM"),
                 geometry, geometry.getDimension() < 2, List.copyOf(tools),
-                object.optString("fill_color", null), object.optString("outline_color", null), plot(object));
+                object.optString("fill_color", null), object.optString("outline_color", null), plot(object),
+                readGeometryCncDefaults(toolJson));
+    }
+
+    private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject tools) {
+        if (tools == null || tools.isEmpty()) return null;
+        List<String> ids = new ArrayList<>(tools.keySet());
+        ids.sort(Comparator.comparingInt(Integer::parseInt));
+        JSONObject first = tools.getJSONObject(ids.get(0));
+        JSONObject data = first.optJSONObject("data");
+        if (data == null) return null;
+        try {
+            return new GeometryGCodeParameters(data.getDouble("travelz"),
+                    Math.abs(data.getDouble("cutz")), data.optBoolean("multidepth", false),
+                    data.optDouble("depthperpass", 0), data.getDouble("feedrate"),
+                    data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false));
+        } catch (RuntimeException invalid) {
+            // Optional CAM settings must not make otherwise valid project geometry disappear.
+            return null;
+        }
     }
 
     private static ProjectFile.CncJobRecord readCncJob(JSONObject object) {

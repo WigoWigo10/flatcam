@@ -13,6 +13,7 @@ import java.util.List;
 import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.cam.excellon.ExcellonParser;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
@@ -99,6 +100,17 @@ public final class ProjectFileIO {
             geometryJson.put("wkt", wktWriter.write(entry.geometry()));
             geometryJson.put("strokeOnly", entry.strokeOnly());
             geometryJson.put("visible", entry.visible());
+            if (entry.cncDefaults() != null) {
+                GeometryGCodeParameters defaults = entry.cncDefaults();
+                geometryJson.put("cncDefaults", new JSONObject()
+                        .put("safeZ", defaults.safeZ())
+                        .put("cutDepth", defaults.cutDepth())
+                        .put("multiDepth", defaults.multiDepth())
+                        .put("depthPerPass", defaults.depthPerPass())
+                        .put("feedRate", defaults.feedRate())
+                        .put("spindleSpeedRpm", defaults.spindleSpeedRpm())
+                        .put("pauseForToolChange", defaults.pauseForToolChange()));
+            }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
             }
@@ -219,12 +231,21 @@ public final class ProjectFileIO {
                         value.optString("sourceName", ""), value.optString("units", "MM"),
                         reader.read(value.getString("wkt")), value.optBoolean("strokeOnly", false),
                         List.copyOf(tools), value.optString("fillColor", null),
-                        value.optString("strokeColor", null), value.optBoolean("visible", true)));
+                        value.optString("strokeColor", null), value.optBoolean("visible", true),
+                        readGeometryCncDefaults(value.optJSONObject("cncDefaults"))));
             }
-        } catch (ParseException | JSONException invalid) {
+        } catch (ParseException | JSONException | IllegalArgumentException invalid) {
             throw new IOException("Invalid embedded Geometry object", invalid);
         }
         return result;
+    }
+
+    private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject json) {
+        if (json == null) return null;
+        return new GeometryGCodeParameters(json.getDouble("safeZ"), json.getDouble("cutDepth"),
+                json.getBoolean("multiDepth"), json.getDouble("depthPerPass"),
+                json.getDouble("feedRate"), json.getInt("spindleSpeedRpm"),
+                json.getBoolean("pauseForToolChange"));
     }
 
     private static List<ProjectFile.CncJobRecord> readJavaCncJobs(JSONObject root) {

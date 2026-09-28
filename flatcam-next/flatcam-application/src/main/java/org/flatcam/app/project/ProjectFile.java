@@ -2,6 +2,7 @@ package org.flatcam.app.project;
 
 import java.util.List;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.locationtech.jts.geom.Geometry;
@@ -56,7 +57,14 @@ public record ProjectFile(
 
     public record GeometryEntry(String name, String sourceName, String units, Geometry geometry,
                                 boolean strokeOnly, List<ToolGeometry> tools,
-                                String fillColorWeb, String strokeColorWeb, boolean visible) {
+                                String fillColorWeb, String strokeColorWeb, boolean visible,
+                                GeometryGCodeParameters cncDefaults) {
+        public GeometryEntry(String name, String sourceName, String units, Geometry geometry,
+                             boolean strokeOnly, List<ToolGeometry> tools,
+                             String fillColorWeb, String strokeColorWeb, boolean visible) {
+            this(name, sourceName, units, geometry, strokeOnly, tools,
+                    fillColorWeb, strokeColorWeb, visible, null);
+        }
     }
 
     /** {@code name}/{@code gcode} are null for older path-only projects. */

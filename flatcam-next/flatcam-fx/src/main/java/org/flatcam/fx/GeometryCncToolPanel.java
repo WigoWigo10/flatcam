@@ -40,6 +40,11 @@ final class GeometryCncToolPanel {
 
     static Node build(String units, Geometry combinedGeometry, List<ToolGeometry> tools,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        return build(units, combinedGeometry, tools, null, onGenerate, onClose);
+    }
+
+    static Node build(String units, Geometry combinedGeometry, List<ToolGeometry> tools,
+                      GeometryGCodeParameters defaults, Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(units);
         boolean multiTool = !tools.isEmpty();
 
@@ -64,20 +69,26 @@ final class GeometryCncToolPanel {
             toolDiaField.setText(format(tools.get(0).toolDiameter()));
         }
 
-        TextField safeZField = new TextField(metric ? "3.0" : "0.1");
-        TextField cutDepthField = new TextField(metric ? "0.1" : "0.004");
+        TextField safeZField = new TextField(defaults == null ? (metric ? "3.0" : "0.1")
+                : format(defaults.safeZ()));
+        TextField cutDepthField = new TextField(defaults == null ? (metric ? "0.1" : "0.004")
+                : format(defaults.cutDepth()));
         CheckBox multiDepthCb = new CheckBox("Multi-Depth");
-        TextField depthPerPassField = new TextField(metric ? "0.05" : "0.002");
+        multiDepthCb.setSelected(defaults != null && defaults.multiDepth());
+        TextField depthPerPassField = new TextField(defaults == null ? (metric ? "0.05" : "0.002")
+                : format(defaults.depthPerPass()));
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not());
-        TextField feedField = new TextField(metric ? "300" : "12");
-        TextField spindleField = new TextField("10000");
+        TextField feedField = new TextField(defaults == null ? (metric ? "300" : "12")
+                : format(defaults.feedRate()));
+        TextField spindleField = new TextField(defaults == null ? "10000"
+                : Integer.toString(defaults.spindleSpeedRpm()));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
                 depthPerPassField, feedField, spindleField)) {
             field.setPrefColumnCount(7);
             field.setMinWidth(0);
         }
         CheckBox pauseCheck = new CheckBox("Pausar para troca de ferramenta (M0)");
-        pauseCheck.setSelected(tools.size() > 1);
+        pauseCheck.setSelected(defaults == null ? tools.size() > 1 : defaults.pauseForToolChange());
         pauseCheck.setDisable(tools.size() <= 1);
 
         GridPane grid = new GridPane();

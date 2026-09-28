@@ -88,6 +88,7 @@ import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.geometry.GeometryEditSession;
@@ -175,7 +176,12 @@ final class MainWindow {
 
     /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
     private record GeometryEntry(String sourceName, String units, Geometry geometry,
-                                 boolean strokeOnly, List<ToolGeometry> tools) {
+                                 boolean strokeOnly, List<ToolGeometry> tools,
+                                 GeometryGCodeParameters cncDefaults) {
+        private GeometryEntry(String sourceName, String units, Geometry geometry,
+                              boolean strokeOnly, List<ToolGeometry> tools) {
+            this(sourceName, units, geometry, strokeOnly, tools, null);
+        }
     }
 
     /** Gerber/Excellon entries already carry their own fully-resolved geometry (ProjectFileIO), no re-parsing needed. */
@@ -292,7 +298,7 @@ final class MainWindow {
                         return;
                     }
                     geometryByItem.put(item, new GeometryEntry(old.sourceName(), old.units(), geometry,
-                            old.strokeOnly(), tools));
+                            old.strokeOnly(), tools, old.cncDefaults()));
                     plotAreaView.updateLayerGeometry(item, geometry);
                     showProperties(item);
                 }
@@ -2254,7 +2260,7 @@ final class MainWindow {
         } else if (geometry != null) {
             List<ToolGeometry> newTools = geometry.tools().stream().map(t -> t.transformed(op)).toList();
             GeometryEntry transformed = new GeometryEntry(geometry.sourceName(), geometry.units(),
-                    op.apply(geometry.geometry()), geometry.strokeOnly(), newTools);
+                    op.apply(geometry.geometry()), geometry.strokeOnly(), newTools, geometry.cncDefaults());
             geometryByItem.put(item, transformed);
             plotAreaView.updateLayerGeometry(item, transformed.geometry());
         } else {
@@ -2910,7 +2916,7 @@ final class MainWindow {
             copyLayerAppearance(sourceItem, copyItem);
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
-                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.tools());
+                    geometry.geometry().copy(), geometry.strokeOnly(), geometry.tools(), geometry.cncDefaults());
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
@@ -3665,6 +3671,7 @@ final class MainWindow {
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
         openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
+                entry.cncDefaults(),
                 result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
     }
 
@@ -4705,7 +4712,8 @@ final class MainWindow {
             geometries.add(new ProjectFile.GeometryEntry(item.getValue(), geometry.sourceName(),
                     geometry.units(), geometry.geometry(), geometry.strokeOnly(), geometry.tools(),
                     colors != null ? colors[0].toString() : null,
-                    colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item)));
+                    colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item),
+                    geometry.cncDefaults()));
         }
         ProjectFile project = new ProjectFile(gerbers, excellons, geometries, jobs,
                 currentProjectImportWarnings);
@@ -4863,7 +4871,8 @@ final class MainWindow {
                     }
                     for (ProjectFile.GeometryEntry loaded : project.geometries()) {
                         TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
-                                loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools());
+                                loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
+                                loaded.cncDefaults());
                         if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
                             plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
                                     Color.web(loaded.strokeColorWeb()));
@@ -4987,8 +4996,14 @@ final class MainWindow {
 
     private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
                                                   Geometry geometry, boolean strokeOnly, List<ToolGeometry> tools) {
+        return addGeometryToProject(displayName, sourceName, units, geometry, strokeOnly, tools, null);
+    }
+
+    private TreeItem<String> addGeometryToProject(String displayName, String sourceName, String units,
+                                                  Geometry geometry, boolean strokeOnly, List<ToolGeometry> tools,
+                                                  GeometryGCodeParameters cncDefaults) {
         TreeItem<String> item = new TreeItem<>(displayName);
-        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, tools));
+        geometryByItem.put(item, new GeometryEntry(sourceName, units, geometry, strokeOnly, tools, cncDefaults));
         geometryNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GEOMETRY, geometry,
                 GEOMETRY_FILL, GEOMETRY_STROKE, strokeOnly);

@@ -48,7 +48,10 @@ class PythonProjectIOTest {
                         .put("tool_type", "C2")
                         .put("solid_geometry", new JSONArray().put(WktJson.wrap(path)))));
         geometryJson.getJSONObject("tools").getJSONObject("1")
-                .put("data", new JSONObject().put("cutz", -0.1));
+                .put("data", new JSONObject().put("cutz", -0.1)
+                        .put("travelz", 2.0).put("feedrate", 120.0)
+                        .put("spindlespeed", 0).put("multidepth", true)
+                        .put("depthperpass", 0.05));
         JSONObject jobJson = new JSONObject().put("kind", "cncjob")
                 .put("options", new JSONObject().put("name", "isolation_top_cnc").put("plot", false))
                 .put("gcode", "G21\nG0 X0 Y0\nG1 Z-0.1\nG1 X10\nM30\n");
@@ -67,6 +70,10 @@ class PythonProjectIOTest {
         assertEquals(1, project.geometries().size());
         assertTrue(project.geometries().get(0).strokeOnly());
         assertEquals(0.2, project.geometries().get(0).tools().get(0).toolDiameter());
+        assertEquals(0.1, project.geometries().get(0).cncDefaults().cutDepth());
+        assertEquals(2.0, project.geometries().get(0).cncDefaults().safeZ());
+        assertEquals(120.0, project.geometries().get(0).cncDefaults().feedRate());
+        assertTrue(project.geometries().get(0).cncDefaults().multiDepth());
         assertFalse(project.geometries().get(0).visible());
         assertEquals(1, project.cncJobs().size());
         assertFalse(project.cncJobs().get(0).visible());
@@ -75,6 +82,8 @@ class PythonProjectIOTest {
         Path nativeCopy = tempDir.resolve("converted.fcnproj");
         ProjectFileIO.save(project, nativeCopy);
         assertEquals(project.importWarnings(), ProjectFileIO.load(nativeCopy).importWarnings());
+        assertEquals(project.geometries().get(0).cncDefaults(),
+                ProjectFileIO.load(nativeCopy).geometries().get(0).cncDefaults());
         assertThrows(IOException.class, () -> ProjectFileIO.load(file));
     }
 
@@ -127,6 +136,10 @@ class PythonProjectIOTest {
             assertEquals(entry.image().slots(), reopened.slots());
         }
         assertTrue(project.geometries().stream().allMatch(entry -> !entry.geometry().isEmpty()));
+        assertTrue(project.geometries().stream().allMatch(entry -> entry.cncDefaults() != null
+                && entry.cncDefaults().safeZ() == 2.0
+                && entry.cncDefaults().cutDepth() == 2.4
+                && entry.cncDefaults().feedRate() == 120.0));
         assertTrue(project.cncJobs().stream().allMatch(entry -> !entry.gcode().isBlank()));
         assertTrue(project.importWarnings().stream().anyMatch(message -> message.contains("550")));
 
@@ -157,6 +170,7 @@ class PythonProjectIOTest {
             assertEquals(original.name(), saved.name());
             assertEquals(original.tools().size(), saved.tools().size());
             assertEquals(original.geometry().getNumPoints(), saved.geometry().getNumPoints());
+            assertEquals(original.cncDefaults(), saved.cncDefaults());
         }
         for (int index = 0; index < project.cncJobs().size(); index++) {
             assertEquals(project.cncJobs().get(index).gcode(), reopened.cncJobs().get(index).gcode());
