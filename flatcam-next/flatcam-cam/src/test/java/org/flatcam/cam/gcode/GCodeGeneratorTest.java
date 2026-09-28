@@ -335,6 +335,27 @@ class GCodeGeneratorTest {
     }
 
     @Test
+    void directIsolationGeneratorHonorsPreprocessorAndKeepsPortableOutput() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        IsolationResult isolation = IsolationGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new IsolationParameters(0.02, 1, 0.0, IsolationType.BOTH));
+        var params = new IsolationGCodeParameters(0.1, 0.003, 10, 12000);
+
+        String legacy = GCodeGenerator.generateIsolationCncJob(isolation, params, 0.02).gcode();
+        String portable = GCodeGenerator.generateIsolationCncJob(isolation, params, 0.02,
+                CancellationToken.none(), GCodePreprocessor.FX_PORTABLE).gcode();
+        assertEquals(legacy, portable);
+
+        String grbl = GCodeGenerator.generateIsolationCncJob(isolation, params, 0.02,
+                CancellationToken.none(), GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        assertTrue(grbl.contains("G90\nG17\nG94"));
+        assertTrue(grbl.contains("M03 S12000"));
+        assertTrue(grbl.contains("G01 Z-0.0030 F10.0000"));
+        assertFalse(grbl.contains("\nM6\n"));
+        assertNull(GCodeToolpathParser.parse(grbl, CancellationToken.none(), ignored -> {}).warning());
+    }
+
+    @Test
     void cutoutMultiDepthRetracesTheWholePathAtEachStep() throws Exception {
         var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
         CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
@@ -348,6 +369,28 @@ class GCodeGeneratorTest {
         assertEquals(1, countOccurrences(result.gcode(), "G1 Z-0.1000"));
         assertEquals(1, countOccurrences(result.gcode(), "G1 Z-0.1200"));
         assertTrue(result.gcode().trim().endsWith("M30"));
+    }
+
+    @Test
+    void directCutoutGeneratorHonorsPreprocessorAndKeepsPortableOutput() throws Exception {
+        var gerber = new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
+        CutoutResult cutout = CutoutGenerator.generate(gerber.units(), gerber.solidGeometry(),
+                new CutoutParameters(0.02, 0.02, false, CutoutKind.SINGLE,
+                        CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
+        var params = new CutoutGCodeParameters(0.1, 0.12, true, 0.05, 10, 12000);
+
+        String legacy = GCodeGenerator.generateCutoutCncJob(cutout, params, 0.02).gcode();
+        String portable = GCodeGenerator.generateCutoutCncJob(cutout, params, 0.02,
+                CancellationToken.none(), GCodePreprocessor.FX_PORTABLE).gcode();
+        assertEquals(legacy, portable);
+
+        String mach3 = GCodeGenerator.generateCutoutCncJob(cutout, params, 0.02,
+                CancellationToken.none(), GCodePreprocessor.DEFAULT_NO_M6).gcode();
+        assertTrue(mach3.contains("M03 S12000"));
+        assertTrue(mach3.contains("G01 Z-0.0500 F10.0000"));
+        assertTrue(mach3.contains("G01 Z-0.1200 F10.0000"));
+        assertFalse(mach3.contains("\nM6\n"));
+        assertNull(GCodeToolpathParser.parse(mach3, CancellationToken.none(), ignored -> {}).warning());
     }
 
     @Test

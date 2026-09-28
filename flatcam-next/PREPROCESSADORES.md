@@ -15,9 +15,10 @@ fica nas telas **Drilling Tool** e **Geometry → CNC Job**. O perfil padrão é
 Os perfis Python são código executável; o FX porta explicitamente os comandos
 essenciais de fresagem, **não** executa os módulos Python nem reproduz seus
 cabeçalhos completos. `Tn` identifica as ferramentas pela ordem do objeto de
-Geometry ou pelo número do Excellon. Os perfis de laser, Marlin, Roland, HPGL,
-dispensador de pasta e outros, bem como as telas de isolamento/cutout que ainda
-não oferecem escolha de perfil, continuam pendentes.
+Geometry ou pelo número do Excellon. Isolamento e cutout geram Geometry na
+interface; a escolha do perfil acontece ao criar o CNC Job desse objeto. Seus
+geradores diretos de G-code também aceitam os mesmos perfis. Os perfis de
+laser, Marlin, Roland, HPGL, dispensador de pasta e outros continuam pendentes.
 
 **Antes de enviar a uma máquina:** confira unidades, alturas Z, ordem de
 ferramentas, comportamento de `M0` e suporte de `M6` no controlador. Faça uma
