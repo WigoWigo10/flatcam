@@ -1,9 +1,76 @@
 # Diagnóstico de desempenho do Plot Area
 
+## Comparação da fluidez da interface: Python × FX
+
+Há agora um **protocolo comum nos dois aplicativos**: um callback na thread
+da interface é agendado a cada 16 ms e produz uma linha `[UI-FLUIDITY]` a cada
+aproximadamente 10 s. Ele mede atrasos da interface inteira, inclusive pausas
+que não aparecem no cronômetro de `redraw` do FX. Não mede FPS apresentado pela
+GPU: Qt e JavaFX têm agendadores e pipelines gráficos diferentes, e contar
+callbacks como quadros renderizados daria uma comparação enganosa. Compare
+principalmente os atrasos grandes (`gaps50`/`gaps100`/`gaps250`) e os percentis
+de cauda; uma diferença pequena em `p50_ms` pode ser apenas o agendador.
+
+Abra **um aplicativo por vez**, com a mesma resolução/escala, tema, projeto,
+camadas visíveis e zoom. No PowerShell, a partir da pasta `flatcam-next`, e com
+o ambiente Python do FlatCAM ativado:
+
+```powershell
+cmd /c ".\profile-ui-python.cmd 2>&1" | Tee-Object -FilePath ".\ui-fluidity-python-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+```
+
+Abra o projeto `.FlatPrj`, espere a carga terminar, mova o Plot Area por cerca
+de 40 segundos, depois faça zoom in/out por cerca de 40 segundos. Feche o
+Python antes do teste FX. Ainda na pasta `flatcam-next`:
+
+```powershell
+cmd /c ".\profile-ui.cmd 2>&1" | Tee-Object -FilePath ".\ui-fluidity-fx-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+```
+
+Repita a mesma sequência, com as mesmas camadas habilitadas. Use ao menos três
+janelas inteiras de 10 s durante cada ação e ignore as janelas de transição ou
+espera ociosa. Os
+scripts ativam a medição somente em seus processos; `FlatCAM.py` e `run.cmd`
+continuam sem ela. O script Python procura primeiro um `.venv312` local e
+depois o ambiente da pasta irmã `flatcam-8994`; só então usa o `python` do PATH.
+Se necessário, defina `FLATCAM_PROFILE_PYTHON` como o caminho completo do
+`python.exe` do ambiente correto antes de executar o script.
+
+Exemplo de saída (os números são ilustrativos):
+
+```text
+[UI-FLUIDITY] app=fx window_s=10.0 samples=598 p50_ms=16.7 p95_ms=19.2 p99_ms=32.1 max_ms=118.0 gaps50=2 gaps100=1 gaps250=0
+```
+
+`p95_ms`/`p99_ms` são os atrasos de cauda; `max_ms` é a pior pausa observada.
+`gaps50`, `gaps100` e `gaps250` contam intervalos de pelo menos 50, 100 e
+250 ms (contagens cumulativas). Uma janela com `window_s` acima de 10 s pode
+significar que a thread da interface ficou impedida de atender o timer. O
+monitor desconsidera períodos em que a janela está oculta/minimizada. Deixe a
+janela em primeiro plano durante a comparação. O medidor acrescenta apenas
+um callback leve a cada 16 ms, mas, como todo profiler, tem pequeno custo.
+
+Se o FX ainda parecer engasgar com `gaps50=0`, a causa pode estar na etapa de
+renderização/apresentação da GPU, fora desta métrica de responsividade. Nesse
+caso, guarde também o log de `profile-plot.cmd` (que agora inclui
+`[UI-FLUIDITY]`) e descreva em qual ação a diferença aparece.
+
+## Redesenho e camadas do FX
+
 No PowerShell, execute `./profile-plot.cmd` a partir desta pasta, abra o projeto
 problemático e reproduza a operação lenta (ativar Plot, enquadrar, zoom ou arrastar).
 O terminal exibirá linhas `[PLOT-PROFILE]` apenas quando o diagnóstico estiver
 ativado; `run.cmd` continua sem essa instrumentação.
+Na inicialização, `prism.verbose` também informa qual pipeline gráfico o JavaFX
+selecionou (acelerado ou software). Isso não força o uso de uma GPU dedicada.
+
+Para salvar a saída e acompanhar ao vivo no PowerShell 5, faça a fusão de stdout
+e stderr dentro do `cmd`; caso contrário, a mensagem normal do Java `Picked up
+JAVA_TOOL_OPTIONS` aparece como `NativeCommandError`:
+
+```powershell
+cmd /c ".\profile-plot.cmd 2>&1" | Tee-Object -FilePath ".\plot-profile-$(Get-Date -Format 'yyyyMMdd-HHmmss').log"
+```
 
 Uma linha `slow redraw` mostra o tempo total de um redesenho síncrono na thread
 JavaFX, dividido em `base` (fundo, grade e eixos), `layers` (desenho das
@@ -13,13 +80,19 @@ listadas com nome e tempo. Por padrão, aparecem redesenhos acima de 50 ms;
 a cada 100 redesenhos é emitido um resumo. Ao abrir um projeto, `project decode
 (worker)` mede a leitura fora da thread JavaFX e `project restore (FX thread)`
 mede a montagem da árvore e das camadas, incluindo seus redesenhos.
+O sufixo `[LOD]` no nome de um CNC Job indica que o Plot está usando a
+pré-visualização leve de linhas centrais; em zoom próximo, usa novamente a
+geometria detalhada sem modificar o G-code ou a geometria de CAM.
 
-Para registrar inclusive quadros rápidos, altere o limite antes de executar:
+Para registrar inclusive quadros rápidos, passe `0` como argumento (isso produz
+muita saída e pode afetar a fluidez):
 
 ```powershell
-$env:JAVA_TOOL_OPTIONS = '-Dflatcam.plot.profile.slowMs=0'
-./profile-plot.cmd
+./profile-plot.cmd 0
 ```
+
+O padrão do script é sempre 50 ms, mesmo quando `JAVA_TOOL_OPTIONS` contém um
+limite antigo. Outro limite pode ser passado como primeiro argumento.
 
 Os tempos medem o trabalho síncrono de preparação/envio de comandos ao Canvas,
 não o tempo de apresentação final pelo driver gráfico. Se houver travamento sem

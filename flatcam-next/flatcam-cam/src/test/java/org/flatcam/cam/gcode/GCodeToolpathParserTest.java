@@ -37,8 +37,23 @@ class GCodeToolpathParserTest {
         assertEquals(11, result.lineCount());
         assertTrue(anyPartCovers(result.cutGeometry(), 2, 1));
         assertTrue(anyPartCovers(result.travelGeometry(), 3.5, 1));
+        assertTrue(result.cutCenterlines().getNumGeometries() > 0);
+        assertTrue(result.travelCenterlines().getNumGeometries() > 0);
         assertEquals(0, progress.get(0));
         assertEquals(1, progress.get(progress.size() - 1));
+    }
+
+    @Test
+    void joinsDenseContinuousMovesOnlyInDisplayPreview() {
+        StringBuilder gcode = new StringBuilder("G21\nG0 X0 Y0\nG1 Z-1\n");
+        for (int x = 1; x <= 1_000; x++) {
+            gcode.append("G1 X").append(x).append(" Y0\n");
+        }
+        GCodeToolpathParser.Result result = parse(gcode.toString());
+
+        assertEquals(1_001, result.cutGeometry().getNumGeometries()); // plunge + 1,000 precise buffers
+        assertEquals(2, result.cutCenterlines().getNumGeometries()); // plunge point + one joined path
+        assertEquals(1_001, result.cutCenterlines().getGeometryN(1).getNumPoints());
     }
 
     @Test

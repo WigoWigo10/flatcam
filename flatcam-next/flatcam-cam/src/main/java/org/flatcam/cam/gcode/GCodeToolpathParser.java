@@ -24,9 +24,69 @@ public final class GCodeToolpathParser {
     private static final int MAX_PREVIEW_SEGMENTS = 50_000;
 
     public record Result(Geometry travelGeometry, Geometry cutGeometry, String warning,
-                         int lineCount, String units) {
+                         int lineCount, String units, Geometry travelCenterlines,
+                         Geometry cutCenterlines) {
+        public Result(Geometry travelGeometry, Geometry cutGeometry, String warning,
+                      int lineCount, String units) {
+            this(travelGeometry, cutGeometry, warning, lineCount, units, null, null);
+        }
+
         public boolean plotAvailable() {
             return warning == null;
+        }
+    }
+
+    /** Display-only paths; the buffered toolpath geometries above remain unchanged. */
+    private static final class CenterlinePreview {
+        private static final int MAX_POINTS_PER_PATH = 2_000;
+        private final List<Geometry> travel = new ArrayList<>();
+        private final List<Geometry> cut = new ArrayList<>();
+        private List<Coordinate> active = new ArrayList<>();
+        private Boolean activeTravel;
+
+        void addPath(boolean isTravel, Geometry path) {
+            Coordinate[] points = path.getCoordinates();
+            if (points.length < 2) {
+                return;
+            }
+            if (activeTravel == null || activeTravel != isTravel
+                    || !active.get(active.size() - 1).equals2D(points[0])) {
+                flush();
+                activeTravel = isTravel;
+                active.add(new Coordinate(points[0]));
+            }
+            for (int i = 1; i < points.length; i++) {
+                if (active.size() == MAX_POINTS_PER_PATH) {
+                    Coordinate last = active.get(active.size() - 1);
+                    flush();
+                    activeTravel = isTravel;
+                    active.add(new Coordinate(last));
+                }
+                active.add(new Coordinate(points[i]));
+            }
+        }
+
+        void addPoint(boolean isTravel, Coordinate point) {
+            flush();
+            (isTravel ? travel : cut).add(FACTORY.createPoint(point));
+        }
+
+        Geometry travelGeometry() {
+            flush();
+            return FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new));
+        }
+
+        Geometry cutGeometry() {
+            flush();
+            return FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new));
+        }
+
+        private void flush() {
+            if (activeTravel != null && active.size() >= 2) {
+                (activeTravel ? travel : cut).add(FACTORY.createLineString(active.toArray(Coordinate[]::new)));
+            }
+            active = new ArrayList<>();
+            activeTravel = null;
         }
     }
 
@@ -40,6 +100,7 @@ public final class GCodeToolpathParser {
         List<String> lines = gcode.lines().toList();
         List<Geometry> travel = new ArrayList<>();
         List<Geometry> cut = new ArrayList<>();
+        CenterlinePreview centerlines = new CenterlinePreview();
         boolean absolute = true;
         boolean absoluteArcCenter = false;
         boolean metric = true;
@@ -161,19 +222,23 @@ public final class GCodeToolpathParser {
                     warning = "Arco cruzando Z=0: pre-visualizacao indisponivel.";
                 } else {
                     try {
-                        Geometry path = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
-                                absoluteArcCenter, motion == 2, radius);
-                        (nextZ >= 0 ? travel : cut).add(path);
+                        Geometry centerline = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
+                                absoluteArcCenter, motion == 2);
+                        (nextZ >= 0 ? travel : cut).add(centerline.buffer(radius, 4));
+                        centerlines.addPath(nextZ >= 0, centerline);
                     } catch (IllegalArgumentException invalidArc) {
                         warning = "Arco invalido na linha " + (index + 1) + ": " + invalidArc.getMessage();
                     }
                 }
             } else if (warning == null && lateral) {
-                Geometry path = FACTORY.createLineString(new Coordinate[]{
-                        new Coordinate(x, y), new Coordinate(nextX, nextY)}).buffer(radius, 4);
-                (motion == 0 || nextZ >= 0 ? travel : cut).add(path);
+                Geometry centerline = FACTORY.createLineString(new Coordinate[]{
+                        new Coordinate(x, y), new Coordinate(nextX, nextY)});
+                boolean isTravel = motion == 0 || nextZ >= 0;
+                (isTravel ? travel : cut).add(centerline.buffer(radius, 4));
+                centerlines.addPath(isTravel, centerline);
             } else if (warning == null && plunge) {
                 cut.add(FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, 4));
+                centerlines.addPoint(false, new Coordinate(x, y));
             }
             x = nextX;
             y = nextY;
@@ -190,12 +255,13 @@ public final class GCodeToolpathParser {
         }
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
-                lines.size(), metric ? "MM" : "IN");
+                lines.size(), metric ? "MM" : "IN",
+                centerlines.travelGeometry(), centerlines.cutGeometry());
     }
 
     private static Geometry arcPath(double startX, double startY, double endX, double endY,
                                     Double i, Double j, Double r, boolean absoluteCenter,
-                                    boolean clockwise, double strokeRadius) {
+                                    boolean clockwise) {
         if (r != null && (i != null || j != null) || r == null && i == null && j == null) {
             throw new IllegalArgumentException("informe I/J ou R, nao ambos");
         }
@@ -246,7 +312,7 @@ public final class GCodeToolpathParser {
         }
         points[0] = new Coordinate(startX, startY);
         points[steps] = new Coordinate(endX, endY);
-        return FACTORY.createLineString(points).buffer(strokeRadius, 4);
+        return FACTORY.createLineString(points);
     }
 
     private static double sweep(double startX, double startY, double endX, double endY,

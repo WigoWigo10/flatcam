@@ -1,8 +1,9 @@
 import sys
 import os
+import time
 
 from PyQt5 import QtWidgets
-from PyQt5.QtCore import QSettings, Qt
+from PyQt5.QtCore import QSettings, Qt, QTimer
 from app_Main import App
 from appGUI import VisPyPatches
 
@@ -91,5 +92,23 @@ if __name__ == '__main__':
         app.setStyle(style)
 
     fc = App(qapp=app)
+    if os.environ.get('FLATCAM_UI_FLUIDITY', '').lower() in ('1', 'true', 'yes'):
+        from appCommon.ui_fluidity import UiFluidityMetrics
+
+        fluidity = UiFluidityMetrics('python')
+        fluidity_timer = QTimer(app)
+        fluidity_timer.setTimerType(Qt.PreciseTimer)
+
+        def sample_ui_fluidity():
+            if not fc.ui.isVisible() or fc.ui.isMinimized():
+                fluidity.reset()
+                return
+            report = fluidity.tick(time.perf_counter())
+            if report:
+                print(report, flush=True)
+
+        fluidity_timer.timeout.connect(sample_ui_fluidity)
+        fluidity_timer.start(16)
+        print('[UI-FLUIDITY] app=python enabled interval_ms=16 window_s=10', flush=True)
     sys.exit(app.exec_())
     # app.exec_()

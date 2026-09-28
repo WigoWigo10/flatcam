@@ -165,11 +165,16 @@ final class MainWindow {
      * writes one. Edited text is kept here and embedded in project saves;
      * a supported G0/G1 XY preview can be reconstructed from that text.
      */
-    private record CncJobEntry(String sourceName, Path outputFile, String gcode, Geometry travelGeometry, Geometry cutGeometry) {
+    private record CncJobEntry(String sourceName, Path outputFile, String gcode,
+                               Geometry travelGeometry, Geometry cutGeometry,
+                               Geometry travelCenterlines, Geometry cutCenterlines,
+                               double previewStrokeWidth) {
     }
 
     private record LoadedCncJob(String name, String sourceName, Path outputPath, String gcode,
-                                Geometry travelGeometry, Geometry cutGeometry, String units, boolean visible) {
+                                Geometry travelGeometry, Geometry cutGeometry,
+                                Geometry travelCenterlines, Geometry cutCenterlines,
+                                double previewStrokeWidth, String units, boolean visible) {
     }
 
     private record ImportedGCode(String text, GCodeToolpathParser.Result preview) {
@@ -485,22 +490,30 @@ final class MainWindow {
         CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
         boolean hadPlot = previous.cutGeometry() != null || previous.travelGeometry() != null;
         boolean visible = !hadPlot || plotAreaView.isLayerVisible(cutKey) || plotAreaView.isLayerVisible(travelKey);
-        plotAreaView.removeLayer(cutKey);
-        plotAreaView.removeLayer(travelKey);
         cncJobByItem.put(item, new CncJobEntry(previous.sourceName(), previous.outputFile(), text,
-                parsed.travelGeometry(), parsed.cutGeometry()));
+                parsed.travelGeometry(), parsed.cutGeometry(), parsed.travelCenterlines(),
+                parsed.cutCenterlines(), previewStrokeWidth(parsed.units())));
         if (parsed.plotAvailable()) {
             setDisplayUnits(parsed.units());
         }
-        if (parsed.cutGeometry() != null && !parsed.cutGeometry().isEmpty()) {
-            plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
-                    parsed.cutGeometry(), CNC_CUT_FILL, CNC_CUT_STROKE, false);
-            plotAreaView.setLayerVisible(cutKey, visible);
-        }
-        if (parsed.travelGeometry() != null && !parsed.travelGeometry().isEmpty()) {
-            plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
-                    parsed.travelGeometry(), CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
-            plotAreaView.setLayerVisible(travelKey, visible);
+        plotAreaView.beginBatchUpdate();
+        try {
+            plotAreaView.removeLayer(cutKey);
+            plotAreaView.removeLayer(travelKey);
+            if (parsed.cutGeometry() != null && !parsed.cutGeometry().isEmpty()) {
+                plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
+                        parsed.cutGeometry(), CNC_CUT_FILL, CNC_CUT_STROKE, false);
+                plotAreaView.setLayerCenterlineLod(cutKey, parsed.cutCenterlines(), previewStrokeWidth(parsed.units()));
+                plotAreaView.setLayerVisible(cutKey, visible);
+            }
+            if (parsed.travelGeometry() != null && !parsed.travelGeometry().isEmpty()) {
+                plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
+                        parsed.travelGeometry(), CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
+                plotAreaView.setLayerCenterlineLod(travelKey, parsed.travelCenterlines(), previewStrokeWidth(parsed.units()));
+                plotAreaView.setLayerVisible(travelKey, visible);
+            }
+        } finally {
+            plotAreaView.endBatchUpdate();
         }
         refreshPlotSelectionOutline();
         if (projectTree.getSelectionModel().getSelectedItem() == item) {
@@ -2926,7 +2939,8 @@ final class MainWindow {
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
-                    cncJob.travelGeometry(), cncJob.cutGeometry());
+                    cncJob.travelGeometry(), cncJob.cutGeometry(), cncJob.travelCenterlines(),
+                    cncJob.cutCenterlines(), cncJob.previewStrokeWidth());
             copyLayerAppearance(new CncTravelLayerKey(sourceItem), new CncTravelLayerKey(copyItem));
             copyLayerAppearance(new CncCutLayerKey(sourceItem), new CncCutLayerKey(copyItem));
         } else {
@@ -3007,20 +3021,41 @@ final class MainWindow {
      */
     private TreeItem<String> addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
             Geometry travelGeometry, Geometry cutGeometry) {
+        return addCncJobToProject(outputFileName, sourceName, outputFile, gcode,
+                travelGeometry, cutGeometry, null, null, 0);
+    }
+
+    private TreeItem<String> addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
+            Geometry travelGeometry, Geometry cutGeometry, Geometry travelCenterlines,
+            Geometry cutCenterlines, double previewStrokeWidth) {
         TreeItem<String> item = new TreeItem<>(outputFileName);
-        cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode, travelGeometry, cutGeometry));
+        cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode, travelGeometry,
+                cutGeometry, travelCenterlines, cutCenterlines, previewStrokeWidth));
         cncJobsNode.getChildren().add(item);
-        if (cutGeometry != null && !cutGeometry.isEmpty()) {
-            plotAreaView.putLayer(new CncCutLayerKey(item), PlotAreaView.LayerCategory.CNCJOB,
-                    cutGeometry, CNC_CUT_FILL, CNC_CUT_STROKE, false);
-        }
-        if (travelGeometry != null && !travelGeometry.isEmpty()) {
-            // Put after cut so it draws on top within the CNCJOB category, matching
-            // camlib.py's CNCjob.plot2() (cut layer 1, travel layer 2).
-            plotAreaView.putLayer(new CncTravelLayerKey(item), PlotAreaView.LayerCategory.CNCJOB,
-                    travelGeometry, CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
+        plotAreaView.beginBatchUpdate();
+        try {
+            if (cutGeometry != null && !cutGeometry.isEmpty()) {
+                CncCutLayerKey cutKey = new CncCutLayerKey(item);
+                plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
+                        cutGeometry, CNC_CUT_FILL, CNC_CUT_STROKE, false);
+                plotAreaView.setLayerCenterlineLod(cutKey, cutCenterlines, previewStrokeWidth);
+            }
+            if (travelGeometry != null && !travelGeometry.isEmpty()) {
+                // Put after cut so it draws on top within the CNCJOB category, matching
+                // camlib.py's CNCjob.plot2() (cut layer 1, travel layer 2).
+                CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
+                plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
+                        travelGeometry, CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
+                plotAreaView.setLayerCenterlineLod(travelKey, travelCenterlines, previewStrokeWidth);
+            }
+        } finally {
+            plotAreaView.endBatchUpdate();
         }
         return item;
+    }
+
+    private static double previewStrokeWidth(String units) {
+        return "IN".equalsIgnoreCase(units) ? 0.0008 : 0.02;
     }
 
     /**
@@ -4496,7 +4531,8 @@ final class MainWindow {
             GCodeToolpathParser.Result preview = imported.preview();
             String name = uniqueDerivedName(file.getName());
             TreeItem<String> item = addCncJobToProject(name, file.getName(), file.toPath(),
-                    imported.text(), preview.travelGeometry(), preview.cutGeometry());
+                    imported.text(), preview.travelGeometry(), preview.cutGeometry(),
+                    preview.travelCenterlines(), preview.cutCenterlines(), previewStrokeWidth(preview.units()));
             selectProjectItem(item);
             if (preview.plotAvailable()) {
                 setDisplayUnits(preview.units());
@@ -4835,6 +4871,9 @@ final class MainWindow {
                     String gcode = job.gcode() != null ? job.gcode() : Files.readString(outputPath);
                     Geometry travel = null;
                     Geometry cut = null;
+                    Geometry travelCenterlines = null;
+                    Geometry cutCenterlines = null;
+                    double previewStrokeWidth = 0;
                     String units = null;
                     try {
                         int jobIndex = processed;
@@ -4843,6 +4882,9 @@ final class MainWindow {
                                         "Analisando G-code " + outputPath.getFileName() + "..."));
                         travel = parsed.travelGeometry();
                         cut = parsed.cutGeometry();
+                        travelCenterlines = parsed.travelCenterlines();
+                        cutCenterlines = parsed.cutCenterlines();
+                        previewStrokeWidth = previewStrokeWidth(parsed.units());
                         units = parsed.plotAvailable() ? parsed.units() : null;
                         if (parsed.warning() != null) {
                             warnings.add("Aviso: " + outputPath.getFileName() + ": " + parsed.warning());
@@ -4853,7 +4895,8 @@ final class MainWindow {
                     }
                     String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
                     cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode,
-                            travel, cut, units, job.visible()));
+                            travel, cut, travelCenterlines, cutCenterlines,
+                            previewStrokeWidth, units, job.visible()));
                 } catch (IOException e) {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
@@ -4873,39 +4916,45 @@ final class MainWindow {
         handle.completion()
                 .thenAccept(project -> Platform.runLater(() -> {
                     long restoreStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
-                    clearProject();
-                    currentProjectImportWarnings = project.importWarnings();
-                    for (ProjectFile.GerberEntry loaded : project.gerbers()) {
-                        TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
-                        applyRestoredGerberState(item, loaded.image(), loaded);
-                        setDisplayUnits(loaded.image().units());
-                    }
-                    for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
-                        TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
-                                loaded.drillDefaults());
-                        applyRestoredExcellonState(item, loaded);
-                        setDisplayUnits(loaded.image().units());
-                    }
-                    for (ProjectFile.GeometryEntry loaded : project.geometries()) {
-                        TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
-                                loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
-                                loaded.cncDefaults());
-                        if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
-                            plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
-                                    Color.web(loaded.strokeColorWeb()));
+                    plotAreaView.beginBatchUpdate();
+                    try {
+                        clearProject();
+                        currentProjectImportWarnings = project.importWarnings();
+                        for (ProjectFile.GerberEntry loaded : project.gerbers()) {
+                            TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
+                            applyRestoredGerberState(item, loaded.image(), loaded);
+                            setDisplayUnits(loaded.image().units());
                         }
-                        if (!loaded.visible()) {
-                            setObjectVisible(item, false);
+                        for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
+                            TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
+                                    loaded.drillDefaults());
+                            applyRestoredExcellonState(item, loaded);
+                            setDisplayUnits(loaded.image().units());
                         }
-                        setDisplayUnits(loaded.units());
-                    }
-                    for (LoadedCncJob loaded : project.cncJobs()) {
-                        TreeItem<String> item = addCncJobToProject(loaded.name(), loaded.sourceName(),
-                                loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry());
-                        if (!loaded.visible()) setObjectVisible(item, false);
-                        if (loaded.units() != null) {
+                        for (ProjectFile.GeometryEntry loaded : project.geometries()) {
+                            TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
+                                    loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
+                                    loaded.cncDefaults());
+                            if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
+                                plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
+                                        Color.web(loaded.strokeColorWeb()));
+                            }
+                            if (!loaded.visible()) {
+                                setObjectVisible(item, false);
+                            }
                             setDisplayUnits(loaded.units());
                         }
+                        for (LoadedCncJob loaded : project.cncJobs()) {
+                            TreeItem<String> item = addCncJobToProject(loaded.name(), loaded.sourceName(),
+                                    loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry(),
+                                    loaded.travelCenterlines(), loaded.cutCenterlines(), loaded.previewStrokeWidth());
+                            if (!loaded.visible()) setObjectVisible(item, false);
+                            if (loaded.units() != null) {
+                                setDisplayUnits(loaded.units());
+                            }
+                        }
+                    } finally {
+                        plotAreaView.endBatchUpdate();
                     }
                     plotAreaView.logPerformancePhase("project restore (FX thread)", restoreStart);
                     project.warnings().forEach(this::appendConsole);

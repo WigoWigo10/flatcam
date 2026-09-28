@@ -5,6 +5,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import javafx.animation.AnimationTimer;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
@@ -19,12 +22,16 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.FillRule;
 import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.text.TextAlignment;
+import javafx.stage.Stage;
+import javafx.util.Duration;
 import org.flatcam.cam.gerber.edit.TrackBendMode;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.LineString;
+import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
 
 /**
@@ -55,6 +62,10 @@ final class PlotAreaView extends StackPane {
      */
     record RenderLayer(Geometry geometry, boolean strokeOnly, Color fillColor, Color strokeColor,
                         boolean visible, LayerCategory category, boolean filled, boolean multicolor) {
+    }
+
+    /** A cheaper visual-only CNC path used while the precise buffered stroke is subpixel. */
+    private record LodGeometry(Geometry centerlines, double strokeWidthWorld) {
     }
 
     /**
@@ -159,12 +170,26 @@ final class PlotAreaView extends StackPane {
             Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
 
     private final Canvas canvas = new Canvas();
+    private final AnimationTimer interactionRedrawTimer = new AnimationTimer() {
+        @Override
+        public void handle(long now) {
+            stop();
+            interactionRedrawPending = false;
+            redraw();
+        }
+    };
+    private boolean interactionRedrawPending;
     private final Canvas editorHighlightCanvas = new Canvas();
     private final Canvas snapCursorCanvas = new Canvas();
     private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
+    private final Map<Object, LodGeometry> lodLayers = new LinkedHashMap<>();
     private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
+    private final UiFluidityMetrics uiFluidity = new UiFluidityMetrics("fx");
+    private Timeline uiFluidityTimer;
+    private int batchDepth;
+    private boolean batchRedrawPending;
     private PlotPalette palette = ICE_LIGHT_PALETTE;
     private Geometry editorHighlightGeometry;
     private boolean editorHighlightStrokeOnly;
@@ -256,7 +281,28 @@ final class PlotAreaView extends StackPane {
             coordinateListener.accept("X: -   Y: -");
         });
 
+        if (Boolean.getBoolean(UiFluidityMetrics.ENABLED_PROPERTY)) {
+            uiFluidityTimer = new Timeline(new KeyFrame(Duration.millis(16),
+                    event -> sampleUiFluidity()));
+            uiFluidityTimer.setCycleCount(Timeline.INDEFINITE);
+            uiFluidityTimer.play();
+            System.err.println("[UI-FLUIDITY] app=fx enabled interval_ms=16 window_s=10");
+        }
+
         redraw();
+    }
+
+    private void sampleUiFluidity() {
+        if (getScene() == null || getScene().getWindow() == null
+                || !getScene().getWindow().isShowing()
+                || (getScene().getWindow() instanceof Stage stage && stage.isIconified())) {
+            uiFluidity.reset();
+            return;
+        }
+        String report = uiFluidity.tick(System.nanoTime());
+        if (report != null) {
+            System.err.println(report);
+        }
     }
 
     /** Updates every canvas-owned color immediately when the application theme changes. */
@@ -286,6 +332,20 @@ final class PlotAreaView extends StackPane {
         boolean filled = existing == null || existing.filled();
         boolean multicolor = existing != null && existing.multicolor();
         layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category, filled, multicolor));
+        lodLayers.remove(key);
+        redraw();
+    }
+
+    void setLayerCenterlineLod(Object key, Geometry centerlines, double strokeWidthWorld) {
+        if (!layers.containsKey(key)) {
+            return;
+        }
+        if (centerlines == null || centerlines.isEmpty() || !Double.isFinite(strokeWidthWorld)
+                || strokeWidthWorld <= 0) {
+            lodLayers.remove(key);
+        } else {
+            lodLayers.put(key, new LodGeometry(centerlines, strokeWidthWorld));
+        }
         redraw();
     }
 
@@ -296,6 +356,7 @@ final class PlotAreaView extends StackPane {
         }
         RenderLayer layer = layers.get(key);
         if (layer != null) {
+            lodLayers.remove(key);
             layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
                     layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
@@ -314,6 +375,7 @@ final class PlotAreaView extends StackPane {
             cancelPlacement();
         }
         layers.remove(key);
+        lodLayers.remove(key);
         redraw();
     }
 
@@ -382,9 +444,25 @@ final class PlotAreaView extends StackPane {
     void clearLayers() {
         cancelPlacement();
         layers.clear();
+        lodLayers.clear();
         editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
+    }
+
+    /** Coalesces the many layer mutations performed while restoring a project into one repaint. */
+    void beginBatchUpdate() {
+        batchDepth++;
+    }
+
+    void endBatchUpdate() {
+        if (batchDepth == 0) {
+            throw new IllegalStateException("No Plot Area batch update is active");
+        }
+        if (--batchDepth == 0 && batchRedrawPending) {
+            batchRedrawPending = false;
+            redraw();
+        }
     }
 
     void setCoordinateListener(java.util.function.Consumer<String> listener) {
@@ -805,7 +883,7 @@ final class PlotAreaView extends StackPane {
         viewCenterX += (contentX - contentWidth / 2.0) * factorInverse;
         viewCenterY -= (contentY - contentHeight / 2.0) * factorInverse;
         scale = newScale;
-        redraw();
+        requestInteractionRedraw();
         event.consume();
     }
 
@@ -957,7 +1035,7 @@ final class PlotAreaView extends StackPane {
         viewCenterY += dy / scale;
         lastDragScreenX = event.getX();
         lastDragScreenY = event.getY();
-        redraw();
+        requestInteractionRedraw();
         updateCoordLabel(event.getX(), event.getY());
     }
 
@@ -1083,13 +1161,31 @@ final class PlotAreaView extends StackPane {
 
     // --- Drawing --------------------------------------------------------
 
+    /** Pan and zoom may produce several input events per pulse; paint only their latest state. */
+    private void requestInteractionRedraw() {
+        if (!interactionRedrawPending) {
+            interactionRedrawPending = true;
+            interactionRedrawTimer.start();
+        }
+    }
+
     private void redraw() {
+        if (interactionRedrawPending) {
+            interactionRedrawTimer.stop();
+            interactionRedrawPending = false;
+        }
+        if (batchDepth > 0) {
+            batchRedrawPending = true;
+            return;
+        }
         boolean profiling = performance.enabled();
         long redrawStart = profiling ? System.nanoTime() : 0;
         double width = canvas.getWidth();
         double height = canvas.getHeight();
         double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
         double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+        Envelope viewBounds = visibleWorldBounds(viewCenterX, viewCenterY, scale,
+                contentWidth, contentHeight);
 
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.setFill(palette.background());
@@ -1110,16 +1206,29 @@ final class PlotAreaView extends StackPane {
         for (LayerCategory category : LayerCategory.values()) {
             for (Map.Entry<Object, RenderLayer> entry : layers.entrySet()) {
                 RenderLayer layer = entry.getValue();
-                if (layer.category() == category && layer.visible() && layer.geometry() != null && !layer.geometry().isEmpty()) {
+                LodGeometry lod = lodLayers.get(entry.getKey());
+                boolean lodActive = useCenterlineLod(layer, lod, scale);
+                Geometry drawnGeometry = lodActive ? lod.centerlines() : layer.geometry();
+                if (layer.category() == category && layer.visible() && drawnGeometry != null
+                        && !drawnGeometry.isEmpty() && intersectsViewport(drawnGeometry, viewBounds)) {
                     long layerStart = profiling ? System.nanoTime() : 0;
-                    drawLayer(gc, layer, contentWidth, contentHeight);
+                    if (lodActive) {
+                        gc.save();
+                        gc.setLineCap(StrokeLineCap.ROUND);
+                        drawLayer(gc, new RenderLayer(drawnGeometry, true, layer.fillColor(), layer.fillColor(),
+                                true, category, true, false), contentWidth, contentHeight, viewBounds);
+                        gc.restore();
+                    } else {
+                        drawLayer(gc, layer, contentWidth, contentHeight, viewBounds);
+                    }
                     if (profiling) {
                         long elapsed = System.nanoTime() - layerStart;
                         layerNanos += elapsed;
                         visibleLayers++;
                         Object key = entry.getKey();
                         String name = key instanceof TreeItem<?> item ? String.valueOf(item.getValue()) : String.valueOf(key);
-                        samples.add(new PlotAreaPerformance.LayerSample(category + ":" + name, elapsed));
+                        samples.add(new PlotAreaPerformance.LayerSample(
+                                category + ":" + name + (lodActive ? "[LOD]" : ""), elapsed));
                     }
                 }
             }
@@ -1143,6 +1252,18 @@ final class PlotAreaView extends StackPane {
 
     void logPerformancePhase(String phase, long startNanos) {
         performance.logPhase(phase, startNanos);
+    }
+
+    private static boolean useCenterlineLod(RenderLayer layer, LodGeometry lod, double scale) {
+        return layer.category() == LayerCategory.CNCJOB && lod != null
+                && shouldUseCenterlineLod(layer.filled(), layer.multicolor(),
+                        lod.strokeWidthWorld(), scale);
+    }
+
+    static boolean shouldUseCenterlineLod(boolean filled, boolean multicolor,
+                                          double strokeWidthWorld, double scale) {
+        return filled && !multicolor && strokeWidthWorld > 0 && scale > 0
+                && strokeWidthWorld * scale < 1.5;
     }
 
     private void drawEditorHighlight() {
@@ -1338,21 +1459,35 @@ final class PlotAreaView extends StackPane {
     }
 
     private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth, double contentHeight) {
+        drawLayer(gc, layer, contentWidth, contentHeight, null);
+    }
+
+    private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth,
+                           double contentHeight, Envelope viewBounds) {
         gc.setFillRule(FillRule.EVEN_ODD);
         gc.setLineWidth(layer.strokeOnly() ? 1.5 : 1);
 
         int[] partIndex = {0};
         forEachDrawablePart(layer.geometry(), part -> {
             Color partColor = layer.multicolor() ? multicolorHue(partIndex[0]++) : layer.fillColor();
+            if (viewBounds != null && !intersectsViewport(part, viewBounds)) {
+                return;
+            }
             gc.setFill(partColor);
             gc.setStroke(layer.multicolor() ? partColor.darker() : layer.strokeColor());
             if (layer.strokeOnly()) {
-                Coordinate[] coordinates = switch (part) {
-                    case LineString line -> line.getCoordinates();
-                    case Polygon polygon -> polygon.getExteriorRing().getCoordinates();
+                if (part instanceof Point point) {
+                    double[] position = worldToScreen(point.getX(), point.getY(), contentWidth, contentHeight);
+                    gc.fillOval(position[0] + RULER_LEFT_WIDTH - 0.75,
+                            position[1] + RULER_TOP_HEIGHT - 0.75, 1.5, 1.5);
+                    return;
+                }
+                CoordinateSequence coordinates = switch (part) {
+                    case LineString line -> line.getCoordinateSequence();
+                    case Polygon polygon -> polygon.getExteriorRing().getCoordinateSequence();
                     default -> null;
                 };
-                if (coordinates == null || coordinates.length == 0) {
+                if (coordinates == null || coordinates.size() == 0) {
                     return;
                 }
                 gc.beginPath();
@@ -1366,13 +1501,13 @@ final class PlotAreaView extends StackPane {
                 gc.stroke();
             } else if (part instanceof LineString line) {
                 gc.beginPath();
-                addRing(gc, line.getCoordinates(), contentWidth, contentHeight, false);
+                addRing(gc, line.getCoordinateSequence(), contentWidth, contentHeight, false);
                 gc.stroke();
             } else if (part instanceof Polygon polygon) {
                 gc.beginPath();
-                addRing(gc, polygon.getExteriorRing().getCoordinates(), contentWidth, contentHeight, true);
+                addRing(gc, polygon.getExteriorRing().getCoordinateSequence(), contentWidth, contentHeight, true);
                 for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
-                    addRing(gc, polygon.getInteriorRingN(r).getCoordinates(), contentWidth, contentHeight, true);
+                    addRing(gc, polygon.getInteriorRingN(r).getCoordinateSequence(), contentWidth, contentHeight, true);
                 }
                 // The legacy app's "Solid" plot option: filled copper/holes vs. outline-only.
                 if (layer.filled()) {
@@ -1403,19 +1538,52 @@ final class PlotAreaView extends StackPane {
         return Color.hsb(hue, 0.65, 0.85);
     }
 
-    private void addRing(GraphicsContext gc, Coordinate[] coordinates, double contentWidth, double contentHeight, boolean close) {
-        if (coordinates.length == 0) {
+    /** Includes a small stroke margin so paths touching the plot edge are not culled. */
+    static Envelope visibleWorldBounds(double centerX, double centerY, double scale,
+                                       double contentWidth, double contentHeight) {
+        double margin = 2.0 / scale;
+        return new Envelope(centerX - contentWidth / (2 * scale) - margin,
+                centerX + contentWidth / (2 * scale) + margin,
+                centerY - contentHeight / (2 * scale) - margin,
+                centerY + contentHeight / (2 * scale) + margin);
+    }
+
+    static boolean intersectsViewport(Geometry geometry, Envelope viewBounds) {
+        return geometry.getEnvelopeInternal().intersects(viewBounds);
+    }
+
+    private void addRing(GraphicsContext gc, CoordinateSequence coordinates,
+                         double contentWidth, double contentHeight, boolean close) {
+        if (coordinates.size() == 0) {
             return;
         }
-        double[] first = worldToScreen(coordinates[0].x, coordinates[0].y, contentWidth, contentHeight);
-        gc.moveTo(first[0] + RULER_LEFT_WIDTH, first[1] + RULER_TOP_HEIGHT);
-        for (int i = 1; i < coordinates.length; i++) {
-            double[] p = worldToScreen(coordinates[i].x, coordinates[i].y, contentWidth, contentHeight);
-            gc.lineTo(p[0] + RULER_LEFT_WIDTH, p[1] + RULER_TOP_HEIGHT);
+        double offsetX = RULER_LEFT_WIDTH + contentWidth / 2.0 - viewCenterX * scale;
+        double offsetY = RULER_TOP_HEIGHT + contentHeight / 2.0 + viewCenterY * scale;
+        double lastX = coordinates.getX(0) * scale + offsetX;
+        double lastY = offsetY - coordinates.getY(0) * scale;
+        gc.moveTo(lastX, lastY);
+        for (int i = 1; i < coordinates.size(); i++) {
+            double x = coordinates.getX(i) * scale + offsetX;
+            double y = offsetY - coordinates.getY(i) * scale;
+            // An open Geometry/CNC path can omit subpixel intermediate moves.
+            // Keep its final endpoint; closed polygon rings must retain every
+            // vertex to avoid changing fill topology and hole boundaries.
+            if (omitSubpixelOpenPathVertex(close, i, coordinates.size(), x - lastX, y - lastY)) {
+                continue;
+            }
+            gc.lineTo(x, y);
+            lastX = x;
+            lastY = y;
         }
         if (close) {
             gc.closePath();
         }
+    }
+
+    static boolean omitSubpixelOpenPathVertex(boolean closed, int index, int size,
+                                              double deltaX, double deltaY) {
+        return !closed && index < size - 1
+                && Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5;
     }
 
     private void drawRulers(GraphicsContext gc, double width, double height, double contentWidth, double contentHeight, double step) {
