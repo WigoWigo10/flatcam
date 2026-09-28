@@ -81,6 +81,7 @@ import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
+import org.flatcam.cam.excellon.ExcellonExporter;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonMillingGenerator;
 import org.flatcam.cam.excellon.ExcellonParser;
@@ -2806,8 +2807,9 @@ final class MainWindow {
         CncJobEntry cncJob = cncJobByItem.get(item);
         GeometryEntry geometry = geometryByItem.get(item);
         GerberImage gerber = gerberByItem.get(item);
+        ExcellonImage excellon = excellonByItem.get(item);
         Path sourcePath = sourcePathByItem.get(item);
-        if (cncJob == null && geometry == null && gerber == null && sourcePath == null) {
+        if (cncJob == null && geometry == null && gerber == null && excellon == null && sourcePath == null) {
             appendConsole("Nao ha conteudo exportavel para " + item.getValue() + ".");
             return;
         }
@@ -2823,6 +2825,8 @@ final class MainWindow {
             if (!suggestedName.matches("(?i).*\\.(gbr|cmp|gtl|gbl|gm1|txt)$")) {
                 suggestedName += ".gbr";
             }
+        } else if (excellon != null && !suggestedName.matches("(?i).*\\.(drl|exc|txt|xln)$")) {
+            suggestedName += ".drl";
         }
         chooser.setInitialFileName(suggestedName);
         if (geometry != null) {
@@ -2830,7 +2834,7 @@ final class MainWindow {
         } else if (gerber != null) {
             chooser.getExtensionFilters().add(
                     new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
-        } else if (excellonByItem.containsKey(item)) {
+        } else if (excellon != null) {
             chooser.getExtensionFilters().add(
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
         } else {
@@ -2856,6 +2860,8 @@ final class MainWindow {
                 Files.writeString(target, cncJob.gcode());
             } else if (gerber != null) {
                 new GerberExporter().write(gerber, target);
+            } else if (excellon != null) {
+                new ExcellonExporter().write(excellon, target);
             } else if (!sourcePath.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
                 Files.copy(sourcePath, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -4872,6 +4878,10 @@ final class MainWindow {
                     project.warnings().forEach(this::appendConsole);
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                     appendConsole("Projeto aberto: " + file);
+                    if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")) {
+                        appendConsole("Projeto Python importado. Salvar Projeto grava apenas .fcnproj; "
+                                + "o arquivo .FlatPrj original nao sera alterado.");
+                    }
                     updateProgress(1);
                     setStatus("Concluido.", IDLE_COLOR);
                     onJobFinished();

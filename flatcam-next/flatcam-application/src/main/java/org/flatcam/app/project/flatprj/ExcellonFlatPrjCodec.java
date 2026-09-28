@@ -3,6 +3,7 @@ package org.flatcam.app.project.flatprj;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.json.JSONArray;
@@ -99,7 +100,13 @@ public final class ExcellonFlatPrjCodec {
     }
 
     public static Decoded fromJson(JSONObject json) {
-        String units = json.optString("excellon_units", json.optString("units", "MM"));
+        String units = json.optString("excellon_units", json.optString("units", "MM"))
+                .toUpperCase(Locale.ROOT);
+        units = switch (units) {
+            case "MM", "METRIC" -> "MM";
+            case "IN", "INCH" -> "IN";
+            default -> throw new IllegalArgumentException("Unsupported Excellon units: " + units);
+        };
         Geometry solidGeometry = WktJson.unwrap(json.opt("solid_geometry"));
 
         Map<Integer, Double> toolDiameters = new LinkedHashMap<>();

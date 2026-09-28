@@ -12,6 +12,7 @@ import java.util.List;
 import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.app.project.flatprj.WktJson;
+import org.flatcam.cam.excellon.ExcellonExporter;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gerber.GerberParser;
 import org.json.JSONArray;
@@ -79,6 +80,24 @@ class PythonProjectIOTest {
     }
 
     @Test
+    void normalizesPythonInchLabelForExcellonOperations() throws IOException {
+        var image = new ExcellonParser().parse(List.of(
+                "M48", "INCH", "T1C0.03125", "%", "T1", "X1.0Y2.0", "M30"));
+        JSONObject object = ExcellonFlatPrjCodec.toJson("holes.drl", image,
+                null, null, true, true, false);
+        object.put("excellon_units", "INCH");
+        Path file = tempDir.resolve("inch.FlatPrj");
+        Files.writeString(file, new JSONObject().put("version", 8.994)
+                .put("objs", new JSONArray().put(object)).toString());
+
+        var restored = PythonProjectIO.load(file).excellons().get(0).image();
+
+        assertEquals("IN", restored.units());
+        assertEquals(image.drills(), new ExcellonParser()
+                .parse(new ExcellonExporter().export(restored).lines().toList()).drills());
+    }
+
+    @Test
     void optionalRealPythonProjectFixture() throws IOException {
         String fixture = System.getProperty("flatcam.python.project.fixture");
         Assumptions.assumeTrue(fixture != null && !fixture.isBlank());
@@ -89,7 +108,17 @@ class PythonProjectIOTest {
         assertEquals(9, project.cncJobs().size());
         assertTrue(project.cncJobs().stream().noneMatch(ProjectFile.CncJobRecord::visible));
         assertTrue(project.gerbers().stream().allMatch(entry -> !entry.image().isEmpty()));
+        assertTrue(project.gerbers().stream().allMatch(entry ->
+                "MM".equals(entry.image().units()) || "IN".equals(entry.image().units())));
         assertTrue(project.excellons().stream().allMatch(entry -> !entry.image().isEmpty()));
+        ExcellonExporter exporter = new ExcellonExporter();
+        ExcellonParser parser = new ExcellonParser();
+        for (ProjectFile.ExcellonEntry entry : project.excellons()) {
+            var reopened = parser.parse(exporter.export(entry.image()).lines().toList());
+            assertEquals(entry.image().toolDiameters(), reopened.toolDiameters());
+            assertEquals(entry.image().drills(), reopened.drills());
+            assertEquals(entry.image().slots(), reopened.slots());
+        }
         assertTrue(project.geometries().stream().allMatch(entry -> !entry.geometry().isEmpty()));
         assertTrue(project.cncJobs().stream().allMatch(entry -> !entry.gcode().isBlank()));
     }
