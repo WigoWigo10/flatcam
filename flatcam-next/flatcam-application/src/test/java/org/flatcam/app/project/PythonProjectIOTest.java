@@ -1,0 +1,96 @@
+package org.flatcam.app.project;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
+import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
+import org.flatcam.app.project.flatprj.WktJson;
+import org.flatcam.cam.excellon.ExcellonParser;
+import org.flatcam.cam.gerber.GerberParser;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+
+class PythonProjectIOTest {
+    @TempDir Path tempDir;
+
+    @Test
+    void importsPythonStyleGeometryListsAndAllFourObjectKinds() throws IOException {
+        var gerber = new GerberParser().parse(List.of(
+                "%FSLAX24Y24*%", "%MOMM*%", "%ADD10C,1*%", "D10*", "X10000Y10000D03*", "M02*"));
+        var excellon = new ExcellonParser().parse(List.of(
+                "M48", "METRIC", "T1C1.0", "%", "T1", "X1.0Y1.0", "M30"));
+        JSONObject gerberJson = GerberFlatPrjCodec.toJson("top.gbr", gerber,
+                "#00FF00bf", "#00b200", true, true, false, false);
+        gerberJson.put("solid_geometry", new JSONArray().put(gerberJson.get("solid_geometry")));
+        JSONObject excellonJson = ExcellonFlatPrjCodec.toJson("holes.drl", excellon,
+                "#FF00FFbf", "#b200b2", true, true, false);
+        excellonJson.put("solid_geometry", new JSONArray().put(excellonJson.get("solid_geometry")));
+        Geometry path = new GeometryFactory().createLineString(new Coordinate[]{
+                new Coordinate(0, 0), new Coordinate(10, 0)});
+        JSONObject geometryJson = new JSONObject().put("kind", "geometry").put("units", "MM")
+                .put("options", new JSONObject().put("name", "isolation_top").put("plot", false))
+                .put("solid_geometry", new JSONArray().put(WktJson.wrap(path)))
+                .put("tools", new JSONObject().put("1", new JSONObject().put("tooldia", 0.2)
+                        .put("tool_type", "C2")
+                        .put("solid_geometry", new JSONArray().put(WktJson.wrap(path)))));
+        JSONObject jobJson = new JSONObject().put("kind", "cncjob")
+                .put("options", new JSONObject().put("name", "isolation_top_cnc").put("plot", false))
+                .put("gcode", "G21\nG0 X0 Y0\nG1 Z-0.1\nG1 X10\nM30\n");
+        JSONObject root = new JSONObject().put("version", 8.994)
+                .put("objs", new JSONArray().put(gerberJson).put(excellonJson).put(geometryJson).put(jobJson));
+        Path file = tempDir.resolve("python.FlatPrj");
+        Files.writeString(file, root.toString());
+
+        ProjectFile project = PythonProjectIO.load(file);
+        assertEquals(1, project.gerbers().size());
+        assertFalse(project.gerbers().get(0).image().solidGeometry().isEmpty());
+        assertEquals(1, project.excellons().size());
+        assertEquals(1, project.excellons().get(0).image().totalDrills());
+        assertFalse(project.excellons().get(0).image().solidGeometry().isEmpty());
+        assertEquals(1, project.geometries().size());
+        assertTrue(project.geometries().get(0).strokeOnly());
+        assertEquals(0.2, project.geometries().get(0).tools().get(0).toolDiameter());
+        assertFalse(project.geometries().get(0).visible());
+        assertEquals(1, project.cncJobs().size());
+        assertFalse(project.cncJobs().get(0).visible());
+        assertTrue(project.cncJobs().get(0).gcode().contains("G1 X10"));
+        assertThrows(IOException.class, () -> ProjectFileIO.load(file));
+    }
+
+    @Test
+    void rejectsUnknownObjectInsteadOfSilentlyDroppingIt() throws IOException {
+        Path file = tempDir.resolve("unknown.FlatPrj");
+        Files.writeString(file, new JSONObject().put("version", 8.994).put("objs",
+                new JSONArray().put(new JSONObject().put("kind", "unknown"))).toString());
+        assertThrows(IOException.class, () -> PythonProjectIO.load(file));
+    }
+
+    @Test
+    void optionalRealPythonProjectFixture() throws IOException {
+        String fixture = System.getProperty("flatcam.python.project.fixture");
+        Assumptions.assumeTrue(fixture != null && !fixture.isBlank());
+        ProjectFile project = PythonProjectIO.load(Path.of(fixture));
+        assertEquals(3, project.gerbers().size());
+        assertEquals(3, project.excellons().size());
+        assertEquals(3, project.geometries().size());
+        assertEquals(9, project.cncJobs().size());
+        assertTrue(project.cncJobs().stream().noneMatch(ProjectFile.CncJobRecord::visible));
+        assertTrue(project.gerbers().stream().allMatch(entry -> !entry.image().isEmpty()));
+        assertTrue(project.excellons().stream().allMatch(entry -> !entry.image().isEmpty()));
+        assertTrue(project.geometries().stream().allMatch(entry -> !entry.geometry().isEmpty()));
+        assertTrue(project.cncJobs().stream().allMatch(entry -> !entry.gcode().isBlank()));
+    }
+}

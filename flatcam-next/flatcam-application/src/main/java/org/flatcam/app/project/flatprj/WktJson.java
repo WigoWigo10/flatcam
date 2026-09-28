@@ -1,5 +1,8 @@
 package org.flatcam.app.project.flatprj;
 
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -43,8 +46,16 @@ public final class WktJson {
         return wrapped;
     }
 
-    /** {@code null} for a JSON null/missing value or anything not shaped like a wrapped geometry. */
+    /** Reads one wrapped geometry or Python's nested lists of wrapped geometries. */
     public static Geometry unwrap(Object value) {
+        if (value instanceof JSONArray array) {
+            List<Geometry> parts = new ArrayList<>();
+            for (int i = 0; i < array.length(); i++) {
+                Geometry part = unwrap(array.get(i));
+                if (part != null && !part.isEmpty()) parts.add(part);
+            }
+            return parts.isEmpty() ? FACTORY.createGeometryCollection() : FACTORY.buildGeometry(parts);
+        }
         if (!(value instanceof JSONObject wrapped) || !wrapped.has(INST_KEY)) {
             return null;
         }

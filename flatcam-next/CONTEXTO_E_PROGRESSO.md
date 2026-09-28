@@ -352,7 +352,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`, e Milling Tool que cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
 | Geometry | parcial | multi-tool via NCC; Geometry → CNC preserva cada ferramenta e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, Paint, borracha e Panelize faltam |
 | CNC Job | parcial | geração, plot, abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; faltam pós-processadores e várias opções avançadas do legado |
-| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry e texto G-code; abrir/salvar projetos `.FlatPrj` reais do Python ainda não é suportado |
+| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry e texto G-code; importação somente leitura de `.FlatPrj` Python 8.9xx para esses quatro tipos, validada com um projeto real 8.994; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | parcial | NCC, Isolation e Drilling leem ferramentas de um `.FlatDB` escolhido pelo usuário; editor/salvamento do banco e integração com outras ferramentas faltam |

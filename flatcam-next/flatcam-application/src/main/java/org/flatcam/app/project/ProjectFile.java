@@ -50,13 +50,18 @@ public record ProjectFile(
     }
 
     /** {@code name}/{@code gcode} are null for older path-only projects. */
-    public record CncJobRecord(String name, String sourceName, String outputPath, String gcode) {
+    public record CncJobRecord(String name, String sourceName, String outputPath, String gcode,
+                               boolean visible) {
+        public CncJobRecord(String name, String sourceName, String outputPath, String gcode) {
+            this(name, sourceName, outputPath, gcode, true);
+        }
+
         public CncJobRecord(String sourceName, String outputPath) {
-            this(null, sourceName, outputPath, null);
+            this(null, sourceName, outputPath, null, true);
         }
 
         public CncJobRecord(String sourceName, String outputPath, String gcode) {
-            this(null, sourceName, outputPath, gcode);
+            this(null, sourceName, outputPath, gcode, true);
         }
     }
 }

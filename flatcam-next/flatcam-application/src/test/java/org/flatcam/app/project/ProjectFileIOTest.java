@@ -33,6 +33,15 @@ class ProjectFileIOTest {
     @TempDir
     Path tempDir;
 
+    @Test
+    void preservesHiddenCncJobWhenSavingNativeProject() throws IOException {
+        ProjectFile.CncJobRecord hidden = new ProjectFile.CncJobRecord(
+                "cut_cnc", "outline", "cut.nc", "G21\nG0 X0 Y0\nM30\n", false);
+        Path file = tempDir.resolve("hidden-job.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(hidden)), file);
+        assertFalse(ProjectFileIO.load(file).cncJobs().get(0).visible());
+    }
+
     private static final GerberImage RECTANGLE_GERBER = new GerberParser().parse(List.of(
             "%FSLAX24Y24*%", "%MOMM*%", "%ADD10R,2X1*%", "D10*", "X0Y0D03*", "M02*"));
 

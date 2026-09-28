@@ -30,8 +30,9 @@ import org.locationtech.jts.io.WKTWriter;
  * Reads/writes the native {@code .fcnproj} format. Its outer JSON tree and
  * Gerber/Excellon WKT encoding follow the Python {@code .FlatPrj} conventions,
  * and it supports plain JSON or XZ compression. This is not yet a full
- * {@code .FlatPrj} reader/writer: the native version is 2, whereas this
- * Python writes 8.994, and only native project versions 1/2 are accepted.
+ * {@code .FlatPrj} reader/writer: the native version is 2, whereas Python
+ * writes 8.994. {@link PythonProjectIO} handles read-only Python imports;
+ * this class accepts only native project versions 1/2.
  * CNC Job and Geometry entries are carried in a {@code "_java"} extension key a real FlatCAM
  * Python install would simply ignore (unknown top-level keys are never
  * consulted by its loader) - see {@link ProjectFile}'s own doc for what's
@@ -40,7 +41,7 @@ import org.locationtech.jts.io.WKTWriter;
  * <p>Still uses the {@code .fcnproj} extension by convention (not
  * {@code .FlatPrj}) so a file's extension keeps telling a user which app
  * saved it. A separate compatibility codec and real Python fixtures are
- * needed before advertising import/export of {@code .FlatPrj} files.
+ * needed before advertising export of {@code .FlatPrj} files.
  */
 public final class ProjectFileIO {
 
@@ -79,6 +80,7 @@ public final class ProjectFileIO {
             }
             jobJson.put("sourceName", job.sourceName());
             jobJson.put("outputPath", job.outputPath());
+            jobJson.put("visible", job.visible());
             if (job.gcode() != null) {
                 jobJson.put("gcode", job.gcode());
             }
@@ -220,13 +222,13 @@ public final class ProjectFileIO {
                 JSONObject jobJson = jobsArray.getJSONObject(i);
                 jobs.add(new ProjectFile.CncJobRecord(jobJson.optString("name", null),
                         jobJson.getString("sourceName"), jobJson.getString("outputPath"),
-                        jobJson.optString("gcode", null)));
+                        jobJson.optString("gcode", null), jobJson.optBoolean("visible", true)));
             }
         }
         return jobs;
     }
 
-    private static JSONObject parseRoot(byte[] raw) throws IOException {
+    static JSONObject parseRoot(byte[] raw) throws IOException {
         try {
             return new JSONObject(new String(raw, StandardCharsets.UTF_8));
         } catch (JSONException plainFailed) {

@@ -75,6 +75,7 @@ import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.app.project.ProjectFile;
+import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
@@ -165,7 +166,7 @@ final class MainWindow {
     }
 
     private record LoadedCncJob(String name, String sourceName, Path outputPath, String gcode,
-                                Geometry travelGeometry, Geometry cutGeometry, String units) {
+                                Geometry travelGeometry, Geometry cutGeometry, String units, boolean visible) {
     }
 
     private record ImportedGCode(String text, GCodeToolpathParser.Result preview) {
@@ -4685,7 +4686,7 @@ final class MainWindow {
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.entrySet().stream()
                 .map(entry -> new ProjectFile.CncJobRecord(entry.getKey().getValue(),
                         entry.getValue().sourceName(), entry.getValue().outputFile().toString(),
-                        entry.getValue().gcode()))
+                        entry.getValue().gcode(), isObjectVisible(entry.getKey())))
                 .toList();
         List<ProjectFile.GeometryEntry> geometries = new ArrayList<>();
         for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
@@ -4709,6 +4710,10 @@ final class MainWindow {
         }
         File file = chooser.showSaveDialog(scene.getWindow());
         if (file == null) {
+            return;
+        }
+        if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")) {
+            appendConsole("Salvar no formato .FlatPrj do Python ainda nao e suportado. Use .fcnproj.");
             return;
         }
 
@@ -4760,7 +4765,10 @@ final class MainWindow {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Abrir Projeto");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"));
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Projetos FlatCAM", "*.fcnproj", "*.FlatPrj"),
+                new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
+                new FileChooser.ExtensionFilter("Projeto FlatCAM Python", "*.FlatPrj"));
         String fallbackDir = Path.of("").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -4776,7 +4784,8 @@ final class MainWindow {
             CancellationToken cancellation = context::isCancelled;
             cancellation.throwIfCancellationRequested();
             context.reportProgress(0.05, "Lendo " + file.getName() + "...");
-            ProjectFile project = ProjectFileIO.load(file.toPath());
+            ProjectFile project = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")
+                    ? PythonProjectIO.load(file.toPath()) : ProjectFileIO.load(file.toPath());
             cancellation.throwIfCancellationRequested();
             context.reportProgress(0.5, "Projeto decodificado.");
 
@@ -4809,7 +4818,8 @@ final class MainWindow {
                                 + " indisponivel: " + invalidGcode.getMessage());
                     }
                     String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
-                    cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode, travel, cut, units));
+                    cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode,
+                            travel, cut, units, job.visible()));
                 } catch (IOException e) {
                     warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
                 }
@@ -4852,8 +4862,9 @@ final class MainWindow {
                         setDisplayUnits(loaded.units());
                     }
                     for (LoadedCncJob loaded : project.cncJobs()) {
-                        addCncJobToProject(loaded.name(), loaded.sourceName(),
+                        TreeItem<String> item = addCncJobToProject(loaded.name(), loaded.sourceName(),
                                 loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry());
+                        if (!loaded.visible()) setObjectVisible(item, false);
                         if (loaded.units() != null) {
                             setDisplayUnits(loaded.units());
                         }
