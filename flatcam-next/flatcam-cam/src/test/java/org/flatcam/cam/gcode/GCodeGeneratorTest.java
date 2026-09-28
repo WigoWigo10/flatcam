@@ -2,6 +2,7 @@ package org.flatcam.cam.gcode;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -29,6 +30,58 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.junit.jupiter.api.Test;
 
 class GCodeGeneratorTest {
+
+    @Test
+    void pythonDrillProfilesEmitTheirDistinctControllerCommands() {
+        ExcellonImage image = parse("M48", "METRIC", "T1C0.8", "T2C1.0", "%",
+                "T1", "X1.0Y1.0", "T2", "X3.0Y3.0", "M30");
+        var settings = Map.of(1, new DrillGCodeParameters(2, 0.7, 150, 12000, true),
+                2, new DrillGCodeParameters(2, 0.7, 150, 12000, true));
+        var options = new GCodeGenerator.DrillJobOptions(true, 15, 2, null, null);
+
+        String grbl = GCodeGenerator.generateDrillCncJob(image, settings, List.of(1, 2),
+                options, GCodePreprocessor.GRBL_11).gcode();
+        assertTrue(grbl.contains("G90\nG17\nG94"));
+        assertTrue(grbl.contains("G00 Z15.0000\nT1\nM6"));
+        assertTrue(grbl.contains("T2\nM6"));
+        assertTrue(grbl.contains("M03 S12000"));
+        assertTrue(grbl.contains("G01 Z-0.7000 F150.0000"));
+        assertEquals(2, countOccurrences(grbl, "\nM6\n"));
+        assertNull(GCodeToolpathParser.parse(grbl, CancellationToken.none(), ignored -> {}).warning());
+
+        String noM6 = GCodeGenerator.generateDrillCncJob(image, settings, List.of(1, 2),
+                options, GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        assertFalse(noM6.contains("\nM6\n"));
+        assertTrue(noM6.contains("T2\n("));
+        assertEquals(2, countOccurrences(noM6, "\nM0\n"));
+
+        String mach3 = GCodeGenerator.generateDrillCncJob(image, settings, List.of(1, 2),
+                options, GCodePreprocessor.DEFAULT).gcode();
+        assertFalse(mach3.contains("G17"));
+        assertEquals(2, countOccurrences(mach3, "\nM6\n"));
+    }
+
+    @Test
+    void pythonGeometryProfileChangesToolsWhilePortableOutputStaysUnchanged() {
+        GeometryFactory factory = new GeometryFactory();
+        var line = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 0)});
+        var tools = List.of(new ToolGeometry(0.8, line), new ToolGeometry(1.0, line));
+        var params = new GeometryGCodeParameters(2, 1, false, 1, 100, 12000, true);
+
+        String legacy = GCodeGenerator.generateGeometryCncJob("MM", tools, params).gcode();
+        String explicitPortable = GCodeGenerator.generateGeometryCncJob("MM", tools, params,
+                Map.of(), CancellationToken.none(), GCodePreprocessor.FX_PORTABLE).gcode();
+        assertEquals(legacy, explicitPortable);
+
+        String mach3 = GCodeGenerator.generateGeometryCncJob("MM", tools, params,
+                Map.of(), CancellationToken.none(), GCodePreprocessor.DEFAULT_NO_M6).gcode();
+        assertTrue(mach3.contains("T1\n("));
+        assertTrue(mach3.contains("T2\n("));
+        assertFalse(mach3.contains("\nM6\n"));
+        assertTrue(mach3.contains("G00 X0.0000 Y0.0000"));
+        assertTrue(mach3.contains("G01 Z-1.0000 F100.0000"));
+        assertNull(GCodeToolpathParser.parse(mach3, CancellationToken.none(), ignored -> {}).warning());
+    }
 
     @Test
     void vTipGeometryCannotGenerateCncWithOrdinaryFixedDepth() {

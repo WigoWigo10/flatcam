@@ -29,9 +29,11 @@ import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
+import javafx.util.StringConverter;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
+import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.LegacyToolsDatabase;
 
 /** Python-style drilling panel. Machining values are stored per Excellon tool. */
@@ -43,7 +45,8 @@ final class DrillGCodeToolPanel {
     }
 
     record Result(SourceCandidate source, Map<Integer, DrillGCodeParameters> settingsByTool,
-                  List<Integer> orderedToolIds, GCodeGenerator.DrillJobOptions options) { }
+                  List<Integer> orderedToolIds, GCodeGenerator.DrillJobOptions options,
+                  GCodePreprocessor preprocessor) { }
 
     private static final class ToolRow {
         final int id;
@@ -323,10 +326,21 @@ final class DrillGCodeToolPanel {
         TextField endMoveXY = field("None");
         endMoveXY.setPromptText("None ou X,Y");
         endMoveXY.setTooltip(new Tooltip("O movimento XY final usa End move Z como altura; confirme que esta livre de obstaculos."));
-        ComboBox<String> preprocessor = new ComboBox<>(FXCollections.observableArrayList("default"));
-        preprocessor.setValue("default");
-        preprocessor.setDisable(true);
-        preprocessor.setTooltip(new Tooltip("O gerador do FX possui apenas o preprocessor default."));
+        ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
+                FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
+        preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+        preprocessor.setConverter(new StringConverter<>() {
+            @Override public String toString(GCodePreprocessor value) {
+                return value == null ? "" : value.label();
+            }
+            @Override public GCodePreprocessor fromString(String value) {
+                return preprocessor.getValue();
+            }
+        });
+        preprocessor.setMinWidth(0);
+        preprocessor.setMaxWidth(Double.MAX_VALUE);
+        preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
+                + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
         GridPane common = new GridPane();
         common.setHgap(8);
         common.setVgap(8);
@@ -377,7 +391,7 @@ final class DrillGCodeToolPanel {
                         toolChange.isSelected(), changeZ, endZ, endX, endY);
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),
-                        List.copyOf(orderedIds), options));
+                        List.copyOf(orderedIds), options, preprocessor.getValue()));
             } catch (RuntimeException error) { errorLabel.setText(error.getMessage()); }
         });
         Button reset = new Button("Reset Tool");
@@ -390,6 +404,7 @@ final class DrillGCodeToolPanel {
             toolChangeZ.setText(metric ? "15.0" : "0.6");
             endMoveZ.setText(metric ? "0.5" : "0.02");
             endMoveXY.setText("None");
+            preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
             feedback.setText("");
             errorLabel.setText("");
         });

@@ -170,7 +170,6 @@ final class TransformToolPanel {
         resetToDefaults.run();
 
         Button resetButton = new Button("Reset Tool");
-        resetButton.setGraphic(Icons.fromResource("reset32.png", 16));
         resetButton.setMaxWidth(Double.MAX_VALUE);
         resetButton.setOnAction(e -> resetToDefaults.run());
         Button closeButton = new Button("Fechar");

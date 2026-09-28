@@ -1551,6 +1551,7 @@ final class MainWindow {
         setSidebarVisible(true);
         toolTab.setText(label);
         if (!content.getStyleClass().contains("tool-panel")) content.getStyleClass().add("tool-panel");
+        ToolPanelIcons.decorate(content, fileName -> legacyIcon(fileName, 16));
         ScrollPane scroll = new ScrollPane(content);
         scroll.getStyleClass().add("tool-panel-scroll");
         scroll.setFitToWidth(true);
@@ -1985,6 +1986,7 @@ final class MainWindow {
             setLegacyMenuIcon(fitAll, "zoom_fit32.png");
             fitAll.setOnAction(e -> plotAreaView.fitAllVisible());
             MenuItem clearSelection = new MenuItem("Limpar selecao");
+            setLegacyMenuIcon(clearSelection, "deselect_all32.png");
             clearSelection.setOnAction(e -> projectTree.getSelectionModel().clearSelection());
             clearSelection.setDisable(!anyProjectObjectSelected());
             plotContextMenu = new ContextMenu(fitAll, clearSelection);
@@ -2484,6 +2486,7 @@ final class MainWindow {
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
@@ -2538,6 +2541,7 @@ final class MainWindow {
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
@@ -2596,6 +2600,7 @@ final class MainWindow {
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
         MenuItem copyItem = new MenuItem("Copiar");
         setLegacyMenuIcon(copyItem, "copy32.png");
@@ -2747,6 +2752,7 @@ final class MainWindow {
         });
 
         MenuItem renameItem = new MenuItem("Renomear");
+        setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
 
         MenuItem copyItem = new MenuItem("Copiar");
@@ -3114,7 +3120,7 @@ final class MainWindow {
 
         try {
             CncJobResult job = GCodeGenerator.generateDrillCncJob(image, result.settingsByTool(),
-                    result.orderedToolIds(), result.options());
+                    result.orderedToolIds(), result.options(), result.preprocessor());
             Files.writeString(outFile.toPath(), job.gcode());
             Map<Integer, DrillGCodeParameters> updatedDefaults = new LinkedHashMap<>(
                     drillDefaultsByItem.getOrDefault(item, Map.of()));
@@ -3746,7 +3752,7 @@ final class MainWindow {
         JobHandle<CncJobResult> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
             CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), result.tools(),
-                    result.parameters(), result.vTools(), context::isCancelled);
+                    result.parameters(), result.vTools(), context::isCancelled, result.preprocessor());
             context.checkCancelled();
             context.reportProgress(0.90, "Salvando G-code de Geometry...");
             Files.writeString(outFile.toPath(), job.gcode());
@@ -3889,6 +3895,7 @@ final class MainWindow {
         box.getChildren().add(labeledRow("Plot:", plotCb, followCb));
 
         Button isolationButton = new Button("Isolation Routing");
+        isolationButton.setGraphic(legacyIcon("iso_16.png", 16));
         isolationButton.getStyleClass().add("primary-action");
         isolationButton.setMaxWidth(Double.MAX_VALUE);
         isolationButton.setOnAction(e -> generateIsolation(item, image));
@@ -3927,6 +3934,7 @@ final class MainWindow {
         content.setPadding(new Insets(8));
 
         Button followButton = new Button("Gerar Geometry Follow");
+        followButton.setGraphic(legacyIcon("geometry32.png", 16));
         followButton.setMaxWidth(Double.MAX_VALUE);
         followButton.setOnAction(e -> addDerivedGeometry(item, image, "_follow", image.followGeometry(), true));
 
@@ -4113,7 +4121,7 @@ final class MainWindow {
     }
 
     private Node buildGeometryPropertiesPanel(TreeItem<String> item, GeometryEntry entry) {
-        VBox box = objectPropertiesHeader("Geometry Object", GEOMETRY_STROKE);
+        VBox box = objectPropertiesHeader("Geometry Object", GEOMETRY_STROKE, "geometry32.png");
         box.getChildren().add(nameRow(item));
 
         CheckBox plotCb = new CheckBox();
@@ -4129,18 +4137,21 @@ final class MainWindow {
         box.getChildren().add(cncButton);
 
         Button nccButton = new Button("NCC Tool");
+        nccButton.setGraphic(legacyIcon("eraser26.png", 16));
         nccButton.setMaxWidth(Double.MAX_VALUE);
         nccButton.setOnAction(e -> generateNcc(item, entry));
         box.getChildren().add(nccButton);
 
         if (entry.geometry() != null && !entry.geometry().isEmpty() && entry.geometry().getDimension() == 2) {
             Button cutoutButton = new Button("Cutout Tool");
+            cutoutButton.setGraphic(legacyIcon("cut32_bis.png", 16));
             cutoutButton.setMaxWidth(Double.MAX_VALUE);
             cutoutButton.setOnAction(e -> generateCutout(item, entry));
             box.getChildren().add(cutoutButton);
         }
 
         Button editButton = new Button("Editar Geometry");
+        editButton.setGraphic(legacyIcon("edit_file32.png", 16));
         editButton.setMaxWidth(Double.MAX_VALUE);
         editButton.setOnAction(e -> {
             selectProjectItem(item);
@@ -4170,7 +4181,7 @@ final class MainWindow {
      * has no toolpath geometry (a reloaded project - see CncJobEntry's doc).
      */
     private Node buildCncJobPropertiesPanel(TreeItem<String> item, CncJobEntry entry) {
-        VBox box = objectPropertiesHeader("CNC Job Object", ISOLATION_COLOR);
+        VBox box = objectPropertiesHeader("CNC Job Object", ISOLATION_COLOR, "cnc32.png");
         box.getChildren().add(nameRow(item));
 
         boolean hasGeometry = entry.travelGeometry() != null || entry.cutGeometry() != null;
@@ -4202,11 +4213,13 @@ final class MainWindow {
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
         Button viewButton = new Button("Ver G-code");
+        viewButton.setGraphic(legacyIcon("source32.png", 16));
         viewButton.getStyleClass().add("primary-action");
         viewButton.setMaxWidth(Double.MAX_VALUE);
         viewButton.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
         box.getChildren().add(viewButton);
         Button editButton = new Button("Editar G-code");
+        editButton.setGraphic(legacyIcon("code_editor32.png", 16));
         editButton.setMaxWidth(Double.MAX_VALUE);
         editButton.setOnAction(e -> {
             selectProjectItem(item);
@@ -4220,23 +4233,13 @@ final class MainWindow {
         return box;
     }
 
-    private VBox objectPropertiesHeader(String title, Color swatchColor) {
-        return objectPropertiesHeader(title, swatchColor, null);
-    }
-
     private VBox objectPropertiesHeader(String title, Color swatchColor, String iconFile) {
-        Node leadingGraphic;
-        if (iconFile == null) {
-            Rectangle swatch = new Rectangle(14, 14, swatchColor);
-            swatch.setArcWidth(3);
-            swatch.setArcHeight(3);
-            leadingGraphic = swatch;
-        } else {
-            leadingGraphic = legacyIcon(iconFile, 24);
-        }
+        Rectangle swatch = new Rectangle(11, 11, swatchColor);
+        swatch.setArcWidth(4);
+        swatch.setArcHeight(4);
         Label titleLabel = new Label(title);
         titleLabel.getStyleClass().add("object-title");
-        HBox header = new HBox(6, leadingGraphic, titleLabel);
+        HBox header = new HBox(6, legacyIcon(iconFile, 20), swatch, titleLabel);
         header.getStyleClass().add("object-header");
         header.setAlignment(Pos.CENTER_LEFT);
 
@@ -4364,6 +4367,7 @@ final class MainWindow {
         Label feedback = new Label();
         feedback.setWrapText(true);
         Button apply = new Button("Aplicar preferencias");
+        apply.setGraphic(legacyIcon("apply32.png", 16));
         apply.getStyleClass().add("primary-action");
         apply.setOnAction(event -> {
             try {

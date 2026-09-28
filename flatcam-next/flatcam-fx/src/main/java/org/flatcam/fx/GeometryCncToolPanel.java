@@ -8,12 +8,17 @@ import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
+import javafx.util.StringConverter;
+import javafx.collections.FXCollections;
+import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.geometry.ToolGeometry;
@@ -32,7 +37,7 @@ import org.locationtech.jts.geom.Geometry;
 final class GeometryCncToolPanel {
 
     record Result(List<ToolGeometry> tools, GeometryGCodeParameters parameters,
-                  Map<Integer, VTipSettings> vTools) {
+                  Map<Integer, VTipSettings> vTools, GCodePreprocessor preprocessor) {
     }
 
     private GeometryCncToolPanel() {
@@ -90,6 +95,21 @@ final class GeometryCncToolPanel {
         CheckBox pauseCheck = new CheckBox("Pausar para troca de ferramenta (M0)");
         pauseCheck.setSelected(defaults == null ? tools.size() > 1 : defaults.pauseForToolChange());
         pauseCheck.setDisable(tools.size() <= 1);
+        ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
+                FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
+        preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+        preprocessor.setConverter(new StringConverter<>() {
+            @Override public String toString(GCodePreprocessor value) {
+                return value == null ? "" : value.label();
+            }
+            @Override public GCodePreprocessor fromString(String value) {
+                return preprocessor.getValue();
+            }
+        });
+        preprocessor.setMinWidth(0);
+        preprocessor.setMaxWidth(Double.MAX_VALUE);
+        preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
+                + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
@@ -103,7 +123,8 @@ final class GeometryCncToolPanel {
         grid.addRow(row++, multiDepthCb, depthPerPassField);
         grid.addRow(row++, new Label("Feed rate:"), feedField);
         grid.addRow(row++, new Label("Spindle RPM:"), spindleField);
-        grid.add(pauseCheck, 0, row, 2, 1);
+        grid.add(pauseCheck, 0, row++, 2, 1);
+        grid.addRow(row, new Label("Preprocessor:"), preprocessor);
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -164,7 +185,8 @@ final class GeometryCncToolPanel {
                     vTools.put(entry.getKey(), settings);
                 }
                 errorLabel.setText("");
-                onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools)));
+                onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools),
+                        preprocessor.getValue()));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }

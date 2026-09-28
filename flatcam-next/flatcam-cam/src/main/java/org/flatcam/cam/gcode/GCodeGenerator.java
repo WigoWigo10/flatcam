@@ -88,10 +88,19 @@ public final class GCodeGenerator {
                                                     Map<Integer, DrillGCodeParameters> settingsByTool,
                                                     List<Integer> orderedToolIds,
                                                     DrillJobOptions options) {
+        return generateDrillCncJob(image, settingsByTool, orderedToolIds, options, GCodePreprocessor.FX_PORTABLE);
+    }
+
+    public static CncJobResult generateDrillCncJob(ExcellonImage image,
+                                                    Map<Integer, DrillGCodeParameters> settingsByTool,
+                                                    List<Integer> orderedToolIds,
+                                                    DrillJobOptions options,
+                                                    GCodePreprocessor preprocessor) {
         Objects.requireNonNull(image, "image");
         Objects.requireNonNull(settingsByTool, "settingsByTool");
         Objects.requireNonNull(orderedToolIds, "orderedToolIds");
         Objects.requireNonNull(options, "options");
+        Objects.requireNonNull(preprocessor, "preprocessor");
         Map<Integer, List<ExcellonImage.Drill>> drillsByTool =
                 image.drills().stream().collect(Collectors.groupingBy(ExcellonImage.Drill::toolId));
         Map<Integer, List<ExcellonImage.Slot>> slotsByTool =
@@ -108,13 +117,16 @@ public final class GCodeGenerator {
         }
 
         StringBuilder gcode = new StringBuilder();
-        line(gcode, "; Gerado por FlatCAM FX (prototipo) - furacao");
-        line(gcode, "; Unidades do arquivo de origem: %s", image.units());
+        line(gcode, "%s", preprocessor.comment(preprocessor == GCodePreprocessor.FX_PORTABLE
+                ? "Gerado por FlatCAM FX (prototipo) - furacao" : "Gerado por FlatCAM FX - furacao"));
+        line(gcode, "%s", preprocessor.comment("Unidades do arquivo de origem: " + image.units()));
+        if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
         line(gcode, image.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
+        if (preprocessor.usesG17()) line(gcode, "G17");
         line(gcode, "G94");
         double initialZ = ordered.isEmpty() ? options.endMoveZ() : settingsByTool.get(ordered.get(0)).safeZ();
-        line(gcode, "G0 Z%s", fmt(initialZ));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(initialZ));
 
         List<Geometry> travelShapes = new ArrayList<>();
         List<Geometry> cutShapes = new ArrayList<>();
@@ -134,25 +146,45 @@ public final class GCodeGenerator {
 
             if (!firstTool) {
                 if (previous != null && previous.spindleSpeedRpm() > 0) {
-                    line(gcode, "M5");
+                    line(gcode, "%s", preprocessor.spindleOff());
                 }
                 if (options.pauseForToolChange()) {
                     if (Double.compare(options.toolChangeZ(), previous.safeZ()) != 0)
-                        line(gcode, "G0 Z%s", fmt(options.toolChangeZ()));
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                     Double diameter = image.toolDiameters().get(toolId);
-                    line(gcode, "M0 ; troque para a ferramenta T%d (diametro %s %s) e continue",
-                            toolId, diameter != null ? fmt(diameter) : "?", image.units());
+                    if (preprocessor == GCodePreprocessor.FX_PORTABLE) {
+                        line(gcode, "M0 ; troque para a ferramenta T%d (diametro %s %s) e continue",
+                                toolId, diameter != null ? fmt(diameter) : "?", image.units());
+                    } else {
+                        line(gcode, "T%d", toolId);
+                        if (preprocessor.usesM6()) line(gcode, "M6");
+                        line(gcode, "%s", preprocessor.toolChangeMessage(toolId,
+                                diameter != null ? diameter : 0, image.units()));
+                        line(gcode, "M0");
+                    }
                     if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
-                        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 } else if (Double.compare(previous.safeZ(), params.safeZ()) != 0) {
-                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
+                }
+            } else if (preprocessor.emitsToolNumber()) {
+                if (options.pauseForToolChange()
+                        && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
+                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
+                line(gcode, "T%d", toolId);
+                if (options.pauseForToolChange()) {
+                    if (preprocessor.usesM6()) line(gcode, "M6");
+                    line(gcode, "%s", preprocessor.toolChangeMessage(toolId, toolDiameter, image.units()));
+                    line(gcode, "M0");
+                    if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
             }
             firstTool = false;
             previous = params;
 
             if (params.spindleSpeedRpm() > 0) {
-                line(gcode, "M3 S%d", params.spindleSpeedRpm());
+                line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
             }
             if (params.dwell()) {
                 line(gcode, "G4 P%s", fmt(params.dwellSeconds()));
@@ -169,10 +201,10 @@ public final class GCodeGenerator {
                 lastX = drill.x();
                 lastY = drill.y();
 
-                line(gcode, "G0 X%s Y%s", fmt(drill.x()), fmt(drill.y()));
+                line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(drill.x()), fmt(drill.y()));
                 for (double depth : depths) {
-                    line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
-                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(params.feedRate()));
+                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
             }
             for (ExcellonImage.Slot slot : slotsByTool.getOrDefault(toolId, List.of())) {
@@ -181,22 +213,22 @@ public final class GCodeGenerator {
                 lastX = slot.x2();
                 lastY = slot.y2();
 
-                line(gcode, "G0 X%s Y%s", fmt(slot.x1()), fmt(slot.y1()));
+                line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(slot.x1()), fmt(slot.y1()));
                 for (int pass = 0; pass < depths.size(); pass++) {
-                    if (pass > 0) line(gcode, "G0 X%s Y%s", fmt(slot.x1()), fmt(slot.y1()));
-                    line(gcode, "G1 Z-%s F%s", fmt(depths.get(pass)), fmt(params.feedRate()));
-                    line(gcode, "G1 X%s Y%s F%s", fmt(slot.x2()), fmt(slot.y2()), fmt(params.feedRate()));
-                    line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                    if (pass > 0) line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(slot.x1()), fmt(slot.y1()));
+                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depths.get(pass)), fmt(params.feedRate()));
+                    line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmt(slot.x2()), fmt(slot.y2()), fmt(params.feedRate()));
+                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
             }
         }
         if (previous != null && previous.spindleSpeedRpm() > 0) {
-            line(gcode, "M5");
+            line(gcode, "%s", preprocessor.spindleOff());
         }
-        line(gcode, "G0 Z%s", fmt(options.endMoveZ()));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.endMoveZ()));
         if (options.endMoveX() != null) {
             addTravel(travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius);
-            line(gcode, "G0 X%s Y%s", fmt(options.endMoveX()), fmt(options.endMoveY()));
+            line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(options.endMoveX()), fmt(options.endMoveY()));
         }
         line(gcode, "M30");
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
@@ -389,11 +421,21 @@ public final class GCodeGenerator {
                                                        GeometryGCodeParameters params,
                                                        Map<Integer, VTipSettings> vTools,
                                                        CancellationToken cancellationToken) {
+        return generateGeometryCncJob(units, tools, params, vTools, cancellationToken,
+                GCodePreprocessor.FX_PORTABLE);
+    }
+
+    public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
+                                                       GeometryGCodeParameters params,
+                                                       Map<Integer, VTipSettings> vTools,
+                                                       CancellationToken cancellationToken,
+                                                       GCodePreprocessor preprocessor) {
         Objects.requireNonNull(units, "units");
         Objects.requireNonNull(tools, "tools");
         Objects.requireNonNull(params, "params");
         Objects.requireNonNull(vTools, "vTools");
         Objects.requireNonNull(cancellationToken, "cancellationToken");
+        Objects.requireNonNull(preprocessor, "preprocessor");
         if (tools.isEmpty()) {
             throw new IllegalArgumentException("At least one tool geometry is required");
         }
@@ -413,12 +455,15 @@ public final class GCodeGenerator {
         cancellationToken.throwIfCancellationRequested();
 
         StringBuilder gcode = new StringBuilder();
-        line(gcode, "; Gerado por FlatCAM FX (prototipo) - Geometry");
-        line(gcode, "; Unidades do objeto de origem: %s", units);
+        line(gcode, "%s", preprocessor.comment(preprocessor == GCodePreprocessor.FX_PORTABLE
+                ? "Gerado por FlatCAM FX (prototipo) - Geometry" : "Gerado por FlatCAM FX - Geometry"));
+        line(gcode, "%s", preprocessor.comment("Unidades do objeto de origem: " + units));
+        if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
         line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
         line(gcode, "G90");
+        if (preprocessor.usesG17()) line(gcode, "G17");
         line(gcode, "G94");
-        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
 
         List<Geometry> travelShapes = new ArrayList<>();
         List<Geometry> cutShapes = new ArrayList<>();
@@ -435,22 +480,39 @@ public final class GCodeGenerator {
             List<Double> depths = depthsByTool.get(toolIndex);
             if (!firstTool) {
                 if (params.spindleSpeedRpm() > 0) {
-                    line(gcode, "M5");
+                    line(gcode, "%s", preprocessor.spindleOff());
                 }
                 if (params.pauseForToolChange()) {
-                    line(gcode, "M0 ; troque para a ferramenta (diametro %s %s) e continue",
-                            fmt(tool.toolDiameter()), units);
+                    if (preprocessor == GCodePreprocessor.FX_PORTABLE) {
+                        line(gcode, "M0 ; troque para a ferramenta (diametro %s %s) e continue",
+                                fmt(tool.toolDiameter()), units);
+                    } else {
+                        line(gcode, "T%d", toolIndex + 1);
+                        if (preprocessor.usesM6()) line(gcode, "M6");
+                        line(gcode, "%s", preprocessor.toolChangeMessage(toolIndex + 1,
+                                tool.toolDiameter(), units));
+                        line(gcode, "M0");
+                    }
+                }
+            } else if (preprocessor.emitsToolNumber()) {
+                line(gcode, "T%d", toolIndex + 1);
+                if (params.pauseForToolChange()) {
+                    if (preprocessor.usesM6()) line(gcode, "M6");
+                    line(gcode, "%s", preprocessor.toolChangeMessage(toolIndex + 1,
+                            tool.toolDiameter(), units));
+                    line(gcode, "M0");
                 }
             }
             firstTool = false;
             if (tool.toolProfile() == ToolProfile.V) {
                 VTipSettings settings = vTools.get(toolIndex);
-                line(gcode, "; V tool %d: dia %s, tip %s, angle %s deg, cut Z -%s",
+                line(gcode, "%s", preprocessor.comment(String.format(Locale.ROOT,
+                        "V tool %d: dia %s, tip %s, angle %s deg, cut Z -%s",
                         toolIndex + 1, fmt(tool.toolDiameter()), fmt(settings.tipDiameter()),
-                        fmt(settings.angleDegrees()), fmt(depths.get(depths.size() - 1)));
+                        fmt(settings.angleDegrees()), fmt(depths.get(depths.size() - 1)))));
             }
             if (params.spindleSpeedRpm() > 0) {
-                line(gcode, "M3 S%d", params.spindleSpeedRpm());
+                line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
             }
 
             double radius = tool.toolDiameter() / 2.0;
@@ -468,28 +530,28 @@ public final class GCodeGenerator {
                 lastX = last.x;
                 lastY = last.y;
 
-                line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
                 for (double depth : depths) {
                     cancellationToken.throwIfCancellationRequested();
-                    line(gcode, "G1 Z-%s F%s", fmt(depth), fmt(params.feedRate()));
+                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(params.feedRate()));
                     for (int p = 1; p < coordinates.length; p++) {
                         cancellationToken.throwIfCancellationRequested();
-                        line(gcode, "G1 X%s Y%s F%s", fmt(coordinates[p].x),
+                        line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmt(coordinates[p].x),
                                 fmt(coordinates[p].y), fmt(params.feedRate()));
                     }
                     if (depth != depths.get(depths.size() - 1)) {
-                        line(gcode, "G0 Z%s", fmt(params.safeZ()));
-                        line(gcode, "G0 X%s Y%s", fmt(coordinates[0].x), fmt(coordinates[0].y));
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
+                        line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
                     }
                 }
-                line(gcode, "G0 Z%s", fmt(params.safeZ()));
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
             }
         }
 
         if (params.spindleSpeedRpm() > 0) {
-            line(gcode, "M5");
+            line(gcode, "%s", preprocessor.spindleOff());
         }
-        line(gcode, "G0 Z%s", fmt(params.safeZ()));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
         return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
