@@ -349,10 +349,10 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Importação Gerber | forte/parcial | boa cobertura do subconjunto real testado; ampliar corpus de compatibilidade |
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
-| Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`, e Milling Tool que cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
-| Geometry | parcial | multi-tool via NCC; Geometry → CNC preserva cada ferramenta e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, Paint, borracha e Panelize faltam |
+| Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
+| Geometry | parcial | multi-tool via NCC; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, Paint, borracha e Panelize faltam |
 | CNC Job | parcial | geração, plot, abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; faltam pós-processadores e várias opções avançadas do legado |
-| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry e texto G-code; importação somente leitura de `.FlatPrj` Python 8.9xx para esses quatro tipos, validada com um projeto real 8.994; salvar como `.FlatPrj` ainda não é suportado |
+| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | parcial | NCC, Isolation e Drilling leem ferramentas de um `.FlatDB` escolhido pelo usuário; editor/salvamento do banco e integração com outras ferramentas faltam |
@@ -839,9 +839,9 @@ O `.fcnproj` é formato nativo do FX e não deve ser apresentado como projeto
 diretamente abrível pelo FlatCAM Python.
 
 **O que falta para completar 9.3**:
-- Geometry: precisa de um dict `data` persistente por ferramenta (parâmetros
-  CAM) que este port simplesmente não tem hoje - é uma mudança de modelo,
-  não só de serialização.
+- Geometry: parâmetros básicos compartilhados de corte já são importados e
+  persistidos, mas ainda falta um dict `data` completo por ferramenta, inclusive
+  configurações diferentes entre ferramentas.
 - CNC Job: precisa reter uma lista por segmento com "kind" (`gcode_parsed`
   do Python) durante a geração - `GCodeGenerator` hoje só produz duas
   geometrias já unidas (viagem/corte), não uma lista ordenada por segmento.

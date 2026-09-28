@@ -252,6 +252,13 @@ final class DrillGCodeToolPanel {
         Label feedback = new Label();
         feedback.setWrapText(true);
         feedback.managedProperty().bind(feedback.textProperty().isNotEmpty());
+        if (!initialSource.drillDefaults().isEmpty()) {
+            feedback.setText("Parametros de furacao recuperados do projeto; confira-os antes de gerar G-code.");
+        }
+        sourceCombo.valueProperty().addListener((observable, oldValue, value) -> {
+            if (value != null) feedback.setText(value.drillDefaults().isEmpty() ? ""
+                    : "Parametros de furacao recuperados do projeto; confira-os antes de gerar G-code.");
+        });
         searchDb.setOnAction(event -> {
             try {
                 List<LegacyToolsDatabase.DrillTool> database = databaseLoader.get();

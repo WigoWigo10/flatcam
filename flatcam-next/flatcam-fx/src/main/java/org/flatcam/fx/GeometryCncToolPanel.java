@@ -176,6 +176,12 @@ final class GeometryCncToolPanel {
         Label title = new Label("Geometry -> CNC Job");
         title.getStyleClass().add("tool-title");
         VBox box = new VBox(10, title, new Label("Unidades: " + units));
+        if (defaults != null) {
+            Label restored = new Label("Parametros basicos de corte recuperados do projeto; "
+                    + "confira os valores antes de gerar G-code.");
+            restored.setWrapText(true);
+            box.getChildren().add(restored);
+        }
         if (multiTool) {
             box.getChildren().addAll(new Label("Ferramentas (associadas ao NCC):"), toolTable);
         }
