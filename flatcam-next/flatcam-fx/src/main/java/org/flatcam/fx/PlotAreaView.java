@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import javafx.geometry.Pos;
 import javafx.scene.Cursor;
 import javafx.scene.canvas.Canvas;
@@ -21,6 +22,7 @@ import org.flatcam.cam.gerber.edit.TrackBendMode;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
 
@@ -1309,11 +1311,9 @@ final class PlotAreaView extends StackPane {
         gc.setFillRule(FillRule.EVEN_ODD);
         gc.setLineWidth(layer.strokeOnly() ? 1.5 : 1);
 
-        Geometry geometry = layer.geometry();
-        int count = geometry.getNumGeometries();
-        for (int i = 0; i < count; i++) {
-            Geometry part = geometry.getGeometryN(i);
-            Color partColor = layer.multicolor() ? multicolorHue(i) : layer.fillColor();
+        int[] partIndex = {0};
+        forEachDrawablePart(layer.geometry(), part -> {
+            Color partColor = layer.multicolor() ? multicolorHue(partIndex[0]++) : layer.fillColor();
             gc.setFill(partColor);
             gc.setStroke(layer.multicolor() ? partColor.darker() : layer.strokeColor());
             if (layer.strokeOnly()) {
@@ -1323,7 +1323,7 @@ final class PlotAreaView extends StackPane {
                     default -> null;
                 };
                 if (coordinates == null || coordinates.length == 0) {
-                    continue;
+                    return;
                 }
                 gc.beginPath();
                 // Not closed: a strokeOnly LineString is not always a closed ring - the
@@ -1350,6 +1350,20 @@ final class PlotAreaView extends StackPane {
                 }
                 gc.stroke();
             }
+        });
+    }
+
+    /** Python project arrays can nest a MultiPolygon inside a GeometryCollection. */
+    static void forEachDrawablePart(Geometry geometry, Consumer<Geometry> visitor) {
+        if (geometry == null || geometry.isEmpty()) {
+            return;
+        }
+        if (geometry instanceof GeometryCollection collection) {
+            for (int i = 0; i < collection.getNumGeometries(); i++) {
+                forEachDrawablePart(collection.getGeometryN(i), visitor);
+            }
+        } else {
+            visitor.accept(geometry);
         }
     }
 

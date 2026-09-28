@@ -55,6 +55,16 @@ class ThemeOptionTest {
         assertTrue(resource("components.css").contains(".object-header {"));
     }
 
+    @Test
+    void objectTooltipsHaveExplicitReadableColorsInPopupScenes() {
+        for (ThemeOption theme : ThemeOption.values()) {
+            String style = theme.objectTooltipStyle();
+            assertTrue(style.contains("-fx-background-color:"), theme.name());
+            assertTrue(style.contains("-fx-text-fill:"), theme.name());
+            assertTrue(style.contains(theme.isDark() ? "#f7fafc" : "#172b3c"), theme.name());
+        }
+    }
+
     private static String resource(String name) throws IOException {
         try (var stream = ThemeOption.class.getResourceAsStream("theme/" + name)) {
             assertNotNull(stream, name);

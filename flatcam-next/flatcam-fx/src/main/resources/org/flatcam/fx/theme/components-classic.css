@@ -59,6 +59,14 @@
     -fx-fill: -fc-panel-text;
 }
 
+.tree-cell:filled:hover {
+    -fx-background-color: -fc-accent-soft;
+}
+
+.tree-cell:filled:hover .text {
+    -fx-fill: -fc-panel-text;
+}
+
 /*
  * A row selected while its TreeView doesn't have focus (e.g. focus moved to
  * the Properties/Ferramenta tab, or to the Plot Area) gets the plain

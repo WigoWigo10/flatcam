@@ -21,6 +21,11 @@ class ThemeDesignTokensTest {
                 ".combo-box-popup .list-view .list-cell:filled:selected"}) {
             assertTrue(components.contains(selector), selector);
         }
+        for (String name : new String[]{"components.css", "components-classic.css"}) {
+            String style = resource(name);
+            assertTrue(style.contains(".tree-cell:filled:hover {"), name);
+            assertTrue(style.contains(".tree-cell:filled:hover .text {"), name);
+        }
         for (String theme : new String[]{"classic-light", "classic-dark", "ice-light", "ice-dark"}) {
             String css = resource("vars-" + theme + ".css");
             assertContrast(css, theme, "-fc-panel-text", "-fc-panel-bg", 4.5);
@@ -28,6 +33,7 @@ class ThemeDesignTokensTest {
             assertContrast(css, theme, "-fc-panel-text", "-fc-input-bg", 4.5);
             assertContrast(css, theme, "-fc-on-accent", "-fc-accent", 4.5);
             assertContrast(css, theme, "-fc-selection-row-text", "-fc-selection-row", 4.5);
+            assertContrast(css, theme, "-fc-panel-text", "-fc-accent-soft", 4.5);
         }
     }
 

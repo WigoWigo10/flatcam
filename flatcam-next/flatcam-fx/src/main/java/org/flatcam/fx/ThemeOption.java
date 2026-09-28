@@ -31,6 +31,17 @@ public enum ThemeOption {
         return this == CLASSIC_DARK || this == ICE_DARK;
     }
 
+    /** Tooltips have their own popup scene, so give them explicit contrast instead of inherited colors. */
+    String objectTooltipStyle() {
+        return isDark()
+                ? "-fx-background-color: #263746; -fx-text-fill: #f7fafc; "
+                    + "-fx-border-color: #607383; -fx-border-radius: 5; "
+                    + "-fx-background-radius: 5; -fx-padding: 5 8 5 8;"
+                : "-fx-background-color: #ffffff; -fx-text-fill: #172b3c; "
+                    + "-fx-border-color: #aabac7; -fx-border-radius: 5; "
+                    + "-fx-background-radius: 5; -fx-padding: 5 8 5 8;";
+    }
+
     static ThemeOption fromSavedName(String name, ThemeOption fallback) {
         if (name == null) return fallback;
         return switch (name) {

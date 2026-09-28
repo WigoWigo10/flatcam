@@ -1687,6 +1687,8 @@ final class MainWindow {
             TextField editField = new TextField();
             Label textLabel = new Label();
             Tooltip objectTooltip = new Tooltip();
+            objectTooltip.setWrapText(true);
+            objectTooltip.setMaxWidth(360);
             StackPane iconHolder = new StackPane();
             iconHolder.setAlignment(Pos.CENTER);
             iconHolder.setMinSize(20, 20);
@@ -1757,6 +1759,7 @@ final class MainWindow {
                                 : cncJob != null ? cncJob.outputFile().toString() : value;
                         objectTooltip.setText(pathText + System.lineSeparator()
                                 + (isObjectVisible(item) ? "Plot ativo" : "Plot desativado"));
+                        objectTooltip.setStyle(currentTheme.objectTooltipStyle());
                         setTooltip(objectTooltip);
                     }
                     Node icon = iconShapeFor(item);
