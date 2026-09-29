@@ -997,10 +997,30 @@ têm o marcador e continuam com traço fino.
   pontos, CI/AA/AR/AT/RT, retângulos); uma Geometry por caneta.
 - O parser Excellon agora lê slots roteados e ferramentas `T01F00S00C...`, o
   formato que o Python exporta.
+- PDF: só o estilo que o Python também suporta (um "print" vetorial de
+  artes tipo Gerber pelos operadores de caminho do content stream) - sem
+  xref/object streams, criptografia, imagens ou rotação/inclinação. Cada troca
+  de cor de traço (`RG`) vira um objeto Gerber (`_1`, `_2`, ...); um
+  preenchimento branco em forma de curva vira furo (`_0`, Excellon). Ao
+  contrário do Python, os operadores são lidos como o fluxo de tokens que um
+  content stream realmente é, não um por linha - a suposição de "um operador
+  por linha" do Python faz com que ele descarte silenciosamente qualquer
+  operador que divida a linha com outro, o que geradores reais fazem (o
+  reportlab, por exemplo, escreve `n` seguido de `re S` inteiro na mesma
+  linha); sem esse ajuste, PDFs reais simplesmente não importavam nada.
+  Também corrigido: um preenchimento de Bezier encadeado gerava polígonos
+  extras errados (Python nunca zerava os pontos entre os segmentos); o último
+  ponto de cada Bezier era descartado; a largura/altura de um retângulo levava
+  o deslocamento em dobro; o operador de curva `y` nunca marcava seu subcaminho
+  como curva; e `s`/`b`/`b*` nunca eram reconhecidos, mesmo com os padrões já
+  compilados no Python. Os valores geométricos foram conferidos rodando o
+  próprio `ParsePDF.PdfParser` do Python lado a lado (stub só da dependência
+  Qt) com o mesmo content stream, e por fim contra um PDF real gerado pelo
+  reportlab.
 
-Ainda não portado: importar PDF, Imprimir PDF e backup de preferências.
-Posições no SVG importado são relativas à página (canto inferior esquerdo na
-origem), como no Python e no Inkscape.
+Ainda não portado: Imprimir PDF e backup de preferências.
+Posições no SVG e no PDF importados são relativas à página (canto inferior
+esquerdo na origem), como no Python e no Inkscape.
 
 ## 10. Regras de implementação para qualquer IA
 
@@ -1094,7 +1114,7 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | `flatcam-cam/.../geometry/` | modelo por ferramenta e sessão de seleção/exclusão do Editor Geometry |
 | `flatcam-cam/.../transform/` | motor de Transformations (Rotate/Scale/Skew/Mirror/Offset) - `TransformOp` (sealed) e `TransformReference` |
 | `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code; `GCodeToolpathParser` também extrai `ToolpathStats` |
-| `flatcam-cam/.../svg/`, `.../dxf/`, `.../hpgl/` | importadores/exportadores SVG, DXF e HPGL2 (ver seção 9.7) |
+| `flatcam-cam/.../svg/`, `.../dxf/`, `.../hpgl/`, `.../pdf/` | importadores/exportadores SVG, DXF, HPGL2 e importador de PDF (ver seção 9.7) |
 | `flatcam-fx/.../CamExportDialog.java`, `PlotPngExporter.java`, `CncJobToolsTable.java` | diálogo de formato Gerber/Excellon, exportação PNG e tabela de ferramentas do CNC Job |
 | `flatcam-fx/.../MainWindow.java` | integração principal da UI; atualmente grande demais |
 | `flatcam-fx/.../PlotAreaView.java` | Canvas, viewport e desenho das camadas |
@@ -1152,7 +1172,8 @@ avançadas numéricas ainda não reproduzem todos os gestos do Python.
 "Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
 aberturas originais. Os menus Importar (SVG, DXF, HPGL2) e Exportar (SVG, DXF,
-PNG, Gerber, Excellon com formato escolhido) funcionam; só PDF falta (seção 9.7).
+PNG, Gerber, Excellon com formato escolhido, e Importar PDF) funcionam; só
+"Imprimir PDF" e o backup de preferências faltam (seção 9.7).
 CNC Jobs de furação mostram furos no diâmetro real, tabela de ferramentas,
 ordem de furação e tempo estimado. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O

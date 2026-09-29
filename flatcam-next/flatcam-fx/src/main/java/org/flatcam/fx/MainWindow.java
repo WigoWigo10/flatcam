@@ -99,6 +99,7 @@ import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
 import org.flatcam.cam.hpgl.HpglImporter;
+import org.flatcam.cam.pdf.PdfImporter;
 import org.flatcam.cam.svg.SvgExporter;
 import org.flatcam.cam.svg.SvgImporter;
 import org.flatcam.cam.gerber.GerberImage;
@@ -1155,7 +1156,7 @@ final class MainWindow {
                 chromeItem("DXF como Geometry...", "dxf16.png", () -> importDrawing(DrawingFormat.DXF, false)),
                 chromeItem("DXF como Gerber...", "dxf16.png", () -> importDrawing(DrawingFormat.DXF, true)),
                 chromeItem("HPGL2...", "import.png", () -> importDrawing(DrawingFormat.HPGL, false)),
-                plannedItem("PDF", "pdf32.png"));
+                chromeItem("PDF...", "pdf32.png", this::importPdf));
         Menu exportMenu = new Menu("Exportar");
         setLegacyMenuIcon(exportMenu, "export.png");
         exportMenu.getItems().addAll(
@@ -5151,6 +5152,79 @@ final class MainWindow {
         })).exceptionally(error -> {
             Platform.runLater(() -> {
                 reportJobError(error, "Falha ao importar " + format + ": ");
+                onJobFinished();
+            });
+            return null;
+        });
+    }
+
+    private record ImportedPdf(File file, PdfImporter.Result result, String error) {
+    }
+
+    /**
+     * File > Importar > PDF - ToolPDF.py/ParsePDF.py: only the one PDF style FlatCAM
+     * targets, a vector print of Gerber-like artwork. Every stroke-color change in the
+     * file becomes its own Gerber object ({@code <arquivo>_1}, {@code _2}, ...); round
+     * white-filled shapes become one Excellon object ({@code <arquivo>_0}), like Python's
+     * own layer numbering. Several files import in one background job.
+     */
+    private void importPdf() {
+        List<File> files = pickCamFiles("Importar PDF", new FileChooser.ExtensionFilter("PDF", "*.pdf"));
+        if (files.isEmpty()) {
+            return;
+        }
+        String units = plotAreaView.units();
+        beginJob("Importando PDF...");
+        JobHandle<List<ImportedPdf>> handle = jobExecutor.submit(context -> {
+            List<ImportedPdf> imported = new ArrayList<>();
+            for (int index = 0; index < files.size(); index++) {
+                File file = files.get(index);
+                context.reportProgress((double) index / files.size(), "Importando " + file.getName() + "...");
+                try {
+                    imported.add(new ImportedPdf(file, PdfImporter.parse(file.toPath(), units, context::isCancelled),
+                            null));
+                } catch (IOException | IllegalArgumentException failed) {
+                    imported.add(new ImportedPdf(file, null, failed.getMessage()));
+                }
+            }
+            return imported;
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(imported -> Platform.runLater(() -> {
+            TreeItem<String> last = null;
+            for (ImportedPdf pdf : imported) {
+                String fileName = pdf.file().getName();
+                if (pdf.error() != null) {
+                    appendConsole("Falha ao importar " + fileName + ": " + pdf.error());
+                    continue;
+                }
+                PdfImporter.Result result = pdf.result();
+                if (result.drills() != null) {
+                    String name = uniqueDerivedName(fileName + "_0");
+                    last = addExcellonToProject(name, pdf.file().toPath(), result.drills());
+                    appendConsole("PDF importado como Excellon: " + name + " ("
+                            + result.drills().totalDrills() + " furos)");
+                }
+                for (int layer = 0; layer < result.layers().size(); layer++) {
+                    String name = uniqueDerivedName(fileName + "_" + (layer + 1));
+                    last = addGerberToProject(name, pdf.file().toPath(), result.layers().get(layer));
+                    appendConsole("PDF importado como Gerber: " + name);
+                }
+            }
+            if (last != null) {
+                setDisplayUnits(units);
+                plotAreaView.fitToLayer(last);
+                selectProjectItem(last);
+            }
+            updateProgress(1);
+            setStatus(last != null ? "Concluido." : "Falhou.", last != null ? IDLE_COLOR : ERROR_COLOR);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao importar PDF: ");
                 onJobFinished();
             });
             return null;
