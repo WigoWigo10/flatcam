@@ -430,4 +430,25 @@ class GeometryEditSessionTest {
         assertEquals(0, session.selectedBounds().getEnvelopeInternal().getMinX());
         assertEquals(39_998, session.selectedBounds().getEnvelopeInternal().getMaxX());
     }
+    @Test
+    void newShapesFollowTheClimbOrConventionalMillingDirection() {
+        GeometryEditSession climb = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
+        climb.addRectangle(0, 0, 10, 5, -1);
+        GeometryEditSession conventional = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
+        conventional.setClimbMilling(false);
+        conventional.addRectangle(0, 0, 10, 5, -1);
+        org.locationtech.jts.geom.Polygon climbRect = (org.locationtech.jts.geom.Polygon) climb.resultGeometry();
+        org.locationtech.jts.geom.Polygon conventionalRect =
+                (org.locationtech.jts.geom.Polygon) conventional.resultGeometry();
+        // Python's rectangle ring is counter-clockwise; Climb reverses it.
+        org.junit.jupiter.api.Assertions.assertTrue(
+                org.locationtech.jts.algorithm.Orientation.isCCW(conventionalRect.getExteriorRing().getCoordinates()));
+        org.junit.jupiter.api.Assertions.assertFalse(
+                org.locationtech.jts.algorithm.Orientation.isCCW(climbRect.getExteriorRing().getCoordinates()));
+        GeometryEditSession path = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
+        path.addPath(List.of(new org.locationtech.jts.geom.Coordinate(0, 0),
+                new org.locationtech.jts.geom.Coordinate(4, 0)), -1);
+        org.junit.jupiter.api.Assertions.assertEquals(4, path.resultGeometry().getCoordinates()[0].x, 1e-9);
+    }
+
 }

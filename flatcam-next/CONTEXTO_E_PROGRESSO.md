@@ -988,9 +988,13 @@ editor bloqueia outras alteracoes. O menu Editor Geometry aciona essas funcoes.
 Ainda faltam texto, paint, borracha e transformacoes,
 teste manual com arquivos reais grandes e perfilamento da renderização inicial
 de Geometry muito extensa. A persistência `_java.geometries` é do FX e não
-garante abertura de objetos Geometry no FlatCAM Python. A opção legada de
-sentido de fresagem CL/CV para novas formas ainda não foi portada; não use o
-G-code gerado sem conferir o trajeto e a direção de corte.
+garante abertura de objetos Geometry no FlatCAM Python. O sentido de fresagem
+CL/CV do Python (`geometry_editor_milling_type`, padrão Climb) foi portado em
+2026-09-29: `GeometryEditSession.setClimbMilling` inverte a direção das formas
+novas (linha, polígono, retângulo no anel do Python, círculo, arco; só o anel
+exterior de polígonos), com botões Climb/Conventional no painel do editor e
+preferência lembrada. Não altera formas já existentes; confira o trajeto antes
+de usar o G-code.
 
 ### 9.7 CNC Job de furação e Importar/Exportar (2026-09-29)
 
@@ -1041,6 +1045,13 @@ vazio também limpa. O parser gera `ToolpathStats.steps` (`PathStep`: deslocamen
 corte ou furo, encadeados na ordem do programa, com o número de cada ponta) e
 `CncStepView` cuida da seleção, do clique e do desenho. Verificado por captura
 fora da tela no projeto STM32/Dados_Ambientais (Furos_Alinhamento e Cobre_MortoFino).
+
+**Jobs de fresagem gerados pelo FX (2026-09-29).** O G-code de Geometry, isolamento
+e recorte agora escreve `FCFX MILL D<largura>` (um por ferramenta), que o parser
+lê como largura do cortador; jobs de uma só largura ganham o mesmo preview rápido
+(linhas de centro traçadas na largura real) dos importados do Python, e os
+passos/setas/numeração usam o parser. Jobs com várias larguras seguem no desenho
+por polígonos.
 
 **Exportar** (menu Arquivo > Exportar):
 

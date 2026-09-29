@@ -269,6 +269,18 @@ class GCodeToolpathParserTest {
         org.junit.jupiter.api.Assertions.assertEquals(steps.get(1).toMark(), steps.get(2).fromMark());
     }
 
+    @Test
+    void readsTheCutterWidthFromFxMillMarkers() {
+        String one = String.join(System.lineSeparator(), "(FCFX MILL D0.4000)", "G21", "G90", "G00 Z2.0",
+                "G00 X0 Y0", "G00 X10 Y0", "G01 Z-0.1 F100", "G01 X10 Y5", "G00 Z2.0", "");
+        var result = parse(one);
+        org.junit.jupiter.api.Assertions.assertEquals(0.4, result.stats().cutterDiameter(), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(0.4,
+                result.cutGeometry().getEnvelopeInternal().getWidth(), 1e-6);
+        String two = one + String.join(System.lineSeparator(), "(FCFX MILL D0.8000)", "G00 X20 Y0", "");
+        org.junit.jupiter.api.Assertions.assertNull(parse(two).stats().cutterDiameter());
+    }
+
     private static GCodeToolpathParser.Result parse(String gcode) {
         return GCodeToolpathParser.parse(gcode, () -> false, ignored -> {});
     }

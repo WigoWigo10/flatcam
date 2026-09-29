@@ -160,6 +160,7 @@ public final class GeometryEditSession {
     private Geometry cachedResult;
     private long revision;
     private long nextId = 1;
+    private boolean climbMilling = true;
 
     public GeometryEditSession(Geometry source, List<ToolGeometry> tools) {
         this.source = Objects.requireNonNull(source);
@@ -491,13 +492,44 @@ public final class GeometryEditSession {
         return dx != 0 || dy != 0;
     }
 
+    /**
+     * Python's {@code geometry_editor_milling_type}: "cl" (Climb, its default) reverses the
+     * direction of every newly drawn shape so the G-code cuts it that way round; "cv"
+     * (Conventional) keeps the drawing direction. Only affects shapes added afterwards.
+     */
+    public void setClimbMilling(boolean climb) {
+        climbMilling = climb;
+    }
+
+    public boolean climbMilling() {
+        return climbMilling;
+    }
+
+    /** Reverses a line, or a polygon's exterior ring (holes untouched, as Python does), when climb milling is on. */
+    private Geometry millingDirection(Geometry shape) {
+        if (!climbMilling) {
+            return shape;
+        }
+        if (shape instanceof LineString line) {
+            return line.reverse();
+        }
+        if (shape instanceof Polygon polygon) {
+            LinearRing[] holes = new LinearRing[polygon.getNumInteriorRing()];
+            for (int i = 0; i < holes.length; i++) {
+                holes[i] = (LinearRing) polygon.getInteriorRingN(i);
+            }
+            return factory.createPolygon((LinearRing) polygon.getExteriorRing().reverse(), holes);
+        }
+        return shape;
+    }
+
     public void addPath(List<Coordinate> points, int toolIndex) {
         Coordinate[] coordinates = coordinates(points, 2);
         Geometry path = factory.createLineString(coordinates);
         if (path.getLength() <= 0) {
             throw new IllegalArgumentException("O caminho precisa de dois pontos distintos.");
         }
-        addShape(path, toolIndex);
+        addShape(millingDirection(path), toolIndex);
     }
 
     public void addPolygon(List<Coordinate> points, int toolIndex) {
@@ -514,7 +546,7 @@ public final class GeometryEditSession {
         if (polygon.isEmpty() || polygon.getArea() <= 0 || !polygon.isValid()) {
             throw new IllegalArgumentException("O poligono precisa ter area positiva e nao pode se cruzar.");
         }
-        addShape(polygon, toolIndex);
+        addShape(millingDirection(polygon), toolIndex);
     }
 
     public void addRectangle(double x1, double y1, double x2, double y2, int toolIndex) {
@@ -522,7 +554,10 @@ public final class GeometryEditSession {
                 || x1 == x2 || y1 == y2) {
             throw new IllegalArgumentException("Escolha dois cantos diferentes para o retangulo.");
         }
-        addShape(factory.toGeometry(new Envelope(x1, x2, y1, y2)), toolIndex);
+        // Python's FCRectangle ring: p1, (x2, y1), p2, (x1, y2).
+        Coordinate[] ring = {new Coordinate(x1, y1), new Coordinate(x2, y1), new Coordinate(x2, y2),
+                new Coordinate(x1, y2), new Coordinate(x1, y1)};
+        addShape(millingDirection(factory.createPolygon(ring)), toolIndex);
     }
 
     public void addCircle(double centerX, double centerY, double perimeterX, double perimeterY, int toolIndex) {
@@ -535,7 +570,7 @@ public final class GeometryEditSession {
             throw new IllegalArgumentException("Escolha um ponto do perimetro diferente do centro.");
         }
         // Python's geometry_circle_steps defaults to 64 segments: 16 per quadrant.
-        addShape(factory.createPoint(new Coordinate(centerX, centerY)).buffer(radius, 16), toolIndex);
+        addShape(millingDirection(factory.createPoint(new Coordinate(centerX, centerY)).buffer(radius, 16)), toolIndex);
     }
 
     /** Adds the circular arc passing through start, intermediate and end, in that order. */
@@ -566,7 +601,7 @@ public final class GeometryEditSession {
         arc.add(input[0]);
         appendArcLeg(arc, centerX, centerY, radius, startAngle, throughAngle, ccw, input[1]);
         appendArcLeg(arc, centerX, centerY, radius, throughAngle, endAngle, ccw, input[2]);
-        addShape(factory.createLineString(arc.toArray(new Coordinate[0])), toolIndex);
+        addShape(millingDirection(factory.createLineString(arc.toArray(new Coordinate[0]))), toolIndex);
     }
 
     private static double positiveAngle(double angle) {

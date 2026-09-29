@@ -139,6 +139,16 @@ final class AppPreferences {
         flush();
     }
 
+    /** Python's geometry_editor_milling_type: true = Climb ("cl", its default), false = Conventional ("cv"). */
+    static boolean loadGeometryEditorClimb() {
+        return PREFS.getBoolean("geometryEditorClimb", true);
+    }
+
+    static void saveGeometryEditorClimb(boolean climb) {
+        PREFS.putBoolean("geometryEditorClimb", climb);
+        flush();
+    }
+
     static boolean loadConsoleOpen(boolean fallback) {
         return PREFS.getBoolean(KEY_CONSOLE_OPEN, fallback);
     }

@@ -37,6 +37,9 @@ public final class GCodeToolpathParser {
     /** Python FlatCAM's Excellon programs announce a tool as "T1" followed by "(MSG, Change to Tool Dia = 0.8 ...)". */
     private static final Pattern PYTHON_TOOL_MESSAGE = Pattern.compile(
             "Change\\s+to\\s+Tool\\s+Dia\\s*=\\s*(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
+    /** FlatCAM FX's milling programs tell the preview the cutter width, one per tool section. */
+    private static final Pattern MILL_MARKER = Pattern.compile(
+            "FCFX\\s+MILL\\s+D(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
     /** Python's milling programs state the cutter width in the header, e.g. "(TOOL DIAMETER: 0.1829 mm)". */
     private static final Pattern MILLING_DIAMETER = Pattern.compile(
             "TOOL\\s+DIAMETER:\\s*(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
@@ -47,6 +50,11 @@ public final class GCodeToolpathParser {
      * default, since a program never states how fast its controller rapids.
      */
     static final double RAPID_MM_PER_MINUTE = 1500;
+
+    /** Comment text that tells the preview how wide the cutter of a milling program is. */
+    public static String millMarker(double diameter) {
+        return String.format(Locale.ROOT, "FCFX MILL D%.4f", diameter);
+    }
 
     /** Comment text that tells the preview which tool (and diameter) the following moves use. */
     public static String toolMarker(int toolId, double diameter) {
@@ -315,6 +323,7 @@ public final class GCodeToolpathParser {
         int pythonToolId = 0;
         boolean pythonExcellon = false;
         Double millingDiameter = null;
+        java.util.Set<Double> millingWidths = new java.util.LinkedHashSet<>();
         ToolTally lastHitTool = null;
         double lastHitX = Double.NaN;
         double lastHitY = Double.NaN;
@@ -334,6 +343,11 @@ public final class GCodeToolpathParser {
                         id -> new ToolTally(id, diameter));
                 tool.diameter = diameter;
             }
+            Matcher mill = MILL_MARKER.matcher(raw);
+            if (mill.find()) {
+                millingDiameter = Double.parseDouble(mill.group(1));
+                millingWidths.add(millingDiameter);
+            }
             if (!pythonExcellon && raw.contains("G-code from Excellon")) {
                 pythonExcellon = true;
             }
@@ -343,6 +357,7 @@ public final class GCodeToolpathParser {
                 Matcher milling = MILLING_DIAMETER.matcher(raw);
                 if (milling.find()) {
                     millingDiameter = Double.parseDouble(milling.group(1));
+                    millingWidths.add(millingDiameter);
                 }
             } else if (toolWord.find()) {
                 pythonToolId = Integer.parseInt(toolWord.group(1));
@@ -566,7 +581,7 @@ public final class GCodeToolpathParser {
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
                 hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(), stepBuilder.build(markPositions(pathMarks)),
-                hits.isEmpty() ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
+                hits.isEmpty() && millingWidths.size() == 1 ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",

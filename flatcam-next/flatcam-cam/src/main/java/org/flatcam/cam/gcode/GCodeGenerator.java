@@ -278,6 +278,7 @@ public final class GCodeGenerator {
                 ? "Gerado por FlatCAM FX (prototipo) - isolamento" : "Gerado por FlatCAM FX - isolamento"));
         line(gcode, "%s", preprocessor.comment("Unidades do arquivo de origem: " + result.units()));
         if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
+        line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(toolDiameter)));
         line(gcode, result.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
@@ -353,6 +354,7 @@ public final class GCodeGenerator {
                 : "Gerado por FlatCAM FX - recorte de placa - cutout"));
         line(gcode, "%s", preprocessor.comment("Unidades do arquivo de origem: " + result.units()));
         if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
+        line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(toolDiameter)));
         line(gcode, result.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
@@ -531,6 +533,7 @@ public final class GCodeGenerator {
                 }
             }
             firstTool = false;
+            line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
             if (tool.toolProfile() == ToolProfile.V) {
                 VTipSettings settings = vTools.get(toolIndex);
                 line(gcode, "%s", preprocessor.comment(String.format(Locale.ROOT,

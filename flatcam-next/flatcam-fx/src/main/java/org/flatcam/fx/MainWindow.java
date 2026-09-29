@@ -188,7 +188,7 @@ final class MainWindow {
     }
 
     /** A Geometry CNC Job plus the totals read back from its own text (see GCodeToolpathParser.ToolpathStats). */
-    private record GeneratedCncJob(CncJobResult job, GCodeToolpathParser.ToolpathStats stats) {
+    private record GeneratedCncJob(CncJobResult job, GCodeToolpathParser.Result preview) {
     }
 
     private record ImportedGCode(String text, GCodeToolpathParser.Result preview) {
@@ -3364,6 +3364,15 @@ final class MainWindow {
     }
 
     /** Distance/time/tool summary read back from a freshly generated program, or null if it can't be read. */
+    /** The G-code re-read for its preview data (centerlines, stats), or null when it cannot be read. */
+    private static GCodeToolpathParser.Result previewOf(String gcode, CancellationToken cancellation) {
+        try {
+            return GCodeToolpathParser.parse(gcode, cancellation, fraction -> { });
+        } catch (IllegalArgumentException unreadable) {
+            return null;
+        }
+    }
+
     private static GCodeToolpathParser.ToolpathStats toolpathStats(String gcode, CancellationToken cancellation) {
         try {
             return GCodeToolpathParser.parse(gcode, cancellation, fraction -> { }).stats();
@@ -4149,7 +4158,7 @@ final class MainWindow {
             context.reportProgress(0.85, "Salvando G-code de Geometry...");
             Files.writeString(outFile.toPath(), job.gcode());
             context.reportProgress(0.92, "Calculando distancia e tempo estimado...");
-            return new GeneratedCncJob(job, toolpathStats(job.gcode(), context::isCancelled));
+            return new GeneratedCncJob(job, previewOf(job.gcode(), context::isCancelled));
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
             statusLabel.setText(message);
@@ -4162,9 +4171,16 @@ final class MainWindow {
                     AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
                     appendConsole("G-code de Geometry salvo em " + outFile
                             + " (" + job.gcode().lines().count() + " linhas).");
+                    GCodeToolpathParser.Result preview = generated.preview();
+                    boolean centerlines = preview != null && preview.plotAvailable() && preview.stats() != null
+                            && preview.stats().cutterDiameter() != null;
+                    // Programs that state their cutter width get the fast stroked preview, like imported ones.
                     TreeItem<String> cncItem = addCncJobToProject(outFile.getName(), item.getValue(),
                             outFile.toPath(), job.gcode(), job.travelGeometry(), job.cutGeometry(),
-                            null, null, 0, generated.stats());
+                            centerlines ? preview.travelCenterlines() : null,
+                            centerlines ? preview.cutCenterlines() : null,
+                            centerlines ? previewWidthFor(preview) : 0,
+                            preview == null ? null : preview.stats());
                     selectProjectItem(cncItem);
                     focusCncJob(cncItem, cncJobByItem.get(cncItem));
                     closeToolPanel();

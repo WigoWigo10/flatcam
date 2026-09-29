@@ -13,6 +13,8 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.RadioButton;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
@@ -123,6 +125,7 @@ final class GeometryEditorController {
         }
         item = sourceItem;
         session = new GeometryEditSession(geometry, tools);
+        session.setClimbMilling(AppPreferences.loadGeometryEditorClimb());
         implicitToolIndex = tools.isEmpty() ? -1 : 0;
         initiallyVisible = plotArea.isLayerVisible(sourceItem);
         this.strokeOnly = strokeOnly;
@@ -286,6 +289,25 @@ final class GeometryEditorController {
         transformsPane.setExpanded(false);
         transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
         panel.getChildren().add(transformsPane);
+        RadioButton climbRadio = new RadioButton("Climb");
+        RadioButton conventionalRadio = new RadioButton("Conventional");
+        ToggleGroup millingGroup = new ToggleGroup();
+        climbRadio.setToggleGroup(millingGroup);
+        conventionalRadio.setToggleGroup(millingGroup);
+        (session.climbMilling() ? climbRadio : conventionalRadio).setSelected(true);
+        millingGroup.selectedToggleProperty().addListener((observable, previous, selectedToggle) -> {
+            if (selectedToggle != null) {
+                boolean climb = selectedToggle == climbRadio;
+                session.setClimbMilling(climb);
+                AppPreferences.saveGeometryEditorClimb(climb);
+            }
+        });
+        Tooltip millingHelp = new Tooltip("Sentido de fresagem das formas novas (como o Milling Type do Editor Geometry "
+                + "do Python). Climb inverte o sentido em que a forma foi desenhada; Conventional mantem. "
+                + "Nao altera formas ja existentes.");
+        climbRadio.setTooltip(millingHelp);
+        conventionalRadio.setTooltip(millingHelp);
+        panel.getChildren().add(new HBox(10, new Label("Milling Type (novas formas):"), climbRadio, conventionalRadio));
         if (tools.size() > 1) {
             toolChoice = new ComboBox<>();
             for (int i = 0; i < tools.size(); i++) {
