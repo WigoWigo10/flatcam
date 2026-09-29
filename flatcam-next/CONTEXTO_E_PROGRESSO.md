@@ -435,6 +435,25 @@ posição do popup, já que o código já usa coordenadas de tela absolutas
 (`event.getScreenX()/getScreenY()`). Confirmado isolado (harness fora da
 tela) antes/depois da correção.
 
+### Múltiplos monitores: DPI e largura da barra lateral (2026-09-29)
+
+Bug do JavaFX/Glass: ao **arrastar** a janela maximizada entre monitores com
+escalas diferentes (ex.: 200% e 100%), a geometria do Stage e o `outputScale`
+ficam inconsistentes e a interface distorce; Win+Seta não dispara o bug.
+Contorno em `MainApp`: um poll (400 ms) detecta a transição
+`isMaximized()` false -> true; após 3 leituras estáveis (`STABILITY_THRESHOLD`)
+e 1 s de armamento (`ARM_DELAY`), o Stage é **recriado sobre a mesma Scene**
+no monitor atual. Detalhes que importam: o monitor é capturado pela posição do
+mouse no primeiro poll maximizado, `setX/setY` usam os bounds do `Screen` do
+JavaFX (não os do AWT), `Platform.setImplicitExit(false)` evita o
+encerramento ao fechar o Stage antigo (o fechamento explícito chama
+`Platform.exit()`) e o Timeline anterior é parado a cada recriação.
+
+Largura da sidebar por monitor: `AppPreferences.loadSplitHorizontalForScreen`
+/ `saveSplitHorizontalForScreen` (chave por id AWT do monitor, com fallback
+para o valor compartilhado). `MainWindow.setCurrentScreenId()` reaplica o
+divisor via `Platform.runLater` após cada recriação.
+
 ### Diferenças intencionais já aceitas
 
 - Operações pesadas rodam em background e são canceláveis.
