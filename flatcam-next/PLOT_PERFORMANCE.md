@@ -122,6 +122,11 @@ PowerShell com `Remove-Item Env:JAVA_TOOL_OPTIONS`.
 
 ## Comparar GPU integrada e dedicada no Windows
 
+Para testar a preferência automática de GPU de alto desempenho com executável
+próprio do FX, veja [NATIVE_GPU.md](NATIVE_GPU.md) e use
+`profile-plot-native.cmd`. As instruções abaixo continuam úteis para comparar
+manualmente a integrada e a dedicada ao iniciar pelo `java.exe` compartilhado.
+
 O JavaFX pode usar aceleração gráfica sem que isso garanta qual adaptador físico
 está apresentando a janela. A mensagem `prism.verbose` confirma o pipeline
 (por exemplo, D3D), **não** confirma Intel ou NVIDIA. Configure no Windows a
