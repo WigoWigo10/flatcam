@@ -471,7 +471,7 @@ public final class GCodeToolpathParser {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
-                hits, hits.isEmpty() ? pathMarks : List.of(), hits.isEmpty() ? cutArrows : List.of(),
+                hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(),
                 hits.isEmpty() ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,

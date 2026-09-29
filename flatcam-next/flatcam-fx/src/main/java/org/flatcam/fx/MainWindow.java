@@ -3347,10 +3347,8 @@ final class MainWindow {
     }
 
     /**
-     * Python's "Display Annotation": the machining order of every drill hit (or, for milling jobs, of every travel
-     * move's start and end as in Python), shown
-     * while the job is plotted. Numbering runs once across the whole program (Python
-     * restarts it per tool and also numbers the tool-change origin as a hole).
+     * Python's "Display Annotation": the start and end of every travel move numbered in
+     * program order, shown while the job is plotted.
      */
     private void refreshCncAnnotations(TreeItem<String> item) {
         CncAnnotationKey key = new CncAnnotationKey(item);
@@ -3360,23 +3358,23 @@ final class MainWindow {
         plotAreaView.setArrows(key, !showArrows ? List.of() : entry.stats().cutArrows().stream()
                 .map(a -> new PlotAreaView.Arrow(a.x(), a.y(), a.dx(), a.dy(), a.length()))
                 .toList());
-        if (entry == null || entry.stats() == null
-                || (entry.stats().hits().isEmpty() && entry.stats().pathMarks().isEmpty())
+        if (entry == null || entry.stats() == null || entry.stats().pathMarks().isEmpty()
                 || cncAnnotationsOff.contains(item) || !isObjectVisible(item)) {
             plotAreaView.setAnnotations(key, List.of());
             return;
         }
-        if (entry.stats().hits().isEmpty()) {
-            // Milling job: like Python, number where every travel move starts and ends.
-            plotAreaView.setAnnotations(key, entry.stats().pathMarks().stream()
-                    .map(mark -> new PlotAreaView.Annotation(mark.x(), mark.y(), Integer.toString(mark.sequence())))
-                    .toList());
-            return;
-        }
+        // Same numbers as Python: both ends of every travel move, including the tool-change origin.
+        // Marks sitting on a hole of a tool unticked in the tools table are hidden with it.
         Set<Integer> hidden = hiddenCncTools.getOrDefault(item, Set.of());
-        plotAreaView.setAnnotations(key, entry.stats().hits().stream()
-                .filter(hit -> !hidden.contains(hit.toolId()))
-                .map(hit -> new PlotAreaView.Annotation(hit.x(), hit.y(), Integer.toString(hit.sequence())))
+        Set<List<Double>> hiddenPositions = new java.util.HashSet<>();
+        for (GCodeToolpathParser.DrillHit hit : entry.stats().hits()) {
+            if (hidden.contains(hit.toolId())) {
+                hiddenPositions.add(List.of(hit.x(), hit.y()));
+            }
+        }
+        plotAreaView.setAnnotations(key, entry.stats().pathMarks().stream()
+                .filter(mark -> !hiddenPositions.contains(List.of(mark.x(), mark.y())))
+                .map(mark -> new PlotAreaView.Annotation(mark.x(), mark.y(), Integer.toString(mark.sequence())))
                 .toList());
     }
 
@@ -4587,7 +4585,7 @@ final class MainWindow {
 
         GCodeToolpathParser.ToolpathStats stats = entry.stats();
         if (stats != null) {
-            if (!stats.hits().isEmpty() || !stats.pathMarks().isEmpty()) {
+            if (!stats.pathMarks().isEmpty()) {
                 CheckBox annotationCb = new CheckBox("Display Annotation");
                 annotationCb.setSelected(!cncAnnotationsOff.contains(item));
                 annotationCb.setOnAction(e -> {

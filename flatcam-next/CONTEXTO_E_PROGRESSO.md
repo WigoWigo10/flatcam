@@ -998,8 +998,8 @@ comentário inofensivo para a máquina, `FCFX TOOL T<n> D<diâmetro>`, e o
 depois de reabrir o projeto, abrir o `.nc` ou editar o G-code) e para montar
 `ToolpathStats`: tabela de ferramentas (#, Dia, Drills, Slots, Cut Z) com Plot
 por ferramenta, ordem de usinagem numerada no plot ("Display Annotation", uma
-numeração única no programa, sem numerar a origem da troca de ferramenta como o
-Python), distância percorrida e tempo estimado (descidas no avanço, deslocamentos
+numeração igual à do Python desde 2026-09-29: início e fim de cada deslocamento,
+incluindo a origem da troca de ferramenta como nº 1), distância percorrida e tempo estimado (descidas no avanço, deslocamentos
 a 1500 mm/min como no Python; "—" quando falta F). Jobs de fresagem ainda não
 têm o marcador e continuam com traço fino.
 
