@@ -185,6 +185,8 @@ final class PlotAreaView extends StackPane {
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
     private final Map<Object, LodGeometry> lodLayers = new LinkedHashMap<>();
+    private final Map<Object, PlotDrawableIndex> drawableIndexes = new LinkedHashMap<>();
+    private final Map<Object, PlotDrawableIndex> lodDrawableIndexes = new LinkedHashMap<>();
     private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
     private final UiFluidityMetrics uiFluidity = new UiFluidityMetrics("fx");
     private Timeline uiFluidityTimer;
@@ -263,8 +265,10 @@ final class PlotAreaView extends StackPane {
         editorHighlightCanvas.heightProperty().bind(heightProperty());
         snapCursorCanvas.widthProperty().bind(widthProperty());
         snapCursorCanvas.heightProperty().bind(heightProperty());
-        widthProperty().addListener((obs, oldVal, newVal) -> redraw());
-        heightProperty().addListener((obs, oldVal, newVal) -> redraw());
+        // A resize updates width and height separately; repaint only once on
+        // the next pulse instead of redrawing dense layers for both changes.
+        widthProperty().addListener((obs, oldVal, newVal) -> requestInteractionRedraw());
+        heightProperty().addListener((obs, oldVal, newVal) -> requestInteractionRedraw());
         editorHighlightCanvas.widthProperty().addListener((obs, oldVal, newVal) -> drawEditorHighlight());
         editorHighlightCanvas.heightProperty().addListener((obs, oldVal, newVal) -> drawEditorHighlight());
         snapCursorCanvas.widthProperty().addListener((obs, oldVal, newVal) -> drawSnapCursor());
@@ -333,6 +337,8 @@ final class PlotAreaView extends StackPane {
         boolean multicolor = existing != null && existing.multicolor();
         layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category, filled, multicolor));
         lodLayers.remove(key);
+        drawableIndexes.remove(key);
+        lodDrawableIndexes.remove(key);
         redraw();
     }
 
@@ -346,6 +352,7 @@ final class PlotAreaView extends StackPane {
         } else {
             lodLayers.put(key, new LodGeometry(centerlines, strokeWidthWorld));
         }
+        lodDrawableIndexes.remove(key);
         redraw();
     }
 
@@ -357,6 +364,8 @@ final class PlotAreaView extends StackPane {
         RenderLayer layer = layers.get(key);
         if (layer != null) {
             lodLayers.remove(key);
+            drawableIndexes.remove(key);
+            lodDrawableIndexes.remove(key);
             layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
                     layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
@@ -376,6 +385,8 @@ final class PlotAreaView extends StackPane {
         }
         layers.remove(key);
         lodLayers.remove(key);
+        drawableIndexes.remove(key);
+        lodDrawableIndexes.remove(key);
         redraw();
     }
 
@@ -445,6 +456,8 @@ final class PlotAreaView extends StackPane {
         cancelPlacement();
         layers.clear();
         lodLayers.clear();
+        drawableIndexes.clear();
+        lodDrawableIndexes.clear();
         editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
@@ -1212,14 +1225,15 @@ final class PlotAreaView extends StackPane {
                 if (layer.category() == category && layer.visible() && drawnGeometry != null
                         && !drawnGeometry.isEmpty() && intersectsViewport(drawnGeometry, viewBounds)) {
                     long layerStart = profiling ? System.nanoTime() : 0;
+                    PlotDrawableIndex index = drawableIndex(entry.getKey(), drawnGeometry, lodActive);
                     if (lodActive) {
                         gc.save();
                         gc.setLineCap(StrokeLineCap.ROUND);
                         drawLayer(gc, new RenderLayer(drawnGeometry, true, layer.fillColor(), layer.fillColor(),
-                                true, category, true, false), contentWidth, contentHeight, viewBounds);
+                                true, category, true, false), contentWidth, contentHeight, viewBounds, index);
                         gc.restore();
                     } else {
-                        drawLayer(gc, layer, contentWidth, contentHeight, viewBounds);
+                        drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
                     }
                     if (profiling) {
                         long elapsed = System.nanoTime() - layerStart;
@@ -1258,6 +1272,16 @@ final class PlotAreaView extends StackPane {
         return layer.category() == LayerCategory.CNCJOB && lod != null
                 && shouldUseCenterlineLod(layer.filled(), layer.multicolor(),
                         lod.strokeWidthWorld(), scale);
+    }
+
+    private PlotDrawableIndex drawableIndex(Object key, Geometry geometry, boolean lod) {
+        Map<Object, PlotDrawableIndex> indexes = lod ? lodDrawableIndexes : drawableIndexes;
+        PlotDrawableIndex index = indexes.get(key);
+        if (index == null || index.geometry() != geometry) {
+            index = new PlotDrawableIndex(geometry);
+            indexes.put(key, index);
+        }
+        return index;
     }
 
     static boolean shouldUseCenterlineLod(boolean filled, boolean multicolor,
@@ -1464,58 +1488,83 @@ final class PlotAreaView extends StackPane {
 
     private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth,
                            double contentHeight, Envelope viewBounds) {
+        drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, null);
+    }
+
+    private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth,
+                           double contentHeight, Envelope viewBounds, PlotDrawableIndex index) {
         gc.setFillRule(FillRule.EVEN_ODD);
         gc.setLineWidth(layer.strokeOnly() ? 1.5 : 1);
+        if (!layer.multicolor()) {
+            gc.setFill(layer.fillColor());
+            gc.setStroke(layer.strokeColor());
+        }
 
-        int[] partIndex = {0};
-        forEachDrawablePart(layer.geometry(), part -> {
-            Color partColor = layer.multicolor() ? multicolorHue(partIndex[0]++) : layer.fillColor();
-            if (viewBounds != null && !intersectsViewport(part, viewBounds)) {
+        if (index != null) {
+            for (PlotDrawableIndex.Part part : index.visibleParts(viewBounds)) {
+                drawPart(gc, layer, part.geometry(), part.index(), contentWidth, contentHeight, viewBounds);
+            }
+        } else {
+            int[] partIndex = {0};
+            forEachDrawablePart(layer.geometry(), part -> {
+                int currentIndex = partIndex[0]++;
+                if (viewBounds == null || intersectsViewport(part, viewBounds)) {
+                    drawPart(gc, layer, part, currentIndex, contentWidth, contentHeight, viewBounds);
+                }
+            });
+        }
+    }
+
+    private void drawPart(GraphicsContext gc, RenderLayer layer, Geometry part, int partIndex,
+                          double contentWidth, double contentHeight, Envelope viewBounds) {
+        if (layer.multicolor()) {
+            Color partColor = multicolorHue(partIndex);
+            gc.setFill(partColor);
+            gc.setStroke(partColor.darker());
+        }
+        if (layer.strokeOnly()) {
+            if (part instanceof Point point) {
+                double[] position = worldToScreen(point.getX(), point.getY(), contentWidth, contentHeight);
+                gc.fillOval(position[0] + RULER_LEFT_WIDTH - 0.75,
+                        position[1] + RULER_TOP_HEIGHT - 0.75, 1.5, 1.5);
                 return;
             }
-            gc.setFill(partColor);
-            gc.setStroke(layer.multicolor() ? partColor.darker() : layer.strokeColor());
-            if (layer.strokeOnly()) {
-                if (part instanceof Point point) {
-                    double[] position = worldToScreen(point.getX(), point.getY(), contentWidth, contentHeight);
-                    gc.fillOval(position[0] + RULER_LEFT_WIDTH - 0.75,
-                            position[1] + RULER_TOP_HEIGHT - 0.75, 1.5, 1.5);
-                    return;
-                }
-                CoordinateSequence coordinates = switch (part) {
-                    case LineString line -> line.getCoordinateSequence();
-                    case Polygon polygon -> polygon.getExteriorRing().getCoordinateSequence();
-                    default -> null;
-                };
-                if (coordinates == null || coordinates.size() == 0) {
-                    return;
-                }
-                gc.beginPath();
-                // Not closed: a strokeOnly LineString is not always a closed ring - the
-                // Cutout Tool's preview (appTools/ToolCutOut.py's bridge gaps) is
-                // deliberately made of OPEN arcs, and closing each one back to its own
-                // start here drew a spurious chord straight across the gap it represents.
-                // An isolation ring's own coordinates already repeat the start point as
-                // the end point, so leaving this open draws it correctly too either way.
-                addRing(gc, coordinates, contentWidth, contentHeight, false);
-                gc.stroke();
-            } else if (part instanceof LineString line) {
-                gc.beginPath();
-                addRing(gc, line.getCoordinateSequence(), contentWidth, contentHeight, false);
-                gc.stroke();
-            } else if (part instanceof Polygon polygon) {
-                gc.beginPath();
-                addRing(gc, polygon.getExteriorRing().getCoordinateSequence(), contentWidth, contentHeight, true);
-                for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
-                    addRing(gc, polygon.getInteriorRingN(r).getCoordinateSequence(), contentWidth, contentHeight, true);
-                }
-                // The legacy app's "Solid" plot option: filled copper/holes vs. outline-only.
-                if (layer.filled()) {
-                    gc.fill();
-                }
-                gc.stroke();
+            CoordinateSequence coordinates = switch (part) {
+                case LineString line -> line.getCoordinateSequence();
+                case Polygon polygon -> polygon.getExteriorRing().getCoordinateSequence();
+                default -> null;
+            };
+            if (coordinates == null || coordinates.size() == 0) {
+                return;
             }
-        });
+            gc.beginPath();
+            // Not closed: a strokeOnly LineString is not always a closed ring - the
+            // Cutout Tool's preview (appTools/ToolCutOut.py's bridge gaps) is
+            // deliberately made of OPEN arcs, and closing each one back to its own
+            // start here drew a spurious chord straight across the gap it represents.
+            // An isolation ring's own coordinates already repeat the start point as
+            // the end point, so leaving this open draws it correctly too either way.
+            addRing(gc, coordinates, contentWidth, contentHeight, false);
+            gc.stroke();
+        } else if (part instanceof LineString line) {
+            gc.beginPath();
+            addRing(gc, line.getCoordinateSequence(), contentWidth, contentHeight, false);
+            gc.stroke();
+        } else if (part instanceof Polygon polygon) {
+            gc.beginPath();
+            addRing(gc, polygon.getExteriorRing().getCoordinateSequence(), contentWidth, contentHeight, true);
+            for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
+                LineString hole = polygon.getInteriorRingN(r);
+                if (viewBounds == null || intersectsViewport(hole, viewBounds)) {
+                    addRing(gc, hole.getCoordinateSequence(), contentWidth, contentHeight, true);
+                }
+            }
+            // The legacy app's "Solid" plot option: filled copper/holes vs. outline-only.
+            if (layer.filled()) {
+                gc.fill();
+            }
+            gc.stroke();
+        }
     }
 
     /** Python project arrays can nest a MultiPolygon inside a GeometryCollection. */

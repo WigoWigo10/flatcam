@@ -119,3 +119,28 @@ O arquivo `.jfr` é ignorado pelo Git. Antes de compartilhar gravações ou dump
 revise-os: eles podem conter nomes de arquivos e caminhos locais. Para não
 misturar outras opções Java nos testes seguintes, remova a variável criada no
 PowerShell com `Remove-Item Env:JAVA_TOOL_OPTIONS`.
+
+## Comparar GPU integrada e dedicada no Windows
+
+O JavaFX pode usar aceleração gráfica sem que isso garanta qual adaptador físico
+está apresentando a janela. A mensagem `prism.verbose` confirma o pipeline
+(por exemplo, D3D), **não** confirma Intel ou NVIDIA. Configure no Windows a
+preferência de GPU para o `java.exe` do JDK que executa o FX em **Configurações →
+Sistema → Tela → Elementos gráficos → Aplicativo de área de trabalho → Opções**.
+Escolha **Alto desempenho** para testar a dedicada, salve e reinicie o FX.
+Para a execução na integrada, escolha **Economia de energia** e reinicie de novo.
+Essa escolha vale também para outros aplicativos que usem o mesmo `java.exe`;
+reverta para **Deixar o Windows decidir** após o teste, se desejar.
+
+No notebook com JDK Eclipse Adoptium 21 observado em setembro de 2026, o
+executável é `C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot\bin\java.exe`.
+Se o JDK mudar, confirme o caminho do processo FX no Gerenciador de Tarefas.
+Durante pan e zoom, confira em **Gerenciador de Tarefas → Detalhes → GPU engine**
+se o `java.exe` aparece na GPU dedicada; `nvidia-smi pmon -c 1` é uma segunda
+checagem quando o driver lista processos gráficos.
+
+Faça duas execuções de `profile-plot.cmd`, uma por GPU, mantendo projeto, camadas,
+zoom, resolução e sequência de movimentos iguais. Compare as linhas
+`[UI-FLUIDITY]` e `[PLOT-PROFILE]`. O índice espacial do Plot Area reduz o
+trabalho de CPU em zoom próximo, mas a GPU dedicada só ajuda na parte gráfica;
+uma pausa longa de processamento de geometria pode persistir nas duas GPUs.
