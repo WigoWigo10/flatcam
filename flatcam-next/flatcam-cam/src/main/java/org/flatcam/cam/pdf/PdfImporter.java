@@ -31,7 +31,7 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.util.GeometryFixer;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * File > Import > PDF - ToolPDF.py/ParsePDF.py: a hand-written reader for the
@@ -576,7 +576,7 @@ public final class PdfImporter {
                 if (layer.solids.isEmpty()) {
                     continue;
                 }
-                Geometry solid = UnaryUnionOp.union(layer.solids);
+                Geometry solid = OverlayNGRobust.union(layer.solids);
                 for (Geometry clear : layer.localClears) {
                     if (solid.covers(clear)) {
                         Geometry difference = solid.difference(clear);
@@ -620,7 +620,7 @@ public final class PdfImporter {
                     shapes.add(FACTORY.createPoint(point).buffer(diameter / 2, 16));
                 }
             }
-            return ExcellonImage.of(units, toolDiameters, drills, List.of(), UnaryUnionOp.union(shapes));
+            return ExcellonImage.of(units, toolDiameters, drills, List.of(), OverlayNGRobust.union(shapes));
         }
 
         private static double round(double value, int decimals) {

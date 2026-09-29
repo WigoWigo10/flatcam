@@ -19,7 +19,8 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNG;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * A from-scratch RS-274X Gerber parser covering exactly the subset exercised
@@ -321,16 +322,7 @@ public final class GerberParser {
         }
 
         progressCallback.report(0.90);
-        Map<String, Geometry> apertureGeometry = new LinkedHashMap<>();
-        int apertureIndex = 0;
-        for (Map.Entry<String, List<Geometry>> entry : shapesByAperture.entrySet()) {
-            cancellationToken.throwIfCancellationRequested();
-            List<Geometry> shapes = entry.getValue();
-            apertureGeometry.put(entry.getKey(), shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes));
-            cancellationToken.throwIfCancellationRequested();
-            apertureIndex++;
-            reportProgressStep(progressCallback, apertureIndex, shapesByAperture.size(), 0.90, 0.98);
-        }
+        Map<String, Geometry> apertureGeometry = new LazyApertureGeometry(shapesByAperture);
 
         progressCallback.report(0.98);
         Geometry solidGeometry = accumulator.result();
@@ -498,7 +490,7 @@ public final class GerberParser {
         if (polygons.isEmpty()) {
             return geometryFactory.createPolygon();
         }
-        Geometry result = UnaryUnionOp.union(polygons);
+        Geometry result = OverlayNGRobust.union(polygons);
         cancellationToken.throwIfCancellationRequested();
         return result;
     }
@@ -615,7 +607,7 @@ public final class GerberParser {
 
     /**
      * Batches shapes of the same polarity and unions/subtracts them from the
-     * running solid in one shot (JTS's {@link UnaryUnionOp} instead of many
+     * running solid in one shot (JTS's {@link OverlayNGRobust} instead of many
      * sequential pairwise unions) - matters for fixtures with thousands of
      * flashes (STM32F4-spindle.cmp has 1661 on a single aperture alone).
      */
@@ -652,10 +644,10 @@ public final class GerberParser {
             if (pending.isEmpty()) {
                 return;
             }
-            Geometry batch = pending.size() == 1 ? pending.get(0) : UnaryUnionOp.union(pending);
+            Geometry batch = pending.size() == 1 ? pending.get(0) : OverlayNGRobust.union(pending);
             cancellationToken.throwIfCancellationRequested();
             pending.clear();
-            solid = pendingPolarity == 'C' ? solid.difference(batch) : solid.union(batch);
+            solid = OverlayNGRobust.overlay(solid, batch, pendingPolarity == 'C' ? OverlayNG.DIFFERENCE : OverlayNG.UNION);
             cancellationToken.throwIfCancellationRequested();
         }
     }

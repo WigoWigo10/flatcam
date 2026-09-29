@@ -20,7 +20,7 @@ import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * Ports the geometry-producing portion of {@code ToolNCC.py} and
@@ -249,7 +249,7 @@ public final class NccGenerator {
         }
         Geometry geometry = allPaths.isEmpty()
                 ? factory.createGeometryCollection() : factory.buildGeometry(new ArrayList<>(allPaths));
-        Geometry footprint = footprints.isEmpty() ? factory.createGeometryCollection() : UnaryUnionOp.union(footprints);
+        Geometry footprint = footprints.isEmpty() ? factory.createGeometryCollection() : OverlayNGRobust.union(footprints);
         return new ToolClearResult(geometry, footprint, failures);
     }
 

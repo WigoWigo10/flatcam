@@ -454,6 +454,19 @@ Largura da sidebar por monitor: `AppPreferences.loadSplitHorizontalForScreen`
 para o valor compartilhado). `MainWindow.setCurrentScreenId()` reaplica o
 divisor via `Platform.runLater` após cada recriação.
 
+### Desempenho do parse do Gerber (2026-09-29)
+
+Medido com JFR na placa STM32F4-spindle (139 KB): 80% do parse estava no overlay
+legado do JTS (`SnapIfNeededOverlayOp`, via `UnaryUnionOp`/`Geometry.union`).
+Todas as uniões em `flatcam-cam` passaram a usar `OverlayNGRobust` (união e
+`overlay` UNION/DIFFERENCE) e a geometria por abertura (`apertureGeometry()`,
+usada só por Mark, editor e persistência) é calculada sob demanda por
+`LazyApertureGeometry`. Parse: ~10-14 s -> ~1 s (aquecido). A geometria fica
+equivalente (o solid tem alguns vértices a menos por causa do snapping) e os 329
+testes passam. Pendente: `ProjectFileIO.load` leva ~16 s no mesmo arquivo
+(salvar leva ~3 s) e o buffer da isolação em painéis 4x4 leva ~24 s;
+investigar com JFR antes de considerar um módulo nativo.
+
 ### Diferenças intencionais já aceitas
 
 - Operações pesadas rodam em background e são canceláveis.

@@ -25,7 +25,7 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * An open editing session for one Gerber object - the Gerber Editor's
@@ -393,7 +393,7 @@ public final class GerberEditSession {
             return false;
         }
         TransformOp.Offset offset = new TransformOp.Offset(dx, dy);
-        Geometry footprint = UnaryUnionOp.union(selected.stream()
+        Geometry footprint = OverlayNGRobust.union(selected.stream()
                 .map(index -> offset.apply(shapes.get(index).geometry())).toList());
         if (footprint == null || footprint.isEmpty() || !footprint.isValid()) {
             throw new IllegalArgumentException("Eraser footprint is invalid");
@@ -583,7 +583,7 @@ public final class GerberEditSession {
                 throw new IllegalArgumentException("Nao e seguro poligonizar atraves de uma operacao clear");
             }
         }
-        Geometry merged = UnaryUnionOp.union(selected.stream().sorted()
+        Geometry merged = OverlayNGRobust.union(selected.stream().sorted()
                 .map(index -> shapes.get(index).geometry()).toList());
         if (merged.isEmpty() || !merged.isValid() || merged.getDimension() != 2) {
             throw new IllegalArgumentException("As formas nao produziram uma regiao valida");

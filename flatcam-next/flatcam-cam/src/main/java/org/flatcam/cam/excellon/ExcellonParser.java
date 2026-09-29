@@ -15,7 +15,7 @@ import org.flatcam.cam.ProgressCallback;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * An Excellon (NC drill) parser covering both coordinate styles seen across
@@ -254,7 +254,7 @@ public final class ExcellonParser {
 
         progressCallback.report(0.95);
         cancellationToken.throwIfCancellationRequested();
-        Geometry solid = shapes.isEmpty() ? geometryFactory.createPolygon() : UnaryUnionOp.union(shapes);
+        Geometry solid = shapes.isEmpty() ? geometryFactory.createPolygon() : OverlayNGRobust.union(shapes);
         cancellationToken.throwIfCancellationRequested();
         progressCallback.report(1);
         return new ExcellonImage(units == null ? "IN" : units, toolDiameters, drills, slots, solid);

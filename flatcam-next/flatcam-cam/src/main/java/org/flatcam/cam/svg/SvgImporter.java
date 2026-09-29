@@ -28,7 +28,7 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.geom.util.GeometryFixer;
 import org.locationtech.jts.operation.linemerge.LineMerger;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -176,7 +176,7 @@ public final class SvgImporter {
         List<Geometry> copperParts = new ArrayList<>(polygons);
         copperParts.addAll(strokedLines);
         Geometry copper = copperParts.isEmpty() ? FACTORY.createGeometryCollection()
-                : UnaryUnionOp.union(copperParts.stream().map(GeometryFixer::fix).toList());
+                : OverlayNGRobust.union(copperParts.stream().map(GeometryFixer::fix).toList());
         return new Result(units, shapes, copper, skippedText);
     }
 

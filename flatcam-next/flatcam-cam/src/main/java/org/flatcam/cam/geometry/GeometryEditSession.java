@@ -23,7 +23,7 @@ import org.locationtech.jts.index.strtree.STRtree;
 import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /** An in-memory geometry edit. Atomic lines and polygons remain individually selectable. */
 public final class GeometryEditSession {
@@ -65,7 +65,7 @@ public final class GeometryEditSession {
             if (replace) {
                 List<Geometry> geometries = inputs.stream().map(ToolPart::geometry).toList();
                 Geometry combined = switch (operation) {
-                    case UNION -> UnaryUnionOp.union(geometries);
+                    case UNION -> OverlayNGRobust.union(geometries);
                     case INTERSECTION -> {
                         Geometry result = geometries.get(0);
                         for (int i = 1; i < geometries.size(); i++) {
@@ -79,11 +79,11 @@ public final class GeometryEditSession {
                         yield result;
                     }
                     case SUBTRACT -> geometries.get(0).difference(
-                            UnaryUnionOp.union(geometries.subList(1, geometries.size())));
+                            OverlayNGRobust.union(geometries.subList(1, geometries.size())));
                     case CUT_PATH -> {
                         Geometry target = geometries.get(0);
                         Geometry path = target instanceof Polygon ? target.getBoundary() : target;
-                        yield path.difference(UnaryUnionOp.union(geometries.subList(1, geometries.size())));
+                        yield path.difference(OverlayNGRobust.union(geometries.subList(1, geometries.size())));
                     }
                     default -> throw new IllegalStateException("Operacao booleana desconhecida.");
                 };

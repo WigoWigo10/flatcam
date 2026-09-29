@@ -10,7 +10,8 @@ import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNG;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * Result of parsing one Gerber file: the resolved apertures, the final
@@ -40,7 +41,8 @@ public final class GerberImage {
         this.apertures = Map.copyOf(apertures);
         this.solidGeometry = solidGeometry;
         this.followGeometry = followGeometry;
-        this.apertureGeometry = Map.copyOf(apertureGeometry);
+        this.apertureGeometry = apertureGeometry instanceof LazyApertureGeometry
+                ? apertureGeometry : Map.copyOf(apertureGeometry);
         this.shapes = List.copyOf(shapes);
     }
 
@@ -170,7 +172,7 @@ public final class GerberImage {
             cancellation.throwIfCancellationRequested();
             List<Geometry> geometries = entry.getValue();
             mergedApertures.put(entry.getKey(), geometries.size() == 1
-                    ? geometries.get(0) : UnaryUnionOp.union(geometries));
+                    ? geometries.get(0) : OverlayNGRobust.union(geometries));
             processed++;
             progress.report(0.60 + 0.38 * processed / byAperture.size());
         }
@@ -186,10 +188,10 @@ public final class GerberImage {
         if (pending.isEmpty()) {
             return solid;
         }
-        Geometry batch = pending.size() == 1 ? pending.get(0) : UnaryUnionOp.union(pending);
+        Geometry batch = pending.size() == 1 ? pending.get(0) : OverlayNGRobust.union(pending);
         pending.clear();
         cancellation.throwIfCancellationRequested();
-        Geometry result = clear ? solid.difference(batch) : solid.union(batch);
+        Geometry result = OverlayNGRobust.overlay(solid, batch, clear ? OverlayNG.DIFFERENCE : OverlayNG.UNION);
         cancellation.throwIfCancellationRequested();
         return result;
     }

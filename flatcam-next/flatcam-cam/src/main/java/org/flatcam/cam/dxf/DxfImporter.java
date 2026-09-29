@@ -20,7 +20,7 @@ import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.geom.util.GeometryFixer;
 import org.locationtech.jts.operation.linemerge.LineMerger;
 import org.locationtech.jts.operation.polygonize.Polygonizer;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * File > Import > DXF - ParseDXF.py/camlib.import_dxf_as_geo: LINE, ARC, CIRCLE,
@@ -285,13 +285,13 @@ public final class DxfImporter {
         }
         List<Geometry> copperParts = new ArrayList<>();
         if (!outlines.isEmpty()) {
-            Geometry noded = UnaryUnionOp.union(outlines);
+            Geometry noded = OverlayNGRobust.union(outlines);
             Polygonizer polygonizer = new Polygonizer(true);
             polygonizer.add(noded);
             copperParts.add(polygonizer.getGeometry());
         }
         filled.forEach(shape -> copperParts.add(GeometryFixer.fix(shape)));
-        return copperParts.isEmpty() ? FACTORY.createGeometryCollection() : UnaryUnionOp.union(copperParts);
+        return copperParts.isEmpty() ? FACTORY.createGeometryCollection() : OverlayNGRobust.union(copperParts);
     }
 
     // ---- entities --------------------------------------------------------------------------------------------------

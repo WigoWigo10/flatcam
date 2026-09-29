@@ -21,7 +21,7 @@ import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * Generates GRBL-compatible drilling G-code from a parsed {@link ExcellonImage}:
@@ -626,7 +626,7 @@ public final class GCodeGenerator {
         if (shapes.isEmpty()) {
             return GEOMETRY_FACTORY.createGeometryCollection();
         }
-        return shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes);
+        return shapes.size() == 1 ? shapes.get(0) : OverlayNGRobust.union(shapes);
     }
 
     /**
