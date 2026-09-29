@@ -1,6 +1,7 @@
 package org.flatcam.cam.gcode;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -81,18 +82,104 @@ public final class GCodeToolpathParser {
     }
 
     /**
+     * One leg of the program in machining order: a run of travel moves, a run of cutting
+     * moves, or a single drill plunge ({@code travel} false with one point). Consecutive
+     * steps chain end to start, so a viewer can walk through what comes before and after.
+     * {@code xy} holds x0,y0,x1,y1,...; {@code fromMark}/{@code toMark} are the
+     * {@link PathMark} numbers at its two ends (0 when an end carries none).
+     */
+    public record PathStep(int index, boolean travel, double[] xy, double length, int fromMark, int toMark) {
+    }
+
+    /** Groups consecutive moves of the same kind into steps; a Z crossing of zero ends the current one. */
+    private static final class StepBuilder {
+        private final List<double[]> finished = new ArrayList<>();
+        private final List<Boolean> finishedTravel = new ArrayList<>();
+        private final List<Double> finishedLength = new ArrayList<>();
+        private final List<Double> points = new ArrayList<>();
+        private boolean travel;
+        private double length;
+        private int coordinates;
+
+        void segment(boolean isTravel, Coordinate[] path) {
+            if (path.length < 2 || coordinates >= MAX_PREVIEW_SEGMENTS) {
+                return;
+            }
+            if (!points.isEmpty() && travel != isTravel) {
+                flush();
+            }
+            travel = isTravel;
+            int from = 0;
+            if (!points.isEmpty()) {
+                int last = points.size();
+                if (points.get(last - 2) == path[0].x && points.get(last - 1) == path[0].y) {
+                    from = 1;
+                } else {
+                    flush();
+                    travel = isTravel;
+                }
+            }
+            for (int i = from; i < path.length; i++) {
+                int size = points.size();
+                if (size >= 2) {
+                    length += Math.hypot(path[i].x - points.get(size - 2), path[i].y - points.get(size - 1));
+                }
+                points.add(path[i].x);
+                points.add(path[i].y);
+                coordinates++;
+            }
+        }
+
+        void drill(double x, double y) {
+            flush();
+            finished.add(new double[]{x, y});
+            finishedTravel.add(false);
+            finishedLength.add(0.0);
+        }
+
+        void flush() {
+            if (points.isEmpty()) {
+                return;
+            }
+            double[] xy = new double[points.size()];
+            for (int i = 0; i < xy.length; i++) {
+                xy[i] = points.get(i);
+            }
+            finished.add(xy);
+            finishedTravel.add(travel);
+            finishedLength.add(length);
+            points.clear();
+            length = 0;
+        }
+
+        List<PathStep> build(Map<List<Double>, Integer> markAt) {
+            flush();
+            List<PathStep> steps = new ArrayList<>(finished.size());
+            for (int i = 0; i < finished.size(); i++) {
+                double[] xy = finished.get(i);
+                int last = xy.length - 2;
+                steps.add(new PathStep(i, finishedTravel.get(i), xy, finishedLength.get(i),
+                        markAt.getOrDefault(List.of(xy[0], xy[1]), 0),
+                        markAt.getOrDefault(List.of(xy[last], xy[last + 1]), 0)));
+            }
+            return steps;
+        }
+    }
+
+    /**
      * Per-program totals, Python's CNCJob "Travelled distance" / "Estimated time".
      * {@code estimatedMinutes} is NaN when a feed move has no F word to time it by.
      */
     /** {@code cutterDiameter} is the width a milling program states for its cutter (null for drill jobs or when unstated). */
     public record ToolpathStats(List<ToolUsage> tools, List<DrillHit> hits, List<PathMark> pathMarks,
-                                List<CutArrow> cutArrows, Double cutterDiameter, double xyDistance,
+                                List<CutArrow> cutArrows, List<PathStep> steps, Double cutterDiameter, double xyDistance,
                                 double estimatedMinutes, String units) {
         public ToolpathStats {
             tools = List.copyOf(tools);
             hits = List.copyOf(hits);
             pathMarks = List.copyOf(pathMarks);
             cutArrows = List.copyOf(cutArrows);
+            steps = List.copyOf(steps);
         }
 
         public boolean hasTools() {
@@ -222,6 +309,7 @@ public final class GCodeToolpathParser {
         List<DrillHit> hits = new ArrayList<>();
         List<PathMark> pathMarks = new ArrayList<>();
         List<CutArrow> cutArrows = new ArrayList<>();
+        StepBuilder stepBuilder = new StepBuilder();
         java.util.Set<List<Double>> markedPositions = new java.util.HashSet<>();
         ToolTally tool = null;
         int pythonToolId = 0;
@@ -386,6 +474,7 @@ public final class GCodeToolpathParser {
                                 absoluteArcCenter, motion == 2);
                         addShape(nextZ >= 0, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                         centerlines.addPath(nextZ >= 0, centerline);
+                        stepBuilder.segment(nextZ >= 0, centerline.getCoordinates());
                         xyLength = centerline.getLength();
                         if (nextZ < 0) {
                             Coordinate[] arcPoints = centerline.getCoordinates();
@@ -405,6 +494,7 @@ public final class GCodeToolpathParser {
                 boolean isTravel = motion == 0 || nextZ >= 0;
                 addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                 centerlines.addPath(isTravel, centerline);
+                stepBuilder.segment(isTravel, centerline.getCoordinates());
                 xyLength = centerline.getLength();
                 if (!isTravel) {
                     addCutArrow(cutArrows, x, y, nextX, nextY);
@@ -427,6 +517,7 @@ public final class GCodeToolpathParser {
                 // Multi-depth passes re-plunge at the same spot; they are one hole, not several.
                 if (tool != null && !(lastHitTool == tool && lastHitX == x && lastHitY == y)) {
                     hits.add(new DrillHit(hits.size() + 1, tool.toolId, x, y));
+                    stepBuilder.drill(x, y);
                     lastHitTool = tool;
                     lastHitX = x;
                     lastHitY = y;
@@ -454,6 +545,9 @@ public final class GCodeToolpathParser {
                 }
             }
             xyDistance += xyLength;
+            if ((z >= 0) != (nextZ >= 0)) {
+                stepBuilder.flush();
+            }
             x = nextX;
             y = nextY;
             z = nextZ;
@@ -471,12 +565,20 @@ public final class GCodeToolpathParser {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
-                hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(),
+                hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(), stepBuilder.build(markPositions(pathMarks)),
                 hits.isEmpty() ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",
                 centerlines.travelGeometry(), centerlines.cutGeometry(), stats);
+    }
+
+    private static Map<List<Double>, Integer> markPositions(List<PathMark> marks) {
+        Map<List<Double>, Integer> byPosition = new HashMap<>();
+        for (PathMark mark : marks) {
+            byPosition.put(List.of(mark.x(), mark.y()), mark.sequence());
+        }
+        return byPosition;
     }
 
     private static void addCutArrow(List<CutArrow> arrows, double fromX, double fromY, double toX, double toY) {

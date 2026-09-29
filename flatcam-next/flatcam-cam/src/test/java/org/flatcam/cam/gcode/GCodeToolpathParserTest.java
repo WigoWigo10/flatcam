@@ -254,6 +254,21 @@ class GCodeToolpathParserTest {
         org.junit.jupiter.api.Assertions.assertTrue(result.stats().hits().isEmpty());
     }
 
+    @Test
+    void chainsTravelAndCutLegsInMachiningOrder() {
+        var steps = parse(String.join("\n", "G21", "G90", "G00 Z2.0", "G00 X0 Y0",
+                "G00 X10 Y0", "G01 Z-0.1 F100", "G01 X10 Y5", "G00 Z2.0",
+                "G00 X20 Y5", "G01 Z-0.1", "G01 X20 Y9", "G00 Z2.0",
+                "G00 X0 Y0", "")).stats().steps();
+        org.junit.jupiter.api.Assertions.assertEquals(5, steps.size());
+        org.junit.jupiter.api.Assertions.assertTrue(steps.get(0).travel());
+        org.junit.jupiter.api.Assertions.assertFalse(steps.get(1).travel());
+        org.junit.jupiter.api.Assertions.assertEquals(5.0, steps.get(1).length(), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(2, steps.get(1).fromMark());
+        org.junit.jupiter.api.Assertions.assertEquals(3, steps.get(1).toMark());
+        org.junit.jupiter.api.Assertions.assertEquals(steps.get(1).toMark(), steps.get(2).fromMark());
+    }
+
     private static GCodeToolpathParser.Result parse(String gcode) {
         return GCodeToolpathParser.parse(gcode, () -> false, ignored -> {});
     }

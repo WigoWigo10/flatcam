@@ -238,6 +238,8 @@ final class MainWindow {
     private final Set<TreeItem<String>> cncAnnotationsOff = new LinkedHashSet<>();
     /** CNC Jobs whose cutting-direction arrows were switched off (on by default). */
     private final Set<TreeItem<String>> cncArrowsOff = new LinkedHashSet<>();
+    /** Caption of the lit route leg in the CNC Job properties, when that panel is showing. */
+    private Label cncStepLabel;
     /** Conversion caveats remain attached when an imported Python project is saved as native .fcnproj. */
     private List<String> currentProjectImportWarnings = List.of();
     /** Gerber objects currently plotted as unbuffered trace centerlines instead of solid copper. */
@@ -658,6 +660,25 @@ final class MainWindow {
         scene = new Scene(root);
         configurePlotInteractions();
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (plotAreaView.hasStepSelection() && !plotAreaView.isPlacementActive()
+                    && (plotAreaView.isFocused() || plotAreaView.isHover())
+                    && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && !isTextInputTarget(event.getTarget())
+                    && projectTree.getEditingItem() == null) {
+                // Walking a CNC Job's route: the arrows work as soon as the pointer is over the plot,
+                // even if keyboard focus was left on the project tree or a sidebar control.
+                boolean handled = true;
+                switch (event.getCode()) {
+                    case LEFT, UP -> plotAreaView.stepBy(-1);
+                    case RIGHT, DOWN -> plotAreaView.stepBy(1);
+                    case ESCAPE -> plotAreaView.clearStepSelection();
+                    default -> handled = false;
+                }
+                if (handled) {
+                    event.consume();
+                    return;
+                }
+            }
             if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
                 event.consume();
@@ -1881,6 +1902,11 @@ final class MainWindow {
         plotAreaView.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
             if (plotContextMenu != null && plotContextMenu.isShowing()) {
                 plotContextMenu.hide();
+            }
+        });
+        plotAreaView.setStepListener(text -> {
+            if (cncStepLabel != null) {
+                cncStepLabel.setText(text.isEmpty() ? "ou clique num numero ou linha do plot" : text);
             }
         });
         plotAreaView.setDefaultSelectionHandler(new PlotAreaView.SelectionHandler() {
@@ -3355,6 +3381,10 @@ final class MainWindow {
         CncJobEntry entry = cncJobByItem.get(item);
         boolean showArrows = entry != null && entry.stats() != null && !cncArrowsOff.contains(item)
                 && isObjectVisible(item);
+        boolean routeVisible = entry != null && entry.stats() != null && isObjectVisible(item);
+        plotAreaView.setSteps(key, routeVisible ? entry.stats().steps() : List.of(),
+                routeVisible ? entry.stats().pathMarks() : List.of(),
+                routeVisible ? entry.previewStrokeWidth() : 0, routeVisible ? entry.stats().units() : "MM");
         plotAreaView.setArrows(key, !showArrows ? List.of() : entry.stats().cutArrows().stream()
                 .map(a -> new PlotAreaView.Arrow(a.x(), a.y(), a.dx(), a.dy(), a.length()))
                 .toList());
@@ -4597,6 +4627,21 @@ final class MainWindow {
                     refreshCncAnnotations(item);
                 });
                 box.getChildren().add(annotationCb);
+            }
+            if (!stats.steps().isEmpty()) {
+                CncAnnotationKey routeKey = new CncAnnotationKey(item);
+                Button startWalk = new Button("Percorrer");
+                startWalk.setOnAction(e -> plotAreaView.selectStep(routeKey, 0));
+                Button previousLeg = new Button("<");
+                previousLeg.setOnAction(e -> plotAreaView.stepBy(-1));
+                Button nextLeg = new Button(">");
+                nextLeg.setOnAction(e -> plotAreaView.stepBy(1));
+                Button clearLegs = new Button("Limpar");
+                clearLegs.setOnAction(e -> plotAreaView.clearStepSelection());
+                cncStepLabel = new Label(plotAreaView.hasStepSelection() ? "" : "ou clique num numero ou linha do plot");
+                HBox walkRow = new HBox(6, startWalk, previousLeg, nextLeg, clearLegs);
+                box.getChildren().add(labeledRow("Trajeto passo a passo:", walkRow));
+                box.getChildren().add(cncStepLabel);
             }
             if (!stats.cutArrows().isEmpty()) {
                 CheckBox arrowsCb = new CheckBox("Display Direction Arrows");

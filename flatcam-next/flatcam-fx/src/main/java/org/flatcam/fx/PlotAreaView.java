@@ -273,6 +273,15 @@ final class PlotAreaView extends StackPane {
     private PlotPalette palette = ICE_LIGHT_PALETTE;
     private Color annotationColor = ANNOTATION_LIGHT;
     private Color arrowColor = ARROW_LIGHT;
+    private final CncStepView stepView = new CncStepView();
+    private java.util.function.Consumer<String> stepListener = ignored -> {};
+    private double stepPressX;
+    private double stepPressY;
+    private boolean stepPressArmed;
+    /** The caption button a primary press landed on, run on release if the pointer is still over it. */
+    private int hudPressAction = CncStepView.HUD_NONE;
+    private boolean hudButtonHover;
+    private Cursor cursorBeforeHud = Cursor.DEFAULT;
     /** Stroke width (px) for the centerline drawing in progress, or NaN outside it. */
     private double lodLineWidth = Double.NaN;
     private final Map<Object, ArrowLevels> arrows = new LinkedHashMap<>();
@@ -363,6 +372,20 @@ final class PlotAreaView extends StackPane {
         setOnMouseDragged(this::handleDrag);
         setOnMouseReleased(this::handleRelease);
         setOnMouseMoved(this::handleMove);
+        setOnKeyPressed(event -> {
+            if (!stepView.hasSelection()) {
+                return;
+            }
+            switch (event.getCode()) {
+                case LEFT, UP -> stepBy(-1);
+                case RIGHT, DOWN -> stepBy(1);
+                case ESCAPE -> clearStepSelection();
+                default -> {
+                    return;
+                }
+            }
+            event.consume();
+        });
         setOnMouseExited(e -> {
             cursorInsidePlot = false;
             drawSnapCursor();
@@ -423,6 +446,51 @@ final class PlotAreaView extends StackPane {
         } else {
             arrows.put(key, new ArrowLevels(list));
         }
+        redraw();
+    }
+
+    /** Gives a CNC Job's route to the step-by-step highlighter (see {@link CncStepView}); empty removes it. */
+    void setSteps(Object key, List<org.flatcam.cam.gcode.GCodeToolpathParser.PathStep> steps,
+                  List<org.flatcam.cam.gcode.GCodeToolpathParser.PathMark> marks, double widthWorld, String units) {
+        boolean selectionLost = stepView.set(key, steps, marks, widthWorld, units);
+        if (selectionLost) {
+            stepListener.accept("");
+        }
+        redraw();
+    }
+
+    /** Called with the caption of the lit leg, or an empty string when the highlight is cleared. */
+    void setStepListener(java.util.function.Consumer<String> listener) {
+        stepListener = listener == null ? ignored -> {} : listener;
+    }
+
+    boolean hasStepSelection() {
+        return stepView.hasSelection();
+    }
+
+    /** Moves the lit leg one step back (-1) or forward (+1). */
+    boolean stepBy(int delta) {
+        if (!stepView.stepBy(delta)) {
+            return false;
+        }
+        stepListener.accept(stepView.describe());
+        redraw();
+        return true;
+    }
+
+    /** Lights up leg {@code index} (0-based) of a CNC Job's route. */
+    void selectStep(Object key, int index) {
+        stepView.select(key, index);
+        stepListener.accept(stepView.describe());
+        redraw();
+    }
+
+    void clearStepSelection() {
+        if (!stepView.hasSelection()) {
+            return;
+        }
+        stepView.clearSelection();
+        stepListener.accept("");
         redraw();
     }
 
@@ -584,6 +652,7 @@ final class PlotAreaView extends StackPane {
         lodDrawableIndexes.clear();
         annotations.clear();
         arrows.clear();
+        stepView.clear();
         editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
@@ -1032,6 +1101,14 @@ final class PlotAreaView extends StackPane {
 
     private void handlePress(MouseEvent event) {
         requestFocus();
+        if (event.getButton() == MouseButton.PRIMARY) {
+            hudPressAction = stepView.hudAction(event.getX(), event.getY());
+            if (hudPressAction != CncStepView.HUD_NONE) {
+                stepPressArmed = false;
+                event.consume();
+                return;
+            }
+        }
         lastDragScreenX = event.getX();
         lastDragScreenY = event.getY();
         if (event.getButton() == MouseButton.SECONDARY) {
@@ -1045,6 +1122,10 @@ final class PlotAreaView extends StackPane {
             referenceWorldX = world[0];
             referenceWorldY = world[1];
         }
+        stepPressArmed = event.getButton() == MouseButton.PRIMARY && placementHandler == null
+                && insidePlot(event.getX(), event.getY());
+        stepPressX = event.getX();
+        stepPressY = event.getY();
         updateCoordLabel(event.getX(), event.getY());
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             placementPrimaryPressed = insidePlot(event.getX(), event.getY());
@@ -1061,6 +1142,20 @@ final class PlotAreaView extends StackPane {
     }
 
     private void handleRelease(MouseEvent event) {
+        if (event.getButton() == MouseButton.PRIMARY && hudPressAction != CncStepView.HUD_NONE) {
+            int pressed = hudPressAction;
+            hudPressAction = CncStepView.HUD_NONE;
+            if (stepView.hudAction(event.getX(), event.getY()) == pressed) {
+                switch (pressed) {
+                    case CncStepView.HUD_PREVIOUS -> stepBy(-1);
+                    case CncStepView.HUD_NEXT -> stepBy(1);
+                    case CncStepView.HUD_CLEAR -> clearStepSelection();
+                    default -> { }
+                }
+            }
+            event.consume();
+            return;
+        }
         if (event.getButton() == MouseButton.SECONDARY) {
             if (rightPressed && !rightDragged && placementHandler != null) {
                 if (placementFreePath && trackPlacementHandler != null) {
@@ -1127,6 +1222,26 @@ final class PlotAreaView extends StackPane {
             placementPrimaryPressed = false;
             return;
         }
+        if (event.getButton() == MouseButton.PRIMARY && stepPressArmed) {
+            stepPressArmed = false;
+            if (selectionHandler == null && Math.hypot(event.getX() - stepPressX, event.getY() - stepPressY)
+                    <= CLICK_DRAG_THRESHOLD_PX && insidePlot(event.getX(), event.getY())) {
+                double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+                if (!stepView.isEmpty() && stepView.hit(world[0], world[1], scale)) {
+                    selecting = false;
+                    stepListener.accept(stepView.describe());
+                    redraw();
+                    // Keep the keyboard on the plot: something else may grab focus right after the click.
+                    requestFocus();
+                    javafx.application.Platform.runLater(this::requestFocus);
+                    event.consume();
+                    return;
+                }
+                if (stepView.hasSelection()) {
+                    clearStepSelection();
+                }
+            }
+        }
         if (!selecting || event.getButton() != MouseButton.PRIMARY) {
             return;
         }
@@ -1183,6 +1298,17 @@ final class PlotAreaView extends StackPane {
     }
 
     private void handleMove(MouseEvent event) {
+        int over = stepView.hudAction(event.getX(), event.getY());
+        boolean onButton = over == CncStepView.HUD_PREVIOUS || over == CncStepView.HUD_NEXT
+                || over == CncStepView.HUD_CLEAR;
+        if (onButton && !hudButtonHover) {
+            cursorBeforeHud = getCursor();
+            setCursor(Cursor.HAND);
+            hudButtonHover = true;
+        } else if (!onButton && hudButtonHover) {
+            setCursor(cursorBeforeHud);
+            hudButtonHover = false;
+        }
         updatePlacement(event.getX(), event.getY());
         updateCoordLabel(event.getX(), event.getY());
     }
@@ -1294,6 +1420,11 @@ final class PlotAreaView extends StackPane {
         return new double[]{screenX, screenY};
     }
 
+    private CncStepView.View stepViewTransform(double contentWidth, double contentHeight) {
+        return new CncStepView.View(viewCenterX, viewCenterY, scale, contentWidth, contentHeight,
+                RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
+    }
+
     private double[] screenToWorld(double contentX, double contentY) {
         double contentWidth = getWidth() - RULER_LEFT_WIDTH;
         double contentHeight = getHeight() - RULER_TOP_HEIGHT;
@@ -1403,8 +1534,24 @@ final class PlotAreaView extends StackPane {
         if (workspaceVisible) {
             drawWorkspace(gc, contentWidth, contentHeight);
         }
-        drawArrows(gc, contentWidth, contentHeight, viewBounds);
+        if (stepView.hasSelection()) {
+            // Focus: fade everything drawn so far, then light up the chosen leg and its neighbours.
+            Color background = palette.background();
+            gc.setFill(Color.color(background.getRed(), background.getGreen(), background.getBlue(), 0.62));
+            gc.fillRect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.save();
+            gc.beginPath();
+            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.clip();
+            stepView.drawLegs(gc, stepViewTransform(contentWidth, contentHeight), background);
+            gc.restore();
+        } else {
+            drawArrows(gc, contentWidth, contentHeight, viewBounds);
+        }
         drawAnnotations(gc, contentWidth, contentHeight, viewBounds);
+        if (stepView.hasSelection()) {
+            stepView.drawHud(gc, stepViewTransform(contentWidth, contentHeight), palette.background(), annotationColor);
+        }
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
         drawEditorHighlight();
@@ -1604,6 +1751,14 @@ final class PlotAreaView extends StackPane {
         gc.restore();
     }
 
+    private static int parseMarkNumber(String text) {
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
     private void drawAnnotations(GraphicsContext gc, double contentWidth, double contentHeight, Envelope viewBounds) {
         if (annotations.isEmpty()) {
             return;
@@ -1617,31 +1772,47 @@ final class PlotAreaView extends StackPane {
         Color background = palette.background();
         Color badgeFill = Color.color(background.getRed(), background.getGreen(), background.getBlue(), 0.82);
         java.util.Set<Long> claimed = new java.util.HashSet<>();
-        for (List<Annotation> labels : annotations.values()) {
-            for (Annotation label : labels) {
-                if (!viewBounds.contains(label.x(), label.y())) {
-                    continue;
+        boolean focus = stepView.hasSelection();
+        // With a leg lit its numbers go first (they claim their spot) in their role colour; the rest fade.
+        for (int pass = 0; pass < (focus ? 2 : 1); pass++) {
+            for (Map.Entry<Object, List<Annotation>> entry : annotations.entrySet()) {
+                Map<Integer, Integer> roles = focus ? stepView.markRoles(entry.getKey()) : Map.of();
+                for (Annotation label : entry.getValue()) {
+                    Integer role = focus ? roles.get(parseMarkNumber(label.text())) : null;
+                    if ((pass == 0) != (role != null) && focus) {
+                        continue;
+                    }
+                    if (!viewBounds.contains(label.x(), label.y())) {
+                        continue;
+                    }
+                    double[] screen = worldToScreen(label.x(), label.y(), contentWidth, contentHeight);
+                    long cellX = (long) Math.floor(screen[0] / ANNOTATION_CELL_WIDTH);
+                    long cellY = (long) Math.floor(screen[1] / ANNOTATION_CELL_HEIGHT);
+                    if (!claimed.add(cellX * 1_000_003L + cellY)) {
+                        continue;
+                    }
+                    double ax = screen[0] + RULER_LEFT_WIDTH;
+                    double ay = screen[1] + RULER_TOP_HEIGHT;
+                    if (role != null) {
+                        CncStepView.drawRoleBadge(gc, ax, ay, label.text(), role, background);
+                        gc.setFont(ANNOTATION_FONT);
+                        continue;
+                    }
+                    double textWidth = label.text().length() * 6.4;
+                    double badgeX = ax + 4;
+                    double badgeY = ay - 4 - 13;
+                    gc.setGlobalAlpha(focus ? 0.35 : 1);
+                    gc.setFill(annotationColor);
+                    gc.fillOval(ax - 1.5, ay - 1.5, 3, 3);
+                    gc.setFill(badgeFill);
+                    gc.fillRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
+                    gc.setLineWidth(1);
+                    gc.setStroke(annotationColor.deriveColor(0, 1, 1, 0.7));
+                    gc.strokeRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
+                    gc.setFill(annotationColor);
+                    gc.fillText(label.text(), badgeX + 3, badgeY + 10);
+                    gc.setGlobalAlpha(1);
                 }
-                double[] screen = worldToScreen(label.x(), label.y(), contentWidth, contentHeight);
-                long cellX = (long) Math.floor(screen[0] / ANNOTATION_CELL_WIDTH);
-                long cellY = (long) Math.floor(screen[1] / ANNOTATION_CELL_HEIGHT);
-                if (!claimed.add(cellX * 1_000_003L + cellY)) {
-                    continue;
-                }
-                double ax = screen[0] + RULER_LEFT_WIDTH;
-                double ay = screen[1] + RULER_TOP_HEIGHT;
-                double textWidth = label.text().length() * 6.4;
-                double badgeX = ax + 4;
-                double badgeY = ay - 4 - 13;
-                gc.setFill(annotationColor);
-                gc.fillOval(ax - 1.5, ay - 1.5, 3, 3);
-                gc.setFill(badgeFill);
-                gc.fillRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
-                gc.setLineWidth(1);
-                gc.setStroke(annotationColor.deriveColor(0, 1, 1, 0.7));
-                gc.strokeRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
-                gc.setFill(annotationColor);
-                gc.fillText(label.text(), badgeX + 3, badgeY + 10);
             }
         }
         gc.restore();

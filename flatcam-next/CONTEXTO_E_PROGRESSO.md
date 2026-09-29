@@ -1027,6 +1027,19 @@ mundo, sem recalcular a cada movimento, e o desenho só percorre a lista do nív
 atual. Os números viraram etiquetas com fundo e ponto de ancoragem, e o
 deslocamento fino fica tracejado e mais visível.
 
+**Trajeto passo a passo (novo, o Python não tem).** Clique num número ou numa linha
+de rota de um CNC Job (ou "Percorrer" nas propriedades do job): o trecho clicado
+fica em destaque (amarelo/âmbar), o anterior em azul e o seguinte em laranja/vermelho,
+com setas de direção e as passadas finas sobre o corpo largo; o resto do plot
+esmaece e os números dos três trechos ganham crachá na cor do papel. Um resumo
+("Passo 12/325 - Corte (5 > 6) - 3.9 mm") aparece no plot e nas propriedades.
+A faixa do rodapé tem botões clicáveis (anterior, próximo, limpar); as setas do
+teclado (esq/dir, cima/baixo) também andam pelos trechos e Esc limpa; clicar no
+vazio também limpa. O parser gera `ToolpathStats.steps` (`PathStep`: deslocamento,
+corte ou furo, encadeados na ordem do programa, com o número de cada ponta) e
+`CncStepView` cuida da seleção, do clique e do desenho. Verificado por captura
+fora da tela no projeto STM32/Dados_Ambientais (Furos_Alinhamento e Cobre_MortoFino).
+
 **Exportar** (menu Arquivo > Exportar):
 
 - Gerber/Excellon: diálogo com as opções `gerber_exp_*`/`excellon_exp_*` do
