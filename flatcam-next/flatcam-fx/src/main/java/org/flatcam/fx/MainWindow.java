@@ -98,6 +98,7 @@ import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
+import org.flatcam.cam.hpgl.HpglImporter;
 import org.flatcam.cam.svg.SvgExporter;
 import org.flatcam.cam.svg.SvgImporter;
 import org.flatcam.cam.gerber.GerberImage;
@@ -1149,11 +1150,11 @@ final class MainWindow {
         Menu importMenu = new Menu("Importar");
         setLegacyMenuIcon(importMenu, "import.png");
         importMenu.getItems().addAll(
-                chromeItem("SVG como Geometry...", "svg32.png", () -> importDrawing(false, false)),
-                chromeItem("SVG como Gerber...", "svg32.png", () -> importDrawing(false, true)),
-                chromeItem("DXF como Geometry...", "dxf16.png", () -> importDrawing(true, false)),
-                chromeItem("DXF como Gerber...", "dxf16.png", () -> importDrawing(true, true)),
-                plannedItem("HPGL2", "import.png"),
+                chromeItem("SVG como Geometry...", "svg32.png", () -> importDrawing(DrawingFormat.SVG, false)),
+                chromeItem("SVG como Gerber...", "svg32.png", () -> importDrawing(DrawingFormat.SVG, true)),
+                chromeItem("DXF como Geometry...", "dxf16.png", () -> importDrawing(DrawingFormat.DXF, false)),
+                chromeItem("DXF como Gerber...", "dxf16.png", () -> importDrawing(DrawingFormat.DXF, true)),
+                chromeItem("HPGL2...", "import.png", () -> importDrawing(DrawingFormat.HPGL, false)),
                 plannedItem("PDF", "pdf32.png"));
         Menu exportMenu = new Menu("Exportar");
         setLegacyMenuIcon(exportMenu, "export.png");
@@ -5035,36 +5036,53 @@ final class MainWindow {
                 });
     }
 
-    /** A drawing parsed by SvgImporter or DxfImporter. */
-    private record ImportedDrawing(File file, Geometry shapes, Geometry copper, int skippedText, String error) {
+    /** A drawing parsed by SvgImporter, DxfImporter or HpglImporter ({@code pens} only for HPGL). */
+    private record ImportedDrawing(File file, Geometry shapes, Geometry copper, Map<Integer, Geometry> pens,
+                                   int skippedText, String error) {
     }
+
+    private enum DrawingFormat { SVG, DXF, HPGL }
 
     private interface DrawingReader {
         ImportedDrawing read(File file, String units, CancellationToken cancellation) throws IOException;
     }
 
     /**
-     * File > Importar > SVG/DXF como Geometry/Gerber - app_Main.py's on_file_importsvg /
-     * on_file_importdxf, in the current units (Python uses the application units). All
-     * chosen files are parsed in one background job; a bad file is reported and
-     * skipped without losing the others.
+     * File > Importar > SVG/DXF como Geometry/Gerber and HPGL2 - app_Main.py's
+     * on_file_importsvg / on_file_importdxf / on_fileopenhpgl2, in the current units
+     * (Python uses the application units). All chosen files are parsed in one
+     * background job; a bad file is reported and skipped without losing the others.
+     * An HPGL file drawn with several pens gives one Geometry per pen, so each pen can
+     * get its own tool diameter (Python made one tool per pen, all 2.4 wide).
      */
-    private void importDrawing(boolean dxf, boolean asGerber) {
-        String format = dxf ? "DXF" : "SVG";
-        List<File> files = pickCamFiles("Importar " + format + " como " + (asGerber ? "Gerber" : "Geometry"),
-                new FileChooser.ExtensionFilter(format, dxf ? "*.dxf" : "*.svg"));
+    private void importDrawing(DrawingFormat drawingFormat, boolean asGerber) {
+        String format = drawingFormat == DrawingFormat.HPGL ? "HPGL2" : drawingFormat.name();
+        FileChooser.ExtensionFilter filter = switch (drawingFormat) {
+            case SVG -> new FileChooser.ExtensionFilter("SVG", "*.svg");
+            case DXF -> new FileChooser.ExtensionFilter("DXF", "*.dxf");
+            case HPGL -> new FileChooser.ExtensionFilter("HPGL/HPGL2", "*.plt", "*.hpgl", "*.hpg", "*.hgl", "*.txt");
+        };
+        List<File> files = pickCamFiles("Importar " + format + " como " + (asGerber ? "Gerber" : "Geometry"), filter);
         if (files.isEmpty()) {
             return;
         }
-        DrawingReader reader = dxf
-                ? (file, units, cancellation) -> {
-                    DxfImporter.Result result = DxfImporter.parse(file.toPath(), units, cancellation);
-                    return new ImportedDrawing(file, result.shapes(), result.copper(), result.skippedTextEntities(), null);
-                }
-                : (file, units, cancellation) -> {
-                    SvgImporter.Result result = SvgImporter.parse(file.toPath(), units, cancellation);
-                    return new ImportedDrawing(file, result.shapes(), result.copper(), result.skippedTextElements(), null);
-                };
+        boolean dxf = drawingFormat == DrawingFormat.DXF;
+        DrawingReader reader = switch (drawingFormat) {
+            case DXF -> (file, units, cancellation) -> {
+                DxfImporter.Result result = DxfImporter.parse(file.toPath(), units, cancellation);
+                return new ImportedDrawing(file, result.shapes(), result.copper(), null,
+                        result.skippedTextEntities(), null);
+            };
+            case SVG -> (file, units, cancellation) -> {
+                SvgImporter.Result result = SvgImporter.parse(file.toPath(), units, cancellation);
+                return new ImportedDrawing(file, result.shapes(), result.copper(), null,
+                        result.skippedTextElements(), null);
+            };
+            case HPGL -> (file, units, cancellation) -> {
+                HpglImporter.Result result = HpglImporter.parse(file.toPath(), units, cancellation);
+                return new ImportedDrawing(file, result.all(), null, result.pens(), result.skippedLabels(), null);
+            };
+        };
         String units = plotAreaView.units();
         beginJob("Importando " + format + "...");
         JobHandle<List<ImportedDrawing>> handle = jobExecutor.submit(context -> {
@@ -5075,7 +5093,7 @@ final class MainWindow {
                 try {
                     imported.add(reader.read(file, units, context::isCancelled));
                 } catch (IOException | IllegalArgumentException failed) {
-                    imported.add(new ImportedDrawing(file, null, null, 0, failed.getMessage()));
+                    imported.add(new ImportedDrawing(file, null, null, null, 0, failed.getMessage()));
                 }
             }
             return imported;
@@ -5097,6 +5115,15 @@ final class MainWindow {
                             + (dxf ? "." : " nem linha com espessura de traco."));
                     continue;
                 }
+                if (drawing.pens() != null && drawing.pens().size() > 1) {
+                    for (Map.Entry<Integer, Geometry> pen : drawing.pens().entrySet()) {
+                        String penName = uniqueDerivedName(fileName + "_P" + pen.getKey());
+                        last = addGeometryToProject(penName, fileName, units, pen.getValue(), true);
+                        appendConsole(format + " importado como Geometry: " + penName + " (caneta "
+                                + pen.getKey() + ", " + pen.getValue().getNumGeometries() + " caminhos)");
+                    }
+                    continue;
+                }
                 String name = uniqueDerivedName(fileName);
                 last = asGerber
                         ? addGerberToProject(name, drawing.file().toPath(),
@@ -5106,7 +5133,11 @@ final class MainWindow {
                         + " (" + drawing.shapes().getNumGeometries() + " formas)");
                 if (drawing.skippedText() > 0) {
                     appendConsole("  " + drawing.skippedText() + " texto(s) ignorado(s) - converta o texto em "
-                            + (dxf ? "linhas no CAD." : "caminho no editor de SVG."));
+                            + switch (drawingFormat) {
+                                case DXF -> "linhas no CAD.";
+                                case SVG -> "caminho no editor de SVG.";
+                                case HPGL -> "linhas antes de gerar o HPGL.";
+                            });
                 }
             }
             if (last != null) {
