@@ -182,6 +182,8 @@ public final class GCodeGenerator {
             }
             firstTool = false;
             previous = params;
+            // Lets GCodeToolpathParser redraw this tool's holes at their real size after a reload/edit.
+            line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.toolMarker(toolId, toolDiameter)));
 
             if (params.spindleSpeedRpm() > 0) {
                 line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());

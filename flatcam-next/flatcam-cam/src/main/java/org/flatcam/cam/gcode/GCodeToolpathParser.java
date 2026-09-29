@@ -1,7 +1,10 @@
 package org.flatcam.cam.gcode;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.flatcam.cam.CancellationToken;
@@ -15,24 +18,93 @@ import org.locationtech.jts.geom.GeometryFactory;
  * G2/G3 arcs in the XY plane, with absolute/relative coordinates, are
  * supported. Unknown coordinate-changing G commands suppress the preview
  * rather than leaving a misleading old plot.
- * This is not a machine-controller validator or a tool-diameter simulation.
+ * This is not a machine-controller validator.
+ *
+ * <p>Tool width is only known where the program says so: FX-generated drill
+ * jobs carry a {@link #toolMarker(int, double)} comment at the start of each
+ * tool, so a reloaded or edited drilling program still draws holes and travel
+ * ribbons at the real drill diameter (Python gets the same effect by
+ * serializing its whole per-tool {@code gcode_parsed}). Without a marker the
+ * preview falls back to a hairline.
  */
 public final class GCodeToolpathParser {
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
     private static final Pattern WORD = Pattern.compile("([A-Za-z])([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))");
+    private static final Pattern TOOL_MARKER = Pattern.compile(
+            "FCFX\\s+TOOL\\s+T(\\d+)\\s+D(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
     private static final int MAX_PREVIEW_SEGMENTS = 50_000;
+    /**
+     * G0 rate assumed for the time estimate - Python's {@code tools_drill_feedrate_rapid}
+     * default, since a program never states how fast its controller rapids.
+     */
+    static final double RAPID_MM_PER_MINUTE = 1500;
+
+    /** Comment text that tells the preview which tool (and diameter) the following moves use. */
+    public static String toolMarker(int toolId, double diameter) {
+        return String.format(Locale.ROOT, "FCFX TOOL T%d D%.4f", toolId, diameter);
+    }
+
+    /** One tool's share of a program: its drill hits and routed slots, and how deep it plunged. */
+    public record ToolUsage(int toolId, Double diameter, int drills, int slots, double deepestZ) {
+    }
+
+    /** A plunge in machining order (1-based {@code sequence} across the whole program). */
+    public record DrillHit(int sequence, int toolId, double x, double y) {
+    }
+
+    /**
+     * Per-program totals, Python's CNCJob "Travelled distance" / "Estimated time".
+     * {@code estimatedMinutes} is NaN when a feed move has no F word to time it by.
+     */
+    public record ToolpathStats(List<ToolUsage> tools, List<DrillHit> hits,
+                                double xyDistance, double estimatedMinutes) {
+        public ToolpathStats {
+            tools = List.copyOf(tools);
+            hits = List.copyOf(hits);
+        }
+
+        public boolean hasTools() {
+            return !tools.isEmpty();
+        }
+    }
 
     public record Result(Geometry travelGeometry, Geometry cutGeometry, String warning,
                          int lineCount, String units, Geometry travelCenterlines,
-                         Geometry cutCenterlines) {
+                         Geometry cutCenterlines, ToolpathStats stats) {
+        public Result(Geometry travelGeometry, Geometry cutGeometry, String warning,
+                      int lineCount, String units, Geometry travelCenterlines,
+                      Geometry cutCenterlines) {
+            this(travelGeometry, cutGeometry, warning, lineCount, units,
+                    travelCenterlines, cutCenterlines, null);
+        }
+
         public Result(Geometry travelGeometry, Geometry cutGeometry, String warning,
                       int lineCount, String units) {
-            this(travelGeometry, cutGeometry, warning, lineCount, units, null, null);
+            this(travelGeometry, cutGeometry, warning, lineCount, units, null, null, null);
         }
 
         public boolean plotAvailable() {
             return warning == null;
+        }
+    }
+
+    /** Mutable per-tool tally while parsing. */
+    private static final class ToolTally {
+        final int toolId;
+        Double diameter;
+        int drills;
+        int slots;
+        double deepestZ = Double.POSITIVE_INFINITY;
+
+        ToolTally(int toolId, Double diameter) {
+            this.toolId = toolId;
+            this.diameter = diameter;
+        }
+
+        ToolUsage freeze() {
+            return new ToolUsage(toolId, diameter, drills, slots,
+                    Double.isFinite(deepestZ) ? deepestZ : 0);
         }
     }
 
@@ -111,10 +183,29 @@ public final class GCodeToolpathParser {
         double y = 0;
         double z = 0;
         String warning = null;
+        Map<Integer, ToolTally> tools = new LinkedHashMap<>();
+        List<DrillHit> hits = new ArrayList<>();
+        ToolTally tool = null;
+        ToolTally lastHitTool = null;
+        double lastHitX = Double.NaN;
+        double lastHitY = Double.NaN;
+        boolean pendingHit = false;
+        double feed = 0;
+        boolean timeKnown = true;
+        double xyDistance = 0;
+        double minutes = 0;
         progress.report(0);
         for (int index = 0; index < lines.size(); index++) {
             cancellation.throwIfCancellationRequested();
-            String line = lines.get(index).replaceAll("\\([^)]*\\)", "");
+            String raw = lines.get(index);
+            Matcher marker = TOOL_MARKER.matcher(raw);
+            if (marker.find()) {
+                double diameter = Double.parseDouble(marker.group(2));
+                tool = tools.computeIfAbsent(Integer.parseInt(marker.group(1)),
+                        id -> new ToolTally(id, diameter));
+                tool.diameter = diameter;
+            }
+            String line = raw.replaceAll("\\([^)]*\\)", "");
             if (index == 0 && line.startsWith("\uFEFF")) {
                 line = line.substring(1);
             }
@@ -187,7 +278,8 @@ public final class GCodeToolpathParser {
                     case 'I' -> arcI = value;
                     case 'J' -> arcJ = value;
                     case 'R' -> arcR = value;
-                    default -> { /* Feed, spindle, tool, M code and line number do not change XY. */ }
+                    case 'F' -> feed = value;
+                    default -> { /* Spindle, tool, M code and line number do not change XY. */ }
                 }
             }
             if (!line.substring(cursor).isBlank()) {
@@ -210,7 +302,10 @@ public final class GCodeToolpathParser {
             boolean lateral = movesXY && havePosition && (nextX != x || nextY != y)
                     && motion >= 0 && motion <= 1;
             boolean plunge = !movesXY && newZ != null && motion == 1 && nextZ < 0 && havePosition;
-            double radius = metric ? 0.01 : 0.0004;
+            boolean knownWidth = tool != null && tool.diameter != null && tool.diameter > 0;
+            double radius = knownWidth ? tool.diameter / 2 : metric ? 0.01 : 0.0004;
+            int quadrantSegments = knownWidth ? 8 : 4;
+            double xyLength = 0;
             if (warning == null && (lateral || plunge || arcMove)
                     && travel.size() + cut.size() >= MAX_PREVIEW_SEGMENTS) {
                 warning = "Programa muito grande para pre-visualizacao detalhada.";
@@ -224,8 +319,9 @@ public final class GCodeToolpathParser {
                     try {
                         Geometry centerline = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
                                 absoluteArcCenter, motion == 2);
-                        (nextZ >= 0 ? travel : cut).add(centerline.buffer(radius, 4));
+                        (nextZ >= 0 ? travel : cut).add(centerline.buffer(radius, quadrantSegments));
                         centerlines.addPath(nextZ >= 0, centerline);
+                        xyLength = centerline.getLength();
                     } catch (IllegalArgumentException invalidArc) {
                         warning = "Arco invalido na linha " + (index + 1) + ": " + invalidArc.getMessage();
                     }
@@ -234,12 +330,46 @@ public final class GCodeToolpathParser {
                 Geometry centerline = FACTORY.createLineString(new Coordinate[]{
                         new Coordinate(x, y), new Coordinate(nextX, nextY)});
                 boolean isTravel = motion == 0 || nextZ >= 0;
-                (isTravel ? travel : cut).add(centerline.buffer(radius, 4));
+                (isTravel ? travel : cut).add(centerline.buffer(radius, quadrantSegments));
                 centerlines.addPath(isTravel, centerline);
+                xyLength = centerline.getLength();
+                if (!isTravel && tool != null && pendingHit) {
+                    tool.slots++;
+                    pendingHit = false;
+                }
             } else if (warning == null && plunge) {
-                cut.add(FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, 4));
+                cut.add(FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, quadrantSegments));
                 centerlines.addPoint(false, new Coordinate(x, y));
+                // Multi-depth passes re-plunge at the same spot; they are one hole, not several.
+                if (tool != null && !(lastHitTool == tool && lastHitX == x && lastHitY == y)) {
+                    hits.add(new DrillHit(hits.size() + 1, tool.toolId, x, y));
+                    lastHitTool = tool;
+                    lastHitX = x;
+                    lastHitY = y;
+                    pendingHit = true;
+                }
             }
+            if (tool != null && nextZ < 0) {
+                tool.deepestZ = Math.min(tool.deepestZ, nextZ);
+            }
+            if (pendingHit && tool != null && newZ != null && nextZ >= 0) {
+                tool.drills++;
+                pendingHit = false;
+            }
+            double zLength = newZ == null ? 0 : Math.abs(nextZ - z);
+            double moveLength = Math.hypot(xyLength, zLength);
+            if (moveLength > 0) {
+                if (motion == 1 || motion == 2 || motion == 3) {
+                    if (feed > 0) {
+                        minutes += moveLength / feed;
+                    } else {
+                        timeKnown = false;
+                    }
+                } else {
+                    minutes += moveLength / (metric ? RAPID_MM_PER_MINUTE : RAPID_MM_PER_MINUTE / 25.4);
+                }
+            }
+            xyDistance += xyLength;
             x = nextX;
             y = nextY;
             z = nextZ;
@@ -253,10 +383,15 @@ public final class GCodeToolpathParser {
         if (warning != null) {
             return new Result(null, null, warning, lines.size(), metric ? "MM" : "IN");
         }
+        if (pendingHit && tool != null) {
+            tool.drills++;
+        }
+        ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
+                hits, xyDistance, timeKnown ? minutes : Double.NaN);
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",
-                centerlines.travelGeometry(), centerlines.cutGeometry());
+                centerlines.travelGeometry(), centerlines.cutGeometry(), stats);
     }
 
     private static Geometry arcPath(double startX, double startY, double endX, double endY,

@@ -8,6 +8,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
+import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.excellon.ExcellonParser;
 import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
@@ -131,6 +133,69 @@ class GCodeToolpathParserTest {
             }
         }
         return false;
+    }
+
+    @Test
+    void reparsedDrillJobKeepsRealHoleSizeToolTableAndMachiningOrder() {
+        ExcellonImage image = new ExcellonParser().parse(List.of("M48", "METRIC", "T1C0.8", "T2C1.0", "%",
+                "T1", "X1.0Y1.0", "X5.0Y1.0", "T2", "X1.0Y5.0G85X4.0Y5.0", "M30"));
+        // Multi-depth: each hole is plunged twice; it must still count as one hole.
+        DrillGCodeParameters params = new DrillGCodeParameters(2, 1.5, 100, 0, true, true, 0.8, false, 0, 0);
+        String gcode = GCodeGenerator.generateDrillCncJob(image, params, null).gcode();
+
+        GCodeToolpathParser.Result result = parse(gcode);
+
+        assertTrue(result.plotAvailable());
+        assertTrue(anyPartCovers(result.cutGeometry(), 5.3, 1),
+                "a 0.8 mm hole must be drawn at its real radius, not as a hairline dot");
+        GCodeToolpathParser.ToolpathStats stats = result.stats();
+        assertEquals(2, stats.tools().size());
+        GCodeToolpathParser.ToolUsage t1 = stats.tools().get(0);
+        assertEquals(1, t1.toolId());
+        assertEquals(0.8, t1.diameter(), 1e-9);
+        assertEquals(2, t1.drills());
+        assertEquals(0, t1.slots());
+        assertEquals(-1.5, t1.deepestZ(), 1e-9);
+        GCodeToolpathParser.ToolUsage t2 = stats.tools().get(1);
+        assertEquals(2, t2.toolId());
+        assertEquals(0, t2.drills());
+        assertEquals(1, t2.slots());
+        assertEquals(List.of(
+                new GCodeToolpathParser.DrillHit(1, 1, 1, 1),
+                new GCodeToolpathParser.DrillHit(2, 1, 5, 1),
+                new GCodeToolpathParser.DrillHit(3, 2, 1, 5)), stats.hits());
+    }
+
+    @Test
+    void reportsTravelledDistanceAndEstimatedTime() {
+        GCodeToolpathParser.Result result = parse("""
+                G21
+                G90
+                G0 Z2
+                G0 X3 Y4
+                G1 Z-1 F60
+                G1 X6 Y8
+                G0 Z2
+                """);
+        GCodeToolpathParser.ToolpathStats stats = result.stats();
+        assertEquals(5, stats.xyDistance(), 1e-9);
+        double expected = 2 / 1500.0 + 3 / 60.0 + 5 / 60.0 + 3 / 1500.0;
+        assertEquals(expected, stats.estimatedMinutes(), 1e-9);
+    }
+
+    @Test
+    void estimatedTimeIsUnknownWhenAFeedMoveHasNoFeedRate() {
+        GCodeToolpathParser.Result result = parse("G21\nG0 Z2\nG0 X1 Y1\nG1 Z-1\n");
+        assertTrue(Double.isNaN(result.stats().estimatedMinutes()));
+    }
+
+    @Test
+    void programsWithoutToolMarkersHaveNoToolTableOrDrillSequence() {
+        GCodeToolpathParser.Result result = parse("G21\nG0 Z2\nG0 X1 Y1\nG1 Z-1 F100\nG0 Z2\n");
+        assertFalse(result.stats().hasTools());
+        assertTrue(result.stats().hits().isEmpty());
+        assertFalse(anyPartCovers(result.cutGeometry(), 1.2, 1),
+                "without a marker the width is unknown, so the preview stays a hairline");
     }
 
     private static GCodeToolpathParser.Result parse(String gcode) {
