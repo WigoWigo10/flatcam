@@ -1003,6 +1003,14 @@ Python), distância percorrida e tempo estimado (descidas no avanço, deslocamen
 a 1500 mm/min como no Python; "—" quando falta F). Jobs de fresagem ainda não
 têm o marcador e continuam com traço fino.
 
+**Numeração em jobs de Python e de fresagem (2026-09-29).** O parser também
+entende o G-code de Excellon do Python (`T1` + `(MSG, Change to Tool Dia = ...)`,
+só quando o cabeçalho diz "G-code from Excellon"), então projetos `.FlatPrj`
+mostram furos e números. Jobs de fresagem numeram como o Python: início e fim de
+cada deslocamento G0, pulando posições já numeradas (`ToolpathStats.pathMarks`;
+no projeto de teste STM32/Dados_Ambientais a Isolação dá 100 números, igual ao
+Python). Usam o mesmo "Display Annotation" e o desenho com anti-colisão.
+
 **Exportar** (menu Arquivo > Exportar):
 
 - Gerber/Excellon: diálogo com as opções `gerber_exp_*`/`excellon_exp_*` do

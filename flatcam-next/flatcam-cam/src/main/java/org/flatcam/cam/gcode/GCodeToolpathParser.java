@@ -33,6 +33,10 @@ public final class GCodeToolpathParser {
     private static final Pattern WORD = Pattern.compile("([A-Za-z])([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))");
     private static final Pattern TOOL_MARKER = Pattern.compile(
             "FCFX\\s+TOOL\\s+T(\\d+)\\s+D(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
+    /** Python FlatCAM's Excellon programs announce a tool as "T1" followed by "(MSG, Change to Tool Dia = 0.8 ...)". */
+    private static final Pattern PYTHON_TOOL_MESSAGE = Pattern.compile(
+            "Change\\s+to\\s+Tool\\s+Dia\\s*=\\s*(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TOOL_WORD_LINE = Pattern.compile("^\\s*T(\\d+)\\b");
     private static final int MAX_PREVIEW_SEGMENTS = 50_000;
     /**
      * G0 rate assumed for the time estimate - Python's {@code tools_drill_feedrate_rapid}
@@ -59,14 +63,23 @@ public final class GCodeToolpathParser {
     }
 
     /**
+     * A numbered end of a travel move in program order, Python's CNCJob annotation for
+     * milling jobs: every G0 move numbers where it starts and where it ends, skipping
+     * positions that already carry a number.
+     */
+    public record PathMark(int sequence, double x, double y) {
+    }
+
+    /**
      * Per-program totals, Python's CNCJob "Travelled distance" / "Estimated time".
      * {@code estimatedMinutes} is NaN when a feed move has no F word to time it by.
      */
-    public record ToolpathStats(List<ToolUsage> tools, List<DrillHit> hits,
+    public record ToolpathStats(List<ToolUsage> tools, List<DrillHit> hits, List<PathMark> pathMarks,
                                 double xyDistance, double estimatedMinutes, String units) {
         public ToolpathStats {
             tools = List.copyOf(tools);
             hits = List.copyOf(hits);
+            pathMarks = List.copyOf(pathMarks);
         }
 
         public boolean hasTools() {
@@ -194,7 +207,11 @@ public final class GCodeToolpathParser {
         String warning = null;
         Map<Integer, ToolTally> tools = new LinkedHashMap<>();
         List<DrillHit> hits = new ArrayList<>();
+        List<PathMark> pathMarks = new ArrayList<>();
+        java.util.Set<List<Double>> markedPositions = new java.util.HashSet<>();
         ToolTally tool = null;
+        int pythonToolId = 0;
+        boolean pythonExcellon = false;
         ToolTally lastHitTool = null;
         double lastHitX = Double.NaN;
         double lastHitY = Double.NaN;
@@ -213,6 +230,24 @@ public final class GCodeToolpathParser {
                 tool = tools.computeIfAbsent(Integer.parseInt(marker.group(1)),
                         id -> new ToolTally(id, diameter));
                 tool.diameter = diameter;
+            }
+            if (!pythonExcellon && raw.contains("G-code from Excellon")) {
+                pythonExcellon = true;
+            }
+            Matcher toolWord = TOOL_WORD_LINE.matcher(raw);
+            if (!pythonExcellon) {
+                // Milling programs keep hairline widths and are numbered by their travel moves instead.
+            } else if (toolWord.find()) {
+                pythonToolId = Integer.parseInt(toolWord.group(1));
+            } else {
+                Matcher message = PYTHON_TOOL_MESSAGE.matcher(raw);
+                if (message.find()) {
+                    double diameter = Double.parseDouble(message.group(1));
+                    tool = tools.computeIfAbsent(pythonToolId > 0 ? pythonToolId : tools.size() + 1,
+                            id -> new ToolTally(id, diameter));
+                    tool.diameter = diameter;
+                    pythonToolId = 0;
+                }
             }
             String line = raw.replaceAll("\\([^)]*\\)", "");
             if (index == 0 && line.startsWith("\uFEFF")) {
@@ -342,6 +377,13 @@ public final class GCodeToolpathParser {
                 addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                 centerlines.addPath(isTravel, centerline);
                 xyLength = centerline.getLength();
+                if (isTravel) {
+                    for (double[] end : new double[][]{{x, y}, {nextX, nextY}}) {
+                        if (markedPositions.add(List.of(end[0], end[1]))) {
+                            pathMarks.add(new PathMark(pathMarks.size() + 1, end[0], end[1]));
+                        }
+                    }
+                }
                 if (!isTravel && tool != null && pendingHit) {
                     tool.slots++;
                     pendingHit = false;
@@ -397,7 +439,7 @@ public final class GCodeToolpathParser {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
-                hits, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
+                hits, hits.isEmpty() ? pathMarks : List.of(), xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",

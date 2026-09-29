@@ -3334,16 +3334,25 @@ final class MainWindow {
     }
 
     /**
-     * Python's "Display Annotation": the machining order of every drill hit, shown
+     * Python's "Display Annotation": the machining order of every drill hit (or, for milling jobs, of every travel
+     * move's start and end as in Python), shown
      * while the job is plotted. Numbering runs once across the whole program (Python
      * restarts it per tool and also numbers the tool-change origin as a hole).
      */
     private void refreshCncAnnotations(TreeItem<String> item) {
         CncAnnotationKey key = new CncAnnotationKey(item);
         CncJobEntry entry = cncJobByItem.get(item);
-        if (entry == null || entry.stats() == null || entry.stats().hits().isEmpty()
+        if (entry == null || entry.stats() == null
+                || (entry.stats().hits().isEmpty() && entry.stats().pathMarks().isEmpty())
                 || cncAnnotationsOff.contains(item) || !isObjectVisible(item)) {
             plotAreaView.setAnnotations(key, List.of());
+            return;
+        }
+        if (entry.stats().hits().isEmpty()) {
+            // Milling job: like Python, number where every travel move starts and ends.
+            plotAreaView.setAnnotations(key, entry.stats().pathMarks().stream()
+                    .map(mark -> new PlotAreaView.Annotation(mark.x(), mark.y(), Integer.toString(mark.sequence())))
+                    .toList());
             return;
         }
         Set<Integer> hidden = hiddenCncTools.getOrDefault(item, Set.of());
@@ -4556,7 +4565,7 @@ final class MainWindow {
 
         GCodeToolpathParser.ToolpathStats stats = entry.stats();
         if (stats != null) {
-            if (!stats.hits().isEmpty()) {
+            if (!stats.hits().isEmpty() || !stats.pathMarks().isEmpty()) {
                 CheckBox annotationCb = new CheckBox("Display Annotation");
                 annotationCb.setSelected(!cncAnnotationsOff.contains(item));
                 annotationCb.setOnAction(e -> {

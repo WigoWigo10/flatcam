@@ -201,6 +201,38 @@ class GCodeToolpathParserTest {
                 "without a marker the width is unknown, so the preview stays a hairline");
     }
 
+    @Test
+    void readsToolsAndDrillHitsFromPythonFlatCamExcellonProgram() {
+        String gcode = String.join("\n",
+                "(Type: G-code from Excellon)", "G21", "G90", "G00 Z15.0000", "G00 X20.0000 Y92.0000",
+                "T1", "(MSG, Change to Tool Dia = 0.8000 ||| Total drills for tool T1 = 2)", "M0",
+                "G00 Z15.0000", "G01 F40.00", "M03 S10000.0",
+                "G00 X23.4000 Y62.0000", "G01 Z-2.5000", "G00 Z2.0000",
+                "G00 X30.0000 Y40.0000", "G01 Z-2.5000", "G00 Z2.0000",
+                "M05", "G00 X20.0000 Y92.0000", "");
+        GCodeToolpathParser.ToolpathStats stats = parse(gcode).stats();
+        org.junit.jupiter.api.Assertions.assertEquals(2, stats.hits().size());
+        org.junit.jupiter.api.Assertions.assertEquals(1, stats.hits().get(0).toolId());
+        org.junit.jupiter.api.Assertions.assertEquals(23.4, stats.hits().get(0).x(), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(2, stats.tools().get(0).drills());
+        org.junit.jupiter.api.Assertions.assertEquals(0.8, stats.tools().get(0).diameter(), 1e-9);
+    }
+
+    @Test
+    void numbersStartAndEndOfEachTravelMoveOfMillingJobLikePython() {
+        String gcode = String.join("\n",
+                "G21", "G90", "G00 Z2.0", "G00 X0 Y0",
+                "G00 X10 Y0", "G01 Z-0.1 F100", "G01 X10 Y5", "G00 Z2.0",
+                "G00 X20 Y5", "G01 Z-0.1", "G01 X20 Y9", "G00 Z2.0",
+                "G00 X0 Y0", "");
+        var marks = parse(gcode).stats().pathMarks();
+        // travels: (0,0)->(10,0) = 1,2 ; (10,5)->(20,5) = 3,4 ; (20,9)->(0,0) = 5, (0,0) already numbered.
+        org.junit.jupiter.api.Assertions.assertEquals(5, marks.size());
+        org.junit.jupiter.api.Assertions.assertEquals(10, marks.get(1).x(), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(5, marks.get(4).sequence());
+        org.junit.jupiter.api.Assertions.assertEquals(20, marks.get(4).x(), 1e-9);
+    }
+
     private static GCodeToolpathParser.Result parse(String gcode) {
         return GCodeToolpathParser.parse(gcode, () -> false, ignored -> {});
     }
