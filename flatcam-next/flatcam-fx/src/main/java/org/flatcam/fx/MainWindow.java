@@ -98,6 +98,7 @@ import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
 import org.flatcam.cam.svg.SvgExporter;
+import org.flatcam.cam.svg.SvgImporter;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
@@ -1147,8 +1148,8 @@ final class MainWindow {
         Menu importMenu = new Menu("Importar");
         setLegacyMenuIcon(importMenu, "import.png");
         importMenu.getItems().addAll(
-                plannedItem("SVG como Geometry", "svg32.png"),
-                plannedItem("SVG como Gerber", "svg32.png"),
+                chromeItem("SVG como Geometry...", "svg32.png", () -> importSvg(false)),
+                chromeItem("SVG como Gerber...", "svg32.png", () -> importSvg(true)),
                 plannedItem("DXF como Geometry", "dxf16.png"),
                 plannedItem("DXF como Gerber", "dxf16.png"),
                 plannedItem("HPGL2", "import.png"),
@@ -5034,6 +5035,83 @@ final class MainWindow {
     }
 
     /** Shared "pick fabrication files" flow (multi-select): remembers the last folder across both Gerber and Excellon. */
+    private record ImportedFile<T>(File file, T result, String error) {
+    }
+
+    /**
+     * File > Importar > SVG como Geometry/Gerber - app_Main.py's on_file_importsvg /
+     * import_svg, in the current units (Python uses the application units). All
+     * chosen files are parsed in one background job; a bad file is reported and
+     * skipped without losing the others.
+     */
+    private void importSvg(boolean asGerber) {
+        List<File> files = pickCamFiles(asGerber ? "Importar SVG como Gerber" : "Importar SVG como Geometry",
+                new FileChooser.ExtensionFilter("SVG", "*.svg"));
+        if (files.isEmpty()) {
+            return;
+        }
+        String units = plotAreaView.units();
+        beginJob("Importando SVG...");
+        JobHandle<List<ImportedFile<SvgImporter.Result>>> handle = jobExecutor.submit(context -> {
+            List<ImportedFile<SvgImporter.Result>> imported = new ArrayList<>();
+            for (int index = 0; index < files.size(); index++) {
+                File file = files.get(index);
+                context.reportProgress((double) index / files.size(), "Importando " + file.getName() + "...");
+                try {
+                    imported.add(new ImportedFile<>(file, SvgImporter.parse(file.toPath(), units, context::isCancelled),
+                            null));
+                } catch (IOException | IllegalArgumentException failed) {
+                    imported.add(new ImportedFile<>(file, null, failed.getMessage()));
+                }
+            }
+            return imported;
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(imported -> Platform.runLater(() -> {
+            TreeItem<String> last = null;
+            for (ImportedFile<SvgImporter.Result> file : imported) {
+                if (file.result() == null) {
+                    appendConsole("Falha ao importar " + file.file().getName() + ": " + file.error());
+                    continue;
+                }
+                SvgImporter.Result result = file.result();
+                if (asGerber && result.copper().isEmpty()) {
+                    appendConsole("Falha ao importar " + file.file().getName()
+                            + ": nenhuma area preenchida nem linha com espessura de traco.");
+                    continue;
+                }
+                String name = uniqueDerivedName(file.file().getName());
+                last = asGerber
+                        ? addGerberToProject(name, file.file().toPath(),
+                                GerberImage.of(units, Map.of(), result.copper(), null, Map.of()))
+                        : addGeometryToProject(name, file.file().getName(), units, result.shapes(), true);
+                appendConsole("SVG importado como " + (asGerber ? "Gerber" : "Geometry") + ": " + name + " ("
+                        + result.shapes().getNumGeometries() + " formas)");
+                if (result.skippedTextElements() > 0) {
+                    appendConsole("  " + result.skippedTextElements()
+                            + " texto(s) ignorado(s) - converta o texto em caminho no editor de SVG.");
+                }
+            }
+            if (last != null) {
+                setDisplayUnits(units);
+                plotAreaView.fitToLayer(last);
+                selectProjectItem(last);
+            }
+            updateProgress(1);
+            setStatus(last != null ? "Concluido." : "Falhou.", last != null ? IDLE_COLOR : ERROR_COLOR);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao importar SVG: ");
+                onJobFinished();
+            });
+            return null;
+        });
+    }
+
     private List<File> pickCamFiles(String title, FileChooser.ExtensionFilter filter) {
         if (runningJob != null) {
             appendConsole("Ja ha um job em andamento.");

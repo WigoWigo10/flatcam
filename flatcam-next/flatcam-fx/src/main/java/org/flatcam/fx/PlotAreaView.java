@@ -551,6 +551,10 @@ final class PlotAreaView extends StackPane {
         redraw();
     }
 
+    String units() {
+        return units;
+    }
+
     void setUnits(String units) {
         this.units = units == null ? "MM" : units;
         coordLabel.setText(formatHud(0, 0, 0, 0, this.units));
