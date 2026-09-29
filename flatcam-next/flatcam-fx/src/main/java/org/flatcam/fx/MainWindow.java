@@ -83,6 +83,7 @@ import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.dxf.DxfExporter;
+import org.flatcam.cam.dxf.DxfImporter;
 import org.flatcam.cam.excellon.ExcellonExporter;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonMillingGenerator;
@@ -1148,10 +1149,10 @@ final class MainWindow {
         Menu importMenu = new Menu("Importar");
         setLegacyMenuIcon(importMenu, "import.png");
         importMenu.getItems().addAll(
-                chromeItem("SVG como Geometry...", "svg32.png", () -> importSvg(false)),
-                chromeItem("SVG como Gerber...", "svg32.png", () -> importSvg(true)),
-                plannedItem("DXF como Geometry", "dxf16.png"),
-                plannedItem("DXF como Gerber", "dxf16.png"),
+                chromeItem("SVG como Geometry...", "svg32.png", () -> importDrawing(false, false)),
+                chromeItem("SVG como Gerber...", "svg32.png", () -> importDrawing(false, true)),
+                chromeItem("DXF como Geometry...", "dxf16.png", () -> importDrawing(true, false)),
+                chromeItem("DXF como Gerber...", "dxf16.png", () -> importDrawing(true, true)),
                 plannedItem("HPGL2", "import.png"),
                 plannedItem("PDF", "pdf32.png"));
         Menu exportMenu = new Menu("Exportar");
@@ -5034,34 +5035,47 @@ final class MainWindow {
                 });
     }
 
-    /** Shared "pick fabrication files" flow (multi-select): remembers the last folder across both Gerber and Excellon. */
-    private record ImportedFile<T>(File file, T result, String error) {
+    /** A drawing parsed by SvgImporter or DxfImporter. */
+    private record ImportedDrawing(File file, Geometry shapes, Geometry copper, int skippedText, String error) {
+    }
+
+    private interface DrawingReader {
+        ImportedDrawing read(File file, String units, CancellationToken cancellation) throws IOException;
     }
 
     /**
-     * File > Importar > SVG como Geometry/Gerber - app_Main.py's on_file_importsvg /
-     * import_svg, in the current units (Python uses the application units). All
+     * File > Importar > SVG/DXF como Geometry/Gerber - app_Main.py's on_file_importsvg /
+     * on_file_importdxf, in the current units (Python uses the application units). All
      * chosen files are parsed in one background job; a bad file is reported and
      * skipped without losing the others.
      */
-    private void importSvg(boolean asGerber) {
-        List<File> files = pickCamFiles(asGerber ? "Importar SVG como Gerber" : "Importar SVG como Geometry",
-                new FileChooser.ExtensionFilter("SVG", "*.svg"));
+    private void importDrawing(boolean dxf, boolean asGerber) {
+        String format = dxf ? "DXF" : "SVG";
+        List<File> files = pickCamFiles("Importar " + format + " como " + (asGerber ? "Gerber" : "Geometry"),
+                new FileChooser.ExtensionFilter(format, dxf ? "*.dxf" : "*.svg"));
         if (files.isEmpty()) {
             return;
         }
+        DrawingReader reader = dxf
+                ? (file, units, cancellation) -> {
+                    DxfImporter.Result result = DxfImporter.parse(file.toPath(), units, cancellation);
+                    return new ImportedDrawing(file, result.shapes(), result.copper(), result.skippedTextEntities(), null);
+                }
+                : (file, units, cancellation) -> {
+                    SvgImporter.Result result = SvgImporter.parse(file.toPath(), units, cancellation);
+                    return new ImportedDrawing(file, result.shapes(), result.copper(), result.skippedTextElements(), null);
+                };
         String units = plotAreaView.units();
-        beginJob("Importando SVG...");
-        JobHandle<List<ImportedFile<SvgImporter.Result>>> handle = jobExecutor.submit(context -> {
-            List<ImportedFile<SvgImporter.Result>> imported = new ArrayList<>();
+        beginJob("Importando " + format + "...");
+        JobHandle<List<ImportedDrawing>> handle = jobExecutor.submit(context -> {
+            List<ImportedDrawing> imported = new ArrayList<>();
             for (int index = 0; index < files.size(); index++) {
                 File file = files.get(index);
                 context.reportProgress((double) index / files.size(), "Importando " + file.getName() + "...");
                 try {
-                    imported.add(new ImportedFile<>(file, SvgImporter.parse(file.toPath(), units, context::isCancelled),
-                            null));
+                    imported.add(reader.read(file, units, context::isCancelled));
                 } catch (IOException | IllegalArgumentException failed) {
-                    imported.add(new ImportedFile<>(file, null, failed.getMessage()));
+                    imported.add(new ImportedDrawing(file, null, null, 0, failed.getMessage()));
                 }
             }
             return imported;
@@ -5072,27 +5086,27 @@ final class MainWindow {
         runningJob = handle;
         handle.completion().thenAccept(imported -> Platform.runLater(() -> {
             TreeItem<String> last = null;
-            for (ImportedFile<SvgImporter.Result> file : imported) {
-                if (file.result() == null) {
-                    appendConsole("Falha ao importar " + file.file().getName() + ": " + file.error());
+            for (ImportedDrawing drawing : imported) {
+                String fileName = drawing.file().getName();
+                if (drawing.error() != null) {
+                    appendConsole("Falha ao importar " + fileName + ": " + drawing.error());
                     continue;
                 }
-                SvgImporter.Result result = file.result();
-                if (asGerber && result.copper().isEmpty()) {
-                    appendConsole("Falha ao importar " + file.file().getName()
-                            + ": nenhuma area preenchida nem linha com espessura de traco.");
+                if (asGerber && drawing.copper().isEmpty()) {
+                    appendConsole("Falha ao importar " + fileName + ": nenhuma area fechada"
+                            + (dxf ? "." : " nem linha com espessura de traco."));
                     continue;
                 }
-                String name = uniqueDerivedName(file.file().getName());
+                String name = uniqueDerivedName(fileName);
                 last = asGerber
-                        ? addGerberToProject(name, file.file().toPath(),
-                                GerberImage.of(units, Map.of(), result.copper(), null, Map.of()))
-                        : addGeometryToProject(name, file.file().getName(), units, result.shapes(), true);
-                appendConsole("SVG importado como " + (asGerber ? "Gerber" : "Geometry") + ": " + name + " ("
-                        + result.shapes().getNumGeometries() + " formas)");
-                if (result.skippedTextElements() > 0) {
-                    appendConsole("  " + result.skippedTextElements()
-                            + " texto(s) ignorado(s) - converta o texto em caminho no editor de SVG.");
+                        ? addGerberToProject(name, drawing.file().toPath(),
+                                GerberImage.of(units, Map.of(), drawing.copper(), null, Map.of()))
+                        : addGeometryToProject(name, fileName, units, drawing.shapes(), true);
+                appendConsole(format + " importado como " + (asGerber ? "Gerber" : "Geometry") + ": " + name
+                        + " (" + drawing.shapes().getNumGeometries() + " formas)");
+                if (drawing.skippedText() > 0) {
+                    appendConsole("  " + drawing.skippedText() + " texto(s) ignorado(s) - converta o texto em "
+                            + (dxf ? "linhas no CAD." : "caminho no editor de SVG."));
                 }
             }
             if (last != null) {
@@ -5105,13 +5119,14 @@ final class MainWindow {
             onJobFinished();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
-                reportJobError(error, "Falha ao importar SVG: ");
+                reportJobError(error, "Falha ao importar " + format + ": ");
                 onJobFinished();
             });
             return null;
         });
     }
 
+    /** Shared "pick fabrication files" flow (multi-select): remembers the last folder across both Gerber and Excellon. */
     private List<File> pickCamFiles(String title, FileChooser.ExtensionFilter filter) {
         if (runningJob != null) {
             appendConsole("Ja ha um job em andamento.");
