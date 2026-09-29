@@ -13,6 +13,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -1154,8 +1155,9 @@ final class MainWindow {
         setLegacyMenuIcon(exportMenu, "export.png");
         exportMenu.getItems().addAll(
                 plannedItem("SVG", "svg32.png"), plannedItem("DXF", "dxf16.png"),
-                plannedItem("PNG", "export_png32.png"), plannedItem("Gerber", "flatcam_icon32.png"),
-                plannedItem("Excellon", "drill32.png"));
+                plannedItem("PNG", "export_png32.png"),
+                chromeItem("Gerber...", "flatcam_icon32.png", () -> exportSelectedCam(true)),
+                chromeItem("Excellon...", "drill32.png", () -> exportSelectedCam(false)));
         Menu scriptMenu = new Menu("Scripting");
         setLegacyMenuIcon(scriptMenu, "script16.png");
         scriptMenu.getItems().addAll(
@@ -2928,6 +2930,84 @@ final class MainWindow {
             appendConsole("Falha ao salvar " + target + ": " + e.getMessage());
             setStatus("Falhou.", ERROR_COLOR);
         }
+    }
+
+    /**
+     * File > Exportar > Gerber / Excellon - app_Main.py's on_file_exportgerber /
+     * on_file_exportexcellon: only the matching object type, in the coordinate
+     * format asked for by CamExportDialog, written off the JavaFX thread.
+     */
+    private void exportSelectedCam(boolean asGerber) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        GerberImage gerber = item == null ? null : gerberByItem.get(item);
+        ExcellonImage excellon = item == null ? null : excellonByItem.get(item);
+        if (item == null || (gerber == null && excellon == null
+                && !geometryByItem.containsKey(item) && !cncJobByItem.containsKey(item))) {
+            appendConsole("Nenhum objeto selecionado.");
+            return;
+        }
+        if (asGerber ? gerber == null : excellon == null) {
+            appendConsole(asGerber ? "Falhou. Somente objetos Gerber podem ser exportados como Gerber."
+                    : "Falhou. Somente objetos Excellon podem ser exportados como Excellon.");
+            setStatus("Falhou.", ERROR_COLOR);
+            return;
+        }
+        String objectUnits = asGerber ? gerber.units() : excellon.units();
+        Optional<?> format = asGerber ? CamExportDialog.askGerberFormat(scene.getWindow(), objectUnits)
+                : CamExportDialog.askExcellonFormat(scene.getWindow(), objectUnits);
+        if (format.isEmpty()) {
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(asGerber ? "Exportar Gerber" : "Exportar Excellon");
+        chooser.getExtensionFilters().add(asGerber
+                ? new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.gtl", "*.gbl", "*.gm1", "*.cmp", "*.txt")
+                : new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
+        chooser.setInitialFileName(item.getValue().replaceFirst("(?i)\\.(gbr|gtl|gbl|gm1|cmp|drl|exc|xln|txt)$", "")
+                + (asGerber ? ".gbr" : ".drl"));
+        File lastDirectory = new File(AppPreferences.loadLastCamDirectory(System.getProperty("user.home")));
+        if (lastDirectory.isDirectory()) {
+            chooser.setInitialDirectory(lastDirectory);
+        }
+        File destination = chooser.showSaveDialog(scene.getWindow());
+        if (destination == null) {
+            appendConsole("Cancelado.");
+            return;
+        }
+
+        beginJob("Exportando " + item.getValue() + "...");
+        cancelJobButton.setDisable(true); // the writer publishes atomically; there is no cancel point.
+        JobHandle<Path> handle = jobExecutor.submit(context -> {
+            context.reportProgress(Double.NaN, "Exportando...");
+            if (asGerber) {
+                new GerberExporter().write(gerber, (GerberExporter.Format) format.get(), destination.toPath());
+            } else {
+                new ExcellonExporter().write(excellon, (ExcellonExporter.Format) format.get(), destination.toPath());
+            }
+            return destination.toPath();
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(path -> Platform.runLater(() -> {
+            AppPreferences.saveLastCamDirectory(destination.getParentFile().getAbsolutePath());
+            appendConsole((asGerber ? "Arquivo Gerber" : "Arquivo Excellon") + " exportado para " + path);
+            updateProgress(1);
+            setStatus("Exportado.", IDLE_COLOR);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Nao foi possivel exportar: ");
+                onJobFinished();
+            });
+            return null;
+        });
     }
 
     private void copySelection(List<TreeItem<String>> selected) {

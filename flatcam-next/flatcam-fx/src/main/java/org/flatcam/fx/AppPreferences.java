@@ -200,6 +200,16 @@ final class AppPreferences {
         flush();
     }
 
+    /** Raw text setting (e.g. an export format encoded by its dialog); null when never saved. */
+    static String loadText(String key) {
+        return PREFS.get(key, null);
+    }
+
+    static void saveText(String key, String value) {
+        PREFS.put(key, value);
+        flush();
+    }
+
     private static void flush() {
         try {
             PREFS.flush();

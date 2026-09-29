@@ -121,6 +121,55 @@ class GerberExporterTest {
         assertThrows(IllegalArgumentException.class, () -> exporter.export(image));
     }
 
+    @Test
+    void flatcamDefaultFormatWritesInchesAtTwoFourAndReopens() throws IOException {
+        GerberImage original = parser.parse(findRepoRoot().resolve("tests/gerber_files/detector_copper_top.gbr"));
+        GerberExporter.Format format = GerberExporter.Format.flatcamDefaults();
+
+        String gerber = exporter.export(original, format);
+        GerberImage reopened = parser.parse(List.of(gerber));
+
+        assertTrue(gerber.contains("%FSLAX24Y24*%"));
+        assertTrue(gerber.contains("%MOIN*%"));
+        assertEquals("IN", reopened.units());
+        Geometry expected = inInches(original);
+        // Rounding moves each edge by at most half the 0.0001 in resolution.
+        double difference = expected.symDifference(reopened.solidGeometry()).getArea();
+        assertTrue(difference < expected.getLength() * 0.00005, () -> "copper differs by " + difference);
+    }
+
+    @Test
+    void trailingZeroOmissionAndUnitConversionReopen() throws ParseException {
+        Geometry square = new WKTReader().read("POLYGON ((0.5 0.25, 1.5 0.25, 1.5 1.25, 0.5 1.25, 0.5 0.25))");
+        GerberImage image = GerberImage.of("IN", Map.of(), square, null, Map.of());
+
+        String gerber = exporter.export(image, new GerberExporter.Format("MM", 3, 4, false));
+        GerberImage reopened = parser.parse(List.of(gerber));
+
+        assertTrue(gerber.contains("%FSTAX34Y34*%"));
+        assertTrue(gerber.contains("X0127Y00635D02*"), gerber);
+        assertEquals("MM", reopened.units());
+        assertSameCopper(new WKTReader().read(
+                "POLYGON ((12.7 6.35, 38.1 6.35, 38.1 31.75, 12.7 31.75, 12.7 6.35))"), reopened.solidGeometry());
+    }
+
+    @Test
+    void coordinatesTooWideForTheChosenFormatAreRejected() throws ParseException {
+        Geometry farAway = new WKTReader().read("POLYGON ((3000 0, 3001 0, 3001 1, 3000 1, 3000 0))");
+        GerberImage image = GerberImage.of("MM", Map.of(), farAway, null, Map.of());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> exporter.export(image, GerberExporter.Format.flatcamDefaults()));
+    }
+
+    private static Geometry inInches(GerberImage image) {
+        if ("IN".equals(image.units())) {
+            return image.solidGeometry();
+        }
+        return org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(1 / 25.4, 1 / 25.4)
+                .transform(image.solidGeometry());
+    }
+
     private static int countOccurrences(String text, String substring) {
         return (text.length() - text.replace(substring, "").length()) / substring.length();
     }

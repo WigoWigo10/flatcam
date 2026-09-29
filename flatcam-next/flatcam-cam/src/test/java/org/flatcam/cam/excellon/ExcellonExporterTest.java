@@ -78,4 +78,51 @@ class ExcellonExporterTest {
         assertEquals(image.slots(), reopened.slots());
         assertTrue(Files.readString(target).endsWith("M30\n"));
     }
+
+    @Test
+    void flatcamDefaultFormatConvertsToInchesAndRoutesSlotsEndToEnd() {
+        ExcellonImage image = ExcellonImage.of("MM", Map.of(1, 0.8, 2, 1.2),
+                List.of(new ExcellonImage.Drill(1, 25.4, 12.7)),
+                List.of(new ExcellonImage.Slot(2, 2.54, 5.08, 12.7, 5.08)), null);
+
+        String exported = exporter.export(image, ExcellonExporter.Format.flatcamDefaults());
+        ExcellonImage reopened = parser.parse(exported.lines().toList());
+
+        assertTrue(exported.contains("INCH\n"));
+        assertTrue(exported.contains("T1C0.0315\n"));
+        assertTrue(exported.contains("G00X0.1000Y0.2000\nM15\nG01X0.5000Y0.2000\nM16\n"),
+                "a routed slot must end at its real end point (Python repeats the start)");
+        assertEquals("IN", reopened.units());
+        assertEquals(List.of(new ExcellonImage.Drill(1, 1.0, 0.5)), reopened.drills());
+        assertEquals(List.of(new ExcellonImage.Slot(2, 0.1, 0.2, 0.5, 0.2)), reopened.slots());
+    }
+
+    @Test
+    void zeroSuppressedFormatsDeclareTheirWidthAndReopen() {
+        ExcellonImage image = ExcellonImage.of("MM", Map.of(3, 0.6),
+                List.of(new ExcellonImage.Drill(3, 1.5, -20.25)),
+                List.of(new ExcellonImage.Slot(3, 0, 0, 4, 0)), null);
+
+        for (boolean leadingZeros : new boolean[]{true, false}) {
+            ExcellonExporter.Format format = new ExcellonExporter.Format("MM", false, 3, 3, leadingZeros,
+                    ExcellonExporter.SlotStyle.G85);
+            String exported = exporter.export(image, format);
+            ExcellonImage reopened = parser.parse(exported.lines().toList());
+
+            assertTrue(exported.contains(";FILE_FORMAT=3:3\nMETRIC," + (leadingZeros ? "LZ" : "TZ") + "\n"));
+            assertTrue(exported.contains(leadingZeros ? "X001500Y-020250" : "X1500Y-20250"), exported);
+            assertEquals(image.drills(), reopened.drills());
+            assertEquals(image.slots(), reopened.slots());
+        }
+    }
+
+    @Test
+    void coordinatesTooWideForTheChosenFormatAreRejected() {
+        ExcellonImage image = ExcellonImage.of("MM", Map.of(1, 0.8),
+                List.of(new ExcellonImage.Drill(1, 2540, 0)), List.of(), null);
+        ExcellonExporter.Format inch24 = new ExcellonExporter.Format("IN", false, 2, 4, true,
+                ExcellonExporter.SlotStyle.ROUTED);
+
+        assertThrows(IllegalArgumentException.class, () -> exporter.export(image, inch24));
+    }
 }
