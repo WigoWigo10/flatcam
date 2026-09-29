@@ -1158,7 +1158,7 @@ final class MainWindow {
         exportMenu.getItems().addAll(
                 chromeItem("SVG...", "svg32.png", this::exportSelectedSvg),
                 chromeItem("DXF...", "dxf16.png", this::exportSelectedDxf),
-                plannedItem("PNG", "export_png32.png"),
+                chromeItem("PNG...", "export_png32.png", this::exportPlotPng),
                 chromeItem("Gerber...", "flatcam_icon32.png", () -> exportSelectedCam(true)),
                 chromeItem("Excellon...", "drill32.png", () -> exportSelectedCam(false)));
         Menu scriptMenu = new Menu("Scripting");
@@ -2963,7 +2963,7 @@ final class MainWindow {
             File destination = format.isEmpty() ? null : chooseExportFile("Exportar Gerber", item, ".gbr",
                     new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.gtl", "*.gbl", "*.gm1", "*.cmp", "*.txt"));
             if (destination != null) {
-                runExport(item, "Arquivo Gerber", destination,
+                runExport(item.getValue(), "Arquivo Gerber", destination,
                         path -> new GerberExporter().write(gerber, format.get(), path));
             }
         } else {
@@ -2972,7 +2972,7 @@ final class MainWindow {
             File destination = format.isEmpty() ? null : chooseExportFile("Exportar Excellon", item, ".drl",
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
             if (destination != null) {
-                runExport(item, "Arquivo Excellon", destination,
+                runExport(item.getValue(), "Arquivo Excellon", destination,
                         path -> new ExcellonExporter().write(excellon, format.get(), path));
             }
         }
@@ -3001,7 +3001,7 @@ final class MainWindow {
         if (destination == null) {
             return;
         }
-        runExport(item, "Arquivo SVG", destination, path -> {
+        runExport(item.getValue(), "Arquivo SVG", destination, path -> {
             List<SvgExporter.Layer> layers;
             String units;
             if (cncJob != null) {
@@ -3063,7 +3063,32 @@ final class MainWindow {
         Geometry shapes = geometry != null ? geometry.geometry()
                 : gerber != null ? gerber.solidGeometry() : excellon.solidGeometry();
         String units = geometry != null ? geometry.units() : gerber != null ? gerber.units() : excellon.units();
-        runExport(item, "Arquivo DXF", destination, path -> new DxfExporter().write(shapes, units, path));
+        runExport(item.getValue(), "Arquivo DXF", destination, path -> new DxfExporter().write(shapes, units, path));
+    }
+
+    /** File > Exportar > PNG - app_Main.py's on_file_exportpng; no object needs to be selected. */
+    private void exportPlotPng() {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Exportar imagem PNG");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG", "*.png"));
+        chooser.setInitialFileName("png_" + java.time.LocalDateTime.now()
+                .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".png");
+        File lastDirectory = new File(AppPreferences.loadLastCamDirectory(System.getProperty("user.home")));
+        if (lastDirectory.isDirectory()) {
+            chooser.setInitialDirectory(lastDirectory);
+        }
+        File destination = chooser.showSaveDialog(scene.getWindow());
+        if (destination == null) {
+            appendConsole("Cancelado.");
+            return;
+        }
+        // Captured before the progress UI changes anything; only the encoding runs in the background.
+        PlotPngExporter.Capture capture = PlotPngExporter.capture(plotAreaView, scene.getWindow().getOutputScaleX());
+        runExport("a area de plotagem", "Imagem PNG", destination, path -> PlotPngExporter.write(capture, path));
     }
 
     /** Save dialog for an export, named after the object and opened in the last CAM folder. */
@@ -3089,8 +3114,8 @@ final class MainWindow {
     }
 
     /** Writes an export off the JavaFX thread; the writers publish atomically, so there is no cancel point. */
-    private void runExport(TreeItem<String> item, String fileKind, File destination, ExportWriter writer) {
-        beginJob("Exportando " + item.getValue() + "...");
+    private void runExport(String subject, String fileKind, File destination, ExportWriter writer) {
+        beginJob("Exportando " + subject + "...");
         cancelJobButton.setDisable(true);
         JobHandle<Path> handle = jobExecutor.submit(context -> {
             context.reportProgress(Double.NaN, "Exportando...");
