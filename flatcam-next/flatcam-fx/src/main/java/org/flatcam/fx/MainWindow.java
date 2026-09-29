@@ -236,6 +236,8 @@ final class MainWindow {
     private final Map<TreeItem<String>, Set<Integer>> hiddenCncTools = new LinkedHashMap<>();
     /** CNC Jobs whose "Display Annotation" was switched off - on by default, like Python's cncjob_annotation. */
     private final Set<TreeItem<String>> cncAnnotationsOff = new LinkedHashSet<>();
+    /** CNC Jobs whose cutting-direction arrows were switched off (on by default). */
+    private final Set<TreeItem<String>> cncArrowsOff = new LinkedHashSet<>();
     /** Conversion caveats remain attached when an imported Python project is saved as native .fcnproj. */
     private List<String> currentProjectImportWarnings = List.of();
     /** Gerber objects currently plotted as unbuffered trace centerlines instead of solid copper. */
@@ -3287,7 +3289,7 @@ final class MainWindow {
                 CncCutLayerKey cutKey = new CncCutLayerKey(item);
                 plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
                         cutGeometry, CNC_CUT_FILL, CNC_CUT_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(cutKey, cutCenterlines, previewStrokeWidth);
+                plotAreaView.setLayerCenterlineLod(cutKey, cutCenterlines, previewStrokeWidth, strokedPreview(stats));
             }
             if (travelGeometry != null && !travelGeometry.isEmpty()) {
                 // Put after cut so it draws on top within the CNCJOB category, matching
@@ -3295,13 +3297,21 @@ final class MainWindow {
                 CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
                 plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
                         travelGeometry, CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(travelKey, travelCenterlines, previewStrokeWidth);
+                plotAreaView.setLayerCenterlineLod(travelKey, travelCenterlines, previewStrokeWidth, strokedPreview(stats));
             }
         } finally {
             plotAreaView.endBatchUpdate();
         }
         refreshCncAnnotations(item);
         return item;
+    }
+
+    /**
+     * Milling jobs that state their cutter width are drawn as centerlines stroked at that
+     * width at every zoom: one stroke per path instead of one buffered polygon per segment.
+     */
+    private static boolean strokedPreview(GCodeToolpathParser.ToolpathStats stats) {
+        return stats != null && stats.cutterDiameter() != null && stats.cutterDiameter() > 0;
     }
 
     private static double previewStrokeWidth(String units) {
@@ -3313,6 +3323,9 @@ final class MainWindow {
      * declares its tools (drill jobs), otherwise the hairline the preview draws.
      */
     private static double previewWidthFor(GCodeToolpathParser.Result parsed) {
+        if (parsed.stats() != null && parsed.stats().cutterDiameter() != null && parsed.stats().cutterDiameter() > 0) {
+            return parsed.stats().cutterDiameter();
+        }
         if (parsed.stats() != null) {
             double thinnest = parsed.stats().tools().stream()
                     .map(GCodeToolpathParser.ToolUsage::diameter)
@@ -3342,6 +3355,11 @@ final class MainWindow {
     private void refreshCncAnnotations(TreeItem<String> item) {
         CncAnnotationKey key = new CncAnnotationKey(item);
         CncJobEntry entry = cncJobByItem.get(item);
+        boolean showArrows = entry != null && entry.stats() != null && !cncArrowsOff.contains(item)
+                && isObjectVisible(item);
+        plotAreaView.setArrows(key, !showArrows ? List.of() : entry.stats().cutArrows().stream()
+                .map(a -> new PlotAreaView.Arrow(a.x(), a.y(), a.dx(), a.dy(), a.length()))
+                .toList());
         if (entry == null || entry.stats() == null
                 || (entry.stats().hits().isEmpty() && entry.stats().pathMarks().isEmpty())
                 || cncAnnotationsOff.contains(item) || !isObjectVisible(item)) {
@@ -3375,9 +3393,11 @@ final class MainWindow {
         try {
             if (hidden.isEmpty()) {
                 plotAreaView.updateLayerGeometry(cutKey, entry.cutGeometry());
-                plotAreaView.setLayerCenterlineLod(cutKey, entry.cutCenterlines(), entry.previewStrokeWidth());
+                plotAreaView.setLayerCenterlineLod(cutKey, entry.cutCenterlines(), entry.previewStrokeWidth(),
+                        strokedPreview(entry.stats()));
                 plotAreaView.updateLayerGeometry(travelKey, entry.travelGeometry());
-                plotAreaView.setLayerCenterlineLod(travelKey, entry.travelCenterlines(), entry.previewStrokeWidth());
+                plotAreaView.setLayerCenterlineLod(travelKey, entry.travelCenterlines(), entry.previewStrokeWidth(),
+                        strokedPreview(entry.stats()));
             } else {
                 List<Geometry> cuts = new ArrayList<>();
                 List<Geometry> travels = new ArrayList<>();
@@ -4165,8 +4185,10 @@ final class MainWindow {
         plotAreaView.removeLayer(new CncTravelLayerKey(item));
         plotAreaView.removeLayer(new CncCutLayerKey(item));
         plotAreaView.setAnnotations(new CncAnnotationKey(item), List.of());
+        plotAreaView.setArrows(new CncAnnotationKey(item), List.of());
         hiddenCncTools.remove(item);
         cncAnnotationsOff.remove(item);
+        cncArrowsOff.remove(item);
         refreshPlotSelectionOutline();
         appendConsole("Removido do projeto: " + item.getValue());
     }
@@ -4577,6 +4599,19 @@ final class MainWindow {
                     refreshCncAnnotations(item);
                 });
                 box.getChildren().add(annotationCb);
+            }
+            if (!stats.cutArrows().isEmpty()) {
+                CheckBox arrowsCb = new CheckBox("Display Direction Arrows");
+                arrowsCb.setSelected(!cncArrowsOff.contains(item));
+                arrowsCb.setOnAction(e -> {
+                    if (arrowsCb.isSelected()) {
+                        cncArrowsOff.remove(item);
+                    } else {
+                        cncArrowsOff.add(item);
+                    }
+                    refreshCncAnnotations(item);
+                });
+                box.getChildren().add(arrowsCb);
             }
             String units = stats.units().toLowerCase(java.util.Locale.ROOT);
             box.getChildren().add(labeledRow("Travelled distance:",
@@ -5607,6 +5642,7 @@ final class MainWindow {
         cncJobByItem.clear();
         hiddenCncTools.clear();
         cncAnnotationsOff.clear();
+        cncArrowsOff.clear();
         gerberFollowItems.clear();
         sourcePathByItem.clear();
         currentProjectImportWarnings = List.of();

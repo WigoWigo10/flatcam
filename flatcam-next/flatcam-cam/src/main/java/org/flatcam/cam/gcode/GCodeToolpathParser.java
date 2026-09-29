@@ -36,6 +36,9 @@ public final class GCodeToolpathParser {
     /** Python FlatCAM's Excellon programs announce a tool as "T1" followed by "(MSG, Change to Tool Dia = 0.8 ...)". */
     private static final Pattern PYTHON_TOOL_MESSAGE = Pattern.compile(
             "Change\\s+to\\s+Tool\\s+Dia\\s*=\\s*(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
+    /** Python's milling programs state the cutter width in the header, e.g. "(TOOL DIAMETER: 0.1829 mm)". */
+    private static final Pattern MILLING_DIAMETER = Pattern.compile(
+            "TOOL\\s+DIAMETER:\\s*(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern TOOL_WORD_LINE = Pattern.compile("^\\s*T(\\d+)\\b");
     private static final int MAX_PREVIEW_SEGMENTS = 50_000;
     /**
@@ -71,15 +74,25 @@ public final class GCodeToolpathParser {
     }
 
     /**
+     * The middle of one cutting move and the way the tool travels through it
+     * ({@code dx,dy} is a unit vector), so a viewer can draw direction arrows.
+     */
+    public record CutArrow(double x, double y, double dx, double dy, double length) {
+    }
+
+    /**
      * Per-program totals, Python's CNCJob "Travelled distance" / "Estimated time".
      * {@code estimatedMinutes} is NaN when a feed move has no F word to time it by.
      */
+    /** {@code cutterDiameter} is the width a milling program states for its cutter (null for drill jobs or when unstated). */
     public record ToolpathStats(List<ToolUsage> tools, List<DrillHit> hits, List<PathMark> pathMarks,
-                                double xyDistance, double estimatedMinutes, String units) {
+                                List<CutArrow> cutArrows, Double cutterDiameter, double xyDistance,
+                                double estimatedMinutes, String units) {
         public ToolpathStats {
             tools = List.copyOf(tools);
             hits = List.copyOf(hits);
             pathMarks = List.copyOf(pathMarks);
+            cutArrows = List.copyOf(cutArrows);
         }
 
         public boolean hasTools() {
@@ -208,10 +221,12 @@ public final class GCodeToolpathParser {
         Map<Integer, ToolTally> tools = new LinkedHashMap<>();
         List<DrillHit> hits = new ArrayList<>();
         List<PathMark> pathMarks = new ArrayList<>();
+        List<CutArrow> cutArrows = new ArrayList<>();
         java.util.Set<List<Double>> markedPositions = new java.util.HashSet<>();
         ToolTally tool = null;
         int pythonToolId = 0;
         boolean pythonExcellon = false;
+        Double millingDiameter = null;
         ToolTally lastHitTool = null;
         double lastHitX = Double.NaN;
         double lastHitY = Double.NaN;
@@ -236,7 +251,11 @@ public final class GCodeToolpathParser {
             }
             Matcher toolWord = TOOL_WORD_LINE.matcher(raw);
             if (!pythonExcellon) {
-                // Milling programs keep hairline widths and are numbered by their travel moves instead.
+                // Milling programs draw at the tool's width but are numbered by their travel moves, not as drills.
+                Matcher milling = MILLING_DIAMETER.matcher(raw);
+                if (milling.find()) {
+                    millingDiameter = Double.parseDouble(milling.group(1));
+                }
             } else if (toolWord.find()) {
                 pythonToolId = Integer.parseInt(toolWord.group(1));
             } else {
@@ -346,8 +365,10 @@ public final class GCodeToolpathParser {
             boolean lateral = movesXY && havePosition && (nextX != x || nextY != y)
                     && motion >= 0 && motion <= 1;
             boolean plunge = !movesXY && newZ != null && motion == 1 && nextZ < 0 && havePosition;
-            boolean knownWidth = tool != null && tool.diameter != null && tool.diameter > 0;
-            double radius = knownWidth ? tool.diameter / 2 : metric ? 0.01 : 0.0004;
+            Double width = tool != null && tool.diameter != null && tool.diameter > 0 ? tool.diameter
+                    : millingDiameter;
+            boolean knownWidth = width != null && width > 0;
+            double radius = knownWidth ? width / 2 : metric ? 0.01 : 0.0004;
             int quadrantSegments = knownWidth ? 8 : 4;
             double xyLength = 0;
             if (warning == null && (lateral || plunge || arcMove)
@@ -366,6 +387,14 @@ public final class GCodeToolpathParser {
                         addShape(nextZ >= 0, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                         centerlines.addPath(nextZ >= 0, centerline);
                         xyLength = centerline.getLength();
+                        if (nextZ < 0) {
+                            Coordinate[] arcPoints = centerline.getCoordinates();
+                            int middle = arcPoints.length / 2;
+                            if (arcPoints.length >= 2) {
+                                addCutArrow(cutArrows, arcPoints[middle - 1].x, arcPoints[middle - 1].y,
+                                        arcPoints[middle].x, arcPoints[middle].y, xyLength);
+                            }
+                        }
                     } catch (IllegalArgumentException invalidArc) {
                         warning = "Arco invalido na linha " + (index + 1) + ": " + invalidArc.getMessage();
                     }
@@ -377,6 +406,9 @@ public final class GCodeToolpathParser {
                 addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                 centerlines.addPath(isTravel, centerline);
                 xyLength = centerline.getLength();
+                if (!isTravel) {
+                    addCutArrow(cutArrows, x, y, nextX, nextY);
+                }
                 if (isTravel) {
                     for (double[] end : new double[][]{{x, y}, {nextX, nextY}}) {
                         if (markedPositions.add(List.of(end[0], end[1]))) {
@@ -439,11 +471,27 @@ public final class GCodeToolpathParser {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
-                hits, hits.isEmpty() ? pathMarks : List.of(), xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
+                hits, hits.isEmpty() ? pathMarks : List.of(), hits.isEmpty() ? cutArrows : List.of(),
+                hits.isEmpty() ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",
                 centerlines.travelGeometry(), centerlines.cutGeometry(), stats);
+    }
+
+    private static void addCutArrow(List<CutArrow> arrows, double fromX, double fromY, double toX, double toY) {
+        addCutArrow(arrows, fromX, fromY, toX, toY, Math.hypot(toX - fromX, toY - fromY));
+    }
+
+    /** Records the arrow at the middle of the segment from-to; {@code length} is the whole move's length. */
+    private static void addCutArrow(List<CutArrow> arrows, double fromX, double fromY, double toX, double toY,
+                                    double length) {
+        double segment = Math.hypot(toX - fromX, toY - fromY);
+        if (segment <= 0 || arrows.size() >= MAX_PREVIEW_SEGMENTS) {
+            return;
+        }
+        arrows.add(new CutArrow((fromX + toX) / 2, (fromY + toY) / 2,
+                (toX - fromX) / segment, (toY - fromY) / segment, length));
     }
 
     private static void addShape(boolean isTravel, Geometry shape, List<Geometry> travel, List<Geometry> cut,

@@ -1011,6 +1011,22 @@ cada deslocamento G0, pulando posições já numeradas (`ToolpathStats.pathMarks
 no projeto de teste STM32/Dados_Ambientais a Isolação dá 100 números, igual ao
 Python). Usam o mesmo "Display Annotation" e o desenho com anti-colisão.
 
+**Setas de direção (melhoria além do Python).** Jobs de fresagem guardam o meio
+e o sentido de cada movimento de corte (`ToolpathStats.cutArrows`) e o
+`PlotAreaView` desenha um triângulo por célula de tela de 46 px, só em
+movimentos com pelo menos 14 px na tela, então mais setas aparecem ao aproximar.
+Checkbox "Display Direction Arrows" (ligado por padrão) nas propriedades do job.
+Não verificado visualmente em execução.
+
+**Desempenho e desenho do preview de fresagem (2026-09-29).** Jobs que declaram a
+largura do cortador (`(TOOL DIAMETER: x)` do Python) passam a ser desenhados como
+linhas de centro traçadas na largura real em qualquer zoom (`setLayerCenterlineLod`
+com `stroked`), em vez de um polígono bufferizado por segmento, que travava ao dar
+zoom. As setas usam níveis pré-calculados por zoom (`ArrowLevels`): posições fixas no
+mundo, sem recalcular a cada movimento, e o desenho só percorre a lista do nível
+atual. Os números viraram etiquetas com fundo e ponto de ancoragem, e o
+deslocamento fino fica tracejado e mais visível.
+
 **Exportar** (menu Arquivo > Exportar):
 
 - Gerber/Excellon: diálogo com as opções `gerber_exp_*`/`excellon_exp_*` do

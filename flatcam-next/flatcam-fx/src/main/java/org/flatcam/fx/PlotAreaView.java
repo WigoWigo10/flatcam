@@ -21,6 +21,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.FillRule;
 import javafx.scene.shape.StrokeLineCap;
+import javafx.scene.shape.StrokeLineJoin;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -65,7 +66,7 @@ final class PlotAreaView extends StackPane {
     }
 
     /** A cheaper visual-only CNC path used while the precise buffered stroke is subpixel. */
-    private record LodGeometry(Geometry centerlines, double strokeWidthWorld) {
+    private record LodGeometry(Geometry centerlines, double strokeWidthWorld, boolean stroked) {
     }
 
     /**
@@ -82,11 +83,76 @@ final class PlotAreaView extends StackPane {
     }
 
     /** A text label pinned to a world position - e.g. one drill's place in the machining order. */
+    record Arrow(double x, double y, double dx, double dy, double length) {
+    }
+
+    /**
+     * Arrows pre-thinned into zoom levels so drawing never has to choose among thousands
+     * of candidates: level k keeps the longest arrow of each cell of extent/2^k world
+     * units. Picking a level from the zoom and drawing that list is cheap, and because
+     * positions are fixed in the world the arrows stay put while panning instead of
+     * shuffling as a screen-cell scheme would.
+     */
+    private static final class ArrowLevels {
+        private static final int MAX_LEVEL = 14;
+        private final double minX;
+        private final double minY;
+        private final double extent;
+        private final List<List<Arrow>> levels = new ArrayList<>();
+
+        ArrowLevels(List<Arrow> source) {
+            List<Arrow> sorted = new ArrayList<>(source);
+            sorted.sort((a, b) -> Double.compare(b.length(), a.length()));
+            double loX = Double.POSITIVE_INFINITY;
+            double loY = Double.POSITIVE_INFINITY;
+            double hiX = Double.NEGATIVE_INFINITY;
+            double hiY = Double.NEGATIVE_INFINITY;
+            for (Arrow a : sorted) {
+                loX = Math.min(loX, a.x());
+                loY = Math.min(loY, a.y());
+                hiX = Math.max(hiX, a.x());
+                hiY = Math.max(hiY, a.y());
+            }
+            minX = loX;
+            minY = loY;
+            extent = Math.max(1e-9, Math.max(hiX - loX, hiY - loY));
+            for (int level = 0; level <= MAX_LEVEL; level++) {
+                double cell = extent / (1L << level);
+                java.util.Set<Long> claimed = new java.util.HashSet<>();
+                List<Arrow> kept = new ArrayList<>();
+                for (Arrow a : sorted) {
+                    long cx = (long) Math.floor((a.x() - minX) / cell);
+                    long cy = (long) Math.floor((a.y() - minY) / cell);
+                    if (claimed.add(cx * 1_000_003L + cy)) {
+                        kept.add(a);
+                    }
+                }
+                levels.add(kept);
+                if (kept.size() == sorted.size()) {
+                    break;
+                }
+            }
+        }
+
+        /** The arrows to draw when one screen cell of {@code cellPixels} is {@code cellPixels / scale} world units. */
+        List<Arrow> forZoom(double scale, double cellPixels) {
+            double world = cellPixels / Math.max(scale, 1e-12);
+            int level = (int) Math.ceil(Math.log(extent / world) / Math.log(2));
+            return levels.get(Math.max(0, Math.min(levels.size() - 1, level)));
+        }
+    }
+
     record Annotation(double x, double y, String text) {
     }
 
     /** CNCJob "Display Annotation" colors: Python's cncjob_annotation_fontcolor, and its dark-theme inversion. */
     private static final Color ANNOTATION_LIGHT = Color.web("#990000");
+    private static final Color ARROW_LIGHT = Color.web("#0B7A35");
+    private static final Color ARROW_DARK = Color.web("#7DF59A");
+    /** Stroke width (px) from which a wide milling path also shows its individual passes. */
+    private static final double PASS_LINES_MIN_WIDTH = 7;
+    private static final double ARROW_CELL = 64;
+    private static final double ARROW_MIN_SEGMENT = 14;
     private static final Color ANNOTATION_DARK = Color.web("#66FFFF");
     private static final javafx.scene.text.Font ANNOTATION_FONT = javafx.scene.text.Font.font(11);
     /** Screen cell a label claims; later labels landing in a claimed cell are skipped instead of piling up. */
@@ -206,6 +272,10 @@ final class PlotAreaView extends StackPane {
     private boolean batchRedrawPending;
     private PlotPalette palette = ICE_LIGHT_PALETTE;
     private Color annotationColor = ANNOTATION_LIGHT;
+    private Color arrowColor = ARROW_LIGHT;
+    /** Stroke width (px) for the centerline drawing in progress, or NaN outside it. */
+    private double lodLineWidth = Double.NaN;
+    private final Map<Object, ArrowLevels> arrows = new LinkedHashMap<>();
     private final Map<Object, List<Annotation>> annotations = new LinkedHashMap<>();
     private Geometry editorHighlightGeometry;
     private boolean editorHighlightStrokeOnly;
@@ -328,6 +398,7 @@ final class PlotAreaView extends StackPane {
         palette = paletteForTheme(theme);
         annotationColor = theme == ThemeOption.CLASSIC_DARK || theme == ThemeOption.ICE_DARK
                 ? ANNOTATION_DARK : ANNOTATION_LIGHT;
+        arrowColor = annotationColor == ANNOTATION_DARK ? ARROW_DARK : ARROW_LIGHT;
         redraw();
     }
 
@@ -339,6 +410,18 @@ final class PlotAreaView extends StackPane {
             }
         } else {
             annotations.put(key, List.copyOf(labels));
+        }
+        redraw();
+    }
+
+    /** Replaces (or, with an empty list, removes) the cutting-direction arrows drawn for {@code key}. */
+    void setArrows(Object key, List<Arrow> list) {
+        if (list == null || list.isEmpty()) {
+            if (arrows.remove(key) == null) {
+                return;
+            }
+        } else {
+            arrows.put(key, new ArrowLevels(list));
         }
         redraw();
     }
@@ -375,6 +458,15 @@ final class PlotAreaView extends StackPane {
     }
 
     void setLayerCenterlineLod(Object key, Geometry centerlines, double strokeWidthWorld) {
+        setLayerCenterlineLod(key, centerlines, strokeWidthWorld, false);
+    }
+
+    /**
+     * {@code stroked} keeps the centerline drawing at every zoom, stroked as wide as the
+     * real cutter, so a filled milling path costs one stroke per path however far it is
+     * zoomed in (the buffered polygons it replaces cost one fill per segment).
+     */
+    void setLayerCenterlineLod(Object key, Geometry centerlines, double strokeWidthWorld, boolean stroked) {
         if (!layers.containsKey(key)) {
             return;
         }
@@ -382,7 +474,7 @@ final class PlotAreaView extends StackPane {
                 || strokeWidthWorld <= 0) {
             lodLayers.remove(key);
         } else {
-            lodLayers.put(key, new LodGeometry(centerlines, strokeWidthWorld));
+            lodLayers.put(key, new LodGeometry(centerlines, strokeWidthWorld, stroked));
         }
         lodDrawableIndexes.remove(key);
         redraw();
@@ -491,6 +583,7 @@ final class PlotAreaView extends StackPane {
         drawableIndexes.clear();
         lodDrawableIndexes.clear();
         annotations.clear();
+        arrows.clear();
         editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
@@ -1266,8 +1359,31 @@ final class PlotAreaView extends StackPane {
                     if (lodActive) {
                         gc.save();
                         gc.setLineCap(StrokeLineCap.ROUND);
-                        drawLayer(gc, new RenderLayer(drawnGeometry, true, layer.fillColor(), layer.fillColor(),
-                                true, category, true, false), contentWidth, contentHeight, viewBounds, index);
+                        Color lodColor = layer.fillColor();
+                        if (lod.stroked()) {
+                            gc.setLineJoin(StrokeLineJoin.ROUND);
+                            lodLineWidth = Math.max(1.5, lod.strokeWidthWorld() * scale);
+                            if (lodLineWidth < 4 && lodColor.getOpacity() < 0.65) {
+                                // A thin translucent travel line is nearly invisible: firm it up and dash it.
+                                lodColor = lodColor.deriveColor(0, 1, 1, 0.65 / lodColor.getOpacity());
+                                gc.setLineDashes(7, 5);
+                            }
+                        }
+                        double wideStroke = lodLineWidth;
+                        try {
+                            drawLayer(gc, new RenderLayer(drawnGeometry, true, lodColor, lodColor,
+                                    true, category, true, false), contentWidth, contentHeight, viewBounds, index);
+                            if (lod.stroked() && wideStroke >= PASS_LINES_MIN_WIDTH) {
+                                // Zoomed in on a wide cutter: show each pass as a thin line over the body.
+                                Color passColor = lodColor.deriveColor(0, 1, 0.45, 0.9);
+                                gc.setLineDashes();
+                                lodLineWidth = 1.25;
+                                drawLayer(gc, new RenderLayer(drawnGeometry, true, passColor, passColor,
+                                        true, category, true, false), contentWidth, contentHeight, viewBounds, index);
+                            }
+                        } finally {
+                            lodLineWidth = Double.NaN;
+                        }
                         gc.restore();
                     } else {
                         drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
@@ -1287,6 +1403,7 @@ final class PlotAreaView extends StackPane {
         if (workspaceVisible) {
             drawWorkspace(gc, contentWidth, contentHeight);
         }
+        drawArrows(gc, contentWidth, contentHeight, viewBounds);
         drawAnnotations(gc, contentWidth, contentHeight, viewBounds);
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
@@ -1308,8 +1425,9 @@ final class PlotAreaView extends StackPane {
 
     private static boolean useCenterlineLod(RenderLayer layer, LodGeometry lod, double scale) {
         return layer.category() == LayerCategory.CNCJOB && lod != null
-                && shouldUseCenterlineLod(layer.filled(), layer.multicolor(),
-                        lod.strokeWidthWorld(), scale);
+                && (lod.stroked() ? layer.filled() && !layer.multicolor()
+                        : shouldUseCenterlineLod(layer.filled(), layer.multicolor(),
+                                lod.strokeWidthWorld(), scale));
     }
 
     private PlotDrawableIndex drawableIndex(Object key, Geometry geometry, boolean lod) {
@@ -1449,6 +1567,43 @@ final class PlotAreaView extends StackPane {
      * that do show stay legible and more appear as the user zooms in. A background-
      * colored halo keeps them readable over the filled holes.
      */
+    /**
+     * Small triangles at the middle of cutting moves showing which way the tool travels.
+     * Only moves that are long enough on screen get one and each screen cell holds at
+     * most one, so zooming in reveals more instead of piling arrows on curves.
+     */
+    private void drawArrows(GraphicsContext gc, double contentWidth, double contentHeight, Envelope viewBounds) {
+        if (arrows.isEmpty()) {
+            return;
+        }
+        gc.save();
+        gc.beginPath();
+        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.clip();
+        gc.setLineWidth(2.5);
+        gc.setStroke(palette.background());
+        gc.setFill(arrowColor);
+        for (ArrowLevels levels : arrows.values()) {
+            for (Arrow arrow : levels.forZoom(scale, ARROW_CELL)) {
+                if (arrow.length() * scale < ARROW_MIN_SEGMENT || !viewBounds.contains(arrow.x(), arrow.y())) {
+                    continue;
+                }
+                double[] screen = worldToScreen(arrow.x(), arrow.y(), contentWidth, contentHeight);
+                double cx = screen[0] + RULER_LEFT_WIDTH;
+                double cy = screen[1] + RULER_TOP_HEIGHT;
+                double ux = arrow.dx();
+                double uy = -arrow.dy(); // screen Y grows downward
+                double px = -uy;
+                double py = ux;
+                double[] xs = {cx + ux * 6, cx - ux * 4.5 + px * 4, cx - ux * 4.5 - px * 4};
+                double[] ys = {cy + uy * 6, cy - uy * 4.5 + py * 4, cy - uy * 4.5 - py * 4};
+                gc.strokePolygon(xs, ys, 3);
+                gc.fillPolygon(xs, ys, 3);
+            }
+        }
+        gc.restore();
+    }
+
     private void drawAnnotations(GraphicsContext gc, double contentWidth, double contentHeight, Envelope viewBounds) {
         if (annotations.isEmpty()) {
             return;
@@ -1459,9 +1614,8 @@ final class PlotAreaView extends StackPane {
         gc.clip();
         gc.setFont(ANNOTATION_FONT);
         gc.setTextAlign(TextAlignment.LEFT);
-        gc.setLineWidth(3);
-        gc.setStroke(palette.background());
-        gc.setFill(annotationColor);
+        Color background = palette.background();
+        Color badgeFill = Color.color(background.getRed(), background.getGreen(), background.getBlue(), 0.82);
         java.util.Set<Long> claimed = new java.util.HashSet<>();
         for (List<Annotation> labels : annotations.values()) {
             for (Annotation label : labels) {
@@ -1474,10 +1628,20 @@ final class PlotAreaView extends StackPane {
                 if (!claimed.add(cellX * 1_000_003L + cellY)) {
                     continue;
                 }
-                double x = screen[0] + RULER_LEFT_WIDTH + 3;
-                double y = screen[1] + RULER_TOP_HEIGHT - 3;
-                gc.strokeText(label.text(), x, y);
-                gc.fillText(label.text(), x, y);
+                double ax = screen[0] + RULER_LEFT_WIDTH;
+                double ay = screen[1] + RULER_TOP_HEIGHT;
+                double textWidth = label.text().length() * 6.4;
+                double badgeX = ax + 4;
+                double badgeY = ay - 4 - 13;
+                gc.setFill(annotationColor);
+                gc.fillOval(ax - 1.5, ay - 1.5, 3, 3);
+                gc.setFill(badgeFill);
+                gc.fillRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
+                gc.setLineWidth(1);
+                gc.setStroke(annotationColor.deriveColor(0, 1, 1, 0.7));
+                gc.strokeRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
+                gc.setFill(annotationColor);
+                gc.fillText(label.text(), badgeX + 3, badgeY + 10);
             }
         }
         gc.restore();
@@ -1573,7 +1737,7 @@ final class PlotAreaView extends StackPane {
     private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth,
                            double contentHeight, Envelope viewBounds, PlotDrawableIndex index) {
         gc.setFillRule(FillRule.EVEN_ODD);
-        gc.setLineWidth(layer.strokeOnly() ? 1.5 : 1);
+        gc.setLineWidth(!Double.isNaN(lodLineWidth) ? lodLineWidth : layer.strokeOnly() ? 1.5 : 1);
         if (!layer.multicolor()) {
             gc.setFill(layer.fillColor());
             gc.setStroke(layer.strokeColor());
@@ -1604,8 +1768,9 @@ final class PlotAreaView extends StackPane {
         if (layer.strokeOnly()) {
             if (part instanceof Point point) {
                 double[] position = worldToScreen(point.getX(), point.getY(), contentWidth, contentHeight);
-                gc.fillOval(position[0] + RULER_LEFT_WIDTH - 0.75,
-                        position[1] + RULER_TOP_HEIGHT - 0.75, 1.5, 1.5);
+                double dot = Double.isNaN(lodLineWidth) ? 1.5 : lodLineWidth;
+                gc.fillOval(position[0] + RULER_LEFT_WIDTH - dot / 2,
+                        position[1] + RULER_TOP_HEIGHT - dot / 2, dot, dot);
                 return;
             }
             CoordinateSequence coordinates = switch (part) {

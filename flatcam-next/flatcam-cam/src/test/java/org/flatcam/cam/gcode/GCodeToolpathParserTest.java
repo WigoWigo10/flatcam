@@ -233,6 +233,27 @@ class GCodeToolpathParserTest {
         org.junit.jupiter.api.Assertions.assertEquals(20, marks.get(4).x(), 1e-9);
     }
 
+    @Test
+    void recordsDirectionOfCuttingMovesForMillingJobs() {
+        var arrows = parse(String.join("\n", "G21", "G90", "G00 Z2.0", "G00 X0 Y0", "G01 Z-0.1 F100",
+                "G01 X10 Y0", "G01 X10 Y4", "G00 Z2.0", ""))
+                .stats().cutArrows();
+        org.junit.jupiter.api.Assertions.assertEquals(2, arrows.size());
+        org.junit.jupiter.api.Assertions.assertEquals(5, arrows.get(0).x(), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(1, arrows.get(0).dx(), 1e-9);
+        org.junit.jupiter.api.Assertions.assertEquals(1, arrows.get(1).dy(), 1e-9);
+    }
+
+    @Test
+    void drawsPythonMillingProgramAtTheHeaderToolDiameterWithoutCountingDrills() {
+        var result = parse(String.join(System.lineSeparator(), "(Type: G-code from Geometry)",
+                "(TOOL DIAMETER: 0.4 mm)", "G21", "G90", "G00 Z2.0", "G00 X0 Y0", "T1",
+                "(MSG, Change to Tool Dia = 0.4)", "G01 Z-0.1 F100", "G01 X10 Y0", "G00 Z2.0", ""));
+        org.junit.jupiter.api.Assertions.assertEquals(0.4,
+                result.cutGeometry().getEnvelopeInternal().getHeight(), 1e-6);
+        org.junit.jupiter.api.Assertions.assertTrue(result.stats().hits().isEmpty());
+    }
+
     private static GCodeToolpathParser.Result parse(String gcode) {
         return GCodeToolpathParser.parse(gcode, () -> false, ignored -> {});
     }
