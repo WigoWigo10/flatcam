@@ -96,6 +96,7 @@ import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
+import org.flatcam.cam.svg.SvgExporter;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.gerber.edit.GerberEditSession;
@@ -1154,7 +1155,7 @@ final class MainWindow {
         Menu exportMenu = new Menu("Exportar");
         setLegacyMenuIcon(exportMenu, "export.png");
         exportMenu.getItems().addAll(
-                plannedItem("SVG", "svg32.png"), plannedItem("DXF", "dxf16.png"),
+                chromeItem("SVG...", "svg32.png", this::exportSelectedSvg), plannedItem("DXF", "dxf16.png"),
                 plannedItem("PNG", "export_png32.png"),
                 chromeItem("Gerber...", "flatcam_icon32.png", () -> exportSelectedCam(true)),
                 chromeItem("Excellon...", "drill32.png", () -> exportSelectedCam(false)));
@@ -2998,6 +2999,93 @@ final class MainWindow {
         handle.completion().thenAccept(path -> Platform.runLater(() -> {
             AppPreferences.saveLastCamDirectory(destination.getParentFile().getAbsolutePath());
             appendConsole((asGerber ? "Arquivo Gerber" : "Arquivo Excellon") + " exportado para " + path);
+            updateProgress(1);
+            setStatus("Exportado.", IDLE_COLOR);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Nao foi possivel exportar: ");
+                onJobFinished();
+            });
+            return null;
+        });
+    }
+
+    /**
+     * File > Exportar > SVG - app_Main.py's on_file_exportsvg/export_svg for Gerber,
+     * Excellon, Geometry and CNC Job objects (see SvgExporter for the drawing).
+     */
+    private void exportSelectedSvg() {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        GerberImage gerber = item == null ? null : gerberByItem.get(item);
+        ExcellonImage excellon = item == null ? null : excellonByItem.get(item);
+        GeometryEntry geometry = item == null ? null : geometryByItem.get(item);
+        CncJobEntry cncJob = item == null ? null : cncJobByItem.get(item);
+        if (gerber == null && excellon == null && geometry == null && cncJob == null) {
+            appendConsole(item == null ? "Nenhum objeto selecionado."
+                    : "Somente objetos Geometry, Gerber, Excellon e CNC Job podem ser usados.");
+            return;
+        }
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Exportar SVG");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("SVG", "*.svg"));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + ".svg");
+        File lastDirectory = new File(AppPreferences.loadLastCamDirectory(System.getProperty("user.home")));
+        if (lastDirectory.isDirectory()) {
+            chooser.setInitialDirectory(lastDirectory);
+        }
+        File destination = chooser.showSaveDialog(scene.getWindow());
+        if (destination == null) {
+            appendConsole("Cancelado.");
+            return;
+        }
+
+        beginJob("Exportando " + item.getValue() + " como SVG...");
+        cancelJobButton.setDisable(true); // the writer publishes atomically; there is no cancel point.
+        JobHandle<Path> handle = jobExecutor.submit(context -> {
+            context.reportProgress(Double.NaN, "Exportando SVG...");
+            List<SvgExporter.Layer> layers;
+            String units;
+            if (cncJob != null) {
+                GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(cncJob.gcode(),
+                        CancellationToken.none(), fraction -> { });
+                if (!parsed.plotAvailable()) {
+                    throw new IllegalArgumentException("o G-code nao pode ser plotado");
+                }
+                // Python: the tool diameter, else scale_stroke_factor 0.01 (a 0.02 wide line).
+                double width = parsed.stats() == null ? 0 : parsed.stats().tools().stream()
+                        .map(GCodeToolpathParser.ToolUsage::diameter).filter(Objects::nonNull)
+                        .mapToDouble(Double::doubleValue).min().orElse(0);
+                double stroke = width > 0 ? width : SvgExporter.SHAPE_STROKE_WIDTH;
+                layers = List.of(
+                        SvgExporter.toolpath(parsed.travelCenterlines(), SvgExporter.TRAVEL_COLOR, stroke),
+                        SvgExporter.toolpath(parsed.cutCenterlines(), SvgExporter.CUT_COLOR, stroke));
+                units = parsed.units();
+            } else if (geometry != null) {
+                layers = List.of(SvgExporter.shapes(geometry.geometry()));
+                units = geometry.units();
+            } else if (gerber != null) {
+                layers = List.of(SvgExporter.shapes(gerber.solidGeometry()));
+                units = gerber.units();
+            } else {
+                layers = List.of(SvgExporter.shapes(excellon.solidGeometry()));
+                units = excellon.units();
+            }
+            new SvgExporter().write(layers, units, destination.toPath());
+            return destination.toPath();
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(path -> Platform.runLater(() -> {
+            AppPreferences.saveLastCamDirectory(destination.getParentFile().getAbsolutePath());
+            appendConsole("Arquivo SVG exportado para " + path);
             updateProgress(1);
             setStatus("Exportado.", IDLE_COLOR);
             onJobFinished();
