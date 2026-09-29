@@ -135,7 +135,7 @@ public final class ProjectFileIO {
         javaExtra.put("geometries", geometries);
         root.put("_java", javaExtra);
 
-        byte[] jsonBytes = root.toString(2).getBytes(StandardCharsets.UTF_8);
+        byte[] jsonBytes = root.toString().getBytes(StandardCharsets.UTF_8);
         Path destination = path.toAbsolutePath();
         Path temporary = Files.createTempFile(destination.getParent(),
                 "." + destination.getFileName() + ".", ".tmp");

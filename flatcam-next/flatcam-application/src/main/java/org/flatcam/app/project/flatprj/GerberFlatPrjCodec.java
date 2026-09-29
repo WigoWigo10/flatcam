@@ -8,10 +8,10 @@ import org.flatcam.cam.gerber.Aperture;
 import org.flatcam.cam.gerber.ApertureKind;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberShape;
+import org.flatcam.cam.gerber.LazyApertureGeometry;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
 
 /**
  * Converts a {@link GerberImage} to/from the JSON shape Python's own Gerber/
@@ -132,7 +132,7 @@ public final class GerberFlatPrjCodec {
         Geometry followGeometry = WktJson.unwrap(json.opt("follow_geometry"));
 
         Map<String, Aperture> apertures = new LinkedHashMap<>();
-        Map<String, Geometry> apertureGeometry = new LinkedHashMap<>();
+        Map<String, List<Geometry>> aperturePieces = new LinkedHashMap<>();
         Map<String, List<GerberShape>> shapesByAperture = new LinkedHashMap<>();
         JSONObject aperturesJson = json.optJSONObject("apertures");
         if (aperturesJson != null) {
@@ -160,8 +160,7 @@ public final class GerberFlatPrjCodec {
                     }
                     shapesByAperture.put(code, shapes);
                     if (!GerberShape.REGION_APERTURE.equals(code) && !apertureParts.isEmpty()) {
-                        apertureGeometry.put(code, apertureParts.size() == 1
-                                ? apertureParts.get(0) : UnaryUnionOp.union(apertureParts));
+                        aperturePieces.put(code, apertureParts);
                     }
                 }
             }
@@ -199,8 +198,9 @@ public final class GerberFlatPrjCodec {
         String fillColorWeb = json.optString("fill_color", null);
         String strokeColorWeb = json.optString("outline_color", null);
 
+        // Per-aperture unions are only read by Mark/editor/save, so they are computed on first use.
         GerberImage image = GerberImage.of(units, apertures, solidGeometry, followGeometry,
-                apertureGeometry, orderedShapes);
+                new LazyApertureGeometry(aperturePieces), orderedShapes);
         return new Decoded(name, image, fillColorWeb, strokeColorWeb, visible, filled, multicolor, followMode);
     }
 

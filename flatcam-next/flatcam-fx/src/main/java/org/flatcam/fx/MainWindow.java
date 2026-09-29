@@ -118,7 +118,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Envelope;
-import org.locationtech.jts.operation.union.UnaryUnionOp;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * Shell shape taken from the legacy app, not from CONTEXTO_FLATCAM_FX.md's
@@ -4439,7 +4439,7 @@ final class MainWindow {
                     .map(c -> image.apertureGeometry().get(c))
                     .filter(Objects::nonNull)
                     .toList();
-            Geometry union = shapes.size() == 1 ? shapes.get(0) : UnaryUnionOp.union(shapes);
+            Geometry union = shapes.size() == 1 ? shapes.get(0) : OverlayNGRobust.union(shapes);
             plotAreaView.putLayer(markKey, PlotAreaView.LayerCategory.OVERLAY, union, MARK_COLOR, MARK_COLOR, false);
         });
     }

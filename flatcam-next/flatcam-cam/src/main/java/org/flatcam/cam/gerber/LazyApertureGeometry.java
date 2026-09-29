@@ -16,11 +16,11 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
  * persistence read it, so paying for every union during the parse was wasted
  * work for the common load-and-isolate flow.
  */
-final class LazyApertureGeometry extends AbstractMap<String, Geometry> {
+public final class LazyApertureGeometry extends AbstractMap<String, Geometry> {
     private final Map<String, List<Geometry>> pieces;
     private final Map<String, Geometry> resolved = new LinkedHashMap<>();
 
-    LazyApertureGeometry(Map<String, List<Geometry>> pieces) {
+    public LazyApertureGeometry(Map<String, List<Geometry>> pieces) {
         this.pieces = new LinkedHashMap<>(pieces);
     }
 
