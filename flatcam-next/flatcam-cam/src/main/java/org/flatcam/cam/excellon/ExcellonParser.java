@@ -43,11 +43,11 @@ import org.locationtech.jts.operation.union.UnaryUnionOp;
  * itself doesn't need to be tracked (both reduce to the same formula once
  * a tool always emits full-width digit strings, which they do in practice).
  *
- * <p>Scope: drilling and G85 slots only - no routing (G00/G01/G02/G03 with
- * actual moves) and no incremental positioning (G91), matching the legacy
- * parser's own documented limits (flatcam.org/fileformats: "FlatCAM
- * supports only the drilling subset of Excellon. Routing is not
- * supported."). X2-style attribute comments ("; #@! TA...."/"; #@! TF...",
+ * <p>Scope: drilling, G85 slots and straight routed slots (G00 to the start,
+ * M15 plunge, G01 to the end, M16/M17 retract, G05 back to drilling - the
+ * form FlatCAM Python's own Excellon export writes by default). Each routed
+ * G01 move with the tool down becomes one slot. No arcs (G02/G03) and no
+ * incremental positioning (G91). X2-style attribute comments ("; #@! TA...."/"; #@! TF...",
  * KiCad 6+) are ignored like any other comment.
  */
 public final class ExcellonParser {
@@ -58,14 +58,16 @@ public final class ExcellonParser {
 
     private static final Pattern FORMAT_OVERRIDE =
             Pattern.compile("^;\\s*(?:FILE_FORMAT|Format)\\s*[=:]\\s*(\\d+)[:.](\\d+).*$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern TOOL_DEFINITION = Pattern.compile("^T0*([0-9]+)C([0-9.]+).*$");
+    private static final Pattern TOOL_DEFINITION = Pattern.compile("^T0*([0-9]+)(?:[FSBH][0-9.]+)*C([0-9.]+).*$");
     private static final Pattern TOOL_SELECT = Pattern.compile("^T0*([0-9]+)$");
     private static final Pattern SLOT_LINE =
             Pattern.compile("^(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?G85(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?$");
+    private static final Pattern ROUTE_LINE =
+            Pattern.compile("^G0?([01])(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?$");
     private static final Pattern COORD_LINE = Pattern.compile("^(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?$");
 
     private static final java.util.Set<String> IGNORABLE_EXACT = java.util.Set.of(
-            "M48", "FMAT,1", "FMAT,2", "G90", "G05", "M00", "M30", "%", "M95"
+            "M48", "FMAT,1", "FMAT,2", "G90", "M00", "M30", "%", "M95"
     );
 
     private final GeometryFactory geometryFactory = new GeometryFactory();
@@ -113,6 +115,9 @@ public final class ExcellonParser {
         Integer currentTool = null;
         double posX = 0;
         double posY = 0;
+        boolean routeMode = false;
+        boolean toolDown = false;
+        boolean routeLinear = false;
 
         for (int lineIndex = 0; lineIndex < rawLines.size(); lineIndex++) {
             cancellationToken.throwIfCancellationRequested();
@@ -128,6 +133,22 @@ public final class ExcellonParser {
             }
             if (line.equals("M72")) {
                 units = "IN";
+                continue;
+            }
+            if (line.equals("G05")) {
+                routeMode = false;
+                toolDown = false;
+                continue;
+            }
+            if (line.equals("M15")) {
+                if (!routeMode) {
+                    throw new ExcellonParseException("M15 (plunge) outside a routed move: " + rawLine);
+                }
+                toolDown = true;
+                continue;
+            }
+            if (line.equals("M16") || line.equals("M17")) {
+                toolDown = false;
                 continue;
             }
             if (line.equals("G91")) {
@@ -181,8 +202,39 @@ public final class ExcellonParser {
                 continue;
             }
 
+            Matcher route = ROUTE_LINE.matcher(line);
             Matcher coord = COORD_LINE.matcher(line);
-            if (coord.matches() && (coord.group(1) != null || coord.group(2) != null)) {
+            boolean routeCommand = route.matches();
+            boolean coordLine = coord.matches() && (coord.group(1) != null || coord.group(2) != null);
+            if (routeCommand || (routeMode && coordLine)) {
+                // A bare coordinate while routing repeats the last G00/G01 (modal).
+                if (routeCommand) {
+                    routeMode = true;
+                    routeLinear = route.group(1).equals("1");
+                }
+                Matcher target = routeCommand ? route : coord;
+                int first = routeCommand ? 2 : 1;
+                if (target.group(first) == null && target.group(first + 1) == null) {
+                    continue;
+                }
+                requireUnits(units, line);
+                int lower = resolveLowerDigits(units, formatLowerOverride);
+                double x = target.group(first) != null ? decode(target.group(first), lower) : posX;
+                double y = target.group(first + 1) != null ? decode(target.group(first + 1), lower) : posY;
+                if (routeLinear && toolDown) {
+                    double diameter = requireToolDiameter(toolDiameters, currentTool, line);
+                    shapes.add(geometryFactory
+                            .createLineString(new Coordinate[]{new Coordinate(posX, posY), new Coordinate(x, y)})
+                            .buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
+                    cancellationToken.throwIfCancellationRequested();
+                    slots.add(new ExcellonImage.Slot(currentTool, posX, posY, x, y));
+                }
+                posX = x;
+                posY = y;
+                continue;
+            }
+
+            if (coordLine) {
                 requireUnits(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
                 double x = coord.group(1) != null ? decode(coord.group(1), lower) : posX;
