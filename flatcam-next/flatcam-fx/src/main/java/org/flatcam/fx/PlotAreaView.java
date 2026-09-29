@@ -81,6 +81,18 @@ final class PlotAreaView extends StackPane {
         GERBER, EXCELLON, GEOMETRY, OVERLAY, CNCJOB
     }
 
+    /** A text label pinned to a world position - e.g. one drill's place in the machining order. */
+    record Annotation(double x, double y, String text) {
+    }
+
+    /** CNCJob "Display Annotation" colors: Python's cncjob_annotation_fontcolor, and its dark-theme inversion. */
+    private static final Color ANNOTATION_LIGHT = Color.web("#990000");
+    private static final Color ANNOTATION_DARK = Color.web("#66FFFF");
+    private static final javafx.scene.text.Font ANNOTATION_FONT = javafx.scene.text.Font.font(11);
+    /** Screen cell a label claims; later labels landing in a claimed cell are skipped instead of piling up. */
+    private static final double ANNOTATION_CELL_WIDTH = 22;
+    private static final double ANNOTATION_CELL_HEIGHT = 13;
+
     /**
      * Receives primary-button clicks/drags in world coordinates while an
      * editor owns the canvas; other buttons keep panning. {@code additive} is
@@ -193,6 +205,8 @@ final class PlotAreaView extends StackPane {
     private int batchDepth;
     private boolean batchRedrawPending;
     private PlotPalette palette = ICE_LIGHT_PALETTE;
+    private Color annotationColor = ANNOTATION_LIGHT;
+    private final Map<Object, List<Annotation>> annotations = new LinkedHashMap<>();
     private Geometry editorHighlightGeometry;
     private boolean editorHighlightStrokeOnly;
 
@@ -312,7 +326,25 @@ final class PlotAreaView extends StackPane {
     /** Updates every canvas-owned color immediately when the application theme changes. */
     void applyTheme(ThemeOption theme) {
         palette = paletteForTheme(theme);
+        annotationColor = theme == ThemeOption.CLASSIC_DARK || theme == ThemeOption.ICE_DARK
+                ? ANNOTATION_DARK : ANNOTATION_LIGHT;
         redraw();
+    }
+
+    /** Replaces (or, with an empty list, removes) the labels drawn for {@code key}. */
+    void setAnnotations(Object key, List<Annotation> labels) {
+        if (labels == null || labels.isEmpty()) {
+            if (annotations.remove(key) == null) {
+                return;
+            }
+        } else {
+            annotations.put(key, List.copyOf(labels));
+        }
+        redraw();
+    }
+
+    boolean hasAnnotations(Object key) {
+        return annotations.containsKey(key);
     }
 
     static PlotPalette paletteForTheme(ThemeOption theme) {
@@ -458,6 +490,7 @@ final class PlotAreaView extends StackPane {
         lodLayers.clear();
         drawableIndexes.clear();
         lodDrawableIndexes.clear();
+        annotations.clear();
         editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
@@ -1250,6 +1283,7 @@ final class PlotAreaView extends StackPane {
         if (workspaceVisible) {
             drawWorkspace(gc, contentWidth, contentHeight);
         }
+        drawAnnotations(gc, contentWidth, contentHeight, viewBounds);
         drawSelectedObjectBounds(gc, contentWidth, contentHeight);
         drawRulers(gc, width, height, contentWidth, contentHeight, step);
         drawEditorHighlight();
@@ -1400,6 +1434,47 @@ final class PlotAreaView extends StackPane {
         for (RenderLayer layer : placementLayers) {
             drawLayer(gc, new RenderLayer(layer.geometry(), layer.strokeOnly(), PLACEMENT_FILL,
                     PLACEMENT_STROKE, true, layer.category(), layer.filled(), false), contentWidth, contentHeight);
+        }
+        gc.restore();
+    }
+
+    /**
+     * Python draws every annotation even when zoomed out, so dense boards turn into
+     * an unreadable blob. Here each label claims a small screen cell and later ones
+     * that would land on it are skipped (earliest in the order wins), so the numbers
+     * that do show stay legible and more appear as the user zooms in. A background-
+     * colored halo keeps them readable over the filled holes.
+     */
+    private void drawAnnotations(GraphicsContext gc, double contentWidth, double contentHeight, Envelope viewBounds) {
+        if (annotations.isEmpty()) {
+            return;
+        }
+        gc.save();
+        gc.beginPath();
+        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.clip();
+        gc.setFont(ANNOTATION_FONT);
+        gc.setTextAlign(TextAlignment.LEFT);
+        gc.setLineWidth(3);
+        gc.setStroke(palette.background());
+        gc.setFill(annotationColor);
+        java.util.Set<Long> claimed = new java.util.HashSet<>();
+        for (List<Annotation> labels : annotations.values()) {
+            for (Annotation label : labels) {
+                if (!viewBounds.contains(label.x(), label.y())) {
+                    continue;
+                }
+                double[] screen = worldToScreen(label.x(), label.y(), contentWidth, contentHeight);
+                long cellX = (long) Math.floor(screen[0] / ANNOTATION_CELL_WIDTH);
+                long cellY = (long) Math.floor(screen[1] / ANNOTATION_CELL_HEIGHT);
+                if (!claimed.add(cellX * 1_000_003L + cellY)) {
+                    continue;
+                }
+                double x = screen[0] + RULER_LEFT_WIDTH + 3;
+                double y = screen[1] + RULER_TOP_HEIGHT - 3;
+                gc.strokeText(label.text(), x, y);
+                gc.fillText(label.text(), x, y);
+            }
         }
         gc.restore();
     }

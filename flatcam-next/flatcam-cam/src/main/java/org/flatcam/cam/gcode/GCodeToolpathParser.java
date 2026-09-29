@@ -45,8 +45,13 @@ public final class GCodeToolpathParser {
         return String.format(Locale.ROOT, "FCFX TOOL T%d D%.4f", toolId, diameter);
     }
 
-    /** One tool's share of a program: its drill hits and routed slots, and how deep it plunged. */
-    public record ToolUsage(int toolId, Double diameter, int drills, int slots, double deepestZ) {
+    /**
+     * One tool's share of a program: its drill hits and routed slots, how deep it
+     * plunged, and its own cut/travel preview so a viewer can show or hide one tool
+     * at a time (Python's per-row "Plot" checkbox in the CNC Job tools table).
+     */
+    public record ToolUsage(int toolId, Double diameter, int drills, int slots, double deepestZ,
+                            Geometry cutGeometry, Geometry travelGeometry) {
     }
 
     /** A plunge in machining order (1-based {@code sequence} across the whole program). */
@@ -58,7 +63,7 @@ public final class GCodeToolpathParser {
      * {@code estimatedMinutes} is NaN when a feed move has no F word to time it by.
      */
     public record ToolpathStats(List<ToolUsage> tools, List<DrillHit> hits,
-                                double xyDistance, double estimatedMinutes) {
+                                double xyDistance, double estimatedMinutes, String units) {
         public ToolpathStats {
             tools = List.copyOf(tools);
             hits = List.copyOf(hits);
@@ -96,6 +101,8 @@ public final class GCodeToolpathParser {
         int drills;
         int slots;
         double deepestZ = Double.POSITIVE_INFINITY;
+        final List<Geometry> cut = new ArrayList<>();
+        final List<Geometry> travel = new ArrayList<>();
 
         ToolTally(int toolId, Double diameter) {
             this.toolId = toolId;
@@ -104,7 +111,9 @@ public final class GCodeToolpathParser {
 
         ToolUsage freeze() {
             return new ToolUsage(toolId, diameter, drills, slots,
-                    Double.isFinite(deepestZ) ? deepestZ : 0);
+                    Double.isFinite(deepestZ) ? deepestZ : 0,
+                    FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)),
+                    FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)));
         }
     }
 
@@ -319,7 +328,7 @@ public final class GCodeToolpathParser {
                     try {
                         Geometry centerline = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
                                 absoluteArcCenter, motion == 2);
-                        (nextZ >= 0 ? travel : cut).add(centerline.buffer(radius, quadrantSegments));
+                        addShape(nextZ >= 0, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                         centerlines.addPath(nextZ >= 0, centerline);
                         xyLength = centerline.getLength();
                     } catch (IllegalArgumentException invalidArc) {
@@ -330,7 +339,7 @@ public final class GCodeToolpathParser {
                 Geometry centerline = FACTORY.createLineString(new Coordinate[]{
                         new Coordinate(x, y), new Coordinate(nextX, nextY)});
                 boolean isTravel = motion == 0 || nextZ >= 0;
-                (isTravel ? travel : cut).add(centerline.buffer(radius, quadrantSegments));
+                addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                 centerlines.addPath(isTravel, centerline);
                 xyLength = centerline.getLength();
                 if (!isTravel && tool != null && pendingHit) {
@@ -338,7 +347,8 @@ public final class GCodeToolpathParser {
                     pendingHit = false;
                 }
             } else if (warning == null && plunge) {
-                cut.add(FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, quadrantSegments));
+                addShape(false, FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, quadrantSegments),
+                        travel, cut, tool);
                 centerlines.addPoint(false, new Coordinate(x, y));
                 // Multi-depth passes re-plunge at the same spot; they are one hole, not several.
                 if (tool != null && !(lastHitTool == tool && lastHitX == x && lastHitY == y)) {
@@ -387,11 +397,19 @@ public final class GCodeToolpathParser {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
-                hits, xyDistance, timeKnown ? minutes : Double.NaN);
+                hits, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",
                 centerlines.travelGeometry(), centerlines.cutGeometry(), stats);
+    }
+
+    private static void addShape(boolean isTravel, Geometry shape, List<Geometry> travel, List<Geometry> cut,
+                                 ToolTally tool) {
+        (isTravel ? travel : cut).add(shape);
+        if (tool != null) {
+            (isTravel ? tool.travel : tool.cut).add(shape);
+        }
     }
 
     private static Geometry arcPath(double startX, double startY, double endX, double endY,

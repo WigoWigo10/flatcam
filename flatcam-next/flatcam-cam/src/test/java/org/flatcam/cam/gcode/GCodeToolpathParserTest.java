@@ -160,6 +160,9 @@ class GCodeToolpathParserTest {
         assertEquals(2, t2.toolId());
         assertEquals(0, t2.drills());
         assertEquals(1, t2.slots());
+        assertTrue(anyPartCovers(t1.cutGeometry(), 5.3, 1), "each tool keeps its own preview");
+        assertFalse(anyPartCovers(t2.cutGeometry(), 5.3, 1));
+        assertTrue(anyPartCovers(t2.cutGeometry(), 2.5, 5), "the slot is routed by T2");
         assertEquals(List.of(
                 new GCodeToolpathParser.DrillHit(1, 1, 1, 1),
                 new GCodeToolpathParser.DrillHit(2, 1, 5, 1),
