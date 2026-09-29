@@ -958,6 +958,50 @@ garante abertura de objetos Geometry no FlatCAM Python. A opção legada de
 sentido de fresagem CL/CV para novas formas ainda não foi portada; não use o
 G-code gerado sem conferir o trajeto e a direção de corte.
 
+### 9.7 CNC Job de furação e Importar/Exportar (2026-09-29)
+
+**CNC Job de Excellon.** O gerador grava em cada troca de ferramenta um
+comentário inofensivo para a máquina, `FCFX TOOL T<n> D<diâmetro>`, e o
+`GCodeToolpathParser` o usa para desenhar furos e slots no diâmetro real (mesmo
+depois de reabrir o projeto, abrir o `.nc` ou editar o G-code) e para montar
+`ToolpathStats`: tabela de ferramentas (#, Dia, Drills, Slots, Cut Z) com Plot
+por ferramenta, ordem de usinagem numerada no plot ("Display Annotation", uma
+numeração única no programa, sem numerar a origem da troca de ferramenta como o
+Python), distância percorrida e tempo estimado (descidas no avanço, deslocamentos
+a 1500 mm/min como no Python; "—" quando falta F). Jobs de fresagem ainda não
+têm o marcador e continuam com traço fino.
+
+**Exportar** (menu Arquivo > Exportar):
+
+- Gerber/Excellon: diálogo com as opções `gerber_exp_*`/`excellon_exp_*` do
+  Python (unidades com conversão, dígitos, zeros L/T ou LZ/TZ, decimal ou sem
+  ponto, slots roteados G00/M15/G01/M16 ou G85), lembrado entre sessões. O
+  Gerber continua como regiões do cobre resolvido. O Python exportava slots
+  roteados com início = fim e trocava a supressão de zeros; aqui não.
+- SVG: Gerber/Excellon/Geometry no visual do shapely; CNC Job com deslocamentos
+  (#F0E24D) sob cortes (#5E6CFF) na largura da ferramenta. viewBox corrigido.
+- DXF: R12 POLYLINE/VERTEX com `$INSUNITS` e anéis fechados; aceita também
+  contornos de Gerber/Excellon (o Python só Geometry).
+- PNG: a área de plotagem como está, na escala de saída da tela.
+
+**Importar** (menu Arquivo > Importar), em múltiplos arquivos num job:
+
+- SVG como Geometry/Gerber: unidades reais (px = 1/96 in; 1/72 em arquivos do
+  Illustrator e 1/90 no Inkscape < 0.92), origem do viewBox, aspecto, `<use>`,
+  transformações compostas, `defs` só quando usados, furos even-odd; no Gerber,
+  linhas com traço ganham a largura do traço. Texto é contado, não importado.
+- DXF como Geometry/Gerber: `$INSUNITS`, bulges como arcos, SPLINE NURBS,
+  INSERT com arrays/rotação, pontas de linha que quase se tocam são unidas; no
+  Gerber, contornos fechados viram cobre com furos (even-odd).
+- HPGL2 como Geometry: fluxo de comandos HPGL real (vários por linha, PD/PR com
+  pontos, CI/AA/AR/AT/RT, retângulos); uma Geometry por caneta.
+- O parser Excellon agora lê slots roteados e ferramentas `T01F00S00C...`, o
+  formato que o Python exporta.
+
+Ainda não portado: importar PDF, Imprimir PDF e backup de preferências.
+Posições no SVG importado são relativas à página (canto inferior esquerdo na
+origem), como no Python e no Inkscape.
+
 ## 10. Regras de implementação para qualquer IA
 
 ### Use o Python como oráculo
@@ -1049,7 +1093,9 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | `flatcam-cam/.../ncc/` | Non-Copper Clearing (multi-tool + Rest Machining) |
 | `flatcam-cam/.../geometry/` | modelo por ferramenta e sessão de seleção/exclusão do Editor Geometry |
 | `flatcam-cam/.../transform/` | motor de Transformations (Rotate/Scale/Skew/Mirror/Offset) - `TransformOp` (sealed) e `TransformReference` |
-| `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code |
+| `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code; `GCodeToolpathParser` também extrai `ToolpathStats` |
+| `flatcam-cam/.../svg/`, `.../dxf/`, `.../hpgl/` | importadores/exportadores SVG, DXF e HPGL2 (ver seção 9.7) |
+| `flatcam-fx/.../CamExportDialog.java`, `PlotPngExporter.java`, `CncJobToolsTable.java` | diálogo de formato Gerber/Excellon, exportação PNG e tabela de ferramentas do CNC Job |
 | `flatcam-fx/.../MainWindow.java` | integração principal da UI; atualmente grande demais |
 | `flatcam-fx/.../PlotAreaView.java` | Canvas, viewport e desenho das camadas |
 | `flatcam-fx/.../*ToolPanel.java` | painéis JavaFX por ferramenta |
@@ -1105,7 +1151,10 @@ edição participam do undo/redo e da persistência do projeto; ferramentas
 avançadas numéricas ainda não reproduzem todos os gestos do Python.
 "Salvar como..." exporta
 o cobre atual como Gerber válido, embora ainda sem preservar a semântica das
-aberturas originais. O Plot Area seleciona objetos por clique/retângulo e abre
+aberturas originais. Os menus Importar (SVG, DXF, HPGL2) e Exportar (SVG, DXF,
+PNG, Gerber, Excellon com formato escolhido) funcionam; só PDF falta (seção 9.7).
+CNC Jobs de furação mostram furos no diâmetro real, tabela de ferramentas,
+ordem de furação e tempo estimado. O Plot Area seleciona objetos por clique/retângulo e abre
 menus funcionais no botão direito e abre Propriedades com duplo clique. O
 Editor de Geometry tem seleção/exclusão visual, desenho básico, mover/copiar,
 undo/redo, Aplicar/Cancelar e
