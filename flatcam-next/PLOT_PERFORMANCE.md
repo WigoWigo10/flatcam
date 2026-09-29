@@ -126,6 +126,7 @@ Para testar a preferência automática de GPU de alto desempenho com executável
 próprio do FX, veja [NATIVE_GPU.md](NATIVE_GPU.md) e use
 `profile-plot-native.cmd`. As instruções abaixo continuam úteis para comparar
 manualmente a integrada e a dedicada ao iniciar pelo `java.exe` compartilhado.
+Nesse caso, defina `FLATCAM_FX_JAVA_ONLY=1` antes de `profile-plot.cmd`.
 
 O JavaFX pode usar aceleração gráfica sem que isso garanta qual adaptador físico
 está apresentando a janela. A mensagem `prism.verbose` confirma o pipeline

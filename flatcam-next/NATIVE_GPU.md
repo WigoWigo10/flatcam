@@ -1,12 +1,22 @@
 # GPU de alto desempenho no Windows
 
-`run.cmd` continua sendo o iniciador Java padrão. Para pedir automaticamente
+`run.cmd` agora prefere o executável nativo quando encontra C++17 no Windows;
+sem compilador, mantém o iniciador Java anterior. Para pedir automaticamente
 a GPU de alto desempenho sem alterar o `java.exe` compartilhado com outros
-programas, use o executável nativo do FlatCAM FX:
+programas, o caminho nativo também pode ser invocado diretamente:
 
 ```powershell
 .\run-native.cmd
 ```
+
+Para forçar o iniciador Java anterior em uma sessão PowerShell:
+
+```powershell
+$env:FLATCAM_FX_JAVA_ONLY = '1'
+.\run.cmd
+```
+
+Depois, remova a variável com `Remove-Item Env:FLATCAM_FX_JAVA_ONLY`.
 
 O script exige JDK 21 em `JAVA_HOME` e C++17 (testado com MSYS2 UCRT64 `g++`),
 compila o reactor, copia as dependências de execução e cria
