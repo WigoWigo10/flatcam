@@ -258,7 +258,9 @@ final class DoubleSidedToolPanel {
         TextField diameter = new TextField("3.125"); // Python's tools_2sided_drilldia default
         diameter.setPrefColumnCount(6);
         TextArea holesText = new TextArea();
-        holesText.setPromptText("Um furo por linha: X, Y\nou no formato do Python: (X, Y), (X, Y)");
+        // The prompt text of a TextArea is too dim in some themes; a normal label is always readable.
+        Label holesHint = new Label("Um furo por linha (X, Y) ou no formato do Python: (X, Y), (X, Y)");
+        holesHint.setWrapText(true);
         holesText.setPrefRowCount(4);
         Button pickHole = new Button("Adicionar furo no plot");
         Button clearHoles = new Button("Limpar");
@@ -419,7 +421,7 @@ final class DoubleSidedToolPanel {
                 new Separator(),
                 new Label("Furos de alinhamento"),
                 new HBox(6, new Label("Diametro:"), diameter),
-                holesText, new HBox(6, pickHole, clearHoles), createHoles,
+                holesHint, holesText, new HBox(6, pickHole, clearHoles), createHoles,
                 errorLabel, close);
         panel.setPadding(new Insets(6));
         refresh.run();
