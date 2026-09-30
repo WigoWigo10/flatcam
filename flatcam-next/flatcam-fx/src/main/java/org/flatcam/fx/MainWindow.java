@@ -1817,7 +1817,32 @@ final class MainWindow {
      * app.ui.tool_scroll_area, needed once a tool's form is tall enough to not fit
      * the sidebar, e.g. CalculatorsPanel's three stacked calculators).
      */
+    /**
+     * Undoes what the tool panel on screen left on the plot (previews, an armed click pick, a drawing in progress).
+     * Set by the tools that draw on the plot while they are open; run whenever another tool takes the tab or the
+     * panel closes, so switching tools never leaves ghosts behind or a click captured by a panel that is gone.
+     */
+    private Runnable activeToolCleanup;
+
+    private void releaseActiveTool() {
+        Runnable cleanup = activeToolCleanup;
+        activeToolCleanup = null;
+        if (cleanup != null) {
+            cleanup.run();
+        }
+    }
+
+    private void clearToolOverlays() {
+        cancelPointPick();
+        plotAreaView.cancelPlacement();
+        plotAreaView.setEditorContent(null);
+        plotAreaView.setEditorFills(null, null);
+        plotAreaView.setEditorReference(null);
+        plotAreaView.setEditorHighlight(null, false);
+    }
+
     private void openToolPanel(String label, Node content) {
+        releaseActiveTool();
         setSidebarVisible(true);
         toolTab.setText(label);
         if (!content.getStyleClass().contains("tool-panel")) content.getStyleClass().add("tool-panel");
@@ -1836,11 +1861,7 @@ final class MainWindow {
      * finishes (or is closed without finishing).
      */
     private void closeToolPanel() {
-        cancelPointPick();
-        plotAreaView.setEditorContent(null);
-        plotAreaView.setEditorFills(null, null);
-        plotAreaView.setEditorReference(null);
-        plotAreaView.setEditorHighlight(null, false);
+        releaseActiveTool();
         toolTab.setText("Ferramenta");
         toolTab.setContent(centeredPlaceholder("Nenhuma ferramenta ativa."));
         leftTabs.getSelectionModel().select(propertiesTab);
@@ -2529,6 +2550,7 @@ final class MainWindow {
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
+        releaseActiveTool();
         openToolPanel("Panelize Tool", PanelizeToolPanel.build(new PanelizeToolPanel.Host() {
             @Override
             public List<TreeItem<String>> sources() {
@@ -2563,6 +2585,7 @@ final class MainWindow {
             plotAreaView.setEditorHighlight(null, false);
             closeToolPanel();
         }));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     private void runPanelize(PanelizeToolPanel.Request request) {
@@ -2637,6 +2660,7 @@ final class MainWindow {
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
+        releaseActiveTool();
         openToolPanel("Paint Tool", PaintToolPanel.build(new PaintToolPanel.Host() {
             @Override
             public List<TreeItem<String>> sources() {
@@ -2702,6 +2726,7 @@ final class MainWindow {
             plotAreaView.cancelPlacement();
             closeToolPanel();
         }));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params) {
@@ -2754,6 +2779,7 @@ final class MainWindow {
 
     /** Edit > Tools > 2-Sided Tool: mirror objects and make alignment holes for a double-sided board. */
     private void openDoubleSidedTool() {
+        releaseActiveTool();
         openToolPanel("2-Sided Tool", DoubleSidedToolPanel.build(new DoubleSidedToolPanel.Host() {
             @Override
             public List<TreeItem<String>> objects() {
@@ -2904,6 +2930,7 @@ final class MainWindow {
                 appendConsole(message);
             }
         }, this::closeToolPanel));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     private void openTransformTool() {

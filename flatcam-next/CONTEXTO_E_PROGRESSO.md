@@ -879,6 +879,12 @@ antes de criar; o resultado é `<nome>_panelized`. Padrão inicial 2 x 2 (o Pyth
 Com o projeto real, o F_Cu em 6 x 6 leva ~80 ms e a área é exatamente 36 vezes a original. Corrigido
 de passagem: a união por grupos descartava polígonos dentro de coleções aninhadas.
 
+**Trocar de ferramenta no meio do uso (2026-09-30).** As ferramentas que desenham no plot (2-Sided,
+Paint, Panelize) registram uma limpeza (`activeToolCleanup`) que roda quando outra ferramenta
+assume a aba ou o painel fecha: cancela o clique armado e a seleção de área e apaga previews,
+preenchimentos, conteúdo e referência. Antes, o que a ferramenta anterior deixava no plot ficava até
+o painel seguinte fechar. A limpeza não toca o destaque dos editores.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
