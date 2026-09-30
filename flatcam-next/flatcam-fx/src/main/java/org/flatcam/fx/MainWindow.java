@@ -2670,6 +2670,18 @@ final class MainWindow {
             }
 
             @Override
+            public Geometry outline(TreeItem<String> item) {
+                GerberImage gerber = gerberByItem.get(item);
+                if (gerber != null) {
+                    return gerber.followGeometry() != null && !gerber.followGeometry().isEmpty()
+                            ? gerber.followGeometry() : gerber.solidGeometry().getBoundary();
+                }
+                GeometryEntry entry = geometryByItem.get(item);
+                return entry == null || entry.geometry() == null ? null : entry.geometry().getBoundary().isEmpty()
+                        ? entry.geometry() : entry.geometry().getBoundary();
+            }
+
+            @Override
             public void mirror(List<TreeItem<String>> items, TransformOp op, boolean asCopy) {
                 int done = 0;
                 TreeItem<String> last = null;

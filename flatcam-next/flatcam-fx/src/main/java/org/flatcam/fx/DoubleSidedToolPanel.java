@@ -58,6 +58,9 @@ final class DoubleSidedToolPanel {
 
         String units(TreeItem<String> item);
 
+        /** The outline of an object as lines (a Gerber's centreline, a Geometry's shapes), or null. */
+        Geometry outline(TreeItem<String> item);
+
         void mirror(List<TreeItem<String>> items, TransformOp op, boolean asCopy);
 
         /** Creates an Excellon with each hole and its mirror image through {@code op}. */
@@ -227,6 +230,11 @@ final class DoubleSidedToolPanel {
         asCopy.setTooltip(tooltip("Sem marcar, os objetos sao espelhados no lugar, como no Python."));
         CheckBox showPreview = new CheckBox("Pre-visualizar no plot");
         showPreview.setSelected(true);
+        CheckBox showBoardOutline = new CheckBox("Mostrar o contorno da placa espelhada");
+        showBoardOutline.setSelected(true);
+        showBoardOutline.setTooltip(tooltip("Desenha no preview o contorno da placa (o objeto de contorno, como "
+                + "Edge_Cuts, ou a caixa de todos os objetos) ja espelhado, para ver onde a outra face vai cair."));
+        showBoardOutline.disableProperty().bind(showPreview.selectedProperty().not());
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -284,7 +292,7 @@ final class DoubleSidedToolPanel {
             try {
                 TransformOp op = operation.get();
                 host.preview(previewGeometry(host, chosen.get(), op, axisX.isSelected(), pivot.get(), safeHoles(holesText),
-                        safeNumber(diameter)));
+                        safeNumber(diameter), showBoardOutline.isSelected()));
             } catch (IllegalArgumentException incomplete) {
                 host.preview(null);
             }
@@ -292,7 +300,8 @@ final class DoubleSidedToolPanel {
         List<ObservableValue<?>> triggers = List.of(objectList.getSelectionModel().selectedItemProperty(),
                 axisGroup.selectedToggleProperty(), referenceGroup.selectedToggleProperty(),
                 boxObject.valueProperty(), boxAnchor.valueProperty(), pointX.textProperty(), pointY.textProperty(),
-                showPreview.selectedProperty(), holesText.textProperty(), diameter.textProperty());
+                showPreview.selectedProperty(), showBoardOutline.selectedProperty(), holesText.textProperty(),
+                diameter.textProperty());
         for (ObservableValue<?> trigger : triggers) {
             trigger.addListener((observable, previous, next) -> refresh.run());
         }
@@ -377,7 +386,7 @@ final class DoubleSidedToolPanel {
                 axisRow,
                 new Label("Referencia da linha de espelhamento:"),
                 new HBox(10, boardReference, boxReference, pointReference), boxControls, anchorRow, pointControls,
-                asCopy, showPreview, mirrorButton,
+                asCopy, showPreview, showBoardOutline, mirrorButton,
                 new Separator(),
                 new Label("Furos de alinhamento"),
                 new HBox(6, new Label("Diametro:"), diameter),
@@ -416,12 +425,17 @@ final class DoubleSidedToolPanel {
 
     /** The mirror line, the mirrored outlines of the objects and the alignment holes with their mirrors. */
     private static Geometry previewGeometry(Host host, List<TreeItem<String>> items, TransformOp op, boolean axisX,
-                                            Coordinate pivot, List<Coordinate> holes, double holeDiameter) {
+                                            Coordinate pivot, List<Coordinate> holes, double holeDiameter,
+                                            boolean boardOutline) {
         double[] region = combinedBounds(host, items);
         Envelope extent = new Envelope(pivot);
         if (region != null) {
             extent.expandToInclude(region[0], region[1]);
             extent.expandToInclude(region[2], region[3]);
+        }
+        Geometry board = boardOutline ? boardOutline(host) : null;
+        if (board != null) {
+            extent.expandToInclude(board.getEnvelopeInternal());
         }
         for (Coordinate hole : holes) {
             extent.expandToInclude(hole);
@@ -434,6 +448,9 @@ final class DoubleSidedToolPanel {
                         new Coordinate(extent.getMaxX() + margin, pivot.y)})
                 : FACTORY.createLineString(new Coordinate[]{new Coordinate(pivot.x, extent.getMinY() - margin),
                         new Coordinate(pivot.x, extent.getMaxY() + margin)}));
+        if (board != null) {
+            parts.add(op.apply(board));
+        }
         for (TreeItem<String> item : items) {
             double[] box = host.bounds(item);
             if (box != null) {
@@ -446,6 +463,26 @@ final class DoubleSidedToolPanel {
             parts.add(FACTORY.createPoint(op.apply(hole)).buffer(radius, 12).getBoundary());
         }
         return FACTORY.buildGeometry(parts);
+    }
+
+    private static final Pattern OUTLINE_NAME = Pattern.compile("(?i)edge|outline|profile|contorno|board|cuts");
+
+    /**
+     * The board's outline: the first object named like one (Edge_Cuts, Outline, Profile...), as its own
+     * lines; otherwise the box around every object. Null when the project has no geometry.
+     */
+    static Geometry boardOutline(Host host) {
+        for (TreeItem<String> item : host.objects()) {
+            if (OUTLINE_NAME.matcher(String.valueOf(item.getValue())).find()) {
+                Geometry outline = host.outline(item);
+                if (outline != null && !outline.isEmpty()) {
+                    return outline;
+                }
+            }
+        }
+        double[] box = combinedBounds(host, host.objects());
+        return box == null ? null
+                : FACTORY.toGeometry(new Envelope(box[0], box[2], box[1], box[3])).getBoundary();
     }
 
     private static List<Coordinate> safeHoles(TextArea text) {
