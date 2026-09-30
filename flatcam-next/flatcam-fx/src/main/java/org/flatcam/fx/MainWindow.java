@@ -672,6 +672,7 @@ final class MainWindow {
                     case LEFT, UP -> plotAreaView.stepBy(-1);
                     case RIGHT, DOWN -> plotAreaView.stepBy(1);
                     case ESCAPE -> plotAreaView.clearStepSelection();
+                    case SPACE -> plotAreaView.toggleWalk();
                     default -> handled = false;
                 }
                 if (handled) {
@@ -3145,6 +3146,23 @@ final class MainWindow {
         void write(Path destination) throws Exception;
     }
 
+    /** Saves the CNC Job's route (leg, marks, coordinates, length, time) as a CSV spreadsheet. */
+    private void exportCncSteps(TreeItem<String> item, GCodeToolpathParser.ToolpathStats stats) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        File destination = chooseExportFile("Exportar sequencia do trajeto (CSV)", item, "_sequencia.csv",
+                new FileChooser.ExtensionFilter("CSV", "*.csv"));
+        if (destination == null) {
+            return;
+        }
+        List<GCodeToolpathParser.PathStep> steps = stats.steps();
+        String units = stats.units();
+        runExport(item.getValue(), "Sequencia do trajeto (CSV)", destination,
+                path -> CncStepCsv.write(steps, units, path));
+    }
+
     /** Writes an export off the JavaFX thread; the writers publish atomically, so there is no cancel point. */
     private void runExport(String subject, String fileKind, File destination, ExportWriter writer) {
         beginJob("Exportando " + subject + "...");
@@ -4655,8 +4673,18 @@ final class MainWindow {
                 Button clearLegs = new Button("Limpar");
                 clearLegs.setOnAction(e -> plotAreaView.clearStepSelection());
                 cncStepLabel = new Label(plotAreaView.hasStepSelection() ? "" : "ou clique num numero ou linha do plot");
+                Button playWalk = new Button("Reproduzir");
+                playWalk.setOnAction(e -> {
+                    if (!plotAreaView.hasStepSelection()) {
+                        plotAreaView.selectStep(routeKey, 0);
+                    }
+                    plotAreaView.toggleWalk();
+                });
+                Button exportSteps = new Button("Exportar CSV");
+                exportSteps.setOnAction(e -> exportCncSteps(item, stats));
                 HBox walkRow = new HBox(6, startWalk, previousLeg, nextLeg, clearLegs);
                 box.getChildren().add(labeledRow("Trajeto passo a passo:", walkRow));
+                box.getChildren().add(labeledRow("Reproducao / sequencia:", new HBox(6, playWalk, exportSteps)));
                 box.getChildren().add(cncStepLabel);
             }
             if (!stats.cutArrows().isEmpty()) {

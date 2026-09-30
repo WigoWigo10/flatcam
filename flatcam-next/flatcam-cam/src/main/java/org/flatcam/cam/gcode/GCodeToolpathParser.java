@@ -94,9 +94,11 @@ public final class GCodeToolpathParser {
      * moves, or a single drill plunge ({@code travel} false with one point). Consecutive
      * steps chain end to start, so a viewer can walk through what comes before and after.
      * {@code xy} holds x0,y0,x1,y1,...; {@code fromMark}/{@code toMark} are the
-     * {@link PathMark} numbers at its two ends (0 when an end carries none).
+     * {@link PathMark} numbers at its two ends (0 when an end carries none). {@code endMinutes} is the
+     * estimated machine time elapsed when the step finishes (NaN when a feed move has no F word).
      */
-    public record PathStep(int index, boolean travel, double[] xy, double length, int fromMark, int toMark) {
+    public record PathStep(int index, boolean travel, double[] xy, double length, int fromMark, int toMark,
+                           double endMinutes) {
     }
 
     /** Groups consecutive moves of the same kind into steps; a Z crossing of zero ends the current one. */
@@ -104,6 +106,9 @@ public final class GCodeToolpathParser {
         private final List<double[]> finished = new ArrayList<>();
         private final List<Boolean> finishedTravel = new ArrayList<>();
         private final List<Double> finishedLength = new ArrayList<>();
+        private final List<Double> finishedMinutes = new ArrayList<>();
+        /** Program time so far, kept current by the parser so a step records when it ended. */
+        private double clock;
         private final List<Double> points = new ArrayList<>();
         private boolean travel;
         private double length;
@@ -143,6 +148,7 @@ public final class GCodeToolpathParser {
             finished.add(new double[]{x, y});
             finishedTravel.add(false);
             finishedLength.add(0.0);
+            finishedMinutes.add(clock);
         }
 
         void flush() {
@@ -156,11 +162,12 @@ public final class GCodeToolpathParser {
             finished.add(xy);
             finishedTravel.add(travel);
             finishedLength.add(length);
+            finishedMinutes.add(clock);
             points.clear();
             length = 0;
         }
 
-        List<PathStep> build(Map<List<Double>, Integer> markAt) {
+        List<PathStep> build(Map<List<Double>, Integer> markAt, boolean timeKnown) {
             flush();
             List<PathStep> steps = new ArrayList<>(finished.size());
             for (int i = 0; i < finished.size(); i++) {
@@ -168,7 +175,8 @@ public final class GCodeToolpathParser {
                 int last = xy.length - 2;
                 steps.add(new PathStep(i, finishedTravel.get(i), xy, finishedLength.get(i),
                         markAt.getOrDefault(List.of(xy[0], xy[1]), 0),
-                        markAt.getOrDefault(List.of(xy[last], xy[last + 1]), 0)));
+                        markAt.getOrDefault(List.of(xy[last], xy[last + 1]), 0),
+                        timeKnown ? finishedMinutes.get(i) : Double.NaN));
             }
             return steps;
         }
@@ -560,6 +568,7 @@ public final class GCodeToolpathParser {
                 }
             }
             xyDistance += xyLength;
+            stepBuilder.clock = minutes;
             if ((z >= 0) != (nextZ >= 0)) {
                 stepBuilder.flush();
             }
@@ -580,7 +589,7 @@ public final class GCodeToolpathParser {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
-                hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(), stepBuilder.build(markPositions(pathMarks)),
+                hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(), stepBuilder.build(markPositions(pathMarks), timeKnown),
                 hits.isEmpty() && millingWidths.size() == 1 ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
         return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,

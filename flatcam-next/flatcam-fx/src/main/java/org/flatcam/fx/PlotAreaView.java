@@ -380,6 +380,7 @@ final class PlotAreaView extends StackPane {
                 case LEFT, UP -> stepBy(-1);
                 case RIGHT, DOWN -> stepBy(1);
                 case ESCAPE -> clearStepSelection();
+                case SPACE -> toggleWalk();
                 default -> {
                     return;
                 }
@@ -454,6 +455,7 @@ final class PlotAreaView extends StackPane {
                   List<org.flatcam.cam.gcode.GCodeToolpathParser.PathMark> marks, double widthWorld, String units) {
         boolean selectionLost = stepView.set(key, steps, marks, widthWorld, units);
         if (selectionLost) {
+            stopWalk();
             stepListener.accept("");
         }
         redraw();
@@ -468,20 +470,24 @@ final class PlotAreaView extends StackPane {
         return stepView.hasSelection();
     }
 
-    /** Moves the lit leg one step back (-1) or forward (+1). */
+    /** Moves the lit leg one step back (-1) or forward (+1); a manual move also stops a running playback. */
     boolean stepBy(int delta) {
+        stopWalk();
         if (!stepView.stepBy(delta)) {
             return false;
         }
         stepListener.accept(stepView.describe());
+        ensureStepVisible();
         redraw();
         return true;
     }
 
     /** Lights up leg {@code index} (0-based) of a CNC Job's route. */
     void selectStep(Object key, int index) {
+        stopWalk();
         stepView.select(key, index);
         stepListener.accept(stepView.describe());
+        ensureStepVisible();
         redraw();
     }
 
@@ -489,9 +495,106 @@ final class PlotAreaView extends StackPane {
         if (!stepView.hasSelection()) {
             return;
         }
+        stopWalk();
         stepView.clearSelection();
         stepListener.accept("");
         redraw();
+    }
+
+    // --- Automatic playback of the lit route ------------------------------------------------
+
+    private static final double[] WALK_SPEEDS = {0.5, 1, 2, 4, 8};
+    private static final double WALK_BASE_MILLIS = 700;
+    private Timeline walkTimeline;
+    private int walkSpeedIndex = 1;
+
+    private String walkSpeedLabel() {
+        double speed = WALK_SPEEDS[walkSpeedIndex];
+        return speed < 1 ? String.format(java.util.Locale.ROOT, "%.1fx", speed) : (int) speed + "x";
+    }
+
+    boolean isWalking() {
+        return walkTimeline != null;
+    }
+
+    /** Plays the route from the lit leg (from the start when it is already at the end), or pauses. */
+    void toggleWalk() {
+        if (walkTimeline != null) {
+            stopWalk();
+            redraw();
+            return;
+        }
+        if (!stepView.hasSelection() || stepView.stepCount() < 2) {
+            return;
+        }
+        if (stepView.atLastStep()) {
+            stepView.select(stepView.selectedKey(), 0);
+            stepListener.accept(stepView.describe());
+            ensureStepVisible();
+        }
+        startWalk();
+        redraw();
+    }
+
+    /** Cycles the playback speed (0.5x, 1x, 2x, 4x, 8x), also while playing. */
+    void cycleWalkSpeed() {
+        walkSpeedIndex = (walkSpeedIndex + 1) % WALK_SPEEDS.length;
+        if (walkTimeline != null) {
+            startWalk();
+        } else {
+            stepView.setWalkState(false, walkSpeedLabel());
+        }
+        redraw();
+    }
+
+    private void startWalk() {
+        if (walkTimeline != null) {
+            walkTimeline.stop();
+        }
+        walkTimeline = new Timeline(new KeyFrame(Duration.millis(WALK_BASE_MILLIS / WALK_SPEEDS[walkSpeedIndex]),
+                event -> walkTick()));
+        walkTimeline.setCycleCount(Timeline.INDEFINITE);
+        walkTimeline.play();
+        stepView.setWalkState(true, walkSpeedLabel());
+    }
+
+    private void walkTick() {
+        if (!stepView.stepBy(1)) {
+            stopWalk();
+            redraw();
+            return;
+        }
+        stepListener.accept(stepView.describe());
+        ensureStepVisible();
+        if (stepView.atLastStep()) {
+            stopWalk();
+        }
+        redraw();
+    }
+
+    private void stopWalk() {
+        if (walkTimeline != null) {
+            walkTimeline.stop();
+            walkTimeline = null;
+        }
+        stepView.setWalkState(false, walkSpeedLabel());
+    }
+
+    /** Pans (never zooms) so the lit leg is on screen. */
+    private void ensureStepVisible() {
+        Envelope box = stepView.selectedBounds();
+        if (box == null || box.isNull()) {
+            return;
+        }
+        double contentWidth = Math.max(1, getWidth() - RULER_LEFT_WIDTH);
+        double contentHeight = Math.max(1, getHeight() - RULER_TOP_HEIGHT);
+        Envelope view = visibleWorldBounds(viewCenterX, viewCenterY, scale, contentWidth, contentHeight);
+        boolean fits = box.getWidth() <= view.getWidth() && box.getHeight() <= view.getHeight();
+        if (fits ? !view.covers(box) : !view.intersects(box)) {
+            Coordinate center = box.centre();
+            viewCenterX = center.x;
+            viewCenterY = center.y;
+        }
     }
 
     boolean hasAnnotations(Object key) {
@@ -652,6 +755,7 @@ final class PlotAreaView extends StackPane {
         lodDrawableIndexes.clear();
         annotations.clear();
         arrows.clear();
+        stopWalk();
         stepView.clear();
         editorHighlightGeometry = null;
         selectedObjectBounds = List.of();
@@ -1149,6 +1253,8 @@ final class PlotAreaView extends StackPane {
                 switch (pressed) {
                     case CncStepView.HUD_PREVIOUS -> stepBy(-1);
                     case CncStepView.HUD_NEXT -> stepBy(1);
+                    case CncStepView.HUD_PLAY -> toggleWalk();
+                    case CncStepView.HUD_SPEED -> cycleWalkSpeed();
                     case CncStepView.HUD_CLEAR -> clearStepSelection();
                     default -> { }
                 }
@@ -1228,6 +1334,7 @@ final class PlotAreaView extends StackPane {
                     <= CLICK_DRAG_THRESHOLD_PX && insidePlot(event.getX(), event.getY())) {
                 double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
                 if (!stepView.isEmpty() && stepView.hit(world[0], world[1], scale)) {
+                    stopWalk();
                     selecting = false;
                     stepListener.accept(stepView.describe());
                     redraw();
@@ -1299,8 +1406,7 @@ final class PlotAreaView extends StackPane {
 
     private void handleMove(MouseEvent event) {
         int over = stepView.hudAction(event.getX(), event.getY());
-        boolean onButton = over == CncStepView.HUD_PREVIOUS || over == CncStepView.HUD_NEXT
-                || over == CncStepView.HUD_CLEAR;
+        boolean onButton = over != CncStepView.HUD_NONE && over != CncStepView.HUD_PANEL;
         if (onButton && !hudButtonHover) {
             cursorBeforeHud = getCursor();
             setCursor(Cursor.HAND);

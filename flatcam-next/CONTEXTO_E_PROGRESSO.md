@@ -1062,6 +1062,17 @@ lê como largura do cortador; jobs de uma só largura ganham o mesmo preview rá
 passos/setas/numeração usam o parser. Jobs com várias larguras seguem no desenho
 por polígonos.
 
+**Reprodução, tempo e CSV do trajeto (novo, o Python não tem).** A faixa do passo a
+passo ganhou reproduzir/pausar (também com Espaço) e velocidade (0.5x a 8x; cada
+passo dura 0,7 s / velocidade). A reprodução acompanha o trecho movendo a vista
+(sem mudar o zoom), para ao chegar no fim e ao navegar ou clicar manualmente. A
+faixa mostra o tempo estimado decorrido até o fim do trecho e o total
+(`PathStep.endMinutes`, mesma base do "Estimated time"; some quando falta F). Nas
+propriedades do job, "Reproduzir" e "Exportar CSV" (`CncStepCsv`: passo, tipo,
+marcas, coordenadas, comprimento, unidade, duração e tempo acumulado). O tempo de
+um furo só aparece no fim do deslocamento seguinte, porque o mergulho é lido junto
+com ele.
+
 **Exportar** (menu Arquivo > Exportar):
 
 - Gerber/Excellon: diálogo com as opções `gerber_exp_*`/`excellon_exp_*` do

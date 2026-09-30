@@ -281,6 +281,18 @@ class GCodeToolpathParserTest {
         org.junit.jupiter.api.Assertions.assertNull(parse(two).stats().cutterDiameter());
     }
 
+    @Test
+    void stepsCarryTheElapsedTimeAndGoUnknownWithoutAFeed() {
+        String timed = String.join(System.lineSeparator(), "G21", "G90", "G00 Z2.0", "G00 X0 Y0",
+                "G00 X10 Y0", "G01 Z-0.1 F100", "G01 X10 Y5", "G00 Z2.0", "");
+        var steps = parse(timed).stats().steps();
+        org.junit.jupiter.api.Assertions.assertTrue(steps.get(0).endMinutes() > 0);
+        org.junit.jupiter.api.Assertions.assertTrue(steps.get(1).endMinutes() > steps.get(0).endMinutes());
+        String unfed = String.join(System.lineSeparator(), "G21", "G90", "G00 Z2.0", "G00 X0 Y0",
+                "G00 X10 Y0", "G01 Z-0.1", "G01 X10 Y5", "G00 Z2.0", "");
+        org.junit.jupiter.api.Assertions.assertTrue(Double.isNaN(parse(unfed).stats().steps().get(1).endMinutes()));
+    }
+
     private static GCodeToolpathParser.Result parse(String gcode) {
         return GCodeToolpathParser.parse(gcode, () -> false, ignored -> {});
     }

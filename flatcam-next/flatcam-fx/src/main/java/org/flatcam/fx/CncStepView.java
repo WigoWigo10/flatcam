@@ -142,8 +142,53 @@ final class CncStepView {
         if (step.length() > 0) {
             text.append(String.format(Locale.ROOT, " - %.3f %s", step.length(), layer.units().toLowerCase(Locale.ROOT)));
         }
+        double total = layer.steps().get(layer.steps().size() - 1).endMinutes();
+        if (!Double.isNaN(step.endMinutes()) && !Double.isNaN(total)) {
+            text.append(" - ").append(clock(step.endMinutes())).append(" / ").append(clock(total));
+        }
         return text.toString();
     }
+
+    /** Minutes as m:ss (h:mm:ss from an hour up). */
+    static String clock(double minutes) {
+        long seconds = Math.round(minutes * 60);
+        long hours = seconds / 3600;
+        long rest = seconds % 3600;
+        return hours > 0 ? String.format(Locale.ROOT, "%d:%02d:%02d", hours, rest / 60, rest % 60)
+                : String.format(Locale.ROOT, "%d:%02d", rest / 60, rest % 60);
+    }
+
+    /** True when the lit leg is the last one of the route. */
+    boolean atLastStep() {
+        return hasSelection() && selectedIndex >= layers.get(selectedKey).steps().size() - 1;
+    }
+
+    /** Bounding box of the lit leg (world units), or null when nothing is lit. */
+    org.locationtech.jts.geom.Envelope selectedBounds() {
+        if (!hasSelection()) {
+            return null;
+        }
+        double[] xy = layers.get(selectedKey).steps().get(selectedIndex).xy();
+        org.locationtech.jts.geom.Envelope box = new org.locationtech.jts.geom.Envelope();
+        for (int i = 0; i + 1 < xy.length; i += 2) {
+            box.expandToInclude(xy[i], xy[i + 1]);
+        }
+        return box;
+    }
+
+    /** Number of legs in the lit job's route. */
+    int stepCount() {
+        return hasSelection() ? layers.get(selectedKey).steps().size() : 0;
+    }
+
+    /** What the play button and the speed button show; set by the plot that owns the timer. */
+    void setWalkState(boolean playing, String speedLabel) {
+        this.playing = playing;
+        this.speedLabel = speedLabel;
+    }
+
+    private boolean playing;
+    private String speedLabel = "1x";
 
     /**
      * Selects what lies under {@code (worldX, worldY)}: a number first, else the nearest route
@@ -405,12 +450,15 @@ final class CncStepView {
         gc.fillOval(x - 3, y - 3, 6, 6);
     }
 
-    /** HUD button ids returned by {@link #hudAction}. */
+    /** HUD button ids returned by {@link #hudAction}, in the order the buttons are laid out. */
     static final int HUD_NONE = 0;
     static final int HUD_PREVIOUS = 1;
-    static final int HUD_NEXT = 2;
-    static final int HUD_CLEAR = 3;
-    static final int HUD_PANEL = 4;
+    static final int HUD_PLAY = 2;
+    static final int HUD_NEXT = 3;
+    static final int HUD_SPEED = 4;
+    static final int HUD_CLEAR = 5;
+    static final int HUD_PANEL = 6;
+    private static final int HUD_BUTTONS = 5;
 
     /** Where the caption and its buttons were last drawn (x, y, width, height), for clicks; null when hidden. */
     private double[] hudPanel;
@@ -439,14 +487,16 @@ final class CncStepView {
         if (!hasSelection()) {
             return false;
         }
+        int steps = layers.get(selectedKey).steps().size();
         return switch (button) {
             case HUD_PREVIOUS -> selectedIndex > 0;
-            case HUD_NEXT -> selectedIndex < layers.get(selectedKey).steps().size() - 1;
+            case HUD_NEXT -> selectedIndex < steps - 1;
+            case HUD_PLAY -> steps > 1;
             default -> true;
         };
     }
 
-    /** The bottom-center caption: where the walk is, the colour key, and buttons to move it. */
+    /** The bottom-center caption: where the walk is, and buttons to move or play it. */
     void drawHud(GraphicsContext gc, View view, Color background, Color text) {
         if (!hasSelection()) {
             hudPanel = null;
@@ -456,9 +506,11 @@ final class CncStepView {
         Color dark = Color.BLACK;
         String line = describe();
         double buttonSize = 30;
+        double speedWidth = 44;
         double gap = 6;
-        double fixed = 18 + 14 + 3 * (buttonSize + gap) + 8;
-        double available = Math.max(160, view.contentWidth() - 24);
+        double buttonsWidth = 4 * buttonSize + speedWidth + (HUD_BUTTONS - 1) * gap;
+        double fixed = 18 + 16 + buttonsWidth + 10;
+        double available = Math.max(200, view.contentWidth() - 24);
         double textWidth = measure(line);
         if (fixed + textWidth > available) {
             int keep = Math.max(4, (int) (line.length() * (available - fixed) / Math.max(1, textWidth)) - 1);
@@ -480,14 +532,17 @@ final class CncStepView {
         gc.strokeRoundRect(x, y, width, height, 20, 20);
         gc.setFill(HUD_TEXT);
         gc.fillText(line, x + 18, y + height / 2 + 5);
-        hudButtons = new double[3][];
-        double bx = x + width - 3 * (buttonSize + gap) + gap - 6;
-        for (int i = 0; i < 3; i++) {
-            double[] b = {bx + i * (buttonSize + gap), y + (height - buttonSize) / 2, buttonSize, buttonSize};
+        hudButtons = new double[HUD_BUTTONS][];
+        double bx = x + width - buttonsWidth - 10;
+        for (int i = 0; i < HUD_BUTTONS; i++) {
+            double w = i == HUD_SPEED - 1 ? speedWidth : buttonSize;
+            double[] b = {bx, y + (height - buttonSize) / 2, w, buttonSize};
+            bx += w + gap;
             hudButtons[i] = b;
             boolean enabled = buttonEnabled(i + 1);
+            boolean active = i == HUD_PLAY - 1 && playing;
             gc.setGlobalAlpha(enabled ? 1 : 0.3);
-            gc.setFill(Color.web("#FFFFFF", 0.14));
+            gc.setFill(active ? roleColor(0, dark).deriveColor(0, 1, 1, 0.45) : Color.web("#FFFFFF", 0.14));
             gc.fillRoundRect(b[0], b[1], b[2], b[3], 10, 10);
             gc.setStroke(enabled ? roleColor(0, dark) : HUD_TEXT);
             gc.setLineWidth(1.25);
@@ -497,13 +552,32 @@ final class CncStepView {
             gc.setFill(HUD_TEXT);
             gc.setStroke(HUD_TEXT);
             gc.setLineWidth(2.4);
-            if (i == 0) {
-                gc.fillPolygon(new double[]{cx + 5, cx - 5, cx + 5}, new double[]{cy - 7, cy, cy + 7}, 3);
-            } else if (i == 1) {
-                gc.fillPolygon(new double[]{cx - 5, cx + 5, cx - 5}, new double[]{cy - 7, cy, cy + 7}, 3);
-            } else {
-                gc.strokeLine(cx - 5, cy - 5, cx + 5, cy + 5);
-                gc.strokeLine(cx - 5, cy + 5, cx + 5, cy - 5);
+            switch (i + 1) {
+                case HUD_PREVIOUS -> {
+                    gc.strokeLine(cx - 6, cy - 6, cx - 6, cy + 6);
+                    gc.fillPolygon(new double[]{cx + 6, cx - 3, cx + 6}, new double[]{cy - 7, cy, cy + 7}, 3);
+                }
+                case HUD_NEXT -> {
+                    gc.strokeLine(cx + 6, cy - 6, cx + 6, cy + 6);
+                    gc.fillPolygon(new double[]{cx - 6, cx + 3, cx - 6}, new double[]{cy - 7, cy, cy + 7}, 3);
+                }
+                case HUD_PLAY -> {
+                    if (playing) {
+                        gc.fillRect(cx - 6, cy - 7, 4.5, 14);
+                        gc.fillRect(cx + 1.5, cy - 7, 4.5, 14);
+                    } else {
+                        gc.fillPolygon(new double[]{cx - 5, cx + 7, cx - 5}, new double[]{cy - 8, cy, cy + 8}, 3);
+                    }
+                }
+                case HUD_SPEED -> {
+                    gc.setTextAlign(TextAlignment.CENTER);
+                    gc.fillText(speedLabel, cx, cy + 5);
+                    gc.setTextAlign(TextAlignment.LEFT);
+                }
+                default -> {
+                    gc.strokeLine(cx - 5, cy - 5, cx + 5, cy + 5);
+                    gc.strokeLine(cx - 5, cy + 5, cx + 5, cy - 5);
+                }
             }
             gc.setGlobalAlpha(1);
         }
