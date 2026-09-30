@@ -73,7 +73,7 @@ final class DoubleSidedToolPanel {
 
         /** Shows overlay geometry on the plot (null clears it). */
         /** {@code mirrored} is drawn in full colour, {@code reference} (where things are now) faint and dashed. */
-        void preview(Geometry mirrored, Geometry reference);
+        void preview(Geometry mirrored, Geometry reference, Geometry mirroredFill, Geometry referenceFill);
 
         void log(String message);
     }
@@ -231,11 +231,15 @@ final class DoubleSidedToolPanel {
         asCopy.setTooltip(tooltip("Sem marcar, os objetos sao espelhados no lugar, como no Python."));
         CheckBox showPreview = new CheckBox("Pre-visualizar no plot");
         showPreview.setSelected(true);
+        CheckBox fillInterior = new CheckBox("Preencher o interior (translucido)");
+        fillInterior.setSelected(true);
+        fillInterior.setTooltip(tooltip("Pinta o interior da placa: o espelhado mais forte, o original bem fraco."));
         CheckBox showBoardOutline = new CheckBox("Mostrar o contorno da placa espelhada");
         showBoardOutline.setSelected(true);
         showBoardOutline.setTooltip(tooltip("Desenha no preview o contorno da placa (o objeto de contorno, como "
                 + "Edge_Cuts, ou a caixa de todos os objetos) ja espelhado, para ver onde a outra face vai cair."));
         showBoardOutline.disableProperty().bind(showPreview.selectedProperty().not());
+        fillInterior.disableProperty().bind(showPreview.selectedProperty().not().or(showBoardOutline.selectedProperty().not()));
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -287,22 +291,25 @@ final class DoubleSidedToolPanel {
         Runnable refresh = () -> {
             errorLabel.setText("");
             if (!showPreview.isSelected()) {
-                host.preview(null, null);
+                host.preview(null, null, null, null);
                 return;
             }
             try {
                 TransformOp op = operation.get();
                 Geometry[] shown = previewGeometry(host, chosen.get(), op, axisX.isSelected(), pivot.get(),
                         safeHoles(holesText), safeNumber(diameter), showBoardOutline.isSelected());
-                host.preview(shown[0], shown[1]);
+                Geometry[] fills = fillInterior.isSelected() && showBoardOutline.isSelected()
+                        ? boardFills(host, op) : new Geometry[]{null, null};
+                host.preview(shown[0], shown[1], fills[0], fills[1]);
             } catch (IllegalArgumentException incomplete) {
-                host.preview(null, null);
+                host.preview(null, null, null, null);
             }
         };
         List<ObservableValue<?>> triggers = List.of(objectList.getSelectionModel().selectedItemProperty(),
                 axisGroup.selectedToggleProperty(), referenceGroup.selectedToggleProperty(),
                 boxObject.valueProperty(), boxAnchor.valueProperty(), pointX.textProperty(), pointY.textProperty(),
-                showPreview.selectedProperty(), showBoardOutline.selectedProperty(), holesText.textProperty(),
+                showPreview.selectedProperty(), showBoardOutline.selectedProperty(), fillInterior.selectedProperty(),
+                holesText.textProperty(),
                 diameter.textProperty());
         for (ObservableValue<?> trigger : triggers) {
             trigger.addListener((observable, previous, next) -> refresh.run());
@@ -341,7 +348,7 @@ final class DoubleSidedToolPanel {
                     throw new IllegalArgumentException("Marque ao menos um objeto para espelhar");
                 }
                 host.mirror(items, operation.get(), asCopy.isSelected());
-                host.preview(null, null);
+                host.preview(null, null, null, null);
                 errorLabel.setText("");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
@@ -364,7 +371,7 @@ final class DoubleSidedToolPanel {
                 }
                 String units = unitsFor(host, boxObject.getValue(), chosen.get());
                 host.createAlignmentDrills(units, size, holes, operation.get());
-                host.preview(null, null);
+                host.preview(null, null, null, null);
                 errorLabel.setText("");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
@@ -374,7 +381,7 @@ final class DoubleSidedToolPanel {
         Button close = new Button("Fechar");
         close.setOnAction(event -> {
             host.cancelPick();
-            host.preview(null, null);
+            host.preview(null, null, null, null);
             onClose.run();
         });
 
@@ -388,7 +395,7 @@ final class DoubleSidedToolPanel {
                 axisRow,
                 new Label("Referencia da linha de espelhamento:"),
                 new HBox(10, boardReference, boxReference, pointReference), boxControls, anchorRow, pointControls,
-                asCopy, showPreview, showBoardOutline, mirrorButton,
+                asCopy, showPreview, showBoardOutline, fillInterior, mirrorButton,
                 new Separator(),
                 new Label("Furos de alinhamento"),
                 new HBox(6, new Label("Diametro:"), diameter),
@@ -469,6 +476,21 @@ final class DoubleSidedToolPanel {
             parts.add(FACTORY.createPoint(op.apply(hole)).buffer(radius, 12).getBoundary());
         }
         return new Geometry[]{FACTORY.buildGeometry(parts), original.isEmpty() ? null : FACTORY.buildGeometry(original)};
+    }
+
+    /** {mirrored interior, original interior} of the board: the area its outline closes, else the outline's hull. */
+    private static Geometry[] boardFills(Host host, TransformOp op) {
+        Geometry outline = boardOutline(host);
+        if (outline == null) {
+            return new Geometry[]{null, null};
+        }
+        Geometry area;
+        try {
+            area = org.flatcam.cam.convert.OutlineToArea.convert(outline).area();
+        } catch (IllegalArgumentException open) {
+            area = outline.convexHull();
+        }
+        return new Geometry[]{op.apply(area), area};
     }
 
     private static final Pattern OUTLINE_NAME = Pattern.compile("(?i)edge|outline|profile|contorno|board|cuts");

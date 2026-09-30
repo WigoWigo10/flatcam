@@ -289,7 +289,12 @@ final class PlotAreaView extends StackPane {
     private Geometry editorHighlightGeometry;
     /** A faint, dashed "where it was" companion to the editor highlight (e.g. the un-mirrored outline). */
     private Geometry editorReferenceGeometry;
-    private static final Color EDITOR_REFERENCE_COLOR = Color.web("#0000FF66");
+    private static final Color EDITOR_REFERENCE_COLOR = Color.web("#0000FF38");
+    private static final Color EDITOR_FILL_COLOR = Color.web("#0000FF3A");
+    private static final Color EDITOR_REFERENCE_FILL_COLOR = Color.web("#0000FF12");
+    /** Translucent interiors under the outlines: the new (mirrored) one and the original one. */
+    private Geometry editorFillGeometry;
+    private Geometry editorReferenceFillGeometry;
     private boolean editorHighlightStrokeOnly;
 
     private double scale = 3.0;
@@ -671,6 +676,12 @@ final class PlotAreaView extends StackPane {
     }
 
     /** Small editor selections redraw on their own canvas, without repainting every project layer. */
+    void setEditorFills(Geometry fill, Geometry referenceFill) {
+        editorFillGeometry = fill;
+        editorReferenceFillGeometry = referenceFill;
+        drawEditorHighlight();
+    }
+
     void setEditorReference(Geometry geometry) {
         editorReferenceGeometry = geometry;
         drawEditorHighlight();
@@ -767,6 +778,8 @@ final class PlotAreaView extends StackPane {
         stepView.clear();
         editorHighlightGeometry = null;
         editorReferenceGeometry = null;
+        editorFillGeometry = null;
+        editorReferenceFillGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
     }
@@ -1715,6 +1728,18 @@ final class PlotAreaView extends StackPane {
         gc.clearRect(0, 0, width, height);
         double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
         double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+        for (Geometry[] fill : new Geometry[][]{{editorReferenceFillGeometry, null}, {editorFillGeometry, null}}) {
+            if (fill[0] != null && !fill[0].isEmpty()) {
+                Color color = fill[0] == editorFillGeometry ? EDITOR_FILL_COLOR : EDITOR_REFERENCE_FILL_COLOR;
+                gc.save();
+                gc.beginPath();
+                gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+                gc.clip();
+                drawLayer(gc, new RenderLayer(fill[0], false, color, Color.TRANSPARENT, true, LayerCategory.OVERLAY,
+                        true, false), contentWidth, contentHeight);
+                gc.restore();
+            }
+        }
         if (editorReferenceGeometry != null && !editorReferenceGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();

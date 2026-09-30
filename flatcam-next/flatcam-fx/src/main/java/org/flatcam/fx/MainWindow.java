@@ -1835,6 +1835,7 @@ final class MainWindow {
      */
     private void closeToolPanel() {
         cancelPointPick();
+        plotAreaView.setEditorFills(null, null);
         plotAreaView.setEditorReference(null);
         plotAreaView.setEditorHighlight(null, false);
         toolTab.setText("Ferramenta");
@@ -2734,7 +2735,8 @@ final class MainWindow {
             }
 
             @Override
-            public void preview(Geometry mirrored, Geometry reference) {
+            public void preview(Geometry mirrored, Geometry reference, Geometry mirroredFill, Geometry referenceFill) {
+                plotAreaView.setEditorFills(mirroredFill, referenceFill);
                 plotAreaView.setEditorReference(reference);
                 plotAreaView.setEditorHighlight(mirrored, true);
             }
