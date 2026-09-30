@@ -290,7 +290,7 @@ final class PlotAreaView extends StackPane {
     /** A faint, dashed "where it was" companion to the editor highlight (e.g. the un-mirrored outline). */
     private Geometry editorReferenceGeometry;
     private static final Color EDITOR_REFERENCE_COLOR = Color.web("#0000FF38");
-    private static final Color EDITOR_FILL_COLOR = Color.web("#0000FF3A");
+    private static final Color EDITOR_FILL_COLOR = Color.web("#00B4FF73");
     private static final Color EDITOR_REFERENCE_FILL_COLOR = Color.web("#0000FF12");
     /** Translucent interiors under the outlines: the new (mirrored) one and the original one. */
     private Geometry editorFillGeometry;
