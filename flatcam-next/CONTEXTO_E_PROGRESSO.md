@@ -838,6 +838,16 @@ Arquivo), o job de demonstração (agora em Ajuda) e o botão Cancelar, que pass
 status e só aparece enquanto uma operação está em andamento. "Salvar e Fechar Editor" da barra
 agora está ligado.
 
+**2-Sided Tool (2026-09-30).** Ferramentas > 2-Sided Tool (`DoubleSidedToolPanel`), o
+`ToolDblSided.py` do Python com os mesmos padrões (eixo X, referência Ponto, furo de 3,125).
+Além do Python: espelha vários objetos de uma vez; a linha de espelhamento pode passar pelo
+centro ou por uma borda da caixa de um objeto, dos próprios objetos marcados, ou por um ponto
+digitado, pego no plot (clique; Esc cancela) ou a origem; modo "criar cópia espelhada" além do
+"no lugar"; pré-visualização no plot da linha, dos contornos espelhados e dos furos de
+alinhamento. Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X, Y)") ou pegos
+no plot; cria o Excellon "Alignment Drills" com cada furo e o seu espelho, pelo mesmo eixo e
+linha. Eixo X inverte Y (linha horizontal) e eixo Y inverte X, como no Python.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

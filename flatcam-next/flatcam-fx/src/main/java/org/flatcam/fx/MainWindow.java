@@ -665,6 +665,11 @@ final class MainWindow {
         scene = new Scene(root);
         configurePlotInteractions();
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            if (pendingPointPick != null && event.getCode() == KeyCode.ESCAPE) {
+                cancelPointPick();
+                event.consume();
+                return;
+            }
             if (plotAreaView.hasStepSelection() && !plotAreaView.isPlacementActive()
                     && (plotAreaView.isFocused() || plotAreaView.isHover())
                     && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
@@ -1222,6 +1227,7 @@ final class MainWindow {
             case "drilling" -> this::openSelectedDrillingTool;
             case "calculators" -> () -> openToolPanel("Calculators", CalculatorsPanel.build());
             case "transform" -> this::openTransformTool;
+            case "double_sided" -> this::openDoubleSidedTool;
             default -> null;
         };
     }
@@ -1826,6 +1832,8 @@ final class MainWindow {
      * finishes (or is closed without finishing).
      */
     private void closeToolPanel() {
+        cancelPointPick();
+        plotAreaView.setEditorHighlight(null, false);
         toolTab.setText("Ferramenta");
         toolTab.setContent(centeredPlaceholder("Nenhuma ferramenta ativa."));
         leftTabs.getSelectionModel().select(propertiesTab);
@@ -2462,6 +2470,138 @@ final class MainWindow {
             appendConsole(applied + " objeto(s) transformado(s).");
             showProperties(projectTree.getSelectionModel().getSelectedItem());
         }
+    }
+
+    /** The next plot click goes to this callback (null point = cancelled), see {@link #beginPointPick}. */
+    private Consumer<Coordinate> pendingPointPick;
+
+    private void beginPointPick(Consumer<Coordinate> onPoint) {
+        cancelPointPick();
+        pendingPointPick = onPoint;
+        plotAreaView.setSelectionHandler(new PlotAreaView.SelectionHandler() {
+            @Override
+            public void onClick(double worldX, double worldY, boolean additive) {
+                Consumer<Coordinate> callback = pendingPointPick;
+                pendingPointPick = null;
+                plotAreaView.setSelectionHandler(null);
+                if (callback != null) {
+                    callback.accept(new Coordinate(worldX, worldY));
+                }
+            }
+
+            @Override
+            public void onBox(double pressX, double pressY, double releaseX, double releaseY, boolean additive) {
+                onClick(releaseX, releaseY, additive);
+            }
+        });
+    }
+
+    private void cancelPointPick() {
+        if (pendingPointPick != null) {
+            Consumer<Coordinate> callback = pendingPointPick;
+            pendingPointPick = null;
+            plotAreaView.setSelectionHandler(null);
+            callback.accept(null);
+        }
+    }
+
+    /** Edit > Tools > 2-Sided Tool: mirror objects and make alignment holes for a double-sided board. */
+    private void openDoubleSidedTool() {
+        openToolPanel("2-Sided Tool", DoubleSidedToolPanel.build(new DoubleSidedToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> objects() {
+                List<TreeItem<String>> all = new ArrayList<>();
+                all.addAll(gerbersNode.getChildren());
+                all.addAll(excellonNode.getChildren());
+                all.addAll(geometryNode.getChildren());
+                return all;
+            }
+
+            @Override
+            public List<TreeItem<String>> selectedObjects() {
+                return MainWindow.this.selectedObjects().stream()
+                        .filter(item -> gerberByItem.containsKey(item) || excellonByItem.containsKey(item)
+                                || geometryByItem.containsKey(item)).toList();
+            }
+
+            @Override
+            public double[] bounds(TreeItem<String> item) {
+                return boundsOf(item);
+            }
+
+            @Override
+            public String units(TreeItem<String> item) {
+                if (gerberByItem.containsKey(item)) {
+                    return gerberByItem.get(item).units();
+                }
+                if (excellonByItem.containsKey(item)) {
+                    return excellonByItem.get(item).units();
+                }
+                GeometryEntry entry = geometryByItem.get(item);
+                return entry == null ? "MM" : entry.units();
+            }
+
+            @Override
+            public void mirror(List<TreeItem<String>> items, TransformOp op, boolean asCopy) {
+                int done = 0;
+                TreeItem<String> last = null;
+                for (TreeItem<String> item : items) {
+                    TreeItem<String> target = item;
+                    if (asCopy) {
+                        target = copyObject(item);
+                        target.setValue(uniqueDerivedName(item.getValue() + "_espelhado"));
+                    }
+                    if (applyTransformToItem(target, op)) {
+                        done++;
+                        last = target;
+                    }
+                }
+                appendConsole(done + " objeto(s) " + (asCopy ? "copiado(s) e espelhado(s)." : "espelhado(s)."));
+                if (last != null) {
+                    selectProjectItem(last);
+                }
+                projectTree.refresh();
+            }
+
+            @Override
+            public void createAlignmentDrills(String units, double diameter, List<Coordinate> holes, TransformOp op) {
+                List<ExcellonImage.Drill> drills = new ArrayList<>();
+                List<Geometry> shapes = new ArrayList<>();
+                GeometryFactory factory = new GeometryFactory();
+                for (Coordinate hole : holes) {
+                    for (Coordinate point : new Coordinate[]{hole, op.apply(hole)}) {
+                        drills.add(new ExcellonImage.Drill(1, point.x, point.y));
+                        shapes.add(factory.createPoint(point).buffer(diameter / 2, 16));
+                    }
+                }
+                ExcellonImage image = ExcellonImage.of(units, java.util.Map.of(1, diameter), drills, List.of(),
+                        OverlayNGRobust.union(shapes));
+                TreeItem<String> created = addExcellonToProject(uniqueDerivedName("Alignment Drills"), null, image);
+                selectProjectItem(created);
+                plotAreaView.fitToLayer(created);
+                appendConsole("Excellon com furos de alinhamento criado (" + drills.size() + " furos).");
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+
+            @Override
+            public void preview(Geometry geometry) {
+                plotAreaView.setEditorHighlight(geometry, true);
+            }
+
+            @Override
+            public void log(String message) {
+                appendConsole(message);
+            }
+        }, this::closeToolPanel));
     }
 
     private void openTransformTool() {
