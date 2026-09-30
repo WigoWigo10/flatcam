@@ -1835,6 +1835,7 @@ final class MainWindow {
      */
     private void closeToolPanel() {
         cancelPointPick();
+        plotAreaView.setEditorReference(null);
         plotAreaView.setEditorHighlight(null, false);
         toolTab.setText("Ferramenta");
         toolTab.setContent(centeredPlaceholder("Nenhuma ferramenta ativa."));
@@ -2733,8 +2734,9 @@ final class MainWindow {
             }
 
             @Override
-            public void preview(Geometry geometry) {
-                plotAreaView.setEditorHighlight(geometry, true);
+            public void preview(Geometry mirrored, Geometry reference) {
+                plotAreaView.setEditorReference(reference);
+                plotAreaView.setEditorHighlight(mirrored, true);
             }
 
             @Override

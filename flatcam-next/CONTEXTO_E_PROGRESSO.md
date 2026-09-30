@@ -845,7 +845,9 @@ centro ou por uma borda da caixa de um objeto, dos próprios objetos marcados, o
 digitado, pego no plot (clique; Esc cancela) ou a origem; modo "criar cópia espelhada" além do
 "no lugar"; pré-visualização no plot da linha, do contorno da placa já espelhado (o objeto Edge_Cuts/
 Outline/Profile com as próprias linhas, ou a caixa de todos os objetos; desligável), dos
-contornos espelhados dos objetos marcados e dos furos de alinhamento. Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X, Y)") ou pegos
+contornos espelhados dos objetos marcados e dos furos de alinhamento. O contorno original
+(placa e objetos marcados) aparece fraco e tracejado como referência
+(`PlotAreaView.setEditorReference`). Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X, Y)") ou pegos
 no plot; cria o Excellon "Alignment Drills" com cada furo e o seu espelho, pelo mesmo eixo e
 linha. Eixo X inverte Y (linha horizontal) e eixo Y inverte X, como no Python.
 

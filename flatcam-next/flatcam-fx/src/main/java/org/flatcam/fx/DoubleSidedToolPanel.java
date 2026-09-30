@@ -72,7 +72,8 @@ final class DoubleSidedToolPanel {
         void cancelPick();
 
         /** Shows overlay geometry on the plot (null clears it). */
-        void preview(Geometry geometry);
+        /** {@code mirrored} is drawn in full colour, {@code reference} (where things are now) faint and dashed. */
+        void preview(Geometry mirrored, Geometry reference);
 
         void log(String message);
     }
@@ -286,15 +287,16 @@ final class DoubleSidedToolPanel {
         Runnable refresh = () -> {
             errorLabel.setText("");
             if (!showPreview.isSelected()) {
-                host.preview(null);
+                host.preview(null, null);
                 return;
             }
             try {
                 TransformOp op = operation.get();
-                host.preview(previewGeometry(host, chosen.get(), op, axisX.isSelected(), pivot.get(), safeHoles(holesText),
-                        safeNumber(diameter), showBoardOutline.isSelected()));
+                Geometry[] shown = previewGeometry(host, chosen.get(), op, axisX.isSelected(), pivot.get(),
+                        safeHoles(holesText), safeNumber(diameter), showBoardOutline.isSelected());
+                host.preview(shown[0], shown[1]);
             } catch (IllegalArgumentException incomplete) {
-                host.preview(null);
+                host.preview(null, null);
             }
         };
         List<ObservableValue<?>> triggers = List.of(objectList.getSelectionModel().selectedItemProperty(),
@@ -339,7 +341,7 @@ final class DoubleSidedToolPanel {
                     throw new IllegalArgumentException("Marque ao menos um objeto para espelhar");
                 }
                 host.mirror(items, operation.get(), asCopy.isSelected());
-                host.preview(null);
+                host.preview(null, null);
                 errorLabel.setText("");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
@@ -362,7 +364,7 @@ final class DoubleSidedToolPanel {
                 }
                 String units = unitsFor(host, boxObject.getValue(), chosen.get());
                 host.createAlignmentDrills(units, size, holes, operation.get());
-                host.preview(null);
+                host.preview(null, null);
                 errorLabel.setText("");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
@@ -372,7 +374,7 @@ final class DoubleSidedToolPanel {
         Button close = new Button("Fechar");
         close.setOnAction(event -> {
             host.cancelPick();
-            host.preview(null);
+            host.preview(null, null);
             onClose.run();
         });
 
@@ -424,7 +426,7 @@ final class DoubleSidedToolPanel {
     }
 
     /** The mirror line, the mirrored outlines of the objects and the alignment holes with their mirrors. */
-    private static Geometry previewGeometry(Host host, List<TreeItem<String>> items, TransformOp op, boolean axisX,
+    private static Geometry[] previewGeometry(Host host, List<TreeItem<String>> items, TransformOp op, boolean axisX,
                                             Coordinate pivot, List<Coordinate> holes, double holeDiameter,
                                             boolean boardOutline) {
         double[] region = combinedBounds(host, items);
@@ -443,6 +445,7 @@ final class DoubleSidedToolPanel {
         }
         double margin = Math.max(1, 0.1 * Math.max(extent.getWidth(), extent.getHeight()));
         List<Geometry> parts = new ArrayList<>();
+        List<Geometry> original = new ArrayList<>();
         parts.add(axisX
                 ? FACTORY.createLineString(new Coordinate[]{new Coordinate(extent.getMinX() - margin, pivot.y),
                         new Coordinate(extent.getMaxX() + margin, pivot.y)})
@@ -450,11 +453,14 @@ final class DoubleSidedToolPanel {
                         new Coordinate(pivot.x, extent.getMaxY() + margin)}));
         if (board != null) {
             parts.add(op.apply(board));
+            original.add(board);
         }
         for (TreeItem<String> item : items) {
             double[] box = host.bounds(item);
             if (box != null) {
-                parts.add(op.apply(FACTORY.toGeometry(new Envelope(box[0], box[2], box[1], box[3])).getBoundary()));
+                Geometry outline = FACTORY.toGeometry(new Envelope(box[0], box[2], box[1], box[3])).getBoundary();
+                parts.add(op.apply(outline));
+                original.add(outline);
             }
         }
         double radius = holeDiameter > 0 ? holeDiameter / 2 : 0.5;
@@ -462,7 +468,7 @@ final class DoubleSidedToolPanel {
             parts.add(FACTORY.createPoint(hole).buffer(radius, 12).getBoundary());
             parts.add(FACTORY.createPoint(op.apply(hole)).buffer(radius, 12).getBoundary());
         }
-        return FACTORY.buildGeometry(parts);
+        return new Geometry[]{FACTORY.buildGeometry(parts), original.isEmpty() ? null : FACTORY.buildGeometry(original)};
     }
 
     private static final Pattern OUTLINE_NAME = Pattern.compile("(?i)edge|outline|profile|contorno|board|cuts");

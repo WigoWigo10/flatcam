@@ -287,6 +287,9 @@ final class PlotAreaView extends StackPane {
     private final Map<Object, ArrowLevels> arrows = new LinkedHashMap<>();
     private final Map<Object, List<Annotation>> annotations = new LinkedHashMap<>();
     private Geometry editorHighlightGeometry;
+    /** A faint, dashed "where it was" companion to the editor highlight (e.g. the un-mirrored outline). */
+    private Geometry editorReferenceGeometry;
+    private static final Color EDITOR_REFERENCE_COLOR = Color.web("#0000FF66");
     private boolean editorHighlightStrokeOnly;
 
     private double scale = 3.0;
@@ -668,6 +671,11 @@ final class PlotAreaView extends StackPane {
     }
 
     /** Small editor selections redraw on their own canvas, without repainting every project layer. */
+    void setEditorReference(Geometry geometry) {
+        editorReferenceGeometry = geometry;
+        drawEditorHighlight();
+    }
+
     void setEditorHighlight(Geometry geometry, boolean strokeOnly) {
         editorHighlightGeometry = geometry;
         editorHighlightStrokeOnly = strokeOnly;
@@ -758,6 +766,7 @@ final class PlotAreaView extends StackPane {
         stopWalk();
         stepView.clear();
         editorHighlightGeometry = null;
+        editorReferenceGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
     }
@@ -1706,6 +1715,16 @@ final class PlotAreaView extends StackPane {
         gc.clearRect(0, 0, width, height);
         double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
         double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+        if (editorReferenceGeometry != null && !editorReferenceGeometry.isEmpty()) {
+            gc.save();
+            gc.beginPath();
+            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.clip();
+            gc.setLineDashes(8, 6);
+            drawLayer(gc, new RenderLayer(editorReferenceGeometry, true, EDITOR_REFERENCE_COLOR,
+                    EDITOR_REFERENCE_COLOR, true, LayerCategory.OVERLAY, true, false), contentWidth, contentHeight);
+            gc.restore();
+        }
         if (editorHighlightGeometry != null && !editorHighlightGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
