@@ -838,7 +838,7 @@ Arquivo), o job de demonstração (agora em Ajuda) e o botão Cancelar, que pass
 status e só aparece enquanto uma operação está em andamento. "Salvar e Fechar Editor" da barra
 agora está ligado.
 
-**2-Sided Tool (2026-09-30).** Ferramentas > 2-Sided Tool (`DoubleSidedToolPanel`), o
+**2-Sided Tool (2026-09-30; "Centro da placa" adicionado depois e é a referência inicial).** Ferramentas > 2-Sided Tool (`DoubleSidedToolPanel`), o
 `ToolDblSided.py` do Python com os mesmos padrões (eixo X, referência Ponto, furo de 3,125).
 Além do Python: espelha vários objetos de uma vez; a linha de espelhamento pode passar pelo
 centro ou por uma borda da caixa de um objeto, dos próprios objetos marcados, ou por um ponto

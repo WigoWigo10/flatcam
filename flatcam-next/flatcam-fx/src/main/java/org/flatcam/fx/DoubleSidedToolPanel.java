@@ -166,11 +166,16 @@ final class DoubleSidedToolPanel {
 
         // --- reference: box or point ---
         ToggleGroup referenceGroup = new ToggleGroup();
+        RadioButton boardReference = new RadioButton("Centro da placa");
         RadioButton boxReference = new RadioButton("Caixa de objeto");
         RadioButton pointReference = new RadioButton("Ponto");
+        boardReference.setToggleGroup(referenceGroup);
         boxReference.setToggleGroup(referenceGroup);
         pointReference.setToggleGroup(referenceGroup);
-        pointReference.setSelected(true); // Python's tools_2sided_axis_loc default
+        boardReference.setSelected(true);
+        boardReference.setTooltip(tooltip("A linha passa pelo meio da placa: a caixa combinada de todos os objetos "
+                + "do projeto (Gerbers, Excellons e Geometrys). Espelhar Top e Bottom pelo mesmo centro mantem as "
+                + "duas faces alinhadas. Python so oferece caixa de um objeto ou ponto."));
 
         ComboBox<Object> boxObject = new ComboBox<>();
         boxObject.getItems().add(SELECTED_BOX);
@@ -195,7 +200,10 @@ final class DoubleSidedToolPanel {
         boxAnchor.getItems().addAll("Centro", "Borda esquerda", "Borda direita", "Borda inferior", "Borda superior");
         boxAnchor.getSelectionModel().selectFirst();
         boxAnchor.setTooltip(tooltip("Onde da caixa passa a linha. Centro e o que o Python usa."));
-        VBox boxControls = new VBox(4, boxObject, new HBox(6, new Label("Ponto da caixa:"), boxAnchor));
+        VBox boxControls = new VBox(4, boxObject);
+        HBox anchorRow = new HBox(6, new Label("Ponto da caixa:"), boxAnchor);
+        anchorRow.visibleProperty().bind(boardReference.selectedProperty().or(boxReference.selectedProperty()));
+        anchorRow.managedProperty().bind(anchorRow.visibleProperty());
 
         TextField pointX = new TextField("0.0");
         TextField pointY = new TextField("0.0");
@@ -240,6 +248,13 @@ final class DoubleSidedToolPanel {
         java.util.function.Supplier<Coordinate> pivot = () -> {
             if (pointReference.isSelected()) {
                 return new Coordinate(parse(pointX, "X"), parse(pointY, "Y"));
+            }
+            if (boardReference.isSelected()) {
+                double[] board = combinedBounds(host, host.objects());
+                if (board == null) {
+                    throw new IllegalArgumentException("Nao ha objetos com geometria no projeto");
+                }
+                return boxPivot(board, Math.max(0, boxAnchor.getSelectionModel().getSelectedIndex()));
             }
             Object reference = boxObject.getValue();
             double[] box;
@@ -361,7 +376,7 @@ final class DoubleSidedToolPanel {
                 new Label("Objetos (Ctrl/Shift para varios):"), objectList, useSelection,
                 axisRow,
                 new Label("Referencia da linha de espelhamento:"),
-                new HBox(10, boxReference, pointReference), boxControls, pointControls,
+                new HBox(10, boardReference, boxReference, pointReference), boxControls, anchorRow, pointControls,
                 asCopy, showPreview, mirrorButton,
                 new Separator(),
                 new Label("Furos de alinhamento"),
