@@ -12,7 +12,7 @@ import org.flatcam.cam.gerber.GerberShape;
 import org.flatcam.cam.gerber.LazyApertureGeometry;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
+import org.flatcam.cam.geometry.ParallelGeometry;
 
 /**
  * Edit > Join Objects > "Join Gerber(s) -> Gerber" (Python's {@code GerberObject.merge}): the copper
@@ -75,7 +75,7 @@ public final class GerberJoin {
             }
         }
         Geometry solid = solids.isEmpty() ? factory.createGeometryCollection()
-                : solids.size() == 1 ? solids.get(0) : OverlayNGRobust.union(solids);
+                : solids.size() == 1 ? solids.get(0) : ParallelGeometry.unionGrouped(solids);
         Geometry follow = factory.buildGeometry(follows);
         return GerberImage.of(units, apertures, solid, follow, new LazyApertureGeometry(aperturePieces),
                 editable ? shapes : List.of());

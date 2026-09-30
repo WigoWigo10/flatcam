@@ -47,4 +47,12 @@ class ParallelGeometryTest {
         assertEquals(2, ParallelGeometry.separateGroups(close, 1.0).size());
         assertEquals(3, ParallelGeometry.separateGroups(close, 0.1).size());
     }
+    @Test
+    void groupedUnionKeepsPolygonsNestedInsideCollections() {
+        Geometry nested = FACTORY.createGeometryCollection(new Geometry[]{FACTORY.createMultiPolygon(new org.locationtech.jts.geom.Polygon[]{
+                (org.locationtech.jts.geom.Polygon) FACTORY.toGeometry(new org.locationtech.jts.geom.Envelope(0, 2, 0, 2))})});
+        Geometry other = FACTORY.toGeometry(new org.locationtech.jts.geom.Envelope(10, 12, 0, 2));
+        assertEquals(8, ParallelGeometry.unionGrouped(List.of(nested, other)).getArea(), 1e-9);
+    }
+
 }

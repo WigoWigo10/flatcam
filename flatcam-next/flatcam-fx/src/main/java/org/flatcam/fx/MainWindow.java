@@ -83,6 +83,7 @@ import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.merge.ExcellonJoin;
+import org.flatcam.cam.panel.Panelize;
 import org.flatcam.cam.ncc.PaintParameters;
 import org.flatcam.cam.merge.GeometryJoin;
 import org.flatcam.cam.merge.GerberJoin;
@@ -1230,6 +1231,7 @@ final class MainWindow {
             case "transform" -> this::openTransformTool;
             case "double_sided" -> this::openDoubleSidedTool;
             case "paint" -> this::openPaintTool;
+            case "panelize" -> this::openPanelizeTool;
             default -> null;
         };
     }
@@ -2508,6 +2510,120 @@ final class MainWindow {
             plotAreaView.setSelectionHandler(null);
             callback.accept(null);
         }
+    }
+
+    /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
+    private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
+                                   String units) {
+    }
+
+    /** Tools > Panelize Tool: repeat a Gerber, Excellon or Geometry in a grid (appTools/ToolPanelize.py). */
+    private void openPanelizeTool() {
+        List<TreeItem<String>> sources = new ArrayList<>();
+        sources.addAll(gerbersNode.getChildren());
+        sources.addAll(excellonNode.getChildren());
+        sources.addAll(geometryNode.getChildren());
+        sources.removeIf(item -> boundsOf(item) == null);
+        if (sources.isEmpty()) {
+            appendConsole("Panelize: carregue um Gerber, um Excellon ou um Geometry.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
+        openToolPanel("Panelize Tool", PanelizeToolPanel.build(new PanelizeToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> sources() {
+                return sources;
+            }
+
+            @Override
+            public TreeItem<String> initialSource() {
+                return initial;
+            }
+
+            @Override
+            public double[] bounds(TreeItem<String> item) {
+                return boundsOf(item);
+            }
+
+            @Override
+            public boolean isGerber(TreeItem<String> item) {
+                return gerberByItem.containsKey(item);
+            }
+
+            @Override
+            public void preview(Geometry outlines) {
+                plotAreaView.setEditorHighlight(outlines, true);
+            }
+
+            @Override
+            public void panelize(PanelizeToolPanel.Request request) {
+                runPanelize(request);
+            }
+        }, () -> {
+            plotAreaView.setEditorHighlight(null, false);
+            closeToolPanel();
+        }));
+    }
+
+    private void runPanelize(PanelizeToolPanel.Request request) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        TreeItem<String> item = request.source();
+        GerberImage gerber = gerberByItem.get(item);
+        ExcellonImage excellon = excellonByItem.get(item);
+        GeometryEntry geometry = geometryByItem.get(item);
+        beginJob("Criando painel...");
+        JobHandle<PanelizeOutcome> handle = jobExecutor.submit(context -> {
+            context.reportProgress(0.1, "Copiando " + item.getValue() + "...");
+            if (gerber != null) {
+                GerberImage panel = Panelize.gerber(gerber, request.layout());
+                return new PanelizeOutcome(request.gerberAsGeometry() ? null : panel, null,
+                        request.gerberAsGeometry() ? new GeometryJoin.Joined(panel.solidGeometry(), false, List.of())
+                                : null, gerber.units());
+            }
+            if (excellon != null) {
+                return new PanelizeOutcome(null, Panelize.excellon(excellon, request.layout()), null, excellon.units());
+            }
+            return new PanelizeOutcome(null, null, Panelize.geometry(geometry.units(), geometry.geometry(),
+                    geometry.strokeOnly(), geometry.tools(), request.layout()), geometry.units());
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion()
+                .thenAccept(outcome -> Platform.runLater(() -> {
+                    String name = uniqueDerivedName(item.getValue() + "_panelized");
+                    TreeItem<String> created;
+                    if (outcome.gerber() != null) {
+                        created = addGerberToProject(name, null, outcome.gerber());
+                    } else if (outcome.excellon() != null) {
+                        created = addExcellonToProject(name, null, outcome.excellon());
+                    } else {
+                        GeometryJoin.Joined joined = outcome.geometry();
+                        created = addGeometryToProject(name, item.getValue(), outcome.units(), joined.geometry(),
+                                joined.strokeOnly(), joined.tools());
+                    }
+                    Panelize.Layout layout = request.layout();
+                    appendConsole("Painel criado: " + created.getValue() + " (" + layout.columns() + " x "
+                            + layout.rows() + " copias" + (layout.constrained() ? ", reduzido pelo limite" : "") + ").");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    plotAreaView.setEditorHighlight(null, false);
+                    closeToolPanel();
+                    setStatus("Concluido.", IDLE_COLOR);
+                    updateProgress(1);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao criar o painel: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
     }
 
     /** Tools > Paint Tool: fills Gerber or Geometry polygons with toolpaths (appTools/ToolPaint.py). */

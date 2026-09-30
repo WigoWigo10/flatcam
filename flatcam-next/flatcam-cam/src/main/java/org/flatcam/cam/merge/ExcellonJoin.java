@@ -7,7 +7,7 @@ import java.util.Map;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
+import org.flatcam.cam.geometry.ParallelGeometry;
 
 /**
  * Edit > Join Objects > "Join Excellon(s) -> Excellon" (Python's {@code ExcellonObject.merge}): the
@@ -64,7 +64,7 @@ public final class ExcellonJoin {
         }
         GeometryFactory factory = images.get(0).solidGeometry().getFactory();
         Geometry solid = solids.isEmpty() ? factory.createGeometryCollection()
-                : solids.size() == 1 ? solids.get(0) : OverlayNGRobust.union(solids);
+                : solids.size() == 1 ? solids.get(0) : ParallelGeometry.unionGrouped(solids);
         return ExcellonImage.of(units, tools, drills, slots, solid);
     }
 }

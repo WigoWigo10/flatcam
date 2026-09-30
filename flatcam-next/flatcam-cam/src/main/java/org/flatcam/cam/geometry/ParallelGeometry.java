@@ -32,6 +32,14 @@ public final class ParallelGeometry {
         if (shapes.size() < PARALLEL_THRESHOLD) {
             return OverlayNGRobust.union(shapes);
         }
+        return unionGrouped(shapes);
+    }
+
+    /** Like {@link #union} for any number of shapes, however few: for a handful of big, far-apart copies. */
+    public static Geometry unionGrouped(List<Geometry> shapes) {
+        if (shapes.size() < 2) {
+            return shapes.get(0);
+        }
         GeometryFactory factory = shapes.get(0).getFactory();
         List<Geometry> groups = separateGroups(factory.buildGeometry(shapes), 0);
         if (groups.size() < 2) {
@@ -50,16 +58,26 @@ public final class ParallelGeometry {
     private static List<Geometry> flatten(Geometry group) {
         List<Geometry> parts = new ArrayList<>(group.getNumGeometries());
         for (int i = 0; i < group.getNumGeometries(); i++) {
-            parts.add(group.getGeometryN(i));
+            Geometry part = group.getGeometryN(i);
+            if (part.getClass() == org.locationtech.jts.geom.GeometryCollection.class) {
+                parts.addAll(flatten(part));
+            } else {
+                parts.add(part);
+            }
         }
         return parts;
     }
 
     private static void collectPolygons(Geometry geometry, List<Polygon> target) {
-        for (int i = 0; i < geometry.getNumGeometries(); i++) {
-            if (geometry.getGeometryN(i) instanceof Polygon polygon && !polygon.isEmpty()) {
+        if (geometry instanceof Polygon polygon) {
+            if (!polygon.isEmpty()) {
                 target.add(polygon);
             }
+            return;
+        }
+        // MultiPolygons and (possibly nested) collections: a project may hand over a collection of multipolygons.
+        for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            collectPolygons(geometry.getGeometryN(i), target);
         }
     }
 

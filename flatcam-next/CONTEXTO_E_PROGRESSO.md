@@ -865,6 +865,17 @@ ferramenta. O Laser Lines do Python não é oferecido (depende das aberturas do 
 oráculo do Python para comparar caminhos; verificado por propriedades (cobertura ~100% da placa
 do projeto real em Standard, Seed e Lines, em menos de 1 s) e testes.
 
+**Panelize Tool (2026-09-30).** Ferramentas > Panelize Tool (`PanelizeToolPanel`, `Panelize`):
+repete um Gerber, Excellon ou Geometry em colunas x linhas, as cópias afastadas pela caixa de
+referência (a do próprio objeto ou a de outro, como o contorno) mais o espaçamento; "limitar o
+tamanho" reduz a grade até caber, como o Python; um Gerber também pode virar painel Geometry. O painel
+é feito transladando cada cópia e juntando com as regras do Juntar Objetos (Gerber: aberturas
+compartilhadas e formas de todas as cópias; Excellon: ferramentas de mesmo diâmetro fundidas;
+Geometry: caminhos por ferramenta). O plot mostra o contorno de cada cópia e o tamanho do painel
+antes de criar; o resultado é `<nome>_panelized`. Padrão inicial 2 x 2 (o Python começa em 1 x 1).
+Com o projeto real, o F_Cu em 6 x 6 leva ~80 ms e a área é exatamente 36 vezes a original. Corrigido
+de passagem: a união por grupos descartava polígonos dentro de coleções aninhadas.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
