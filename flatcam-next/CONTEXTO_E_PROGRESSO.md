@@ -799,6 +799,19 @@ preservação de Order = None, seleção de ferramentas, ISO/CLEAR e
 validação/sugestão de diâmetro ("Check validity")
 - ver seção 5.
 
+**Fixture diferencial do NCC com um projeto real (2026-09-30).** O projeto
+`Dados_Ambientais_C6_V2` (`.FlatPrj` do Python) traz o `Cobre_MortoFino_Top_cnc`, gerado
+pelo NCC do Python a partir de `F_Cu` com a área da placa (`Edge_Cuts.gm1_area`) como
+limite. Comparando com o NCC do FX (cortador 0,1829 mm, Standard, connect, limite =
+`NccBoundary.Area` da placa, margem 0): área limpa idêntica (IoU 0,9987; a sobra de
+1,1 mm² é o arredondamento das pontas) e comprimento de percurso 8955 mm contra 8962 mm
+do Python com sobreposição 0,54 (o espaçamento medido no G-code do Python dá ~0,53).
+Com o limite "Itself" (casco convexo do cobre) o FX limpa 310 mm² a mais, na reentrância
+da borda superior: era só uma diferença de parâmetro, não de algoritmo. O método Seed
+gera ~10x mais caminhos e é bem mais lento (15-30 s). `NccPythonParityTest` repete a
+comparação e só roda com `FLATCAM_PARITY_PROJECT` apontando para o `.FlatPrj`, porque o
+projeto é privado. Ficam sem oráculo: Rest Machining, Lines e Combo.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
