@@ -902,6 +902,13 @@ Diferença deliberada: o Python une as diferenças do alvo contra cada forma do 
 deixa cobre coberto por só uma de várias formas sobrepostas; aqui o alvo perde a união de todas.
 Com o projeto real, F_Cu menos B_Cu deixa 404,2 mm² dos 3092,3 mm² em 1,7 s.
 
+**Extract Drills Tool (2026-09-30).** Ferramentas > Extract Drills Tool (`ExtractDrills`,
+`ExtractDrillsToolPanel`), o `ToolExtractDrills.py`: cada flash (follow = ponto) dos tipos de pad marcados
+(circular, oblongo, quadrado, retangular, outros) vira um furo no centro; diametro fixo (0.5), proporcional
+(80% do menor lado) ou anel anular (menor lado - 2 x anel, 0.2). Furos de mesmo diametro (4 casas) dividem a
+ferramenta; nada extraido = aviso. Gera um Excellon `<nome>_drills`. No projeto real: 31 pads redondos em
+F_Cu e B_Cu (modo anel). Testes em `ExtractDrillsTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

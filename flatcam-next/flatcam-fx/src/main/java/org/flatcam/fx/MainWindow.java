@@ -82,6 +82,7 @@ import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.InvertGerber;
+import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Subtract;
 import org.flatcam.cam.merge.ExcellonJoin;
@@ -1236,6 +1237,7 @@ final class MainWindow {
             case "panelize" -> this::openPanelizeTool;
             case "invert" -> this::openInvertGerberTool;
             case "subtract" -> this::openSubtractTool;
+            case "extract_drills" -> this::openExtractDrillsTool;
             default -> null;
         };
     }
@@ -2540,6 +2542,52 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    /** Tools > Extract Drills Tool: an Excellon from the flashed pads of a Gerber (appTools/ToolExtractDrills.py). */
+    private void openExtractDrillsTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Extract Drills: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Extract Drills Tool", ExtractDrillsToolPanel.build(new ExtractDrillsToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public String extract(TreeItem<String> item, ExtractDrills.Options options) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    ExcellonImage drills = ExtractDrills.extract(source, options);
+                    String base = item.getValue();
+                    int dot = base.lastIndexOf('.');
+                    if (dot > 0) {
+                        base = base.substring(0, dot);
+                    }
+                    TreeItem<String> created = addExcellonToProject(uniqueDerivedName(base + "_drills"), null, drills);
+                    appendConsole("Furos extraidos: " + created.getValue() + " (" + drills.totalDrills()
+                            + " furos, " + drills.toolDiameters().size() + " ferramentas).");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
     }
 
     /** Tools > Subtract Tool: remove what one object covers from another (appTools/ToolSub.py). */
