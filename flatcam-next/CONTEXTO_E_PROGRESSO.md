@@ -885,6 +885,12 @@ assume a aba ou o painel fecha: cancela o clique armado e a seleção de área e
 preenchimentos, conteúdo e referência. Antes, o que a ferramenta anterior deixava no plot ficava até
 o painel seguinte fechar. A limpeza não toca o destaque dos editores.
 
+**Invert Gerber Tool (2026-09-30).** Ferramentas > Invert Gerber Tool (`InvertGerber`,
+`InvertGerberToolPanel`), o `ToolInvertGerber.py`: a caixa do Gerber, acrescida da margem (padrão 0,1;
+cantos Redondo, Chanfrado ou Quadrado = mitre, padrão do Python), perde todo o cobre e o que sobra vira
+um novo Gerber `<nome>_inverted` feito de regiões (abertura "0"). Com o F_Cu do projeto real a área
+confere (caixa - cobre = 1122,64 mm²) e leva ~150 ms.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

@@ -81,6 +81,7 @@ import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.convert.InvertGerber;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.merge.ExcellonJoin;
 import org.flatcam.cam.panel.Panelize;
@@ -1232,6 +1233,7 @@ final class MainWindow {
             case "double_sided" -> this::openDoubleSidedTool;
             case "paint" -> this::openPaintTool;
             case "panelize" -> this::openPanelizeTool;
+            case "invert" -> this::openInvertGerberTool;
             default -> null;
         };
     }
@@ -2536,6 +2538,48 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    /** Tools > Invert Gerber Tool: a new Gerber where copper and empty space swap places (appTools/ToolInvertGerber.py). */
+    private void openInvertGerberTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Invert Gerber: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Invert Gerber Tool", InvertGerberToolPanel.build(new InvertGerberToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public String invert(TreeItem<String> item, double margin, InvertGerber.JoinStyle style) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    GerberImage inverted = InvertGerber.invert(source, margin, style);
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(item.getValue() + "_inverted"), null,
+                            inverted);
+                    appendConsole("Gerber invertido criado: " + created.getValue() + " ("
+                            + InvertGerberToolPanel.describe(inverted.solidGeometry().getArea(), inverted.units()) + ").");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
     }
 
     /** Tools > Panelize Tool: repeat a Gerber, Excellon or Geometry in a grid (appTools/ToolPanelize.py). */
