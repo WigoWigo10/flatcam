@@ -83,6 +83,7 @@ import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.InvertGerber;
 import org.flatcam.cam.convert.OutlineToArea;
+import org.flatcam.cam.convert.Subtract;
 import org.flatcam.cam.merge.ExcellonJoin;
 import org.flatcam.cam.panel.Panelize;
 import org.flatcam.cam.ncc.PaintParameters;
@@ -1234,6 +1235,7 @@ final class MainWindow {
             case "paint" -> this::openPaintTool;
             case "panelize" -> this::openPanelizeTool;
             case "invert" -> this::openInvertGerberTool;
+            case "subtract" -> this::openSubtractTool;
             default -> null;
         };
     }
@@ -2538,6 +2540,93 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    /** Tools > Subtract Tool: remove what one object covers from another (appTools/ToolSub.py). */
+    private void openSubtractTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        List<TreeItem<String>> geometries = new ArrayList<>(geometryNode.getChildren());
+        geometries.removeIf(item -> !geometryByItem.containsKey(item));
+        if (gerbers.isEmpty() && geometries.isEmpty()) {
+            appendConsole("Subtract: carregue Gerbers ou Geometrys.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream()
+                .filter(item -> gerbers.contains(item) || geometries.contains(item)).findFirst().orElse(null);
+        openToolPanel("Subtract Tool", SubtractToolPanel.build(new SubtractToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public List<TreeItem<String>> geometries() {
+                return geometries;
+            }
+
+            @Override
+            public TreeItem<String> initialTarget() {
+                return initial;
+            }
+
+            @Override
+            public String subtractGerber(TreeItem<String> target, TreeItem<String> subtractor, boolean deleteSources) {
+                GerberImage targetImage = gerberByItem.get(target);
+                GerberImage subtractorImage = gerberByItem.get(subtractor);
+                if (targetImage == null || subtractorImage == null) {
+                    return "Um dos objetos foi removido";
+                }
+                if (!targetImage.units().equals(subtractorImage.units())) {
+                    return "Os Gerbers tem unidades diferentes; converta um deles antes";
+                }
+                try {
+                    GerberImage result = Subtract.gerber(targetImage, subtractorImage);
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(target.getValue() + "_sub"), null,
+                            result);
+                    finishSubtract(created, List.of(target, subtractor), deleteSources);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+
+            @Override
+            public String subtractGeometry(TreeItem<String> target, TreeItem<String> subtractor, boolean closePaths,
+                                           boolean deleteSources) {
+                GeometryEntry targetEntry = geometryByItem.get(target);
+                GeometryEntry subtractorEntry = geometryByItem.get(subtractor);
+                if (targetEntry == null || subtractorEntry == null) {
+                    return "Um dos objetos foi removido";
+                }
+                if (!subtractorEntry.tools().isEmpty()) {
+                    return "No momento o subtraendo nao pode ser um Geometry multi-ferramenta";
+                }
+                if (!targetEntry.units().equals(subtractorEntry.units())) {
+                    return "Os Geometrys tem unidades diferentes; converta um deles antes";
+                }
+                try {
+                    Subtract.GeometryResult result = Subtract.geometry(targetEntry.geometry(), targetEntry.tools(),
+                            subtractorEntry.geometry(), closePaths);
+                    TreeItem<String> created = addGeometryToProject(uniqueDerivedName(target.getValue() + "_sub"),
+                            target.getValue(), targetEntry.units(), result.geometry(), targetEntry.strokeOnly(),
+                            result.tools());
+                    finishSubtract(created, List.of(target, subtractor), deleteSources);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
+    }
+
+    private void finishSubtract(TreeItem<String> created, List<TreeItem<String>> sources, boolean deleteSources) {
+        appendConsole("Subtracao criada: " + created.getValue() + ".");
+        if (deleteSources) {
+            removeSelectionFromProject(new ArrayList<>(sources));
+        }
+        selectProjectItem(created);
+        plotAreaView.fitToLayer(created);
     }
 
     /** Tools > Invert Gerber Tool: a new Gerber where copper and empty space swap places (appTools/ToolInvertGerber.py). */

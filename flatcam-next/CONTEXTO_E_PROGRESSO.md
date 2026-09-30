@@ -891,6 +891,17 @@ cantos Redondo, Chanfrado ou Quadrado = mitre, padrão do Python), perde todo o 
 um novo Gerber `<nome>_inverted` feito de regiões (abertura "0"). Com o F_Cu do projeto real a área
 confere (caixa - cobre = 1122,64 mm²) e leva ~150 ms.
 
+**Subtract Tool (2026-09-30).** Ferramentas > Subtract Tool (`Subtract`, `SubtractToolPanel`), o
+`ToolSub.py`: para dois Gerbers ou dois Geometrys cria `<alvo>_sub`. Gerber: as formas do alvo que
+tocam o subtraendo são cortadas e arquivadas na abertura de regiões "0" (como o Python), as demais
+mantêm a abertura, e o cobre é refeito na ordem das formas. Geometry: "Fechar caminhos" (padrão
+ligado) corta o alvo como uma forma fechada; desligado, cada polígono vira seus anéis e cada linha
+é cortada separadamente; subtraendo multi-ferramenta é recusado, como no Python; alvo
+multi-ferramenta mantém as ferramentas. "Excluir os objetos de origem" remove os dois depois.
+Diferença deliberada: o Python une as diferenças do alvo contra cada forma do subtraendo, o que
+deixa cobre coberto por só uma de várias formas sobrepostas; aqui o alvo perde a união de todas.
+Com o projeto real, F_Cu menos B_Cu deixa 404,2 mm² dos 3092,3 mm² em 1,7 s.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
