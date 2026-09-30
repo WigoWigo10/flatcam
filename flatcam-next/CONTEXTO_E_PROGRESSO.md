@@ -847,8 +847,10 @@ digitado, pego no plot (clique; Esc cancela) ou a origem; modo "criar cópia esp
 Outline/Profile com as próprias linhas, ou a caixa de todos os objetos; desligável), dos
 contornos espelhados dos objetos marcados e dos furos de alinhamento. O contorno original
 (placa e objetos marcados) aparece bem fraco e tracejado como referência
-(`PlotAreaView.setEditorReference`), e o interior da placa pode ser preenchido de forma
-translúcida (o espelhado mais forte, o original quase transparente; `setEditorFills`). Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X, Y)") ou pegos
+(`PlotAreaView.setEditorReference`), o interior da placa pode ser preenchido de forma
+translúcida (`setEditorFills`) e o conteúdo dos objetos marcados (cobre, furos, caminhos) aparece
+já espelhado, preenchido em ciano com as trilhas visíveis (`setEditorContent`), para ver como
+a outra face vai ficar. Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X, Y)") ou pegos
 no plot; cria o Excellon "Alignment Drills" com cada furo e o seu espelho, pelo mesmo eixo e
 linha. Eixo X inverte Y (linha horizontal) e eixo Y inverte X, como no Python.
 

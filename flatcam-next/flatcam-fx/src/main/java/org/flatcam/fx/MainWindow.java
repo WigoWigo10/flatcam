@@ -1835,6 +1835,7 @@ final class MainWindow {
      */
     private void closeToolPanel() {
         cancelPointPick();
+        plotAreaView.setEditorContent(null);
         plotAreaView.setEditorFills(null, null);
         plotAreaView.setEditorReference(null);
         plotAreaView.setEditorHighlight(null, false);
@@ -2672,6 +2673,20 @@ final class MainWindow {
             }
 
             @Override
+            public Geometry content(TreeItem<String> item) {
+                GerberImage gerber = gerberByItem.get(item);
+                if (gerber != null) {
+                    return gerber.solidGeometry();
+                }
+                ExcellonImage excellon = excellonByItem.get(item);
+                if (excellon != null) {
+                    return excellon.solidGeometry();
+                }
+                GeometryEntry entry = geometryByItem.get(item);
+                return entry == null ? null : entry.geometry();
+            }
+
+            @Override
             public Geometry outline(TreeItem<String> item) {
                 GerberImage gerber = gerberByItem.get(item);
                 if (gerber != null) {
@@ -2735,7 +2750,9 @@ final class MainWindow {
             }
 
             @Override
-            public void preview(Geometry mirrored, Geometry reference, Geometry mirroredFill, Geometry referenceFill) {
+            public void preview(Geometry mirrored, Geometry reference, Geometry mirroredFill, Geometry referenceFill,
+                                Geometry mirroredContent) {
+                plotAreaView.setEditorContent(mirroredContent);
                 plotAreaView.setEditorFills(mirroredFill, referenceFill);
                 plotAreaView.setEditorReference(reference);
                 plotAreaView.setEditorHighlight(mirrored, true);

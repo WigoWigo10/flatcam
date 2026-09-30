@@ -58,6 +58,9 @@ final class DoubleSidedToolPanel {
 
         String units(TreeItem<String> item);
 
+        /** The filled shapes of an object (copper, drills, paths), or null. */
+        Geometry content(TreeItem<String> item);
+
         /** The outline of an object as lines (a Gerber's centreline, a Geometry's shapes), or null. */
         Geometry outline(TreeItem<String> item);
 
@@ -73,7 +76,8 @@ final class DoubleSidedToolPanel {
 
         /** Shows overlay geometry on the plot (null clears it). */
         /** {@code mirrored} is drawn in full colour, {@code reference} (where things are now) faint and dashed. */
-        void preview(Geometry mirrored, Geometry reference, Geometry mirroredFill, Geometry referenceFill);
+        void preview(Geometry mirrored, Geometry reference, Geometry mirroredFill, Geometry referenceFill,
+                     Geometry mirroredContent);
 
         void log(String message);
     }
@@ -231,7 +235,12 @@ final class DoubleSidedToolPanel {
         asCopy.setTooltip(tooltip("Sem marcar, os objetos sao espelhados no lugar, como no Python."));
         CheckBox showPreview = new CheckBox("Pre-visualizar no plot");
         showPreview.setSelected(true);
-        CheckBox fillInterior = new CheckBox("Preencher o interior (translucido)");
+        CheckBox showContent = new CheckBox("Mostrar o conteudo espelhado (cobre, furos)");
+        showContent.setSelected(true);
+        showContent.setTooltip(tooltip("Desenha no preview o conteudo dos objetos marcados ja espelhado, para ver "
+                + "como a outra face vai ficar."));
+        showContent.disableProperty().bind(showPreview.selectedProperty().not());
+        CheckBox fillInterior = new CheckBox("Preencher o interior da placa (translucido)");
         fillInterior.setSelected(true);
         fillInterior.setTooltip(tooltip("Pinta o interior da placa: o espelhado mais forte, o original bem fraco."));
         CheckBox showBoardOutline = new CheckBox("Mostrar o contorno da placa espelhada");
@@ -291,7 +300,7 @@ final class DoubleSidedToolPanel {
         Runnable refresh = () -> {
             errorLabel.setText("");
             if (!showPreview.isSelected()) {
-                host.preview(null, null, null, null);
+                host.preview(null, null, null, null, null);
                 return;
             }
             try {
@@ -300,15 +309,26 @@ final class DoubleSidedToolPanel {
                         safeHoles(holesText), safeNumber(diameter), showBoardOutline.isSelected());
                 Geometry[] fills = fillInterior.isSelected() && showBoardOutline.isSelected()
                         ? boardFills(host, op) : new Geometry[]{null, null};
-                host.preview(shown[0], shown[1], fills[0], fills[1]);
+                Geometry content = null;
+                if (showContent.isSelected()) {
+                    List<Geometry> mirroredContent = new ArrayList<>();
+                    for (TreeItem<String> item : chosen.get()) {
+                        Geometry shape = host.content(item);
+                        if (shape != null && !shape.isEmpty()) {
+                            mirroredContent.add(op.apply(shape));
+                        }
+                    }
+                    content = mirroredContent.isEmpty() ? null : FACTORY.buildGeometry(mirroredContent);
+                }
+                host.preview(shown[0], shown[1], fills[0], fills[1], content);
             } catch (IllegalArgumentException incomplete) {
-                host.preview(null, null, null, null);
+                host.preview(null, null, null, null, null);
             }
         };
         List<ObservableValue<?>> triggers = List.of(objectList.getSelectionModel().selectedItemProperty(),
                 axisGroup.selectedToggleProperty(), referenceGroup.selectedToggleProperty(),
                 boxObject.valueProperty(), boxAnchor.valueProperty(), pointX.textProperty(), pointY.textProperty(),
-                showPreview.selectedProperty(), showBoardOutline.selectedProperty(), fillInterior.selectedProperty(),
+                showPreview.selectedProperty(), showBoardOutline.selectedProperty(), fillInterior.selectedProperty(), showContent.selectedProperty(),
                 holesText.textProperty(),
                 diameter.textProperty());
         for (ObservableValue<?> trigger : triggers) {
@@ -348,7 +368,7 @@ final class DoubleSidedToolPanel {
                     throw new IllegalArgumentException("Marque ao menos um objeto para espelhar");
                 }
                 host.mirror(items, operation.get(), asCopy.isSelected());
-                host.preview(null, null, null, null);
+                host.preview(null, null, null, null, null);
                 errorLabel.setText("");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
@@ -371,7 +391,7 @@ final class DoubleSidedToolPanel {
                 }
                 String units = unitsFor(host, boxObject.getValue(), chosen.get());
                 host.createAlignmentDrills(units, size, holes, operation.get());
-                host.preview(null, null, null, null);
+                host.preview(null, null, null, null, null);
                 errorLabel.setText("");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
@@ -381,7 +401,7 @@ final class DoubleSidedToolPanel {
         Button close = new Button("Fechar");
         close.setOnAction(event -> {
             host.cancelPick();
-            host.preview(null, null, null, null);
+            host.preview(null, null, null, null, null);
             onClose.run();
         });
 
@@ -395,7 +415,7 @@ final class DoubleSidedToolPanel {
                 axisRow,
                 new Label("Referencia da linha de espelhamento:"),
                 new HBox(10, boardReference, boxReference, pointReference), boxControls, anchorRow, pointControls,
-                asCopy, showPreview, showBoardOutline, fillInterior, mirrorButton,
+                asCopy, showPreview, showContent, showBoardOutline, fillInterior, mirrorButton,
                 new Separator(),
                 new Label("Furos de alinhamento"),
                 new HBox(6, new Label("Diametro:"), diameter),
