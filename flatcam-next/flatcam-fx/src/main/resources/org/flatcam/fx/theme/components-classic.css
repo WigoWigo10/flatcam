@@ -314,3 +314,81 @@
 .object-panel .combo-box > .list-cell {
     -fx-text-fill: -fc-panel-text;
 }
+
+/* Tool panel inputs (Modena fades disabled ones with opacity and derives a very dim prompt colour). */
+.tool-panel .text-field,
+.tool-panel .text-area,
+.object-panel .text-field {
+    -fx-prompt-text-fill: -fc-muted-text;
+}
+
+/* Disabled inputs stay readable on dark palettes: the base theme fades them with opacity on top of an already
+ * muted colour, which made their text and prompt almost vanish. Keep full opacity and mark them by colour. */
+.tool-panel .text-field:disabled,
+.tool-panel .text-area:disabled,
+.tool-panel .combo-box-base:disabled,
+.tool-panel .spinner:disabled,
+.object-panel .text-field:disabled,
+.object-panel .combo-box-base:disabled {
+    -fx-opacity: 1;
+    -fx-background-color: -fc-surface;
+    -fx-text-fill: -fc-muted-text;
+    -fx-prompt-text-fill: -fc-muted-text;
+}
+
+.tool-panel .combo-box:disabled > .list-cell,
+.object-panel .combo-box:disabled > .list-cell {
+    -fx-text-fill: -fc-muted-text;
+}
+
+.tool-panel .radio-button:disabled,
+.tool-panel .check-box:disabled,
+.tool-panel .label:disabled,
+.object-panel .radio-button:disabled,
+.object-panel .check-box:disabled,
+.object-panel .label:disabled {
+    -fx-opacity: 1;
+}
+
+.tool-panel .radio-button:disabled .text,
+.tool-panel .check-box:disabled .text,
+.tool-panel .label:disabled,
+.object-panel .radio-button:disabled .text,
+.object-panel .check-box:disabled .text,
+.object-panel .label:disabled {
+    -fx-fill: -fc-muted-text;
+    -fx-text-fill: -fc-muted-text;
+}
+
+.tool-panel .combo-box:disabled .list-cell,
+.tool-panel .combo-box:disabled .arrow-button,
+.tool-panel .combo-box:disabled .arrow,
+.tool-panel .list-cell:disabled,
+.object-panel .combo-box:disabled .list-cell,
+.object-panel .combo-box:disabled .arrow-button,
+.object-panel .combo-box:disabled .arrow {
+    -fx-opacity: 1;
+}
+
+.tool-panel .combo-box:disabled .arrow,
+.object-panel .combo-box:disabled .arrow {
+    -fx-background-color: -fc-muted-text;
+}
+
+/* Radio buttons and check boxes: the border colour of the panel is nearly the panel's own colour on a dark
+ * palette, so an unselected ring vanished. Draw it in the muted text colour. */
+.tool-panel .radio-button .radio,
+.object-panel .radio-button .radio {
+    -fx-background-color: -fc-input-bg;
+    -fx-border-color: -fc-muted-text;
+    -fx-border-radius: 1em;
+    -fx-background-radius: 1em;
+}
+
+.tool-panel .check-box .box,
+.object-panel .check-box .box {
+    -fx-background-color: -fc-input-bg;
+    -fx-border-color: -fc-muted-text;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+}
