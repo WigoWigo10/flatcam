@@ -80,6 +80,8 @@ import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.convert.OutlineToArea;
+import org.flatcam.cam.merge.GerberJoin;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.dxf.DxfExporter;
@@ -1019,6 +1021,67 @@ final class MainWindow {
         }
     }
 
+    /** Edit > Join Objects > Gerber(s) -> Gerber: one new "Combo_Gerber" from the selected Gerbers. */
+    private void joinSelectedGerbers() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.size() < 2) {
+            appendConsole("Juntar exige pelo menos dois objetos. Selecionados agora: " + selected.size());
+            return;
+        }
+        List<GerberImage> images = new ArrayList<>();
+        for (TreeItem<String> item : selected) {
+            GerberImage image = gerberByItem.get(item);
+            if (image == null) {
+                appendConsole("Falhou. Juntar Gerbers funciona apenas com objetos Gerber.");
+                return;
+            }
+            images.add(image);
+        }
+        try {
+            GerberImage joined = GerberJoin.join(images);
+            TreeItem<String> created = addGerberToProject(uniqueDerivedName("Combo_Gerber"), null, joined);
+            selectProjectItem(created);
+            plotAreaView.fitToLayer(created);
+            appendConsole("Gerbers unidos em " + created.getValue() + " (" + images.size() + " objetos)"
+                    + (joined.shapes().isEmpty() ? "; o resultado nao e editavel no Gerber Editor." : "."));
+        } catch (IllegalArgumentException failed) {
+            appendConsole("Falhou ao juntar: " + failed.getMessage());
+        }
+    }
+
+    /** Edit > Conversion > Outline to Area: a filled Geometry from each selected closed Gerber/Geometry outline. */
+    private void convertOutlineToArea() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.isEmpty()) {
+            appendConsole("Nenhum objeto selecionado.");
+            return;
+        }
+        for (TreeItem<String> item : selected) {
+            GerberImage gerber = gerberByItem.get(item);
+            GeometryEntry entry = geometryByItem.get(item);
+            if (gerber == null && entry == null) {
+                appendConsole("Somente objetos Gerber ou Geometry podem ser convertidos de contorno para area.");
+                continue;
+            }
+            Geometry source = gerber != null && gerber.followGeometry() != null && !gerber.followGeometry().isEmpty()
+                    ? gerber.followGeometry() : gerber != null ? gerber.solidGeometry() : entry.geometry();
+            String units = gerber != null ? gerber.units() : entry.units();
+            try {
+                OutlineToArea.Result result = OutlineToArea.convert(source);
+                TreeItem<String> created = addGeometryToProject(uniqueDerivedName(item.getValue() + "_area"),
+                        item.getValue(), units, result.area(), false);
+                appendConsole("Area do contorno criada: " + created.getValue() + String.format(java.util.Locale.ROOT,
+                        " (%.4f %s^2)", result.area().getArea(), units.toLowerCase(java.util.Locale.ROOT)));
+                if (result.candidates() > 1) {
+                    appendConsole("Foram encontradas varias areas fechadas; a maior foi usada como area da placa.");
+                }
+                selectProjectItem(created);
+            } catch (IllegalArgumentException failed) {
+                appendConsole(item.getValue() + ": " + failed.getMessage());
+            }
+        }
+    }
+
     private void copySelectedObjects() {
         List<TreeItem<String>> selected = selectedObjects();
         if (!selected.isEmpty()) {
@@ -1211,10 +1274,17 @@ final class MainWindow {
         Menu conversionsMenu = new Menu("Converter");
         setLegacyMenuIcon(conversionsMenu, "convert32.png");
         conversionsMenu.getItems().addAll(
+                chromeItem("Contorno → Area", "geometry32.png", this::convertOutlineToArea),
                 plannedItem("Single ↔ Multi-Geometry", "geometry32.png"),
                 plannedItem("Objeto → Geometry", "geometry32.png"),
                 plannedItem("Objeto → Gerber", "flatcam_icon32.png"),
                 plannedItem("Objeto → Excellon", "drill32.png"));
+        Menu joinMenu = new Menu("Juntar Objetos");
+        setLegacyMenuIcon(joinMenu, "union32.png");
+        joinMenu.getItems().addAll(
+                plannedItem("Geo/Gerber/Exc → Geo", "geometry32.png"),
+                plannedItem("Excellon(s) → Excellon", "drill32.png"),
+                chromeItem("Gerber(s) → Gerber", "flatcam_icon32.png", this::joinSelectedGerbers));
         Menu editorToolsMenu = new Menu("Ferramentas dos editores");
         setLegacyMenuIcon(editorToolsMenu, "edit_file32.png");
         excellonEditorMenu = new Menu("Editor Excellon");
@@ -1234,7 +1304,7 @@ final class MainWindow {
                 new SeparatorMenuItem(),
                 chromeItem("Copiar", "copy_file32.png", this::copySelectedObjects),
                 chromeItem("Excluir", "trash32.png", this::deleteSelectedObjects),
-                conversionsMenu, plannedItem("Juntar Objetos", "union32.png"),
+                conversionsMenu, joinMenu,
                 new SeparatorMenuItem(),
                 plannedItem("Medir Distancia", "distance32.png"),
                 plannedItem("Distancia Minima", "distance_min32.png"),

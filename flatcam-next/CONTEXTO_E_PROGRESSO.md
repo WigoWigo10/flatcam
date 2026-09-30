@@ -812,6 +812,18 @@ gera ~10x mais caminhos e é bem mais lento (15-30 s). `NccPythonParityTest` rep
 comparação e só roda com `FLATCAM_PARITY_PROJECT` apontando para o `.FlatPrj`, porque o
 projeto é privado. Ficam sem oráculo: Rest Machining, Lines e Combo.
 
+**Conversion e Join Objects do Python (2026-09-30), em andamento.** Feitos: Editar >
+Converter > "Contorno → Area" (`OutlineToArea`, o `convert_outline2area` do Python: fecha o
+contorno com `Polygonizer` e usa a maior região; com o `Edge_Cuts` do projeto real o
+resultado é idêntico ao `gm1_area` do Python, diferença simétrica 0) e Editar > Juntar
+Objetos > "Gerber(s) → Gerber" (`GerberJoin`, o `GerberObject.merge`: junta aberturas,
+formas, sólido e follow; código de abertura em conflito recebe o próximo livre,
+aberturas idênticas são compartilhadas; Gerbers com unidades diferentes são recusados; se
+um Gerber posterior tem formas clear, o resultado fica sem formas editáveis para não
+apagar o cobre anterior no Gerber Editor). Novo objeto "Combo_Gerber". Faltam: Join
+Excellon(s) e Join Geo/Gerber/Exc → Geo, Convert Any to Geo/Gerber/Excellon e
+Single↔MultiGeo.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
