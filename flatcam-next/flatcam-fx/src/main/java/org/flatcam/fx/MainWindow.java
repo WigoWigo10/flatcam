@@ -82,6 +82,7 @@ import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.InvertGerber;
+import org.flatcam.cam.convert.EtchCompensation;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Punch;
@@ -1240,6 +1241,7 @@ final class MainWindow {
             case "subtract" -> this::openSubtractTool;
             case "extract_drills" -> this::openExtractDrillsTool;
             case "punch" -> this::openPunchGerberTool;
+            case "etch" -> this::openEtchCompensationTool;
             default -> null;
         };
     }
@@ -2544,6 +2546,55 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    /** Tools > Etch Compensation Tool: copper grown for the lateral etch (appTools/ToolEtchCompensation.py). */
+    private void openEtchCompensationTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Etch Compensation: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Etch Compensation Tool", EtchCompensationToolPanel.build(new EtchCompensationToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public String unitsOf(TreeItem<String> item) {
+                GerberImage image = gerberByItem.get(item);
+                return image == null ? "MM" : image.units();
+            }
+
+            @Override
+            public String compensate(TreeItem<String> item, double offset) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    GerberImage result = EtchCompensation.compensate(source, offset);
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(item.getValue() + "_comp"), null,
+                            result);
+                    appendConsole("Gerber compensado criado: " + created.getValue() + " (deslocamento "
+                            + String.format(java.util.Locale.ROOT, "%.5f", offset) + " "
+                            + source.units().toLowerCase(java.util.Locale.ROOT) + ").");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
     }
 
     /** Tools > Punch Gerber Tool: holes in the pads of a Gerber (appTools/ToolPunchGerber.py). */

@@ -917,6 +917,14 @@ foi extraido para ser compartilhado). No modo fixo, furo >= pad falha como no Py
 shape "clear" (circulo) no Gerber `<nome>_punched`, entao o cobre mantem as formas individuais.
 Testes em `PunchTest`.
 
+**Etch Compensation Tool (2026-09-30).** Ferramentas > Etch Compensation Tool (`EtchCompensation`,
+`EtchCompensationToolPanel`), o `ToolEtchCompensation.py`: cria `<nome>_comp` com o cobre crescido (ou
+encolhido, offset negativo) pelo deslocamento = espessura do cobre (padrao 18 um) / (1/fator) pelo fator de
+corrosao, por corrosivo (CuCl2 0.33, Fe3Cl e alcalinos 0.25) ou manual (um). Inclui os conversores oz->um
+(x34.798) e mils->um (x25.4). Diferencas deliberadas: o Python trata todo Gerber como mm; aqui os microns sao
+convertidos para as unidades do Gerber, e os shapes "clear" (furos) encolhem o mesmo deslocamento para ficarem
+coerentes com o cobre crescido. Os tamanhos dos apertures ficam como estavam. Testes em `EtchCompensationTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
