@@ -149,6 +149,16 @@ final class AppPreferences {
         flush();
     }
 
+    /** Python's global_toolbar_view bit flags; by default only the File and Edit toolbars show. */
+    static int loadToolbarView() {
+        return PREFS.getInt("toolbarView", 3);
+    }
+
+    static void saveToolbarView(int flags) {
+        PREFS.putInt("toolbarView", flags);
+        flush();
+    }
+
     static boolean loadConsoleOpen(boolean fallback) {
         return PREFS.getBoolean(KEY_CONSOLE_OPEN, fallback);
     }

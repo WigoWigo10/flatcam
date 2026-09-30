@@ -29,6 +29,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckMenuItem;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
@@ -1477,6 +1478,7 @@ final class MainWindow {
                 chromeItem("HUD", "hud_32.png", () -> statusControls.toggleHud()),
                 new SeparatorMenuItem(),
                 chromeItem("Mostrar/ocultar painel lateral", "notebook32.png", this::toggleSidebar),
+                buildToolbarsMenu(),
                 new SeparatorMenuItem(), buildThemeMenu());
 
         Menu objectsMenu = new Menu("Objetos");
@@ -1498,6 +1500,9 @@ final class MainWindow {
                 new SeparatorMenuItem(), preparationMenu, camMenu, utilitiesMenu);
 
         Menu helpMenu = new Menu("Ajuda");
+        MenuItem demoJobItem = new MenuItem("Executar job de demonstracao");
+        demoJobItem.setOnAction(e -> runDemoJob());
+        demoJobItem.disableProperty().bind(runDemoJobButton.disableProperty());
         helpMenu.getItems().addAll(
                 plannedItem("Ajuda Online", "help.png"),
                 plannedItem("Bookmarks", "bookmarks32.png"),
@@ -1505,6 +1510,7 @@ final class MainWindow {
                 plannedItem("Como Usar", "videohelp24.png"),
                 plannedItem("Reportar Problema", "bug32.png"),
                 new SeparatorMenuItem(),
+                demoJobItem,
                 chromeItem("Sobre", "about32.png", () ->
                         appendConsole("FlatCAM FX - em desenvolvimento.")),
                 chromeItem("Executar job de demonstracao", "code.png", this::runDemoJob));
@@ -1563,27 +1569,42 @@ final class MainWindow {
     }
 
     /** The Python file/edit/view/shell toolbar groups, with unavailable commands visibly disabled. */
-    private ToolBar buildToolBar() {
-        Button openGerberButton = chromeButton("Abrir Gerber", "flatcam_icon32.png", this::openGerberPrototype);
-        Button openExcellonButton = chromeButton("Abrir Excellon", "drill32.png", this::openExcellonPrototype);
-        Button openGCodeButton = chromeButton("Abrir G-Code", "cnc32.png", this::openGCode);
+    /** Python's global_toolbar_view bits (appGUI/MainGUI.py): which toolbars are showing. */
+    private static final int TOOLBAR_FILE = 1;
+    private static final int TOOLBAR_EDIT = 2;
+    private static final int TOOLBAR_VIEW = 4;
+    private static final int TOOLBAR_TOOLS = 8;
+    private static final int TOOLBAR_SHELL = 256;
 
+    private final Map<Integer, List<Node>> toolbarGroups = new LinkedHashMap<>();
+    private int toolbarView = AppPreferences.loadToolbarView();
+
+    /**
+     * The File, Edit, View and Shell toolbars of appGUI/MainGUI.py in one row, in Python's order and with
+     * Python's buttons. Each group can be switched off from View > Toolbars, as in Python; the FX-only
+     * conveniences (Open G-Code, the demonstration job) live in the menus instead.
+     */
+    private ToolBar buildToolBar() {
         runDemoJobButton.setGraphic(Icons.play(16));
         runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
         runDemoJobButton.setOnAction(e -> runDemoJob());
 
         cancelJobButton.setGraphic(Icons.stop(16));
-        cancelJobButton.setTooltip(new Tooltip("Cancelar"));
+        cancelJobButton.setTooltip(new Tooltip("Cancelar a operacao em andamento"));
         cancelJobButton.setDisable(true);
         cancelJobButton.setOnAction(e -> cancelDemoJob());
 
-        return new ToolBar(
-                openGerberButton, openExcellonButton, openGCodeButton, new Separator(),
-                chromeButton("Abrir Projeto", "folder32.png", this::openProject),
-                chromeButton("Salvar Projeto", "project_save32.png", this::saveProject),
+        ToolBar bar = new ToolBar();
+        toolbarGroup(bar, TOOLBAR_FILE, false,
+                chromeButton("Abrir Gerber", "flatcam_icon32.png", this::openGerberPrototype),
+                chromeButton("Abrir Excellon", "drill32.png", this::openExcellonPrototype),
                 new Separator(),
+                chromeButton("Abrir Projeto", "folder32.png", this::openProject),
+                chromeButton("Salvar Projeto", "project_save32.png", this::saveProject));
+        toolbarGroup(bar, TOOLBAR_EDIT, true,
                 chromeButton("Editor", "edit_file32.png", this::editSelectedObject),
-                chromeButton("Salvar e Fechar Editor", "close_edit_file32.png", null),
+                chromeButton("Salvar e Fechar Editor", "close_edit_file32.png", this::saveAndCloseEditor),
+                new Separator(),
                 chromeButton("Copiar", "copy_file32.png", this::copySelectedObjects),
                 chromeButton("Excluir", "trash32.png", this::deleteSelectedObjects),
                 new Separator(),
@@ -1592,19 +1613,66 @@ final class MainWindow {
                 chromeButton("Definir Origem", "origin32.png", null),
                 chromeButton("Mover para Origem", "origin2_32.png", null),
                 chromeButton("Ir para Localizacao", "jump_to16.png", null),
-                chromeButton("Localizar no Objeto", "locate32.png", null),
-                new Separator(),
+                chromeButton("Localizar no Objeto", "locate32.png", null));
+        toolbarGroup(bar, TOOLBAR_VIEW, true,
                 chromeButton("Replotar", "replot32.png", null),
                 chromeButton("Limpar Plot", "clear_plot32.png", null),
                 chromeButton("Aproximar", "zoom_in32.png", null),
                 chromeButton("Afastar", "zoom_out32.png", null),
-                chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
-                new Separator(),
+                chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject));
+        toolbarGroup(bar, TOOLBAR_SHELL, true,
                 chromeButton("Linha de Comando", "shell32.png", null),
                 chromeButton("Novo Script", "script_new24.png", null),
                 chromeButton("Abrir Script", "open_script32.png", null),
-                chromeButton("Executar Script", "script16.png", null),
-                new Separator(), runDemoJobButton, cancelJobButton);
+                chromeButton("Executar Script", "script16.png", null));
+        applyToolbarView();
+        return bar;
+    }
+
+    private void toolbarGroup(ToolBar bar, int bit, boolean leadingSeparator, Node... nodes) {
+        List<Node> group = new ArrayList<>();
+        if (leadingSeparator) {
+            group.add(new Separator());
+        }
+        group.addAll(List.of(nodes));
+        bar.getItems().addAll(group);
+        toolbarGroups.put(bit, group);
+    }
+
+    /** Shows or hides each toolbar according to {@link #toolbarView}. */
+    private void applyToolbarView() {
+        for (Map.Entry<Integer, List<Node>> entry : toolbarGroups.entrySet()) {
+            boolean visible = (toolbarView & entry.getKey()) != 0;
+            for (Node node : entry.getValue()) {
+                node.setVisible(visible);
+                node.setManaged(visible);
+            }
+        }
+        if (regularToolsToolbar != null) {
+            boolean visible = (toolbarView & TOOLBAR_TOOLS) != 0;
+            regularToolsToolbar.setVisible(visible);
+            regularToolsToolbar.setManaged(visible);
+        }
+    }
+
+    /** View > Toolbars: one check item per toolbar, remembered between sessions like Python's global_toolbar_view. */
+    private Menu buildToolbarsMenu() {
+        Menu menu = new Menu("Barras de ferramentas");
+        Object[][] entries = {
+                {"File", TOOLBAR_FILE}, {"Edit", TOOLBAR_EDIT}, {"View", TOOLBAR_VIEW},
+                {"Shell", TOOLBAR_SHELL}, {"Tools", TOOLBAR_TOOLS}};
+        for (Object[] entry : entries) {
+            int bit = (Integer) entry[1];
+            CheckMenuItem item = new CheckMenuItem((String) entry[0]);
+            item.setSelected((toolbarView & bit) != 0);
+            item.setOnAction(e -> {
+                toolbarView = item.isSelected() ? toolbarView | bit : toolbarView & ~bit;
+                AppPreferences.saveToolbarView(toolbarView);
+                applyToolbarView();
+            });
+            menu.getItems().add(item);
+        }
+        return menu;
     }
 
     private ToolBar buildToolsToolBar() {
@@ -1650,7 +1718,9 @@ final class MainWindow {
         statusLabel.setMinWidth(0);
         statusLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(statusLabel, Priority.ALWAYS);
-        HBox bar = new HBox(6, statusLabel, statusControls.node(), unitsLabel, statusDot, activityLabel);
+        cancelJobButton.visibleProperty().bind(cancelJobButton.disableProperty().not());
+        cancelJobButton.managedProperty().bind(cancelJobButton.visibleProperty());
+        HBox bar = new HBox(6, statusLabel, statusControls.node(), cancelJobButton, unitsLabel, statusDot, activityLabel);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("status-bar");
         return bar;

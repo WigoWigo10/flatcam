@@ -829,6 +829,15 @@ perfil; misturar simples com multi-ferramenta é recusado como no Python; `Combo
 `Combo_MultiGeo`). Com o projeto real, os 3 Excellons somam 80 furos em 4 ferramentas (as duas
 de 0,8 mm do PTH viram uma). Faltam: Convert Any to Geo/Gerber/Excellon e Single↔MultiGeo.
 
+**Barra superior com paridade ao Python (2026-09-30).** As barras File, Edit, View e Shell do
+Python (mesmos botões, mesma ordem) e a barra Tools podem ser ligadas e desligadas em Exibir >
+Barras de ferramentas, com o estado lembrado como o `global_toolbar_view` do Python (bits 1, 2,
+4, 8 e 256); por escolha do usuário o padrão mostra só File e Edit (o padrão de fábrica do
+Python mostra todas). Saíram da barra os botões que o Python não tem: Abrir G-Code (continua em
+Arquivo), o job de demonstração (agora em Ajuda) e o botão Cancelar, que passou para a barra de
+status e só aparece enquanto uma operação está em andamento. "Salvar e Fechar Editor" da barra
+agora está ligado.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
