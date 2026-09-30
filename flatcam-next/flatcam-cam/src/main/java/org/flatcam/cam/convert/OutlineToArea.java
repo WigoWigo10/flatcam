@@ -3,9 +3,12 @@ package org.flatcam.cam.convert;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.PrecisionModel;
+import org.locationtech.jts.precision.GeometryPrecisionReducer;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 import org.locationtech.jts.operation.polygonize.Polygonizer;
 
@@ -32,8 +35,27 @@ public final class OutlineToArea {
         if (lines.isEmpty()) {
             throw new IllegalArgumentException("The selected object contains no outline linework");
         }
-        Geometry noded = lines.size() == 1 ? lines.get(0)
-                : OverlayNGRobust.union(new ArrayList<Geometry>(lines));
+        // Arcs end a hair away from where the next segment starts (a few 1e-16 of rounding), which is
+        // enough for the polygonizer to see an open outline: put every end on a grid far finer than any
+        // real feature (a billionth of the coordinates' size) before noding.
+        double extent = 1;
+        for (LineString line : lines) {
+            Envelope box = line.getEnvelopeInternal();
+            extent = Math.max(extent, Math.max(Math.max(Math.abs(box.getMinX()), Math.abs(box.getMaxX())),
+                    Math.max(Math.abs(box.getMinY()), Math.abs(box.getMaxY()))));
+        }
+        PrecisionModel grid = new PrecisionModel(Math.min(1e12, 1e9 / extent));
+        List<Geometry> snapped = new ArrayList<>();
+        for (LineString line : lines) {
+            Geometry reduced = GeometryPrecisionReducer.reduce(line, grid);
+            if (!reduced.isEmpty()) {
+                snapped.add(reduced);
+            }
+        }
+        if (snapped.isEmpty()) {
+            throw new IllegalArgumentException("The selected object contains no outline linework");
+        }
+        Geometry noded = snapped.size() == 1 ? snapped.get(0) : OverlayNGRobust.union(snapped);
         Polygonizer polygonizer = new Polygonizer();
         polygonizer.add(noded);
         List<Polygon> polygons = new ArrayList<>();

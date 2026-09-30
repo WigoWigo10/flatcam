@@ -73,6 +73,17 @@ class ObjectMergeTest {
     }
 
     @Test
+    void outlineToAreaClosesSegmentsThatMissByFloatingPointRounding() {
+        double hair = 4.4e-16;
+        Geometry outline = FACTORY.createMultiLineString(new org.locationtech.jts.geom.LineString[]{
+                FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0)}),
+                FACTORY.createLineString(new Coordinate[]{new Coordinate(10, hair), new Coordinate(10, 5)}),
+                FACTORY.createLineString(new Coordinate[]{new Coordinate(10 - hair, 5), new Coordinate(0, 5)}),
+                FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 5 + hair), new Coordinate(0, 0)})});
+        assertEquals(50, OutlineToArea.convert(outline).area().getArea(), 1e-6);
+    }
+
+    @Test
     void outlineToAreaRejectsAnOpenOutline() {
         Geometry open = FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0),
                 new Coordinate(10, 5)});
