@@ -84,6 +84,7 @@ import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.InvertGerber;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.OutlineToArea;
+import org.flatcam.cam.convert.Punch;
 import org.flatcam.cam.convert.Subtract;
 import org.flatcam.cam.merge.ExcellonJoin;
 import org.flatcam.cam.panel.Panelize;
@@ -1238,6 +1239,7 @@ final class MainWindow {
             case "invert" -> this::openInvertGerberTool;
             case "subtract" -> this::openSubtractTool;
             case "extract_drills" -> this::openExtractDrillsTool;
+            case "punch" -> this::openPunchGerberTool;
             default -> null;
         };
     }
@@ -2542,6 +2544,82 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    /** Tools > Punch Gerber Tool: holes in the pads of a Gerber (appTools/ToolPunchGerber.py). */
+    private void openPunchGerberTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        List<TreeItem<String>> excellons = new ArrayList<>(excellonNode.getChildren());
+        excellons.removeIf(item -> !excellonByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Punch Gerber: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Punch Gerber Tool", PunchGerberToolPanel.build(new PunchGerberToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public List<TreeItem<String>> excellons() {
+                return excellons;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public Map<String, String> apertures(TreeItem<String> item) {
+                Map<String, String> described = new LinkedHashMap<>();
+                GerberImage image = gerberByItem.get(item);
+                if (image != null) {
+                    image.apertures().forEach((code, aperture) -> described.put(code, aperture.kind + " "
+                            + String.format(java.util.Locale.ROOT, "%.4g", aperture.width)
+                            + (aperture.height > 0 && aperture.height != aperture.width
+                            ? " x " + String.format(java.util.Locale.ROOT, "%.4g", aperture.height) : "")));
+                }
+                return described;
+            }
+
+            @Override
+            public String punch(TreeItem<String> item, TreeItem<String> excellon, ExtractDrills.Options options,
+                                Set<String> codes) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    GerberImage punched;
+                    if (excellon != null) {
+                        ExcellonImage drills = excellonByItem.get(excellon);
+                        if (drills == null) {
+                            return "O Excellon foi removido";
+                        }
+                        punched = Punch.byExcellon(source, drills, codes);
+                    } else {
+                        punched = Punch.bySize(source, options, codes);
+                    }
+                    String base = item.getValue();
+                    int dot = base.lastIndexOf('.');
+                    if (dot > 0) {
+                        base = base.substring(0, dot);
+                    }
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(base + "_punched"), null, punched);
+                    appendConsole("Gerber furado criado: " + created.getValue() + " ("
+                            + (punched.shapes().size() - source.shapes().size()) + " furos).");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
     }
 
     /** Tools > Extract Drills Tool: an Excellon from the flashed pads of a Gerber (appTools/ToolExtractDrills.py). */

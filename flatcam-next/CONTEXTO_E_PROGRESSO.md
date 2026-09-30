@@ -909,6 +909,14 @@ Com o projeto real, F_Cu menos B_Cu deixa 404,2 mm² dos 3092,3 mm² em 1,7 s.
 ferramenta; nada extraido = aviso. Gera um Excellon `<nome>_drills`. No projeto real: 31 pads redondos em
 F_Cu e B_Cu (modo anel). Testes em `ExtractDrillsTest`.
 
+**Punch Gerber Tool (2026-09-30).** Ferramentas > Punch Gerber Tool (`Punch`, `PunchGerberToolPanel`), o
+`ToolPunchGerber.py`: fura os pads dos apertures escolhidos (lista multipla, todos por padrao). Origem dos
+furos: Excellon (brocas que caem dentro de um flash dos apertures escolhidos, com o diametro da ferramenta)
+ou o mesmo dimensionamento do Extract Drills (fixo 0.5, anel 0.2, proporcional 80%; `ExtractDrills.holes`
+foi extraido para ser compartilhado). No modo fixo, furo >= pad falha como no Python. Cada furo entra como
+shape "clear" (circulo) no Gerber `<nome>_punched`, entao o cobre mantem as formas individuais.
+Testes em `PunchTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

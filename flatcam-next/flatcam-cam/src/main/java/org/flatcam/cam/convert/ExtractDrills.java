@@ -11,7 +11,6 @@ import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberShape;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
@@ -54,15 +53,45 @@ public final class ExtractDrills {
     private ExtractDrills() {
     }
 
+    /** One hole at the centre of a flash: its pad, size and the pad's smaller side. */
+    public record Hole(String apertureCode, Point center, double diameter, double padSide) {
+    }
+
     /** @throws IllegalArgumentException when no pad matched (Python: "No drills extracted. Try different parameters.") */
     public static ExcellonImage extract(GerberImage source, Options options) {
+        List<Hole> holes = holes(source, options, null);
+        if (holes.isEmpty()) {
+            throw new IllegalArgumentException("Nenhum furo extraido. Tente outros parametros");
+        }
         Map<Integer, Double> tools = new LinkedHashMap<>();
         Map<Long, Integer> toolByDiameter = new LinkedHashMap<>();
         List<ExcellonImage.Drill> drills = new ArrayList<>();
-        List<Geometry> holes = new ArrayList<>();
-        GeometryFactory factory = source.solidGeometry() == null ? new GeometryFactory()
-                : source.solidGeometry().getFactory();
+        List<Geometry> discs = new ArrayList<>();
+        for (Hole hole : holes) {
+            long key = Math.round(hole.diameter() * Math.pow(10, DECIMALS));
+            Integer tool = toolByDiameter.get(key);
+            if (tool == null) {
+                tool = tools.size() + 1;
+                tools.put(tool, hole.diameter());
+                toolByDiameter.put(key, tool);
+            }
+            drills.add(new ExcellonImage.Drill(tool, hole.center().getX(), hole.center().getY()));
+            discs.add(hole.center().buffer(hole.diameter() / 2, 16));
+        }
+        Geometry solid = discs.size() == 1 ? discs.get(0) : OverlayNGRobust.union(discs);
+        return ExcellonImage.of(source.units(), tools, drills, List.of(), solid);
+    }
+
+    /**
+     * The holes the options give for the flashes of the chosen apertures (all of them when {@code codes} is
+     * null). Pads the ring would swallow (non-positive diameter) are skipped.
+     */
+    public static List<Hole> holes(GerberImage source, Options options, java.util.Set<String> codes) {
+        List<Hole> holes = new ArrayList<>();
         for (Map.Entry<String, Aperture> entry : source.apertures().entrySet()) {
+            if (codes != null && !codes.contains(entry.getKey())) {
+                continue;
+            }
             Aperture aperture = entry.getValue();
             Double side = smallerSide(aperture, entry.getKey(), source, options);
             if (side == null) {
@@ -77,26 +106,13 @@ public final class ExtractDrills {
                 continue;
             }
             for (GerberShape shape : source.shapes()) {
-                if (shape.clear() || !entry.getKey().equals(shape.apertureCode())
-                        || !(shape.followGeometry() instanceof Point center)) {
-                    continue;
+                if (!shape.clear() && entry.getKey().equals(shape.apertureCode())
+                        && shape.followGeometry() instanceof Point center) {
+                    holes.add(new Hole(entry.getKey(), center, diameter, side));
                 }
-                long key = Math.round(diameter * Math.pow(10, DECIMALS));
-                Integer tool = toolByDiameter.get(key);
-                if (tool == null) {
-                    tool = tools.size() + 1;
-                    tools.put(tool, diameter);
-                    toolByDiameter.put(key, tool);
-                }
-                drills.add(new ExcellonImage.Drill(tool, center.getX(), center.getY()));
-                holes.add(factory.createPoint(center.getCoordinate()).buffer(diameter / 2, 16));
             }
         }
-        if (drills.isEmpty()) {
-            throw new IllegalArgumentException("Nenhum furo extraido. Tente outros parametros");
-        }
-        Geometry solid = holes.size() == 1 ? holes.get(0) : OverlayNGRobust.union(holes);
-        return ExcellonImage.of(source.units(), tools, drills, List.of(), solid);
+        return holes;
     }
 
     /** The smaller side of the pad when its kind is selected, else null (the pad is skipped). */
