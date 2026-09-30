@@ -925,6 +925,18 @@ corrosao, por corrosivo (CuCl2 0.33, Fe3Cl e alcalinos 0.25) ou manual (um). Inc
 convertidos para as unidades do Gerber, e os shapes "clear" (furos) encolhem o mesmo deslocamento para ficarem
 coerentes com o cobre crescido. Os tamanhos dos apertures ficam como estavam. Testes em `EtchCompensationTest`.
 
+**Film Tool (2026-09-30).** Ferramentas > Film Tool (`FilmExporter`, `FilmToolPanel`), o `ToolFilm.py`: filme
+imprimivel de um Gerber ou Geometry em SVG, PNG ou PDF, enquadrado pela caixa de outro objeto (Gerber, Geometry
+ou Excellon). Negativo (folha preta, feicoes brancas, borda padrao 1.0) ou positivo (cor, margem 1 mm);
+escala X/Y (a partir do canto inferior esquerdo da caixa), inclinacao em graus com referencia (4 cantos ou
+centro), espelho X/Y/ambos (em torno do centro da caixa), espessura do traco ("Scale Stroke": contorno de 2x o
+fator, padrao 0.01), e furar o positivo por Excellon ou centro dos pads (reusa `Punch`). PDF: "Bounds" ou
+A0-A6/Letter/Legal/Tabloid, retrato/paisagem; PNG: DPI escolhido. Diferencas deliberadas: escala/inclinacao/
+espelho agem na geometria das feicoes (no Python sao repassados ao export_svg do objeto), o PNG e renderizado
+no DPI pedido (Java2D) em vez do ajuste estranho do Python, e o PDF e escrito direto em vetores (sem
+svglib/reportlab). No projeto real: F_Cu negativo com moldura do Edge_Cuts gera SVG 58 ms, PNG 275 ms, PDF
+151 ms. Testes em `FilmExporterTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

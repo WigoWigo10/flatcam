@@ -112,6 +112,7 @@ import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
 import org.flatcam.cam.hpgl.HpglImporter;
 import org.flatcam.cam.pdf.PdfImporter;
+import org.flatcam.cam.svg.FilmExporter;
 import org.flatcam.cam.svg.SvgExporter;
 import org.flatcam.cam.svg.SvgImporter;
 import org.flatcam.cam.gerber.GerberImage;
@@ -1242,6 +1243,7 @@ final class MainWindow {
             case "extract_drills" -> this::openExtractDrillsTool;
             case "punch" -> this::openPunchGerberTool;
             case "etch" -> this::openEtchCompensationTool;
+            case "film" -> this::openFilmTool;
             default -> null;
         };
     }
@@ -2546,6 +2548,114 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    /** Tools > Film Tool: a printable SVG / PNG / PDF film of a Gerber or Geometry (appTools/ToolFilm.py). */
+    private void openFilmTool() {
+        List<TreeItem<String>> films = new ArrayList<>(gerbersNode.getChildren());
+        films.addAll(geometryNode.getChildren());
+        films.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item));
+        if (films.isEmpty()) {
+            appendConsole("Film: carregue um Gerber ou Geometry.");
+            return;
+        }
+        List<TreeItem<String>> boxes = new ArrayList<>(films);
+        boxes.addAll(excellonNode.getChildren());
+        boxes.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item)
+                && !excellonByItem.containsKey(item));
+        List<TreeItem<String>> excellons = new ArrayList<>(excellonNode.getChildren());
+        excellons.removeIf(item -> !excellonByItem.containsKey(item));
+        TreeItem<String> initial = selectedObjects().stream().filter(films::contains).findFirst().orElse(null);
+        openToolPanel("Film Tool", FilmToolPanel.build(new FilmToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> filmObjects() {
+                return films;
+            }
+
+            @Override
+            public List<TreeItem<String>> boxObjects() {
+                return boxes;
+            }
+
+            @Override
+            public List<TreeItem<String>> excellons() {
+                return excellons;
+            }
+
+            @Override
+            public TreeItem<String> initialFilm() {
+                return initial;
+            }
+
+            @Override
+            public String unitsOf(TreeItem<String> item) {
+                if (gerberByItem.containsKey(item)) {
+                    return gerberByItem.get(item).units();
+                }
+                GeometryEntry entry = geometryByItem.get(item);
+                return entry == null ? "MM" : entry.units();
+            }
+
+            @Override
+            public String export(FilmToolPanel.Request request) {
+                if (runningJob != null) {
+                    return "Ja existe uma operacao em andamento";
+                }
+                org.locationtech.jts.geom.Geometry filmGeometry = filmGeometryOf(request.film());
+                org.locationtech.jts.geom.Geometry boxGeometry = filmGeometryOf(request.box());
+                if (filmGeometry == null || boxGeometry == null) {
+                    return "Um dos objetos foi removido";
+                }
+                GerberImage punched = null;
+                try {
+                    if (request.punch() != FilmToolPanel.Punch.NONE) {
+                        GerberImage source = gerberByItem.get(request.film());
+                        if (source == null) {
+                            return "Furar so vale para Gerbers";
+                        }
+                        Set<String> codes = new java.util.HashSet<>(source.apertures().keySet());
+                        if (request.punch() == FilmToolPanel.Punch.EXCELLON) {
+                            ExcellonImage drills = excellonByItem.get(request.excellon());
+                            if (drills == null) {
+                                return "O Excellon foi removido";
+                            }
+                            punched = Punch.byExcellon(source, drills, codes);
+                        } else {
+                            punched = Punch.bySize(source, new ExtractDrills.Options(ExtractDrills.Mode.FIXED,
+                                    request.padSize(), 0.5, 0.2, 0.2, 0.2, 0.2, 0.2, true, true, true, true, true),
+                                    codes);
+                        }
+                        filmGeometry = punched.solidGeometry();
+                    }
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+                FilmExporter.Options options = request.options();
+                String extension = "." + options.fileType().name().toLowerCase(java.util.Locale.ROOT);
+                String kind = options.fileType().name();
+                File destination = chooseExportFile("Exportar filme " + kind, request.film(), "_film" + extension,
+                        new FileChooser.ExtensionFilter(kind, "*" + extension));
+                if (destination == null) {
+                    return null;
+                }
+                String units = unitsOf(request.film());
+                org.locationtech.jts.geom.Geometry finalFilm = filmGeometry;
+                runExport(request.film().getValue(), "Filme " + kind, destination,
+                        path -> FilmExporter.write(finalFilm, boxGeometry, units, options, path));
+                return null;
+            }
+        }, this::closeToolPanel));
+    }
+
+    private org.locationtech.jts.geom.Geometry filmGeometryOf(TreeItem<String> item) {
+        if (gerberByItem.containsKey(item)) {
+            return gerberByItem.get(item).solidGeometry();
+        }
+        if (excellonByItem.containsKey(item)) {
+            return excellonByItem.get(item).solidGeometry();
+        }
+        GeometryEntry entry = geometryByItem.get(item);
+        return entry == null ? null : entry.geometry();
     }
 
     /** Tools > Etch Compensation Tool: copper grown for the lateral etch (appTools/ToolEtchCompensation.py). */
