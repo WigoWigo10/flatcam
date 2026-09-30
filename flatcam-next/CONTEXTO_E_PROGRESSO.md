@@ -937,6 +937,17 @@ no DPI pedido (Java2D) em vez do ajuste estranho do Python, e o PDF e escrito di
 svglib/reportlab). No projeto real: F_Cu negativo com moldura do Edge_Cuts gera SVG 58 ms, PNG 275 ms, PDF
 151 ms. Testes em `FilmExporterTest`.
 
+**Fiducials Tool e Corner Markers Tool (2026-09-30).** Ferramentas > Fiducials Tool (`Fiducials`,
+`FiducialsToolPanel`), o `ToolFiducials.py`: marcas de alinhamento num Gerber de cobre, gerando `<nome>_fid`.
+Tipos: circular, cruz (duas linhas com espessura) e xadrez (dois quadrados). Posicoes: automatico (cantos da
+caixa do objeto + margem; terceiro ponto acima/abaixo/nenhum) ou manual (cliques no plot: inferior esquerdo,
+superior direito e o segundo). "Aberturas na mascara" cria os mesmos pontos com o dobro do tamanho num Gerber
+de mascara de solda. Reaproveita um aperture de mesmo tipo/tamanho, senao cria o proximo codigo livre.
+Ferramentas > Corner Markers Tool (`CornerMarkers`, `CornerMarkersToolPanel`), o `ToolCorners.py`: marcadores
+em L ("safe") ou cruz nos 4 cantos da caixa (fora por margem + meia espessura; padroes 0.1 / 3.0 / 0.0),
+gerando `<nome>_corners`, e "Criar furos nos cantos" gera um Excellon `<nome>_corner_drills` (padrao 0.5) nos
+mesmos pontos. Testes em `MarkersTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

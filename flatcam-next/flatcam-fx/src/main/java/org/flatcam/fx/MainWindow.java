@@ -82,7 +82,9 @@ import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.InvertGerber;
+import org.flatcam.cam.convert.CornerMarkers;
 import org.flatcam.cam.convert.EtchCompensation;
+import org.flatcam.cam.convert.Fiducials;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Punch;
@@ -1244,6 +1246,8 @@ final class MainWindow {
             case "punch" -> this::openPunchGerberTool;
             case "etch" -> this::openEtchCompensationTool;
             case "film" -> this::openFilmTool;
+            case "fiducials" -> this::openFiducialsTool;
+            case "corners" -> this::openCornerMarkersTool;
             default -> null;
         };
     }
@@ -2548,6 +2552,152 @@ final class MainWindow {
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
                                    String units) {
+    }
+
+    private static String withoutExtension(String name) {
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    /** Tools > Fiducials Tool: alignment marks on a copper Gerber (appTools/ToolFiducials.py). */
+    private void openFiducialsTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Fiducials: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Fiducials Tool", FiducialsToolPanel.build(new FiducialsToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public double[] bounds(TreeItem<String> item) {
+                return boundsOf(item);
+            }
+
+            @Override
+            public String add(TreeItem<String> item, List<Coordinate> points, Fiducials.Type type, double size,
+                              double thickness) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    GerberImage result = Fiducials.add(source, points, type, size, thickness);
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(withoutExtension(item.getValue()) + "_fid"),
+                            null, result);
+                    appendConsole("Fiduciais adicionados: " + created.getValue() + " (" + points.size() + " pontos).");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+
+            @Override
+            public String addOpenings(TreeItem<String> item, List<Coordinate> points, double diameter) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    GerberImage result = Fiducials.add(source, points, Fiducials.Type.CIRCULAR, diameter, 0);
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(withoutExtension(item.getValue()) + "_fid"),
+                            null, result);
+                    appendConsole("Aberturas de mascara adicionadas: " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+        }, this::closeToolPanel));
+    }
+
+    /** Tools > Corner Markers Tool: markers and drills at the corners of a Gerber (appTools/ToolCorners.py). */
+    private void openCornerMarkersTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Corner Markers: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Corner Markers Tool", CornerMarkersToolPanel.build(new CornerMarkersToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public String addMarkers(TreeItem<String> item, Set<CornerMarkers.Corner> corners,
+                                     CornerMarkers.Style style, double thickness, double length, double margin) {
+                GerberImage source = gerberByItem.get(item);
+                double[] bounds = boundsOf(item);
+                if (source == null || bounds == null) {
+                    return "O Gerber foi removido ou esta vazio";
+                }
+                try {
+                    GerberImage result = CornerMarkers.add(source, bounds, corners, style, thickness, length, margin);
+                    TreeItem<String> created = addGerberToProject(
+                            uniqueDerivedName(withoutExtension(item.getValue()) + "_corners"), null, result);
+                    appendConsole("Marcadores de canto adicionados: " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+
+            @Override
+            public String addDrills(TreeItem<String> item, Set<CornerMarkers.Corner> corners, double thickness,
+                                    double margin, double diameter) {
+                GerberImage source = gerberByItem.get(item);
+                double[] bounds = boundsOf(item);
+                if (source == null || bounds == null) {
+                    return "O Gerber foi removido ou esta vazio";
+                }
+                try {
+                    ExcellonImage drills = CornerMarkers.drills(source.units(), bounds, corners, thickness, margin,
+                            diameter);
+                    TreeItem<String> created = addExcellonToProject(
+                            uniqueDerivedName(withoutExtension(item.getValue()) + "_corner_drills"), null, drills);
+                    appendConsole("Furos de canto criados: " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
     }
 
     /** Tools > Film Tool: a printable SVG / PNG / PDF film of a Gerber or Geometry (appTools/ToolFilm.py). */
