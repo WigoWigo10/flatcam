@@ -69,6 +69,12 @@ final class DoubleSidedToolPanel {
         /** Creates an Excellon with each hole and its mirror image through {@code op}. */
         void createAlignmentDrills(String units, double diameter, List<Coordinate> holes, TransformOp op);
 
+        /**
+         * The centre of the drill hole (or slot end) within a few pixels of {@code click}, or null when none is
+         * that close; lets a click land on the exact centre of an existing hole.
+         */
+        Coordinate snapToDrill(Coordinate click);
+
         /** Takes the next click on the plot as a point; {@code null} means the pick was cancelled. */
         void pickPoint(Consumer<Coordinate> onPoint);
 
@@ -217,6 +223,10 @@ final class DoubleSidedToolPanel {
         TextField pointY = new TextField("0.0");
         pointX.setPrefColumnCount(7);
         pointY.setPrefColumnCount(7);
+        CheckBox snapToDrills = new CheckBox("Prender ao centro de furos existentes");
+        snapToDrills.setSelected(true);
+        snapToDrills.setTooltip(tooltip("Ao clicar no plot, se houver um furo (ou ponta de slot) de um Excellon "
+                + "perto do clique, o ponto usa o centro exato dele. Util para alinhar com furos que ja existem."));
         Button pickOnPlot = new Button("Pegar no plot");
         Button useOrigin = new Button("Origem");
         useOrigin.setOnAction(event -> {
@@ -341,23 +351,27 @@ final class DoubleSidedToolPanel {
 
         pickOnPlot.setOnAction(event -> {
             errorLabel.setText("Clique no plot para definir o ponto (Esc cancela).");
-            host.pickPoint(point -> {
+            host.pickPoint(raw -> {
+                Coordinate point = snapped(host, raw, snapToDrills.isSelected());
                 if (point != null) {
                     pointX.setText(format(point.x));
                     pointY.setText(format(point.y));
                     pointReference.setSelected(true);
                 }
-                errorLabel.setText("");
+                errorLabel.setText(point != null && raw != null && !point.equals2D(raw)
+                        ? "Ponto no centro do furo (" + format(point.x) + ", " + format(point.y) + ")." : "");
             });
         });
         pickHole.setOnAction(event -> {
             errorLabel.setText("Clique no plot para cada furo (Esc cancela).");
-            host.pickPoint(point -> {
+            host.pickPoint(raw -> {
+                Coordinate point = snapped(host, raw, snapToDrills.isSelected());
                 if (point != null) {
                     holesText.appendText((holesText.getText().isBlank() || holesText.getText().endsWith("\n") ? "" : "\n")
                             + format(point.x) + ", " + format(point.y) + "\n");
                 }
-                errorLabel.setText("");
+                errorLabel.setText(point != null && raw != null && !point.equals2D(raw)
+                        ? "Furo no centro do furo existente (" + format(point.x) + ", " + format(point.y) + ")." : "");
             });
         });
 
@@ -421,11 +435,20 @@ final class DoubleSidedToolPanel {
                 new Separator(),
                 new Label("Furos de alinhamento"),
                 new HBox(6, new Label("Diametro:"), diameter),
-                holesHint, holesText, new HBox(6, pickHole, clearHoles), createHoles,
+                holesHint, holesText, new HBox(6, pickHole, clearHoles), snapToDrills, createHoles,
                 errorLabel, close);
         panel.setPadding(new Insets(6));
         refresh.run();
         return panel;
+    }
+
+    /** The click moved to the centre of a nearby drill hole when snapping is on; null stays null. */
+    private static Coordinate snapped(Host host, Coordinate click, boolean snap) {
+        if (click == null || !snap) {
+            return click;
+        }
+        Coordinate center = host.snapToDrill(click);
+        return center == null ? click : center;
     }
 
     private static double[] combinedBounds(Host host, List<TreeItem<String>> items) {

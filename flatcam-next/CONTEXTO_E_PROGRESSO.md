@@ -853,6 +853,9 @@ já espelhado, preenchido em ciano com as trilhas visíveis (`setEditorContent`)
 a outra face vai ficar. Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X, Y)") ou pegos
 no plot; cria o Excellon "Alignment Drills" com cada furo e o seu espelho, pelo mesmo eixo e
 linha. Eixo X inverte Y (linha horizontal) e eixo Y inverte X, como no Python.
+"Pegar no plot" e "Adicionar furo no plot" prendem o clique ao centro exato do furo (ou ponta de
+slot) de um Excellon num raio de 14 px (caixa "Prender ao centro de furos existentes", ligada por
+padrão), o equivalente ao "Pick hole" do Python, e vale também para os furos de alinhamento.
 
 **Paint Tool (2026-09-30).** Ferramentas > Paint Tool (`PaintToolPanel`, `NccGenerator.paint`,
 `PaintParameters`): preenche polígonos de um Gerber ou Geometry com caminhos, reaproveitando as

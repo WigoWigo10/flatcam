@@ -2856,6 +2856,31 @@ final class MainWindow {
             }
 
             @Override
+            public Coordinate snapToDrill(Coordinate click) {
+                double reach = 14 * plotAreaView.worldPerPixel();
+                Coordinate best = null;
+                double bestDistance = reach;
+                for (ExcellonImage image : excellonByItem.values()) {
+                    List<Coordinate> centers = new ArrayList<>();
+                    for (ExcellonImage.Drill drill : image.drills()) {
+                        centers.add(new Coordinate(drill.x(), drill.y()));
+                    }
+                    for (ExcellonImage.Slot slot : image.slots()) {
+                        centers.add(new Coordinate(slot.x1(), slot.y1()));
+                        centers.add(new Coordinate(slot.x2(), slot.y2()));
+                    }
+                    for (Coordinate center : centers) {
+                        double distance = center.distance(click);
+                        if (distance <= bestDistance) {
+                            bestDistance = distance;
+                            best = center;
+                        }
+                    }
+                }
+                return best;
+            }
+
+            @Override
             public void pickPoint(Consumer<Coordinate> onPoint) {
                 beginPointPick(onPoint);
             }

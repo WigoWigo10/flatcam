@@ -680,6 +680,11 @@ final class PlotAreaView extends StackPane {
     }
 
     /** Small editor selections redraw on their own canvas, without repainting every project layer. */
+    /** How many world units one screen pixel covers at the current zoom. */
+    double worldPerPixel() {
+        return 1.0 / scale;
+    }
+
     void setEditorContent(Geometry content) {
         editorContentGeometry = content;
         drawEditorHighlight();
