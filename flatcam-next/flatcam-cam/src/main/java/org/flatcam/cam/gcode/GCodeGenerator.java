@@ -130,7 +130,7 @@ public final class GCodeGenerator {
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(initialZ));
 
         List<Geometry> travelShapes = new ArrayList<>();
-        List<Geometry> cutShapes = new ArrayList<>();
+        Footprints cutShapes = new Footprints();
         double lastX = 0;
         double lastY = 0;
         double lastRadius = 0.1;
@@ -200,7 +200,7 @@ public final class GCodeGenerator {
                 addTravel(travelShapes, lastX, lastY, drill.x(), drill.y(), radius);
                 // A drill doesn't move laterally while cutting - camlib.py's own gcode_parse()
                 // fabricates a circle at the hole to represent the "cut" shape too.
-                cutShapes.add(circle(drill.x(), drill.y(), radius));
+                cutShapes.addBuffered(circle(drill.x(), drill.y(), radius));
                 lastX = drill.x();
                 lastY = drill.y();
 
@@ -212,7 +212,7 @@ public final class GCodeGenerator {
             }
             for (ExcellonImage.Slot slot : slotsByTool.getOrDefault(toolId, List.of())) {
                 addTravel(travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius);
-                cutShapes.add(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
+                cutShapes.addBuffered(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
                 lastX = slot.x2();
                 lastY = slot.y2();
 
@@ -234,7 +234,7 @@ public final class GCodeGenerator {
             line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(options.endMoveX()), fmt(options.endMoveY()));
         }
         line(gcode, "M30");
-        return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
     }
 
     public static String generateIsolationGCode(IsolationResult result, IsolationGCodeParameters params) {
@@ -291,7 +291,7 @@ public final class GCodeGenerator {
 
         double radius = toolDiameter / 2.0;
         List<Geometry> travelShapes = new ArrayList<>();
-        List<Geometry> cutShapes = new ArrayList<>();
+        Footprints cutShapes = new Footprints();
         double lastX = 0;
         double lastY = 0;
 
@@ -299,7 +299,7 @@ public final class GCodeGenerator {
                 result.geometry(), lastX, lastY, cancellationToken)) {
             cancellationToken.throwIfCancellationRequested();
             addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
-            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
+            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates), radius);
             Coordinate last = coordinates[coordinates.length - 1];
             lastX = last.x;
             lastY = last.y;
@@ -320,7 +320,7 @@ public final class GCodeGenerator {
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
     }
 
     /**
@@ -367,7 +367,7 @@ public final class GCodeGenerator {
 
         double radius = toolDiameter / 2.0;
         List<Geometry> travelShapes = new ArrayList<>();
-        List<Geometry> cutShapes = new ArrayList<>();
+        Footprints cutShapes = new Footprints();
         double lastX = 0;
         double lastY = 0;
 
@@ -377,7 +377,7 @@ public final class GCodeGenerator {
                 result.geometry(), lastX, lastY, cancellationToken)) {
             cancellationToken.throwIfCancellationRequested();
             addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
-            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
+            cutShapes.add(GEOMETRY_FACTORY.createLineString(coordinates), radius);
             Coordinate last = coordinates[coordinates.length - 1];
             lastX = last.x;
             lastY = last.y;
@@ -405,7 +405,7 @@ public final class GCodeGenerator {
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
     }
 
     /**
@@ -496,7 +496,7 @@ public final class GCodeGenerator {
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
 
         List<Geometry> travelShapes = new ArrayList<>();
-        List<Geometry> cutShapes = new ArrayList<>();
+        Footprints cutShapes = new Footprints();
         double lastX = 0;
         double lastY = 0;
         boolean firstTool = true;
@@ -555,8 +555,8 @@ public final class GCodeGenerator {
                 }
                 addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
                 cutShapes.add(coordinates.length == 1
-                        ? GEOMETRY_FACTORY.createPoint(coordinates[0]).buffer(radius, STROKE_QUADRANT_SEGMENTS)
-                        : GEOMETRY_FACTORY.createLineString(coordinates).buffer(radius, STROKE_QUADRANT_SEGMENTS));
+                        ? GEOMETRY_FACTORY.createPoint(coordinates[0])
+                        : GEOMETRY_FACTORY.createLineString(coordinates), radius);
                 Coordinate last = coordinates[coordinates.length - 1];
                 lastX = last.x;
                 lastY = last.y;
@@ -585,7 +585,7 @@ public final class GCodeGenerator {
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(gcode.toString(), unionOrEmpty(travelShapes), unionOrEmpty(cutShapes));
+        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
     }
 
     /** [depthPerPass, 2*depthPerPass, ..., cutDepth] when multiDepth is on, else just [cutDepth]. */
@@ -624,6 +624,50 @@ public final class GCodeGenerator {
 
     private static Geometry circle(double x, double y, double radius) {
         return GEOMETRY_FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, STROKE_QUADRANT_SEGMENTS);
+    }
+
+    /**
+     * The cut footprints of a job. The moves are collected as raw lines/points and buffered on all cores
+     * when the job ends (one JTS buffer per move is the bulk of the serial work otherwise), then unioned.
+     */
+    private static final class Footprints {
+        private final List<Geometry> raw = new ArrayList<>();
+        private final List<Double> radii = new ArrayList<>();
+        private final List<Geometry> buffered = new ArrayList<>();
+
+        void add(Geometry linesOrPoint, double radius) {
+            raw.add(linesOrPoint);
+            radii.add(radius);
+        }
+
+        void addBuffered(Geometry footprint) {
+            buffered.add(footprint);
+        }
+
+        Geometry result() {
+            List<Geometry> all = new ArrayList<>(buffered);
+            if (!raw.isEmpty()) {
+                all.addAll(java.util.stream.IntStream.range(0, raw.size()).parallel()
+                        .mapToObj(i -> raw.get(i).buffer(radii.get(i), STROKE_QUADRANT_SEGMENTS)).toList());
+            }
+            return unionOrEmpty(all);
+        }
+    }
+
+    /** Above this many rapids the footprint is not unioned (see {@link #travelFootprint}). */
+    private static final int MAX_UNIONED_TRAVELS = 2000;
+
+    /**
+     * The footprint of the rapids. They criss-cross the whole job, so unioning them is one huge,
+     * single-threaded overlay (about half of a 4x4 panel's generation time) that only tidies overlaps
+     * of a translucent preview. Big jobs keep the individual footprints in a collection instead;
+     * FX draws those jobs from their stroked centerlines anyway.
+     */
+    private static Geometry travelFootprint(List<Geometry> shapes) {
+        if (shapes.size() > MAX_UNIONED_TRAVELS) {
+            return GEOMETRY_FACTORY.createGeometryCollection(shapes.toArray(new Geometry[0]));
+        }
+        return unionOrEmpty(shapes);
     }
 
     private static Geometry unionOrEmpty(List<Geometry> shapes) {
@@ -730,10 +774,39 @@ public final class GCodeGenerator {
     }
 
     private static void line(StringBuilder sb, String format, Object... args) {
-        sb.append(String.format(Locale.ROOT, format, args)).append('\n');
+        int argument = 0;
+        int start = sb.length();
+        int length = format.length();
+        for (int i = 0; i < length; i++) {
+            char c = format.charAt(i);
+            if (c != '%') {
+                sb.append(c);
+                continue;
+            }
+            char kind = i + 1 < length ? format.charAt(i + 1) : 0;
+            if ((kind == 's' || kind == 'd') && argument < args.length) {
+                sb.append(args[argument++]);
+                i++;
+            } else {
+                // Anything fancier (widths, %%, ...): let Formatter handle the whole line.
+                sb.setLength(start);
+                sb.append(String.format(Locale.ROOT, format, args)).append('\n');
+                return;
+            }
+        }
+        sb.append('\n');
     }
 
-    private static String fmt(double value) {
-        return String.format(Locale.ROOT, "%.4f", value);
+    /** Same text as {@code String.format(Locale.ROOT, "%.4f", value)}, without the Formatter's per-call cost. */
+    static String fmt(double value) {
+        if (!Double.isFinite(value)) {
+            return String.format(Locale.ROOT, "%.4f", value);
+        }
+        String text = java.math.BigDecimal.valueOf(value).setScale(4, java.math.RoundingMode.HALF_UP).toPlainString();
+        // BigDecimal has no negative zero; Formatter prints "-0.0000" for values that round to zero from below.
+        if (Double.doubleToRawLongBits(value) < 0 && text.charAt(0) != '-') {
+            return "-" + text;
+        }
+        return text;
     }
 }

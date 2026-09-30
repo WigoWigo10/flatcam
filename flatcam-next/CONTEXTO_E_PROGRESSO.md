@@ -473,7 +473,10 @@ grupos que não podem se tocar depois do offset (caixas envolventes alargadas), 
 cada (grupo, passe) roda em paralelo: 4x4 caiu para ~3 s, com anéis idênticos
 (comprimento e contagem iguais ao buffer único). A união das pegadas do G-code
 (`ParallelGeometry.union`, por grupos de caixas) caiu de ~31 s para ~15 s no 4x4;
-o resto é a união dos deslocamentos, que formam um grupo só. Sem código nativo.
+depois, jobs com mais de 2000 deslocamentos não unem a pegada dos deslocamentos
+(coleção de polígonos), os buffers dos cortes rodam em paralelo e a formatação de
+coordenadas/linhas deixou de usar `String.format` (texto idêntico, com teste):
+G-code do 4x4 de ~31 s para ~8-10 s. Sem código nativo.
 
 ### Diferenças intencionais já aceitas
 
