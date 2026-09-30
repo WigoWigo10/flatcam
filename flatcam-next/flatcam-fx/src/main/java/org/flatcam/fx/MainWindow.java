@@ -83,6 +83,7 @@ import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.merge.ExcellonJoin;
+import org.flatcam.cam.ncc.PaintParameters;
 import org.flatcam.cam.merge.GeometryJoin;
 import org.flatcam.cam.merge.GerberJoin;
 import org.flatcam.cam.cutout.CutoutGenerator;
@@ -1228,6 +1229,7 @@ final class MainWindow {
             case "calculators" -> () -> openToolPanel("Calculators", CalculatorsPanel.build());
             case "transform" -> this::openTransformTool;
             case "double_sided" -> this::openDoubleSidedTool;
+            case "paint" -> this::openPaintTool;
             default -> null;
         };
     }
@@ -2503,6 +2505,132 @@ final class MainWindow {
             plotAreaView.setSelectionHandler(null);
             callback.accept(null);
         }
+    }
+
+    /** Tools > Paint Tool: fills Gerber or Geometry polygons with toolpaths (appTools/ToolPaint.py). */
+    private void openPaintTool() {
+        List<TreeItem<String>> sources = new ArrayList<>();
+        sources.addAll(gerbersNode.getChildren());
+        sources.addAll(geometryNode.getChildren());
+        sources.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item));
+        if (sources.isEmpty()) {
+            appendConsole("Paint: carregue um Gerber ou um Geometry.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
+        openToolPanel("Paint Tool", PaintToolPanel.build(new PaintToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> sources() {
+                return sources;
+            }
+
+            @Override
+            public TreeItem<String> initialSource() {
+                return initial;
+            }
+
+            @Override
+            public String units(TreeItem<String> item) {
+                GerberImage gerber = gerberByItem.get(item);
+                if (gerber != null) {
+                    return gerber.units();
+                }
+                GeometryEntry entry = geometryByItem.get(item);
+                return entry == null ? "MM" : entry.units();
+            }
+
+            @Override
+            public Geometry polygons(TreeItem<String> item) {
+                GerberImage gerber = gerberByItem.get(item);
+                if (gerber != null) {
+                    return gerber.solidGeometry();
+                }
+                GeometryEntry entry = geometryByItem.get(item);
+                return entry == null ? null : entry.geometry();
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+
+            @Override
+            public void selectArea(Geometry source, boolean polygonShape, Consumer<Geometry> onArea, Runnable onCancel) {
+                beginNccAreaSelection(source, polygonShape ? NccToolPanel.AreaShape.POLYGON
+                        : NccToolPanel.AreaShape.RECTANGLE, onArea, onCancel);
+            }
+
+            @Override
+            public void cancelAreaSelection() {
+                plotAreaView.cancelPlacement();
+            }
+
+            @Override
+            public void preview(Geometry geometry) {
+                plotAreaView.setEditorHighlight(geometry, false);
+            }
+
+            @Override
+            public void paint(TreeItem<String> item, String units, Geometry polygons, PaintParameters parameters) {
+                runPaintGeneration(item, units, polygons, parameters);
+            }
+        }, () -> {
+            plotAreaView.cancelPlacement();
+            closeToolPanel();
+        }));
+    }
+
+    private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
+        beginJob("Pintando poligonos...");
+        JobHandle<NccResult> handle = jobExecutor.submit(context -> NccGenerator.paint(units, polygons, params,
+                context::isCancelled, fraction -> context.reportProgress(fraction, "Pintando poligonos...")),
+                (fraction, message) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(message);
+                }));
+        runningJob = handle;
+        handle.completion()
+                .thenAccept(result -> Platform.runLater(() -> {
+                    if (result.isEmpty()) {
+                        appendConsole("Paint nao gerou caminhos. A ferramenta pode ser grande demais para os poligonos.");
+                        setStatus("Sem caminhos.", ERROR_COLOR);
+                    } else {
+                        List<ToolGeometry> tools = result.toolResults().stream()
+                                .filter(toolResult -> !toolResult.isEmpty())
+                                .map(toolResult -> new ToolGeometry(toolResult.toolDiameter(), toolResult.geometry(),
+                                        ToolProfile.C1))
+                                .toList();
+                        TreeItem<String> generated = addGeometryToProject(uniqueDerivedName(item.getValue() + "_paint"),
+                                item.getValue(), units, result.geometry(), true, tools);
+                        appendConsole(String.format(java.util.Locale.ROOT,
+                                "Paint: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d.",
+                                result.pathCount(), result.totalLength(), tools.size(),
+                                result.totalFailedPolygonCount()));
+                        selectProjectItem(generated);
+                        plotAreaView.fitToLayer(generated);
+                        plotAreaView.setEditorHighlight(null, false);
+                        closeToolPanel();
+                        setStatus("Concluido.", IDLE_COLOR);
+                    }
+                    updateProgress(1);
+                    onJobFinished();
+                }))
+                .exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        reportJobError(error, "Falha ao pintar: ");
+                        onJobFinished();
+                    });
+                    return null;
+                });
     }
 
     /** Edit > Tools > 2-Sided Tool: mirror objects and make alignment holes for a double-sided board. */

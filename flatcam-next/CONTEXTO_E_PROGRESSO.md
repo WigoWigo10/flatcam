@@ -848,6 +848,17 @@ alinhamento. Furos de alinhamento: lista de "X, Y" (um por linha ou "(X, Y), (X,
 no plot; cria o Excellon "Alignment Drills" com cada furo e o seu espelho, pelo mesmo eixo e
 linha. Eixo X inverte Y (linha horizontal) e eixo Y inverte X, como no Python.
 
+**Paint Tool (2026-09-30).** Ferramentas > Paint Tool (`PaintToolPanel`, `NccGenerator.paint`,
+`PaintParameters`): preenche polígonos de um Gerber ou Geometry com caminhos, reaproveitando as
+estratégias do NCC (Standard, Seed, Lines, Combo), com sobreposição, margem (encolhe cada
+polígono), conectar, contorno, ordem das ferramentas e rest machining, tudo com os padrões do
+Python (0,3 mm, 20%, ordem reversa). Seleção dos polígonos: todos, um por clique (Esc
+termina), área por retângulo ou polígono desenhados, ou os que tocam um objeto de
+referência; a seleção aparece destacada no plot. Gera um Geometry `<nome>_paint` multi-
+ferramenta. O Laser Lines do Python não é oferecido (depende das aberturas do Gerber). Sem
+oráculo do Python para comparar caminhos; verificado por propriedades (cobertura ~100% da placa
+do projeto real em Standard, Seed e Lines, em menos de 1 s) e testes.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

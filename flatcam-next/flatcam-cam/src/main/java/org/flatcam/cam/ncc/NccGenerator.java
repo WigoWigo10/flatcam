@@ -167,6 +167,68 @@ public final class NccGenerator {
         return new NccResult(units, combined, representedArea, toolResults);
     }
 
+    /**
+     * appTools/ToolPaint.py: fills the polygons of {@code polygons} with toolpaths, tool by tool. It shares
+     * the NCC's clearing strategies (Standard, Seed, Lines, Combo); what differs is the area: the polygons
+     * themselves, each shrunk by the margin, instead of the space around copper.
+     *
+     * @throws IllegalArgumentException when there is nothing filled to paint
+     */
+    public static NccResult paint(String units, Geometry polygons, PaintParameters params,
+                                  CancellationToken cancellation, ProgressCallback progress) {
+        Objects.requireNonNull(params, "params");
+        cancellation.throwIfCancellationRequested();
+        List<Polygon> parts = new ArrayList<>();
+        if (polygons != null) {
+            collectPolygons(polygons, parts);
+        }
+        parts.removeIf(polygon -> polygon.isEmpty() || polygon.getArea() <= 0);
+        if (parts.isEmpty()) {
+            throw new IllegalArgumentException("Nao ha poligonos preenchidos para pintar");
+        }
+        GeometryFactory factory = parts.get(0).getFactory();
+        List<Double> tools = new ArrayList<>(params.toolDiameters());
+        if (params.restMachining() || params.order() == NccOrder.REVERSE) {
+            tools.sort(java.util.Comparator.reverseOrder());
+        } else if (params.order() == NccOrder.FORWARD) {
+            tools.sort(java.util.Comparator.naturalOrder());
+        }
+        NccToolSettings settings = params.settings();
+        List<Geometry> shrunk = new ArrayList<>();
+        for (Polygon polygon : parts) {
+            Geometry inside = params.offset() == 0 ? polygon : polygon.buffer(-params.offset(), QUADRANT_SEGMENTS);
+            if (!inside.isEmpty()) {
+                shrunk.add(inside);
+            }
+        }
+        if (shrunk.isEmpty()) {
+            throw new IllegalArgumentException("A margem e grande demais: nenhum poligono sobrou para pintar");
+        }
+        Geometry area = factory.buildGeometry(shrunk);
+        Geometry remaining = area;
+        List<NccToolResult> toolResults = new ArrayList<>();
+        List<Geometry> combinedPaths = new ArrayList<>();
+        for (int t = 0; t < tools.size(); t++) {
+            cancellation.throwIfCancellationRequested();
+            double diameter = tools.get(t);
+            Geometry areaForTool = params.restMachining() ? remaining : area;
+            int index = t;
+            ToolClearResult result = areaForTool.isEmpty()
+                    ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
+                    : clearArea(areaForTool, diameter, settings, cancellation,
+                            fraction -> progress.report((index + fraction) / tools.size()));
+            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR));
+            if (!result.geometry().isEmpty()) {
+                combinedPaths.add(result.geometry());
+            }
+            if (params.restMachining() && !result.footprint().isEmpty()) {
+                remaining = remaining.difference(result.footprint()).buffer(0);
+            }
+        }
+        progress.report(1.0);
+        return new NccResult(units, unionGeometries(factory, combinedPaths), area, toolResults);
+    }
+
     private static Geometry clearingArea(Geometry boundary, Geometry copper, double keepOutOffset) {
         Geometry keepOut = keepOutOffset == 0 ? copper
                 : copper.buffer(keepOutOffset, QUADRANT_SEGMENTS);
