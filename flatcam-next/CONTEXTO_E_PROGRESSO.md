@@ -820,9 +820,14 @@ Objetos > "Gerber(s) → Gerber" (`GerberJoin`, o `GerberObject.merge`: junta ab
 formas, sólido e follow; código de abertura em conflito recebe o próximo livre,
 aberturas idênticas são compartilhadas; Gerbers com unidades diferentes são recusados; se
 um Gerber posterior tem formas clear, o resultado fica sem formas editáveis para não
-apagar o cobre anterior no Gerber Editor). Novo objeto "Combo_Gerber". Faltam: Join
-Excellon(s) e Join Geo/Gerber/Exc → Geo, Convert Any to Geo/Gerber/Excellon e
-Single↔MultiGeo.
+apagar o cobre anterior no Gerber Editor). Novo objeto "Combo_Gerber". Também feitos:
+Join Excellon(s) → Excellon (`ExcellonJoin`: ferramentas são identificadas pelo diâmetro, e com
+`fuse_tools`, o padrão do Python, as de mesmo diâmetro a 4 casas viram uma; furos e slots são
+renumerados; `Combo_Excellon`) e Join Geo/Gerber/Exc → Geo (`GeometryJoin`: objetos simples
+viram um Geometry só; Geometrys multi-ferramenta fundem as ferramentas de mesmo diâmetro e
+perfil; misturar simples com multi-ferramenta é recusado como no Python; `Combo_SingleGeo`/
+`Combo_MultiGeo`). Com o projeto real, os 3 Excellons somam 80 furos em 4 ferramentas (as duas
+de 0,8 mm do PTH viram uma). Faltam: Convert Any to Geo/Gerber/Excellon e Single↔MultiGeo.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 

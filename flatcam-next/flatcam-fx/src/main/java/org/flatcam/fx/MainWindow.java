@@ -81,6 +81,8 @@ import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.OutlineToArea;
+import org.flatcam.cam.merge.ExcellonJoin;
+import org.flatcam.cam.merge.GeometryJoin;
 import org.flatcam.cam.merge.GerberJoin;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
@@ -1049,6 +1051,72 @@ final class MainWindow {
         }
     }
 
+    /** Edit > Join Objects > Excellon(s) -> Excellon: one new "Combo_Excellon"; same-diameter tools are fused. */
+    private void joinSelectedExcellons() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.size() < 2) {
+            appendConsole("Juntar exige pelo menos dois objetos. Selecionados agora: " + selected.size());
+            return;
+        }
+        List<ExcellonImage> images = new ArrayList<>();
+        for (TreeItem<String> item : selected) {
+            ExcellonImage image = excellonByItem.get(item);
+            if (image == null) {
+                appendConsole("Falhou. Juntar Excellons funciona apenas com objetos Excellon.");
+                return;
+            }
+            images.add(image);
+        }
+        try {
+            ExcellonImage joined = ExcellonJoin.join(images, true);
+            TreeItem<String> created = addExcellonToProject(uniqueDerivedName("Combo_Excellon"), null, joined);
+            selectProjectItem(created);
+            plotAreaView.fitToLayer(created);
+            appendConsole("Excellons unidos em " + created.getValue() + " (" + joined.totalDrills() + " furos, "
+                    + joined.totalSlots() + " slots, " + joined.toolDiameters().size() + " ferramentas).");
+        } catch (IllegalArgumentException failed) {
+            appendConsole("Falhou ao juntar: " + failed.getMessage());
+        }
+    }
+
+    /** Edit > Join Objects > Geo/Gerber/Exc -> Geo: one new Geometry ("Combo_SingleGeo" or "Combo_MultiGeo"). */
+    private void joinSelectedToGeometry() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.size() < 2) {
+            appendConsole("Juntar exige pelo menos dois objetos. Selecionados agora: " + selected.size());
+            return;
+        }
+        List<GeometryJoin.Source> sources = new ArrayList<>();
+        for (TreeItem<String> item : selected) {
+            GerberImage gerber = gerberByItem.get(item);
+            ExcellonImage excellon = excellonByItem.get(item);
+            GeometryEntry geometry = geometryByItem.get(item);
+            if (gerber != null) {
+                sources.add(new GeometryJoin.Source(gerber.units(), gerber.solidGeometry(), false, List.of()));
+            } else if (excellon != null) {
+                sources.add(new GeometryJoin.Source(excellon.units(), excellon.solidGeometry(), false, List.of()));
+            } else if (geometry != null) {
+                sources.add(new GeometryJoin.Source(geometry.units(), geometry.geometry(), geometry.strokeOnly(),
+                        geometry.tools()));
+            } else {
+                appendConsole("Falhou. Somente objetos Geometry, Gerber ou Excellon podem ser unidos em um Geometry.");
+                return;
+            }
+        }
+        try {
+            GeometryJoin.Joined joined = GeometryJoin.join(sources, true);
+            String name = uniqueDerivedName(joined.tools().isEmpty() ? "Combo_SingleGeo" : "Combo_MultiGeo");
+            TreeItem<String> created = addGeometryToProject(name, selected.get(0).getValue(), sources.get(0).units(),
+                    joined.geometry(), joined.strokeOnly(), joined.tools());
+            selectProjectItem(created);
+            plotAreaView.fitToLayer(created);
+            appendConsole("Objetos unidos em " + created.getValue() + " (" + selected.size() + " objetos"
+                    + (joined.tools().isEmpty() ? "" : ", " + joined.tools().size() + " ferramentas") + ").");
+        } catch (IllegalArgumentException failed) {
+            appendConsole("Falhou ao juntar: " + failed.getMessage());
+        }
+    }
+
     /** Edit > Conversion > Outline to Area: a filled Geometry from each selected closed Gerber/Geometry outline. */
     private void convertOutlineToArea() {
         List<TreeItem<String>> selected = selectedObjects();
@@ -1282,8 +1350,8 @@ final class MainWindow {
         Menu joinMenu = new Menu("Juntar Objetos");
         setLegacyMenuIcon(joinMenu, "union32.png");
         joinMenu.getItems().addAll(
-                plannedItem("Geo/Gerber/Exc → Geo", "geometry32.png"),
-                plannedItem("Excellon(s) → Excellon", "drill32.png"),
+                chromeItem("Geo/Gerber/Exc → Geo", "geometry32.png", this::joinSelectedToGeometry),
+                chromeItem("Excellon(s) → Excellon", "drill32.png", this::joinSelectedExcellons),
                 chromeItem("Gerber(s) → Gerber", "flatcam_icon32.png", this::joinSelectedGerbers));
         Menu editorToolsMenu = new Menu("Ferramentas dos editores");
         setLegacyMenuIcon(editorToolsMenu, "edit_file32.png");
