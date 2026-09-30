@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
+import org.flatcam.cam.geometry.ParallelGeometry;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.isolation.IsolationResult;
@@ -629,7 +630,7 @@ public final class GCodeGenerator {
         if (shapes.isEmpty()) {
             return GEOMETRY_FACTORY.createGeometryCollection();
         }
-        return shapes.size() == 1 ? shapes.get(0) : OverlayNGRobust.union(shapes);
+        return shapes.size() == 1 ? shapes.get(0) : ParallelGeometry.union(shapes);
     }
 
     /**

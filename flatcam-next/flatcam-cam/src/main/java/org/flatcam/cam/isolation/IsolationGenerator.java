@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.geometry.ParallelGeometry;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -178,13 +180,30 @@ public final class IsolationGenerator {
         List<LineString> rings = new ArrayList<>();
         List<Geometry> passGeometries = new ArrayList<>();
 
-        for (int pass = 0; pass < params.passes(); pass++) {
+        double[] offsets = new double[params.passes()];
+        double largestOffset = 0;
+        for (int pass = 0; pass < offsets.length; pass++) {
+            offsets[pass] = params.toolDiameter() * (pass + 0.5 - pass * params.overlapFraction());
+            largestOffset = Math.max(largestOffset, offsets[pass]);
+        }
+        // Copper that is further apart than twice the largest offset cannot grow into each other, so each
+        // group can be buffered on its own (what JTS' buffer of one huge multipolygon does not scale to)
+        // and every (group, pass) job runs in parallel. Same rings as buffering everything at once.
+        List<Geometry> groups = ParallelGeometry.separateGroups(copperGeometry, 2 * largestOffset);
+        int jobs = groups.size() * offsets.length;
+        Geometry[] buffered = new Geometry[jobs];
+        IntStream.range(0, jobs).parallel().forEach(job -> {
             cancellationToken.throwIfCancellationRequested();
-            double offset = params.toolDiameter() * (pass + 0.5 - pass * params.overlapFraction());
-            Geometry buffered = copperGeometry.buffer(offset, QUADRANT_SEGMENTS);
+            buffered[job] = groups.get(job % groups.size()).buffer(offsets[job / groups.size()], QUADRANT_SEGMENTS);
+        });
+
+        for (int pass = 0; pass < offsets.length; pass++) {
             cancellationToken.throwIfCancellationRequested();
             List<LineString> passRings = new ArrayList<>();
-            collectRings(buffered, params.type(), passRings, geometryFactory, cancellationToken);
+            for (int group = 0; group < groups.size(); group++) {
+                collectRings(buffered[pass * groups.size() + group], params.type(), passRings, geometryFactory,
+                        cancellationToken);
+            }
             rings.addAll(passRings);
             passGeometries.add(geometryFactory.createGeometryCollection(passRings.toArray(new LineString[0])));
         }

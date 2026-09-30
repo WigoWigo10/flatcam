@@ -466,8 +466,14 @@ equivalente (o solid tem alguns vértices a menos por causa do snapping) e os 32
 testes passam. `ProjectFileIO.load` tinha o mesmo problema (16 s): o codec Gerber ainda usava
 `UnaryUnionOp` e unia cada abertura ao abrir. Agora usa `LazyApertureGeometry`
 (pública) e o `MainWindow` usa `OverlayNGRobust`; abrir levou ~0,65 s. Salvar
-leva ~2,2 s, quase tudo compressão XZ. Pendente: o buffer da isolação em
-painéis 4x4 leva ~24 s; investigar com JFR antes de considerar um módulo nativo.
+leva ~2,2 s, quase tudo compressão XZ. O buffer da isolação em
+painéis grandes (4x4: ~24 s) era o `BufferOp` do JTS num multipolígono enorme
+(`SubgraphDepthLocater`). `ParallelGeometry.separateGroups` agora separa o cobre em
+grupos que não podem se tocar depois do offset (caixas envolventes alargadas), e
+cada (grupo, passe) roda em paralelo: 4x4 caiu para ~3 s, com anéis idênticos
+(comprimento e contagem iguais ao buffer único). A união das pegadas do G-code
+(`ParallelGeometry.union`, por grupos de caixas) caiu de ~31 s para ~15 s no 4x4;
+o resto é a união dos deslocamentos, que formam um grupo só. Sem código nativo.
 
 ### Diferenças intencionais já aceitas
 
