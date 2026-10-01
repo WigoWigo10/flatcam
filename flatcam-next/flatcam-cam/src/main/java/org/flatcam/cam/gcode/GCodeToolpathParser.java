@@ -485,6 +485,8 @@ public final class GCodeToolpathParser {
                             absolute = true;
                         } else if (code == 91) {
                             absolute = false;
+                        } else if (code == 31 || code == 92) {
+                            warning = "Sondagem G31/G92: contato e referencia Z dependem da maquina; pre-visualizacao indisponivel.";
                         } else if (code != 4 && code != 17 && code != 40 && code != 49
                                 && code != 54 && code != 64 && code != 94) {
                             warning = "G-code com G" + code + ": pre-visualizacao indisponivel para este comando.";

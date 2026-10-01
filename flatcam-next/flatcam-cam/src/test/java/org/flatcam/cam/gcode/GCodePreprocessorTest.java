@@ -36,8 +36,8 @@ class GCodePreprocessorTest {
 
     @Test
     void laserProfilesAreNotOfferedForDrilling() {
-        assertEquals(14, GCodePreprocessor.millingProfiles().size());
-        assertEquals(19, GCodePreprocessor.geometryProfiles().size());
+        assertEquals(15, GCodePreprocessor.millingProfiles().size());
+        assertEquals(20, GCodePreprocessor.geometryProfiles().size());
         assertFalse(GCodePreprocessor.millingProfiles().contains(GCodePreprocessor.HPGL));
         assertTrue(GCodePreprocessor.millingProfiles().stream().noneMatch(GCodePreprocessor::isLaser));
         assertEquals(4, GCodePreprocessor.geometryProfiles().stream().filter(GCodePreprocessor::isLaser).count());

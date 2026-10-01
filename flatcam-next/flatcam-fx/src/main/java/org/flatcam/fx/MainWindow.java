@@ -5716,9 +5716,11 @@ final class MainWindow {
             drillDefaultsByItem.put(item, Map.copyOf(updatedDefaults));
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
+            GCodeToolpathParser.Result preview = previewOf(job.gcode(), CancellationToken.none());
+            if (preview.warning() != null) appendConsole(outFile.getName() + ": " + preview.warning());
             addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
                     job.travelGeometry(), job.cutGeometry(), null, null, 0,
-                    toolpathStats(job.gcode(), CancellationToken.none()));
+                    preview.stats());
             closeToolPanel();
         } catch (Exception e) {
             appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
@@ -6361,6 +6363,8 @@ final class MainWindow {
                     appendConsole("G-code de Geometry salvo em " + outFile
                             + " (" + job.gcode().lines().count() + " linhas).");
                     GCodeToolpathParser.Result preview = generated.preview();
+                    if (preview != null && preview.warning() != null)
+                        appendConsole(outFile.getName() + ": " + preview.warning());
                     boolean centerlines = preview != null && preview.plotAvailable() && preview.stats() != null
                             && preview.stats().cutterDiameter() != null;
                     // Programs that state their cutter width get the fast stroked preview, like imported ones.

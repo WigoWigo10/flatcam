@@ -34,6 +34,43 @@ class ProjectFileIOTest {
     Path tempDir;
 
     @Test
+    void probeDefaultsAndMachineProgramRoundTripWithoutInventingContactGeometry() throws IOException {
+        var probe = new org.flatcam.cam.gcode.ProbeToolChangeParameters(15, -5, 50, 0.5, 7.0, 11.0);
+        var parameters = new org.flatcam.cam.gcode.GeometryGCodeParameters(3, 1, false, 1, 100, 9000, true, 0, probe);
+        var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(1, 2), new Coordinate(4, 2)});
+        var geometry = new ProjectFile.GeometryEntry("paths", "source", "MM", path, true, List.of(), null, null, true, parameters);
+        var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob("MM", List.of(new ToolGeometry(0.8, path)),
+                parameters, java.util.Map.of(), org.flatcam.cam.CancellationToken.none(),
+                org.flatcam.cam.gcode.GCodePreprocessor.TOOLCHANGE_PROBE_MACH3);
+        var record = new ProjectFile.CncJobRecord("probe.nc", "source", tempDir.resolve("missing.nc").toString(), job.gcode());
+        Path file = tempDir.resolve("probe.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(geometry), List.of(record)), file, false);
+        var loaded = ProjectFileIO.load(file);
+        assertEquals(parameters, loaded.geometries().get(0).cncDefaults());
+        assertEquals(job.gcode(), loaded.cncJobs().get(0).gcode());
+        var parsed = org.flatcam.cam.gcode.GCodeToolpathParser.parse(loaded.cncJobs().get(0).gcode(),
+                org.flatcam.cam.CancellationToken.none(), ignored -> {});
+        assertFalse(parsed.plotAvailable());
+        assertTrue(parsed.warning().contains("G31/G92"));
+        JSONObject old = new JSONObject(Files.readString(file));
+        old.getJSONObject("_java").getJSONArray("geometries").getJSONObject(0)
+                .getJSONObject("cncDefaults").remove("probing");
+        Files.writeString(file, old.toString());
+        org.junit.jupiter.api.Assertions.assertNull(ProjectFileIO.load(file).geometries().get(0).cncDefaults().probing());
+    }
+
+    @Test
+    void probeDefaultsWithNoXyRemainOptionalAfterSaving() throws IOException {
+        var probe = new org.flatcam.cam.gcode.ProbeToolChangeParameters(15, -5, 50, 0, null, null);
+        var parameters = new org.flatcam.cam.gcode.GeometryGCodeParameters(3, 1, false, 1, 100, 9000, true, 0, probe);
+        var path = new GeometryFactory().createPoint(new Coordinate(1, 2));
+        var entry = new ProjectFile.GeometryEntry("paths", "source", "MM", path, true, List.of(), null, null, true, parameters);
+        Path file = tempDir.resolve("probe-no-xy.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(entry), List.of()), file, false);
+        assertEquals(parameters, ProjectFileIO.load(file).geometries().get(0).cncDefaults());
+    }
+
+    @Test
     void nativeRolandJobReopensFromEmbeddedTextWithoutTheOutputFile() throws IOException {
         var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(3, 7), new Coordinate(6, 7)});
         var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob("MM",

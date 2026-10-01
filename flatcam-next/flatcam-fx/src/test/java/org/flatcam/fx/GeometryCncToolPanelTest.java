@@ -49,7 +49,7 @@ class GeometryCncToolPanelTest {
             var rapid = (TextField) root.lookup("#cnc-rapid-feed");
             var generate = (Button) root.lookup("#cnc-generate");
             var error = (Label) root.lookup("#cnc-error");
-            assertEquals(19, profiles.getItems().size());
+            assertEquals(20, profiles.getItems().size());
             profiles.setValue(GCodePreprocessor.MARLIN_LASER_FAN_PIN);
             assertTrue(depth.isDisabled());
             assertTrue(multi.isDisabled());
@@ -171,7 +171,7 @@ class GeometryCncToolPanelTest {
             Node drill = DrillGCodeToolPanel.build(List.of(drillSource), drillSource, List::of, drillSubmitted::set, () -> {});
             @SuppressWarnings("unchecked")
             var drillProfiles = (ComboBox<GCodePreprocessor>) drill.lookup("#drill-preprocessor");
-            assertEquals(14, drillProfiles.getItems().size());
+            assertEquals(15, drillProfiles.getItems().size());
             assertFalse(drillProfiles.getItems().contains(GCodePreprocessor.HPGL));
             var drillChange = (CheckBox) drill.lookup("#drill-tool-change");
             assertFalse(drillChange.isSelected());

@@ -16,6 +16,7 @@ import org.flatcam.app.project.flatprj.ExcellonFlatPrjCodec;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.ProbeToolChangeParameters;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.geometry.ToolGeometry;
@@ -117,6 +118,13 @@ public final class ProjectFileIO {
                         .put("spindleSpeedRpm", defaults.spindleSpeedRpm())
                         .put("pauseForToolChange", defaults.pauseForToolChange())
                         .put("rapidFeedRate", defaults.rapidFeedRate()));
+                if (defaults.probing() != null) {
+                    ProbeToolChangeParameters probe = defaults.probing();
+                    geometryJson.getJSONObject("cncDefaults").put("probing", new JSONObject()
+                            .put("toolChangeZ", probe.toolChangeZ()).put("probeDepth", probe.probeDepth())
+                            .put("feedRate", probe.feedRate()).put("contactZ", probe.contactZ())
+                            .put("toolChangeX", probe.toolChangeX()).put("toolChangeY", probe.toolChangeY()));
+                }
             }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
@@ -284,7 +292,16 @@ public final class ProjectFileIO {
         return new GeometryGCodeParameters(json.getDouble("safeZ"), json.getDouble("cutDepth"),
                 json.getBoolean("multiDepth"), json.getDouble("depthPerPass"),
                 json.getDouble("feedRate"), json.getInt("spindleSpeedRpm"),
-                json.getBoolean("pauseForToolChange"), json.optDouble("rapidFeedRate", 0));
+                json.getBoolean("pauseForToolChange"), json.optDouble("rapidFeedRate", 0),
+                readProbeParameters(json.optJSONObject("probing")));
+    }
+
+    private static ProbeToolChangeParameters readProbeParameters(JSONObject json) {
+        if (json == null) return null;
+        return new ProbeToolChangeParameters(json.getDouble("toolChangeZ"), json.getDouble("probeDepth"),
+                json.getDouble("feedRate"), json.getDouble("contactZ"),
+                json.has("toolChangeX") && !json.isNull("toolChangeX") ? json.getDouble("toolChangeX") : null,
+                json.has("toolChangeY") && !json.isNull("toolChangeY") ? json.getDouble("toolChangeY") : null);
     }
 
     private static List<ProjectFile.CncJobRecord> readJavaCncJobs(JSONObject root) {

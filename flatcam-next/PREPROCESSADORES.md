@@ -25,18 +25,20 @@ e **Geometry → CNC Job** (fresagem, laser e plotter). O perfil padrão é
 | ISEL_ICP_CNC | `preprocessors/ISEL_ICP_CNC.py` | Formato ICP: `IMF_PBL`, `FASTABS/MOVEABS`, `VEL`, `GETTOOL`, `SPINDLE`, `WAIT`, `PROGEND` |
 | hpgl | `preprocessors/hpgl.py` | Formato HPGL: `IN`, `PU/PD`, `PA`, `SP`; caneta levantada e `SP0` ao encerrar |
 | Roland_MDX_20 | `preprocessors/Roland_MDX_20.py` | RML-1: `;;^IN;`, `^PA`, `Zx,y,z`, `V`, `!MC1/!MC0`; somente MM e uma ferramenta por arquivo |
+| Toolchange_Probe_MACH3 | `preprocessors/Toolchange_Probe_MACH3.py` | Troca obrigatória `Tn/M6`, duas sondagens `G31`, segunda com metade do avanço; `G92` só depois de pausa para confirmar contato |
 
 Os perfis Python são código executável; o FX porta explicitamente os comandos
 essenciais, **não** executa os módulos Python nem reproduz seus
 cabeçalhos completos. `Tn` identifica as ferramentas pela ordem do objeto de
 Geometry ou pelo número do Excellon. Isolamento e cutout geram Geometry na
 interface; a escolha do perfil acontece ao criar o CNC Job desse objeto. Seus
-geradores diretos de G-code aceitam somente os perfis de fresagem.
+geradores diretos de G-code aceitam somente os perfis de fresagem sem sondagem;
+Mach3 com sonda exige os parâmetros explícitos de Geometry → CNC Job ou Drilling.
 
-São **18 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
-**19 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
-incluía `__init__.py`; FX portable não é um perfil Python. Pendentes:
-`Toolchange_Probe_MACH3`.
+São **19 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
+**20 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
+incluía `__init__.py`; FX portable não é um perfil Python. Isso fecha o inventário,
+não a paridade completa de todos os parâmetros nem a validação física.
 
 ## Limites e diferenças dos novos perfis
 
@@ -63,7 +65,7 @@ incluía `__init__.py`; FX portable não é um perfil Python. Pendentes:
   FX/Python. Classifica emissão por `M3/M4/M5` ou `M106/M107` e `S`, não pelo sinal
   de Z. Sem identificação de laser mantém a regra de fresagem. A estimativa de
   tempo não inclui a intervenção manual nas pausas.
-- Compensações de mesa, troca XY e todos os parâmetros individuais do Python
+- Compensações de mesa, troca XY nos demais perfis e todos os parâmetros individuais do Python
   ainda não estão portados.
 - **ISEL_CNC:** `G71` indica milímetros neste dialeto. Objetos IN são rejeitados,
   sem conversão silenciosa. `M01` é parada opcional; habilite-a no controlador
@@ -171,6 +173,50 @@ incluía `__init__.py`; FX portable não é um perfil Python. Pendentes:
   metadados de ferramenta persistido nesta rodada. O percurso e suas unidades MM
   são reconstruídos; compensações de mesa e controle de RPM não foram portados.
 
+## Mach3: troca com sondagem Z
+
+- Disponível em **Drilling Tool** e **Geometry → CNC Job → Preprocessor →
+  Toolchange_Probe_MACH3**. A troca fica marcada e bloqueada: o ciclo roda para
+  cada ferramenta, inclusive a primeira e trabalhos com uma única ferramenta.
+  Exige RPM positivo, pois a sondagem desliga o spindle e o corte precisa religá-lo.
+  O FX apenas gera o arquivo `.nc`; não conecta, lê nem controla o sensor.
+- Campos: **Tool change Z**, **Probe Z final negativo** (destino absoluto, não
+  distância relativa), **Probe feed**, **Contact Z / espessura da placa** e
+  **XY de troca opcional**. Tudo usa as unidades MM/IN do objeto. A segunda
+  aproximação usa metade do avanço; o avanço de corte é reafirmado depois.
+  XY aceita `None`, `X,Y` ou `X;Y` (este permite vírgulas decimais).
+- Valida números finitos, sinais, o avanço lento e profundidade representáveis
+  com quatro casas, Travel Z acima do contato e Tool change Z não inferior a
+  Travel Z. A retração intermediária é `(Contact Z + Travel Z) / 2`.
+  Esses testes **não conhecem o curso físico, obstáculos ou cabeamento da máquina**.
+- Exige confirmação dos cuidados no painel. Trocar perfil/origem ou resetar
+  remove a confirmação. O arquivo começa com `M05` e pausa para conferir origens,
+  Z aproximado, sensor e parada de emergência. Cada troca reafirma os modos
+  G90/G20 ou G21/G17/G94 depois de M6 e mantém o spindle desligado.
+- Como no Python, faz duas sondagens G31 e aplica G92 ao Z de contato. **Diferença
+  deliberada:** acrescenta `M0` após cada G31 e antes de cada G92. O operador
+  deve confirmar contato real; **se não houve contato, abortar, sem continuar**.
+  Não há detecção automática de falha no arquivo. Após a segunda retração há
+  outra pausa para retirar placa/clips, antes de ligar spindle e cortar.
+- G92 altera a referência e não é cancelado automaticamente ao terminar.
+  Não combine G52/G92; confira offsets e macro M6 antes de executar. A restrição
+  de offsets é descrita na seção 10.7.27 do
+  [manual oficial Mach3Mill](https://www.machsupport.com/wp-content/uploads/2013/02/Mach3Mill_1.84.pdf).
+  O retorno a Tool change Z também é emitido antes da macro; seus movimentos
+  internos e eventuais mudanças de coordenadas continuam dependentes da máquina.
+- **Prévia indisponível por intenção:** o FX não sabe em que Z ocorreu o contato
+  nem o offset resultante de G92. Não desenha o destino G31 como contato real.
+  Geração, abertura, Aplicar no editor e reabertura do projeto mantêm essa regra,
+  avisando no console/editor; não calculam estatísticas/tempo desse programa.
+  O texto permanece editável/exportável. Isso também vale para G31/G92 externos.
+- Defaults de sondagem de Geometry são opcionais e preservados no `.fcnproj`;
+  projetos antigos continuam sem eles. O perfil deve ser escolhido novamente e
+  o operador deve reconfirmar os cuidados ao abrir o painel. Parâmetros globais
+  de sondagem de Drilling ainda não são recuperados, assim como outros campos
+  globais desse painel; o programa gerado permanece embutido no projeto.
+  Compensações de mesa, Start Z separado e parâmetros individuais adicionais
+  do Python permanecem pendentes. Testes de software não certificam sondagem real.
+
 ## Pasta e validação
 
 **Dispensador de pasta (`Paste_1`).** O único pré-processador de pasta do Python é gerado diretamente pelo
@@ -201,6 +247,11 @@ slots/Multi-Depth, V-tools, restrições MM/ferramenta, comandos recusados e can
 `ProjectFileIOTest` reabre o texto RML embutido sem arquivo externo; controles de
 Geometry/Drilling, desabilitação/preservação de rascunhos e rejeição de múltiplas
 ferramentas são exercitados na thread FX. Validação manual e em máquina pendentes.
+`Mach3ProbeTest` cobre ciclos, pausas antes de G92, MM/IN, placa, XY, múltiplas
+ferramentas, furos/slots/Multi-Depth, ausência de configuração, RPM, limites,
+cancelamento e prévia recusada. `Mach3ProbePanelTest` exercita confirmação,
+troca obrigatória, defaults e erros dos dois painéis na thread FX. O projeto
+com defaults/programa embutidos é reaberto em `ProjectFileIOTest` sem arquivo externo.
 
 **Antes de enviar a uma máquina:** confira unidades, alturas Z, ordem de
 ferramentas, comportamento de `M0` e suporte de `M6` no controlador. Faça uma

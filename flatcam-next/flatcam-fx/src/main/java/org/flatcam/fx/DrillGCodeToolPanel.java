@@ -349,7 +349,15 @@ final class DrillGCodeToolPanel {
         dwell.disableProperty().bind(noneSelected.or(roland));
         dwellTime.disableProperty().unbind();
         dwellTime.disableProperty().bind(noneSelected.or(dwell.selectedProperty().not()).or(roland));
-        toolChange.disableProperty().bind(automaticTools);
+        var probing = Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().requiresProbe(), preprocessor.valueProperty());
+        toolChange.disableProperty().bind(automaticTools.or(probing));
+        Mach3ProbeFields probe = new Mach3ProbeFields(metric, toolChangeZ, false, null, preprocessor, toolChange);
+        sourceCombo.valueProperty().addListener((observable, oldValue, value) -> probe.resetConfirmation());
+        Label probeUnits = new Label();
+        probeUnits.textProperty().bind(Bindings.createStringBinding(
+                () -> "Unidades atuais: " + sourceCombo.getValue().image().units(), sourceCombo.valueProperty()));
+        probe.view().getChildren().addFirst(probeUnits);
         toolChangeZ.disableProperty().unbind();
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not().or(automaticTools));
         spindleLabel.textProperty().bind(Bindings.createStringBinding(
@@ -433,9 +441,12 @@ final class DrillGCodeToolPanel {
                         : settings.get(orderedIds.get(0)).safeZ();
                 var options = new GCodeGenerator.DrillJobOptions(
                         mechanicalChange, changeZ, endZ, endX, endY,
-                        preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0);
-                for (DrillGCodeParameters values : settings.values())
+                        preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0,
+                        probing.get() ? probe.parameters() : null);
+                for (DrillGCodeParameters values : settings.values()) {
                     preprocessor.getValue().validateFeedRates(values.feedRate(), options.rapidFeedRate());
+                    if (probing.get()) options.probing().validateTravelZ(values.safeZ());
+                }
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),
                         List.copyOf(orderedIds), options, preprocessor.getValue()));
@@ -444,6 +455,8 @@ final class DrillGCodeToolPanel {
         Button reset = new Button("Reset Tool");
         reset.setMaxWidth(Double.MAX_VALUE);
         reset.setOnAction(event -> {
+            preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+            probe.reset(metric);
             sourceCombo.setValue(initialSource);
             updateRows.run();
             noOrder.setSelected(true);
@@ -451,7 +464,6 @@ final class DrillGCodeToolPanel {
             toolChangeZ.setText(metric ? "15.0" : "0.6");
             endMoveZ.setText(metric ? "0.5" : "0.02");
             endMoveXY.setText("None");
-            preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
             rapidFeed.setText("0");
             feedback.setText("");
             errorLabel.setText("");
@@ -466,7 +478,7 @@ final class DrillGCodeToolPanel {
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
                 selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
-                heading("Common Parameters"), common, errorLabel, generate, reset, close);
+                heading("Common Parameters"), common, probe.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         return box;
     }

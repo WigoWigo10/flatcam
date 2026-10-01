@@ -136,7 +136,12 @@ final class GeometryCncToolPanel {
         depthPerPassField.disableProperty().unbind();
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(noCutZ));
         pauseCheck.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
-                () -> !preprocessor.getValue().supportsManualToolChange(), preprocessor.valueProperty()));
+                () -> !preprocessor.getValue().supportsManualToolChange() || preprocessor.getValue().requiresProbe(), preprocessor.valueProperty()));
+        TextField probeChangeZ = new TextField(metric ? "15" : "0.6");
+        probeChangeZ.setMinWidth(0);
+        probeChangeZ.setPrefColumnCount(7);
+        Mach3ProbeFields probe = new Mach3ProbeFields(metric, probeChangeZ, true,
+                defaults == null ? null : defaults.probing(), preprocessor, pauseCheck);
         rapidFeedField.disableProperty().bind(rapidFeed.not());
         Label profileHelp = new Label();
         profileHelp.setWrapText(true);
@@ -225,7 +230,8 @@ final class GeometryCncToolPanel {
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
-                        rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0);
+                        rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0,
+                        preprocessor.getValue().requiresProbe() ? probe.parameters() : null);
                 preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
@@ -266,7 +272,7 @@ final class GeometryCncToolPanel {
         }
         box.getChildren().add(grid);
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
-        box.getChildren().addAll(profileHelp, errorLabel, generateButton, closeButton);
+        box.getChildren().addAll(probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }

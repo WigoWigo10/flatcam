@@ -10,7 +10,7 @@ e continuar a migração sem recomeçar a investigação.
 > (nenhuma resta), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0. A suíte tem **568 testes** (455 `flatcam-cam`, 46 `flatcam-application`, 67 `flatcam-fx`),
+> na seção 9.0. A suíte tem **598 testes** (481 `flatcam-cam`, 48 `flatcam-application`, 69 `flatcam-fx`),
 > sem falhas; 9 ficam ignorados porque dependem de um projeto real do Python (privado) indicado por
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
@@ -80,8 +80,8 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**568 testes registrados**: 455 em `flatcam-cam`, 46 em `flatcam-application` e 67 em `flatcam-fx`;
-559 executados, 0 falhas, 0 erros e
+**598 testes registrados**: 481 em `flatcam-cam`, 48 em `flatcam-application` e 69 em `flatcam-fx`;
+589 executados, 0 falhas, 0 erros e
 9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
@@ -394,7 +394,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
 | Geometry | parcial | multi-tool via NCC/Paint/SolderPaste e conversões Single↔Multi; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto e borracha faltam |
-| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão, ICP/HPGL/RML lineares; 18 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 19 de 20 ports parciais; falta sondagem Mach3; Roland inicialmente só MM/uma ferramenta e sem metadados de diâmetro na reabertura; ver `PREPROCESSADORES.md` |
+| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão, ICP/HPGL/RML lineares; 19 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 20 de 20 ports parciais; Mach3 com sonda gera G31/G92 e exige confirmação manual, sem prévia; Roland inicialmente só MM/uma ferramenta e sem metadados de diâmetro na reabertura; ver `PREPROCESSADORES.md` |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
@@ -854,8 +854,10 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
 1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
-2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje
-   19 ports parciais de 20 perfis Python, incluindo `Paste_1`; FX portable não entra nessa contagem).
+2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e completar parâmetros/validar os
+   **pós-processadores** (hoje 20 ports parciais de 20 perfis Python, incluindo `Paste_1`;
+   FX portable não entra nessa contagem). Priorizar persistência dos campos globais de Drilling,
+   suplemento de metadados Roland, compensações de mesa e parâmetros individuais/laser.
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
    da tela, sem capturar a tela inteira).
 4. **Plot Area:** margem em volta da vista para a imagem de densidade e, se um profile mostrar necessidade,
@@ -1632,6 +1634,25 @@ uma fatia como concluída:
 
 ## 15. Resumo executivo
 
+**Sexto incremento de pós-processadores (2026-10-01, após `d87cc986`).**
+Adicionado Toolchange_Probe_MACH3 em Geometry e Drilling: troca Tn/M6 obrigatória,
+duas sondagens G31 (a segunda com metade do avanço), G92 Z de contato e XY de troca
+opcional. Exige RPM positivo, números finitos/representáveis e alturas coerentes.
+O painel exige confirmação dos cuidados; em cada G31 há M0 antes de aplicar G92
+para confirmar contato real ou abortar, diferença deliberada do legado. Depois
+há pausa para remover placa/clips antes de ligar spindle. G92 permanece ativo;
+sensor, curso físico, offsets e macro M6 precisam ser validados pelo operador.
+Não há conexão com hardware nem detecção automática de falha da sonda.
+Prévia/estatísticas ficam indisponíveis para G31/G92, inclusive abrir, Aplicar e
+reabrir projeto; o código continua editável/exportável. A geração não calcula
+footprints inutilizados nesse perfil. Defaults de Geometry persistem opcionalmente
+no `.fcnproj`; configuração global de Drilling ainda não persiste. Geradores
+diretos de Isolation/Cutout recusam sondagem sem parâmetros e orientam usar Geometry.
+Testes do ciclo, falhas/configuração, furos/slots/Multi-Depth, MM/IN, cancelamento,
+persistência e controles FX passaram no build completo. Teste manual e físico pendentes.
+Inventário fechado: 19 perfis Python selecionáveis + Paste_1 separado = **20/20 ports
+parciais**, não paridade completa. Detalhes/limites em `PREPROCESSADORES.md`.
+
 **Quinto incremento de pós-processadores (2026-10-01, na sequência do HPGL).**
 Adicionado Roland_MDX_20 em Geometry e Drilling, com arquivo RML-1 nativo `.rml`/`.prn`,
 motor !MC1/!MC0, XYZ absolutos em 1/40 mm e velocidades V de 0,1..15 mm/s. Por enquanto
@@ -1731,6 +1752,6 @@ isolação do projeto real) e já porta as 24 ferramentas do menu Ferramentas do
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
 geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
-o editor da Tools Database, salvar `.FlatPrj` e os demais pós-processadores.
-A suíte atual registra 568 testes (559 executados sem falhas, 9 ignorados); a validação manual dos painéis
+o editor da Tools Database, salvar `.FlatPrj` e completar parâmetros/validação dos pós-processadores.
+A suíte atual registra 598 testes (589 executados sem falhas, 9 ignorados); a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

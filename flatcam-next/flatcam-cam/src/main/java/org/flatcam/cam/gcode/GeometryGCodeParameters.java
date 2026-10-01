@@ -5,12 +5,18 @@ package org.flatcam.cam.gcode;
  * Job - shared across every tool when the source is a multi-tool ("multigeo")
  * Geometry (see {@link GCodeGenerator#generateGeometryCncJob}).
  *
- * @param pauseForToolChange insert M0 (and a comment naming the next tool's diameter) between tools -
- *                           mirrors DrillGCodeParameters' own field; meaningless for a single-tool Geometry
+ * @param pauseForToolChange execute the profile's change sequence, including the initial tool
+ * @param probing explicit Mach3 Z probing configuration; absent for legacy/basic profiles
  */
 public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                       double depthPerPass, double feedRate, int spindleSpeedRpm,
-                                      boolean pauseForToolChange, double rapidFeedRate) {
+                                      boolean pauseForToolChange, double rapidFeedRate,
+                                      ProbeToolChangeParameters probing) {
+    public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
+                                  double depthPerPass, double feedRate, int spindleSpeedRpm,
+                                  boolean pauseForToolChange, double rapidFeedRate) {
+        this(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm, pauseForToolChange, rapidFeedRate, null);
+    }
     public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                   double depthPerPass, double feedRate, int spindleSpeedRpm,
                                   boolean pauseForToolChange) {
@@ -36,5 +42,6 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
         if (spindleSpeedRpm < 0) {
             throw new IllegalArgumentException("spindleSpeedRpm cannot be negative: " + spindleSpeedRpm);
         }
+        if (probing != null) probing.validateTravelZ(safeZ);
     }
 }

@@ -80,7 +80,8 @@ final class GCodeEditorController {
         Label help = new Label("Edite o texto e clique Aplicar para atualizar o CNC Job em memoria. "
                 + "Salvar arquivo grava uma copia do rascunho; nao altera o arquivo original automaticamente. "
                 + "Cancelar descarta as alteracoes. A pre-visualizacao cobre movimentos G0/G1, arcos G2/G3 em XY "
-                + "e os subconjuntos lineares ISEL ICP, HPGL e Roland RML-1 (^IN/^PA/Z/V/!MC); macros e resets de origem nao sao simulados "
+                + "e os subconjuntos lineares ISEL ICP, HPGL e Roland RML-1 (^IN/^PA/Z/V/!MC); "
+                + "sondagem G31 e referencia G92 deixam a previa indisponivel. Macros e resets de origem nao sao simulados "
                 + "e nao valida a seguranca do programa para uma maquina CNC.");
         help.setWrapText(true);
         stateLabel = new Label();

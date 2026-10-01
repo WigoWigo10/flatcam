@@ -71,7 +71,12 @@ public final class GCodeGenerator {
 
     /** Common job-level moves; null end X/Y keeps the tool at the final hole. */
     public record DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
-                                  double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate) {
+                                  double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate,
+                                  ProbeToolChangeParameters probing) {
+        public DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
+                               double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate) {
+            this(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY, rapidFeedRate, null);
+        }
         public DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
                                double endMoveZ, Double endMoveX, Double endMoveY) {
             this(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY, 0);
@@ -88,6 +93,8 @@ public final class GCodeGenerator {
                 throw new IllegalArgumentException("End move X/Y must both be set or both be empty");
             if (endMoveX != null && (!Double.isFinite(endMoveX) || !Double.isFinite(endMoveY)))
                 throw new IllegalArgumentException("End move X/Y must be finite");
+            if (probing != null && Double.compare(probing.toolChangeZ(), toolChangeZ) != 0)
+                throw new IllegalArgumentException("Tool change Z deve coincidir com a configuracao da sonda.");
         }
     }
 
@@ -122,12 +129,14 @@ public final class GCodeGenerator {
                 : orderedToolIds.stream().distinct().filter(toolIds::contains).toList();
         if (preprocessor.isRoland() && (ordered.size() > 1 || options.pauseForToolChange()))
             throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo e nao suporta troca mecanica.");
+        validateProbing(preprocessor, options.pauseForToolChange(), options.probing());
         for (int id : ordered) {
             if (!settingsByTool.containsKey(id))
                 throw new IllegalArgumentException("Missing drilling parameters for tool " + id);
             preprocessor.validatePower(settingsByTool.get(id).spindleSpeedRpm());
             if (preprocessor.isRoland() && settingsByTool.get(id).dwell())
                 throw new IllegalArgumentException("Roland nao suporta dwell neste perfil; desative a espera.");
+            if (preprocessor.requiresProbe()) options.probing().validateTravelZ(settingsByTool.get(id).safeZ());
         }
 
         StringBuilder gcode = new StringBuilder();
@@ -172,11 +181,11 @@ public final class GCodeGenerator {
                                 toolId, diameter != null ? fmt(diameter) : "?", image.units());
                     } else {
                         line(gcode, "%s", preprocessor.selectTool(toolId));
-                        line(gcode, "%s", preprocessor.pauseForTool(toolId,
+                        line(gcode, "%s", toolChangeCode(preprocessor, options.probing(), toolId,
                                 diameter != null ? diameter : 0, image.units(),
-                                options.toolChangeZ(), params.feedRate()));
+                                preprocessor.requiresProbe() ? params.safeZ() : options.toolChangeZ(), params.feedRate()));
                     }
-                    if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
+                    if (!preprocessor.requiresProbe() && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 } else if (Double.compare(previous.safeZ(), params.safeZ()) != 0) {
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
@@ -187,9 +196,9 @@ public final class GCodeGenerator {
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                 line(gcode, "%s", preprocessor.selectTool(toolId));
                 if (options.pauseForToolChange() || preprocessor.automaticToolSelection()) {
-                    line(gcode, "%s", preprocessor.pauseForTool(toolId, toolDiameter, image.units(),
-                            options.toolChangeZ(), params.feedRate()));
-                    if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
+                    line(gcode, "%s", toolChangeCode(preprocessor, options.probing(), toolId, toolDiameter, image.units(),
+                            preprocessor.requiresProbe() ? params.safeZ() : options.toolChangeZ(), params.feedRate()));
+                    if (!preprocessor.requiresProbe() && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
             }
@@ -209,10 +218,12 @@ public final class GCodeGenerator {
                     params.multiDepth(), params.depthPerPass());
 
             for (ExcellonImage.Drill drill : drillsByTool.getOrDefault(toolId, List.of())) {
-                addTravel(travelShapes, lastX, lastY, drill.x(), drill.y(), radius);
                 // A drill doesn't move laterally while cutting - camlib.py's own gcode_parse()
                 // fabricates a circle at the hole to represent the "cut" shape too.
-                cutShapes.addBuffered(circle(drill.x(), drill.y(), radius));
+                if (!preprocessor.requiresProbe()) {
+                    addTravel(travelShapes, lastX, lastY, drill.x(), drill.y(), radius);
+                    cutShapes.addBuffered(circle(drill.x(), drill.y(), radius));
+                }
                 lastX = drill.x();
                 lastY = drill.y();
 
@@ -223,8 +234,10 @@ public final class GCodeGenerator {
                 }
             }
             for (ExcellonImage.Slot slot : slotsByTool.getOrDefault(toolId, List.of())) {
-                addTravel(travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius);
-                cutShapes.addBuffered(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
+                if (!preprocessor.requiresProbe()) {
+                    addTravel(travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius);
+                    cutShapes.addBuffered(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
+                }
                 lastX = slot.x2();
                 lastY = slot.y2();
 
@@ -242,10 +255,13 @@ public final class GCodeGenerator {
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.endMoveZ()));
         if (options.endMoveX() != null) {
-            addTravel(travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius);
+            if (!preprocessor.requiresProbe())
+                addTravel(travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius);
             line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(options.endMoveX()), fmt(options.endMoveY()));
         }
-        return new CncJobResult(preprocessor.finish(gcode, options.rapidFeedRate(), image.units()),
+        String code = preprocessor.finish(gcode, options.rapidFeedRate(), image.units());
+        if (preprocessor.requiresProbe()) return withoutProbePreview(code);
+        return new CncJobResult(code,
                 travelFootprint(travelShapes), cutShapes.result());
     }
 
@@ -287,6 +303,7 @@ public final class GCodeGenerator {
         Objects.requireNonNull(preprocessor, "preprocessor");
         requireMilling(preprocessor);
         preprocessor.validatePower(params.spindleSpeedRpm());
+        rejectDirectProbing(preprocessor);
         cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "%s", preprocessor.comment(preprocessor == GCodePreprocessor.FX_PORTABLE
@@ -365,6 +382,7 @@ public final class GCodeGenerator {
         Objects.requireNonNull(preprocessor, "preprocessor");
         requireMilling(preprocessor);
         preprocessor.validatePower(params.spindleSpeedRpm());
+        rejectDirectProbing(preprocessor);
         cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "%s", preprocessor.comment(preprocessor == GCodePreprocessor.FX_PORTABLE
@@ -497,6 +515,7 @@ public final class GCodeGenerator {
         if (preprocessor.isRoland() && (params.pauseForToolChange()
                 || tools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1))
             throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo e nao suporta troca mecanica.");
+        validateProbing(preprocessor, params.pauseForToolChange(), params.probing());
         List<List<Double>> depthsByTool = new ArrayList<>(tools.size());
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
@@ -547,14 +566,14 @@ public final class GCodeGenerator {
                                 fmt(tool.toolDiameter()), units);
                     } else {
                         line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
-                        line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
+                        line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
                                 tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
                     }
                 }
             } else if (preprocessor.emitsToolNumber()) {
                 line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
-                    line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
+                    line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
                             tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
                 }
             }
@@ -578,10 +597,12 @@ public final class GCodeGenerator {
                 if (coordinates.length == 0) {
                     continue;
                 }
-                addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
-                cutShapes.add(coordinates.length == 1
-                        ? GEOMETRY_FACTORY.createPoint(coordinates[0])
-                        : GEOMETRY_FACTORY.createLineString(coordinates), radius);
+                if (!preprocessor.requiresProbe()) {
+                    addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
+                    cutShapes.add(coordinates.length == 1
+                            ? GEOMETRY_FACTORY.createPoint(coordinates[0])
+                            : GEOMETRY_FACTORY.createLineString(coordinates), radius);
+                }
                 Coordinate last = coordinates[coordinates.length - 1];
                 lastX = last.x;
                 lastY = last.y;
@@ -609,13 +630,36 @@ public final class GCodeGenerator {
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(preprocessor.finish(gcode, params.rapidFeedRate(), units, cancellationToken),
+        String code = preprocessor.finish(gcode, params.rapidFeedRate(), units, cancellationToken);
+        if (preprocessor.requiresProbe()) return withoutProbePreview(code);
+        return new CncJobResult(code,
                 travelFootprint(travelShapes), cutShapes.result());
     }
 
     private static void requireMilling(GCodePreprocessor profile) {
         if (profile.isLaser() || profile.isPlotter()) throw new IllegalArgumentException(
                 "Perfil laser/plotter exige Geometry -> CNC Job; nao use para furacao ou geracao direta de fresagem.");
+    }
+
+    private static void rejectDirectProbing(GCodePreprocessor profile) {
+        if (profile.requiresProbe()) throw new IllegalArgumentException(
+                "Sondagem exige parametros explicitos: crie Geometry e use Geometry -> CNC Job.");
+    }
+
+    private static void validateProbing(GCodePreprocessor profile, boolean toolChange, ProbeToolChangeParameters probe) {
+        if (profile.requiresProbe() && (!toolChange || probe == null))
+            throw new IllegalArgumentException("Mach3 com sonda exige troca de ferramenta ativada e parametros explicitos de probing.");
+    }
+
+    private static String toolChangeCode(GCodePreprocessor profile, ProbeToolChangeParameters probe,
+                                         int tool, double diameter, String units, double returnZ, double feed) {
+        return profile.requiresProbe() ? probe.cycle(tool, diameter, units, returnZ)
+                : profile.pauseForTool(tool, diameter, units, returnZ, feed);
+    }
+
+    private static CncJobResult withoutProbePreview(String code) {
+        // Never draw the target G31 depth as though it were the real contact point, or assume a G92 offset.
+        return new CncJobResult(code, GEOMETRY_FACTORY.createGeometryCollection(), GEOMETRY_FACTORY.createGeometryCollection());
     }
 
     private static CncJobResult generateHpglCncJob(String units, List<ToolGeometry> tools,

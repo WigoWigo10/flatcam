@@ -32,7 +32,8 @@ public enum GCodePreprocessor {
     LINE_XYZ("line_xyz (XYZ em cada movimento)", true, true, false),
     ISEL_ICP_CNC("ISEL_ICP_CNC (mm, formato ICP)", false, false, false),
     HPGL("hpgl (plotter, canetas)", false, false, false),
-    ROLAND_MDX_20("Roland_MDX_20 (mm, RML-1)", false, false, false);
+    ROLAND_MDX_20("Roland_MDX_20 (mm, RML-1)", false, false, false),
+    TOOLCHANGE_PROBE_MACH3("Toolchange_Probe_MACH3 (sondagem Z)", true, true, true);
 
     private final String label;
     private final boolean pythonStyle;
@@ -65,6 +66,10 @@ public enum GCodePreprocessor {
 
     public boolean isRoland() {
         return this == ROLAND_MDX_20;
+    }
+
+    public boolean requiresProbe() {
+        return this == TOOLCHANGE_PROBE_MACH3;
     }
 
     public boolean supportsManualToolChange() {
@@ -107,6 +112,9 @@ public enum GCodePreprocessor {
             case ROLAND_MDX_20 -> "RML-1: somente MM e uma ferramenta por arquivo. Motor !MC1/!MC0, sem RPM. "
                     + "Velocidades V entre 0,1 e 15 mm/s; fora da faixa sao recusadas. Sem troca ou dwell. "
                     + "Posicione X/Y na origem e confira a altura livre antes de iniciar.";
+            case TOOLCHANGE_PROBE_MACH3 -> "Mach3: troca obrigatoria com M6, duas sondagens G31 e G92 Z do contato. "
+                    + "Confirme cada contato nas pausas M0; se a sonda falhar, ABORTE. Requer RPM positivo. "
+                    + "G92 altera a referencia Z e permanece ativo. Previa indisponivel: contato real nao conhecido pelo FX.";
             default -> "Port parcial do perfil Python. M6 exige suporte do controlador; simule antes de usar.";
         };
     }
@@ -116,6 +124,8 @@ public enum GCodePreprocessor {
         if (isLaser() && power == 0) {
             throw new IllegalArgumentException("Potencia do laser deve ser maior que zero.");
         }
+        if (requiresProbe() && power == 0)
+            throw new IllegalArgumentException("Mach3 com sonda exige Spindle RPM positivo; a sondagem desliga o motor.");
         if ((this == REPETIER || this == MARLIN_LASER_FAN_PIN) && power > 255) {
             throw new IllegalArgumentException("Este perfil usa PWM FAN: potencia deve estar entre "
                     + (isLaser() ? "1" : "0") + " e 255, nao RPM.");
@@ -135,6 +145,7 @@ public enum GCodePreprocessor {
             case BERTA_CNC -> "G91.1\nG64 P0.03\nM110\nG54\nG0\n(Berta)\nM05\n";
             case MARLIN -> "M400\nM5\n";
             case REPETIER -> "M107\n";
+            case TOOLCHANGE_PROBE_MACH3 -> "M05\n(MSG, Confira origens e Z aproximado; teste a sonda e o E-stop; confirme G92/G52)\nM0\n";
             case ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20 -> "M05\n";
             default -> "";
         };
@@ -145,7 +156,8 @@ public enum GCodePreprocessor {
             case BERTA_CNC -> "(Berta)\nM111\nM30\n(Berta)\n";
             case MARLIN, REPETIER, GRBL_LASER, Z_LASER,
                     MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN,
-                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20 -> "";
+                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20,
+                    TOOLCHANGE_PROBE_MACH3 -> "";
             default -> "M30\n";
         };
     }
@@ -156,6 +168,7 @@ public enum GCodePreprocessor {
     }
 
     public String pauseForTool(int number, double diameter, String units) {
+        if (requiresProbe()) throw new IllegalArgumentException("Mach3 com sonda exige parametros explicitos de probing.");
         if (this == TOOLCHANGE_MANUAL) throw new IllegalArgumentException(
                 "Troca manual exige altura de retorno e feed para o movimento ate Z0.");
         String message = toolChangeMessage(number, diameter, units);
@@ -191,6 +204,8 @@ public enum GCodePreprocessor {
     }
 
     public String unitsCode(String units) {
+        if (requiresProbe() && !"MM".equalsIgnoreCase(units) && !"IN".equalsIgnoreCase(units))
+            throw new IllegalArgumentException("Mach3 com sonda exige unidades MM ou IN.");
         if (this == ISEL_CNC || this == ISEL_ICP_CNC || isRoland()) {
             if (!"MM".equalsIgnoreCase(units)) throw new IllegalArgumentException(
                     name() + " suporta somente MM neste port; converta o objeto para mm antes de gerar.");
