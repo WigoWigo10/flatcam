@@ -950,6 +950,17 @@ mesmos pontos. Testes em `MarkersTest`.
 
 **Migracao para Java 25 + JavaFX 25.0.4 (2026-10-01, branch `java-25`).** `maven.compiler.release` 25 e `javafx.version` 25.0.4; build e todos os testes passam, e os temas renderizam igual no JavaFX 25. Comparacao Java 21 x 25 no F_Cu real (isolacao 3 passes): primeira execucao 312 ms -> 93 ms e execucao aquecida 55 ms -> 26 ms; painel 3x3: 460-600 ms -> 164-206 ms frio; carga do projeto sem diferenca (~60 ms). O `JAVA_HOME` precisa apontar para um JDK 25 para compilar e rodar.
 
+**QRCode Tool (2026-10-01).** Ferramentas > QRCode Tool (`QrCodeMarker`, `QrCodeToolPanel`), o `ToolQRCode.py`:
+QR Code de quadrados de cobre num Gerber, gerando `<nome>_qrcode`. A matriz vem do ZXing (`com.google.zxing:core`
+3.5.4, Apache 2.0, nova dependencia de runtime do `flatcam-cam`). Padroes do Python: versao 1 (cresce sozinha ate 40
+se o texto nao couber), correcao L (L/M/Q/H), caixa 3 (modulo = caixa/10 unidades), borda 4 modulos, polaridade
+positiva (negativa = mascara menos os modulos) e mascara quadrada (ou arredondada). Clique no plot define o destino.
+Diferencas deliberadas: o QR fica centrado no ponto clicado (o Python ancora um canto) e a mascara limpa todo cobre
+sob ela, nao so os poligonos que a contem por inteiro. Nao ha ainda exportar o QR como SVG/PNG nem a cor de preenchimento
+do Python (so afetam a exportacao). Teste de ida e volta: a geometria colocada e rasterizada e decodificada de volta ao
+texto. `build-native.cmd` agora apaga `flatcam-fx\target\dependency` antes de copiar, senao jars de um JavaFX antigo
+ficavam junto dos novos no launcher nativo. Testes em `QrCodeMarkerTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

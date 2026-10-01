@@ -85,6 +85,7 @@ import org.flatcam.cam.convert.InvertGerber;
 import org.flatcam.cam.convert.CornerMarkers;
 import org.flatcam.cam.convert.EtchCompensation;
 import org.flatcam.cam.convert.Fiducials;
+import org.flatcam.cam.convert.QrCodeMarker;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Punch;
@@ -1248,6 +1249,7 @@ final class MainWindow {
             case "film" -> this::openFilmTool;
             case "fiducials" -> this::openFiducialsTool;
             case "corners" -> this::openCornerMarkersTool;
+            case "qrcode" -> this::openQrCodeTool;
             default -> null;
         };
     }
@@ -2631,6 +2633,57 @@ final class MainWindow {
             @Override
             public void cancelPick() {
                 cancelPointPick();
+            }
+        }, this::closeToolPanel));
+    }
+
+    /** Tools > QRCode Tool: a QR code of copper squares on a Gerber (appTools/ToolQRCode.py). */
+    private void openQrCodeTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("QRCode: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("QRCode Tool", QrCodeToolPanel.build(new QrCodeToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+
+            @Override
+            public String place(TreeItem<String> item, QrCodeMarker.Options options, Coordinate centre) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    GerberImage result = QrCodeMarker.place(source, options, centre);
+                    TreeItem<String> created = addGerberToProject(
+                            uniqueDerivedName(withoutExtension(item.getValue()) + "_qrcode"), null, result);
+                    appendConsole("QR Code adicionado: " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
             }
         }, this::closeToolPanel));
     }

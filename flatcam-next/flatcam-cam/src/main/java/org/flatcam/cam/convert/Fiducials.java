@@ -110,7 +110,7 @@ public final class Fiducials {
     }
 
     /** Reuses an aperture of the same kind and size, else defines a new one (the next free code, 10 at least). */
-    private static String apertureFor(Map<String, Aperture> apertures, ApertureKind kind, double width, double height,
+    static String apertureFor(Map<String, Aperture> apertures, ApertureKind kind, double width, double height,
                                       Aperture fresh) {
         for (Map.Entry<String, Aperture> entry : apertures.entrySet()) {
             Aperture aperture = entry.getValue();

@@ -5,6 +5,8 @@ pushd "%~dp0" || exit /b 1
 rem Keep all three modules and the copied runtime jars in sync with the source.
 call ".\mvnw.cmd" -q install -DskipTests
 if errorlevel 1 goto failure
+rem Start from an empty folder: jars of an older JavaFX (or a dropped dependency) must not stay on the launcher paths.
+if exist "flatcam-fx\target\dependency" rmdir /s /q "flatcam-fx\target\dependency"
 call ".\mvnw.cmd" -q -pl flatcam-fx org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies -DincludeScope=runtime -DoutputDirectory=target/dependency
 if errorlevel 1 goto failure
 
