@@ -70,9 +70,9 @@ não ser resolvido sem `pluginGroups` configurado no `settings.xml`.
   de ferramentas.
 
 O fluxo implementado inclui Gerber/Excellon, Isolation, Cutout, NCC, Paint, Geometry -> CNC, plot de trajetos
-(com navegação passo a passo) e salvamento de G-code, além de 21 das 24 ferramentas do menu Ferramentas do Python
-(2-Sided, Align Objects, Optimal, Extract Drills, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber,
-Invert Gerber, Corner Markers, Etch Compensation e outras). Restam Rules Check, Calibration e Copper
+(com navegação passo a passo) e salvamento de G-code, além de 22 das 24 ferramentas do menu Ferramentas do Python
+(2-Sided, Align Objects, Optimal, Rules Check, Extract Drills, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber,
+Invert Gerber, Corner Markers, Etch Compensation e outras). Restam Calibration e Copper
 Thieving. O Plot Area desenha geometrias com centenas de milhares de traços por um LOD de densidade assíncrono
 (ver [`PLOT_PERFORMANCE.md`](PLOT_PERFORMANCE.md)). Consulte o documento de contexto para saber exatamente o que
 ainda não tem paridade com o Python.

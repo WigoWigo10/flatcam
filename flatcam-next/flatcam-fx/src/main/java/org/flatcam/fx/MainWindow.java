@@ -88,6 +88,7 @@ import org.flatcam.cam.convert.Fiducials;
 import org.flatcam.cam.convert.QrCodeMarker;
 import org.flatcam.cam.solderpaste.SolderPaste;
 import org.flatcam.cam.analysis.MinimumDistance;
+import org.flatcam.cam.analysis.RulesCheck;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.ObjectConversion;
 import org.flatcam.cam.convert.OutlineToArea;
@@ -1432,6 +1433,7 @@ final class MainWindow {
             case "solderpaste" -> this::openSolderPasteTool;
             case "align" -> this::openAlignObjectsTool;
             case "optimal" -> this::openOptimalTool;
+            case "rules" -> this::openRulesCheckTool;
             default -> null;
         };
     }
@@ -2851,6 +2853,97 @@ final class MainWindow {
                 cancelPointPick();
             }
         }, this::closeToolPanel));
+    }
+
+    /** Tools > Rules Check Tool: design rules over the board's layers (appTools/ToolRulesCheck.py). */
+    private void openRulesCheckTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        List<TreeItem<String>> excellons = new ArrayList<>(excellonByItem.keySet());
+        if (gerbers.isEmpty() && excellons.isEmpty()) {
+            appendConsole("Rules Check: carregue Gerbers ou Excellons.");
+            return;
+        }
+        openToolPanel("Rules Check Tool", RulesCheckToolPanel.build(new RulesCheckToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public List<TreeItem<String>> excellons() {
+                return excellons;
+            }
+
+            @Override
+            public void check(RulesCheckToolPanel.Selection selection, Map<RulesCheck.Rule, RulesCheck.Setting> settings,
+                              Consumer<List<RulesCheck.RuleResult>> onResult, Consumer<String> onError) {
+                if (runningJob != null) {
+                    onError.accept("Ja existe uma operacao em andamento");
+                    return;
+                }
+                RulesCheck.Board board = new RulesCheck.Board(named(selection.copperTop()), named(selection.copperBottom()),
+                        named(selection.silkTop()), named(selection.silkBottom()), named(selection.maskTop()),
+                        named(selection.maskBottom()), named(selection.outline()), namedDrills(selection.drills1()),
+                        namedDrills(selection.drills2()));
+                beginJob("Rules Check: verificando regras...");
+                JobHandle<List<RulesCheck.RuleResult>> handle = jobExecutor.submit(context ->
+                        RulesCheck.check(board, settings, context::isCancelled,
+                                fraction -> context.reportProgress(fraction, "Verificando regras...")),
+                        (fraction, message) -> Platform.runLater(() -> {
+                            updateProgress(fraction);
+                            statusLabel.setText(message);
+                        }));
+                runningJob = handle;
+                handle.completion().thenAccept(results -> Platform.runLater(() -> {
+                    updateProgress(1);
+                    setStatus("Rules Check concluido.", IDLE_COLOR);
+                    onJobFinished();
+                    for (RulesCheck.RuleResult result : results) {
+                        appendConsole("Rules Check: " + result.title() + " - " + (!result.ran() ? "nao executada ("
+                                + result.error() + ")" : result.failed() ? "FALHOU" : "OK"));
+                    }
+                    onResult.accept(results);
+                })).exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        Throwable cause = error.getCause() == null ? error : error.getCause();
+                        onJobFinished();
+                        onError.accept(isCancellation(error) ? "Cancelado." : cause.getMessage());
+                    });
+                    return null;
+                });
+            }
+
+            @Override
+            public void locate(List<Coordinate> all, Coordinate focus) {
+                if (all == null) {
+                    plotAreaView.setEditorHighlight(null, false);
+                    return;
+                }
+                org.locationtech.jts.geom.GeometryFactory factory = new org.locationtech.jts.geom.GeometryFactory();
+                double radius = 8 * plotAreaView.worldPerPixel();
+                List<org.locationtech.jts.geom.Geometry> rings = new ArrayList<>();
+                for (Coordinate point : all) {
+                    double size = point == focus ? radius * 1.8 : radius;
+                    rings.add(factory.createPoint(point).buffer(size, 16).getBoundary());
+                }
+                plotAreaView.setEditorHighlight(factory.buildGeometry(rings), true);
+                if (focus != null) {
+                    plotAreaView.centerOn(focus.x, focus.y);
+                }
+            }
+
+            private RulesCheck.Named<GerberImage> named(TreeItem<String> item) {
+                GerberImage image = item == null ? null : gerberByItem.get(item);
+                return image == null ? null : new RulesCheck.Named<>(item.getValue(), image);
+            }
+
+            private RulesCheck.Named<ExcellonImage> namedDrills(TreeItem<String> item) {
+                ExcellonImage image = item == null ? null : excellonByItem.get(item);
+                return image == null ? null : new RulesCheck.Named<>(item.getValue(), image);
+            }
+        }, this::closeToolPanel));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     /** Tools > Optimal Tool: the smallest gap between the copper features of a Gerber (appTools/ToolOptimal.py). */

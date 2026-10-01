@@ -45,7 +45,8 @@ final class ToolDescriptions {
             Map.entry("subtract", new Description("Subtract Tool",
                     "Remove de um objeto a área coberta por outro (Gerber ou Geometry).")),
             Map.entry("rules", new Description("Rules Check Tool",
-                    "Verifica regras de projeto (espaçamentos, larguras, furos)." + SOON)),
+                    "Verifica regras de projeto: largura das trilhas, distâncias de cobre, seda, máscara e contorno, "
+                            + "anel anular e furos. Cada violação pode ser localizada no plot.")),
             Map.entry("optimal", new Description("Optimal Tool",
                     "Encontra a menor distância entre os elementos de cobre de um Gerber, quantos pares estão nela e onde; "
                             + "ao escolher um local, o plot vai até lá.")),

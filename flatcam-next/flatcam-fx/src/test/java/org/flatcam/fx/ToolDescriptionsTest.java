@@ -32,7 +32,7 @@ class ToolDescriptionsTest {
 
     @Test
     void toolsThatAreNotPortedYetSaySo() {
-        for (String id : List.of("rules", "copper_thieving", "calibration")) {
+        for (String id : List.of("copper_thieving", "calibration")) {
             assertTrue(ToolDescriptions.of(id).text().contains("Ainda não portada"), id);
         }
         // The ones that work do not claim otherwise.
