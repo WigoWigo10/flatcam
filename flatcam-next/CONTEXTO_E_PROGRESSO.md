@@ -10,7 +10,7 @@ e continuar a migração sem recomeçar a investigação.
 > (nenhuma resta), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0. A suíte tem **684 testes** (481 `flatcam-cam`, 95 `flatcam-application`, 108 `flatcam-fx`),
+> na seção 9.0. A suíte tem **695 testes** (481 `flatcam-cam`, 95 `flatcam-application`, 119 `flatcam-fx`),
 > sem falhas; 9 ficam ignorados porque dependem de um projeto real do Python (privado) indicado por
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
@@ -80,8 +80,8 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**684 testes registrados**: 481 em `flatcam-cam`, 95 em `flatcam-application` e 108 em `flatcam-fx`;
-675 executados, 0 falhas, 0 erros e
+**695 testes registrados**: 481 em `flatcam-cam`, 95 em `flatcam-application` e 119 em `flatcam-fx`;
+686 executados, 0 falhas, 0 erros e
 9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
@@ -1776,7 +1776,7 @@ Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
 geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
 ampliar a integração da Tools Database (editor já entregue), salvar `.FlatPrj` e completar parâmetros/validação dos pós-processadores.
-A suíte atual registra 684 testes (675 executados sem falhas, 9 ignorados); a validação manual dos painéis
+A suíte atual registra 695 testes (686 executados sem falhas, 9 ignorados); a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.
 
 ### Tools Database: editor visual/funcional (2026-10-01, após `9c229bba`)
@@ -1836,3 +1836,26 @@ temas no app e round-trip com a base pessoal do usuário aberta novamente no Pyt
 
 **Próximo passo recomendado nesta frente:** seleção/transferência de ferramenta da base para
 Geometry/Milling, Paint e Cutout, seguida de mapeamento explícito dos parâmetros ainda ignorados.
+
+### Tools Database: contraste das confirmações e tooltips (2026-10-01, após `358da42c`)
+
+As confirmações da base herdam explicitamente os stylesheets da janela atual. O botão padrão
+usa `-fc-accent` e `-fc-on-accent`, com estados hover/pressionado/foco nos dois estilos de
+componentes. Quatro testes JavaFX verificam contraste mínimo de 4,5:1 nos quatro temas e
+nesses estados; capturas sem janela visível foram inspecionadas.
+
+`ToolsDatabaseDescriptions` adiciona ajuda em português baseada em `ToolsDB2UI` do Python,
+cobrindo os 63 campos, seus rótulos, sete seções, oito botões, busca, filtro, lista e arquivo
+associado. Explica unidades, opções, dependências e quais campos ainda não são transferidos
+para CAM no FX. Rótulos continuam habilitados e permitem consultar a ajuda de inputs opcionais
+desabilitados. Aplicar/Salvar/Exportar têm explicações distintas sobre memória, disco e backup.
+
+Os textos usam título e corpo do `FluidTooltips`, com animação, quebra de linha e a paleta
+do tema atual, sem um segundo popup nativo concorrente. O menu de botão direito da base
+é registrado por `attachContextMenu`, após seus nós estarem disponíveis; fechar o menu
+fecha também sua ajuda. Não houve mudança de parâmetros, formato de arquivo ou geração CAM.
+
+Cinco testes verificam cobertura/conteúdo e dois verificam os metadados nos controles,
+rótulos (inclusive inputs desabilitados), seções e ações contextuais. `install` completo:
+695 registrados, 686 executados sem falhas/erros, 9 ignorados. Os testes cobrem conteúdo e
+integração nos nós; hover/animação e menus precisam da confirmação manual no app real.

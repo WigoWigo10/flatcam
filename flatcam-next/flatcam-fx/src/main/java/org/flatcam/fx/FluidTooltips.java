@@ -15,6 +15,7 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Cell;
 import javafx.scene.control.Control;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
@@ -26,6 +27,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Popup;
 import javafx.stage.Screen;
+import javafx.stage.WindowEvent;
 import javafx.util.Duration;
 
 /**
@@ -125,6 +127,12 @@ final class FluidTooltips {
                 attachMenu(submenu);
             }
         }
+    }
+
+    /** Context menus have a separate popup scene too; install after their item nodes exist. */
+    void attachContextMenu(ContextMenu menu) {
+        menu.addEventHandler(WindowEvent.WINDOW_SHOWN, event -> menu.getItems().forEach(this::install));
+        menu.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> closeNow());
     }
 
     private void install(MenuItem item) {

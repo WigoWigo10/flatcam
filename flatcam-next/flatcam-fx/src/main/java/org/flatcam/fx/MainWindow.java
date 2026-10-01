@@ -7072,6 +7072,7 @@ final class MainWindow {
         if (toolsDatabasePanel == null) {
             toolsDatabasePanel = new ToolsDatabasePanel(jobExecutor, () -> scene.getWindow(),
                     AppPreferences::saveToolsDatabasePath, file -> legacyIcon(file, 16));
+            fluidTooltips.attachContextMenu(toolsDatabasePanel.contextMenuForTooltips());
             String remembered = AppPreferences.loadToolsDatabasePath();
             if (!remembered.isBlank()) toolsDatabasePanel.loadPath(Path.of(remembered));
         }

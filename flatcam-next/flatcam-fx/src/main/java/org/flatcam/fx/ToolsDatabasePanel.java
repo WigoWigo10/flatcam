@@ -48,15 +48,21 @@ final class ToolsDatabasePanel extends BorderPane {
         setId("tools-database"); getStyleClass().add("tool-panel"); setPadding(new Insets(12));
         Label title = new Label("Tools Database", icons.apply("search_db32.png"));
         title.getStyleClass().add("tool-title");
+        ToolsDatabaseDescriptions.apply(title, "Tools Database", "Biblioteca reutilizável de ferramentas, compatível com .FlatDB do Python. Edite uma ferramenta por vez e use Save DB para persistir as alterações.");
         location.setWrapText(true); location.setId("db-location");
+        ToolsDatabaseDescriptions.apply(location, "Arquivo da base", "Mostra o arquivo associado à biblioteca. Nova base indica que ainda não há destino de gravação. O último arquivo importado ou salvo é lembrado entre sessões.");
         Label scope = new Label("Transferencia CAM: Isolation, NCC e Drilling. Os demais parametros sao editaveis e preservados no banco.");
         scope.setWrapText(true); scope.setMinWidth(0);
-        scope.setTooltip(new Tooltip("Nem todos os geradores FX consomem os parametros avancados. A base nao declara unidades: use valores na unidade do trabalho."));
+        scope.setId("db-scope");
+        ToolsDatabaseDescriptions.apply(scope, "Integração CAM e unidades", "Isolation, NCC e Drilling usam os parâmetros suportados da base aberta. Os demais campos são preservados, mas nem todos são transferidos para o CAM. A base não declara unidades: use valores na unidade do trabalho.");
         VBox header = new VBox(6, title, location, scope); header.setPadding(new Insets(0, 0, 10, 0)); setTop(header);
         search.setId("db-search"); search.setPromptText("Buscar nome, ID ou diametro...");
+        ToolsDatabaseDescriptions.apply(search, "Buscar ferramentas", "Filtra a lista por trecho do nome, ID ou diâmetro. Não remove ferramentas da base. Limpe o texto para voltar a mostrar os resultados. Atalho: Ctrl+F.");
         filter.setId("db-filter"); filter.getItems().add("Todas as operacoes"); filter.getItems().addAll(ToolsDatabase.TARGETS);
         filter.getSelectionModel().selectFirst(); filter.setMaxWidth(Double.MAX_VALUE);
+        ToolsDatabaseDescriptions.apply(filter, "Filtrar por operação", "Mostra as ferramentas da operação escolhida ou de todas as operações. O filtro é combinado com a busca e não altera nem exclui os registros da base.");
         table.setId("db-table"); table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        ToolsDatabaseDescriptions.apply(table, "Ferramentas da base", "ID identifica o registro; Tool Name é o nome; Dia é o diâmetro na unidade do trabalho. Selecione uma linha para editar. Use Ctrl/Shift para selecionar várias e copiar/excluir; o botão direito também oferece esses comandos.");
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         TableColumn<Row, Number> id = new TableColumn<>("ID"); id.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().id()));
         id.setMinWidth(36); id.setMaxWidth(65);
@@ -77,11 +83,18 @@ final class ToolsDatabasePanel extends BorderPane {
             int row = 0;
             for (var field : ToolsDatabaseFields.ALL) if (field.group() == group) {
                 Control control = createControl(field); controls.put(field, control);
-                control.setId("db-" + field.key()); control.setTooltip(new Tooltip(field.label() + " · " + field.key()));
+                control.setId("db-" + field.key());
+                String help = ToolsDatabaseDescriptions.fieldText(field);
+                ToolsDatabaseDescriptions.apply(control, group.label + " · " + field.label(), help);
                 control.setMaxWidth(Double.MAX_VALUE); GridPane.setHgrow(control, Priority.ALWAYS);
-                fields.addRow(row++, new Label(field.label() + ":"), control);
+                Label fieldLabel = new Label(field.label() + ":"); fieldLabel.setId("db-label-" + field.key());
+                // Labels remain enabled, so help is accessible when an optional input is disabled.
+                ToolsDatabaseDescriptions.apply(fieldLabel, group.label + " · " + field.label(), help);
+                fields.addRow(row++, fieldLabel, control);
             }
             TitledPane pane = new TitledPane(group.label, fields); pane.setGraphic(icons.apply(group.icon));
+            pane.setId("db-group-" + group.name().toLowerCase(Locale.ROOT));
+            ToolsDatabaseDescriptions.apply(pane, group.label, ToolsDatabaseDescriptions.groupText(group) + " Clique no título para recolher ou expandir a seção.");
             pane.setPrefWidth(310); pane.setMinWidth(275); pane.setExpanded(true);
             groups.put(group, pane);
         }
@@ -130,14 +143,17 @@ final class ToolsDatabasePanel extends BorderPane {
     }
 
     private Button button(String label, String icon, String id, Runnable action) {
-        Button button = new Button(label, icons.apply(icon)); button.setId(id); button.setTooltip(new Tooltip(label));
+        Button button = new Button(label, icons.apply(icon)); button.setId(id);
+        ToolsDatabaseDescriptions.apply(button, label, ToolsDatabaseDescriptions.actionText(label));
         button.setOnAction(e -> { if (!busy.get()) action.run(); }); return button;
     }
     private ContextMenu contextMenu() {
         ContextMenu menu = new ContextMenu();
         for (var action : List.of(button("Adicionar ferramenta", "plus16.png", "", this::add),
                 button("Copiar", "copy32.png", "", this::duplicate), button("Excluir", "trash16.png", "", this::delete))) {
-            MenuItem item = new MenuItem(action.getText(), action.getGraphic()); item.setOnAction(e -> action.fire()); menu.getItems().add(item);
+            MenuItem item = new MenuItem(action.getText(), action.getGraphic());
+            ToolDescriptions.apply(item.getProperties(), action.getText(), ToolsDatabaseDescriptions.actionText(action.getText()));
+            item.setOnAction(e -> action.fire()); menu.getItems().add(item);
         }
         menu.setAutoHide(true); return menu;
     }
@@ -263,6 +279,7 @@ final class ToolsDatabasePanel extends BorderPane {
     BooleanProperty dirtyProperty() { return dirty; }
     boolean isBusy() { return busy.get(); }
     void hideContextMenu() { table.getContextMenu().hide(); }
+    ContextMenu contextMenuForTooltips() { return table.getContextMenu(); }
 
     private void refresh(Integer select) {
         loading = true;
@@ -306,9 +323,18 @@ final class ToolsDatabasePanel extends BorderPane {
         database.remove(ids); changed.clear(); editing = null; dirty.set(true); refresh(null); loadEditor(null);
     }
     private boolean confirm(String title, String message) {
+        return confirmationDialog(title, message).showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+    }
+    Alert confirmationDialog(String title, String message) {
         Alert dialog = new Alert(Alert.AlertType.CONFIRMATION, message, ButtonType.OK, ButtonType.CANCEL);
-        dialog.setTitle("Tools Database"); dialog.setHeaderText(title); if (owner.get() != null) dialog.initOwner(owner.get());
-        return dialog.showAndWait().orElse(ButtonType.CANCEL) == ButtonType.OK;
+        dialog.setTitle("Tools Database"); dialog.setHeaderText(title);
+        Window window = owner.get();
+        if (window != null) {
+            dialog.initOwner(window);
+            // Alerts have their own scene; inherit the current palette explicitly.
+            if (window.getScene() != null) dialog.getDialogPane().getStylesheets().setAll(window.getScene().getStylesheets());
+        }
+        return dialog;
     }
     boolean confirmClose() {
         if (busy.get()) { feedback.setText("Aguarde o carregamento/salvamento antes de fechar."); return false; }

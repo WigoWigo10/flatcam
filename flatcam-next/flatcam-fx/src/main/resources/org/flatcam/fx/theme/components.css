@@ -4,6 +4,29 @@
  * original white/black themes keep their older component rules separately.
  */
 
+/* Explicit on-accent text keeps confirmation buttons readable in dark dialogs. */
+.dialog-pane .button:default {
+    -fx-background-color: -fc-accent;
+    -fx-background-insets: 0;
+    -fx-text-fill: -fc-on-accent;
+    -fx-border-color: derive(-fc-accent, -20%);
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-font-weight: bold;
+}
+
+.dialog-pane .button:default:hover {
+    -fx-background-color: derive(-fc-accent, -8%);
+}
+
+.dialog-pane .button:default:armed {
+    -fx-background-color: derive(-fc-accent, -10%);
+}
+
+.dialog-pane .button:default:focused {
+    -fx-border-color: -fc-panel-text;
+}
+
 .side-panel {
     -fx-background-color: -fc-panel-bg;
     -fx-padding: 6;

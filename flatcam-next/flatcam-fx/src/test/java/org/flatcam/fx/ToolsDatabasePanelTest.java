@@ -75,6 +75,45 @@ class ToolsDatabasePanelTest {
         Set<String> pythonKeys = new HashSet<>(); while (matcher.find()) pythonKeys.add(matcher.group(1));
         assertEquals(pythonKeys, new HashSet<>(ToolsDatabaseFields.ALL.stream().map(ToolsDatabaseFields.Field::key).toList()));
     }
+    @Test void fieldsAndEnabledLabelsCarryTheSameAnimatedHelpIncludingDisabledInputs() throws Exception {
+        onFx(() -> {
+            var panel = panel(); fire(panel, "add");
+            for (var field : ToolsDatabaseFields.ALL) {
+                var input = (Control) panel.lookup("#db-" + field.key());
+                var label = (Label) panel.lookup("#db-label-" + field.key());
+                assertNotNull(input.getProperties().get(FluidTooltips.TITLE_KEY), field.key());
+                assertEquals(ToolsDatabaseDescriptions.fieldText(field), input.getProperties().get(FluidTooltips.TEXT_KEY));
+                assertEquals(input.getProperties().get(FluidTooltips.TEXT_KEY), label.getProperties().get(FluidTooltips.TEXT_KEY));
+                assertFalse(label.isDisabled()); assertNull(input.getTooltip());
+            }
+            assertTrue(text(panel, "depthperpass").isDisabled());
+            assertTrue(panel.lookup("#db-label-depthperpass").getProperties().get(FluidTooltips.TEXT_KEY).toString().contains("Multi-Depth"));
+            choose(panel, "tool_target", 5); panel.applyDraft();
+            assertEquals(ToolsDatabaseDescriptions.fieldText(ToolsDatabaseFields.ALL.stream().filter(f -> f.key().equals("tools_ncc_overlap")).findFirst().orElseThrow()),
+                    panel.lookup("#db-tools_ncc_overlap").getProperties().get(FluidTooltips.TEXT_KEY));
+            return null;
+        });
+    }
+    @Test void toolbarFiltersTableSectionsAndContextActionsHaveHelpWithoutCompetingNativePopups() throws Exception {
+        onFx(() -> {
+            var panel = panel();
+            for (String id : List.of("add", "copy", "delete", "apply", "new", "import", "export", "save", "search", "filter", "table", "scope", "location")) {
+                var control = (Control) panel.lookup("#db-" + id);
+                assertNotNull(control.getProperties().get(FluidTooltips.TITLE_KEY), id);
+                assertTrue(control.getProperties().get(FluidTooltips.TEXT_KEY).toString().length() > 70, id);
+                assertNull(control.getTooltip(), id);
+            }
+            for (var group : ToolsDatabaseFields.Group.values()) {
+                var pane = panel.lookup("#db-group-" + group.name().toLowerCase(Locale.ROOT));
+                assertTrue(pane.getProperties().get(FluidTooltips.TEXT_KEY).toString().contains("recolher ou expandir"));
+            }
+            for (var item : panel.contextMenuForTooltips().getItems()) {
+                assertEquals(item.getText(), item.getProperties().get(FluidTooltips.TITLE_KEY));
+                assertEquals(ToolsDatabaseDescriptions.actionText(item.getText()), item.getProperties().get(FluidTooltips.TEXT_KEY));
+            }
+            return null;
+        });
+    }
     @Test void selectionAppliesValidDraftToOldToolAndKeepsNewRowSelected() throws Exception {
         onFx(() -> {
             var panel = panel(); fire(panel, "add"); fire(panel, "add");
