@@ -67,7 +67,7 @@ final class PlotAreaView extends StackPane {
 
     /** The last density image of a layer and the view it was made for: identical views reuse it. */
     private record DenseFrame(Geometry geometry, double scale, double centerX, double centerY, int width, int height,
-                              Color color, javafx.scene.image.WritableImage image) {
+                              Color color, double lineWidth, javafx.scene.image.WritableImage image) {
     }
 
     /** A cheaper visual-only CNC path used while the precise buffered stroke is subpixel. */
@@ -1769,21 +1769,22 @@ final class PlotAreaView extends StackPane {
         DenseFrame frame = denseFrames.get(key);
         if (frame == null || frame.geometry() != index.geometry() || frame.scale() != scale
                 || frame.centerX() != viewCenterX || frame.centerY() != viewCenterY || frame.width() != width
-                || frame.height() != height || !frame.color().equals(color)) {
+                || frame.height() != height || !frame.color().equals(color) || frame.lineWidth() != lineWidth) {
             int pixels = width * height;
             if (denseCover.length < pixels) {
                 denseCover = new short[pixels];
                 densePixels = new int[pixels];
             }
             DensityRaster.rasterize(index.visibleParts(viewBounds), scale, contentWidth / 2.0 - viewCenterX * scale,
-                    contentHeight / 2.0 + viewCenterY * scale, width, height, denseCover);
+                    contentHeight / 2.0 + viewCenterY * scale, width, height, denseCover, lineWidth);
             DensityRaster.toPremultipliedArgb(denseCover, pixels, color.getRed(), color.getGreen(), color.getBlue(),
                     color.getOpacity(), densePixels);
             javafx.scene.image.WritableImage image = frame != null && frame.width() == width
                     && frame.height() == height ? frame.image() : new javafx.scene.image.WritableImage(width, height);
             image.getPixelWriter().setPixels(0, 0, width, height,
                     javafx.scene.image.PixelFormat.getIntArgbPreInstance(), densePixels, 0, width);
-            frame = new DenseFrame(index.geometry(), scale, viewCenterX, viewCenterY, width, height, color, image);
+            frame = new DenseFrame(index.geometry(), scale, viewCenterX, viewCenterY, width, height, color, lineWidth,
+                    image);
             denseFrames.put(key, frame);
         }
         gc.drawImage(frame.image(), RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);

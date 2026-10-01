@@ -12,9 +12,13 @@ import org.locationtech.jts.geom.Polygon;
 /**
  * Density level of detail for the Plot Area. Past a few thousand tiny, packed line segments the Canvas spends tens
  * to hundreds of milliseconds executing the strokes of a picture that is already a solid colour. This draws the same
- * segments straight into a per-pixel count on the CPU - in parallel horizontal bands, each owning its own rows - and
- * turns the counts into one image: a pixel crossed by {@code n} lines gets {@code 1 - (1 - a)^n} of the stroke
- * opacity {@code a}, so thin lines stay lines and a packed area saturates.
+ * segments straight into a per-pixel <em>coverage</em> on the CPU - in parallel horizontal bands, each owning its own
+ * rows - and turns the coverage into one image.
+ *
+ * <p>Each segment is a stroke of the layer's real width: every pixel it touches gets the exact area the stroke covers
+ * in it (so the picture is anti-aliased like the vector one, and lines packed closer than a pixel add up instead of
+ * leaving gaps). Coverage {@code S} (in line-widths) of opacity {@code a} becomes the alpha {@code a * S} up to one
+ * full line and {@code 1 - (1 - a)^S} beyond, so a lone line keeps its look and a packed area saturates.
  *
  * <p>Pure computation, no JavaFX: the view only wraps the pixels in an image.
  */
@@ -23,8 +27,11 @@ final class DensityRaster {
     /** {@code -Dflatcam.plot.density=false} turns the mode off, to compare against the plain vector drawing. */
     private static final boolean ENABLED = !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density"));
 
-    /** Counts above this look the same as it; the table below stops there. */
-    static final int MAX_COUNT = 63;
+    /** Coverage is kept in 1/32 of a pixel of stroke area. */
+    static final int UNITS = 32;
+
+    /** Coverage beyond this many full pixels of stroke looks the same as it; the table below stops there. */
+    static final int MAX_COVERAGE = 63;
 
     /** Below this many segments the vector Canvas is both faster and prettier. */
     static final int MIN_SEGMENTS = 2_500;
@@ -61,56 +68,61 @@ final class DensityRaster {
     }
 
     /**
-     * Counts every segment of {@code parts} into {@code cover} ({@code width * height} counts, row 0 on top). A world
-     * point maps to pixel {@code (x * scale + offsetX, offsetY - y * scale)}.
+     * Accumulates the stroke coverage (in {@link #UNITS} per pixel of area) of every segment of {@code parts} into
+     * {@code cover} ({@code width * height} values, row 0 on top). A world point maps to pixel
+     * {@code (x * scale + offsetX, offsetY - y * scale)}; {@code lineWidth} is the stroke width in pixels.
      */
     static void rasterize(List<PlotDrawableIndex.Part> parts, double scale, double offsetX, double offsetY,
-                          int width, int height, short[] cover) {
-        rasterize(parts, scale, offsetX, offsetY, width, height, cover, true);
+                          int width, int height, short[] cover, double lineWidth) {
+        rasterize(parts, scale, offsetX, offsetY, width, height, cover, lineWidth, true);
     }
 
     static void rasterize(List<PlotDrawableIndex.Part> parts, double scale, double offsetX, double offsetY,
-                          int width, int height, short[] cover, boolean parallel) {
+                          int width, int height, short[] cover, double lineWidth, boolean parallel) {
         Arrays.fill(cover, 0, width * height, (short) 0);
         int bands = Math.max(1, Math.min(height, Runtime.getRuntime().availableProcessors()));
         if (!parallel || parts.size() < 64 || bands == 1) {
-            drawBand(parts, scale, offsetX, offsetY, width, height, 0, height, cover);
+            drawBand(parts, scale, offsetX, offsetY, width, height, 0, height, cover, lineWidth);
             return;
         }
         IntStream.range(0, bands).parallel().forEach(band ->
                 drawBand(parts, scale, offsetX, offsetY, width, height, height * band / bands,
-                        height * (band + 1) / bands, cover));
+                        height * (band + 1) / bands, cover, lineWidth));
     }
 
     private static void drawBand(List<PlotDrawableIndex.Part> parts, double scale, double offsetX, double offsetY,
-                                 int width, int height, int rowStart, int rowEnd, short[] cover) {
+                                 int width, int height, int rowStart, int rowEnd, short[] cover, double lineWidth) {
+        double reach = lineWidth / 2 + 1;
         for (PlotDrawableIndex.Part part : parts) {
             // Skip parts that cannot touch this band's rows (screen y grows as world y falls).
             double top = offsetY - part.bounds().getMaxY() * scale;
             double bottom = offsetY - part.bounds().getMinY() * scale;
-            if (bottom < rowStart - 1 || top > rowEnd + 1) {
+            if (bottom < rowStart - reach || top > rowEnd + reach) {
                 continue;
             }
-            drawGeometry(part.geometry(), scale, offsetX, offsetY, width, height, rowStart, rowEnd, cover);
+            drawGeometry(part.geometry(), scale, offsetX, offsetY, width, height, rowStart, rowEnd, cover, lineWidth);
         }
     }
 
     private static void drawGeometry(Geometry geometry, double scale, double offsetX, double offsetY, int width,
-                                     int height, int rowStart, int rowEnd, short[] cover) {
+                                     int height, int rowStart, int rowEnd, short[] cover, double lineWidth) {
         if (geometry instanceof LineString line) {
-            drawSequence(line.getCoordinateSequence(), scale, offsetX, offsetY, width, height, rowStart, rowEnd, cover);
+            drawSequence(line.getCoordinateSequence(), scale, offsetX, offsetY, width, height, rowStart, rowEnd, cover,
+                    lineWidth);
         } else if (geometry instanceof Polygon polygon) {
             // Same as the vector path of a stroke-only layer: the exterior ring.
             drawSequence(polygon.getExteriorRing().getCoordinateSequence(), scale, offsetX, offsetY, width, height,
-                    rowStart, rowEnd, cover);
+                    rowStart, rowEnd, cover, lineWidth);
         } else if (geometry instanceof Point point && !point.isEmpty()) {
-            plot(cover, width, rowStart, rowEnd, (int) Math.floor(point.getX() * scale + offsetX),
-                    (int) Math.floor(offsetY - point.getY() * scale));
+            double x = point.getX() * scale + offsetX;
+            double y = offsetY - point.getY() * scale;
+            dot(x, y, width, rowStart, rowEnd, cover, lineWidth);
         }
     }
 
     private static void drawSequence(CoordinateSequence sequence, double scale, double offsetX, double offsetY,
-                                     int width, int height, int rowStart, int rowEnd, short[] cover) {
+                                     int width, int height, int rowStart, int rowEnd, short[] cover,
+                                     double lineWidth) {
         int size = sequence.size();
         if (size == 0) {
             return;
@@ -118,109 +130,175 @@ final class DensityRaster {
         double previousX = sequence.getX(0) * scale + offsetX;
         double previousY = offsetY - sequence.getY(0) * scale;
         if (size == 1) {
-            plot(cover, width, rowStart, rowEnd, (int) Math.floor(previousX), (int) Math.floor(previousY));
+            dot(previousX, previousY, width, rowStart, rowEnd, cover, lineWidth);
             return;
         }
         for (int i = 1; i < size; i++) {
             double x = sequence.getX(i) * scale + offsetX;
             double y = offsetY - sequence.getY(i) * scale;
-            drawSegment(previousX, previousY, x, y, width, height, rowStart, rowEnd, cover);
+            drawSegment(previousX, previousY, x, y, width, height, rowStart, rowEnd, cover, lineWidth);
             previousX = x;
             previousY = y;
         }
     }
 
+    /** A single point: a small square of the stroke width, put in the pixel it falls in. */
+    private static void dot(double x, double y, int width, int rowStart, int rowEnd, short[] cover, double lineWidth) {
+        int column = (int) Math.floor(x);
+        int row = (int) Math.floor(y);
+        if (column >= 0 && column < width && row >= rowStart && row < rowEnd) {
+            add(cover, row * width + column, Math.min(1, lineWidth * lineWidth));
+        }
+    }
+
     /**
-     * Liang-Barsky clip to the whole image (so a segment far outside the view costs nothing, and every band sees the
-     * very same clipped segment), then the DDA walk of that segment. Each band only plots the steps that land in its
-     * rows, taken from the same step positions, so the counts do not depend on how many bands there are.
+     * Clips the segment to the whole image (so a segment far outside the view costs nothing and every band sees the very
+     * same clipped segment), then walks it one pixel of its major axis at a time, adding to each pixel crossed the area
+     * of the stroke inside it. A band only handles the pixels of its own rows, from the same samples, so the result
+     * does not depend on how many bands there are.
      */
     private static void drawSegment(double x0, double y0, double x1, double y1, int width, int height, int rowStart,
-                                    int rowEnd, short[] cover) {
+                                    int rowEnd, short[] cover, double lineWidth) {
         if (!Double.isFinite(x0) || !Double.isFinite(y0) || !Double.isFinite(x1) || !Double.isFinite(y1)) {
             return;
         }
+        // The stroke reaches half a width past the segment: clip a little beyond the image so its edge pixels count.
+        double margin = lineWidth / 2 + 1;
         double dx = x1 - x0;
         double dy = y1 - y0;
-        double t0 = 0;
-        double t1 = 1;
-        double[] p = {-dx, dx, -dy, dy};
-        double[] q = {x0, width - x0, y0, height - y0};
-        for (int i = 0; i < 4; i++) {
-            if (p[i] == 0) {
-                if (q[i] < 0) {
-                    return;
-                }
-            } else {
-                double t = q[i] / p[i];
-                if (p[i] < 0) {
-                    if (t > t1) {
+        double cx = x0;
+        double cy = y0;
+        double sx = dx;
+        double sy = dy;
+        boolean inside = x0 >= -margin && x0 <= width + margin && x1 >= -margin && x1 <= width + margin
+                && y0 >= -margin && y0 <= height + margin && y1 >= -margin && y1 <= height + margin;
+        if (!inside) {
+            // Liang-Barsky, written out (this runs for millions of segments: no arrays, no allocation).
+            double t0 = 0;
+            double t1 = 1;
+            for (int side = 0; side < 4; side++) {
+                double pp = side == 0 ? -dx : side == 1 ? dx : side == 2 ? -dy : dy;
+                double qq = side == 0 ? x0 + margin : side == 1 ? width + margin - x0
+                        : side == 2 ? y0 + margin : height + margin - y0;
+                if (pp == 0) {
+                    if (qq < 0) {
                         return;
                     }
-                    t0 = Math.max(t0, t);
                 } else {
-                    if (t < t0) {
-                        return;
+                    double t = qq / pp;
+                    if (pp < 0) {
+                        if (t > t1) {
+                            return;
+                        }
+                        t0 = Math.max(t0, t);
+                    } else {
+                        if (t < t0) {
+                            return;
+                        }
+                        t1 = Math.min(t1, t);
                     }
-                    t1 = Math.min(t1, t);
                 }
             }
+            cx = x0 + t0 * dx;
+            cy = y0 + t0 * dy;
+            sx = (x0 + t1 * dx) - cx;
+            sy = (y0 + t1 * dy) - cy;
         }
-        double cx = x0 + t0 * dx;
-        double cy = y0 + t0 * dy;
-        double ex = x0 + t1 * dx;
-        double ey = y0 + t1 * dy;
-        int steps = (int) Math.ceil(Math.max(Math.abs(ex - cx), Math.abs(ey - cy)));
-        if (steps <= 0) {
-            plot(cover, width, rowStart, rowEnd, (int) Math.floor(cx), (int) Math.floor(cy));
+        double length = Math.hypot(sx, sy);
+        if (length < 1e-9) {
+            dot(cx, cy, width, rowStart, rowEnd, cover, lineWidth);
             return;
         }
-        double stepX = (ex - cx) / steps;
-        double stepY = (ey - cy) / steps;
+        boolean xMajor = Math.abs(sx) >= Math.abs(sy);
+        double major = xMajor ? Math.abs(sx) : Math.abs(sy);
+        int steps = Math.max(1, (int) Math.ceil(major));
+        // Share of one pixel along the major axis that each sample stands for (<= 1).
+        double extent = major / steps;
+        // Half the stroke measured along the minor axis: a slanted line is wider there by length / major.
+        double half = lineWidth / 2 * length / major;
+        // The samples whose stroke can reach this band's rows. Rows run along the minor axis for an x-major segment
+        // (the stroke reaches half past the centre line) and along the major axis otherwise.
+        double reach = xMajor ? half : 0;
         int from = 0;
-        int to = steps;
-        if (Math.abs(stepY) > 1e-12) {
-            double a = (rowStart - cy) / stepY;
-            double b = (rowEnd - cy) / stepY;
-            from = Math.max(0, (int) Math.floor(Math.min(a, b)) - 1);
-            to = Math.min(steps, (int) Math.ceil(Math.max(a, b)) + 1);
-        } else if (cy < rowStart || cy >= rowEnd) {
+        int to = steps - 1;
+        if (Math.abs(sy) > 1e-12) {
+            double a = (rowStart - reach - cy) / sy;
+            double b = (rowEnd + reach - cy) / sy;
+            from = Math.max(0, (int) Math.floor(Math.min(a, b) * steps) - 1);
+            to = Math.min(steps - 1, (int) Math.ceil(Math.max(a, b) * steps) + 1);
+        } else if (cy + reach < rowStart || cy - reach >= rowEnd) {
             return;
         }
-        for (int s = from; s <= to; s++) {
-            plot(cover, width, rowStart, rowEnd, (int) Math.floor(cx + s * stepX), (int) Math.floor(cy + s * stepY));
-        }
-    }
-
-    private static void plot(short[] cover, int width, int rowStart, int rowEnd, int x, int y) {
-        if (x >= 0 && x < width && y >= rowStart && y < rowEnd) {
-            int index = y * width + x;
-            if (cover[index] < Short.MAX_VALUE) {
-                cover[index]++;
+        for (int i = from; i <= to; i++) {
+            double t = (i + 0.5) / steps;
+            double x = cx + t * sx;
+            double y = cy + t * sy;
+            if (xMajor) {
+                addColumn(cover, width, rowStart, rowEnd, (int) Math.floor(x), y - half, y + half, extent);
+            } else {
+                addRow(cover, width, rowStart, rowEnd, (int) Math.floor(y), x - half, x + half, extent);
             }
         }
     }
 
-    /**
-     * The counts as premultiplied ARGB pixels for a colour with the given 0..1 channels and opacity: a pixel crossed
-     * by {@code n} lines carries {@code 1 - (1 - opacity)^n}.
-     */
+    /** Adds the area of the vertical interval [low, high) in column {@code column}, weighted by {@code extent}. */
+    private static void addColumn(short[] cover, int width, int rowStart, int rowEnd, int column, double low,
+                                  double high, double extent) {
+        if (column < 0 || column >= width) {
+            return;
+        }
+        int first = Math.max(rowStart, (int) Math.floor(low));
+        int last = Math.min(rowEnd - 1, (int) Math.floor(high));
+        for (int row = first; row <= last; row++) {
+            double overlap = Math.min(high, row + 1) - Math.max(low, row);
+            if (overlap > 0) {
+                add(cover, row * width + column, overlap * extent);
+            }
+        }
+    }
+
+    /** Adds the area of the horizontal interval [low, high) in row {@code row}, weighted by {@code extent}. */
+    private static void addRow(short[] cover, int width, int rowStart, int rowEnd, int row, double low, double high,
+                               double extent) {
+        if (row < rowStart || row >= rowEnd) {
+            return;
+        }
+        int first = Math.max(0, (int) Math.floor(low));
+        int last = Math.min(width - 1, (int) Math.floor(high));
+        for (int column = first; column <= last; column++) {
+            double overlap = Math.min(high, column + 1) - Math.max(low, column);
+            if (overlap > 0) {
+                add(cover, row * width + column, overlap * extent);
+            }
+        }
+    }
+
+    private static void add(short[] cover, int index, double area) {
+        int units = (int) (area * UNITS + 0.5);
+        if (units > 0) {
+            cover[index] = (short) Math.min(Short.MAX_VALUE, cover[index] + units);
+        }
+    }
+
+    /** The coverage as premultiplied ARGB pixels for a colour with the given 0..1 channels and opacity. */
     static void toPremultipliedArgb(short[] cover, int pixels, double red, double green, double blue, double opacity,
                                     int[] out) {
-        int[] table = new int[MAX_COUNT + 1];
-        for (int n = 1; n <= MAX_COUNT; n++) {
-            double alpha = 1 - Math.pow(1 - Math.min(1, Math.max(0, opacity)), n);
-            int a = (int) Math.round(alpha * 255);
-            table[n] = (a << 24) | ((int) Math.round(red * alpha * 255) << 16)
+        double a = Math.min(1, Math.max(0, opacity));
+        int[] table = new int[MAX_COVERAGE * UNITS + 1];
+        for (int u = 1; u < table.length; u++) {
+            double s = (double) u / UNITS;
+            double alpha = s <= 1 ? a * s : 1 - Math.pow(1 - a, s);
+            int alpha8 = (int) Math.round(alpha * 255);
+            table[u] = (alpha8 << 24) | ((int) Math.round(red * alpha * 255) << 16)
                     | ((int) Math.round(green * alpha * 255) << 8) | (int) Math.round(blue * alpha * 255);
         }
-        IntStream.range(0, Math.max(1, Math.min(8, pixels / 100_000 + 1))).parallel().forEach(chunk -> {
-            int chunks = Math.max(1, Math.min(8, pixels / 100_000 + 1));
+        int chunks = Math.max(1, Math.min(8, pixels / 100_000 + 1));
+        IntStream.range(0, chunks).parallel().forEach(chunk -> {
             int from = (int) ((long) pixels * chunk / chunks);
             int to = (int) ((long) pixels * (chunk + 1) / chunks);
             for (int i = from; i < to; i++) {
-                int n = cover[i];
-                out[i] = n <= 0 ? 0 : table[Math.min(n, MAX_COUNT)];
+                int u = cover[i];
+                out[i] = u <= 0 ? 0 : table[Math.min(u, table.length - 1)];
             }
         });
     }

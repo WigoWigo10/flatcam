@@ -31,16 +31,57 @@ class DensityRasterTest {
         return new PlotDrawableIndex(geometry).visibleParts(null);
     }
 
+    private static int sum(short[] cover) {
+        return java.util.stream.IntStream.range(0, cover.length).map(i -> cover[i]).sum();
+    }
+
     @Test
-    void aLineFillsItsRowAndNothingElse() {
+    void aLineCoversExactlyItsStrokeArea() {
         short[] cover = new short[10 * 10];
-        // World y = 5 maps to pixel row 10 - 5 = 5 with offsetY = 10.
-        DensityRaster.rasterize(parts(line(0, 5, 9, 5)), 1, 0, 10, 10, 10, cover);
-        for (int y = 0; y < 10; y++) {
-            for (int x = 0; x < 10; x++) {
-                assertEquals(y == 5 && x <= 9 ? 1 : 0, cover[y * 10 + x], "pixel " + x + "," + y);
-            }
+        // World y = 5 maps to the pixel edge between rows 4 and 5 (offsetY = 10); a 2 px wide stroke covers both rows.
+        DensityRaster.rasterize(parts(line(0, 5, 9, 5)), 1, 0, 10, 10, 10, cover, 2.0);
+        for (int x = 0; x < 9; x++) {
+            assertEquals(DensityRaster.UNITS, cover[4 * 10 + x], "row 4, column " + x);
+            assertEquals(DensityRaster.UNITS, cover[5 * 10 + x], "row 5, column " + x);
+            assertEquals(0, cover[3 * 10 + x]);
+            assertEquals(0, cover[6 * 10 + x]);
         }
+        // 9 px long x 2 px wide = 18 px of area.
+        assertEquals(18 * DensityRaster.UNITS, sum(cover), 18);
+    }
+
+    @Test
+    void aThinLineIsAntiAliasedAcrossTheRowsItStraddles() {
+        short[] cover = new short[10 * 10];
+        // A 1.5 px stroke centred on a pixel edge: 0.75 of each of the two rows it touches.
+        DensityRaster.rasterize(parts(line(0, 5, 9, 5)), 1, 0, 10, 10, 10, cover, 1.5);
+        assertEquals(0.75 * DensityRaster.UNITS, cover[4 * 10 + 4], 1);
+        assertEquals(0.75 * DensityRaster.UNITS, cover[5 * 10 + 4], 1);
+        assertEquals(0, cover[6 * 10 + 4]);
+    }
+
+    @Test
+    void closelyPackedLinesAddUpInsteadOfLeavingGaps() {
+        // Eight horizontal 1.5 px strokes 0.8 px apart: every pixel row in the span is covered by at least one line's
+        // full width (1 pixel of stroke area per pixel), where 1 px aliased lines would skip rows.
+        List<Geometry> lines = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            lines.add(line(0, 10 + i * 0.8, 19, 10 + i * 0.8));
+        }
+        short[] cover = new short[20 * 30];
+        DensityRaster.rasterize(parts(FACTORY.buildGeometry(lines)), 1, 0, 30, 20, 30, cover, 1.5);
+        for (int row = 16; row <= 19; row++) {
+            assertTrue(cover[row * 20 + 8] >= DensityRaster.UNITS, "row " + row + " has coverage " + cover[row * 20 + 8]);
+        }
+    }
+
+    @Test
+    void aSlantedLineHasTheSameAreaAsALongerHorizontalOneOfEqualLength() {
+        short[] flat = new short[200 * 200];
+        short[] slanted = new short[200 * 200];
+        DensityRaster.rasterize(parts(line(10, 100, 110, 100)), 1, 0, 200, 200, 200, flat, 1.5);
+        DensityRaster.rasterize(parts(line(10, 100, 70, 180)), 1, 0, 200, 200, 200, slanted, 1.5);  // length 100
+        assertEquals(sum(flat), sum(slanted), sum(flat) * 0.03);
     }
 
     @Test
@@ -48,20 +89,16 @@ class DensityRasterTest {
         short[] cover = new short[100 * 100];
         Geometry huge = line(-1e12, 50, 1e12, 50);
         assertTimeoutPreemptively(Duration.ofSeconds(2),
-                () -> DensityRaster.rasterize(parts(huge), 1, 0, 100, 100, 100, cover));
-        int row = 0;
-        for (int x = 0; x < 100; x++) {
-            row += cover[50 * 100 + x];
-        }
-        assertEquals(100, row);
+                () -> DensityRaster.rasterize(parts(huge), 1, 0, 100, 100, 100, cover, 1.5));
+        assertEquals(1.5 * 100 * DensityRaster.UNITS, sum(cover), 100);
         // Entirely outside: nothing drawn and nothing blows up.
         short[] none = new short[100 * 100];
-        DensityRaster.rasterize(parts(line(500, 500, 900, 900)), 1, 0, 100, 100, 100, none);
-        assertEquals(0, java.util.stream.IntStream.range(0, none.length).map(i -> none[i]).sum());
+        DensityRaster.rasterize(parts(line(500, 500, 900, 900)), 1, 0, 100, 100, 100, none, 1.5);
+        assertEquals(0, sum(none));
     }
 
     @Test
-    void parallelBandsGiveTheSameCountsAsASingleThread() {
+    void parallelBandsGiveTheSameCoverageAsASingleThread() {
         Random random = new Random(7);
         List<Geometry> lines = new ArrayList<>();
         for (int i = 0; i < 400; i++) {
@@ -72,24 +109,30 @@ class DensityRasterTest {
         List<PlotDrawableIndex.Part> parts = parts(FACTORY.buildGeometry(lines));
         short[] single = new short[120 * 90];
         short[] parallel = new short[120 * 90];
-        DensityRaster.rasterize(parts, 0.8, 5, 80, 120, 90, single, false);
-        DensityRaster.rasterize(parts, 0.8, 5, 80, 120, 90, parallel, true);
+        DensityRaster.rasterize(parts, 0.8, 5, 80, 120, 90, single, 1.5, false);
+        DensityRaster.rasterize(parts, 0.8, 5, 80, 120, 90, parallel, 1.5, true);
         assertArrayEquals(single, parallel);
-        assertTrue(java.util.stream.IntStream.range(0, single.length).map(i -> single[i]).sum() > 1000);
+        assertTrue(sum(single) > 1000 * DensityRaster.UNITS);
     }
 
     @Test
-    void overlappingLinesSaturateTowardsTheStrokeOpacity() {
-        short[] cover = {0, 1, 2, 63, 500};
+    void coverageTurnsIntoAlphaLinearlyUpToOneLineAndSaturatesBeyond() {
+        int u = DensityRaster.UNITS;
+        short[] cover = {0, (short) (u / 2), (short) u, (short) (2 * u), (short) (63 * u), 30000};
         int[] argb = new int[cover.length];
         DensityRaster.toPremultipliedArgb(cover, cover.length, 1, 0, 0, 0.5, argb);
         assertEquals(0, argb[0]);
-        assertEquals(128, argb[1] >>> 24);                    // one line: half opacity
-        assertEquals(191, argb[2] >>> 24);                    // two lines: 1 - 0.5^2 = 0.75
-        assertEquals(255, argb[3] >>> 24);                    // many lines: solid
-        assertEquals(argb[3], argb[4]);                       // counts past the table look the same
-        assertEquals(128, (argb[1] >> 16) & 0xFF);            // premultiplied red
-        assertEquals(0, argb[1] & 0xFFFF);
+        assertEquals(64, argb[1] >>> 24);                     // half a line of a 0.5 stroke: 0.25
+        assertEquals(128, argb[2] >>> 24);                    // one full line: the stroke opacity
+        assertEquals(191, argb[3] >>> 24);                    // two lines: 1 - 0.5^2 = 0.75
+        assertEquals(255, argb[4] >>> 24);                    // very many: solid
+        assertEquals(argb[4], argb[5]);                       // beyond the table looks the same
+        assertEquals(128, (argb[2] >> 16) & 0xFF);            // premultiplied red
+        assertEquals(0, argb[2] & 0xFFFF);
+        // A fully opaque stroke: a partial pixel stays partial (anti-aliased edge), one line is solid.
+        DensityRaster.toPremultipliedArgb(cover, cover.length, 0, 1, 0, 1.0, argb);
+        assertEquals(128, argb[1] >>> 24);
+        assertEquals(255, argb[2] >>> 24);
     }
 
     @Test

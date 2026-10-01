@@ -123,30 +123,37 @@ PowerShell com `Remove-Item Env:JAVA_TOOL_OPTIONS`.
 ## LOD por densidade (camada 1)
 
 O zoom adaptativo anterior só omitia vértices subpixel e cortava partes fora da tela; nada reduzia a **quantidade de
-traços** enviados ao `Canvas`. Com milhares de segmentos minusculos e juntos (uma Geometry muito densa vista de longe)
-o custo estava na **execucao** dos strokes pelo Prism, nao na thread JavaFX: o `slow redraw` mostra poucos ms, mas o
+traços** enviados ao `Canvas`. Com milhares de segmentos minúsculos e juntos (uma Geometry muito densa vista de longe)
+o custo estava na **execução** dos strokes pelo Prism, não na thread JavaFX: o `slow redraw` mostra poucos ms, mas o
 pulso seguinte espera o render e a interface trava.
 
-Agora, uma camada de tracos (stroke-only, ou o caminho central de um CNC Job) com muitos segmentos **na area visivel**
-e desenhada como **uma imagem de densidade** (`DensityRaster`): os segmentos sao contados por pixel na CPU, em faixas
-horizontais paralelas, e a imagem usa `1 - (1 - a)^n` da opacidade `a` do traco para `n` linhas no pixel. A regra
-(`shouldRasterize`): `>= 15.000` segmentos visiveis, ou `>= 2.500` com comprimento medio abaixo de ~1,5 px na tela;
-uma camada que ja esta no modo so sai abaixo de 60% desses limites (histerese). Tracos largos (> 2,5 px), camadas
-multicoloridas e poligonos preenchidos continuam vetoriais. Ao aproximar o zoom a densidade cai e volta o vetor.
-A imagem de cada camada fica em cache enquanto a vista e identica (redesenhos por selecao/hover sao quase de graca).
-`[DENSE]` aparece junto do nome da camada no `[PLOT-PROFILE]`. `-Dflatcam.plot.density=false` desliga o modo.
+Agora, uma camada de traços (stroke-only, ou o caminho central de um CNC Job) com muitos segmentos **na área visível**
+é desenhada como **uma imagem de densidade** (`DensityRaster`). Cada segmento vira um traço da **largura real** da
+camada (1,5 px na Geometry): cada pixel recebe a área exata que o traço cobre nele, calculada na CPU em faixas
+horizontais paralelas. Assim a imagem tem antialiasing como o vetor, e linhas mais próximas que um pixel se somam em
+vez de deixar buracos. A cobertura `S` (em larguras de linha) vira alpha `a*S` até uma linha inteira e `1-(1-a)^S`
+acima disso. A regra (`shouldRasterize`): `>= 15.000` segmentos visíveis, ou `>= 2.500` com comprimento médio abaixo
+de ~1,5 px na tela; uma camada que já está no modo só sai abaixo de 60% desses limites (histerese). Traços largos
+(> 2,5 px), camadas multicoloridas e polígonos preenchidos continuam vetoriais. Ao aproximar o zoom a densidade cai
+e volta o vetor. A imagem de cada camada fica em cache enquanto a vista é idêntica. `[DENSE]` aparece junto do
+nome da camada no `[PLOT-PROFILE]`. `-Dflatcam.plot.density=false` desliga o modo.
 
-Medido com uma Geometry sintetica (linhas onduladas, tudo visivel, 1000x700, panning: vista nova a cada quadro):
+Histórico: a primeira versão desenhava linhas de 1 px sem antialiasing, uma amostra por pixel. Em isolação com 40
+passes sobre a placa real isso deixava falhas e bordas serrilhadas onde o vetor é sólido (passes a ~0,8 px um do
+outro); a cobertura de área corrigiu. Contra o vetor, na mesma cena, só 0,14% dos pixels mudam bastante (o contorno
+de 1 px de antialiasing nas bordas).
 
-| Tracos x vertices | Vetor (Prism) | Densidade |
+Medido com uma Geometry sintética (linhas onduladas, tudo visível, 1000x700, panning: vista nova a cada quadro):
+
+| Traços x vértices | Vetor (Prism) | Densidade |
 |---|---|---|
-| 20.000 x 30 | ~260 ms | ~24 ms |
-| 100.000 x 20 | ~745 ms | ~41 ms |
-| 500.000 x 20 | ~4.400 ms | ~210 ms |
+| 20.000 x 30 | ~260 ms | ~45 ms |
+| 100.000 x 20 | ~745 ms | ~155 ms |
+| 500.000 x 20 | ~4.400 ms | ~620 ms |
 
-Perde-se o antialiasing apenas no regime em que os tracos ja se fundem numa cor. Proximos passos possiveis: cache
-de interacao (reaproveitar o quadro durante pan/zoom) e rasterizar fora da thread JavaFX (hoje, com 500 mil tracos,
-~200 ms ainda ocorrem na thread da interface).
+O custo cresce com o comprimento total dos traços em pixels (cada pixel percorrido é uma amostra), não com a
+quantidade de traços. Próximos passos possíveis: cache de interação (reaproveitar o quadro durante pan/zoom) e
+rasterizar fora da thread JavaFX (hoje esses ~150-600 ms ocorrem na thread da interface).
 
 ## Comparar GPU integrada e dedicada no Windows
 

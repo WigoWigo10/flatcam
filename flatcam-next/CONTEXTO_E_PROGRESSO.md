@@ -979,7 +979,8 @@ teste: 44 pads, 2 bicos, 53 caminhos em ~25 ms. Testes em `SolderPasteTest`.
 
 **LOD por densidade no Plot Area (2026-10-01).** Camada 1 da proposta de desempenho para Geometry muito densa:
 `DensityRaster` + integracao no `PlotAreaView` (ver `PLOT_PERFORMANCE.md`, secao "LOD por densidade"). Medido com
-geometria sintetica em pan: 100 mil tracos 745 ms -> 41 ms; 500 mil 4,4 s -> ~210 ms. Testes em `DensityRasterTest`.
+geometria sintetica em pan: 100 mil tracos 745 ms -> ~155 ms; 500 mil 4,4 s -> ~620 ms (cobertura de area com antialiasing, para
+ficar igual ao vetor; a 1a versao, com linhas de 1 px, era mais rapida mas deixava falhas). Testes em `DensityRasterTest`.
 Pendente: camada 2 (cache de interacao durante pan/zoom) e rasterizar fora da thread JavaFX.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
