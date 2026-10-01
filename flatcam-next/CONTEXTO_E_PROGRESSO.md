@@ -32,7 +32,7 @@ e continuar a migração sem recomeçar a investigação.
 ## 1. Objetivo do projeto
 
 O FlatCAM FX é uma reimplementação gradual do FlatCAM Python/PyQt5 em
-**Java 21 + JavaFX**, mantida no mesmo repositório enquanto ainda não substitui
+**Java 25 + JavaFX**, mantida no mesmo repositório enquanto ainda não substitui
 o aplicativo legado.
 
 A meta solicitada é obter paridade tão completa quanto for razoável com o
@@ -63,9 +63,9 @@ prefira o estado descrito aqui e confirme no código.
 
 ### Stack e módulos
 
-- Java 21.
+- Java 25 (LTS).
 - Maven Wrapper; Maven global não é necessário.
-- JavaFX 21.0.12.
+- JavaFX 25.0.4.
 - Quatro temas próprios sobre JavaFX Modena: original branco/preto e gelo branco/preto; sem AtlantaFX.
 - JTS 1.20.0 para geometria.
 - JUnit 5 para testes.
@@ -947,6 +947,8 @@ Ferramentas > Corner Markers Tool (`CornerMarkers`, `CornerMarkersToolPanel`), o
 em L ("safe") ou cruz nos 4 cantos da caixa (fora por margem + meia espessura; padroes 0.1 / 3.0 / 0.0),
 gerando `<nome>_corners`, e "Criar furos nos cantos" gera um Excellon `<nome>_corner_drills` (padrao 0.5) nos
 mesmos pontos. Testes em `MarkersTest`.
+
+**Migracao para Java 25 + JavaFX 25.0.4 (2026-10-01, branch `java-25`).** `maven.compiler.release` 25 e `javafx.version` 25.0.4; build e todos os testes passam, e os temas renderizam igual no JavaFX 25. Comparacao Java 21 x 25 no F_Cu real (isolacao 3 passes): primeira execucao 312 ms -> 93 ms e execucao aquecida 55 ms -> 26 ms; painel 3x3: 460-600 ms -> 164-206 ms frio; carga do projeto sem diferenca (~60 ms). O `JAVA_HOME` precisa apontar para um JDK 25 para compilar e rodar.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 

@@ -1,6 +1,6 @@
 # FlatCAM FX
 
-Reimplementação gradual do FlatCAM Python/PyQt5 em Java 21 + JavaFX. O projeto
+Reimplementação gradual do FlatCAM Python/PyQt5 em Java 25 + JavaFX. O projeto
 já oferece uma fatia funcional para carregar e exibir Gerber/Excellon, executar
 operações CAM e gerar CNC Jobs; ele ainda cresce ao lado do aplicativo legado e
 não o substitui por completo.
@@ -15,7 +15,7 @@ inventário de paridade visual/funcional em [`UI_INVENTORY.md`](UI_INVENTORY.md)
 
 ## Requisitos
 
-- JDK 21 (LTS). Testado com Temurin 21.0.11.
+- JDK 25 (LTS). Testado com Java 25.0.4 (Oracle) e Temurin 25.0.2; `JAVA_HOME` deve apontar para um JDK 25.
 - Nenhuma instalação global de Maven: use `mvnw`/`mvnw.cmd`.
 
 ## Testar

@@ -18,7 +18,7 @@ $env:FLATCAM_FX_JAVA_ONLY = '1'
 
 Depois, remova a variável com `Remove-Item Env:FLATCAM_FX_JAVA_ONLY`.
 
-O script exige JDK 21 em `JAVA_HOME` e C++17 (testado com MSYS2 UCRT64 `g++`),
+O script exige JDK 25 em `JAVA_HOME` e C++17 (testado com MSYS2 UCRT64 `g++`),
 compila o reactor, copia as dependências de execução e cria
 `target\native\FlatCAMFX.exe`. O executável carrega a JVM **dentro do próprio
 processo** e inicia o JavaFX. Ele exporta `NvOptimusEnablement=1` e
@@ -52,7 +52,7 @@ cmd /c ".\profile-plot-native.cmd 2>&1" | Tee-Object -FilePath ".\plot-native-$(
 Esta preferência não é garantia de escolha: opções explícitas do Windows,
 perfis do driver, modo de economia de energia e restrições do OEM podem
 prevalecer. Não é possível escolher à força a GTX 1650 pela API pública do
-JavaFX 21; `prism.order` escolhe **pipeline** (D3D/SW), não a GPU física.
+JavaFX 25; `prism.order` escolhe **pipeline** (D3D/SW), não a GPU física.
 Também não há aceleração do cálculo CAM pela GPU: parsing, JTS e preparação
 das formas continuam na CPU. A comparação deve observar `D3D Driver Information`
 e os valores `[UI-FLUIDITY]`/`[PLOT-PROFILE]`, não só o uso da GPU na tela.
