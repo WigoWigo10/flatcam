@@ -31,12 +31,11 @@ class ToolDescriptionsTest {
     }
 
     @Test
-    void toolsThatAreNotPortedYetSaySo() {
-        for (String id : List.of("calibration")) {
-            assertTrue(ToolDescriptions.of(id).text().contains("Ainda não portada"), id);
+    void everyToolIsPortedSoNoneClaimsOtherwise() {
+        for (ToolDescriptions.Description description : java.util.stream.Stream.of("film", "rules", "copper_thieving",
+                "calibration").map(ToolDescriptions::of).toList()) {
+            assertTrue(!description.text().contains("Ainda não portada"), description.title());
         }
-        // The ones that work do not claim otherwise.
-        assertTrue(!ToolDescriptions.of("film").text().contains("Ainda não portada"));
     }
 
     @Test

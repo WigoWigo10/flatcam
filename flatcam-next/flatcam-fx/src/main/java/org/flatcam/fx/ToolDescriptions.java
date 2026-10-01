@@ -4,14 +4,12 @@ import java.util.Map;
 
 /**
  * What each tool of the Tools menu does, in a sentence or two, for its tooltip. The texts follow the tooltips of the
- * Python tools (appTools/*.py), shortened. Tools that are not ported yet say so.
+ * Python tools (appTools/*.py), shortened.
  */
 final class ToolDescriptions {
 
     record Description(String title, String text) {
     }
-
-    private static final String SOON = " (Ainda não portada para o FlatCAM FX.)";
 
     private static final Map<String, Description> TOOLS = Map.ofEntries(
             Map.entry("double_sided", new Description("2-Sided Tool",
@@ -63,7 +61,8 @@ final class ToolDescriptions {
             Map.entry("fiducials", new Description("Fiducials Tool",
                     "Adiciona marcas de alinhamento ao cobre (circulares, cruz ou xadrez) e aberturas na máscara de solda.")),
             Map.entry("calibration", new Description("Calibration Tool",
-                    "Calibra o posicionamento da máquina com pontos de referência." + SOON)),
+                    "Quatro pontos de referência geram um G-code de verificação; os desvios medidos na máquina viram "
+                            + "fatores de escala e inclinação que calibram os objetos.")),
             Map.entry("punch", new Description("Punch Gerber Tool",
                     "Fura os pads de um Gerber a partir de um Excellon ou de um tamanho (fixo, proporcional ou por anel).")),
             Map.entry("invert", new Description("Invert Gerber Tool",

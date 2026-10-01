@@ -91,6 +91,7 @@ import org.flatcam.cam.analysis.MinimumDistance;
 import org.flatcam.cam.analysis.RulesCheck;
 import org.flatcam.cam.convert.CopperThieving;
 import org.flatcam.cam.convert.ExtractDrills;
+import org.flatcam.cam.transform.Calibration;
 import org.flatcam.cam.convert.ObjectConversion;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Punch;
@@ -1436,6 +1437,7 @@ final class MainWindow {
             case "optimal" -> this::openOptimalTool;
             case "rules" -> this::openRulesCheckTool;
             case "copper_thieving" -> this::openCopperThievingTool;
+            case "calibration" -> this::openCalibrationTool;
             default -> null;
         };
     }
@@ -2855,6 +2857,135 @@ final class MainWindow {
                 cancelPointPick();
             }
         }, this::closeToolPanel));
+    }
+
+    /** Tools > Calibration Tool: four points, verification G-code, scale/skew factors (appTools/ToolCalibration.py). */
+    private void openCalibrationTool() {
+        List<TreeItem<String>> sources = new ArrayList<>(gerbersNode.getChildren());
+        sources.addAll(excellonNode.getChildren());
+        sources.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item));
+        List<TreeItem<String>> everything = new ArrayList<>(sources);
+        everything.addAll(geometryNode.getChildren());
+        everything.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item)
+                && !geometryByItem.containsKey(item));
+        if (everything.isEmpty()) {
+            appendConsole("Calibration: carregue um objeto.");
+            return;
+        }
+        org.locationtech.jts.geom.GeometryFactory factory = new org.locationtech.jts.geom.GeometryFactory();
+        openToolPanel("Calibration Tool", CalibrationToolPanel.build(new CalibrationToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbersAndDrills() {
+                return sources;
+            }
+
+            @Override
+            public List<TreeItem<String>> allObjects() {
+                return everything;
+            }
+
+            @Override
+            public boolean inches() {
+                return unitsLabel.getText().toLowerCase(java.util.Locale.ROOT).contains("in");
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+
+            @Override
+            public Coordinate snap(TreeItem<String> source, Coordinate click) {
+                GerberImage gerber = source == null ? null : gerberByItem.get(source);
+                if (gerber != null) {
+                    return Calibration.snap(gerber, click);
+                }
+                ExcellonImage excellon = source == null ? null : excellonByItem.get(source);
+                return excellon == null ? null : Calibration.snap(excellon, click);
+            }
+
+            @Override
+            public void showPoints(double[][] points, int count) {
+                if (count <= 0) {
+                    plotAreaView.setEditorHighlight(null, false);
+                    return;
+                }
+                double radius = 8 * plotAreaView.worldPerPixel();
+                List<org.locationtech.jts.geom.Geometry> marks = new ArrayList<>();
+                for (int i = 0; i < count; i++) {
+                    marks.add(factory.createPoint(new Coordinate(points[i][0], points[i][1])).buffer(radius, 16)
+                            .getBoundary());
+                }
+                plotAreaView.setEditorHighlight(factory.buildGeometry(marks), true);
+            }
+
+            @Override
+            public String saveGCode(String gcode) {
+                FileChooser chooser = new FileChooser();
+                chooser.setTitle("Salvar G-code de verificacao");
+                chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+                chooser.setInitialFileName("fc_ver_gcode.nc");
+                File file = chooser.showSaveDialog(scene.getWindow());
+                if (file == null) {
+                    return null;
+                }
+                try {
+                    Files.writeString(file.toPath(), gcode);
+                    appendConsole("G-code de verificacao salvo em " + file.getName() + ".");
+                    return null;
+                } catch (IOException failed) {
+                    return "Falha ao salvar: " + failed.getMessage();
+                }
+            }
+
+            @Override
+            public String calibrate(TreeItem<String> item, Calibration.Factors factors, Coordinate origin) {
+                List<TransformOp> operations = Calibration.operations(factors, origin);
+                String name = item.getValue() + "_calibrated";
+                try {
+                    TreeItem<String> created;
+                    GerberImage gerber = gerberByItem.get(item);
+                    ExcellonImage excellon = excellonByItem.get(item);
+                    GeometryEntry geometry = geometryByItem.get(item);
+                    if (gerber != null) {
+                        GerberImage result = gerber;
+                        for (TransformOp op : operations) {
+                            result = result.transformed(op);
+                        }
+                        created = addGerberToProject(uniqueDerivedName(name), null, result);
+                    } else if (excellon != null) {
+                        ExcellonImage result = excellon;
+                        for (TransformOp op : operations) {
+                            result = result.transformed(op);
+                        }
+                        created = addExcellonToProject(uniqueDerivedName(name), null, result);
+                    } else if (geometry != null) {
+                        Geometry result = geometry.geometry();
+                        List<ToolGeometry> tools = geometry.tools();
+                        for (TransformOp op : operations) {
+                            result = op.apply(result);
+                            tools = tools.stream().map(t -> t.transformed(op)).toList();
+                        }
+                        created = addGeometryToProject(uniqueDerivedName(name), geometry.sourceName(), geometry.units(),
+                                result, geometry.strokeOnly(), tools, geometry.cncDefaults());
+                    } else {
+                        return "O objeto foi removido";
+                    }
+                    appendConsole("Objeto calibrado: " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (RuntimeException failed) {
+                    return failed.getMessage();
+                }
+            }
+        }, this::closeToolPanel));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     /** The last thieving and robber bar made by the Copper Thieving tool, for its pattern plating mask. */

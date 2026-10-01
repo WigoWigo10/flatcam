@@ -296,6 +296,6 @@ Este arquivo descreve o Python. Para saber o que o FX já porta (detalhes e dife
 | `ToolOptimal` | portado (a seleção de um local leva o plot até lá e o marca) |
 | `ToolRulesCheck` | portado (violações localizáveis no plot) |
 | `ToolCopperThieving` | portado (thieving, robber bar e máscara de galvanoplastia) |
-| `ToolCalibration` | **pendente** (aparece desabilitada no menu) |
+| `ToolCalibration` | portado (pontos, G-code de verificação, fatores e calibração de objetos) |
 | Conversion / Join Objects | portados: Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join Gerber/Excellon/Geo |
 | Tools Database, salvar `.FlatPrj`, demais pós-processadores | pendentes |

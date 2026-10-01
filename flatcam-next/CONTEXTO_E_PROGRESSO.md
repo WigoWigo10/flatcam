@@ -6,8 +6,8 @@ entender o estado real do projeto, tomar decisões compatíveis com as já feita
 e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-10-01**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
-> migrou para **Java 25 + JavaFX 25.0.4**, portou **23 das 24 ferramentas do menu Ferramentas do Python**
-> (resta Calibration), ganhou Conversion/Join Objects parciais,
+> migrou para **Java 25 + JavaFX 25.0.4**, portou **todas as 24 ferramentas do menu Ferramentas do Python**
+> (nenhuma resta), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
 > na seção 9.0. A suíte tem **462 testes** (359 `flatcam-cam`, 42 `flatcam-application`, 61 `flatcam-fx`),
@@ -192,6 +192,7 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | --- | --- | --- |
 | 2-Sided | `DoubleSidedToolPanel` | espelha objetos por X/Y e eixo por caixa ou ponto; furos de alinhamento; pré-visualização no plot |
 | Align Objects | `AlignObjects` | alinha por 1 ponto (translada) ou 2 (translada e gira), clicando em pads ou furos |
+| Calibration | `Calibration` | quatro pontos, G-code de verificação, fatores de escala/inclinação e objetos calibrados |
 | Copper Thieving | `CopperThieving` | preenchimento sólido/pontos/quadrados/linhas, robber bar e máscara de galvanoplastia |
 | Rules Check | `RulesCheck` | 10 regras de projeto (trilha, cobre, seda, máscara, contorno, anel anular, furos), violações localizáveis no plot |
 | Optimal | `MinimumDistance` | menor distância entre os elementos de cobre de um Gerber, pares, locais e demais distâncias |
@@ -209,7 +210,7 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | Invert Gerber | `InvertGerber` | inverte cobre e vazio dentro de uma caixa com margem |
 | Etch Compensation | `EtchCompensation` | cresce ou encolhe o cobre pela espessura e fator de corrosão |
 
-Ainda **sem** porta: Calibration (aparecem no menu, desabilitados).
+Todas as ferramentas do menu estão portadas (aparecem no menu, desabilitados).
 Conversion e Join Objects: portados Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join
 Gerber/Excellon/Geo.
 
@@ -394,7 +395,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; 5 dos 21 pós-processadores do Python e o `Paste_1` embutido no SolderPaste; faltam os demais pós-processadores (laser, Marlin, Roland, HPGL...) e várias opções avançadas do legado |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
-| Ferramentas do menu Ferramentas | forte/parcial | 23 de 24 portadas (seção 4); falta Calibration; vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
+| Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
@@ -850,7 +851,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
-1. **Ferramenta restante do menu:** Calibration (maior que as já portadas). As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
+1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
 2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje 5
    dos 21 do Python).
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
@@ -1142,6 +1143,22 @@ linha por linha e deixa peças sobrepostas, que a união final do Gerber elimina
 pontos 42 ms contra 79 ms, quadrados 25 ms contra 75 ms, linhas 75-120 ms contra 207 ms (FX depois de aquecido; 1ª
 execução com JVM fria é 2 a 4 vezes maior); mesmas contagens de polígonos e áreas (sólido, pontos, quadrados).
 Testes em `CopperThievingTest`.
+
+**Calibration Tool (2026-10-01).** Ferramentas > Calibration Tool (`Calibration` em `flatcam-cam/.../transform/`,
+`CalibrationToolPanel`), o `ToolCalibration.py`, o que fecha as 24 ferramentas do menu: (1) quatro pontos (inferior
+esquerdo = origem, inferior direito, superior esquerdo, superior direito) clicados sobre furos ou pads flashados de um
+objeto (o ponto vira o centro do furo/pad) ou livres, arredondados a 4 casas; (2) G-code de verificação que visita a
+origem, o ponto de alinhamento (superior esquerdo ou inferior direito, à escolha), o de checagem e o de verificação, com
+Z de deslocamento 2,0, Z de verificação 0,1, Z de troca 15 e etapa opcional de zerar Z; (3) fatores a partir dos deltas
+medidos nos pontos 2 e 3 (escala X = dx/(x2-x1)+1, escala Y = dy/(y3-y1)+1, inclinação X = atan(dx3/(y3-y1)), inclinação Y
+= atan(dy2/(x2-x1))), aplicáveis aos próprios pontos (escala e inclinação pela origem); (4) objeto calibrado
+(`_calibrated`): escala e depois inclinação pela origem em Gerber, Excellon ou Geometry. Diferenças deliberadas: o Python
+compara o delta com a coordenada do ponto (campo vazio = sem desvio) e soma a Y da origem ao delta da inclinação Y; aqui
+um delta vazio ou zero não corrige nada e a inclinação Y usa só o delta; ponto fora de furo/pad no modo "objeto" é recusado
+e o clique repetido (o Python ignora em silêncio); o G-code é salvo num arquivo (o Python abre um editor de código).
+Comparação com o Python (shapely) no F_Cu real, escala 1,002/0,998 e inclinação 0,1/0,05: ~2 ms nos dois (FX: 2 ms depois
+de aquecido, 33 ms na 1ª execução; a área resultante é igual, 3092,1585). A ferramenta é só aritmética de poucos pontos,
+então não há ganho a mostrar. Testes em `CalibrationTest`.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
@@ -1645,10 +1662,10 @@ exportado em um visualizador independente. Ferramentas avançadas do Editor
 Geometry, plot CNC com largura de ferramenta e lacunas de NCC seguem no roadmap.
 
 **Estado em 2026-10-01.** O projeto roda em Java 25 + JavaFX 25.0.4 (ganho medido de ~2-3x na primeira
-isolação do projeto real) e já porta 23 das 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
+isolação do projeto real) e já porta as 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
-geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Resta
-Calibration, o editor da Tools Database, salvar
+geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Nenhuma
+resta, o editor da Tools Database, salvar
 `.FlatPrj` e os demais pós-processadores. A suíte tem 462 testes sem falhas; a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.
