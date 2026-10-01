@@ -10,8 +10,17 @@ package org.flatcam.cam.gcode;
  */
 public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                       double depthPerPass, double feedRate, int spindleSpeedRpm,
-                                      boolean pauseForToolChange) {
+                                      boolean pauseForToolChange, double rapidFeedRate) {
+    public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
+                                  double depthPerPass, double feedRate, int spindleSpeedRpm,
+                                  boolean pauseForToolChange) {
+        this(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm, pauseForToolChange, 0);
+    }
+
     public GeometryGCodeParameters {
+        if (!Double.isFinite(rapidFeedRate) || rapidFeedRate < 0) {
+            throw new IllegalArgumentException("rapidFeedRate must be zero (automatic) or positive");
+        }
         if (!Double.isFinite(safeZ) || safeZ <= 0) {
             throw new IllegalArgumentException("safeZ must be positive: " + safeZ);
         }

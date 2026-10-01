@@ -115,7 +115,8 @@ public final class ProjectFileIO {
                         .put("depthPerPass", defaults.depthPerPass())
                         .put("feedRate", defaults.feedRate())
                         .put("spindleSpeedRpm", defaults.spindleSpeedRpm())
-                        .put("pauseForToolChange", defaults.pauseForToolChange()));
+                        .put("pauseForToolChange", defaults.pauseForToolChange())
+                        .put("rapidFeedRate", defaults.rapidFeedRate()));
             }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
@@ -283,7 +284,7 @@ public final class ProjectFileIO {
         return new GeometryGCodeParameters(json.getDouble("safeZ"), json.getDouble("cutDepth"),
                 json.getBoolean("multiDepth"), json.getDouble("depthPerPass"),
                 json.getDouble("feedRate"), json.getInt("spindleSpeedRpm"),
-                json.getBoolean("pauseForToolChange"));
+                json.getBoolean("pauseForToolChange"), json.optDouble("rapidFeedRate", 0));
     }
 
     private static List<ProjectFile.CncJobRecord> readJavaCncJobs(JSONObject root) {

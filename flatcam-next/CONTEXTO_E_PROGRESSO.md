@@ -80,12 +80,14 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**462 testes**: 359 em `flatcam-cam`, 42 em `flatcam-application` e 61 em `flatcam-fx`; 0 falhas, 0 erros e
+**521 testes registrados**: 411 em `flatcam-cam`, 43 em `flatcam-application` e 67 em `flatcam-fx`;
+512 executados, 0 falhas, 0 erros e
 9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
-imprime "Job failed"; esses logs, isoladamente, não representam falha da suíte. O app abre e inicia com
-`javafx:run` no Java 25 (fumaça de 20 s sem exceções).
+imprime "Job failed"; esses logs, isoladamente, não representam falha da suíte. O smoke visual anterior
+com `javafx:run` no Java 25 passou (20 s sem exceções). No incremento de pós-processadores, controles
+de Geometry foram verificados na thread FX sem abrir janela; teste manual da tela completa permanece pendente.
 
 Não há teste automatizado de interface: os painéis, o `MainWindow` e o `PlotAreaView` são validados por
 harnesses fora da tela (capturas por `Node.snapshot` num `Stage` em `x = -3000`) e pelo usuário no app real.
@@ -392,7 +394,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
 | Geometry | parcial | multi-tool via NCC/Paint/SolderPaste e conversões Single↔Multi; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto e borracha faltam |
-| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; 5 dos 21 pós-processadores do Python e o `Paste_1` embutido no SolderPaste; faltam os demais pós-processadores (laser, Marlin, Roland, HPGL...) e várias opções avançadas do legado |
+| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY e laser por estado de emissão; 11 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 12 de 20 ports parciais; faltam ISEL, Roland, HPGL, line_xyz e trocas avançadas; ver `PREPROCESSADORES.md` |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
@@ -852,8 +854,8 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
 1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
-2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje 5
-   dos 21 do Python).
+2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje
+   12 ports parciais de 20 perfis Python, incluindo `Paste_1`; FX portable não entra nessa contagem).
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
    da tela, sem capturar a tela inteira).
 4. **Plot Area:** margem em volta da vista para a imagem de densidade e, se um profile mostrar necessidade,
@@ -1630,6 +1632,18 @@ uma fatia como concluída:
 
 ## 15. Resumo executivo
 
+**Incremento de pós-processadores (2026-10-01, após `1b67894e`).** Adicionados Marlin, Repetier,
+Berta_CNC, GRBL_laser, Marlin_laser_FAN_pin, Marlin_laser_Spindle_pin e Z_laser. Furação oferece
+somente fresagem; Geometry oferece os 12 perfis do seletor (11 do Python + FX portable). Laser
+tem geração própria, saída desligada antes dos deslocamentos, potência validada e parser baseado
+em M/S para conservar a prévia ao reabrir/aplicar. UI desabilita parâmetros de mergulho/troca no
+laser. Feed rapids Marlin/Repetier é configurável e o valor de Geometry é persistido, com fallback
+automático para projetos antigos. Repetier usa FAN/PWM e @pause pelo host; Marlin mantém M6 do
+Python, que exige verificar suporte no firmware. A contagem antiga de 21 era de arquivos: existem
+20 classes de perfil, excluindo __init__.py; 12 têm port parcial incluindo Paste_1. SolderPaste
+não foi alterado: permanecem as duas falhas identificadas na revisão. Detalhes, diferenças,
+limites e testes em `PREPROCESSADORES.md`; validação física não foi feita.
+
 O FlatCAM FX já deixou de ser um esqueleto: carrega e plota Gerber/Excellon,
 tem uma árvore lateral próxima do legado, jobs com progresso/cancelamento,
 Isolation, Cutout, NCC multi-tool com Rest Machining e boundary por
@@ -1665,7 +1679,7 @@ Geometry, plot CNC com largura de ferramenta e lacunas de NCC seguem no roadmap.
 isolação do projeto real) e já porta as 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
-geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Nenhuma
-resta, o editor da Tools Database, salvar
-`.FlatPrj` e os demais pós-processadores. A suíte tem 462 testes sem falhas; a validação manual dos painéis
+geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
+o editor da Tools Database, salvar `.FlatPrj` e os demais pós-processadores.
+A suíte atual registra 521 testes (512 executados sem falhas, 9 ignorados); a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

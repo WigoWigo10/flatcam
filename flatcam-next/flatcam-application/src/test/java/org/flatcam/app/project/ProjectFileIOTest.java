@@ -34,6 +34,22 @@ class ProjectFileIOTest {
     Path tempDir;
 
     @Test
+    void rapidFeedRoundTripsAndOldProjectsDefaultToAutomatic() throws IOException {
+        var parameters = new org.flatcam.cam.gcode.GeometryGCodeParameters(2, 1, false, 1, 100, 128, false, 600);
+        var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 0)});
+        var entry = new ProjectFile.GeometryEntry("paths", "source", "MM", geometry, true, List.of(),
+                null, null, true, parameters);
+        Path file = tempDir.resolve("rapid.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(entry), List.of()), file, false);
+        assertEquals(parameters, ProjectFileIO.load(file).geometries().get(0).cncDefaults());
+        JSONObject old = new JSONObject(Files.readString(file));
+        old.getJSONObject("_java").getJSONArray("geometries").getJSONObject(0)
+                .getJSONObject("cncDefaults").remove("rapidFeedRate");
+        Files.writeString(file, old.toString());
+        assertEquals(0, ProjectFileIO.load(file).geometries().get(0).cncDefaults().rapidFeedRate());
+    }
+
+    @Test
     void preservesHiddenCncJobWhenSavingNativeProject() throws IOException {
         ProjectFile.CncJobRecord hidden = new ProjectFile.CncJobRecord(
                 "cut_cnc", "outline", "cut.nc", "G21\nG0 X0 Y0\nM30\n", false);

@@ -241,7 +241,8 @@ final class DrillGCodeToolPanel {
         perTool.addRow(1, multiDepth, depthPerPass);
         perTool.addRow(2, new Label("Travel Z:"), travelZ);
         perTool.addRow(3, new Label("Feedrate Z:"), feedZ);
-        perTool.addRow(4, new Label("Spindle speed:"), spindle);
+        Label spindleLabel = new Label("Spindle RPM:");
+        perTool.addRow(4, spindleLabel, spindle);
         perTool.addRow(5, dwell, dwellTime);
         perTool.addRow(6, new Label("Offset Z:"), offsetZ);
         Label machiningNote = new Label("Dwell espera apos iniciar o spindle; Offset Z altera Cut Z.");
@@ -329,6 +330,9 @@ final class DrillGCodeToolPanel {
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
         preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+        spindleLabel.textProperty().bind(Bindings.createStringBinding(
+                () -> preprocessor.getValue() == GCodePreprocessor.REPETIER ? "Potencia PWM (0-255):" : "Spindle RPM:",
+                preprocessor.valueProperty()));
         preprocessor.setConverter(new StringConverter<>() {
             @Override public String toString(GCodePreprocessor value) {
                 return value == null ? "" : value.label();
@@ -341,6 +345,15 @@ final class DrillGCodeToolPanel {
         preprocessor.setMaxWidth(Double.MAX_VALUE);
         preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
                 + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
+        TextField rapidFeed = field("0");
+        rapidFeed.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
+                + "Feed de G0 usado por Marlin/Repetier."));
+        rapidFeed.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> !preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty()));
+        Label profileHelp = new Label();
+        profileHelp.setWrapText(true);
+        profileHelp.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+                () -> preprocessor.getValue().description(), preprocessor.valueProperty()));
         GridPane common = new GridPane();
         common.setHgap(8);
         common.setVgap(8);
@@ -349,6 +362,8 @@ final class DrillGCodeToolPanel {
         common.addRow(2, new Label("End move Z:"), endMoveZ);
         common.addRow(3, new Label("End move X,Y:"), endMoveXY);
         common.addRow(4, new Label("Preprocessor:"), preprocessor);
+        common.addRow(5, new Label("Feed rapids:"), rapidFeed);
+        common.add(profileHelp, 0, 6, 2, 1);
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -372,6 +387,7 @@ final class DrillGCodeToolPanel {
                 Map<Integer, DrillGCodeParameters> settings = new LinkedHashMap<>();
                 List<Integer> orderedIds = new ArrayList<>();
                 for (ToolRow row : selected) {
+                    preprocessor.getValue().validatePower(parseInt(row.spindle, "Potencia/RPM (Tool " + row.id + ")"));
                     settings.put(row.id, row.parameters(toolChange.isSelected()));
                     orderedIds.add(row.id);
                 }
@@ -388,7 +404,8 @@ final class DrillGCodeToolPanel {
                 double changeZ = toolChange.isSelected() ? parse(toolChangeZ.getText(), "Tool change Z")
                         : settings.get(orderedIds.get(0)).safeZ();
                 var options = new GCodeGenerator.DrillJobOptions(
-                        toolChange.isSelected(), changeZ, endZ, endX, endY);
+                        toolChange.isSelected(), changeZ, endZ, endX, endY,
+                        preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0);
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),
                         List.copyOf(orderedIds), options, preprocessor.getValue()));
@@ -405,6 +422,7 @@ final class DrillGCodeToolPanel {
             endMoveZ.setText(metric ? "0.5" : "0.02");
             endMoveXY.setText("None");
             preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+            rapidFeed.setText("0");
             feedback.setText("");
             errorLabel.setText("");
         });

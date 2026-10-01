@@ -44,6 +44,14 @@ public final class GCodeToolpathParser {
     private static final Pattern MILLING_DIAMETER = Pattern.compile(
             "TOOL\\s+DIAMETER:\\s*(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
     private static final Pattern TOOL_WORD_LINE = Pattern.compile("^\\s*T(\\d+)\\b");
+    private static final Pattern LASER_PROFILE = Pattern.compile(
+            "\\b(?:FCFX\\s+LASER|Preprocessor(?:\\s+(?:Geometry|Excellon))?\\s*:\\s*"
+                    + "(?:GRBL_laser|Z_laser|Marlin_laser_FAN_pin|Marlin_laser_Spindle_pin))\\b",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern RAPID_FEED_PROFILE = Pattern.compile(
+            "\\bPreprocessor(?:\\s+(?:Geometry|Excellon))?\\s*:\\s*"
+                    + "(?:Marlin|Repetier|Marlin_laser_FAN_pin|Marlin_laser_Spindle_pin)\\b",
+            Pattern.CASE_INSENSITIVE);
     private static final int MAX_PREVIEW_SEGMENTS = 50_000;
     /**
      * G0 rate assumed for the time estimate - Python's {@code tools_drill_feedrate_rapid}
@@ -308,6 +316,10 @@ public final class GCodeToolpathParser {
             throw new IllegalArgumentException("O G-code nao pode estar vazio.");
         }
         List<String> lines = gcode.lines().toList();
+        boolean laserProfile = LASER_PROFILE.matcher(gcode).find();
+        boolean explicitRapidFeed = RAPID_FEED_PROFILE.matcher(gcode).find();
+        boolean laserOn = false;
+        Double laserPower = null;
         List<Geometry> travel = new ArrayList<>();
         List<Geometry> cut = new ArrayList<>();
         CenterlinePreview centerlines = new CenterlinePreview();
@@ -391,6 +403,10 @@ public final class GCodeToolpathParser {
             if (line.isEmpty() || line.equals("%")) {
                 continue;
             }
+            // Repetier-Host directive: message text is not machine code or a coordinate move.
+            if (line.equalsIgnoreCase("@pause")
+                    || line.toLowerCase(Locale.ROOT).startsWith("@pause ")) continue;
+            boolean wasLaserActive = laserOn && (laserPower == null || laserPower > 0);
             Matcher matcher = WORD.matcher(line);
             int cursor = 0;
             Double newX = null;
@@ -399,6 +415,7 @@ public final class GCodeToolpathParser {
             Double arcI = null;
             Double arcJ = null;
             Double arcR = null;
+            Boolean switchLaser = null;
             while (matcher.find()) {
                 String between = line.substring(cursor, matcher.start());
                 if (!between.isBlank()) {
@@ -442,7 +459,7 @@ public final class GCodeToolpathParser {
                         } else if (code == 91) {
                             absolute = false;
                         } else if (code != 4 && code != 17 && code != 40 && code != 49
-                                && code != 54 && code != 94) {
+                                && code != 54 && code != 64 && code != 94) {
                             warning = "G-code com G" + code + ": pre-visualizacao indisponivel para este comando.";
                         }
                     }
@@ -453,6 +470,11 @@ public final class GCodeToolpathParser {
                     case 'J' -> arcJ = value;
                     case 'R' -> arcR = value;
                     case 'F' -> feed = value;
+                    case 'M' -> {
+                        if (laserProfile && (value == 3 || value == 4 || value == 106)) switchLaser = true;
+                        else if (laserProfile && (value == 5 || value == 107)) switchLaser = false;
+                    }
+                    case 'S' -> { if (laserProfile) laserPower = value; }
                     default -> { /* Spindle, tool, M code and line number do not change XY. */ }
                 }
             }
@@ -460,6 +482,9 @@ public final class GCodeToolpathParser {
                 throw new IllegalArgumentException("G-code invalido na linha " + (index + 1) + ": "
                         + line.substring(cursor).trim());
             }
+            if (switchLaser != null) laserOn = switchLaser;
+            boolean laserActive = laserOn && (laserPower == null || laserPower > 0);
+            if (laserProfile && wasLaserActive != laserActive) stepBuilder.flush();
             double nextX = newX == null ? x : absolute ? newX : x + newX;
             double nextY = newY == null ? y : absolute ? newY : y + newY;
             double nextZ = newZ == null ? z : absolute ? newZ : z + newZ;
@@ -475,7 +500,7 @@ public final class GCodeToolpathParser {
                     && (movesXY || arcI != null || arcJ != null || arcR != null);
             boolean lateral = movesXY && havePosition && (nextX != x || nextY != y)
                     && motion >= 0 && motion <= 1;
-            boolean plunge = !movesXY && newZ != null && motion == 1 && nextZ < 0 && havePosition;
+            boolean plunge = !laserProfile && !movesXY && newZ != null && motion == 1 && nextZ < 0 && havePosition;
             Double width = tool != null && tool.diameter != null && tool.diameter > 0 ? tool.diameter
                     : millingDiameter;
             boolean knownWidth = width != null && width > 0;
@@ -489,17 +514,18 @@ public final class GCodeToolpathParser {
                 cut.clear();
             }
             if (warning == null && arcMove) {
-                if ((z >= 0) != (nextZ >= 0)) {
+                if (!laserProfile && (z >= 0) != (nextZ >= 0)) {
                     warning = "Arco cruzando Z=0: pre-visualizacao indisponivel.";
                 } else {
                     try {
                         Geometry centerline = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
                                 absoluteArcCenter, motion == 2);
-                        addShape(nextZ >= 0, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
-                        centerlines.addPath(nextZ >= 0, centerline);
-                        stepBuilder.segment(nextZ >= 0, centerline.getCoordinates());
+                        boolean isTravel = laserProfile ? !laserActive : nextZ >= 0;
+                        addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
+                        centerlines.addPath(isTravel, centerline);
+                        stepBuilder.segment(isTravel, centerline.getCoordinates());
                         xyLength = centerline.getLength();
-                        if (nextZ < 0) {
+                        if (!isTravel) {
                             Coordinate[] arcPoints = centerline.getCoordinates();
                             int middle = arcPoints.length / 2;
                             if (arcPoints.length >= 2) {
@@ -514,7 +540,7 @@ public final class GCodeToolpathParser {
             } else if (warning == null && lateral) {
                 Geometry centerline = FACTORY.createLineString(new Coordinate[]{
                         new Coordinate(x, y), new Coordinate(nextX, nextY)});
-                boolean isTravel = motion == 0 || nextZ >= 0;
+                boolean isTravel = motion == 0 || (laserProfile ? !laserActive : nextZ >= 0);
                 addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
                 centerlines.addPath(isTravel, centerline);
                 stepBuilder.segment(isTravel, centerline.getCoordinates());
@@ -564,12 +590,14 @@ public final class GCodeToolpathParser {
                         timeKnown = false;
                     }
                 } else {
-                    minutes += moveLength / (metric ? RAPID_MM_PER_MINUTE : RAPID_MM_PER_MINUTE / 25.4);
+                    double rapid = explicitRapidFeed && feed > 0 ? feed
+                            : metric ? RAPID_MM_PER_MINUTE : RAPID_MM_PER_MINUTE / 25.4;
+                    minutes += moveLength / rapid;
                 }
             }
             xyDistance += xyLength;
             stepBuilder.clock = minutes;
-            if ((z >= 0) != (nextZ >= 0)) {
+            if (!laserProfile && (z >= 0) != (nextZ >= 0)) {
                 stepBuilder.flush();
             }
             x = nextX;

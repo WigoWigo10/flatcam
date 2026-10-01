@@ -141,7 +141,8 @@ public final class PythonProjectIO {
             return new GeometryGCodeParameters(data.getDouble("travelz"),
                     Math.abs(data.getDouble("cutz")), data.optBoolean("multidepth", false),
                     data.optDouble("depthperpass", 0), data.getDouble("feedrate"),
-                    data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false));
+                    data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false),
+                    data.optDouble("feedrate_rapid", 0));
         } catch (RuntimeException invalid) {
             // Optional CAM settings must not make otherwise valid project geometry disappear.
             return null;

@@ -87,8 +87,11 @@ final class GeometryCncToolPanel {
                 : format(defaults.feedRate()));
         TextField spindleField = new TextField(defaults == null ? "10000"
                 : Integer.toString(defaults.spindleSpeedRpm()));
+        TextField rapidFeedField = new TextField(defaults == null ? "0" : format(defaults.rapidFeedRate()));
+        rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
+                + "Aplicado aos G0 dos perfis Marlin e Repetier."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
-                depthPerPassField, feedField, spindleField)) {
+                depthPerPassField, feedField, spindleField, rapidFeedField)) {
             field.setPrefColumnCount(7);
             field.setMinWidth(0);
         }
@@ -96,7 +99,13 @@ final class GeometryCncToolPanel {
         pauseCheck.setSelected(defaults == null ? tools.size() > 1 : defaults.pauseForToolChange());
         pauseCheck.setDisable(tools.size() <= 1);
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
-                FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
+                FXCollections.observableArrayList(GCodePreprocessor.geometryProfiles()));
+        preprocessor.setId("cnc-preprocessor");
+        spindleField.setId("cnc-power");
+        rapidFeedField.setId("cnc-rapid-feed");
+        cutDepthField.setId("cnc-cut-depth");
+        multiDepthCb.setId("cnc-multi-depth");
+        pauseCheck.setId("cnc-tool-change");
         preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
         preprocessor.setConverter(new StringConverter<>() {
             @Override public String toString(GCodePreprocessor value) {
@@ -108,28 +117,55 @@ final class GeometryCncToolPanel {
         });
         preprocessor.setMinWidth(0);
         preprocessor.setMaxWidth(Double.MAX_VALUE);
-        preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
-                + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
+        preprocessor.setTooltip(new Tooltip("Perfis de fresagem e laser. Simule e faca um teste a seco antes de usar."));
+        var laser = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().isLaser(), preprocessor.valueProperty());
+        var rapidFeed = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty());
+        cutDepthField.disableProperty().bind(laser);
+        multiDepthCb.disableProperty().bind(laser);
+        depthPerPassField.disableProperty().unbind();
+        depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(laser));
+        pauseCheck.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> tools.size() <= 1 || laser.get(), laser));
+        rapidFeedField.disableProperty().bind(rapidFeed.not());
+        Label profileHelp = new Label();
+        profileHelp.setWrapText(true);
+        profileHelp.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+                () -> preprocessor.getValue().description(), preprocessor.valueProperty()));
+        Label zLabel = new Label();
+        zLabel.textProperty().bind(javafx.beans.binding.Bindings.when(laser)
+                .then("Focus/End Z:").otherwise("Travel Z:"));
+        Label powerLabel = new Label();
+        powerLabel.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
+                () -> laser.get() || preprocessor.getValue() == GCodePreprocessor.REPETIER
+                        ? "Potencia S/PWM:" : "Spindle RPM:", preprocessor.valueProperty()));
+        Label diameterLabel = new Label();
+        diameterLabel.textProperty().bind(javafx.beans.binding.Bindings.when(laser)
+                .then("Spot Dia:").otherwise("Tool Dia:"));
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(8);
         int row = 0;
         if (!multiTool) {
-            grid.addRow(row++, new Label("Tool Dia:"), toolDiaField);
+            grid.addRow(row++, diameterLabel, toolDiaField);
         }
-        grid.addRow(row++, new Label("Travel Z:"), safeZField);
+        grid.addRow(row++, zLabel, safeZField);
         grid.addRow(row++, new Label("Cut Z (nao V):"), cutDepthField);
         grid.addRow(row++, multiDepthCb, depthPerPassField);
         grid.addRow(row++, new Label("Feed rate:"), feedField);
-        grid.addRow(row++, new Label("Spindle RPM:"), spindleField);
+        grid.addRow(row++, new Label("Feed rapids:"), rapidFeedField);
+        grid.addRow(row++, powerLabel, spindleField);
         grid.add(pauseCheck, 0, row++, 2, 1);
         grid.addRow(row, new Label("Preprocessor:"), preprocessor);
 
         Label errorLabel = new Label();
+        errorLabel.setId("cnc-error");
         errorLabel.getStyleClass().add("form-error-label");
         Map<Integer, TextField[]> vFields = new LinkedHashMap<>();
         VBox vSettings = new VBox(8);
+        vSettings.disableProperty().bind(laser);
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
             if (tool.toolProfile() != ToolProfile.V || tool.geometry().isEmpty()) continue;
@@ -161,23 +197,31 @@ final class GeometryCncToolPanel {
             vFields.put(i, new TextField[]{tipDia, tipAngle});
         }
         Button generateButton = new Button("Gerar CNC Job...");
+        generateButton.setId("cnc-generate");
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
                 double safeZ = parse(safeZField, "Travel Z");
-                double cutDepth = parse(cutDepthField, "Cut Z");
-                boolean multiDepth = multiDepthCb.isSelected();
+                double cutDepth = laser.get() ? 1 : parse(cutDepthField, "Cut Z");
+                boolean multiDepth = !laser.get() && multiDepthCb.isSelected();
                 double depthPerPass = multiDepth ? parse(depthPerPassField, "Depth per pass") : 1;
                 double feed = parse(feedField, "Feed rate");
-                int spindle = (int) parse(spindleField, "Spindle RPM");
+                double power = parse(spindleField, powerLabel.getText());
+                if (!Double.isFinite(power) || power < 0 || power > Integer.MAX_VALUE || power != Math.rint(power))
+                    throw new IllegalArgumentException("Potencia/RPM deve ser um inteiro nao negativo.");
+                int spindle = (int) power;
+                preprocessor.getValue().validatePower(spindle);
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
-                        safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle, pauseCheck.isSelected());
+                        safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
+                        !laser.get() && pauseCheck.isSelected(),
+                        rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0);
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
                         : List.of(new ToolGeometry(parse(toolDiaField, "Tool Dia"), combinedGeometry));
                 Map<Integer, VTipSettings> vTools = new LinkedHashMap<>();
                 for (var entry : vFields.entrySet()) {
+                    if (laser.get()) break;
                     TextField[] fields = entry.getValue();
                     VTipSettings settings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
                             parse(fields[1], "V-Tip Angle"));
@@ -205,11 +249,11 @@ final class GeometryCncToolPanel {
             box.getChildren().add(restored);
         }
         if (multiTool) {
-            box.getChildren().addAll(new Label("Ferramentas (associadas ao NCC):"), toolTable);
+            box.getChildren().addAll(new Label("Ferramentas/caminhos associados:"), toolTable);
         }
         box.getChildren().add(grid);
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
-        box.getChildren().addAll(errorLabel, generateButton, closeButton);
+        box.getChildren().addAll(profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }

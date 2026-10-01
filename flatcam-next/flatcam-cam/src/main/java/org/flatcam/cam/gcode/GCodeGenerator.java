@@ -71,8 +71,15 @@ public final class GCodeGenerator {
 
     /** Common job-level moves; null end X/Y keeps the tool at the final hole. */
     public record DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
-                                  double endMoveZ, Double endMoveX, Double endMoveY) {
+                                  double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate) {
+        public DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
+                               double endMoveZ, Double endMoveX, Double endMoveY) {
+            this(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY, 0);
+        }
+
         public DrillJobOptions {
+            if (!Double.isFinite(rapidFeedRate) || rapidFeedRate < 0)
+                throw new IllegalArgumentException("Rapid feed must be zero (automatic) or positive");
             if (!Double.isFinite(toolChangeZ) || toolChangeZ <= 0)
                 throw new IllegalArgumentException("Tool change Z must be positive");
             if (!Double.isFinite(endMoveZ) || endMoveZ <= 0)
@@ -102,6 +109,7 @@ public final class GCodeGenerator {
         Objects.requireNonNull(orderedToolIds, "orderedToolIds");
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(preprocessor, "preprocessor");
+        requireMilling(preprocessor);
         Map<Integer, List<ExcellonImage.Drill>> drillsByTool =
                 image.drills().stream().collect(Collectors.groupingBy(ExcellonImage.Drill::toolId));
         Map<Integer, List<ExcellonImage.Slot>> slotsByTool =
@@ -115,6 +123,7 @@ public final class GCodeGenerator {
         for (int id : ordered) {
             if (!settingsByTool.containsKey(id))
                 throw new IllegalArgumentException("Missing drilling parameters for tool " + id);
+            preprocessor.validatePower(settingsByTool.get(id).spindleSpeedRpm());
         }
 
         StringBuilder gcode = new StringBuilder();
@@ -125,6 +134,7 @@ public final class GCodeGenerator {
         line(gcode, image.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
+        gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         double initialZ = ordered.isEmpty() ? options.endMoveZ() : settingsByTool.get(ordered.get(0)).safeZ();
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(initialZ));
@@ -157,11 +167,9 @@ public final class GCodeGenerator {
                         line(gcode, "M0 ; troque para a ferramenta T%d (diametro %s %s) e continue",
                                 toolId, diameter != null ? fmt(diameter) : "?", image.units());
                     } else {
-                        line(gcode, "T%d", toolId);
-                        if (preprocessor.usesM6()) line(gcode, "M6");
-                        line(gcode, "%s", preprocessor.toolChangeMessage(toolId,
+                        line(gcode, "%s", preprocessor.selectTool(toolId));
+                        line(gcode, "%s", preprocessor.pauseForTool(toolId,
                                 diameter != null ? diameter : 0, image.units()));
-                        line(gcode, "M0");
                     }
                     if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
@@ -172,11 +180,9 @@ public final class GCodeGenerator {
                 if (options.pauseForToolChange()
                         && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
-                line(gcode, "T%d", toolId);
+                line(gcode, "%s", preprocessor.selectTool(toolId));
                 if (options.pauseForToolChange()) {
-                    if (preprocessor.usesM6()) line(gcode, "M6");
-                    line(gcode, "%s", preprocessor.toolChangeMessage(toolId, toolDiameter, image.units()));
-                    line(gcode, "M0");
+                    line(gcode, "%s", preprocessor.pauseForTool(toolId, toolDiameter, image.units()));
                     if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
@@ -233,8 +239,8 @@ public final class GCodeGenerator {
             addTravel(travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius);
             line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(options.endMoveX()), fmt(options.endMoveY()));
         }
-        line(gcode, "M30");
-        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
+        return new CncJobResult(preprocessor.finish(gcode, options.rapidFeedRate(), image.units()),
+                travelFootprint(travelShapes), cutShapes.result());
     }
 
     public static String generateIsolationGCode(IsolationResult result, IsolationGCodeParameters params) {
@@ -273,6 +279,8 @@ public final class GCodeGenerator {
                                                         GCodePreprocessor preprocessor) {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         Objects.requireNonNull(preprocessor, "preprocessor");
+        requireMilling(preprocessor);
+        preprocessor.validatePower(params.spindleSpeedRpm());
         cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "%s", preprocessor.comment(preprocessor == GCodePreprocessor.FX_PORTABLE
@@ -283,6 +291,7 @@ public final class GCodeGenerator {
         line(gcode, result.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
+        gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         if (params.spindleSpeedRpm() > 0) {
@@ -318,9 +327,9 @@ public final class GCodeGenerator {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
-        line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
+        return new CncJobResult(preprocessor.finish(gcode, 0, result.units()),
+                travelFootprint(travelShapes), cutShapes.result());
     }
 
     /**
@@ -348,6 +357,8 @@ public final class GCodeGenerator {
                                                      GCodePreprocessor preprocessor) {
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         Objects.requireNonNull(preprocessor, "preprocessor");
+        requireMilling(preprocessor);
+        preprocessor.validatePower(params.spindleSpeedRpm());
         cancellationToken.throwIfCancellationRequested();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "%s", preprocessor.comment(preprocessor == GCodePreprocessor.FX_PORTABLE
@@ -359,6 +370,7 @@ public final class GCodeGenerator {
         line(gcode, result.units().equals("MM") ? "G21" : "G20");
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
+        gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         if (params.spindleSpeedRpm() > 0) {
@@ -403,9 +415,9 @@ public final class GCodeGenerator {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
-        line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
+        return new CncJobResult(preprocessor.finish(gcode, 0, result.units()),
+                travelFootprint(travelShapes), cutShapes.result());
     }
 
     /**
@@ -469,6 +481,10 @@ public final class GCodeGenerator {
         if (tools.isEmpty()) {
             throw new IllegalArgumentException("At least one tool geometry is required");
         }
+        preprocessor.validatePower(params.spindleSpeedRpm());
+        if (preprocessor.isLaser()) {
+            return generateLaserCncJob(units, tools, params, cancellationToken, preprocessor);
+        }
         List<List<Double>> depthsByTool = new ArrayList<>(tools.size());
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
@@ -492,6 +508,7 @@ public final class GCodeGenerator {
         line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
+        gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
 
@@ -517,20 +534,16 @@ public final class GCodeGenerator {
                         line(gcode, "M0 ; troque para a ferramenta (diametro %s %s) e continue",
                                 fmt(tool.toolDiameter()), units);
                     } else {
-                        line(gcode, "T%d", toolIndex + 1);
-                        if (preprocessor.usesM6()) line(gcode, "M6");
-                        line(gcode, "%s", preprocessor.toolChangeMessage(toolIndex + 1,
+                        line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
+                        line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
                                 tool.toolDiameter(), units));
-                        line(gcode, "M0");
                     }
                 }
             } else if (preprocessor.emitsToolNumber()) {
-                line(gcode, "T%d", toolIndex + 1);
+                line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                 if (params.pauseForToolChange()) {
-                    if (preprocessor.usesM6()) line(gcode, "M6");
-                    line(gcode, "%s", preprocessor.toolChangeMessage(toolIndex + 1,
+                    line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
                             tool.toolDiameter(), units));
-                    line(gcode, "M0");
                 }
             }
             firstTool = false;
@@ -583,9 +596,70 @@ public final class GCodeGenerator {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
-        line(gcode, "M30");
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(gcode.toString(), travelFootprint(travelShapes), cutShapes.result());
+        return new CncJobResult(preprocessor.finish(gcode, params.rapidFeedRate(), units),
+                travelFootprint(travelShapes), cutShapes.result());
+    }
+
+    private static void requireMilling(GCodePreprocessor profile) {
+        if (profile.isLaser()) throw new IllegalArgumentException(
+                "Perfil laser exige Geometry -> CNC Job; nao use para furacao ou geracao direta de fresagem.");
+    }
+
+    /** Laser emission is controlled per path, never by a negative Z plunge. */
+    private static CncJobResult generateLaserCncJob(String units, List<ToolGeometry> tools,
+                                                   GeometryGCodeParameters params, CancellationToken cancellation,
+                                                   GCodePreprocessor profile) {
+        if (params.multiDepth() || params.pauseForToolChange()) throw new IllegalArgumentException(
+                "Laser nao usa Multi-Depth nem troca mecanica de ferramenta. Desative essas opcoes.");
+        StringBuilder gcode = new StringBuilder();
+        line(gcode, "%s", profile.comment("Gerado por FlatCAM FX - laser"));
+        line(gcode, "%s", profile.header());
+        line(gcode, "%s", profile.comment("FCFX LASER"));
+        line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
+        line(gcode, "G90");
+        if (profile.usesG17()) line(gcode, "G17");
+        line(gcode, "G94");
+        // Power off even before the first positioning move; never inherit controller state.
+        line(gcode, "%s", profile.spindleOff());
+        if (profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN
+                || profile == GCodePreprocessor.MARLIN_LASER_SPINDLE_PIN) {
+            line(gcode, "%s Z%s", profile.rapid(), fmt(params.safeZ()));
+        }
+        List<Geometry> travels = new ArrayList<>();
+        Footprints cuts = new Footprints();
+        double lastX = 0, lastY = 0;
+        for (ToolGeometry tool : tools) {
+            cancellation.throwIfCancellationRequested();
+            if (tool.geometry().isEmpty()) continue;
+            line(gcode, "%s", profile.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
+            if (profile == GCodePreprocessor.Z_LASER) {
+                line(gcode, "%s Z%s", profile.rapid(), fmt(params.safeZ()));
+            }
+            for (Coordinate[] path : orderedByNearestNeighbor(tool.geometry(), lastX, lastY, cancellation)) {
+                cancellation.throwIfCancellationRequested();
+                if (path.length < 2) throw new IllegalArgumentException(
+                        "Laser requer caminhos XY; pontos isolados exigem tempo de exposicao ainda nao suportado.");
+                addTravel(travels, lastX, lastY, path[0].x, path[0].y, tool.toolDiameter() / 2);
+                line(gcode, "%s X%s Y%s", profile.rapid(), fmt(path[0].x), fmt(path[0].y));
+                line(gcode, "%s S%d", profile.spindleOn(), params.spindleSpeedRpm());
+                for (int p = 1; p < path.length; p++) {
+                    cancellation.throwIfCancellationRequested();
+                    line(gcode, "%s X%s Y%s F%s", profile.linear(), fmt(path[p].x), fmt(path[p].y),
+                            fmt(params.feedRate()));
+                }
+                line(gcode, "%s", profile.spindleOff());
+                cuts.add(GEOMETRY_FACTORY.createLineString(path), tool.toolDiameter() / 2);
+                lastX = path[path.length - 1].x;
+                lastY = path[path.length - 1].y;
+            }
+        }
+        line(gcode, "%s", profile.spindleOff());
+        // Matches the Python profiles' end Z, after the laser has been switched off.
+        line(gcode, "%s Z%s", profile.rapid(), fmt(params.safeZ()));
+        cancellation.throwIfCancellationRequested();
+        return new CncJobResult(profile.finish(gcode, params.rapidFeedRate(), units),
+                travelFootprint(travels), cuts.result());
     }
 
     /** [depthPerPass, 2*depthPerPass, ..., cutDepth] when multiDepth is on, else just [cutDepth]. */
