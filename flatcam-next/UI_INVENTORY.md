@@ -293,6 +293,7 @@ Este arquivo descreve o Python. Para saber o que o FX já porta (detalhes e dife
 | `ToolQRCode` | portado (sem exportar o QR como SVG/PNG) |
 | `ToolFiducials`, `ToolCorners` | portados |
 | `ToolPunchGerber`, `ToolInvertGerber`, `ToolEtchCompensation` | portados |
-| `ToolRulesCheck`, `ToolOptimal`, `ToolCalibration`, `ToolCopperThieving` | **pendentes** (aparecem desabilitados no menu) |
+| `ToolOptimal` | portado (a seleção de um local leva o plot até lá e o marca) |
+| `ToolRulesCheck`, `ToolCalibration`, `ToolCopperThieving` | **pendentes** (aparecem desabilitados no menu) |
 | Conversion / Join Objects | portados: Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join Gerber/Excellon/Geo |
 | Tools Database, salvar `.FlatPrj`, demais pós-processadores | pendentes |

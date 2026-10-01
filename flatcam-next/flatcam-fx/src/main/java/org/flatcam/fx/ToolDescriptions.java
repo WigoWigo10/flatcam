@@ -47,7 +47,8 @@ final class ToolDescriptions {
             Map.entry("rules", new Description("Rules Check Tool",
                     "Verifica regras de projeto (espaçamentos, larguras, furos)." + SOON)),
             Map.entry("optimal", new Description("Optimal Tool",
-                    "Encontra as menores distâncias entre os elementos de um Gerber." + SOON)),
+                    "Encontra a menor distância entre os elementos de cobre de um Gerber, quantos pares estão nela e onde; "
+                            + "ao escolher um local, o plot vai até lá.")),
             Map.entry("calculators", new Description("Calculators Tool",
                     "Calculadoras de unidades, de ferramenta em V e de galvanoplastia.")),
             Map.entry("transform", new Description("Transform Tool",

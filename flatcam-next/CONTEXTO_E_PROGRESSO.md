@@ -6,8 +6,8 @@ entender o estado real do projeto, tomar decisões compatíveis com as já feita
 e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-10-01**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
-> migrou para **Java 25 + JavaFX 25.0.4**, portou **20 das 24 ferramentas do menu Ferramentas do Python**
-> (restam Rules Check, Optimal, Calibration e Copper Thieving), ganhou Conversion/Join Objects parciais,
+> migrou para **Java 25 + JavaFX 25.0.4**, portou **21 das 24 ferramentas do menu Ferramentas do Python**
+> (restam Rules Check, Calibration e Copper Thieving), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
 > na seção 9.0. A suíte tem **462 testes** (359 `flatcam-cam`, 42 `flatcam-application`, 61 `flatcam-fx`),
@@ -192,6 +192,7 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | --- | --- | --- |
 | 2-Sided | `DoubleSidedToolPanel` | espelha objetos por X/Y e eixo por caixa ou ponto; furos de alinhamento; pré-visualização no plot |
 | Align Objects | `AlignObjects` | alinha por 1 ponto (translada) ou 2 (translada e gira), clicando em pads ou furos |
+| Optimal | `MinimumDistance` | menor distância entre os elementos de cobre de um Gerber, pares, locais e demais distâncias |
 | Extract Drills | `ExtractDrills` | Gerber → Excellon pelos flashes: fixo, proporcional ou anel anular |
 | Cutout, NCC, Isolation, Drilling | (anteriores) | ver seção 5 e 9.7 |
 | Paint | `NccGenerator.paint`, `PaintToolPanel` | Standard, Seed, Lines e Combo sobre polígonos |
@@ -206,7 +207,7 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | Invert Gerber | `InvertGerber` | inverte cobre e vazio dentro de uma caixa com margem |
 | Etch Compensation | `EtchCompensation` | cresce ou encolhe o cobre pela espessura e fator de corrosão |
 
-Ainda **sem** porta: Rules Check, Optimal, Calibration e Copper Thieving (aparecem no menu, desabilitados).
+Ainda **sem** porta: Rules Check, Calibration e Copper Thieving (aparecem no menu, desabilitados).
 Conversion e Join Objects: portados Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join
 Gerber/Excellon/Geo.
 
@@ -391,7 +392,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; 5 dos 21 pós-processadores do Python e o `Paste_1` embutido no SolderPaste; faltam os demais pós-processadores (laser, Marlin, Roland, HPGL...) e várias opções avançadas do legado |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
-| Ferramentas do menu Ferramentas | forte/parcial | 20 de 24 portadas (seção 4); faltam Rules Check, Optimal, Calibration e Copper Thieving; vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
+| Ferramentas do menu Ferramentas | forte/parcial | 21 de 24 portadas (seção 4); faltam Rules Check, Calibration e Copper Thieving; vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
@@ -847,7 +848,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
-1. **Ferramentas restantes do menu:** Rules Check, Optimal, Calibration, Copper Thieving (as quatro são
+1. **Ferramentas restantes do menu:** Rules Check, Calibration, Copper Thieving (as três são
    maiores que as já portadas). As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
 2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje 5
    dos 21 do Python).
@@ -1100,6 +1101,16 @@ tooltip aberto num `Platform.exit()` direto derrubava o toolkit nativo). Limita�
 recebem eventos do mouse, então os botões das ferramentas ainda não portadas não mostram o tooltip na barra; a
 navegação dentro dos menus por tooltip só foi validada por simulação (harness fora da tela), não com o mouse.
 Testes: `ToolDescriptionsTest` (toda ferramenta do menu tem descrição).
+
+**Optimal Tool (2026-10-01).** Ferramentas > Optimal Tool (`MinimumDistance` em `flatcam-cam/.../analysis/`,
+`OptimalToolPanel`), o `ToolOptimal.py`: une o cobre do Gerber em peças separadas, mede a distância entre todo par
+de peças (arredondada à precisão, padrão 4 casas) e mostra a menor distância, quantos pares estão nela, onde (os dois
+pontos mais próximos) e as demais distâncias em ordem crescente, cada uma com seus pares. Só uma peça: mensagem como
+a do Python. Diferenças deliberadas: os pares são medidos em paralelo com `IndexedFacetDistance` (o Python mede um a
+um), roda como job cancelável com progresso, e escolher um local na lista já leva o plot até o meio do vão e o marca com
+um anel e o segmento entre os dois pontos (o Python exige clicar em "Locate"). Com o projeto real: F_Cu tem 44 peças e
+o vão mínimo é 0,3505 mm em 16 pares (B_Cu: 47 peças, 0,3505 mm em 18), em ~70 ms. Mais memória cresce com o quadrado
+do número de peças (todas as distâncias são guardadas, como no Python). Testes em `MinimumDistanceTest`.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
@@ -1603,10 +1614,10 @@ exportado em um visualizador independente. Ferramentas avançadas do Editor
 Geometry, plot CNC com largura de ferramenta e lacunas de NCC seguem no roadmap.
 
 **Estado em 2026-10-01.** O projeto roda em Java 25 + JavaFX 25.0.4 (ganho medido de ~2-3x na primeira
-isolação do projeto real) e já porta 20 das 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
+isolação do projeto real) e já porta 21 das 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
-geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam Rules Check, Optimal,
+geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam Rules Check,
 Calibration e Copper Thieving, o editor da Tools Database, salvar
 `.FlatPrj` e os demais pós-processadores. A suíte tem 462 testes sem falhas; a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

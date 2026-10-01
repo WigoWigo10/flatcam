@@ -1012,6 +1012,13 @@ final class PlotAreaView extends StackPane {
         viewCenterY = envelope.getMinY() + envelope.getHeight() / 2.0;
     }
 
+    /** Moves the view so that the world point is in the middle, keeping the zoom. */
+    void centerOn(double x, double y) {
+        viewCenterX = x;
+        viewCenterY = y;
+        redraw();
+    }
+
     /** The project-object selector used whenever no editor owns the canvas. */
     void setDefaultSelectionHandler(SelectionHandler handler) {
         defaultSelectionHandler = handler;

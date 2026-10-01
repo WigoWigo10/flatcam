@@ -87,6 +87,7 @@ import org.flatcam.cam.convert.EtchCompensation;
 import org.flatcam.cam.convert.Fiducials;
 import org.flatcam.cam.convert.QrCodeMarker;
 import org.flatcam.cam.solderpaste.SolderPaste;
+import org.flatcam.cam.analysis.MinimumDistance;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.ObjectConversion;
 import org.flatcam.cam.convert.OutlineToArea;
@@ -1430,6 +1431,7 @@ final class MainWindow {
             case "qrcode" -> this::openQrCodeTool;
             case "solderpaste" -> this::openSolderPasteTool;
             case "align" -> this::openAlignObjectsTool;
+            case "optimal" -> this::openOptimalTool;
             default -> null;
         };
     }
@@ -2849,6 +2851,83 @@ final class MainWindow {
                 cancelPointPick();
             }
         }, this::closeToolPanel));
+    }
+
+    /** Tools > Optimal Tool: the smallest gap between the copper features of a Gerber (appTools/ToolOptimal.py). */
+    private void openOptimalTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Optimal: carregue um Gerber.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("Optimal Tool", OptimalToolPanel.build(new OptimalToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public void find(TreeItem<String> item, int precision, Consumer<MinimumDistance.Result> onResult,
+                             Consumer<String> onError) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    onError.accept("O Gerber foi removido");
+                    return;
+                }
+                if (runningJob != null) {
+                    onError.accept("Ja existe uma operacao em andamento");
+                    return;
+                }
+                beginJob("Optimal: procurando a menor distancia...");
+                JobHandle<MinimumDistance.Result> handle = jobExecutor.submit(context ->
+                        MinimumDistance.find(source.solidGeometry(), precision, context::isCancelled,
+                                fraction -> context.reportProgress(fraction, "Comparando elementos de cobre...")),
+                        (fraction, message) -> Platform.runLater(() -> {
+                            updateProgress(fraction);
+                            statusLabel.setText(message);
+                        }));
+                runningJob = handle;
+                handle.completion().thenAccept(result -> Platform.runLater(() -> {
+                    updateProgress(1);
+                    setStatus("Optimal concluido.", IDLE_COLOR);
+                    onJobFinished();
+                    appendConsole(String.format(java.util.Locale.ROOT,
+                            "Optimal: menor distancia %." + precision + "f (%d par(es)) entre %d elementos de cobre.",
+                            result.minimum(), result.frequency(), result.features()));
+                    onResult.accept(result);
+                })).exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        Throwable cause = error.getCause() == null ? error : error.getCause();
+                        onJobFinished();
+                        onError.accept(isCancellation(error) ? "Cancelado." : cause.getMessage());
+                    });
+                    return null;
+                });
+            }
+
+            @Override
+            public void locate(MinimumDistance.Pair pair) {
+                if (pair == null) {
+                    plotAreaView.setEditorHighlight(null, false);
+                    return;
+                }
+                Coordinate middle = pair.middle();
+                double radius = Math.max(pair.first().distance(pair.second()), 14 * plotAreaView.worldPerPixel());
+                org.locationtech.jts.geom.GeometryFactory factory = new org.locationtech.jts.geom.GeometryFactory();
+                plotAreaView.setEditorHighlight(factory.buildGeometry(List.of(
+                        factory.createPoint(middle).buffer(radius, 24).getBoundary(),
+                        MinimumDistance.segment(pair))), true);
+                plotAreaView.centerOn(middle.x, middle.y);
+            }
+        }, this::closeToolPanel));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     /** Tools > Align Objects Tool: align a Gerber/Excellon to another by clicking pads or drills (appTools/ToolAlignObjects.py). */
