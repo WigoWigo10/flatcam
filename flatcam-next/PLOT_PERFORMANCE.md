@@ -154,6 +154,34 @@ O custo cresce com o comprimento total dos traços em pixels (cada pixel percorr
 quantidade de traços. Próximos passos possíveis: cache de interação (reaproveitar o quadro durante pan/zoom) e
 rasterizar fora da thread JavaFX (hoje esses ~200-1.100 ms ocorrem na thread da interface).
 
+### Camada 2: imagem de densidade fora da thread da interface
+
+A rasterização da camada densa (~50 ms a ~1 s conforme o tamanho) não roda mais na thread JavaFX. `DenseRenderer`
+mantém uma thread de fundo (`plot-density`) e uma fila "a mais recente vence" por camada:
+
+- A camada pede a imagem da vista atual (`View`: geometria, escala, centro, tamanho, cor e largura do traço). O pedido
+  só começa depois de **60 ms com a vista parada**, para um arraste contínuo não rasterizar cada vista intermediária;
+  um pedido mais novo cancela o anterior (a rasterização consulta o cancelamento a cada ~64 partes).
+- Até a imagem nova chegar, o `PlotAreaView` desenha a **imagem anterior movida e escalada** para a vista atual
+  (`offset_novo - offset_antigo * k`, `k = escala_nova / escala_antiga`), recortada na área do plot e com interpolação
+  bilinear, só como substituta. No `[PLOT-PROFILE]` a camada aparece como `[DENSE-STALE]` enquanto isso, e `[DENSE]` com
+  a imagem exata. A primeira imagem de uma camada aparece em ~0,25 s (20 mil traços) a ~1,2 s (500 mil): a interface
+  continua responsiva nesse intervalo.
+- Quando a imagem exata fica pronta, ela substitui a provisória e a tela é redesenhada.
+- `-Dflatcam.plot.density.async=false` volta a rasterizar na thread JavaFX (é o que os scripts de captura usam).
+
+Medido (geometria sintética, pan de 12 quadros, uma vista nova por quadro):
+
+| Traços x vértices | Quadro de pan na thread FX | Imagem exata depois que o pan para |
+|---|---|---|
+| 20.000 x 30 | ~0,5 ms (antes ~55 ms) | ~145 ms |
+| 100.000 x 20 | ~1 ms (antes ~200 ms) | ~350 ms |
+| 500.000 x 20 | ~2,5 ms (antes ~1.100 ms) | ~1,1 s |
+
+A imagem provisória foi conferida contra a final (pan e zoom de ~43%): diferença média 0,00. Limitação: a imagem cobre
+só a área visível quando foi feita, então num arraste longo a borda que entra na tela fica vazia na camada densa até o
+movimento parar (as demais camadas, vetoriais, desenham normalmente).
+
 ## Comparar GPU integrada e dedicada no Windows
 
 Para testar a preferência automática de GPU de alto desempenho com executável

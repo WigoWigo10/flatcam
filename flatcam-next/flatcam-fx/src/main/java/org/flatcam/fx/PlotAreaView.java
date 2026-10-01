@@ -65,9 +65,8 @@ final class PlotAreaView extends StackPane {
                         boolean visible, LayerCategory category, boolean filled, boolean multicolor) {
     }
 
-    /** The last density image of a layer and the view it was made for: identical views reuse it. */
-    private record DenseFrame(Geometry geometry, double scale, double centerX, double centerY, int width, int height,
-                              Color color, double lineWidth, javafx.scene.image.WritableImage image) {
+    /** The last density image of a layer and the view it was made for: identical views reuse it, others stretch it. */
+    private record DenseFrame(DenseRenderer.View view, javafx.scene.image.WritableImage image) {
     }
 
     /** A cheaper visual-only CNC path used while the precise buffered stroke is subpixel. */
@@ -276,6 +275,14 @@ final class PlotAreaView extends StackPane {
     private short[] denseCover = new short[0];
     private int[] densePixels = new int[0];
     private boolean lastLayerDense;
+    /**
+     * Density images are rasterized on a background thread (see {@link DenseRenderer}); until the one for the current
+     * view is ready the previous one is drawn moved and scaled to fit. {@code -Dflatcam.plot.density.async=false}
+     * rasterizes on the JavaFX thread instead (what the screenshot harnesses use).
+     */
+    private static final boolean DENSITY_ASYNC = !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.async"));
+    private final DenseRenderer denseRenderer = new DenseRenderer(javafx.application.Platform::runLater, this::denseFrameReady);
+    private boolean lastLayerStale;
     private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
     private final UiFluidityMetrics uiFluidity = new UiFluidityMetrics("fx");
     private Timeline uiFluidityTimer;
@@ -803,6 +810,7 @@ final class PlotAreaView extends StackPane {
         lodDrawableIndexes.clear();
         denseLayers.clear();
         denseFrames.clear();
+        denseRenderer.clear();
         annotations.clear();
         arrows.clear();
         stopWalk();
@@ -1693,7 +1701,7 @@ final class PlotAreaView extends StackPane {
                         Object key = entry.getKey();
                         String name = key instanceof TreeItem<?> item ? String.valueOf(item.getValue()) : String.valueOf(key);
                         samples.add(new PlotAreaPerformance.LayerSample(
-                                category + ":" + name + (lodActive ? "[LOD]" : "") + (lastLayerDense ? "[DENSE]" : ""), elapsed));
+                                category + ":" + name + (lodActive ? "[LOD]" : "") + (lastLayerDense ? (lastLayerStale ? "[DENSE-STALE]" : "[DENSE]") : ""), elapsed));
                     }
                 }
             }
@@ -1740,6 +1748,7 @@ final class PlotAreaView extends StackPane {
     private void forgetDensity(Object key) {
         denseLayers.remove(key);
         denseFrames.remove(key);
+        denseRenderer.forget(key);
     }
 
     /**
@@ -1751,6 +1760,7 @@ final class PlotAreaView extends StackPane {
                                      Envelope viewBounds, double contentWidth, double contentHeight,
                                      double lineWidth) {
         lastLayerDense = false;
+        lastLayerStale = false;
         if (index == null || !layer.strokeOnly() || layer.multicolor() || !(lineWidth <= 2.5)) {
             denseLayers.remove(key);
             return false;
@@ -1758,33 +1768,38 @@ final class PlotAreaView extends StackPane {
         double[] load = index.visibleLoad(viewBounds);
         boolean wasDense = denseLayers.contains(key);
         if (!DensityRaster.shouldRasterize((long) load[0], load[1], scale, wasDense)) {
-            denseLayers.remove(key);
-            denseFrames.remove(key);
+            forgetDensity(key);
             return false;
         }
         denseLayers.add(key);
         int width = Math.max(1, (int) Math.ceil(contentWidth));
         int height = Math.max(1, (int) Math.ceil(contentHeight));
         Color color = layer.strokeColor();
+        DenseRenderer.View view = new DenseRenderer.View(index.geometry(), scale, viewCenterX, viewCenterY,
+                contentWidth / 2.0 - viewCenterX * scale, contentHeight / 2.0 + viewCenterY * scale, width, height,
+                color.getRed(), color.getGreen(), color.getBlue(), color.getOpacity(), lineWidth);
         DenseFrame frame = denseFrames.get(key);
-        if (frame == null || frame.geometry() != index.geometry() || frame.scale() != scale
-                || frame.centerX() != viewCenterX || frame.centerY() != viewCenterY || frame.width() != width
-                || frame.height() != height || !frame.color().equals(color) || frame.lineWidth() != lineWidth) {
+        if (frame == null || !frame.view().sameAs(view)) {
+            if (DENSITY_ASYNC) {
+                // Ask the background thread for this view and keep showing the previous image, stretched to fit.
+                denseRenderer.request(key, view, index, viewBounds);
+                lastLayerDense = true;
+                if (frame != null) {
+                    drawStaleDenseFrame(gc, frame, view, contentWidth, contentHeight);
+                    lastLayerStale = true;
+                }
+                return true;
+            }
             int pixels = width * height;
             if (denseCover.length < pixels) {
                 denseCover = new short[pixels];
                 densePixels = new int[pixels];
             }
-            DensityRaster.rasterize(index.visibleParts(viewBounds), scale, contentWidth / 2.0 - viewCenterX * scale,
-                    contentHeight / 2.0 + viewCenterY * scale, width, height, denseCover, lineWidth);
+            DensityRaster.rasterize(index.visibleParts(viewBounds), scale, view.offsetX(), view.offsetY(), width, height,
+                    denseCover, lineWidth);
             DensityRaster.toPremultipliedArgb(denseCover, pixels, color.getRed(), color.getGreen(), color.getBlue(),
                     color.getOpacity(), densePixels);
-            javafx.scene.image.WritableImage image = frame != null && frame.width() == width
-                    && frame.height() == height ? frame.image() : new javafx.scene.image.WritableImage(width, height);
-            image.getPixelWriter().setPixels(0, 0, width, height,
-                    javafx.scene.image.PixelFormat.getIntArgbPreInstance(), densePixels, 0, width);
-            frame = new DenseFrame(index.geometry(), scale, viewCenterX, viewCenterY, width, height, color, lineWidth,
-                    image);
+            frame = new DenseFrame(view, denseImage(frame, width, height, densePixels));
             denseFrames.put(key, frame);
         }
         // The Canvas samples an image bilinearly even when it is drawn 1:1, which blurred the coverage (a fully covered
@@ -1795,6 +1810,45 @@ final class PlotAreaView extends StackPane {
         gc.setImageSmoothing(smoothing);
         lastLayerDense = true;
         return true;
+    }
+
+    /** A new image of {@code pixels}, reusing the previous frame's when it has the right size. */
+    private static javafx.scene.image.WritableImage denseImage(DenseFrame previous, int width, int height, int[] pixels) {
+        javafx.scene.image.WritableImage image = previous != null && previous.view().width() == width
+                && previous.view().height() == height ? previous.image() : new javafx.scene.image.WritableImage(width, height);
+        image.getPixelWriter().setPixels(0, 0, width, height, javafx.scene.image.PixelFormat.getIntArgbPreInstance(),
+                pixels, 0, width);
+        return image;
+    }
+
+    /** Called on the JavaFX thread when the background thread has finished the image of a layer's current view. */
+    private void denseFrameReady(Object key) {
+        DenseRenderer.Frame ready = denseRenderer.frame(key);
+        if (ready == null || !layers.containsKey(key)) {
+            return;
+        }
+        denseFrames.put(key, new DenseFrame(ready.view(), denseImage(denseFrames.get(key), ready.view().width(),
+                ready.view().height(), ready.pixels())));
+        requestInteractionRedraw();
+    }
+
+    /**
+     * Draws an image made for an earlier view as it would look in {@code now}: a world point sits at pixel
+     * {@code offset + p * scale} in each, so the image is scaled by {@code now.scale / old.scale} and moved to
+     * {@code now.offset - old.offset * k}. Clipped to the plot area; bilinear, since it is only a stand-in.
+     */
+    private void drawStaleDenseFrame(GraphicsContext gc, DenseFrame frame, DenseRenderer.View now, double contentWidth,
+                                     double contentHeight) {
+        DenseRenderer.View old = frame.view();
+        double k = now.scale() / old.scale();
+        gc.save();
+        gc.beginPath();
+        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.clip();
+        gc.setImageSmoothing(true);
+        gc.drawImage(frame.image(), RULER_LEFT_WIDTH + now.offsetX() - old.offsetX() * k,
+                RULER_TOP_HEIGHT + now.offsetY() - old.offsetY() * k, old.width() * k, old.height() * k);
+        gc.restore();
     }
 
     private static boolean useCenterlineLod(RenderLayer layer, LodGeometry lod, double scale) {

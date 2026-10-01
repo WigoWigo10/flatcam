@@ -981,7 +981,8 @@ teste: 44 pads, 2 bicos, 53 caminhos em ~25 ms. Testes em `SolderPasteTest`.
 `DensityRaster` + integracao no `PlotAreaView` (ver `PLOT_PERFORMANCE.md`, secao "LOD por densidade"). Medido com
 geometria sintetica em pan: 100 mil tracos 745 ms -> ~200 ms; 500 mil 4,4 s -> ~1,1 s (cobertura de area com antialiasing, para
 ficar igual ao vetor; 4 defeitos de fidelidade corrigidos, ver PLOT_PERFORMANCE.md). Testes em `DensityRasterTest`.
-Pendente: camada 2 (cache de interacao durante pan/zoom) e rasterizar fora da thread JavaFX.
+Camada 2 feita (cache de interacao + rasterizacao fora da thread JavaFX, `DenseRenderer`): quadro de pan 1-3 ms, imagem exata
+chega ~145 ms (20 mil), ~350 ms (100 mil), ~1,1 s (500 mil) apos o pan parar. Pendente: cobrir uma margem em volta da vista.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 

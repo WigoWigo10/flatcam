@@ -79,21 +79,37 @@ final class DensityRaster {
 
     static void rasterize(List<PlotDrawableIndex.Part> parts, double scale, double offsetX, double offsetY,
                           int width, int height, short[] cover, double lineWidth, boolean parallel) {
+        rasterize(parts, scale, offsetX, offsetY, width, height, cover, lineWidth, parallel, () -> false);
+    }
+
+    /**
+     * As above, polling {@code cancelled} every few dozen parts; returns {@code false} (and leaves {@code cover} partly
+     * drawn) when it asked to stop.
+     */
+    static boolean rasterize(List<PlotDrawableIndex.Part> parts, double scale, double offsetX, double offsetY,
+                             int width, int height, short[] cover, double lineWidth, boolean parallel,
+                             java.util.function.BooleanSupplier cancelled) {
         Arrays.fill(cover, 0, width * height, (short) 0);
         int bands = Math.max(1, Math.min(height, Runtime.getRuntime().availableProcessors()));
         if (!parallel || parts.size() < 64 || bands == 1) {
-            drawBand(parts, scale, offsetX, offsetY, width, height, 0, height, cover, lineWidth);
-            return;
+            drawBand(parts, scale, offsetX, offsetY, width, height, 0, height, cover, lineWidth, cancelled);
+        } else {
+            IntStream.range(0, bands).parallel().forEach(band ->
+                    drawBand(parts, scale, offsetX, offsetY, width, height, height * band / bands,
+                            height * (band + 1) / bands, cover, lineWidth, cancelled));
         }
-        IntStream.range(0, bands).parallel().forEach(band ->
-                drawBand(parts, scale, offsetX, offsetY, width, height, height * band / bands,
-                        height * (band + 1) / bands, cover, lineWidth));
+        return !cancelled.getAsBoolean();
     }
 
     private static void drawBand(List<PlotDrawableIndex.Part> parts, double scale, double offsetX, double offsetY,
-                                 int width, int height, int rowStart, int rowEnd, short[] cover, double lineWidth) {
+                                 int width, int height, int rowStart, int rowEnd, short[] cover, double lineWidth,
+                                 java.util.function.BooleanSupplier cancelled) {
         double reach = lineWidth / 2 + 1;
+        int visited = 0;
         for (PlotDrawableIndex.Part part : parts) {
+            if ((++visited & 63) == 0 && cancelled.getAsBoolean()) {
+                return;
+            }
             // Skip parts that cannot touch this band's rows (screen y grows as world y falls).
             double top = offsetY - part.bounds().getMaxY() * scale;
             double bottom = offsetY - part.bounds().getMinY() * scale;
