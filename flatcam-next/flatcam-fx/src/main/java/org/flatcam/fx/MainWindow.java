@@ -589,9 +589,13 @@ final class MainWindow {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar rascunho G-code");
         boolean icp = GCodeToolpathParser.isIcpProgram(text);
-        chooser.getExtensionFilters().add(icp ? new FileChooser.ExtensionFilter("ISEL ICP", "*.imf")
+        boolean hpgl = GCodeToolpathParser.isHpglProgram(text);
+        boolean roland = GCodeToolpathParser.isRolandProgram(text);
+        chooser.getExtensionFilters().add(roland ? new FileChooser.ExtensionFilter("Roland RML-1", "*.rml", "*.prn")
+                : hpgl ? new FileChooser.ExtensionFilter("HPGL", "*.plt", "*.hpgl", "*.hpg")
+                : icp ? new FileChooser.ExtensionFilter("ISEL ICP", "*.imf")
                 : new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
-        chooser.setInitialFileName(icp ? "program_edit.imf" : "gcode_edit.nc");
+        chooser.setInitialFileName(roland ? "program_edit.rml" : hpgl ? "program_edit.plt" : icp ? "program_edit.imf" : "gcode_edit.nc");
         File file = chooser.showSaveDialog(scene.getWindow());
         if (file == null) {
             return false;
@@ -5095,7 +5099,7 @@ final class MainWindow {
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
         } else {
             chooser.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Programas CNC", "*.nc", "*.gcode", "*.tap", "*.imf"));
+                    new FileChooser.ExtensionFilter("Programas CNC", "*.nc", "*.gcode", "*.tap", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
         }
 
         Path suggestedParent = cncJob != null ? cncJob.outputFile().getParent()
@@ -7157,7 +7161,7 @@ final class MainWindow {
 
     private void openGCode() {
         List<File> files = pickCamFiles("Abrir G-Code",
-                new FileChooser.ExtensionFilter("Programas CNC (G-code / ICP)", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt", "*.imf"));
+                new FileChooser.ExtensionFilter("Programas CNC (G-code / ICP / HPGL / RML)", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
         if (!files.isEmpty()) {
             openGCodeQueue(files, 0);
         }

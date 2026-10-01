@@ -2,6 +2,7 @@ package org.flatcam.cam.gcode;
 
 import java.util.List;
 import java.util.Locale;
+import org.flatcam.cam.CancellationToken;
 
 /**
  * Controller dialects explicitly ported from the Python preprocessors.
@@ -29,7 +30,9 @@ public enum GCodePreprocessor {
     TOOLCHANGE_MANUAL("Toolchange_Manual (ajuste em Z0)", true, false, true),
     TOOLCHANGE_CUSTOM("Toolchange_Custom (macro M6)", true, true, true),
     LINE_XYZ("line_xyz (XYZ em cada movimento)", true, true, false),
-    ISEL_ICP_CNC("ISEL_ICP_CNC (mm, formato ICP)", false, false, false);
+    ISEL_ICP_CNC("ISEL_ICP_CNC (mm, formato ICP)", false, false, false),
+    HPGL("hpgl (plotter, canetas)", false, false, false),
+    ROLAND_MDX_20("Roland_MDX_20 (mm, RML-1)", false, false, false);
 
     private final String label;
     private final boolean pythonStyle;
@@ -44,7 +47,7 @@ public enum GCodePreprocessor {
     }
 
     public static List<GCodePreprocessor> millingProfiles() {
-        return java.util.Arrays.stream(values()).filter(profile -> !profile.isLaser()).toList();
+        return java.util.Arrays.stream(values()).filter(profile -> !profile.isLaser() && !profile.isPlotter()).toList();
     }
 
     public static List<GCodePreprocessor> geometryProfiles() {
@@ -56,9 +59,26 @@ public enum GCodePreprocessor {
                 || this == MARLIN_LASER_SPINDLE_PIN || this == Z_LASER;
     }
 
+    public boolean isPlotter() {
+        return this == HPGL;
+    }
+
+    public boolean isRoland() {
+        return this == ROLAND_MDX_20;
+    }
+
+    public boolean supportsManualToolChange() {
+        return !isLaser() && !isPlotter() && !automaticToolSelection() && !isRoland();
+    }
+
+    /** The MDX-20 motor is binary, unlike profiles with an S/RPM parameter. */
+    public boolean controlsSpindle(int rpm) {
+        return isRoland() || rpm > 0;
+    }
+
     public boolean usesRapidFeed() {
         return this == MARLIN || this == REPETIER || this == MARLIN_LASER_FAN_PIN
-                || this == MARLIN_LASER_SPINDLE_PIN;
+                || this == MARLIN_LASER_SPINDLE_PIN || isRoland();
     }
 
     public String description() {
@@ -82,6 +102,11 @@ public enum GCodePreprocessor {
                     + "Preserva X e Y distintos, inclusive na troca.";
             case ISEL_ICP_CNC -> "Formato ICP em mm: FASTABS/MOVEABS em micrometros, VEL em micrometros/s, "
                     + "GETTOOL automatico. Termina na altura/XY escolhidos, sem WPCLEAR ou retorno a Z0.";
+            case HPGL -> "Plotter: IN/PU/PD/PA/SP, passo 0,025 mm. Sem Z, spindle ou velocidade programada. "
+                    + "Uma passagem por caminho; canetas numeradas pela ordem das ferramentas. Limites fora da faixa sao recusados.";
+            case ROLAND_MDX_20 -> "RML-1: somente MM e uma ferramenta por arquivo. Motor !MC1/!MC0, sem RPM. "
+                    + "Velocidades V entre 0,1 e 15 mm/s; fora da faixa sao recusadas. Sem troca ou dwell. "
+                    + "Posicione X/Y na origem e confira a altura livre antes de iniciar.";
             default -> "Port parcial do perfil Python. M6 exige suporte do controlador; simule antes de usar.";
         };
     }
@@ -97,13 +122,20 @@ public enum GCodePreprocessor {
         }
     }
 
+    public void validateFeedRates(double feedRate, double rapidFeedRate) {
+        if (isRoland()) {
+            RolandProgramCodec.velocity(feedRate);
+            RolandProgramCodec.velocity(rapidFeedRate == 0 ? 900 : rapidFeedRate);
+        }
+    }
+
     /** Additional modal initialization, without changing the legacy portable output. */
     public String initialization() {
         return switch (this) {
             case BERTA_CNC -> "G91.1\nG64 P0.03\nM110\nG54\nG0\n(Berta)\nM05\n";
             case MARLIN -> "M400\nM5\n";
             case REPETIER -> "M107\n";
-            case ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC -> "M05\n";
+            case ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20 -> "M05\n";
             default -> "";
         };
     }
@@ -113,7 +145,7 @@ public enum GCodePreprocessor {
             case BERTA_CNC -> "(Berta)\nM111\nM30\n(Berta)\n";
             case MARLIN, REPETIER, GRBL_LASER, Z_LASER,
                     MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN,
-                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC -> "";
+                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20 -> "";
             default -> "M30\n";
         };
     }
@@ -159,7 +191,7 @@ public enum GCodePreprocessor {
     }
 
     public String unitsCode(String units) {
-        if (this == ISEL_CNC || this == ISEL_ICP_CNC) {
+        if (this == ISEL_CNC || this == ISEL_ICP_CNC || isRoland()) {
             if (!"MM".equalsIgnoreCase(units)) throw new IllegalArgumentException(
                     name() + " suporta somente MM neste port; converta o objeto para mm antes de gerar.");
             return this == ISEL_CNC ? "G71" : "G21";
@@ -168,22 +200,29 @@ public enum GCodePreprocessor {
     }
 
     public boolean automaticToolSelection() {
-        return this == ISEL_ICP_CNC;
+        return this == ISEL_ICP_CNC || this == HPGL;
     }
 
     public String fileExtension() {
-        return this == ISEL_ICP_CNC ? ".imf" : ".nc";
+        return isRoland() ? ".rml" : this == HPGL ? ".plt" : this == ISEL_ICP_CNC ? ".imf" : ".nc";
     }
 
     public List<String> filePatterns() {
-        return this == ISEL_ICP_CNC ? List.of("*.imf") : List.of("*.nc", "*.gcode", "*.tap");
+        return isRoland() ? List.of("*.rml", "*.prn") : this == HPGL ? List.of("*.plt", "*.hpgl", "*.hpg")
+                : this == ISEL_ICP_CNC ? List.of("*.imf") : List.of("*.nc", "*.gcode", "*.tap");
     }
 
     /** Explicit G0 feed for Marlin/Repetier. Zero selects a conservative default in source units. */
     public String finish(StringBuilder program, double rapidFeedRate, String units) {
+        return finish(program, rapidFeedRate, units, CancellationToken.none());
+    }
+
+    public String finish(StringBuilder program, double rapidFeedRate, String units, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
         program.append(ending());
         if (this == LINE_XYZ) return ControllerProgramCodec.explicitXyz(program.toString());
         if (this == ISEL_ICP_CNC) return ControllerProgramCodec.encodeIcp(program.toString());
+        if (isRoland()) return RolandProgramCodec.encode(program.toString(), rapidFeedRate, cancellation);
         if (!usesRapidFeed()) return program.toString();
         double rate = rapidFeedRate > 0 ? rapidFeedRate : ("MM".equalsIgnoreCase(units) ? 1500 : 1500 / 25.4);
         String suffix = " F" + GCodeGenerator.fmt(rate);
@@ -240,7 +279,7 @@ public enum GCodePreprocessor {
     }
 
     public boolean emitsToolNumber() {
-        return !isLaser() && this != FX_PORTABLE;
+        return !isLaser() && !isRoland() && this != FX_PORTABLE;
     }
 
     public boolean usesG17() {

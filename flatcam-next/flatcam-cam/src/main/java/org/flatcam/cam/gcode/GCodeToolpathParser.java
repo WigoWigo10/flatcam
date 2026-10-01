@@ -76,6 +76,14 @@ public final class GCodeToolpathParser {
         return ControllerProgramCodec.isIcp(program);
     }
 
+    public static boolean isHpglProgram(String program) {
+        return HpglProgramCodec.isHpgl(program);
+    }
+
+    public static boolean isRolandProgram(String program) {
+        return RolandProgramCodec.isRoland(program);
+    }
+
     /**
      * One tool's share of a program: its drill hits and routed slots, how deep it
      * plunged, and its own cut/travel preview so a viewer can show or hide one tool
@@ -322,14 +330,19 @@ public final class GCodeToolpathParser {
         if (gcode == null || gcode.isBlank()) {
             throw new IllegalArgumentException("O G-code nao pode estar vazio.");
         }
-        if (ControllerProgramCodec.isIcp(gcode)) {
-            String normalized = ControllerProgramCodec.normalizeIcp(gcode, cancellation, fraction -> progress.report(fraction * 0.25));
+        if (ControllerProgramCodec.isIcp(gcode) || HpglProgramCodec.isHpgl(gcode) || RolandProgramCodec.isRoland(gcode)) {
+            String normalized = RolandProgramCodec.isRoland(gcode)
+                    ? RolandProgramCodec.normalize(gcode, cancellation, fraction -> progress.report(fraction * 0.25))
+                    : HpglProgramCodec.isHpgl(gcode)
+                    ? HpglProgramCodec.normalize(gcode, cancellation, fraction -> progress.report(fraction * 0.25))
+                    : ControllerProgramCodec.normalizeIcp(gcode, cancellation, fraction -> progress.report(fraction * 0.25));
             Result parsed = parse(normalized, cancellation, fraction -> progress.report(0.25 + fraction * 0.75));
             return new Result(parsed.travelGeometry(), parsed.cutGeometry(), parsed.warning(),
                     (int) gcode.lines().count(), parsed.units(), parsed.travelCenterlines(), parsed.cutCenterlines(), parsed.stats());
         }
         List<String> lines = gcode.lines().toList();
-        boolean laserProfile = LASER_PROFILE.matcher(gcode).find();
+        // Both laser emission and plotter pen state classify XY independently of Z.
+        boolean laserProfile = LASER_PROFILE.matcher(gcode).find() || gcode.contains("; FCFX PLOTTER");
         boolean explicitRapidFeed = RAPID_FEED_PROFILE.matcher(gcode).find();
         boolean iselProfile = ISEL_PROFILE.matcher(gcode).find();
         boolean laserOn = false;

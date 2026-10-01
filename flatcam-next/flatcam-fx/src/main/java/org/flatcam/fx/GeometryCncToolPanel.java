@@ -89,7 +89,7 @@ final class GeometryCncToolPanel {
                 : Integer.toString(defaults.spindleSpeedRpm()));
         TextField rapidFeedField = new TextField(defaults == null ? "0" : format(defaults.rapidFeedRate()));
         rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
-                + "Aplicado aos G0 dos perfis Marlin e Repetier."));
+                + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
                 depthPerPassField, feedField, spindleField, rapidFeedField)) {
             field.setPrefColumnCount(7);
@@ -103,6 +103,8 @@ final class GeometryCncToolPanel {
         spindleField.setId("cnc-power");
         rapidFeedField.setId("cnc-rapid-feed");
         cutDepthField.setId("cnc-cut-depth");
+        safeZField.setId("cnc-safe-z");
+        feedField.setId("cnc-feed");
         multiDepthCb.setId("cnc-multi-depth");
         pauseCheck.setId("cnc-tool-change");
         preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
@@ -116,17 +118,25 @@ final class GeometryCncToolPanel {
         });
         preprocessor.setMinWidth(0);
         preprocessor.setMaxWidth(Double.MAX_VALUE);
-        preprocessor.setTooltip(new Tooltip("Perfis de fresagem e laser. Simule e faca um teste a seco antes de usar."));
+        preprocessor.setTooltip(new Tooltip("Perfis de fresagem, laser e plotter. Simule e faca um teste a seco antes de usar."));
         var laser = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> preprocessor.getValue().isLaser(), preprocessor.valueProperty());
+        var plotter = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().isPlotter(), preprocessor.valueProperty());
+        var roland = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().isRoland(), preprocessor.valueProperty());
+        var noCutZ = laser.or(plotter);
         var rapidFeed = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty());
-        cutDepthField.disableProperty().bind(laser);
-        multiDepthCb.disableProperty().bind(laser);
+        cutDepthField.disableProperty().bind(noCutZ);
+        multiDepthCb.disableProperty().bind(noCutZ);
+        safeZField.disableProperty().bind(plotter);
+        feedField.disableProperty().bind(plotter);
+        spindleField.disableProperty().bind(plotter.or(roland));
         depthPerPassField.disableProperty().unbind();
-        depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(laser));
+        depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(noCutZ));
         pauseCheck.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
-                () -> laser.get() || preprocessor.getValue().automaticToolSelection(), preprocessor.valueProperty()));
+                () -> !preprocessor.getValue().supportsManualToolChange(), preprocessor.valueProperty()));
         rapidFeedField.disableProperty().bind(rapidFeed.not());
         Label profileHelp = new Label();
         profileHelp.setWrapText(true);
@@ -164,7 +174,7 @@ final class GeometryCncToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         Map<Integer, TextField[]> vFields = new LinkedHashMap<>();
         VBox vSettings = new VBox(8);
-        vSettings.disableProperty().bind(laser);
+        vSettings.disableProperty().bind(noCutZ);
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
             if (tool.toolProfile() != ToolProfile.V || tool.geometry().isEmpty()) continue;
@@ -201,12 +211,12 @@ final class GeometryCncToolPanel {
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
-                double safeZ = parse(safeZField, "Travel Z");
-                double cutDepth = laser.get() ? 1 : parse(cutDepthField, "Cut Z");
-                boolean multiDepth = !laser.get() && multiDepthCb.isSelected();
+                double safeZ = plotter.get() ? 1 : parse(safeZField, "Travel Z");
+                double cutDepth = noCutZ.get() ? 1 : parse(cutDepthField, "Cut Z");
+                boolean multiDepth = !noCutZ.get() && multiDepthCb.isSelected();
                 double depthPerPass = multiDepth ? parse(depthPerPassField, "Depth per pass") : 1;
-                double feed = parse(feedField, "Feed rate");
-                double power = parse(spindleField, powerLabel.getText());
+                double feed = plotter.get() ? 1 : parse(feedField, "Feed rate");
+                double power = plotter.get() || roland.get() ? 0 : parse(spindleField, powerLabel.getText());
                 if (!Double.isFinite(power) || power < 0 || power > Integer.MAX_VALUE || power != Math.rint(power))
                     throw new IllegalArgumentException("Potencia/RPM deve ser um inteiro nao negativo.");
                 int spindle = (int) power;
@@ -214,14 +224,17 @@ final class GeometryCncToolPanel {
                 preprocessor.getValue().unitsCode(units);
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
-                        !laser.get() && !preprocessor.getValue().automaticToolSelection() && pauseCheck.isSelected(),
+                        preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
                         rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0);
+                preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
                         : List.of(new ToolGeometry(parse(toolDiaField, "Tool Dia"), combinedGeometry));
+                if (roland.get() && resultTools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1)
+                    throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo.");
                 Map<Integer, VTipSettings> vTools = new LinkedHashMap<>();
                 for (var entry : vFields.entrySet()) {
-                    if (laser.get()) break;
+                    if (noCutZ.get()) break;
                     TextField[] fields = entry.getValue();
                     VTipSettings settings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
                             parse(fields[1], "V-Tip Angle"));

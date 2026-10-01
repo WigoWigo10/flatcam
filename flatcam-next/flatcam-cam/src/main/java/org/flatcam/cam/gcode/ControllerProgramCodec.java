@@ -173,7 +173,7 @@ final class ControllerProgramCodec {
                 || (positive && value <= 0)) throw invalid(index, "Coordenada ICP deve ser inteira e dentro do limite");
     }
 
-    private static Map<Character, Double> words(String line) {
+    static Map<Character, Double> words(String line) {
         Map<Character, Double> result = new LinkedHashMap<>();
         var matcher = WORD.matcher(line);
         int cursor = 0;

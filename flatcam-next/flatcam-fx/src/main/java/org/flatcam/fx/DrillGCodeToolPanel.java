@@ -78,13 +78,17 @@ final class DrillGCodeToolPanel {
         }
 
         DrillGCodeParameters parameters(boolean toolChange) {
+            return parameters(toolChange, false);
+        }
+
+        DrillGCodeParameters parameters(boolean toolChange, boolean roland) {
             double cut = parse(cutZ, "Cut Z (Tool " + id + ")");
             if (cut >= 0) throw new IllegalArgumentException("Cut Z deve ser negativo para Tool " + id + ".");
             return new DrillGCodeParameters(parse(travelZ, "Travel Z (Tool " + id + ")"), -cut,
                     parse(feedZ, "Feedrate Z (Tool " + id + ")"),
-                    parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange,
+                    roland ? 0 : parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange,
                     multiDepth, multiDepth ? parse(depthPerPass, "Depth per pass (Tool " + id + ")") : 0,
-                    dwell, dwell ? parse(dwellTime, "Dwell time (Tool " + id + ")") : 0,
+                    !roland && dwell, !roland && dwell ? parse(dwellTime, "Dwell time (Tool " + id + ")") : 0,
                     parse(offsetZ, "Offset Z (Tool " + id + ")"));
         }
 
@@ -118,6 +122,7 @@ final class DrillGCodeToolPanel {
         sourceCombo.setMaxWidth(Double.MAX_VALUE);
 
         TableView<ToolRow> table = new TableView<>();
+        table.setId("drill-tools");
         table.setMinWidth(0);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -176,10 +181,12 @@ final class DrillGCodeToolPanel {
         TextField travelZ = field(metric ? "2.0" : "0.1");
         TextField feedZ = field(metric ? "300" : "12");
         TextField spindle = field("0");
+        spindle.setId("drill-power");
         TextField dwellTime = field("1.0");
         TextField offsetZ = field("0.0");
         CheckBox multiDepth = new CheckBox("Multi-Depth");
         CheckBox dwell = new CheckBox("Dwell");
+        dwell.setId("drill-dwell");
         multiDepth.setTooltip(new Tooltip("Desce em etapas e retrai entre passes."));
         dwell.setTooltip(new Tooltip("Espera apos ligar o spindle antes de furar."));
         offsetZ.setTooltip(new Tooltip("Valor positivo aumenta a profundidade; negativo reduz."));
@@ -333,7 +340,15 @@ final class DrillGCodeToolPanel {
         preprocessor.setId("drill-preprocessor");
         preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
         var automaticTools = Bindings.createBooleanBinding(
-                () -> preprocessor.getValue().automaticToolSelection(), preprocessor.valueProperty());
+                () -> !preprocessor.getValue().supportsManualToolChange(), preprocessor.valueProperty());
+        var roland = Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().isRoland(), preprocessor.valueProperty());
+        spindle.disableProperty().unbind();
+        spindle.disableProperty().bind(noneSelected.or(roland));
+        dwell.disableProperty().unbind();
+        dwell.disableProperty().bind(noneSelected.or(roland));
+        dwellTime.disableProperty().unbind();
+        dwellTime.disableProperty().bind(noneSelected.or(dwell.selectedProperty().not()).or(roland));
         toolChange.disableProperty().bind(automaticTools);
         toolChangeZ.disableProperty().unbind();
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not().or(automaticTools));
@@ -354,7 +369,7 @@ final class DrillGCodeToolPanel {
                 + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
         TextField rapidFeed = field("0");
         rapidFeed.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
-                + "Feed de G0 usado por Marlin/Repetier."));
+                + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         rapidFeed.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> !preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty()));
         Label profileHelp = new Label();
@@ -386,6 +401,8 @@ final class DrillGCodeToolPanel {
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
                 preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
                 if (selected.isEmpty()) throw new IllegalArgumentException("Selecione ferramentas para furar.");
+                if (roland.get() && selected.size() > 1)
+                    throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo.");
                 if (!toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection()
                         && selected.stream().map(row -> row.diameter).distinct().count() > 1)
                     throw new IllegalArgumentException("Ha diametros diferentes no mesmo G-code. "
@@ -395,11 +412,11 @@ final class DrillGCodeToolPanel {
                     selected.sort(Comparator.comparingDouble((ToolRow row) -> row.diameter).reversed());
                 else selected.sort(Comparator.comparingInt(row -> table.getItems().indexOf(row)));
                 Map<Integer, DrillGCodeParameters> settings = new LinkedHashMap<>();
-                boolean mechanicalChange = toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection();
+                boolean mechanicalChange = toolChange.isSelected() && preprocessor.getValue().supportsManualToolChange();
                 List<Integer> orderedIds = new ArrayList<>();
                 for (ToolRow row : selected) {
-                    preprocessor.getValue().validatePower(parseInt(row.spindle, "Potencia/RPM (Tool " + row.id + ")"));
-                    settings.put(row.id, row.parameters(mechanicalChange));
+                    preprocessor.getValue().validatePower(roland.get() ? 0 : parseInt(row.spindle, "Potencia/RPM (Tool " + row.id + ")"));
+                    settings.put(row.id, row.parameters(mechanicalChange, roland.get()));
                     orderedIds.add(row.id);
                 }
                 Double endX = null, endY = null;
@@ -417,6 +434,8 @@ final class DrillGCodeToolPanel {
                 var options = new GCodeGenerator.DrillJobOptions(
                         mechanicalChange, changeZ, endZ, endX, endY,
                         preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0);
+                for (DrillGCodeParameters values : settings.values())
+                    preprocessor.getValue().validateFeedRates(values.feedRate(), options.rapidFeedRate());
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),
                         List.copyOf(orderedIds), options, preprocessor.getValue()));

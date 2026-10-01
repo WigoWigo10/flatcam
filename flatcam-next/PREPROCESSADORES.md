@@ -1,7 +1,7 @@
 # Preprocessadores de G-code no FlatCAM FX
 
 Atualizado em 2026-10-01. A escolha fica em **Drilling Tool** (somente fresagem)
-e **Geometry → CNC Job** (fresagem e laser). O perfil padrão é
+e **Geometry → CNC Job** (fresagem, laser e plotter). O perfil padrão é
 **FX portable (atual)**, que mantém a saída anterior sem alterações.
 
 | Perfil no FX | Referência Python | Diferenças relevantes |
@@ -23,6 +23,8 @@ e **Geometry → CNC Job** (fresagem e laser). O perfil padrão é
 | Toolchange_Custom | `preprocessors/Toolchange_Custom.py` | Chama macro `M6` do controlador, sem `M0` adicional |
 | line_xyz | `preprocessors/line_xyz.py` | XYZ explícitos nos movimentos G00/G01; troca `Tn/M6/M0` |
 | ISEL_ICP_CNC | `preprocessors/ISEL_ICP_CNC.py` | Formato ICP: `IMF_PBL`, `FASTABS/MOVEABS`, `VEL`, `GETTOOL`, `SPINDLE`, `WAIT`, `PROGEND` |
+| hpgl | `preprocessors/hpgl.py` | Formato HPGL: `IN`, `PU/PD`, `PA`, `SP`; caneta levantada e `SP0` ao encerrar |
+| Roland_MDX_20 | `preprocessors/Roland_MDX_20.py` | RML-1: `;;^IN;`, `^PA`, `Zx,y,z`, `V`, `!MC1/!MC0`; somente MM e uma ferramenta por arquivo |
 
 Os perfis Python são código executável; o FX porta explicitamente os comandos
 essenciais, **não** executa os módulos Python nem reproduz seus
@@ -31,10 +33,10 @@ Geometry ou pelo número do Excellon. Isolamento e cutout geram Geometry na
 interface; a escolha do perfil acontece ao criar o CNC Job desse objeto. Seus
 geradores diretos de G-code aceitam somente os perfis de fresagem.
 
-São **16 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
-**17 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
-incluía `__init__.py`; FX portable não é um perfil Python. Pendentes: `hpgl`,
-`Roland_MDX_20` e `Toolchange_Probe_MACH3`.
+São **18 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
+**19 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
+incluía `__init__.py`; FX portable não é um perfil Python. Pendentes:
+`Toolchange_Probe_MACH3`.
 
 ## Limites e diferenças dos novos perfis
 
@@ -99,6 +101,76 @@ incluía `__init__.py`; FX portable não é um perfil Python. Pendentes: `hpgl`,
   com WPCLEAR. A estimativa de tempo não mede troca, WAIT nem velocidade real
   de FASTABS; continua aproximada. ICP gera movimentos lineares, sem arcos nativos.
 
+## HPGL: geração e prévia
+
+- Disponível em **Geometry → CNC Job → Preprocessor → hpgl**. Cada ferramenta
+  corresponde a uma caneta `SP`, numerada pela ordem da Geometry. O diâmetro
+  é a largura de desenho da prévia; a caneta física deve ser configurada no plotter.
+  Geometry de isolamento, cutout e NCC pode ser usada como fonte. Não há perfil
+  HPGL em Drilling nem nos geradores diretos de fresagem.
+- Gera `.plt`; abertura de programas CNC, Salvar como e o editor também aceitam
+  `.hpgl` e `.hpg`. **Importar HPGL2** continua sendo outro fluxo, criando Geometry
+  com o importador já existente, mais abrangente que a prévia de programas CNC.
+- MM e IN são convertidos para passos de **0,025 mm**, com arredondamento para
+  o inteiro par nas metades, como `round()` do Python. A faixa é a mesma do perfil
+  legado, **-32767..32768** por eixo, mas o FX recusa excessos em vez de cortar
+  coordenadas silenciosamente. A geometria de plot usa os pontos arredondados.
+- Uma passagem por caminho; Z, spindle, feed, Multi-Depth, V-tip e troca mecânica
+  ficam desabilitados sem apagar os valores anteriores. O gerador recusa Multi-Depth,
+  pausa mecânica, pontos isolados e caminhos que colapsam pela resolução. Não emite
+  comandos de velocidade, como o perfil Python: a estimativa de tempo fica indisponível.
+- Encerra com **PU e SP0**, sem movimento adicional à origem. Cabeçalho e metadados
+  usam comentários nativos `CO`, incluindo unidades de origem e larguras de caneta.
+  Isso permite salvar/reabrir o projeto sem o arquivo externo. A prévia de arquivos
+  FX mantém MM/IN da fonte; arquivos externos sem esses metadados aparecem em MM,
+  com largura fina quando não declarada. A posição física inicial não é conhecida.
+- O leitor CNC cobre **IN inicial, CO, SP, PU/PD e PA/PR**, múltiplos pares e comandos
+  na mesma linha, terminados por `;`. Recusa reset IN adicional, troca SP com caneta
+  baixada e comandos não modelados (incluindo SC/IP, arcos, texto e velocidade), em
+  vez de apresentar um percurso incorreto. Mantém cancelamento e progresso. A geração
+  não depende do limite de 50 mil segmentos da prévia detalhada do editor.
+
+## Roland MDX-20: RML-1
+
+- Disponível em **Drilling Tool** e **Geometry → CNC Job**. Gera `.rml`; abertura
+  de programas CNC, editor e Salvar como também aceitam `.prn`. Usa apenas comandos
+  nativos, sem comentários de G-code nem metadados inventados no arquivo da máquina.
+- **Somente MM nesta primeira versão**, como os perfis ISEL. IN é recusado
+  explicitamente; a divisão por 25,4 do Python não é reproduzida. Converta o objeto
+  para MM antes de gerar. Emite XYZ explícitos em unidades de 1/40 mm, com uma
+  casa decimal, conservando a precisão textual XY do perfil Python e aplicando-a
+  também a Z. Isso não promete resolução física de 0,0025 mm no equipamento.
+- **Uma ferramenta não vazia por arquivo**, sem troca automática ou pausa manual.
+  A interface bloqueia troca e avisa sobre múltiplas ferramentas antes de abrir
+  o diálogo de destino. Furação exige selecionar uma única linha. Geometry V
+  continua exigindo seus parâmetros de ponta/ângulo; Multi-Depth permanece disponível.
+- O motor é binário: **!MC1 liga e !MC0 desliga**, sem parâmetro de RPM. O perfil
+  liga automaticamente durante a usinagem, mesmo com RPM = 0; esse campo fica
+  desabilitado no painel. Dwell também fica desabilitado e a API recusa espera,
+  em vez de ignorar silenciosamente. Retornar a outro perfil restaura a edição
+  dos campos sem apagar os rascunhos anteriores.
+- **Feed e Feed rapids: 6..900 mm/min**, convertidos para `V0.1..V15.0` mm/s
+  com uma casa decimal. Rapid = 0 usa 900 mm/min. Valores fora da faixa são
+  recusados, sem o clamp do Python e sem seu erro de mínimo (6 mm/s em vez de
+  0,1 mm/s). A faixa foi conferida na seção 12 do
+  [manual oficial MDX-20/15](https://downloadcenter.rolanddg.com/contents/manuals/MDX-20_USE_EN_R7.pdf).
+- Encerra na altura livre definida e, em Drilling, no XY final opcional, sem
+  homing/reset adicional. O primeiro movimento nativo XYZ assume X/Y = 0:
+  **posicione na origem XY e confira a folga Z antes de executar**. O limite
+  numérico do encoder não verifica o curso físico da mesa nem colisões.
+- A prévia cobre **^IN inicial, ^PA, V, Z e !MC**; também lê o !MC sem `;`
+  que o Python escreve. Movimentos relativos, resets adicionais, mudanças de
+  origem e comandos não modelados deixam a prévia indisponível. Estabelece a
+  primeira posição XY antes de reconhecer mergulhos, mantendo furos e slots visíveis.
+  A estimativa usa a velocidade V efetiva inclusive nos deslocamentos, mas não
+  considera aceleração, tempo de partida do motor ou posição inicial real.
+- **Limitação de metadados:** o RML nativo não contém diâmetro, IDs de ferramenta
+  ou unidades de origem embutidos. A geração mantém o plot com largura real,
+  mas reabrir/aplicar o texto (inclusive o texto embutido em projetos) usa largura
+  fina e não reconstrói a tabela de ferramentas de furação. Não há suplemento de
+  metadados de ferramenta persistido nesta rodada. O percurso e suas unidades MM
+  são reconstruídos; compensações de mesa e controle de RPM não foram portados.
+
 ## Pasta e validação
 
 **Dispensador de pasta (`Paste_1`).** O único pré-processador de pasta do Python é gerado diretamente pelo
@@ -119,6 +191,16 @@ limites de potência, desligamento nos G0 e reabertura de laser, inclusive arcos
 `ControllerProgramCodecTest` cobre XYZ, ICP, unidades, velocidade/espera, ferramentas,
 limites, cancelamento e progresso. `ProjectFileIOTest` reabre um job ICP embutido sem
 o arquivo externo; os controles de Geometry e Drilling são exercitados na thread FX.
+`HpglProgramCodecTest` cobre saída nativa, MM/IN, quantização, seleção/largura de canetas,
+leitura linear absoluta/relativa, comandos recusados, cancelamento e progresso. O job
+HPGL embutido é reaberto por `ProjectFileIOTest`; controles e retorno ao perfil de
+fresagem são verificados por `GeometryCncToolPanelTest`. Teste manual no app e no
+plotter permanecem pendentes.
+`RolandProgramCodecTest` cobre RML nativo, velocidades, motor, XYZ modal, mergulhos,
+slots/Multi-Depth, V-tools, restrições MM/ferramenta, comandos recusados e cancelamento.
+`ProjectFileIOTest` reabre o texto RML embutido sem arquivo externo; controles de
+Geometry/Drilling, desabilitação/preservação de rascunhos e rejeição de múltiplas
+ferramentas são exercitados na thread FX. Validação manual e em máquina pendentes.
 
 **Antes de enviar a uma máquina:** confira unidades, alturas Z, ordem de
 ferramentas, comportamento de `M0` e suporte de `M6` no controlador. Faça uma

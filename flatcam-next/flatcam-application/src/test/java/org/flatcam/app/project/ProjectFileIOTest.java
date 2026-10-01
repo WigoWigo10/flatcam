@@ -34,6 +34,45 @@ class ProjectFileIOTest {
     Path tempDir;
 
     @Test
+    void nativeRolandJobReopensFromEmbeddedTextWithoutTheOutputFile() throws IOException {
+        var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(3, 7), new Coordinate(6, 7)});
+        var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob("MM",
+                List.of(new ToolGeometry(0.8, geometry)),
+                new org.flatcam.cam.gcode.GeometryGCodeParameters(2, 1, false, 1, 120, 0, false),
+                java.util.Map.of(), org.flatcam.cam.CancellationToken.none(), org.flatcam.cam.gcode.GCodePreprocessor.ROLAND_MDX_20);
+        var record = new ProjectFile.CncJobRecord("paths.rml", "source", tempDir.resolve("missing.rml").toString(), job.gcode());
+        Path file = tempDir.resolve("native-roland.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(record)), file);
+        var loaded = ProjectFileIO.load(file).cncJobs().get(0);
+        assertEquals(job.gcode(), loaded.gcode());
+        assertFalse(Files.exists(Path.of(loaded.outputPath())));
+        var parsed = org.flatcam.cam.gcode.GCodeToolpathParser.parse(loaded.gcode(),
+                org.flatcam.cam.CancellationToken.none(), ignored -> {});
+        assertEquals(3, parsed.cutCenterlines().getLength(), 1e-9);
+        assertTrue(parsed.plotAvailable());
+    }
+
+    @Test
+    void nativeHpglJobReopensFromEmbeddedTextWithoutTheOutputFile() throws IOException {
+        var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(3, 7), new Coordinate(6, 7)});
+        var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob("MM",
+                List.of(new ToolGeometry(0.8, geometry)),
+                new org.flatcam.cam.gcode.GeometryGCodeParameters(2, 1, false, 1, 120, 0, false),
+                java.util.Map.of(), org.flatcam.cam.CancellationToken.none(), org.flatcam.cam.gcode.GCodePreprocessor.HPGL);
+        var record = new ProjectFile.CncJobRecord("paths.plt", "source", tempDir.resolve("missing.plt").toString(), job.gcode());
+        Path file = tempDir.resolve("native-hpgl.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(record)), file);
+        var loaded = ProjectFileIO.load(file).cncJobs().get(0);
+        assertEquals(job.gcode(), loaded.gcode());
+        assertFalse(Files.exists(Path.of(loaded.outputPath())));
+        var parsed = org.flatcam.cam.gcode.GCodeToolpathParser.parse(loaded.gcode(),
+                org.flatcam.cam.CancellationToken.none(), ignored -> {});
+        assertEquals(3, parsed.cutCenterlines().getLength(), 1e-9);
+        assertEquals(0.8, parsed.stats().cutterDiameter());
+        assertTrue(parsed.plotAvailable());
+    }
+
+    @Test
     void nativeIcpJobReopensFromEmbeddedTextWithoutTheOutputFile() throws IOException {
         var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(3, 7), new Coordinate(6, 7)});
         var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob("MM",

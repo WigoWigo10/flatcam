@@ -120,10 +120,14 @@ public final class GCodeGenerator {
         toolIds.addAll(slotsByTool.keySet());
         List<Integer> ordered = orderedToolIds.isEmpty() ? List.copyOf(toolIds)
                 : orderedToolIds.stream().distinct().filter(toolIds::contains).toList();
+        if (preprocessor.isRoland() && (ordered.size() > 1 || options.pauseForToolChange()))
+            throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo e nao suporta troca mecanica.");
         for (int id : ordered) {
             if (!settingsByTool.containsKey(id))
                 throw new IllegalArgumentException("Missing drilling parameters for tool " + id);
             preprocessor.validatePower(settingsByTool.get(id).spindleSpeedRpm());
+            if (preprocessor.isRoland() && settingsByTool.get(id).dwell())
+                throw new IllegalArgumentException("Roland nao suporta dwell neste perfil; desative a espera.");
         }
 
         StringBuilder gcode = new StringBuilder();
@@ -156,7 +160,7 @@ public final class GCodeGenerator {
             lastRadius = radius;
 
             if (!firstTool) {
-                if (previous != null && previous.spindleSpeedRpm() > 0) {
+                if (previous != null && preprocessor.controlsSpindle(previous.spindleSpeedRpm())) {
                     line(gcode, "%s", preprocessor.spindleOff());
                 }
                 if (options.pauseForToolChange() || preprocessor.automaticToolSelection()) {
@@ -194,7 +198,7 @@ public final class GCodeGenerator {
             // Lets GCodeToolpathParser redraw this tool's holes at their real size after a reload/edit.
             line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.toolMarker(toolId, toolDiameter)));
 
-            if (params.spindleSpeedRpm() > 0) {
+            if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
                 line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
             }
             if (params.dwell()) {
@@ -233,7 +237,7 @@ public final class GCodeGenerator {
                 }
             }
         }
-        if (previous != null && previous.spindleSpeedRpm() > 0) {
+        if (previous != null && preprocessor.controlsSpindle(previous.spindleSpeedRpm())) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.endMoveZ()));
@@ -296,7 +300,7 @@ public final class GCodeGenerator {
         gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
-        if (params.spindleSpeedRpm() > 0) {
+        if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
         }
 
@@ -325,7 +329,7 @@ public final class GCodeGenerator {
             line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         }
 
-        if (params.spindleSpeedRpm() > 0) {
+        if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
@@ -375,7 +379,7 @@ public final class GCodeGenerator {
         gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
-        if (params.spindleSpeedRpm() > 0) {
+        if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
         }
 
@@ -413,7 +417,7 @@ public final class GCodeGenerator {
             line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         }
 
-        if (params.spindleSpeedRpm() > 0) {
+        if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
@@ -484,9 +488,15 @@ public final class GCodeGenerator {
             throw new IllegalArgumentException("At least one tool geometry is required");
         }
         preprocessor.validatePower(params.spindleSpeedRpm());
+        if (preprocessor.isPlotter()) {
+            return generateHpglCncJob(units, tools, params, cancellationToken);
+        }
         if (preprocessor.isLaser()) {
             return generateLaserCncJob(units, tools, params, cancellationToken, preprocessor);
         }
+        if (preprocessor.isRoland() && (params.pauseForToolChange()
+                || tools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1))
+            throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo e nao suporta troca mecanica.");
         List<List<Double>> depthsByTool = new ArrayList<>(tools.size());
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
@@ -528,7 +538,7 @@ public final class GCodeGenerator {
             }
             List<Double> depths = depthsByTool.get(toolIndex);
             if (!firstTool) {
-                if (params.spindleSpeedRpm() > 0) {
+                if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
                     line(gcode, "%s", preprocessor.spindleOff());
                 }
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
@@ -557,7 +567,7 @@ public final class GCodeGenerator {
                         toolIndex + 1, fmt(tool.toolDiameter()), fmt(settings.tipDiameter()),
                         fmt(settings.angleDegrees()), fmt(depths.get(depths.size() - 1)))));
             }
-            if (params.spindleSpeedRpm() > 0) {
+            if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
                 line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
             }
 
@@ -594,18 +604,72 @@ public final class GCodeGenerator {
             }
         }
 
-        if (params.spindleSpeedRpm() > 0) {
+        if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         cancellationToken.throwIfCancellationRequested();
-        return new CncJobResult(preprocessor.finish(gcode, params.rapidFeedRate(), units),
+        return new CncJobResult(preprocessor.finish(gcode, params.rapidFeedRate(), units, cancellationToken),
                 travelFootprint(travelShapes), cutShapes.result());
     }
 
     private static void requireMilling(GCodePreprocessor profile) {
-        if (profile.isLaser()) throw new IllegalArgumentException(
-                "Perfil laser exige Geometry -> CNC Job; nao use para furacao ou geracao direta de fresagem.");
+        if (profile.isLaser() || profile.isPlotter()) throw new IllegalArgumentException(
+                "Perfil laser/plotter exige Geometry -> CNC Job; nao use para furacao ou geracao direta de fresagem.");
+    }
+
+    private static CncJobResult generateHpglCncJob(String units, List<ToolGeometry> tools,
+                                                  GeometryGCodeParameters params, CancellationToken cancellation) {
+        if (!"MM".equalsIgnoreCase(units) && !"IN".equalsIgnoreCase(units))
+            throw new IllegalArgumentException("Unidades HPGL devem ser MM ou IN.");
+        if (params.multiDepth() || params.pauseForToolChange())
+            throw new IllegalArgumentException("HPGL nao usa Multi-Depth nem troca mecanica; as canetas usam SP.");
+        StringBuilder program = new StringBuilder("IN;\nCO \"Preprocessor: HPGL\";\nCO \"FCFX HPGL UNITS ")
+                .append(units.toUpperCase(Locale.ROOT)).append("\";\nPU;\nPA;\n");
+        List<Geometry> travels = new ArrayList<>();
+        Footprints cuts = new Footprints();
+        double scale = "IN".equalsIgnoreCase(units) ? 1016 : 40;
+        double lastX = 0, lastY = 0;
+        for (int index = 0; index < tools.size(); index++) {
+            cancellation.throwIfCancellationRequested();
+            ToolGeometry tool = tools.get(index);
+            if (tool.geometry().isEmpty()) continue;
+            program.append("CO \"FCFX PEN P").append(index + 1).append(" D")
+                    .append(java.math.BigDecimal.valueOf(tool.toolDiameter()).toPlainString())
+                    .append("\";\nSP").append(index + 1).append(";\n");
+            for (Coordinate[] path : orderedByNearestNeighbor(tool.geometry(), lastX, lastY, cancellation)) {
+                if (path.length < 2) throw new IllegalArgumentException("HPGL requer caminhos XY; pontos isolados nao sao suportados.");
+                boolean distinct = false;
+                int x = 0, y = 0, previousX = 0, previousY = 0;
+                List<Coordinate> quantized = new ArrayList<>();
+                for (int p = 0; p < path.length; p++) {
+                    cancellation.throwIfCancellationRequested();
+                    x = HpglProgramCodec.coordinate(path[p].x, units);
+                    y = HpglProgramCodec.coordinate(path[p].y, units);
+                    if (p == 0) {
+                        program.append("PU;\nPA").append(x).append(',').append(y).append(";\nPD;\n");
+                        quantized.add(new Coordinate(x / scale, y / scale));
+                    } else if (x != previousX || y != previousY) {
+                        program.append("PA").append(x).append(',').append(y).append(";\n");
+                        quantized.add(new Coordinate(x / scale, y / scale));
+                        distinct = true;
+                    }
+                    previousX = x;
+                    previousY = y;
+                }
+                if (!distinct) throw new IllegalArgumentException("Caminho menor que a resolucao HPGL de 0,025 mm.");
+                program.append("PU;\n");
+                Coordinate first = quantized.getFirst();
+                addTravel(travels, lastX, lastY, first.x, first.y, tool.toolDiameter() / 2);
+                cuts.add(GEOMETRY_FACTORY.createLineString(quantized.toArray(Coordinate[]::new)), tool.toolDiameter() / 2);
+                lastX = x / scale;
+                lastY = y / scale;
+            }
+        }
+        program.append("PU;\nSP0;\n");
+        // Use the quantized paths actually sent to the plotter. Generation is independent of the editor's preview limit.
+        cancellation.throwIfCancellationRequested();
+        return new CncJobResult(program.toString(), travelFootprint(travels), cuts.result());
     }
 
     /** Laser emission is controlled per path, never by a negative Z plunge. */
