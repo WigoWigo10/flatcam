@@ -961,6 +961,22 @@ do Python (so afetam a exportacao). Teste de ida e volta: a geometria colocada e
 texto. `build-native.cmd` agora apaga `flatcam-fx\target\dependency` antes de copiar, senao jars de um JavaFX antigo
 ficavam junto dos novos no launcher nativo. Testes em `QrCodeMarkerTest`.
 
+**SolderPaste Tool (2026-10-01).** Ferramentas > SolderPaste Tool (`SolderPaste`, `SolderPasteToolPanel`), o
+`ToolSolderPaste.py` + `generate_gcode_from_solderpaste_geo` + pre-processador `Paste_1`. Passo 1: tabela de bicos
+(padrao 1.0 e 0.3) e um Gerber de mascara de pasta geram a Geometry `<nome>_solderpaste` (multi-ferramenta): cada pad
+recebe uma linha, do maior bico que cabe nele (linha pelo meio do lado maior se as diagonais empatam, senao pela
+diagonal mais longa, encolhida por meia largura do bico; pads sem bico que caiba sao contados e avisados). Passo 2:
+a Geometry de pasta vira um CNC Job (diálogo de salvar; `<nome>_cnc_solderpaste.nc`): cabecalho, troca de bico
+`T n / M6 / M0` e, por caminho (vizinho mais proximo a partir de 0,0): G00 ate o ponto, Z de deslocamento, Z de inicio,
+M03 + espera, Z de dispensa, avanco XY, M05, M04, Z de parada, M05, espera, Z de deslocamento — igual ao Paste_1.
+Parametros com os padroes do Python (Z 0.05/0.1/0.05, deslocamento 0.1, troca 1.0 em 0,0, avancos 150/150/1.0, 300 rpm
+1 s frente e 200 rpm 1 s reversa). Diferencas deliberadas: um pad pequeno demais nao herda a linha do pad anterior (bug do
+Python: a variavel `geo` vaza entre iteracoes); os parametros valem para todos os bicos (o Python guarda um conjunto por
+bico); velocidade e espera sao escritas quando maiores que zero; o programa termina so subindo para a altura de troca
+(sem X,Y final). O preview do CNC Job e montado da geometria (o parser de G-code trata Z positivo como deslocamento, e
+a dispensa usa Z positivo), por isso o job de pasta nao tem a tabela de passos. Com o F_Cu do projeto como mascara de
+teste: 44 pads, 2 bicos, 53 caminhos em ~25 ms. Testes em `SolderPasteTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

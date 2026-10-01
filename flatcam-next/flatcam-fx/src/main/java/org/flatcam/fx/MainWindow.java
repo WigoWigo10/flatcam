@@ -86,6 +86,7 @@ import org.flatcam.cam.convert.CornerMarkers;
 import org.flatcam.cam.convert.EtchCompensation;
 import org.flatcam.cam.convert.Fiducials;
 import org.flatcam.cam.convert.QrCodeMarker;
+import org.flatcam.cam.solderpaste.SolderPaste;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Punch;
@@ -1250,6 +1251,7 @@ final class MainWindow {
             case "fiducials" -> this::openFiducialsTool;
             case "corners" -> this::openCornerMarkersTool;
             case "qrcode" -> this::openQrCodeTool;
+            case "solderpaste" -> this::openSolderPasteTool;
             default -> null;
         };
     }
@@ -2633,6 +2635,118 @@ final class MainWindow {
             @Override
             public void cancelPick() {
                 cancelPointPick();
+            }
+        }, this::closeToolPanel));
+    }
+
+    /** Tools > SolderPaste Tool: dispensing paths and G-code for a paste mask (appTools/ToolSolderPaste.py). */
+    private void openSolderPasteTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("SolderPaste: carregue o Gerber da mascara de pasta.");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        openToolPanel("SolderPaste Tool", SolderPasteToolPanel.build(new SolderPasteToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public List<TreeItem<String>> pasteGeometries() {
+                List<TreeItem<String>> found = new ArrayList<>();
+                for (TreeItem<String> item : geometryNode.getChildren()) {
+                    GeometryEntry entry = geometryByItem.get(item);
+                    if (entry != null && !entry.tools().isEmpty()) {
+                        found.add(item);
+                    }
+                }
+                return found;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public String createGeometry(TreeItem<String> item, List<Double> nozzles) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null || source.solidGeometry() == null) {
+                    return "O Gerber foi removido ou esta vazio";
+                }
+                try {
+                    SolderPaste.Generated generated = SolderPaste.generateGeometry(source.solidGeometry(), nozzles,
+                            source.units());
+                    List<Geometry> all = new ArrayList<>();
+                    generated.tools().forEach(tool -> all.add(tool.geometry()));
+                    Geometry combined = source.solidGeometry().getFactory().buildGeometry(all);
+                    TreeItem<String> created = addGeometryToProject(
+                            uniqueDerivedName(withoutExtension(item.getValue()) + "_solderpaste"), item.getValue(),
+                            source.units(), combined, true, generated.tools());
+                    appendConsole("Geometria de pasta criada: " + created.getValue() + " ("
+                            + (generated.pads() - generated.unserved()) + " de " + generated.pads() + " pads).");
+                    if (generated.unserved() > 0) {
+                        appendConsole("Aviso: " + generated.unserved() + " pad(s) nao cabem em nenhum bico da tabela.");
+                    }
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+
+            @Override
+            public String createJob(TreeItem<String> item, SolderPaste.Parameters parameters) {
+                GeometryEntry entry = geometryByItem.get(item);
+                if (entry == null || entry.tools().isEmpty()) {
+                    return "A geometria foi removida ou nao e uma geometria de pasta";
+                }
+                try {
+                    Envelope box = entry.geometry().getEnvelopeInternal();
+                    SolderPaste.Program program = SolderPaste.generateGCode(entry.tools(), parameters, entry.units(),
+                            new double[] {box.getMinX(), box.getMinY(), box.getMaxX(), box.getMaxY()});
+                    File destination = chooseExportFile("Salvar G-code de pasta", item, "_cnc_solderpaste.nc",
+                            new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.ngc"));
+                    if (destination == null) {
+                        return null;
+                    }
+                    Files.writeString(destination.toPath(), program.gcode());
+                    AppPreferences.saveLastCamDirectory(destination.getParentFile().getAbsolutePath());
+                    org.locationtech.jts.geom.GeometryFactory factory = entry.geometry().getFactory();
+                    List<Geometry> travel = new ArrayList<>();
+                    org.locationtech.jts.geom.Coordinate previous = new org.locationtech.jts.geom.Coordinate(0, 0);
+                    for (org.locationtech.jts.geom.LineString path : program.paths()) {
+                        org.locationtech.jts.geom.Coordinate start = path.getCoordinateN(0);
+                        if (previous.distance(start) > 1e-9) {
+                            travel.add(factory.createLineString(
+                                    new org.locationtech.jts.geom.Coordinate[] {previous, start}));
+                        }
+                        previous = path.getCoordinateN(path.getNumPoints() - 1);
+                    }
+                    Geometry travelLines = factory.buildGeometry(travel);
+                    Geometry cutLines = factory.buildGeometry(new ArrayList<Geometry>(program.paths()));
+                    double thinnest = entry.tools().stream().mapToDouble(ToolGeometry::toolDiameter).min().orElse(0);
+                    List<Geometry> bodies = new ArrayList<>();
+                    for (ToolGeometry tool : entry.tools()) {
+                        bodies.add(tool.geometry().buffer(tool.toolDiameter() / 2, 8));
+                    }
+                    Geometry cutBodies = factory.buildGeometry(bodies);
+                    TreeItem<String> created = addCncJobToProject(destination.getName(), item.getValue(),
+                            destination.toPath(), program.gcode(), travelLines, cutBodies, travelLines, cutLines,
+                            thinnest);
+                    appendConsole("G-code de pasta salvo em " + destination + " (" + program.gcode().lines().count()
+                            + " linhas, " + program.paths().size() + " caminhos).");
+                    selectProjectItem(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                } catch (java.io.IOException failed) {
+                    return "Nao foi possivel salvar o G-code: " + failed.getMessage();
+                }
             }
         }, this::closeToolPanel));
     }
