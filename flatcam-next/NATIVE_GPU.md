@@ -18,7 +18,8 @@ $env:FLATCAM_FX_JAVA_ONLY = '1'
 
 Depois, remova a variável com `Remove-Item Env:FLATCAM_FX_JAVA_ONLY`.
 
-O script exige JDK 25 em `JAVA_HOME` e C++17 (testado com MSYS2 UCRT64 `g++`),
+O script exige JDK 25 em `JAVA_HOME` e C++17 (testado com MSYS2 UCRT64 `g++`; se o MSYS2 estiver instalado sem o
+compilador, rode `pacman -S mingw-w64-ucrt-x86_64-gcc` no terminal "MSYS2 UCRT64"),
 compila o reactor, copia as dependências de execução e cria
 `target\native\FlatCAMFX.exe`. O executável carrega a JVM **dentro do próprio
 processo** e inicia o JavaFX. Ele exporta `NvOptimusEnablement=1` e
@@ -60,3 +61,15 @@ e os valores `[UI-FLUIDITY]`/`[PLOT-PROFILE]`, não só o uso da GPU na tela.
 O launcher atualmente é um fluxo de desenvolvimento para Windows. Distribuir
 um aplicativo autônomo ainda requer empacotar o runtime Java e as dependências
 de modo independente da árvore `target/`.
+
+## Problemas comuns
+
+- **`Unsupported major.minor version 67.0` ao abrir:** o JavaFX 25 exige Java 23+ e a JVM carregada foi a antiga
+  (21). O launcher lê `FLATCAM_FX_JAVA_HOME` e depois `JAVA_HOME`. Um terminal ou VS Code aberto antes de mudar a
+  variável continua com o valor velho: defina `$env:JAVA_HOME` na sessão ou reabra o terminal e o VS Code.
+- **`MSYS2 UCRT64 g++ was not found`:** o MSYS2 pode estar instalado (`C:\msys64`) sem o pacote do compilador; veja
+  o comando acima.
+- **JavaFX 21 e 25 juntos no launcher:** `build-native.cmd` apaga `flatcam-fx\target\dependency` antes de copiar os
+  jars de execução; sem isso, jars antigos ficavam no `module path`.
+- **Qual GPU o D3D usou:** `.\run-native.cmd --verbose-gpu` e procure `D3D Driver Information`. O launcher nativo só
+  pede a GPU de alto desempenho; opções do Windows e do driver podem prevalecer.

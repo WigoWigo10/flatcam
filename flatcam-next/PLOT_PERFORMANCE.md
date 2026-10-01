@@ -180,7 +180,8 @@ Medido (geometria sintética, pan de 12 quadros, uma vista nova por quadro):
 
 A imagem provisória foi conferida contra a final (pan e zoom de ~43%): diferença média 0,00. Limitação: a imagem cobre
 só a área visível quando foi feita, então num arraste longo a borda que entra na tela fica vazia na camada densa até o
-movimento parar (as demais camadas, vetoriais, desenham normalmente).
+movimento parar (as demais camadas, vetoriais, desenham normalmente). Próximo passo possível: uma margem em volta da
+vista. Também seguem vetoriais os polígonos preenchidos (Gerbers muito densos) e traços mais largos que 2,5 px.
 
 ### Seleção do editor (realce azul) em geometria densa
 

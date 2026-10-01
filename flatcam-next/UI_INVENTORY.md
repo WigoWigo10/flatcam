@@ -271,3 +271,28 @@ Este documento lista *estrutura de tela* (o que existe, onde vive), não
 *campo a campo* de cada painel de preferências ou de cada uma das 34
 ferramentas - isso é grande demais para uma passada e só vale a pena
 detalhar tela por tela conforme cada uma for realmente portada (Fase 5/6).
+
+---
+
+## Estado das ferramentas do menu no FlatCAM FX (2026-10-01)
+
+Este arquivo descreve o Python. Para saber o que o FX já porta (detalhes e diferenças em
+`CONTEXTO_E_PROGRESSO.md`, seções 4 e 9.1):
+
+| Plugin Python | Estado no FX |
+| --- | --- |
+| `ToolDblSided` (2-Sided) | portado (com extras: vários objetos, eixo por caixa ou ponto, pré-visualização) |
+| `ToolAlignObjects` | portado (1 e 2 pontos; sem realce de cor durante os cliques) |
+| `ToolExtractDrills` | portado |
+| `ToolCutOut`, `ToolNCC`, `ToolPaint`, `ToolIsolation`, `ToolDrilling` | portados (NCC e Isolation com Rest Machining; Paint Standard/Seed/Lines/Combo) |
+| `ToolPanelize` | portado |
+| `ToolFilm` | portado (SVG, PNG e PDF vetorial) |
+| `ToolSolderPaste` | portado (geometria de dispensa e G-code `Paste_1`) |
+| `ToolSub` (Subtract) | portado |
+| `ToolCalculators`, `ToolTransform` | portados |
+| `ToolQRCode` | portado (sem exportar o QR como SVG/PNG) |
+| `ToolFiducials`, `ToolCorners` | portados |
+| `ToolPunchGerber`, `ToolInvertGerber`, `ToolEtchCompensation` | portados |
+| `ToolRulesCheck`, `ToolOptimal`, `ToolCalibration`, `ToolCopperThieving` | **pendentes** (aparecem desabilitados no menu) |
+| Conversion / Join Objects | Outline→Area e Join Gerber/Excellon/Geo portados; faltam Convert Any→Geo/Gerber/Excellon e Single↔MultiGeo |
+| Tools Database, salvar `.FlatPrj`, demais pós-processadores | pendentes |

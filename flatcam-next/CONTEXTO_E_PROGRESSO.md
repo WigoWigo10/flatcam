@@ -5,29 +5,17 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-09-27**. Isolation Routing agora cria Geometry antes do
-> CNC Job; o NCC aceita Geometry preenchida como origem, seleção retangular de
-> área (retângulo ou polígono), ferramentas ISO/CLEAR e seleção de subconjunto da tabela. Preserva a
-> ordem manual das ferramentas. O Plot Area seleciona objetos por clique
-> ou retângulo e oferece menu de contexto para ações já implementadas. O Gerber
-> Editor exclui, move e copia formas,
-> oferece undo/redo, reconstrói o Gerber no Apply e preserva as formas
-> individuais ao salvar e reabrir um projeto novo. "Salvar como..." agora
-> exporta a geometria Gerber atual, inclusive objetos editados sem arquivo de
-> origem. Antes de trabalhar,
-> confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de
-> passagem, não substitui o código como fonte final da verdade.
-
-> Atualização incremental de 2026-09-27: Editor Excellon funcional para
-> seleção visual/tabela de IDs, furos, slots, mover, copiar, excluir,
-> arrays retangulares de furos/slots, redimensionamento por diâmetro,
-> desfazer/refazer e persistência em `.fcnproj`. Isolation agora aceita
-> múltiplos diâmetros separados por `;` com Rest Machining (maior para menor),
-> resultados combinados com associação por ferramenta ou separados por
-> ferramenta/passe. Geometry Editor acrescentou Cortar Caminho e arco por três
-> pontos. Ainda faltam testes visuais com projetos reais e outros controles
-> avançados do Python; as tabelas históricas abaixo devem ser lidas junto
-> desta atualização.
+> Atualizado em **2026-10-01**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
+> migrou para **Java 25 + JavaFX 25.0.4**, portou **20 das 24 ferramentas do menu Ferramentas do Python**
+> (restam Rules Check, Optimal, Calibration e Copper Thieving), ganhou Conversion/Join Objects parciais,
+> barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
+> muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
+> na seção 9.0. A suíte tem **462 testes** (359 `flatcam-cam`, 42 `flatcam-application`, 61 `flatcam-fx`),
+> sem falhas; 9 ficam ignorados porque dependem de um projeto real do Python (privado) indicado por
+> variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
+> Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
+> não substitui o código como fonte final da verdade. Os trechos mais antigos das seções 4, 5 e 8
+> descrevem fases anteriores e ficam como histórico; onde divergirem das seções 6 e 9, valem as seções 6 e 9.
 
 ## 1. Objetivo do projeto
 
@@ -68,7 +56,14 @@ prefira o estado descrito aqui e confirme no código.
 - JavaFX 25.0.4.
 - Quatro temas próprios sobre JavaFX Modena: original branco/preto e gelo branco/preto; sem AtlantaFX.
 - JTS 1.20.0 para geometria.
+- ZXing `core` 3.5.4 (Apache 2.0) só para gerar a matriz do QRCode Tool.
 - JUnit 5 para testes.
+- `JAVA_HOME` precisa apontar para um JDK 25 (o `release` do compilador é 25 e o JavaFX 25 exige Java 23+).
+  Um terminal/VS Code aberto antes de mudar a variável continua com o valor antigo: reabra-o.
+- Launcher nativo opcional (`native-launcher/FlatCAMFX.cpp`, `run-native.cmd`): cria a JVM dentro de um `.exe`
+  próprio que exporta os sinais `NvOptimusEnablement`/`AmdPowerXpressRequestHighPerformance`. Exige o `g++` do
+  MSYS2 UCRT64 (`pacman -S mingw-w64-ucrt-x86_64-gcc`); sem ele, `run.cmd` usa o `javafx:run` do Maven. Ver
+  `NATIVE_GPU.md`.
 
 O reactor Maven contém três módulos:
 
@@ -84,16 +79,21 @@ separação.
 
 ### Verificação mais recente
 
-Após o primeiro fluxo do Editor de G-Code, `clean test` passa com
-**197 testes executados**, sem falhas,
-erros ou testes ignorados. `JobExecutorTest` registra
-intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro;
-esse log, isoladamente, não representa falha da suíte.
+Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
+**462 testes**: 359 em `flatcam-cam`, 42 em `flatcam-application` e 61 em `flatcam-fx`; 0 falhas, 0 erros e
+9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
+que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
+registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
+imprime "Job failed"; esses logs, isoladamente, não representam falha da suíte. O app abre e inicia com
+`javafx:run` no Java 25 (fumaça de 20 s sem exceções).
 
-O smoke test de inicialização também chegou a `MainApp started`.
+Não há teste automatizado de interface: os painéis, o `MainWindow` e o `PlotAreaView` são validados por
+harnesses fora da tela (capturas por `Node.snapshot` num `Stage` em `x = -3000`) e pelo usuário no app real.
+Vários painéis recentes (2-Sided, Paint, Panelize, Invert, Subtract, Extract Drills, Punch, Etch, Film,
+Fiducials, Corner Markers, QRCode, SolderPaste, Align Objects) têm a **lógica** testada, mas o fluxo de
+cliques e janelas ainda não foi confirmado por uso manual.
 
-Sempre refaça essas verificações depois de mudanças relevantes; números e
-resultados podem mudar.
+Sempre refaça essas verificações depois de mudanças relevantes; números e resultados podem mudar.
 
 ## 4. O que já funciona
 
@@ -182,6 +182,43 @@ resultados podem mudar.
 - Calculadoras de unidades, ferramenta V e galvanoplastia.
 - Isolation, Cutout e NCC executam como jobs canceláveis, sem bloquear a thread
   JavaFX.
+
+### Ferramentas do menu Ferramentas já portadas do Python (2026-09-30 a 2026-10-01)
+
+Cada uma segue o Python correspondente (defaults, fluxo, nomes dos objetos) e tem uma entrada detalhada,
+com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testada), painel em `flatcam-fx`.
+
+| Ferramenta | Classes principais | Resumo |
+| --- | --- | --- |
+| 2-Sided | `DoubleSidedToolPanel` | espelha objetos por X/Y e eixo por caixa ou ponto; furos de alinhamento; pré-visualização no plot |
+| Align Objects | `AlignObjects` | alinha por 1 ponto (translada) ou 2 (translada e gira), clicando em pads ou furos |
+| Extract Drills | `ExtractDrills` | Gerber → Excellon pelos flashes: fixo, proporcional ou anel anular |
+| Cutout, NCC, Isolation, Drilling | (anteriores) | ver seção 5 e 9.7 |
+| Paint | `NccGenerator.paint`, `PaintToolPanel` | Standard, Seed, Lines e Combo sobre polígonos |
+| Panelize | `Panelize` | grade de cópias de Gerber, Excellon ou Geometry |
+| Film | `FilmExporter` | filme positivo/negativo em SVG, PNG ou PDF, com escala, inclinação, espelho e punch |
+| SolderPaste | `SolderPaste` | geometria de dispensa por bico e G-code `Paste_1` |
+| Subtract | `Subtract` | Gerber ou Geometry menos outro |
+| Transform, Calculators | (anteriores) | seção 4 |
+| QRCode | `QrCodeMarker` | QR de quadrados de cobre num Gerber (ZXing) |
+| Fiducials, Corner Markers | `Fiducials`, `CornerMarkers` | marcas circulares/cruz/xadrez e marcadores de canto, com furos opcionais |
+| Punch Gerber | `Punch` | furos nos pads por Excellon ou por tamanho |
+| Invert Gerber | `InvertGerber` | inverte cobre e vazio dentro de uma caixa com margem |
+| Etch Compensation | `EtchCompensation` | cresce ou encolhe o cobre pela espessura e fator de corrosão |
+
+Ainda **sem** porta: Rules Check, Optimal, Calibration e Copper Thieving (aparecem no menu, desabilitados).
+Conversion e Join Objects: portados Outline→Area, Join Gerber/Excellon/Geo; faltam Convert Any→Geo/Gerber/
+Excellon e Single↔MultiGeo.
+
+### Plot Area com geometrias muito densas (2026-10-01)
+
+Camadas de traços (Geometry, caminho central de CNC Job) e os overlays do editor (realce azul e contorno de
+referência) com milhares de segmentos visíveis não são mais desenhados como milhares de strokes no `Canvas`:
+`DensityRaster` conta a cobertura de área por pixel na CPU (faixas paralelas, antialiasing igual ao vetor) e
+`DenseRenderer` faz isso numa thread de fundo, com a imagem anterior movida/escalada enquanto a nova não
+chega. Um quadro de pan em 100–500 mil traços passou de ~0,2–1,1 s para 1–3 ms na thread da interface. Detalhes,
+medidas e os quatro defeitos de fidelidade corrigidos: `PLOT_PERFORMANCE.md`. `-Dflatcam.plot.density=false`
+desliga o modo; `-Dflatcam.plot.density.async=false` volta à rasterização síncrona.
 
 ### Transformations
 
@@ -350,10 +387,13 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
-| Geometry | parcial | multi-tool via NCC; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, Paint, borracha e Panelize faltam |
-| CNC Job | parcial | geração, plot, abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; faltam pós-processadores e várias opções avançadas do legado |
+| Geometry | parcial | multi-tool via NCC/Paint/SolderPaste; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, borracha e Convert Any→Geo faltam |
+| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; 5 dos 21 pós-processadores do Python e o `Paste_1` embutido no SolderPaste; faltam os demais pós-processadores (laser, Marlin, Roland, HPGL...) e várias opções avançadas do legado |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
+| Ferramentas do menu Ferramentas | forte/parcial | 20 de 24 portadas (seção 4); faltam Rules Check, Optimal, Calibration e Copper Thieving; vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
+| Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
+| Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
 | Tools Database | parcial | NCC, Isolation e Drilling leem ferramentas de um `.FlatDB` escolhido pelo usuário; editor/salvamento do banco e integração com outras ferramentas faltam |
 | Preferências globais | inicial/parcial | aba funcional para tema, snap, grade visual e visibilidade do Plot Area; ainda longe da cobertura do Python |
@@ -477,6 +517,22 @@ depois, jobs com mais de 2000 deslocamentos não unem a pegada dos deslocamentos
 (coleção de polígonos), os buffers dos cortes rodam em paralelo e a formatação de
 coordenadas/linhas deixou de usar `String.format` (texto idêntico, com teste):
 G-code do 4x4 de ~31 s para ~8-10 s. Sem código nativo.
+
+### Pendências abertas (2026-10-01)
+
+- **Validação manual** dos painéis recentes no app real (lista na seção 3); só a lógica tem teste.
+- **Plot Area densa:** a imagem de densidade cobre só a vista em que foi feita (num arraste longo a borda que
+  entra fica vazia até parar); o custo cresce com o comprimento total dos traços em pixels (500 mil traços ≈
+  1 s para a imagem exata); polígonos preenchidos muito densos ainda são vetoriais; diagonais de 45° têm
+  até meio pixel de erro de cobertura nas bordas.
+- **SolderPaste:** o preview do job é montado da geometria (o parser de G-code trata Z positivo como
+  deslocamento) e o job não tem a tabela de passos; parâmetros valem para todos os bicos.
+- **QRCode:** falta exportar o QR como SVG/PNG e as cores de preenchimento (só afetam a exportação).
+- **Align Objects:** sem o realce em cor do objeto durante os cliques.
+- **Film:** PDF escrito direto em vetores (sem biblioteca), PNG renderizado no DPI pedido.
+- **`flatcam-fx`:** `MainWindow` passa de 7 mil linhas; os `Host` dos painéis continuam dentro dele.
+- **Terminais antigos:** depois de mudar o `JAVA_HOME`, reabra o terminal e o VS Code; o `PATH` pode ainda listar
+  o JDK 21 antes do 25 (afeta só scripts que chamam `java` direto).
 
 ### Diferenças intencionais já aceitas
 
@@ -787,6 +843,23 @@ cada ferramenta nova, sem bloquear o NCC depois.
 
 Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
+### 9.0 Fila atual (2026-10-01)
+
+Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
+
+1. **Ferramentas restantes do menu:** Rules Check, Optimal, Calibration, Copper Thieving (as quatro são
+   maiores que as já portadas); depois Convert Any→Geo/Gerber/Excellon e Single↔MultiGeo.
+2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje 5
+   dos 21 do Python).
+3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
+   da tela, sem capturar a tela inteira).
+4. **Plot Area:** margem em volta da vista para a imagem de densidade e, se um profile mostrar necessidade,
+   rasterização incremental.
+5. **Arquitetura/desempenho (decisão em aberto, não iniciada):** a avaliação de um núcleo de geometria nativo
+   (Clipper2 via FFM, atrás de uma interface `GeometryEngine`, com o JTS como reserva), de viewport na GPU e das
+   alternativas C++/Rust está registrada na memória do projeto (`architecture-options-native-gpu`). O próximo passo
+   sugerido lá é um protótipo de meio dia comparando união e offset com os Gerbers reais; só depois decidir.
+
 ### 9.1 Completar a paridade NCC (o que resta)
 
 - validação manual dos parâmetros por ferramenta e contornos ISO;
@@ -948,7 +1021,7 @@ em L ("safe") ou cruz nos 4 cantos da caixa (fora por margem + meia espessura; p
 gerando `<nome>_corners`, e "Criar furos nos cantos" gera um Excellon `<nome>_corner_drills` (padrao 0.5) nos
 mesmos pontos. Testes em `MarkersTest`.
 
-**Migracao para Java 25 + JavaFX 25.0.4 (2026-10-01, branch `java-25`).** `maven.compiler.release` 25 e `javafx.version` 25.0.4; build e todos os testes passam, e os temas renderizam igual no JavaFX 25. Comparacao Java 21 x 25 no F_Cu real (isolacao 3 passes): primeira execucao 312 ms -> 93 ms e execucao aquecida 55 ms -> 26 ms; painel 3x3: 460-600 ms -> 164-206 ms frio; carga do projeto sem diferenca (~60 ms). O `JAVA_HOME` precisa apontar para um JDK 25 para compilar e rodar.
+**Migracao para Java 25 + JavaFX 25.0.4 (2026-10-01; branch `java-25` já mesclado no `flatcam-next`).** `maven.compiler.release` 25 e `javafx.version` 25.0.4; build e todos os testes passam, e os temas renderizam igual no JavaFX 25. Comparacao Java 21 x 25 no F_Cu real (isolacao 3 passes): primeira execucao 312 ms -> 93 ms e execucao aquecida 55 ms -> 26 ms; painel 3x3: 460-600 ms -> 164-206 ms frio; carga do projeto sem diferenca (~60 ms). O `JAVA_HOME` precisa apontar para um JDK 25 para compilar e rodar.
 
 **QRCode Tool (2026-10-01).** Ferramentas > QRCode Tool (`QrCodeMarker`, `QrCodeToolPanel`), o `ToolQRCode.py`:
 QR Code de quadrados de cobre num Gerber, gerando `<nome>_qrcode`. A matriz vem do ZXing (`com.google.zxing:core`
@@ -1376,9 +1449,14 @@ Execute a partir de `flatcam-next`.
 ### Windows PowerShell
 
 ```powershell
+$env:JAVA_HOME = "C:\Program Files\Java\jdk-25.0.4.1"   # ou o JDK 25 instalado; reabra o terminal se mudar a variável do usuário
 .\mvnw.cmd -q clean test
-.\run.cmd
+.\run.cmd                      # usa o launcher nativo se achar o g++, senão o javafx:run
+.\run-native.cmd --verbose-gpu # compila e abre pelo FlatCAMFX.exe; mostra o adaptador D3D usado
 ```
+
+O launcher nativo exige o `g++` do MSYS2 UCRT64 em `C:\msys64\ucrt64\bin`. `build-native.cmd` apaga
+`flatcam-fx\target\dependency` antes de copiar os jars, para não misturar JavaFX de versões diferentes.
 
 ### Linux/macOS
 
@@ -1410,7 +1488,12 @@ resolvido sem `pluginGroups` no `settings.xml`.
 | `flatcam-cam/.../cutout/` | Board Cutout |
 | `flatcam-cam/.../ncc/` | Non-Copper Clearing (multi-tool + Rest Machining) |
 | `flatcam-cam/.../geometry/` | modelo por ferramenta e sessão de seleção/exclusão do Editor Geometry |
-| `flatcam-cam/.../transform/` | motor de Transformations (Rotate/Scale/Skew/Mirror/Offset) - `TransformOp` (sealed) e `TransformReference` |
+| `flatcam-cam/.../transform/` | motor de Transformations (Rotate/Scale/Skew/Mirror/Offset) - `TransformOp` (sealed), `TransformReference` e `AlignObjects` |
+| `flatcam-cam/.../convert/` | ferramentas Gerber→Gerber/Excellon: `OutlineToArea`, `InvertGerber`, `Subtract`, `ExtractDrills`, `Punch`, `EtchCompensation`, `Fiducials`, `CornerMarkers`, `QrCodeMarker` |
+| `flatcam-cam/.../merge/`, `.../panel/`, `.../solderpaste/` | Join Objects (`GerberJoin`, `ExcellonJoin`, `GeometryJoin`), `Panelize`, e `SolderPaste` (geometria de dispensa + G-code Paste_1) |
+| `flatcam-cam/.../svg/FilmExporter.java` | Film Tool: SVG, PNG (Java2D) e PDF vetorial |
+| `flatcam-fx/.../DensityRaster.java`, `DenseRenderer.java`, `PlotDrawableIndex.java` | LOD por densidade do Plot Area: rasterização por cobertura de área, thread de fundo e índice de partes visíveis |
+| `native-launcher/`, `build-native.cmd`, `run-native.cmd` | launcher nativo (C++ + JNI) que cria a JVM no próprio processo; ver `NATIVE_GPU.md` |
 | `flatcam-cam/.../gcode/` | parâmetros, geração e resultado de G-code; `GCodeToolpathParser` também extrai `ToolpathStats` |
 | `flatcam-cam/.../svg/`, `.../dxf/`, `.../hpgl/`, `.../pdf/` | importadores/exportadores SVG, DXF, HPGL2 e importador de PDF (ver seção 9.7) |
 | `flatcam-fx/.../CamExportDialog.java`, `PlotPngExporter.java`, `CncJobToolsTable.java` | diálogo de formato Gerber/Excellon, exportação PNG e tabela de ferramentas do CNC Job |
@@ -1445,8 +1528,8 @@ uma fatia como concluída:
 ## 14. Checklist de início para a próxima IA
 
 1. Ler este arquivo, o contexto arquitetural e o inventário de UI.
-2. Rodar `git status --short` e `git log -5 --oneline`.
-3. Rodar `clean test` para estabelecer baseline.
+2. Rodar `git status --short` e `git log -5 --oneline`; conferir `echo $env:JAVA_HOME` (JDK 25).
+3. Rodar `clean test` para estabelecer baseline (462 testes em 2026-10-01).
 4. Confirmar no código Python o próximo comportamento a portar.
 5. Trabalhar primeiro no núcleo e nos testes, depois ligar a UI.
 6. Instalar o reactor e executar o smoke test JavaFX.
@@ -1485,3 +1568,12 @@ sem reutilizar um plot antigo após mudança. O próximo trabalho recomendado é
 validar manualmente os dois editores com arquivos reais e conferir Gerber
 exportado em um visualizador independente. Ferramentas avançadas do Editor
 Geometry, plot CNC com largura de ferramenta e lacunas de NCC seguem no roadmap.
+
+**Estado em 2026-10-01.** O projeto roda em Java 25 + JavaFX 25.0.4 (ganho medido de ~2-3x na primeira
+isolação do projeto real) e já porta 20 das 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
+Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
+Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
+geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam Rules Check, Optimal,
+Calibration e Copper Thieving, as conversões Convert Any e Single↔MultiGeo, o editor da Tools Database, salvar
+`.FlatPrj` e os demais pós-processadores. A suíte tem 462 testes sem falhas; a validação manual dos painéis
+recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

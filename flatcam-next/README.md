@@ -17,6 +17,9 @@ inventário de paridade visual/funcional em [`UI_INVENTORY.md`](UI_INVENTORY.md)
 
 - JDK 25 (LTS). Testado com Java 25.0.4 (Oracle) e Temurin 25.0.2; `JAVA_HOME` deve apontar para um JDK 25.
 - Nenhuma instalação global de Maven: use `mvnw`/`mvnw.cmd`.
+- Opcional, no Windows: o `g++` do MSYS2 UCRT64 (`pacman -S mingw-w64-ucrt-x86_64-gcc`), para o launcher nativo
+  que pede a GPU de alto desempenho (ver [`NATIVE_GPU.md`](NATIVE_GPU.md)). Sem ele `run.cmd` usa o `javafx:run`.
+- Depois de mudar o `JAVA_HOME`, reabra o terminal e o VS Code: eles herdam as variáveis na abertura.
 
 ## Testar
 
@@ -47,7 +50,9 @@ Linux/macOS:
 ./mvnw -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
 ```
 
-No Windows, `run.cmd` instala os módulos atuais antes de abrir o aplicativo.
+No Windows, `run.cmd` instala os módulos atuais antes de abrir o aplicativo. Se encontrar o `g++`, ele compila e
+usa o launcher nativo (`.\run-native.cmd --verbose-gpu` força esse caminho e mostra o adaptador D3D); com
+`FLATCAM_FX_JAVA_ONLY=1` mantém o `javafx:run`.
 Se preferir executar Maven diretamente, rode `install -DskipTests` antes de
 `-pl flatcam-fx ...:run`, especialmente depois de alterar `flatcam-cam` ou
 `flatcam-application`. Executar apenas `flatcam-fx` pode carregar snapshots
@@ -64,6 +69,12 @@ não ser resolvido sem `pluginGroups` configurado no `settings.xml`.
 - `flatcam-fx` — interface JavaFX, árvore do projeto, Plot Area, temas e painéis
   de ferramentas.
 
-O fluxo implementado inclui Gerber/Excellon, Isolation, Cutout, NCC inicial,
-Geometry -> CNC, plot de trajetos e salvamento de G-code. Consulte o documento
-de contexto para saber exatamente o que ainda não tem paridade com o Python.
+O fluxo implementado inclui Gerber/Excellon, Isolation, Cutout, NCC, Paint, Geometry -> CNC, plot de trajetos
+(com navegação passo a passo) e salvamento de G-code, além de 20 das 24 ferramentas do menu Ferramentas do Python
+(2-Sided, Align Objects, Extract Drills, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber,
+Invert Gerber, Corner Markers, Etch Compensation e outras). Restam Rules Check, Optimal, Calibration e Copper
+Thieving. O Plot Area desenha geometrias com centenas de milhares de traços por um LOD de densidade assíncrono
+(ver [`PLOT_PERFORMANCE.md`](PLOT_PERFORMANCE.md)). Consulte o documento de contexto para saber exatamente o que
+ainda não tem paridade com o Python.
+
+Dependências de execução além do JavaFX: JTS (geometria), `org.json` e ZXing `core` (só o QRCode Tool).
