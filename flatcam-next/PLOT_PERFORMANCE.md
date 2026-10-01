@@ -182,6 +182,16 @@ A imagem provisória foi conferida contra a final (pan e zoom de ~43%): diferen�
 só a área visível quando foi feita, então num arraste longo a borda que entra na tela fica vazia na camada densa até o
 movimento parar (as demais camadas, vetoriais, desenham normalmente).
 
+### Seleção do editor (realce azul) em geometria densa
+
+O realce azul do editor (`editorHighlightGeometry`) e o contorno de referência tracejado eram desenhados por um caminho
+separado (`drawEditorHighlight`), sem índice, **sem recorte pela vista** e sem LOD: selecionar uma região de uma Geometry
+muito densa fazia o desenho vetorial completo a cada zoom ou pan. Agora esses dois overlays usam o mesmo caminho dos
+layers (`drawOverlay`): índice por geometria (`overlayIndex`), recorte pela vista e, quando são só traços e têm milhares
+de segmentos visíveis, o LOD por densidade assíncrono (a referência tracejada perde o tracejado nesse modo). Realces
+preenchidos continuam vetoriais, agora com recorte pela vista. Pan com a Geometry densa como seleção azul, por quadro
+completo (redesenho + render): 20.000 x 30: ~350 ms -> ~30 ms; 100.000 x 20: ~1.150 ms -> ~30 ms.
+
 ## Comparar GPU integrada e dedicada no Windows
 
 Para testar a preferência automática de GPU de alto desempenho com executável

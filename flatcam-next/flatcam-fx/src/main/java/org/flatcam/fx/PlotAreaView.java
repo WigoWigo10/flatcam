@@ -318,6 +318,10 @@ final class PlotAreaView extends StackPane {
     private static final Color EDITOR_CONTENT_FILL_COLOR = Color.web("#00B4FF99");
     private static final Color EDITOR_CONTENT_STROKE_COLOR = Color.web("#0078B4");
     private boolean editorHighlightStrokeOnly;
+    /** Density-mode keys of the editor overlays (they are not entries of {@link #layers}). */
+    private static final Object HIGHLIGHT_KEY = "editor-highlight";
+    private static final Object REFERENCE_KEY = "editor-reference";
+    private final Map<Object, PlotDrawableIndex> overlayIndexes = new LinkedHashMap<>();
 
     private double scale = 3.0;
     private double viewCenterX = 50;
@@ -718,14 +722,35 @@ final class PlotAreaView extends StackPane {
     }
 
     void setEditorReference(Geometry geometry) {
+        if (geometry != editorReferenceGeometry) {
+            forgetOverlay(REFERENCE_KEY);
+        }
         editorReferenceGeometry = geometry;
         drawEditorHighlight();
     }
 
     void setEditorHighlight(Geometry geometry, boolean strokeOnly) {
+        if (geometry != editorHighlightGeometry) {
+            forgetOverlay(HIGHLIGHT_KEY);
+        }
         editorHighlightGeometry = geometry;
         editorHighlightStrokeOnly = strokeOnly;
         drawEditorHighlight();
+    }
+
+    private void forgetOverlay(Object key) {
+        forgetDensity(key);
+        overlayIndexes.remove(key);
+    }
+
+    /** The display index of an overlay geometry, rebuilt only when the geometry object changes. */
+    private PlotDrawableIndex overlayIndex(Object key, Geometry geometry) {
+        PlotDrawableIndex index = overlayIndexes.get(key);
+        if (index == null || index.geometry() != geometry) {
+            index = new PlotDrawableIndex(geometry);
+            overlayIndexes.put(key, index);
+        }
+        return index;
     }
 
     void removeLayer(Object key) {
@@ -817,6 +842,8 @@ final class PlotAreaView extends StackPane {
         stepView.clear();
         editorHighlightGeometry = null;
         editorReferenceGeometry = null;
+        forgetOverlay(HIGHLIGHT_KEY);
+        forgetOverlay(REFERENCE_KEY);
         editorFillGeometry = null;
         editorReferenceFillGeometry = null;
         editorContentGeometry = null;
@@ -1779,6 +1806,11 @@ final class PlotAreaView extends StackPane {
                 contentWidth / 2.0 - viewCenterX * scale, contentHeight / 2.0 + viewCenterY * scale, width, height,
                 color.getRed(), color.getGreen(), color.getBlue(), color.getOpacity(), lineWidth);
         DenseFrame frame = denseFrames.get(key);
+        if (frame != null && frame.view().geometry() != index.geometry()) {
+            // The geometry behind this key was replaced: the old image shows something else, do not stretch it.
+            denseFrames.remove(key);
+            frame = null;
+        }
         if (frame == null || !frame.view().sameAs(view)) {
             if (DENSITY_ASYNC) {
                 // Ask the background thread for this view and keep showing the previous image, stretched to fit.
@@ -1824,7 +1856,7 @@ final class PlotAreaView extends StackPane {
     /** Called on the JavaFX thread when the background thread has finished the image of a layer's current view. */
     private void denseFrameReady(Object key) {
         DenseRenderer.Frame ready = denseRenderer.frame(key);
-        if (ready == null || !layers.containsKey(key)) {
+        if (ready == null || !(layers.containsKey(key) || key == HIGHLIGHT_KEY || key == REFERENCE_KEY)) {
             return;
         }
         denseFrames.put(key, new DenseFrame(ready.view(), denseImage(denseFrames.get(key), ready.view().width(),
@@ -1902,14 +1934,16 @@ final class PlotAreaView extends StackPane {
                     EDITOR_CONTENT_STROKE_COLOR, true, LayerCategory.OVERLAY, true, false), contentWidth, contentHeight);
             gc.restore();
         }
+        Envelope viewBounds = visibleWorldBounds(viewCenterX, viewCenterY, scale, contentWidth, contentHeight);
         if (editorReferenceGeometry != null && !editorReferenceGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
             gc.clip();
             gc.setLineDashes(8, 6);
-            drawLayer(gc, new RenderLayer(editorReferenceGeometry, true, EDITOR_REFERENCE_COLOR,
-                    EDITOR_REFERENCE_COLOR, true, LayerCategory.OVERLAY, true, false), contentWidth, contentHeight);
+            drawOverlay(gc, REFERENCE_KEY, new RenderLayer(editorReferenceGeometry, true, EDITOR_REFERENCE_COLOR,
+                    EDITOR_REFERENCE_COLOR, true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth,
+                    contentHeight);
             gc.restore();
         }
         if (editorHighlightGeometry != null && !editorHighlightGeometry.isEmpty()) {
@@ -1917,13 +1951,27 @@ final class PlotAreaView extends StackPane {
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
             gc.clip();
-            drawLayer(gc, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
+            drawOverlay(gc, HIGHLIGHT_KEY, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
                     EDITOR_HIGHLIGHT_COLOR, EDITOR_HIGHLIGHT_COLOR, true, LayerCategory.OVERLAY, true, false),
-                    contentWidth, contentHeight);
+                    viewBounds, contentWidth, contentHeight);
             gc.restore();
         }
         drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
+    }
+
+    /**
+     * An editor overlay (the blue selection, the faint reference outline): only the shapes in view are drawn, and a
+     * stroke-only one with thousands of packed segments goes through the density level of detail like a project layer
+     * does - a selected region of a very dense Geometry used to be drawn whole, as vector, on every zoom.
+     */
+    private void drawOverlay(GraphicsContext gc, Object key, RenderLayer layer, Envelope viewBounds,
+                             double contentWidth, double contentHeight) {
+        PlotDrawableIndex index = overlayIndex(key, layer.geometry());
+        if (!drawDensityLayer(gc, key, layer, index, viewBounds, contentWidth, contentHeight,
+                layer.strokeOnly() ? 1.5 : 1)) {
+            drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
+        }
     }
 
     private void drawPlacementPreview(GraphicsContext gc, double contentWidth, double contentHeight) {
