@@ -1787,7 +1787,12 @@ final class PlotAreaView extends StackPane {
                     image);
             denseFrames.put(key, frame);
         }
+        // The Canvas samples an image bilinearly even when it is drawn 1:1, which blurred the coverage (a fully covered
+        // pixel came out at ~82% and the gaps between packed lines filled in). Nearest-neighbour keeps it exact.
+        boolean smoothing = gc.isImageSmoothing();
+        gc.setImageSmoothing(false);
         gc.drawImage(frame.image(), RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
+        gc.setImageSmoothing(smoothing);
         lastLayerDense = true;
         return true;
     }

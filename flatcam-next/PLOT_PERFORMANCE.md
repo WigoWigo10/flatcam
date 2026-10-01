@@ -138,22 +138,21 @@ de ~1,5 px na tela; uma camada que já está no modo só sai abaixo de 60% desse
 e volta o vetor. A imagem de cada camada fica em cache enquanto a vista é idêntica. `[DENSE]` aparece junto do
 nome da camada no `[PLOT-PROFILE]`. `-Dflatcam.plot.density=false` desliga o modo.
 
-Histórico: a primeira versão desenhava linhas de 1 px sem antialiasing, uma amostra por pixel. Em isolação com 40
-passes sobre a placa real isso deixava falhas e bordas serrilhadas onde o vetor é sólido (passes a ~0,8 px um do
-outro); a cobertura de área corrigiu. Contra o vetor, na mesma cena, só 0,14% dos pixels mudam bastante (o contorno
-de 1 px de antialiasing nas bordas).
-
-Medido com uma Geometry sintética (linhas onduladas, tudo visível, 1000x700, panning: vista nova a cada quadro):
-
-| Traços x vértices | Vetor (Prism) | Densidade |
-|---|---|---|
-| 20.000 x 30 | ~260 ms | ~45 ms |
-| 100.000 x 20 | ~745 ms | ~155 ms |
-| 500.000 x 20 | ~4.400 ms | ~620 ms |
+Histórico de defeitos corrigidos (todos achados comparando com o vetor numa Geometry do Paint "Standard" sobre a
+placa real, ampliada): (1) a primeira versão desenhava linhas de 1 px sem antialiasing, deixando falhas onde passes
+ficam a ~0,8 px um do outro; (2) o cálculo do intervalo de amostras de um segmento quase horizontal estourava o `int`
+(`(int)` satura e o `- 1` seguinte dá a volta), descartando o segmento inteiro, o que dependia da divisão em faixas e
+fazia sumir trechos dos anéis (o "buraco preto"); (3) amostrar o segmento em passos fixos dava peso errado a
+segmentos curtos (um pixel recebia 1 amostra, o vizinho 2); agora a integração é exata ao longo do eixo principal;
+(4) a `drawImage` do `Canvas` suaviza a imagem bilinearmente mesmo no desenho 1:1, o que borrava picos (pixel
+totalmente coberto saia a ~82%) e enchia os vãos; agora `setImageSmoothing(false)`. Resultado contra o vetor, na
+mesma cena: 0,17% dos pixels mudam bastante no Standard e 0,6% no Seed (ampliado), basicamente antialiasing de
+diagonais (a cobertura de um traço inclinado é aproximada por faixas finas: erro de até meio pixel nas bordas das
+diagonais de 45 graus).
 
 O custo cresce com o comprimento total dos traços em pixels (cada pixel percorrido é uma amostra), não com a
 quantidade de traços. Próximos passos possíveis: cache de interação (reaproveitar o quadro durante pan/zoom) e
-rasterizar fora da thread JavaFX (hoje esses ~150-600 ms ocorrem na thread da interface).
+rasterizar fora da thread JavaFX (hoje esses ~200-1.100 ms ocorrem na thread da interface).
 
 ## Comparar GPU integrada e dedicada no Windows
 

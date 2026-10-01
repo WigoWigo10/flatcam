@@ -211,32 +211,66 @@ final class DensityRaster {
         }
         boolean xMajor = Math.abs(sx) >= Math.abs(sy);
         double major = xMajor ? Math.abs(sx) : Math.abs(sy);
-        int steps = Math.max(1, (int) Math.ceil(major));
-        // Share of one pixel along the major axis that each sample stands for (<= 1).
-        double extent = major / steps;
         // Half the stroke measured along the minor axis: a slanted line is wider there by length / major.
         double half = lineWidth / 2 * length / major;
-        // The samples whose stroke can reach this band's rows. Rows run along the minor axis for an x-major segment
-        // (the stroke reaches half past the centre line) and along the major axis otherwise.
-        double reach = xMajor ? half : 0;
-        int from = 0;
-        int to = steps - 1;
-        if (Math.abs(sy) > 1e-12) {
-            double a = (rowStart - reach - cy) / sy;
-            double b = (rowEnd + reach - cy) / sy;
-            from = Math.max(0, (int) Math.floor(Math.min(a, b) * steps) - 1);
-            to = Math.min(steps - 1, (int) Math.ceil(Math.max(a, b) * steps) + 1);
-        } else if (cy + reach < rowStart || cy - reach >= rowEnd) {
-            return;
+        // Major coordinate p (columns for an x-major segment, rows otherwise) and minor coordinate q, p increasing.
+        double p0 = xMajor ? cx : cy;
+        double p1 = xMajor ? cx + sx : cy + sy;
+        double q0 = xMajor ? cy : cx;
+        double q1 = xMajor ? cy + sy : cx + sx;
+        if (p0 > p1) {
+            double swap = p0;
+            p0 = p1;
+            p1 = swap;
+            swap = q0;
+            q0 = q1;
+            q1 = swap;
         }
-        for (int i = from; i <= to; i++) {
-            double t = (i + 0.5) / steps;
-            double x = cx + t * sx;
-            double y = cy + t * sy;
-            if (xMajor) {
-                addColumn(cover, width, rowStart, rowEnd, (int) Math.floor(x), y - half, y + half, extent);
-            } else {
-                addRow(cover, width, rowStart, rowEnd, (int) Math.floor(y), x - half, x + half, extent);
+        double dp = p1 - p0;
+        double dq = q1 - q0;
+        int first = (int) Math.floor(p0);
+        int last = Math.max(first, (int) Math.ceil(p1) - 1);
+        if (xMajor) {
+            // Columns run along the major axis and rows along the minor one: keep the columns whose stroke can reach the
+            // band's rows (the stroke reaches half a width past the centre line).
+            if (Math.abs(dq) > 1e-12) {
+                double ta = (rowStart - half - q0) / dq;
+                double tb = (rowEnd + half - q0) / dq;
+                // Clamp in double before the cast: a nearly horizontal segment gives |t| around 1e11 and more, which an
+                // int cast saturates and the "- 1" then wraps around, dropping the whole segment.
+                double pa = p0 + Math.min(ta, tb) * dp;
+                double pb = p0 + Math.max(ta, tb) * dp;
+                first = (int) Math.max(first, Math.min(last + 1, Math.floor(pa) - 1));
+                last = (int) Math.min(last, Math.max(first - 1, Math.floor(pb) + 1));
+            } else if (q0 + half < rowStart || q0 - half >= rowEnd) {
+                return;
+            }
+        } else {
+            // Rows are the major axis: this band owns exactly its own rows.
+            first = Math.max(first, rowStart);
+            last = Math.min(last, rowEnd - 1);
+        }
+        // Exact integration along the major axis: each pixel cell the segment crosses gets the length of segment inside
+        // it (at most one pixel), at the segment's minor position in the middle of that stretch.
+        // A slanted stroke crosses a pixel cell as a parallelogram, not a rectangle: split the cell in as many parts as
+        // the slope needs (1 for a nearly straight line, up to 4 at 45 degrees) and add each at its own minor position.
+        double slope = Math.abs(dq / dp);
+        int parts = (int) Math.max(1, Math.min(4, Math.ceil(slope * 4)));
+        for (int c = first; c <= last; c++) {
+            double lo = Math.max(p0, c);
+            double hi = Math.min(p1, c + 1);
+            if (hi - lo <= 0) {
+                continue;
+            }
+            double piece = (hi - lo) / parts;
+            for (int k = 0; k < parts; k++) {
+                double pieceMid = lo + (k + 0.5) * piece;
+                double q = q0 + (pieceMid - p0) / dp * dq;
+                if (xMajor) {
+                    addColumn(cover, width, rowStart, rowEnd, c, q - half, q + half, piece);
+                } else {
+                    addRow(cover, width, rowStart, rowEnd, c, q - half, q + half, piece);
+                }
             }
         }
     }
