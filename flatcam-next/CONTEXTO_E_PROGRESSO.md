@@ -984,6 +984,17 @@ ficar igual ao vetor; 4 defeitos de fidelidade corrigidos, ver PLOT_PERFORMANCE.
 Camada 2 feita (cache de interacao + rasterizacao fora da thread JavaFX, `DenseRenderer`): quadro de pan 1-3 ms, imagem exata
 chega ~145 ms (20 mil), ~350 ms (100 mil), ~1,1 s (500 mil) apos o pan parar. Pendente: cobrir uma margem em volta da vista.
 
+**Align Objects Tool (2026-10-01).** Ferramentas > Align Objects Tool (`AlignObjects`, `AlignObjectsToolPanel`), o
+`ToolAlignObjects.py`: alinha um Gerber ou Excellon (objeto a alinhar) a outro (referencia) clicando em pads ou furos.
+Um ponto (padrao do Python): clique num pad/furo do objeto a alinhar e no correspondente da referencia, e o objeto e
+transladado. Dois pontos: repete o par e, alem da translacao, gira em torno do primeiro destino para que o segundo
+ponto caia no segundo destino. O clique e resolvido para o centro do pad (flash de Gerber que contem o ponto) ou do
+furo/ranhura (raio da broca + 6 px). Aplica `TransformOp.Offset` e `TransformOp.Rotate` pelo mesmo caminho do Transform
+Tool. Diferenca deliberada: o angulo vem de `atan2` (o `atan(dy/dx)` do Python falha com dx = 0 e erra de quadrante em
+giros acima de 90 graus), e a rotacao so e pulada quando o angulo e ~0 (a regra do Python tambem pulava giros
+legitimos). Nao ha o realce em cor azul do objeto durante os cliques (o status do painel diz qual clique e o
+proximo). Testes em `AlignObjectsTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

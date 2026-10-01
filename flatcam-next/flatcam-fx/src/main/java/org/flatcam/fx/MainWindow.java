@@ -129,6 +129,7 @@ import org.flatcam.cam.ncc.NccGenerator;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccResult;
+import org.flatcam.cam.transform.AlignObjects;
 import org.flatcam.cam.transform.TransformOp;
 import org.flatcam.cam.transform.TransformReference;
 import org.locationtech.jts.geom.Coordinate;
@@ -1252,6 +1253,7 @@ final class MainWindow {
             case "corners" -> this::openCornerMarkersTool;
             case "qrcode" -> this::openQrCodeTool;
             case "solderpaste" -> this::openSolderPasteTool;
+            case "align" -> this::openAlignObjectsTool;
             default -> null;
         };
     }
@@ -2635,6 +2637,71 @@ final class MainWindow {
             @Override
             public void cancelPick() {
                 cancelPointPick();
+            }
+        }, this::closeToolPanel));
+    }
+
+    /** Tools > Align Objects Tool: align a Gerber/Excellon to another by clicking pads or drills (appTools/ToolAlignObjects.py). */
+    private void openAlignObjectsTool() {
+        List<TreeItem<String>> objects = new ArrayList<>(gerbersNode.getChildren());
+        objects.addAll(excellonNode.getChildren());
+        objects.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item));
+        if (objects.size() < 2) {
+            appendConsole("Align Objects: carregue ao menos dois objetos (Gerber ou Excellon).");
+            return;
+        }
+        TreeItem<String> initial = selectedObjects().stream().filter(objects::contains).findFirst().orElse(null);
+        openToolPanel("Align Objects Tool", AlignObjectsToolPanel.build(new AlignObjectsToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> objects() {
+                return objects;
+            }
+
+            @Override
+            public TreeItem<String> initialObject() {
+                return initial;
+            }
+
+            @Override
+            public Coordinate centerAt(TreeItem<String> object, Coordinate click) {
+                GerberImage gerber = gerberByItem.get(object);
+                if (gerber != null) {
+                    return AlignObjects.padCenterAt(gerber, click);
+                }
+                ExcellonImage excellon = excellonByItem.get(object);
+                return excellon == null ? null
+                        : AlignObjects.drillCenterAt(excellon, click, 6 * plotAreaView.worldPerPixel());
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+
+            @Override
+            public String align(TreeItem<String> aligned, List<Coordinate> points) {
+                try {
+                    List<TransformOp> operations = AlignObjects.plan(points);
+                    boolean ok = true;
+                    for (TransformOp operation : operations) {
+                        ok &= applyTransformToItem(aligned, operation);
+                    }
+                    if (!ok) {
+                        return "Nao foi possivel transformar " + aligned.getValue();
+                    }
+                    appendConsole("Objeto alinhado: " + aligned.getValue() + " ("
+                            + (operations.size() == 1 ? "translacao" : "translacao e rotacao") + ").");
+                    selectProjectItem(aligned);
+                    projectTree.refresh();
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
             }
         }, this::closeToolPanel));
     }
