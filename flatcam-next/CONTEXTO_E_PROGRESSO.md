@@ -207,8 +207,8 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | Etch Compensation | `EtchCompensation` | cresce ou encolhe o cobre pela espessura e fator de corrosão |
 
 Ainda **sem** porta: Rules Check, Optimal, Calibration e Copper Thieving (aparecem no menu, desabilitados).
-Conversion e Join Objects: portados Outline→Area, Join Gerber/Excellon/Geo; faltam Convert Any→Geo/Gerber/
-Excellon e Single↔MultiGeo.
+Conversion e Join Objects: portados Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join
+Gerber/Excellon/Geo.
 
 ### Plot Area com geometrias muito densas (2026-10-01)
 
@@ -387,7 +387,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
-| Geometry | parcial | multi-tool via NCC/Paint/SolderPaste; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto, borracha e Convert Any→Geo faltam |
+| Geometry | parcial | multi-tool via NCC/Paint/SolderPaste e conversões Single↔Multi; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto e borracha faltam |
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; 5 dos 21 pós-processadores do Python e o `Paste_1` embutido no SolderPaste; faltam os demais pós-processadores (laser, Marlin, Roland, HPGL...) e várias opções avançadas do legado |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
@@ -848,7 +848,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
 1. **Ferramentas restantes do menu:** Rules Check, Optimal, Calibration, Copper Thieving (as quatro são
-   maiores que as já portadas); depois Convert Any→Geo/Gerber/Excellon e Single↔MultiGeo.
+   maiores que as já portadas). As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
 2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje 5
    dos 21 do Python).
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
@@ -900,7 +900,7 @@ renumerados; `Combo_Excellon`) e Join Geo/Gerber/Exc → Geo (`GeometryJoin`: ob
 viram um Geometry só; Geometrys multi-ferramenta fundem as ferramentas de mesmo diâmetro e
 perfil; misturar simples com multi-ferramenta é recusado como no Python; `Combo_SingleGeo`/
 `Combo_MultiGeo`). Com o projeto real, os 3 Excellons somam 80 furos em 4 ferramentas (as duas
-de 0,8 mm do PTH viram uma). Faltam: Convert Any to Geo/Gerber/Excellon e Single↔MultiGeo.
+de 0,8 mm do PTH viram uma). Convert Any to Geo/Gerber/Excellon e Single↔MultiGeo foram feitos depois (entrada abaixo).
 
 **Barra superior com paridade ao Python (2026-09-30).** As barras File, Edit, View e Shell do
 Python (mesmos botões, mesma ordem) e a barra Tools podem ser ligadas e desligadas em Exibir >
@@ -1067,6 +1067,23 @@ Tool. Diferenca deliberada: o angulo vem de `atan2` (o `atan(dy/dx)` do Python f
 giros acima de 90 graus), e a rotacao so e pulada quando o angulo e ~0 (a regra do Python tambem pulava giros
 legitimos). Nao ha o realce em cor azul do objeto durante os cliques (o status do painel diz qual clique e o
 proximo). Testes em `AlignObjectsTest`.
+
+**Convert Any→Geo/Gerber/Excellon e Single↔MultiGeo (2026-10-01).** Editar > Converter (`ObjectConversion` em
+`flatcam-cam/.../convert/`, ligações no `MainWindow`), do `app_Main.py`. *Objeto → Geometry*: Gerber ou Excellon
+viram um Geometry de polígonos preenchidos (`<nome>_conv`); um Geometry é copiado com suas ferramentas. *Objeto →
+Gerber*: Excellon vira um Gerber com uma abertura redonda por ferramenta (códigos a partir de 10), furos como
+flashes e slots como traços; Geometry vira regiões (polígonos) e traços (linhas) com a largura da ferramenta a que
+pertencem. *Objeto → Excellon*: cada forma fechada de um Geometry, ou cada flash de um Gerber, vira um furo no
+centro com o menor lado da caixa como diâmetro; um traço Gerber de exatamente 2 pontos vira slot com a largura da
+abertura (como no Python, isso inclui trilhas retas de 2 pontos); ferramentas de mesmo diâmetro a 4 casas
+compartilham o id. *Single → Multi*: pergunta o diâmetro e põe a geometria sob uma ferramenta; *Multi → Single*:
+une a geometria de todas as ferramentas e descarta a informação de ferramenta, como o Python. As duas últimas
+alteram o objeto no lugar. Diferenças deliberadas: um Geometry só de linhas vira cobre por traço da largura da
+ferramenta (o Python grava as linhas nuas como "sólido", sem área), as comparações de diâmetro são sempre a 4
+casas (o Python mistura exata e arredondada) e o Single → Multi pede o diâmetro porque um Geometry de uma
+ferramenta no FX não o guarda. Com o projeto real: Excellon→Gerber preserva a área exatamente e o F_Cu → Excellon
+dá 72 furos, os mesmos do Excellon PTH; as isolações viram 99 e 111 formas (~0,3 s). Testes em
+`ObjectConversionTest`.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
@@ -1574,6 +1591,6 @@ isolação do projeto real) e já porta 20 das 24 ferramentas do menu Ferramenta
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
 geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam Rules Check, Optimal,
-Calibration e Copper Thieving, as conversões Convert Any e Single↔MultiGeo, o editor da Tools Database, salvar
+Calibration e Copper Thieving, o editor da Tools Database, salvar
 `.FlatPrj` e os demais pós-processadores. A suíte tem 462 testes sem falhas; a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

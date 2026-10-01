@@ -88,6 +88,7 @@ import org.flatcam.cam.convert.Fiducials;
 import org.flatcam.cam.convert.QrCodeMarker;
 import org.flatcam.cam.solderpaste.SolderPaste;
 import org.flatcam.cam.convert.ExtractDrills;
+import org.flatcam.cam.convert.ObjectConversion;
 import org.flatcam.cam.convert.OutlineToArea;
 import org.flatcam.cam.convert.Punch;
 import org.flatcam.cam.convert.Subtract;
@@ -1136,6 +1137,173 @@ final class MainWindow {
         }
     }
 
+    /** Edit > Conversion > Any to Geometry: each selected Gerber, Excellon or Geometry becomes a new "_conv" Geometry. */
+    private void convertSelectedToGeometry() {
+        convertSelected("Geometry", item -> {
+            GerberImage gerber = gerberByItem.get(item);
+            ExcellonImage excellon = excellonByItem.get(item);
+            GeometryEntry entry = geometryByItem.get(item);
+            if (gerber != null) {
+                return addGeometryToProject(uniqueDerivedName(item.getValue() + "_conv"), item.getValue(),
+                        gerber.units(), ObjectConversion.solidToGeometry(gerber.solidGeometry()), false);
+            }
+            if (excellon != null) {
+                return addGeometryToProject(uniqueDerivedName(item.getValue() + "_conv"), item.getValue(),
+                        excellon.units(), ObjectConversion.solidToGeometry(excellon.solidGeometry()), false);
+            }
+            if (entry != null) {
+                return addGeometryToProject(uniqueDerivedName(item.getValue() + "_conv"), item.getValue(),
+                        entry.units(), entry.geometry(), entry.strokeOnly(), entry.tools(), entry.cncDefaults());
+            }
+            return null;
+        });
+    }
+
+    /** Edit > Conversion > Any to Gerber: from an Excellon (flashes and strokes) or a Geometry (regions and strokes). */
+    private void convertSelectedToGerber() {
+        convertSelected("Gerber", item -> {
+            ExcellonImage excellon = excellonByItem.get(item);
+            GeometryEntry entry = geometryByItem.get(item);
+            if (excellon != null) {
+                return addGerberToProject(uniqueDerivedName(item.getValue() + "_conv"), null,
+                        ObjectConversion.excellonToGerber(excellon));
+            }
+            if (entry != null) {
+                return addGerberToProject(uniqueDerivedName(item.getValue() + "_conv"), null,
+                        ObjectConversion.geometryToGerber(entry.units(), entry.geometry(), entry.tools()));
+            }
+            return null;
+        });
+    }
+
+    /** Edit > Conversion > Any to Excellon: from a Geometry (one drill per closed shape) or a Gerber (flashes, strokes). */
+    private void convertSelectedToExcellon() {
+        convertSelected("Excellon", item -> {
+            GerberImage gerber = gerberByItem.get(item);
+            GeometryEntry entry = geometryByItem.get(item);
+            if (gerber != null) {
+                return addExcellonToProject(uniqueDerivedName(item.getValue() + "_conv"), null,
+                        ObjectConversion.gerberToExcellon(gerber));
+            }
+            if (entry != null) {
+                return addExcellonToProject(uniqueDerivedName(item.getValue() + "_conv"), null,
+                        ObjectConversion.geometryToExcellon(entry.units(), entry.geometry()));
+            }
+            return null;
+        });
+    }
+
+    private interface Conversion {
+        /** Creates the converted object, or returns null when the kind of object is not accepted. */
+        TreeItem<String> convert(TreeItem<String> item);
+    }
+
+    private void convertSelected(String target, Conversion conversion) {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.isEmpty()) {
+            appendConsole("Nenhum objeto selecionado.");
+            return;
+        }
+        TreeItem<String> last = null;
+        for (TreeItem<String> item : selected) {
+            try {
+                TreeItem<String> created = conversion.convert(item);
+                if (created == null) {
+                    appendConsole(item.getValue() + ": este objeto nao pode ser convertido em " + target + ".");
+                    continue;
+                }
+                appendConsole("Convertido em " + target + ": " + created.getValue() + ".");
+                last = created;
+            } catch (IllegalArgumentException failed) {
+                appendConsole(item.getValue() + ": " + failed.getMessage());
+            }
+        }
+        if (last != null) {
+            selectProjectItem(last);
+            plotAreaView.fitToLayer(last);
+        }
+    }
+
+    /** Edit > Conversion > Single to Multi-Geo: the geometry goes under one tool of a diameter asked for. */
+    private void convertSingleToMultiGeometry() {
+        Double diameter = null;
+        int converted = 0;
+        for (TreeItem<String> item : selectedObjects()) {
+            GeometryEntry entry = geometryByItem.get(item);
+            if (entry == null || !entry.tools().isEmpty()) {
+                continue;
+            }
+            if (diameter == null) {
+                diameter = promptNumber("Single → Multi-Geometry", "Diametro da ferramenta:", 0.1);
+                if (diameter == null) {
+                    return;
+                }
+            }
+            try {
+                List<ToolGeometry> tools = ObjectConversion.singleToMulti(entry.geometry(), diameter);
+                geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
+                        entry.strokeOnly(), tools, entry.cncDefaults()));
+                converted++;
+            } catch (IllegalArgumentException failed) {
+                appendConsole(item.getValue() + ": " + failed.getMessage());
+            }
+        }
+        finishGeometryConversion(converted, "Single-Geometry", "MultiGeo");
+    }
+
+    /** Edit > Conversion > Multi to Single-Geo: every tool's geometry joined; the tool information is dropped. */
+    private void convertMultiToSingleGeometry() {
+        int converted = 0;
+        for (TreeItem<String> item : selectedObjects()) {
+            GeometryEntry entry = geometryByItem.get(item);
+            if (entry == null || entry.tools().isEmpty()) {
+                continue;
+            }
+            Geometry joined = ObjectConversion.multiToSingle(entry.tools());
+            geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), joined, entry.strokeOnly(),
+                    List.of(), entry.cncDefaults()));
+            plotAreaView.updateLayerGeometry(item, joined);
+            converted++;
+        }
+        finishGeometryConversion(converted, "MultiGeo", "SingleGeo");
+    }
+
+    private void finishGeometryConversion(int converted, String from, String to) {
+        if (converted == 0) {
+            appendConsole("Falhou. Selecione um objeto Geometry " + from + " e tente de novo.");
+            return;
+        }
+        appendConsole(converted + " Geometry convertida(s) para " + to + ".");
+        TreeItem<String> current = projectTree.getSelectionModel().getSelectedItem();
+        if (current != null) {
+            showProperties(current);
+        }
+        refreshPlotSelectionOutline();
+    }
+
+    /** A small modal prompt for one positive number; null if cancelled or invalid. */
+    private Double promptNumber(String title, String contentText, double defaultValue) {
+        TextInputDialog dialog = new TextInputDialog(String.valueOf(defaultValue));
+        dialog.setTitle(title);
+        dialog.setHeaderText(null);
+        dialog.setContentText(contentText);
+        dialog.initOwner(scene.getWindow());
+        var result = dialog.showAndWait();
+        if (result.isEmpty()) {
+            return null;
+        }
+        try {
+            double value = Double.parseDouble(result.get().trim().replace(',', '.'));
+            if (value > 0 && Double.isFinite(value)) {
+                return value;
+            }
+        } catch (NumberFormatException ignored) {
+            // falls through to the message
+        }
+        appendConsole(title + ": use um numero positivo.");
+        return null;
+    }
+
     /** Edit > Conversion > Outline to Area: a filled Geometry from each selected closed Gerber/Geometry outline. */
     private void convertOutlineToArea() {
         List<TreeItem<String>> selected = selectedObjects();
@@ -1376,10 +1544,11 @@ final class MainWindow {
         setLegacyMenuIcon(conversionsMenu, "convert32.png");
         conversionsMenu.getItems().addAll(
                 chromeItem("Contorno → Area", "geometry32.png", this::convertOutlineToArea),
-                plannedItem("Single ↔ Multi-Geometry", "geometry32.png"),
-                plannedItem("Objeto → Geometry", "geometry32.png"),
-                plannedItem("Objeto → Gerber", "flatcam_icon32.png"),
-                plannedItem("Objeto → Excellon", "drill32.png"));
+                chromeItem("Single → Multi-Geometry", "geometry32.png", this::convertSingleToMultiGeometry),
+                chromeItem("Multi → Single-Geometry", "geometry32.png", this::convertMultiToSingleGeometry),
+                chromeItem("Objeto → Geometry", "geometry32.png", this::convertSelectedToGeometry),
+                chromeItem("Objeto → Gerber", "flatcam_icon32.png", this::convertSelectedToGerber),
+                chromeItem("Objeto → Excellon", "drill32.png", this::convertSelectedToExcellon));
         Menu joinMenu = new Menu("Juntar Objetos");
         setLegacyMenuIcon(joinMenu, "union32.png");
         joinMenu.getItems().addAll(
