@@ -51,6 +51,13 @@ final class AppPreferences {
     private AppPreferences() {
     }
 
+    static String loadToolsDatabasePath() { return PREFS.get("toolsDatabasePath", ""); }
+
+    static void saveToolsDatabasePath(java.nio.file.Path path) {
+        PREFS.put("toolsDatabasePath", path.toAbsolutePath().normalize().toString());
+        flush();
+    }
+
     static ThemeOption loadTheme(ThemeOption fallback) {
         String name = PREFS.get(KEY_THEME, null);
         return ThemeOption.fromSavedName(name, fallback);

@@ -81,6 +81,7 @@ import org.flatcam.app.project.DrillCncSettings;
 import org.flatcam.app.project.GeometryCncSettings;
 import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
+import org.flatcam.app.project.ToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.convert.InvertGerber;
@@ -152,8 +153,7 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
  * space, and a center tab strip has a non-closable "Plot Area" (viewport)
  * plus auxiliary tabs (Preferences, Tools Database, editors, ...) opened on
  * demand and reused rather than duplicated. This class replicates that
- * shape; the two auxiliary tab actions here are placeholders demonstrating
- * the open/reuse/focus pattern, not real Preferences/Tools Database screens.
+ * shape; auxiliary tabs use the same open/reuse/focus pattern as Python.
  */
 final class MainWindow {
 
@@ -180,6 +180,7 @@ final class MainWindow {
     private static final GeometryFactory CNC_GEOMETRY_FACTORY = new GeometryFactory();
 
     private final JobExecutor jobExecutor;
+    private ToolsDatabasePanel toolsDatabasePanel;
 
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label progressPercentLabel = new Label("0%");
@@ -701,6 +702,9 @@ final class MainWindow {
         });
         configurePlotInteractions();
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
+            Tab selectedTab = centerTabs.getSelectionModel().getSelectedItem();
+            // Database shortcuts must not move/delete shapes or toggle the hidden plot.
+            if (selectedTab != null && "tools-database-tab".equals(selectedTab.getId())) return;
             if (pendingPointPick != null && event.getCode() == KeyCode.ESCAPE) {
                 cancelPointPick();
                 event.consume();
@@ -780,6 +784,7 @@ final class MainWindow {
             }
         });
         scene.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+            if (toolsDatabasePanel != null) toolsDatabasePanel.hideContextMenu();
             // Context menus have their own popup scene. A click anywhere in the
             // main window should dismiss them before the target handles it.
             if (projectContextMenu != null && projectContextMenu.isShowing()) {
@@ -1572,6 +1577,7 @@ final class MainWindow {
                 importMenu, exportMenu, scriptMenu, backupMenu,
                 plannedItem("Imprimir PDF", "pdf32.png"), new SeparatorMenuItem(),
                 chromeItem("Sair", "power16.png", () -> {
+                    if (!confirmToolsDatabaseClose()) return;
                     fluidTooltips.closeNow();
                     Platform.exit();
                 }));
@@ -1641,7 +1647,7 @@ final class MainWindow {
                 chromeItem("Preferencias", "settings18.png", this::openPreferences));
 
         Menu optionsMenu = new Menu("Opcoes");
-        MenuItem toolsDbItem = plannedItem("Tools Database", "search_db32.png");
+        MenuItem toolsDbItem = chromeItem("Tools Database", "search_db32.png", this::openToolsDatabase);
         MenuItem calculatorsItem = chromeItem("Calculators", "calculator24.png",
                 () -> openToolPanel("Calculators", CalculatorsPanel.build()));
 
@@ -5681,19 +5687,7 @@ final class MainWindow {
             return;
         }
         openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(sources, initialSource,
-                () -> {
-                    FileChooser chooser = new FileChooser();
-                    chooser.setTitle("Abrir Tools Database do FlatCAM Python");
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                            "Tools Database (*.FlatDB, *.json)", "*.FlatDB", "*.json"));
-                    File selected = chooser.showOpenDialog(scene.getWindow());
-                    if (selected == null) return List.of();
-                    try {
-                        return LegacyToolsDatabase.loadDrillTools(selected.toPath());
-                    } catch (IOException error) {
-                        throw new IllegalArgumentException(error.getMessage(), error);
-                    }
-                },
+                () -> toolsDatabaseTools(LegacyToolsDatabase::drillTools),
                 result -> runDrillGCodeGeneration(result.source().item(), result.source().image(), result),
                 this::closeToolPanel));
     }
@@ -5823,19 +5817,7 @@ final class MainWindow {
                         polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
                         onSelected, onCancelled),
                 plotAreaView::cancelPlacement,
-                () -> {
-                    FileChooser chooser = new FileChooser();
-                    chooser.setTitle("Abrir Tools Database do FlatCAM Python");
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                            "Tools Database (*.FlatDB, *.json)", "*.FlatDB", "*.json"));
-                    File selected = chooser.showOpenDialog(scene.getWindow());
-                    if (selected == null) return List.of();
-                    try {
-                        return LegacyToolsDatabase.loadIsolationTools(selected.toPath());
-                    } catch (IOException error) {
-                        throw new IllegalArgumentException(error.getMessage(), error);
-                    }
-                },
+                () -> toolsDatabaseTools(LegacyToolsDatabase::isolationTools),
                 params -> {
                     plotAreaView.cancelPlacement();
                     runIsolationGeneration(params.source().item(), params.source().image(), params);
@@ -6147,21 +6129,7 @@ final class MainWindow {
                 (chosen, shape, onSelected, onCancelled) ->
                         beginNccAreaSelection(chosen.geometry(), shape, onSelected, onCancelled),
                 plotAreaView::cancelPlacement,
-                () -> {
-                    FileChooser chooser = new FileChooser();
-                    chooser.setTitle("Abrir Tools Database do FlatCAM Python");
-                    chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                            "Tools Database (*.FlatDB, *.json)", "*.FlatDB", "*.json"));
-                    File selected = chooser.showOpenDialog(scene.getWindow());
-                    if (selected == null) {
-                        return List.of();
-                    }
-                    try {
-                        return LegacyToolsDatabase.loadNccTools(selected.toPath());
-                    } catch (IOException error) {
-                        throw new IllegalArgumentException(error.getMessage(), error);
-                    }
-                },
+                () -> toolsDatabaseTools(LegacyToolsDatabase::nccTools),
                 result -> {
                     plotAreaView.cancelPlacement();
                     NccToolPanel.SourceCandidate chosen = result.source();
@@ -7097,8 +7065,48 @@ final class MainWindow {
         throw new IllegalArgumentException(label + " deve ser numerico e positivo.");
     }
 
-    private StackPane buildToolsDbPlaceholder() {
-        return centeredPlaceholder("Tools Database\n(placeholder - ver UI_INVENTORY.md secao 6)");
+    private void openToolsDatabase() {
+        for (Tab tab : centerTabs.getTabs()) if ("tools-database-tab".equals(tab.getId())) {
+            centerTabs.getSelectionModel().select(tab); return;
+        }
+        if (toolsDatabasePanel == null) {
+            toolsDatabasePanel = new ToolsDatabasePanel(jobExecutor, () -> scene.getWindow(),
+                    AppPreferences::saveToolsDatabasePath, file -> legacyIcon(file, 16));
+            String remembered = AppPreferences.loadToolsDatabasePath();
+            if (!remembered.isBlank()) toolsDatabasePanel.loadPath(Path.of(remembered));
+        }
+        Tab tab = new Tab(); tab.setId("tools-database-tab"); tab.setContent(toolsDatabasePanel);
+        tab.setGraphic(legacyIcon("search_db32.png", 16));
+        tab.textProperty().bind(javafx.beans.binding.Bindings.when(toolsDatabasePanel.dirtyProperty())
+                .then("Tools Database *").otherwise("Tools Database"));
+        tab.setOnCloseRequest(event -> { if (!toolsDatabasePanel.confirmClose()) event.consume(); });
+        centerTabs.getTabs().add(tab); centerTabs.getSelectionModel().select(tab);
+    }
+
+    boolean confirmToolsDatabaseClose() {
+        return toolsDatabasePanel == null || toolsDatabasePanel.confirmClose();
+    }
+
+    @FunctionalInterface
+    private interface DatabaseProjection<T> { List<T> read(org.json.JSONObject root) throws IOException; }
+
+    private <T> List<T> toolsDatabaseTools(DatabaseProjection<T> projection) {
+        try {
+            if (toolsDatabasePanel != null) return projection.read(toolsDatabasePanel.snapshot());
+            FileChooser chooser = new FileChooser();
+            chooser.setTitle("Abrir Tools Database do FlatCAM Python");
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Tools Database", "*.FlatDB", "*.flatdb", "*.json"));
+            String remembered = AppPreferences.loadToolsDatabasePath();
+            if (!remembered.isBlank()) {
+                Path previous = Path.of(remembered);
+                if (Files.isDirectory(previous.getParent())) chooser.setInitialDirectory(previous.getParent().toFile());
+            }
+            File selected = chooser.showOpenDialog(scene.getWindow());
+            if (selected == null) return List.of();
+            ToolsDatabase database = ToolsDatabase.load(selected.toPath());
+            AppPreferences.saveToolsDatabasePath(selected.toPath());
+            return projection.read(database.toJson());
+        } catch (IOException error) { throw new IllegalArgumentException(error.getMessage(), error); }
     }
 
     private StackPane centeredPlaceholder(String text) {

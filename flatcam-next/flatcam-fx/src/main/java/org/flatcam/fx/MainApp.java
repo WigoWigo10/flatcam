@@ -321,6 +321,7 @@ public class MainApp extends Application {
 
     private void wireCloseHandler(Stage stage, MainWindow mainWindow) {
         stage.setOnCloseRequest(e -> {
+            if (!mainWindow.confirmToolsDatabaseClose()) { e.consume(); return; }
             AppPreferences.saveWindowSize(stage.getWidth(), stage.getHeight());
             AppPreferences.saveWindowScreen(mainWindow.currentScreenId(),
                     screenBounds(screenContainingMostOf(stage).getBounds()));

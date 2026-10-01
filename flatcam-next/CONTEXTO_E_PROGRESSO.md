@@ -10,7 +10,7 @@ e continuar a migração sem recomeçar a investigação.
 > (nenhuma resta), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0. A suíte tem **662 testes** (481 `flatcam-cam`, 88 `flatcam-application`, 93 `flatcam-fx`),
+> na seção 9.0. A suíte tem **684 testes** (481 `flatcam-cam`, 95 `flatcam-application`, 108 `flatcam-fx`),
 > sem falhas; 9 ficam ignorados porque dependem de um projeto real do Python (privado) indicado por
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
@@ -80,8 +80,8 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**662 testes registrados**: 481 em `flatcam-cam`, 88 em `flatcam-application` e 93 em `flatcam-fx`;
-653 executados, 0 falhas, 0 erros e
+**684 testes registrados**: 481 em `flatcam-cam`, 95 em `flatcam-application` e 108 em `flatcam-fx`;
+675 executados, 0 falhas, 0 erros e
 9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
@@ -89,8 +89,9 @@ imprime "Job failed"; esses logs, isoladamente, não representam falha da suíte
 com `javafx:run` no Java 25 passou (20 s sem exceções). No incremento de pós-processadores, controles
 de Geometry foram verificados na thread FX sem abrir janela; teste manual da tela completa permanece pendente.
 
-Não há teste automatizado de interface: os painéis, o `MainWindow` e o `PlotAreaView` são validados por
-harnesses fora da tela (capturas por `Node.snapshot` num `Stage` em `x = -3000`) e pelo usuário no app real.
+Há testes automatizados de controles JavaFX na thread FX, incluindo persistência CNC e Tools Database,
+mas não uma suíte end-to-end completa da janela. Painéis, `MainWindow` e `PlotAreaView` também são validados por
+harnesses fora da tela (capturas por `Node.snapshot`, sem janela visível) e pelo usuário no app real.
 Vários painéis recentes (2-Sided, Paint, Panelize, Invert, Subtract, Extract Drills, Punch, Etch, Film,
 Fiducials, Corner Markers, QRCode, SolderPaste, Align Objects) têm a **lógica** testada, mas o fluxo de
 cliques e janelas ainda não foi confirmado por uso manual.
@@ -401,7 +402,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
-| Tools Database | parcial | NCC, Isolation e Drilling leem ferramentas de um `.FlatDB` escolhido pelo usuário; editor/salvamento do banco e integração com outras ferramentas faltam |
+| Tools Database | parcial | editor na aba central, 63 campos do formulário Python, busca/filtro, copiar/excluir, `.FlatDB` com backup e preservação de campos desconhecidos; NCC, Isolation e Drilling usam a base aberta; faltam transferência para Milling/Paint/Cutout e consumo integral de parâmetros avançados |
 | Preferências globais | inicial/parcial | aba funcional para tema, snap, grade visual e visibilidade do Plot Area; ainda longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
 
@@ -854,10 +855,11 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
 1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
-2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e completar parâmetros/validar os
+2. **Tools Database**: editor/salvamento entregues; completar integração com Milling/Paint/Cutout,
+   **salvar `.FlatPrj`**, e completar parâmetros/validar os
    **pós-processadores** (hoje 20 ports parciais de 20 perfis Python, incluindo `Paste_1`;
    FX portable não entra nessa contagem). Perfil e campos globais CNC já persistem após gerar;
-   priorizar editor da Tools Database, suplemento de metadados Roland, compensações de mesa
+   priorizar transferência dos parâmetros da Tools Database, suplemento de metadados Roland, compensações de mesa
    e parâmetros individuais/laser. Rascunhos de formulários ainda não têm snapshot completo.
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
    da tela, sem capturar a tela inteira).
@@ -1773,6 +1775,64 @@ isolação do projeto real) e já porta as 24 ferramentas do menu Ferramentas do
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
 geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
-o editor da Tools Database, salvar `.FlatPrj` e completar parâmetros/validação dos pós-processadores.
-A suíte atual registra 662 testes (653 executados sem falhas, 9 ignorados); a validação manual dos painéis
+ampliar a integração da Tools Database (editor já entregue), salvar `.FlatPrj` e completar parâmetros/validação dos pós-processadores.
+A suíte atual registra 684 testes (675 executados sem falhas, 9 ignorados); a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.
+
+### Tools Database: editor visual/funcional (2026-10-01, após `9c229bba`)
+
+`Opções > Tools Database` agora abre uma aba reutilizável na área central, não um placeholder.
+`ToolsDatabasePanel` reproduz a lista ID/Tool Name e as seções Description, Milling, Drilling,
+Isolation, Paint, NCC e Cutout de `appDatabase.py::ToolsDB2`. Os **63 campos** são verificados
+contra as chaves do formulário Python em teste automatizado. Os ícones dos comandos são os
+mesmos assets Python, com variantes claras/escuras. Colunas de parâmetros agrupadas, rolagem,
+cards recolhíveis e botões que quebram linha evitam exigir a largura fixa do Python.
+
+- Adicionar, copiar uma/múltiplas ferramentas, excluir com confirmação, buscar nome/ID/diâmetro
+  e filtrar operação. IDs existentes são preservados e novos IDs não sobrescrevem entradas esparsas.
+- Apenas uma ferramenta pode ser editada por vez; seleção múltipla permite copiar/excluir.
+- Parâmetros dependentes ficam desabilitados conforme checkbox/shape/gap type. V-tool calcula
+  o diâmetro efetivo a partir de V-Dia, V-Angle e Cut Z, quando esses campos são alterados.
+  `Laser_lines` de Paint fica desabilitado no seletor como no Python; valores importados são preservados.
+- Alterações são validadas por **Aplicar parametros**, troca de seleção ou Save DB. Valores inválidos
+  bloqueiam a troca/uso sem apagar o rascunho. Campos não modificados e desconhecidos, inclusive
+  preprocessadores e configurações avançadas, não são substituídos por defaults.
+- Import DB e Save DB rodam via `JobExecutor`; falhas mantêm a base/rascunho atual. Save DB associa
+  o arquivo à base e limpa `*`; Export DB escreve uma cópia e mantém a associação/estado de edição
+  (exportar sobre o próprio arquivo ativo equivale a salvar). O último arquivo associado é lembrado.
+- Escrita JSON UTF-8 compatível com Python, publicação atômica e backup exato `.bak` com nome único
+  antes de sobrescrever. Links simbólicos e destinos que não sejam arquivos são recusados.
+  Não há migração destrutiva nem gravação automática na base Python.
+- Fechar aba/aplicativo com alterações pede confirmação para descartar; Cancelar permite voltar
+  ao editor e salvar. Durante I/O, fechamento é bloqueado. Ctrl+S salva e Ctrl+F foca a busca;
+  atalhos globais do Plot não são aplicados enquanto a aba da base está ativa.
+- Isolation/NCC/Drilling passam a ler o snapshot validado do editor, incluindo alterações ainda
+  não salvas. Se a aba nunca foi aberta, preservam o seletor de arquivo já existente. A conversão
+  desse fluxo antigo ainda é síncrona; somente Import/Save/Export do editor são assíncronos.
+
+**Limites:** ainda não é paridade total da base. A transferência para Milling/Geometry, Paint e
+Cutout e a reprodução do botão contextual “Transfer the Tool” do Python não foram implementadas
+nesta etapa. Os 63 campos são editáveis/persistidos, mas os adaptadores CAM existentes só consomem
+os parâmetros que já suportavam; editar um campo avançado não garante que o gerador FX o utilize.
+Defaults de ferramentas novas são valores portáveis fixos, não as preferências globais completas
+do Python. `.FlatDB` não especifica unidades: não há conversão automática de MM/IN. IDs inválidos,
+diâmetro não positivo, tolerâncias invertidas e arquivos maiores que 10 MB são recusados.
+
+**Ajuste futuro — tamanho da Tools Database:** o limite fixo de 10 MB é uma proteção
+conservadora herdada dos leitores `.FlatDB` do FX, não uma exigência do Python, do formato
+ou do JavaFX, nem um valor determinado por benchmark. Deve ser revisado para permitir
+bases legítimas maiores: avaliar limite configurável e/ou aviso antes de carregar, mantendo
+I/O em segundo plano e medindo memória/tempo de parsing e cópia. Revisar conjuntamente
+os leitores CAM, o editor e a gravação, que hoje aplicam esse limite. Ele se refere apenas
+à Tools Database; não limita Gerbers, Geometry, CNC Jobs ou projetos. Nesta entrega o
+comportamento de recusa permanece inalterado.
+
+**Verificação:** 7 testes de documento/backup/compatibilidade e 15 testes de painel, incluindo os
+quatro temas e largura reduzida. Capturas `target/tools-db-*.png` podem ser geradas com
+`-Dflatcam.tests.snapshots=true` e foram inspecionadas. `install` completo: 684 registrados,
+675 executados, 0 falhas/erros, 9 ignorados. O teste de importação inválida imprime intencionalmente
+“Job failed”, sem falha na suíte. Falta validação manual das confirmações, FileChooser, troca de
+temas no app e round-trip com a base pessoal do usuário aberta novamente no Python.
+
+**Próximo passo recomendado nesta frente:** seleção/transferência de ferramenta da base para
+Geometry/Milling, Paint e Cutout, seguida de mapeamento explícito dos parâmetros ainda ignorados.

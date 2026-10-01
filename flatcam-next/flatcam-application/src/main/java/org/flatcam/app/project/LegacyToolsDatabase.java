@@ -16,7 +16,7 @@ import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
 import org.json.JSONObject;
 
-/** Read-only adapter for Python's JSON tools_db.FlatDB entries. */
+/** CAM projections of Python's JSON tools_db.FlatDB entries (disk or editor snapshot). */
 public final class LegacyToolsDatabase {
 
     public record NccTool(String name, double diameter, NccOperation operation,
@@ -67,6 +67,10 @@ public final class LegacyToolsDatabase {
         } catch (RuntimeException error) {
             throw new IOException("Invalid Python Tools Database JSON", error);
         }
+        return nccTools(root);
+    }
+
+    public static List<NccTool> nccTools(JSONObject root) throws IOException {
         List<NccTool> tools = new ArrayList<>();
         for (String id : root.keySet()) {
             try {
@@ -113,6 +117,10 @@ public final class LegacyToolsDatabase {
         } catch (RuntimeException error) {
             throw new IOException("Invalid Python Tools Database JSON", error);
         }
+        return isolationTools(root);
+    }
+
+    public static List<IsolationTool> isolationTools(JSONObject root) throws IOException {
         List<IsolationTool> tools = new ArrayList<>();
         for (String id : root.keySet()) {
             try {
@@ -150,6 +158,10 @@ public final class LegacyToolsDatabase {
         } catch (RuntimeException error) {
             throw new IOException("Invalid Python Tools Database JSON", error);
         }
+        return drillTools(root);
+    }
+
+    public static List<DrillTool> drillTools(JSONObject root) throws IOException {
         List<DrillTool> tools = new ArrayList<>();
         for (String id : root.keySet()) {
             try {

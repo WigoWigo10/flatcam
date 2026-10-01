@@ -299,4 +299,5 @@ Este arquivo descreve o Python. Para saber o que o FX já porta (detalhes e dife
 | `ToolCalibration` | portado (pontos, G-code de verificação, fatores e calibração de objetos) |
 | Conversion / Join Objects | portados: Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join Gerber/Excellon/Geo |
 | Preprocessadores | 20/20 perfis Python com ports parciais (19 no seletor + Paste_1 no SolderPaste); Mach3 com sonda tem parâmetros/confirmação, sem prévia G31/G92; faltam parâmetros adicionais e validação física; ver PREPROCESSADORES.md |
-| Tools Database (editor), salvar `.FlatPrj` | pendentes |
+| Tools Database | editor com 63 campos Python, ícones, busca/filtro, copiar/excluir, Import/Save/Export `.FlatDB`, backup e integração NCC/Isolation/Drilling; transferência para Milling/Paint/Cutout e parâmetros avançados ainda pendentes |
+| Salvar `.FlatPrj` | pendente |
