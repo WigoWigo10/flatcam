@@ -125,7 +125,8 @@ final class GeometryCncToolPanel {
         multiDepthCb.disableProperty().bind(laser);
         depthPerPassField.disableProperty().unbind();
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(laser));
-        pauseCheck.disableProperty().bind(laser);
+        pauseCheck.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> laser.get() || preprocessor.getValue().automaticToolSelection(), preprocessor.valueProperty()));
         rapidFeedField.disableProperty().bind(rapidFeed.not());
         Label profileHelp = new Label();
         profileHelp.setWrapText(true);
@@ -213,7 +214,7 @@ final class GeometryCncToolPanel {
                 preprocessor.getValue().unitsCode(units);
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
-                        !laser.get() && pauseCheck.isSelected(),
+                        !laser.get() && !preprocessor.getValue().automaticToolSelection() && pauseCheck.isSelected(),
                         rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0);
                 List<ToolGeometry> resultTools = multiTool
                         ? tools

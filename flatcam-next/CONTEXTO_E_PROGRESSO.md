@@ -80,8 +80,8 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**529 testes registrados**: 419 em `flatcam-cam`, 43 em `flatcam-application` e 67 em `flatcam-fx`;
-520 executados, 0 falhas, 0 erros e
+**542 testes registrados**: 431 em `flatcam-cam`, 44 em `flatcam-application` e 67 em `flatcam-fx`;
+533 executados, 0 falhas, 0 erros e
 9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
@@ -394,7 +394,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
 | Geometry | parcial | multi-tool via NCC/Paint/SolderPaste e conversões Single↔Multi; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto e borracha faltam |
-| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY e laser por estado de emissão; 14 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 15 de 20 ports parciais; faltam ISEL ICP, Roland, HPGL, line_xyz e sondagem Mach3; ver `PREPROCESSADORES.md` |
+| CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão e ICP linear; 16 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 17 de 20 ports parciais; faltam Roland, HPGL e sondagem Mach3; ver `PREPROCESSADORES.md` |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
@@ -855,7 +855,7 @@ Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde
 
 1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
 2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje
-   15 ports parciais de 20 perfis Python, incluindo `Paste_1`; FX portable não entra nessa contagem).
+   17 ports parciais de 20 perfis Python, incluindo `Paste_1`; FX portable não entra nessa contagem).
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
    da tela, sem capturar a tela inteira).
 4. **Plot Area:** margem em volta da vista para a imagem de densidade e, se um profile mostrar necessidade,
@@ -1290,7 +1290,7 @@ no JavaFX com arquivos reais e ampliar a prévia G-code conforme corpus.
 
 ### 9.5 Editor de G-Code
 
-Arquivos `.nc`, `.gcode`, `.tap`, `.cnc` e `.txt` podem ser abertos diretamente
+Arquivos `.nc`, `.gcode`, `.tap`, `.cnc`, `.txt` e ICP `.imf` podem ser abertos diretamente
 como CNC Jobs, com leitura/análise em background, progresso e cancelamento. O
 Editor de G-Code abre o texto de um CNC Job em aba central protegida, com
 Aplicar, Cancelar e Salvar arquivo no painel lateral. Aplicar substitui o
@@ -1632,6 +1632,18 @@ uma fatia como concluída:
 
 ## 15. Resumo executivo
 
+**Terceiro incremento de pós-processadores (2026-10-01, após `3d891d08`).** Adicionados line_xyz e
+ISEL_ICP_CNC: 16 perfis Python no seletor mais FX portable, total 17 de 20 ports parciais incluindo Paste_1.
+line_xyz escreve XYZ em todos os movimentos; o parser identifica mergulhos por deslocamento real,
+sem confundir X/Y repetidos com movimento lateral. O codec ICP gera FASTABS/MOVEABS, VEL, GETTOOL,
+SPINDLE, WAIT e PROGEND em unidades inteiras; normaliza o subconjunto para a prévia compartilhada,
+com cancelamento/progresso. Aceita apenas MM; não copia o WPCLEAR/retorno Z0 final do Python.
+GETTOOL automático independe da pausa manual e é seguido de reafirmação da altura livre. UI usa
+extensão .imf na geração/abertura/edição; texto nativo embutido reabre sem depender do arquivo externo.
+Comandos ICP desconhecidos, resets de origem e movimentos relativos invalidam a prévia. Testes cobrem
+conteúdo nativo, unidades, furos/slots, tool changes, limites e os controles JavaFX sem janela visível.
+Restam hpgl, Roland_MDX_20 e Toolchange_Probe_MACH3; validação visual e física continuam pendentes.
+
 **Segundo incremento de pós-processadores (2026-10-01, após `c718e582`).** Adicionados ISEL_CNC,
 Toolchange_Manual e Toolchange_Custom: 14 perfis Python no seletor (mais FX portable), 15 de 20
 ports parciais incluindo Paste_1. ISEL emite G71, aceita somente MM e troca por M06/M01; o parser
@@ -1690,5 +1702,5 @@ Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
 geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
 o editor da Tools Database, salvar `.FlatPrj` e os demais pós-processadores.
-A suíte atual registra 529 testes (520 executados sem falhas, 9 ignorados); a validação manual dos painéis
+A suíte atual registra 542 testes (533 executados sem falhas, 9 ignorados); a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

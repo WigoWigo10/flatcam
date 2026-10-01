@@ -315,6 +315,7 @@ final class DrillGCodeToolPanel {
         });
 
         CheckBox toolChange = new CheckBox("Tool change");
+        toolChange.setId("drill-tool-change");
         toolChange.setSelected(initialSource.drillDefaults().values().stream()
                 .anyMatch(DrillGCodeParameters::pauseForToolChange));
         sourceCombo.valueProperty().addListener((observable, oldValue, value) -> {
@@ -329,7 +330,13 @@ final class DrillGCodeToolPanel {
         endMoveXY.setTooltip(new Tooltip("O movimento XY final usa End move Z como altura; confirme que esta livre de obstaculos."));
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
+        preprocessor.setId("drill-preprocessor");
         preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+        var automaticTools = Bindings.createBooleanBinding(
+                () -> preprocessor.getValue().automaticToolSelection(), preprocessor.valueProperty());
+        toolChange.disableProperty().bind(automaticTools);
+        toolChangeZ.disableProperty().unbind();
+        toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not().or(automaticTools));
         spindleLabel.textProperty().bind(Bindings.createStringBinding(
                 () -> preprocessor.getValue() == GCodePreprocessor.REPETIER ? "Potencia PWM (0-255):" : "Spindle RPM:",
                 preprocessor.valueProperty()));
@@ -366,10 +373,12 @@ final class DrillGCodeToolPanel {
         common.add(profileHelp, 0, 6, 2, 1);
 
         Label errorLabel = new Label();
+        errorLabel.setId("drill-error");
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
         errorLabel.managedProperty().bind(errorLabel.textProperty().isNotEmpty());
         Button generate = new Button("Generate CNC Job");
+        generate.setId("drill-generate");
         generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
@@ -377,7 +386,7 @@ final class DrillGCodeToolPanel {
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
                 preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
                 if (selected.isEmpty()) throw new IllegalArgumentException("Selecione ferramentas para furar.");
-                if (!toolChange.isSelected()
+                if (!toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection()
                         && selected.stream().map(row -> row.diameter).distinct().count() > 1)
                     throw new IllegalArgumentException("Ha diametros diferentes no mesmo G-code. "
                             + "Ative Tool change para pausar entre ferramentas.");
@@ -386,10 +395,11 @@ final class DrillGCodeToolPanel {
                     selected.sort(Comparator.comparingDouble((ToolRow row) -> row.diameter).reversed());
                 else selected.sort(Comparator.comparingInt(row -> table.getItems().indexOf(row)));
                 Map<Integer, DrillGCodeParameters> settings = new LinkedHashMap<>();
+                boolean mechanicalChange = toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection();
                 List<Integer> orderedIds = new ArrayList<>();
                 for (ToolRow row : selected) {
                     preprocessor.getValue().validatePower(parseInt(row.spindle, "Potencia/RPM (Tool " + row.id + ")"));
-                    settings.put(row.id, row.parameters(toolChange.isSelected()));
+                    settings.put(row.id, row.parameters(mechanicalChange));
                     orderedIds.add(row.id);
                 }
                 Double endX = null, endY = null;
@@ -402,10 +412,10 @@ final class DrillGCodeToolPanel {
                     endY = parse(xy[1], "End move Y");
                 }
                 double endZ = parse(endMoveZ.getText(), "End move Z");
-                double changeZ = toolChange.isSelected() ? parse(toolChangeZ.getText(), "Tool change Z")
+                double changeZ = mechanicalChange ? parse(toolChangeZ.getText(), "Tool change Z")
                         : settings.get(orderedIds.get(0)).safeZ();
                 var options = new GCodeGenerator.DrillJobOptions(
-                        toolChange.isSelected(), changeZ, endZ, endX, endY,
+                        mechanicalChange, changeZ, endZ, endX, endY,
                         preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0);
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),

@@ -159,7 +159,7 @@ public final class GCodeGenerator {
                 if (previous != null && previous.spindleSpeedRpm() > 0) {
                     line(gcode, "%s", preprocessor.spindleOff());
                 }
-                if (options.pauseForToolChange()) {
+                if (options.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     if (Double.compare(options.toolChangeZ(), previous.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                     Double diameter = image.toolDiameters().get(toolId);
@@ -182,7 +182,7 @@ public final class GCodeGenerator {
                         && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                 line(gcode, "%s", preprocessor.selectTool(toolId));
-                if (options.pauseForToolChange()) {
+                if (options.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     line(gcode, "%s", preprocessor.pauseForTool(toolId, toolDiameter, image.units(),
                             options.toolChangeZ(), params.feedRate()));
                     if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
@@ -531,7 +531,7 @@ public final class GCodeGenerator {
                 if (params.spindleSpeedRpm() > 0) {
                     line(gcode, "%s", preprocessor.spindleOff());
                 }
-                if (params.pauseForToolChange()) {
+                if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     if (preprocessor == GCodePreprocessor.FX_PORTABLE) {
                         line(gcode, "M0 ; troque para a ferramenta (diametro %s %s) e continue",
                                 fmt(tool.toolDiameter()), units);
@@ -543,7 +543,7 @@ public final class GCodeGenerator {
                 }
             } else if (preprocessor.emitsToolNumber()) {
                 line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
-                if (params.pauseForToolChange()) {
+                if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
                             tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
                 }

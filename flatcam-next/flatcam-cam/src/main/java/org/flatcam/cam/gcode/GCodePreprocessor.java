@@ -27,7 +27,9 @@ public enum GCodePreprocessor {
     Z_LASER("Z_laser (laser, foco Z)", true, false, true),
     ISEL_CNC("ISEL_CNC (mm, M06/M01)", true, true, false),
     TOOLCHANGE_MANUAL("Toolchange_Manual (ajuste em Z0)", true, false, true),
-    TOOLCHANGE_CUSTOM("Toolchange_Custom (macro M6)", true, true, true);
+    TOOLCHANGE_CUSTOM("Toolchange_Custom (macro M6)", true, true, true),
+    LINE_XYZ("line_xyz (XYZ em cada movimento)", true, true, false),
+    ISEL_ICP_CNC("ISEL_ICP_CNC (mm, formato ICP)", false, false, false);
 
     private final String label;
     private final boolean pythonStyle;
@@ -76,6 +78,10 @@ public enum GCodePreprocessor {
                     + "Confira a origem Z e a altura livre; nao e sondagem automatica.";
             case TOOLCHANGE_CUSTOM -> "Troca pela macro M6 configurada na maquina, sem M0 adicional. "
                     + "Ative troca de ferramenta para emitir M6; confira a macro antes de executar.";
+            case LINE_XYZ -> "G00/G01 com XYZ explicitos em cada movimento; troca Tn/M6/M0. "
+                    + "Preserva X e Y distintos, inclusive na troca.";
+            case ISEL_ICP_CNC -> "Formato ICP em mm: FASTABS/MOVEABS em micrometros, VEL em micrometros/s, "
+                    + "GETTOOL automatico. Termina na altura/XY escolhidos, sem WPCLEAR ou retorno a Z0.";
             default -> "Port parcial do perfil Python. M6 exige suporte do controlador; simule antes de usar.";
         };
     }
@@ -97,7 +103,7 @@ public enum GCodePreprocessor {
             case BERTA_CNC -> "G91.1\nG64 P0.03\nM110\nG54\nG0\n(Berta)\nM05\n";
             case MARLIN -> "M400\nM5\n";
             case REPETIER -> "M107\n";
-            case ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM -> "M05\n";
+            case ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC -> "M05\n";
             default -> "";
         };
     }
@@ -107,7 +113,7 @@ public enum GCodePreprocessor {
             case BERTA_CNC -> "(Berta)\nM111\nM30\n(Berta)\n";
             case MARLIN, REPETIER, GRBL_LASER, Z_LASER,
                     MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN,
-                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM -> "";
+                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC -> "";
             default -> "M30\n";
         };
     }
@@ -121,6 +127,7 @@ public enum GCodePreprocessor {
         if (this == TOOLCHANGE_MANUAL) throw new IllegalArgumentException(
                 "Troca manual exige altura de retorno e feed para o movimento ate Z0.");
         String message = toolChangeMessage(number, diameter, units);
+        if (this == ISEL_ICP_CNC) return ""; // GETTOOL itself selects the tool, without an M0/M6 sequence.
         if (this == TOOLCHANGE_CUSTOM) return "M6\n" + comment("Troca controlada pela macro M6 da maquina");
         if (this == ISEL_CNC) return "M05\nM06\n" + message + "\nM01";
         return this == REPETIER
@@ -130,6 +137,11 @@ public enum GCodePreprocessor {
     }
 
     public String pauseForTool(int number, double diameter, String units, double returnZ, double feedRate) {
+        if (this == ISEL_ICP_CNC) {
+            if (!Double.isFinite(returnZ) || returnZ <= 0)
+                throw new IllegalArgumentException("Altura de retorno ICP deve ser positiva.");
+            return "G0 Z" + GCodeGenerator.fmt(returnZ);
+        }
         if (this == TOOLCHANGE_CUSTOM || this == ISEL_CNC) {
             if (!Double.isFinite(returnZ) || returnZ <= 0)
                 throw new IllegalArgumentException("Altura de retorno apos troca deve ser positiva.");
@@ -147,17 +159,31 @@ public enum GCodePreprocessor {
     }
 
     public String unitsCode(String units) {
-        if (this == ISEL_CNC) {
+        if (this == ISEL_CNC || this == ISEL_ICP_CNC) {
             if (!"MM".equalsIgnoreCase(units)) throw new IllegalArgumentException(
-                    "ISEL_CNC suporta somente MM neste port; converta o objeto para mm antes de gerar.");
-            return "G71";
+                    name() + " suporta somente MM neste port; converta o objeto para mm antes de gerar.");
+            return this == ISEL_CNC ? "G71" : "G21";
         }
         return "MM".equalsIgnoreCase(units) ? "G21" : "G20";
+    }
+
+    public boolean automaticToolSelection() {
+        return this == ISEL_ICP_CNC;
+    }
+
+    public String fileExtension() {
+        return this == ISEL_ICP_CNC ? ".imf" : ".nc";
+    }
+
+    public List<String> filePatterns() {
+        return this == ISEL_ICP_CNC ? List.of("*.imf") : List.of("*.nc", "*.gcode", "*.tap");
     }
 
     /** Explicit G0 feed for Marlin/Repetier. Zero selects a conservative default in source units. */
     public String finish(StringBuilder program, double rapidFeedRate, String units) {
         program.append(ending());
+        if (this == LINE_XYZ) return ControllerProgramCodec.explicitXyz(program.toString());
+        if (this == ISEL_ICP_CNC) return ControllerProgramCodec.encodeIcp(program.toString());
         if (!usesRapidFeed()) return program.toString();
         double rate = rapidFeedRate > 0 ? rapidFeedRate : ("MM".equalsIgnoreCase(units) ? 1500 : 1500 / 25.4);
         String suffix = " F" + GCodeGenerator.fmt(rate);

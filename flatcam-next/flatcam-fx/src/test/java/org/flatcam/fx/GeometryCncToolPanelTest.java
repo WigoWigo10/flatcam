@@ -49,7 +49,7 @@ class GeometryCncToolPanelTest {
             var rapid = (TextField) root.lookup("#cnc-rapid-feed");
             var generate = (Button) root.lookup("#cnc-generate");
             var error = (Label) root.lookup("#cnc-error");
-            assertEquals(15, profiles.getItems().size());
+            assertEquals(17, profiles.getItems().size());
             profiles.setValue(GCodePreprocessor.MARLIN_LASER_FAN_PIN);
             assertTrue(depth.isDisabled());
             assertTrue(multi.isDisabled());
@@ -89,6 +89,36 @@ class GeometryCncToolPanelTest {
             assertTrue(submitted.get().parameters().pauseForToolChange());
             singleProfiles.setValue(GCodePreprocessor.ISEL_CNC);
             assertFalse(singlePause.isDisabled());
+            singleProfiles.setValue(GCodePreprocessor.ISEL_ICP_CNC);
+            assertTrue(singlePause.isDisabled());
+            ((Button) single.lookup("#cnc-generate")).fire();
+            assertEquals(GCodePreprocessor.ISEL_ICP_CNC, submitted.get().preprocessor());
+            assertFalse(submitted.get().parameters().pauseForToolChange());
+            Node inches = GeometryCncToolPanel.build("IN", path, List.of(), submitted::set, () -> {});
+            @SuppressWarnings("unchecked")
+            var inchProfiles = (ComboBox<GCodePreprocessor>) inches.lookup("#cnc-preprocessor");
+            inchProfiles.setValue(GCodePreprocessor.ISEL_ICP_CNC);
+            submitted.set(null);
+            ((Button) inches.lookup("#cnc-generate")).fire();
+            assertNull(submitted.get());
+            assertTrue(((Label) inches.lookup("#cnc-error")).getText().contains("MM"));
+            var drillImage = new org.flatcam.cam.excellon.ExcellonParser().parse(List.of(
+                    "M48", "METRIC", "T1C0.8", "T2C1.0", "%", "T1", "X1.0Y1.0", "T2", "X3.0Y3.0", "M30"));
+            var drillSource = new DrillGCodeToolPanel.SourceCandidate(new javafx.scene.control.TreeItem<>("test.drl"),
+                    drillImage, java.util.Map.of());
+            AtomicReference<DrillGCodeToolPanel.Result> drillSubmitted = new AtomicReference<>();
+            Node drill = DrillGCodeToolPanel.build(List.of(drillSource), drillSource, List::of, drillSubmitted::set, () -> {});
+            @SuppressWarnings("unchecked")
+            var drillProfiles = (ComboBox<GCodePreprocessor>) drill.lookup("#drill-preprocessor");
+            assertEquals(13, drillProfiles.getItems().size());
+            var drillChange = (CheckBox) drill.lookup("#drill-tool-change");
+            assertFalse(drillChange.isSelected());
+            drillProfiles.setValue(GCodePreprocessor.ISEL_ICP_CNC);
+            assertTrue(drillChange.isDisabled());
+            ((Button) drill.lookup("#drill-generate")).fire();
+            assertNotNull(drillSubmitted.get(), ((Label) drill.lookup("#drill-error")).getText());
+            assertEquals(2, drillSubmitted.get().orderedToolIds().size());
+            assertFalse(drillSubmitted.get().options().pauseForToolChange());
             return null;
         });
         Platform.runLater(test);

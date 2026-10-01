@@ -588,8 +588,10 @@ final class MainWindow {
         }
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar rascunho G-code");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
-        chooser.setInitialFileName("gcode_edit.nc");
+        boolean icp = GCodeToolpathParser.isIcpProgram(text);
+        chooser.getExtensionFilters().add(icp ? new FileChooser.ExtensionFilter("ISEL ICP", "*.imf")
+                : new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+        chooser.setInitialFileName(icp ? "program_edit.imf" : "gcode_edit.nc");
         File file = chooser.showSaveDialog(scene.getWindow());
         if (file == null) {
             return false;
@@ -5093,7 +5095,7 @@ final class MainWindow {
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
         } else {
             chooser.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
+                    new FileChooser.ExtensionFilter("Programas CNC", "*.nc", "*.gcode", "*.tap", "*.imf"));
         }
 
         Path suggestedParent = cncJob != null ? cncJob.outputFile().getParent()
@@ -5687,8 +5689,9 @@ final class MainWindow {
     private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeToolPanel.Result result) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de furacao");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
-        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_drill.nc");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
+                result.preprocessor().filePatterns()));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_drill" + result.preprocessor().fileExtension());
         String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -6318,8 +6321,9 @@ final class MainWindow {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de Geometry");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap"));
-        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cnc.nc");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
+                result.preprocessor().filePatterns()));
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cnc" + result.preprocessor().fileExtension());
         String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -7153,7 +7157,7 @@ final class MainWindow {
 
     private void openGCode() {
         List<File> files = pickCamFiles("Abrir G-Code",
-                new FileChooser.ExtensionFilter("G-code", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt"));
+                new FileChooser.ExtensionFilter("Programas CNC (G-code / ICP)", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt", "*.imf"));
         if (!files.isEmpty()) {
             openGCodeQueue(files, 0);
         }

@@ -34,6 +34,26 @@ class ProjectFileIOTest {
     Path tempDir;
 
     @Test
+    void nativeIcpJobReopensFromEmbeddedTextWithoutTheOutputFile() throws IOException {
+        var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(3, 7), new Coordinate(6, 7)});
+        var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob("MM",
+                List.of(new ToolGeometry(0.8, geometry)),
+                new org.flatcam.cam.gcode.GeometryGCodeParameters(2, 1, false, 1, 120, 12000, false),
+                java.util.Map.of(), org.flatcam.cam.CancellationToken.none(),
+                org.flatcam.cam.gcode.GCodePreprocessor.ISEL_ICP_CNC);
+        var record = new ProjectFile.CncJobRecord("paths.imf", "source", tempDir.resolve("missing.imf").toString(), job.gcode());
+        Path file = tempDir.resolve("native-icp.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(record)), file);
+        var loaded = ProjectFileIO.load(file).cncJobs().get(0);
+        assertEquals(job.gcode(), loaded.gcode());
+        assertFalse(Files.exists(Path.of(loaded.outputPath())));
+        var parsed = org.flatcam.cam.gcode.GCodeToolpathParser.parse(loaded.gcode(),
+                org.flatcam.cam.CancellationToken.none(), ignored -> {});
+        assertEquals(3, parsed.cutCenterlines().getLength(), 1e-9);
+        assertTrue(parsed.plotAvailable());
+    }
+
+    @Test
     void rapidFeedRoundTripsAndOldProjectsDefaultToAutomatic() throws IOException {
         var parameters = new org.flatcam.cam.gcode.GeometryGCodeParameters(2, 1, false, 1, 100, 128, false, 600);
         var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 0)});

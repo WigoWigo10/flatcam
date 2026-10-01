@@ -71,6 +71,11 @@ public final class GCodeToolpathParser {
         return String.format(Locale.ROOT, "FCFX TOOL T%d D%.4f", toolId, diameter);
     }
 
+    /** Header detection for file dialogs; this is not a controller-program validity check. */
+    public static boolean isIcpProgram(String program) {
+        return ControllerProgramCodec.isIcp(program);
+    }
+
     /**
      * One tool's share of a program: its drill hits and routed slots, how deep it
      * plunged, and its own cut/travel preview so a viewer can show or hide one tool
@@ -317,6 +322,12 @@ public final class GCodeToolpathParser {
         if (gcode == null || gcode.isBlank()) {
             throw new IllegalArgumentException("O G-code nao pode estar vazio.");
         }
+        if (ControllerProgramCodec.isIcp(gcode)) {
+            String normalized = ControllerProgramCodec.normalizeIcp(gcode, cancellation, fraction -> progress.report(fraction * 0.25));
+            Result parsed = parse(normalized, cancellation, fraction -> progress.report(0.25 + fraction * 0.75));
+            return new Result(parsed.travelGeometry(), parsed.cutGeometry(), parsed.warning(),
+                    (int) gcode.lines().count(), parsed.units(), parsed.travelCenterlines(), parsed.cutCenterlines(), parsed.stats());
+        }
         List<String> lines = gcode.lines().toList();
         boolean laserProfile = LASER_PROFILE.matcher(gcode).find();
         boolean explicitRapidFeed = RAPID_FEED_PROFILE.matcher(gcode).find();
@@ -503,7 +514,9 @@ public final class GCodeToolpathParser {
                     && (movesXY || arcI != null || arcJ != null || arcR != null);
             boolean lateral = movesXY && havePosition && (nextX != x || nextY != y)
                     && motion >= 0 && motion <= 1;
-            boolean plunge = !laserProfile && !movesXY && newZ != null && motion == 1 && nextZ < 0 && havePosition;
+            // line_xyz repeats X/Y even on a pure Z plunge; test actual XY displacement, not word presence.
+            boolean plunge = !laserProfile && !lateral && !arcMove && newZ != null && motion == 1
+                    && nextZ < 0 && nextZ < z && havePosition;
             Double width = tool != null && tool.diameter != null && tool.diameter > 0 ? tool.diameter
                     : millingDiameter;
             boolean knownWidth = width != null && width > 0;

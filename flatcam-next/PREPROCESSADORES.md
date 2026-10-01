@@ -21,6 +21,8 @@ e **Geometry → CNC Job** (fresagem e laser). O perfil padrão é
 | ISEL_CNC | `preprocessors/ISEL_CNC.py` | Somente mm: `G71`, `G00/G01`, `M03/M05`; troca `M06/M01` |
 | Toolchange_Manual | `preprocessors/Toolchange_Manual.py` | Três pausas `M0`, ajuste da ferramenta em `G01 Z0`, retorno à altura livre; sem `M6` |
 | Toolchange_Custom | `preprocessors/Toolchange_Custom.py` | Chama macro `M6` do controlador, sem `M0` adicional |
+| line_xyz | `preprocessors/line_xyz.py` | XYZ explícitos nos movimentos G00/G01; troca `Tn/M6/M0` |
+| ISEL_ICP_CNC | `preprocessors/ISEL_ICP_CNC.py` | Formato ICP: `IMF_PBL`, `FASTABS/MOVEABS`, `VEL`, `GETTOOL`, `SPINDLE`, `WAIT`, `PROGEND` |
 
 Os perfis Python são código executável; o FX porta explicitamente os comandos
 essenciais, **não** executa os módulos Python nem reproduz seus
@@ -29,10 +31,10 @@ Geometry ou pelo número do Excellon. Isolamento e cutout geram Geometry na
 interface; a escolha do perfil acontece ao criar o CNC Job desse objeto. Seus
 geradores diretos de G-code aceitam somente os perfis de fresagem.
 
-São **14 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
-**15 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
+São **16 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
+**17 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
 incluía `__init__.py`; FX portable não é um perfil Python. Pendentes: `hpgl`,
-`ISEL_ICP_CNC`, `line_xyz`, `Roland_MDX_20` e `Toolchange_Probe_MACH3`.
+`Roland_MDX_20` e `Toolchange_Probe_MACH3`.
 
 ## Limites e diferenças dos novos perfis
 
@@ -78,6 +80,24 @@ incluía `__init__.py`; FX portable não é um perfil Python. Pendentes: `hpgl`,
   com uma única ferramenta, para executar a sequência inicial. Se desativada,
   não emite M6/M06 nem o ajuste manual em Z0. Laser continua sem troca mecânica.
   Nos geradores diretos de Isolation/Cutout não existe sequência de troca.
+- **line_xyz:** XYZ explícitos em todos os G00/G01, com coordenadas modais preservadas.
+  Corrige o erro do Python que repete X no campo Y da troca. Furação com X/Y repetidos
+  num mergulho puramente Z continua sendo reconhecida como furo, não desaparece da prévia.
+- **ISEL_ICP_CNC:** inicialmente somente MM. Coordenadas inteiras em micrômetros,
+  VEL em micrômetros/s e WAIT em milissegundos, truncados como o `int()` do Python;
+  valores fora do limite inteiro ou avanço abaixo de 1 µm/s são rejeitados.
+  GETTOOL é emitido para cada ferramenta, sem depender da pausa manual; a opção
+  de troca manual fica desabilitada. Após GETTOOL, reafirma a altura de retorno.
+  Ao final usa End move Z/XY da furação ou Travel Z de Geometry e PROGEND, sem
+  WPCLEAR nem retorno forçado à origem/Z0 do Python. Configure a origem e a troca
+  automática no controlador; os movimentos internos de GETTOOL não são simulados.
+- **Arquivos ICP:** geração, abertura e exportação do editor aceitam `.imf`.
+  Reabertura do projeto usa o texto embutido. O leitor cobre os comandos gerados
+  acima e recusa mudanças de origem como WPCLEAR, movimentos relativos, homing e
+  comandos não modelados, deixando a prévia indisponível em vez de inventar um
+  percurso. Isso também limita a leitura de arquivos ICP legados que terminam
+  com WPCLEAR. A estimativa de tempo não mede troca, WAIT nem velocidade real
+  de FASTABS; continua aproximada. ICP gera movimentos lineares, sem arcos nativos.
 
 ## Pasta e validação
 
@@ -96,6 +116,9 @@ de Geometry e de reclassificação da dispensa ao reabrir identificadas na revis
 limites de potência, desligamento nos G0 e reabertura de laser, inclusive arcos.
 `GeometryCncToolPanelTest` verifica os controles na thread FX, sem janela visível
 (Windows). `ProjectFileIOTest` verifica persistência e compatibilidade do avanço.
+`ControllerProgramCodecTest` cobre XYZ, ICP, unidades, velocidade/espera, ferramentas,
+limites, cancelamento e progresso. `ProjectFileIOTest` reabre um job ICP embutido sem
+o arquivo externo; os controles de Geometry e Drilling são exercitados na thread FX.
 
 **Antes de enviar a uma máquina:** confira unidades, alturas Z, ordem de
 ferramentas, comportamento de `M0` e suporte de `M6` no controlador. Faça uma
