@@ -89,6 +89,7 @@ import org.flatcam.cam.convert.QrCodeMarker;
 import org.flatcam.cam.solderpaste.SolderPaste;
 import org.flatcam.cam.analysis.MinimumDistance;
 import org.flatcam.cam.analysis.RulesCheck;
+import org.flatcam.cam.convert.CopperThieving;
 import org.flatcam.cam.convert.ExtractDrills;
 import org.flatcam.cam.convert.ObjectConversion;
 import org.flatcam.cam.convert.OutlineToArea;
@@ -1434,6 +1435,7 @@ final class MainWindow {
             case "align" -> this::openAlignObjectsTool;
             case "optimal" -> this::openOptimalTool;
             case "rules" -> this::openRulesCheckTool;
+            case "copper_thieving" -> this::openCopperThievingTool;
             default -> null;
         };
     }
@@ -2853,6 +2855,173 @@ final class MainWindow {
                 cancelPointPick();
             }
         }, this::closeToolPanel));
+    }
+
+    /** The last thieving and robber bar made by the Copper Thieving tool, for its pattern plating mask. */
+    private List<org.locationtech.jts.geom.Polygon> lastThieving = List.of();
+    private CopperThieving.Robber lastRobber;
+
+    /** Tools > Copper Thieving Tool: thieving, robber bar and plating mask (appTools/ToolCopperThieving.py). */
+    private void openCopperThievingTool() {
+        List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
+        gerbers.removeIf(item -> !gerberByItem.containsKey(item));
+        if (gerbers.isEmpty()) {
+            appendConsole("Copper Thieving: carregue um Gerber.");
+            return;
+        }
+        List<TreeItem<String>> references = new ArrayList<>(gerbers);
+        references.addAll(geometryNode.getChildren());
+        references.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item));
+        TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
+        lastThieving = List.of();
+        lastRobber = null;
+        org.locationtech.jts.geom.GeometryFactory factory = new org.locationtech.jts.geom.GeometryFactory();
+        openToolPanel("Copper Thieving Tool", CopperThievingToolPanel.build(new CopperThievingToolPanel.Host() {
+            @Override
+            public List<TreeItem<String>> gerbers() {
+                return gerbers;
+            }
+
+            @Override
+            public List<TreeItem<String>> references() {
+                return references;
+            }
+
+            @Override
+            public TreeItem<String> initialGerber() {
+                return initial;
+            }
+
+            @Override
+            public void thieve(TreeItem<String> item, TreeItem<String> reference, List<double[]> zones,
+                               CopperThieving.Options options, Consumer<String> onDone) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    onDone.accept("O Gerber foi removido");
+                    return;
+                }
+                if (runningJob != null) {
+                    onDone.accept("Ja existe uma operacao em andamento");
+                    return;
+                }
+                org.locationtech.jts.geom.Geometry referenceGeometry = null;
+                boolean referenceIsGerber = false;
+                if (options.reference() == CopperThieving.Reference.AREA) {
+                    List<org.locationtech.jts.geom.Geometry> rectangles = new ArrayList<>();
+                    for (double[] zone : zones) {
+                        rectangles.add(factory.toGeometry(new Envelope(zone[0], zone[2], zone[1], zone[3])));
+                    }
+                    referenceGeometry = factory.buildGeometry(rectangles);
+                } else if (options.reference() == CopperThieving.Reference.BOX && reference != null) {
+                    GerberImage referenceGerber = gerberByItem.get(reference);
+                    GeometryEntry referenceEntry = geometryByItem.get(reference);
+                    referenceIsGerber = referenceGerber != null;
+                    referenceGeometry = referenceGerber != null ? referenceGerber.solidGeometry()
+                            : referenceEntry == null ? null : referenceEntry.geometry();
+                }
+                org.locationtech.jts.geom.Geometry fixedReference = referenceGeometry;
+                boolean fixedGerber = referenceIsGerber;
+                beginJob("Copper Thieving: preenchendo...");
+                JobHandle<List<org.locationtech.jts.geom.Polygon>> handle = jobExecutor.submit(context ->
+                        CopperThieving.thieve(source.solidGeometry(), fixedReference, fixedGerber, options,
+                                context::isCancelled,
+                                fraction -> context.reportProgress(fraction, "Copper thieving...")),
+                        (fraction, message) -> Platform.runLater(() -> {
+                            updateProgress(fraction);
+                            statusLabel.setText(message);
+                        }));
+                runningJob = handle;
+                handle.completion().thenAccept(thieving -> Platform.runLater(() -> {
+                    updateProgress(1);
+                    onJobFinished();
+                    lastThieving = thieving;
+                    GerberImage result = CopperThieving.withThieving(source, thieving);
+                    TreeItem<String> created = addGerberToProject(
+                            uniqueDerivedName(withoutExtension(item.getValue()) + "_thief"), null, result);
+                    setStatus("Copper Thieving concluido.", IDLE_COLOR);
+                    appendConsole("Copper Thieving: " + thieving.size() + " areas em " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    onDone.accept(null);
+                })).exceptionally(error -> {
+                    Platform.runLater(() -> {
+                        Throwable cause = error.getCause() == null ? error : error.getCause();
+                        onJobFinished();
+                        onDone.accept(isCancellation(error) ? "Cancelado." : cause.getMessage());
+                    });
+                    return null;
+                });
+            }
+
+            @Override
+            public String robberBar(TreeItem<String> item, double margin, double thickness) {
+                GerberImage source = gerberByItem.get(item);
+                if (source == null) {
+                    return "O Gerber foi removido";
+                }
+                try {
+                    CopperThieving.Robber robber = CopperThieving.robberBar(source.solidGeometry(), margin, thickness);
+                    lastRobber = robber;
+                    TreeItem<String> created = addGerberToProject(
+                            uniqueDerivedName(withoutExtension(item.getValue()) + "_robber"), null,
+                            CopperThieving.withRobber(source, robber));
+                    appendConsole("Robber bar adicionada: " + created.getValue() + ".");
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return null;
+                } catch (IllegalArgumentException failed) {
+                    return failed.getMessage();
+                }
+            }
+
+            @Override
+            public Object[] platingMask(TreeItem<String> item, double clearance, CopperThieving.Plating choice,
+                                        double robberThickness) {
+                GerberImage mask = gerberByItem.get(item);
+                if (mask == null) {
+                    return new Object[] {0.0, "O Gerber foi removido"};
+                }
+                try {
+                    CopperThieving.PlatingMask result = CopperThieving.platingMask(mask, clearance, lastThieving,
+                            lastRobber, choice);
+                    String stem = withoutExtension(item.getValue());
+                    TreeItem<String> created = addGerberToProject(uniqueDerivedName(stem + "_plating_mask"), null,
+                            result.image());
+                    appendConsole(String.format(java.util.Locale.ROOT,
+                            "Mascara de galvanoplastia: %s, area galvanizada %.4f.", created.getValue(),
+                            result.platedArea()));
+                    selectProjectItem(created);
+                    plotAreaView.fitToLayer(created);
+                    return new Object[] {result.platedArea(), null};
+                } catch (IllegalArgumentException failed) {
+                    return new Object[] {0.0, failed.getMessage()};
+                }
+            }
+
+            @Override
+            public void pickPoint(Consumer<Coordinate> onPoint) {
+                beginPointPick(onPoint);
+            }
+
+            @Override
+            public void cancelPick() {
+                cancelPointPick();
+            }
+
+            @Override
+            public void showZones(List<double[]> zones) {
+                if (zones.isEmpty()) {
+                    plotAreaView.setEditorHighlight(null, false);
+                    return;
+                }
+                List<org.locationtech.jts.geom.Geometry> rectangles = new ArrayList<>();
+                for (double[] zone : zones) {
+                    rectangles.add(factory.toGeometry(new Envelope(zone[0], zone[2], zone[1], zone[3])).getBoundary());
+                }
+                plotAreaView.setEditorHighlight(factory.buildGeometry(rectangles), true);
+            }
+        }, this::closeToolPanel));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     /** Tools > Rules Check Tool: design rules over the board's layers (appTools/ToolRulesCheck.py). */

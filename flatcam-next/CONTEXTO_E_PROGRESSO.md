@@ -6,8 +6,8 @@ entender o estado real do projeto, tomar decisões compatíveis com as já feita
 e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-10-01**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
-> migrou para **Java 25 + JavaFX 25.0.4**, portou **22 das 24 ferramentas do menu Ferramentas do Python**
-> (restam Calibration e Copper Thieving), ganhou Conversion/Join Objects parciais,
+> migrou para **Java 25 + JavaFX 25.0.4**, portou **23 das 24 ferramentas do menu Ferramentas do Python**
+> (resta Calibration), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
 > na seção 9.0. A suíte tem **462 testes** (359 `flatcam-cam`, 42 `flatcam-application`, 61 `flatcam-fx`),
@@ -192,6 +192,7 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | --- | --- | --- |
 | 2-Sided | `DoubleSidedToolPanel` | espelha objetos por X/Y e eixo por caixa ou ponto; furos de alinhamento; pré-visualização no plot |
 | Align Objects | `AlignObjects` | alinha por 1 ponto (translada) ou 2 (translada e gira), clicando em pads ou furos |
+| Copper Thieving | `CopperThieving` | preenchimento sólido/pontos/quadrados/linhas, robber bar e máscara de galvanoplastia |
 | Rules Check | `RulesCheck` | 10 regras de projeto (trilha, cobre, seda, máscara, contorno, anel anular, furos), violações localizáveis no plot |
 | Optimal | `MinimumDistance` | menor distância entre os elementos de cobre de um Gerber, pares, locais e demais distâncias |
 | Extract Drills | `ExtractDrills` | Gerber → Excellon pelos flashes: fixo, proporcional ou anel anular |
@@ -208,7 +209,7 @@ com as diferenças deliberadas, na seção 9.1. Lógica em `flatcam-cam` (testad
 | Invert Gerber | `InvertGerber` | inverte cobre e vazio dentro de uma caixa com margem |
 | Etch Compensation | `EtchCompensation` | cresce ou encolhe o cobre pela espessura e fator de corrosão |
 
-Ainda **sem** porta: Calibration e Copper Thieving (aparecem no menu, desabilitados).
+Ainda **sem** porta: Calibration (aparecem no menu, desabilitados).
 Conversion e Join Objects: portados Outline→Area, Convert Any→Geo/Gerber/Excellon, Single↔MultiGeo e Join
 Gerber/Excellon/Geo.
 
@@ -393,7 +394,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY; 5 dos 21 pós-processadores do Python e o `Paste_1` embutido no SolderPaste; faltam os demais pós-processadores (laser, Marlin, Roland, HPGL...) e várias opções avançadas do legado |
 | Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
-| Ferramentas do menu Ferramentas | forte/parcial | 22 de 24 portadas (seção 4); faltam Calibration e Copper Thieving; vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
+| Ferramentas do menu Ferramentas | forte/parcial | 23 de 24 portadas (seção 4); falta Calibration; vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
@@ -849,8 +850,7 @@ Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
-1. **Ferramentas restantes do menu:** Calibration, Copper Thieving (as duas são
-   maiores que as já portadas). As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
+1. **Ferramenta restante do menu:** Calibration (maior que as já portadas). As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
 2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e os demais **pós-processadores** (hoje 5
    dos 21 do Python).
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
@@ -1125,6 +1125,23 @@ cobre-contorno); o tamanho do furo é verificado por Excellon; uma peça única 
 relatava como FALHA); vãos de até 2e-6 mm contam como encostados. Roda como job cancelável. Com o projeto real
 (F_Cu, B_Cu, Edge_Cuts, PTH, NPTH): cobre-cobre OK (vão mínimo 0,35), cobre-contorno falha em 4 pontos com o limite 1,0,
 tudo em ~340 ms. Testes em `RulesCheckTest`.
+
+**Copper Thieving Tool (2026-10-01).** Ferramentas > Copper Thieving Tool (`CopperThieving` em
+`flatcam-cam/.../convert/`, `CopperThievingToolPanel`), o `ToolCopperThieving.py`: (1) preenche o cobre vazio
+(diferença entre a caixa e o cobre afastado pela distância) como sólido, pontos, quadrados ou grade de linhas, com
+referência ao próprio objeto (caixa retangular ou casco convexo), a áreas desenhadas (dois cliques por retângulo) ou a
+outro Gerber/Geometry; gera o objeto `_thief`; (2) robber bar: anel de espessura dada ao redor da caixa do cobre
+(`_robber`); (3) máscara de galvanoplastia a partir da máscara de solda, com o thieving e/ou a robber bar da última
+execução, distância (negativa encolhe as aberturas) e área galvanizada (`_plating_mask`). Padrões do Python (distância
+0,25, margem 1,0, área mínima 0,1, 64 passos de círculo, pontos/quadrados 1,0 e espaço 2,0, linhas 0,25 e 2,0, robber
+1,0/1,0). Diferenças deliberadas: a distância é um único buffer do cobre inteiro (mesmo resultado que bufferizar e unir
+cada polígono, em um terço do tempo); pontos e quadrados só são construídos onde a envoltória de uma área livre os
+comporta e testados com geometria preparada; a grade de linhas é cortada pelo cobre numa só operação (o Python corta
+linha por linha e deixa peças sobrepostas, que a união final do Gerber elimina: a área unida bate com a do Python em
+0,004%). Comparação com o Python (shapely) no F_Cu do projeto real, mesmos parâmetros: sólido 21 ms contra 34 ms,
+pontos 42 ms contra 79 ms, quadrados 25 ms contra 75 ms, linhas 75-120 ms contra 207 ms (FX depois de aquecido; 1ª
+execução com JVM fria é 2 a 4 vezes maior); mesmas contagens de polígonos e áreas (sólido, pontos, quadrados).
+Testes em `CopperThievingTest`.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
@@ -1628,10 +1645,10 @@ exportado em um visualizador independente. Ferramentas avançadas do Editor
 Geometry, plot CNC com largura de ferramenta e lacunas de NCC seguem no roadmap.
 
 **Estado em 2026-10-01.** O projeto roda em Java 25 + JavaFX 25.0.4 (ganho medido de ~2-3x na primeira
-isolação do projeto real) e já porta 22 das 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
+isolação do projeto real) e já porta 23 das 24 ferramentas do menu Ferramentas do Python (2-Sided, Align Objects,
 Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials, Punch Gerber, Invert Gerber,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
-geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
-Calibration e Copper Thieving, o editor da Tools Database, salvar
+geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Resta
+Calibration, o editor da Tools Database, salvar
 `.FlatPrj` e os demais pós-processadores. A suíte tem 462 testes sem falhas; a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.

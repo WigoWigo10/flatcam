@@ -58,7 +58,8 @@ final class ToolDescriptions {
             Map.entry("qrcode", new Description("QRCode Tool",
                     "Cria um QR Code de cobre num Gerber, no ponto em que você clicar.")),
             Map.entry("copper_thieving", new Description("Copper Thieving Tool",
-                    "Preenche as áreas vazias do cobre para equilibrar a corrosão." + SOON)),
+                    "Preenche as áreas vazias do cobre (sólido, pontos, quadrados ou linhas) para equilibrar a corrosão; "
+                            + "também cria a robber bar e a máscara de galvanoplastia.")),
             Map.entry("fiducials", new Description("Fiducials Tool",
                     "Adiciona marcas de alinhamento ao cobre (circulares, cruz ou xadrez) e aberturas na máscara de solda.")),
             Map.entry("calibration", new Description("Calibration Tool",
