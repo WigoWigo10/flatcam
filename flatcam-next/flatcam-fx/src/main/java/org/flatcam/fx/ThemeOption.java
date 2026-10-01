@@ -31,15 +31,30 @@ public enum ThemeOption {
         return this == CLASSIC_DARK || this == ICE_DARK;
     }
 
-    /** Tooltips have their own popup scene, so give them explicit contrast instead of inherited colors. */
+    /** Colours of a tooltip: background, border and text (hex), one set per theme. */
+    record TooltipPalette(String background, String border, String text) {
+    }
+
+    /**
+     * Tooltips live in a popup scene of their own, which does not see the theme's stylesheet, so each theme spells its
+     * colours out. Each set keeps the theme's own character: a neutral grey for the classic themes (lighter than the
+     * panels so the tip stands out) and the blue-grey of the ice themes.
+     */
+    TooltipPalette tooltipPalette() {
+        return switch (this) {
+            case CLASSIC_DARK -> new TooltipPalette("#3d3d3d", "#6a6a6a", "#e8e8e8");
+            case CLASSIC_LIGHT -> new TooltipPalette("#ffffff", "#b3b3b3", "#202020");
+            case ICE_DARK -> new TooltipPalette("#263746", "#607383", "#f7fafc");
+            case ICE_LIGHT -> new TooltipPalette("#ffffff", "#aabac7", "#172b3c");
+        };
+    }
+
+    /** The tooltip look as an inline style (also used by the native tooltips of the project tree). */
     String objectTooltipStyle() {
-        return isDark()
-                ? "-fx-background-color: #263746; -fx-text-fill: #f7fafc; "
-                    + "-fx-border-color: #607383; -fx-border-radius: 5; "
-                    + "-fx-background-radius: 5; -fx-padding: 5 8 5 8;"
-                : "-fx-background-color: #ffffff; -fx-text-fill: #172b3c; "
-                    + "-fx-border-color: #aabac7; -fx-border-radius: 5; "
-                    + "-fx-background-radius: 5; -fx-padding: 5 8 5 8;";
+        TooltipPalette palette = tooltipPalette();
+        return "-fx-background-color: " + palette.background() + "; -fx-text-fill: " + palette.text() + "; "
+                + "-fx-border-color: " + palette.border() + "; -fx-border-radius: 5; "
+                + "-fx-background-radius: 5; -fx-padding: 5 8 5 8;";
     }
 
     static ThemeOption fromSavedName(String name, ThemeOption fallback) {

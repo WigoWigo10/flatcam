@@ -195,7 +195,7 @@ final class FluidTooltips {
         Object tipTitle = node.getProperties().get(TITLE_KEY);
         Object tipText = node.getProperties().get(TEXT_KEY);
         ThemeOption current = theme.get();
-        Color text = current.isDark() ? Color.web("#f7fafc") : Color.web("#172b3c");
+        Color text = Color.web(current.tooltipPalette().text());
         box.setStyle(current.objectTooltipStyle()
                 + " -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 12, 0.1, 0, 3); -fx-padding: 7 11 8 11;");
         title.setText(tipTitle == null ? "" : tipTitle.toString());

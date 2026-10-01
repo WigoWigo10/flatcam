@@ -1089,8 +1089,8 @@ dá 72 furos, os mesmos do Excellon PTH; as isolações viram 99 e 111 formas (~
 JavaFX em toda a janela: atraso de 0,45 s (60 ms se outro tooltip fechou há menos de 0,7 s), entrada com fade e
 deslize de 150 ms, saída com fade de 90 ms e, com um tooltip aberto, **deslize de 170 ms até o controle vizinho** em
 vez de fechar e reabrir (com cruzamento de opacidade). Posição abaixo do controle (acima se faltar espaço; ao lado
-nos itens de menu), dentro do monitor, nas cores do tema (`ThemeOption.objectTooltipStyle`), com título opcional em
-negrito. Ele **adota os tooltips nativos que já existem**: ao entrar num controle com `Tooltip`, o texto passa para o
+nos itens de menu), dentro do monitor, com a paleta de cada tema (`ThemeOption.tooltipPalette`: cinza neutro #3d3d3d no Preto, azul-acinzentado no Preto
+gelo, branco com borda cinza ou azulada nos claros), com título opcional em negrito. Ele **adota os tooltips nativos que já existem**: ao entrar num controle com `Tooltip`, o texto passa para o
 gerenciador e o nativo é removido, então nenhum painel precisou mudar; células de tabela e árvore mantêm o nativo (se
 atualizam a cada linha). Itens de menu (janelas à parte, que o filtro da cena não vê) ganham os handlers quando o
 menu abre (`attachMenu`). `ToolDescriptions` traz título e texto (baseados nos tooltips do Python) das 24 ferramentas

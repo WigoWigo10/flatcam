@@ -61,7 +61,9 @@ class ThemeOptionTest {
             String style = theme.objectTooltipStyle();
             assertTrue(style.contains("-fx-background-color:"), theme.name());
             assertTrue(style.contains("-fx-text-fill:"), theme.name());
-            assertTrue(style.contains(theme.isDark() ? "#f7fafc" : "#172b3c"), theme.name());
+            ThemeOption.TooltipPalette palette = theme.tooltipPalette();
+            assertTrue(style.contains(palette.text()) && style.contains(palette.background())
+                    && style.contains(palette.border()), theme.name());
         }
     }
 
