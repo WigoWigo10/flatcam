@@ -72,7 +72,7 @@ class GeometryCncToolPanelTest {
             assertFalse(pause.isDisabled());
             assertTrue(multi.isSelected());
             assertTrue(pause.isSelected());
-            assertEquals("1", depth.getText());
+            assertEquals("1.0", depth.getText());
             generate.fire();
             assertTrue(submitted.get().parameters().multiDepth());
             assertTrue(submitted.get().parameters().pauseForToolChange());

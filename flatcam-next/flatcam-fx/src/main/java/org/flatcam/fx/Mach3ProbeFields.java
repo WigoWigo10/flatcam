@@ -78,6 +78,15 @@ final class Mach3ProbeFields {
         xy.setText("None");
     }
 
+    void restore(ProbeToolChangeParameters parameters) {
+        resetConfirmation();
+        changeZ.setText(Double.toString(parameters.toolChangeZ()));
+        depth.setText(Double.toString(parameters.probeDepth()));
+        feed.setText(Double.toString(parameters.feedRate()));
+        contactZ.setText(Double.toString(parameters.contactZ()));
+        xy.setText(parameters.toolChangeX() == null ? "None" : parameters.toolChangeX() + ";" + parameters.toolChangeY());
+    }
+
     ProbeToolChangeParameters parameters() {
         if (!confirmation.isSelected()) throw new IllegalArgumentException("Confirme os cuidados de sondagem antes de gerar.");
         Double x = null, y = null;

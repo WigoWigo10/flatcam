@@ -45,7 +45,8 @@ não a paridade completa de todos os parâmetros nem a validação física.
 - **Feed rapids:** configurável para Marlin/Repetier e os lasers Marlin. Zero usa
   1500 mm/min ou o equivalente em polegadas. Os geradores diretos de
   Isolation/Cutout usam esse padrão. O valor de Geometry é preservado no
-  `.fcnproj`; projetos antigos usam zero/automático.
+  `.fcnproj`; parâmetros globais de Drilling também são preservados após gerar.
+  Projetos antigos sem esses dados mantêm os defaults anteriores.
 - **Marlin:** conserva `M6` do perfil Python, sem certificar suporte no seu
   firmware. Os perfis novos de fresagem iniciam com a saída desligada; os
   antigos permanecem inalterados.
@@ -210,12 +211,44 @@ não a paridade completa de todos os parâmetros nem a validação física.
   avisando no console/editor; não calculam estatísticas/tempo desse programa.
   O texto permanece editável/exportável. Isso também vale para G31/G92 externos.
 - Defaults de sondagem de Geometry são opcionais e preservados no `.fcnproj`;
-  projetos antigos continuam sem eles. O perfil deve ser escolhido novamente e
-  o operador deve reconfirmar os cuidados ao abrir o painel. Parâmetros globais
-  de sondagem de Drilling ainda não são recuperados, assim como outros campos
-  globais desse painel; o programa gerado permanece embutido no projeto.
+  projetos antigos continuam sem eles. O perfil escolhido e os parâmetros globais
+  de sondagem de Drilling também são recuperados. O operador deve reconfirmar
+  os cuidados ao abrir o painel; a confirmação nunca é salva. O programa gerado
+  permanece embutido no projeto.
   Compensações de mesa, Start Z separado e parâmetros individuais adicionais
   do Python permanecem pendentes. Testes de software não certificam sondagem real.
+
+## Persistência das configurações CNC
+
+- **Após gerar com sucesso**, os valores usados ficam associados ao objeto de
+  origem. Salve o projeto `.fcnproj` para preservá-los entre sessões. Cancelar
+  o diálogo de destino, falhar/cancelar a geração ou apenas editar o formulário
+  não atualiza esses dados; rascunhos não enviados e campos inativos não são
+  um snapshot completo da interface. O texto dos CNC Jobs segue sendo salvo.
+- **Geometry:** recupera perfil, parâmetros de corte/avanços, diâmetro informado
+  para Geometry sem ferramentas associadas e ponta/ângulo das ferramentas V.
+  A geração agora atualiza também os parâmetros básicos na origem, o que antes
+  só ocorria na importação de projetos. Valores restaurados não são truncados
+  a quatro casas no formulário; a precisão textual do programa permanece a do gerador.
+- **Drilling:** recupera perfil, Tool change/Tool change Z, End move Z/XY,
+  Feed rapids, parâmetros de sondagem, seleção e ordem das ferramentas, além
+  dos parâmetros por ferramenta já persistidos. Trocar a origem carrega os
+  dados daquele objeto, sem reutilizar a confirmação ou os globais de outro.
+  IDs salvos que não existem mais não selecionam outras ferramentas; o painel
+  avisa e, se não sobrou nenhuma, bloqueia a geração até selecionar ferramentas.
+- **Compatibilidade:** novos campos são opcionais no formato nativo v2; projetos
+  antigos seguem abrindo com FX portable/defaults anteriores. Configuração nova
+  inválida ou perfil desconhecido recusa a abertura, sem substituir silenciosamente
+  o dialeto da máquina. A importação `.FlatPrj` Python continua parcial e não
+  ganhou mapeamento dos perfis/opções globais nesta rodada.
+- Objetos copiados mantêm essas configurações; remoção/limpeza do projeto elimina
+  os registros associados. Metadados de ferramenta Roland ao reabrir o **CNC Job**,
+  parâmetros individuais adicionais e compensações de mesa continuam pendentes.
+- `CncSettingsPersistenceTest` verifica JSON/XZ, versões sem campos novos,
+  configuração inválida e regeneração idêntica dos 20 perfis Geometry/15 Drilling.
+  `CncSettingsPanelTest` reabre projetos e exercita os formulários reais na thread
+  FX, diâmetro/V-tip, precisão, ordem/subconjunto, confirmação e troca/reset de origem.
+  O fluxo completo pela janela principal ainda precisa de validação manual.
 
 ## Pasta e validação
 

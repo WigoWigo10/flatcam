@@ -55,9 +55,15 @@ public record ProjectFile(
 
     public record ExcellonEntry(String name, ExcellonImage image, String fillColorWeb, String strokeColorWeb,
                                 boolean visible, boolean filled, boolean multicolor,
-                                Map<Integer, DrillGCodeParameters> drillDefaults) {
+                                Map<Integer, DrillGCodeParameters> drillDefaults, DrillCncSettings cncSettings) {
         public ExcellonEntry {
             drillDefaults = Map.copyOf(drillDefaults);
+        }
+
+        public ExcellonEntry(String name, ExcellonImage image, String fillColorWeb, String strokeColorWeb,
+                             boolean visible, boolean filled, boolean multicolor,
+                             Map<Integer, DrillGCodeParameters> drillDefaults) {
+            this(name, image, fillColorWeb, strokeColorWeb, visible, filled, multicolor, drillDefaults, null);
         }
 
         public ExcellonEntry(String name, ExcellonImage image, String fillColorWeb, String strokeColorWeb,
@@ -69,7 +75,23 @@ public record ProjectFile(
     public record GeometryEntry(String name, String sourceName, String units, Geometry geometry,
                                 boolean strokeOnly, List<ToolGeometry> tools,
                                 String fillColorWeb, String strokeColorWeb, boolean visible,
-                                GeometryGCodeParameters cncDefaults) {
+                                GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings) {
+        public GeometryEntry {
+            if (cncSettings != null && cncDefaults == null)
+                throw new IllegalArgumentException("Perfil CNC de Geometry sem parametros de geracao.");
+            if (cncSettings != null && cncSettings.preprocessor().requiresProbe()
+                    && (!cncDefaults.pauseForToolChange() || cncDefaults.probing() == null))
+                throw new IllegalArgumentException("Perfil Mach3 de Geometry sem configuracao explicita de sondagem.");
+        }
+
+        public GeometryEntry(String name, String sourceName, String units, Geometry geometry,
+                             boolean strokeOnly, List<ToolGeometry> tools,
+                             String fillColorWeb, String strokeColorWeb, boolean visible,
+                             GeometryGCodeParameters cncDefaults) {
+            this(name, sourceName, units, geometry, strokeOnly, tools, fillColorWeb, strokeColorWeb,
+                    visible, cncDefaults, null);
+        }
+
         public GeometryEntry(String name, String sourceName, String units, Geometry geometry,
                              boolean strokeOnly, List<ToolGeometry> tools,
                              String fillColorWeb, String strokeColorWeb, boolean visible) {

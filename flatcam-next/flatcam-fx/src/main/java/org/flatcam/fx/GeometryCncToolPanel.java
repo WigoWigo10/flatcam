@@ -19,6 +19,7 @@ import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
 import javafx.collections.FXCollections;
 import org.flatcam.cam.gcode.GCodePreprocessor;
+import org.flatcam.app.project.GeometryCncSettings;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.geometry.ToolGeometry;
@@ -50,10 +51,19 @@ final class GeometryCncToolPanel {
 
     static Node build(String units, Geometry combinedGeometry, List<ToolGeometry> tools,
                       GeometryGCodeParameters defaults, Consumer<Result> onGenerate, Runnable onClose) {
+        return build(units, combinedGeometry, tools, defaults, null, onGenerate, onClose);
+    }
+
+    static Node build(String units, Geometry combinedGeometry, List<ToolGeometry> tools,
+                      GeometryGCodeParameters defaults, GeometryCncSettings settings,
+                      Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(units);
         boolean multiTool = !tools.isEmpty();
 
         TextField toolDiaField = new TextField(format(metric ? 0.8 : 0.031));
+        toolDiaField.setId("cnc-tool-dia");
+        if (!multiTool && settings != null && settings.singleToolDiameter() != null)
+            toolDiaField.setText(Double.toString(settings.singleToolDiameter()));
         TableView<ToolGeometry> toolTable = new TableView<>();
         toolTable.setMinWidth(0);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
@@ -75,19 +85,19 @@ final class GeometryCncToolPanel {
         }
 
         TextField safeZField = new TextField(defaults == null ? (metric ? "3.0" : "0.1")
-                : format(defaults.safeZ()));
+                : Double.toString(defaults.safeZ()));
         TextField cutDepthField = new TextField(defaults == null ? (metric ? "0.1" : "0.004")
-                : format(defaults.cutDepth()));
+                : Double.toString(defaults.cutDepth()));
         CheckBox multiDepthCb = new CheckBox("Multi-Depth");
         multiDepthCb.setSelected(defaults != null && defaults.multiDepth());
         TextField depthPerPassField = new TextField(defaults == null ? (metric ? "0.05" : "0.002")
-                : format(defaults.depthPerPass()));
+                : Double.toString(defaults.depthPerPass()));
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not());
         TextField feedField = new TextField(defaults == null ? (metric ? "300" : "12")
-                : format(defaults.feedRate()));
+                : Double.toString(defaults.feedRate()));
         TextField spindleField = new TextField(defaults == null ? "10000"
                 : Integer.toString(defaults.spindleSpeedRpm()));
-        TextField rapidFeedField = new TextField(defaults == null ? "0" : format(defaults.rapidFeedRate()));
+        TextField rapidFeedField = new TextField(defaults == null ? "0" : Double.toString(defaults.rapidFeedRate()));
         rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
@@ -185,6 +195,13 @@ final class GeometryCncToolPanel {
             if (tool.toolProfile() != ToolProfile.V || tool.geometry().isEmpty()) continue;
             TextField tipDia = new TextField(metric ? "0.1" : "0.004");
             TextField tipAngle = new TextField("30");
+            tipDia.setId("cnc-v-tip-dia-" + i);
+            tipAngle.setId("cnc-v-tip-angle-" + i);
+            VTipSettings savedTip = settings == null ? null : settings.vTools().get(i);
+            if (savedTip != null) {
+                tipDia.setText(Double.toString(savedTip.tipDiameter()));
+                tipAngle.setText(Double.toString(savedTip.angleDegrees()));
+            }
             tipDia.setPrefColumnCount(6);
             tipAngle.setPrefColumnCount(6);
             Label calculated = new Label();
@@ -242,10 +259,10 @@ final class GeometryCncToolPanel {
                 for (var entry : vFields.entrySet()) {
                     if (noCutZ.get()) break;
                     TextField[] fields = entry.getValue();
-                    VTipSettings settings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
+                    VTipSettings tipSettings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
                             parse(fields[1], "V-Tip Angle"));
-                    settings.cutDepth(resultTools.get(entry.getKey()).toolDiameter());
-                    vTools.put(entry.getKey(), settings);
+                    tipSettings.cutDepth(resultTools.get(entry.getKey()).toolDiameter());
+                    vTools.put(entry.getKey(), tipSettings);
                 }
                 errorLabel.setText("");
                 onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools),
@@ -274,6 +291,7 @@ final class GeometryCncToolPanel {
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
         box.getChildren().addAll(probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
+        if (settings != null) preprocessor.setValue(settings.preprocessor());
         return box;
     }
 

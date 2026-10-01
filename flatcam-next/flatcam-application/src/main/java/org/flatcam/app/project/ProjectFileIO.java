@@ -18,6 +18,9 @@ import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gcode.ProbeToolChangeParameters;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
+import org.flatcam.cam.gcode.GCodeGenerator.DrillJobOptions;
+import org.flatcam.cam.gcode.GCodePreprocessor;
+import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.gerber.GerberParser;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
@@ -72,6 +75,8 @@ public final class ProjectFileIO {
                     excellon.fillColorWeb(), excellon.strokeColorWeb(), excellon.visible(),
                     excellon.filled(), excellon.multicolor());
             object.getJSONObject("_java").put("drillDefaults", drillDefaultsToJson(excellon.drillDefaults()));
+            if (excellon.cncSettings() != null)
+                object.getJSONObject("_java").put("cncSettings", drillSettingsToJson(excellon.cncSettings()));
             objs.put(object);
         }
 
@@ -120,11 +125,16 @@ public final class ProjectFileIO {
                         .put("rapidFeedRate", defaults.rapidFeedRate()));
                 if (defaults.probing() != null) {
                     ProbeToolChangeParameters probe = defaults.probing();
-                    geometryJson.getJSONObject("cncDefaults").put("probing", new JSONObject()
-                            .put("toolChangeZ", probe.toolChangeZ()).put("probeDepth", probe.probeDepth())
-                            .put("feedRate", probe.feedRate()).put("contactZ", probe.contactZ())
-                            .put("toolChangeX", probe.toolChangeX()).put("toolChangeY", probe.toolChangeY()));
+                    geometryJson.getJSONObject("cncDefaults").put("probing", probeToJson(probe));
                 }
+            }
+            if (entry.cncSettings() != null) {
+                GeometryCncSettings settings = entry.cncSettings();
+                JSONObject vTools = new JSONObject();
+                settings.vTools().forEach((id, tip) -> vTools.put(id.toString(), new JSONObject()
+                        .put("tipDiameter", tip.tipDiameter()).put("angleDegrees", tip.angleDegrees())));
+                geometryJson.put("cncSettings", new JSONObject().put("preprocessor", settings.preprocessor().name())
+                        .put("singleToolDiameter", settings.singleToolDiameter()).put("vTools", vTools));
             }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
@@ -198,7 +208,8 @@ public final class ProjectFileIO {
                         excellons.add(new ProjectFile.ExcellonEntry(decoded.name(), decoded.image(),
                                 decoded.fillColorWeb(), decoded.strokeColorWeb(), decoded.visible(),
                                 decoded.filled(), decoded.multicolor(),
-                                readDrillDefaults(obj.optJSONObject("_java"))));
+                                readDrillDefaults(obj.optJSONObject("_java")),
+                                readDrillSettings(obj.optJSONObject("_java"))));
                     }
                     default -> {
                         // Not-yet-embedded kinds (geometry/cncjob-as-a-Python-obj) - see ProjectFile's doc.
@@ -236,6 +247,60 @@ public final class ProjectFileIO {
                     .put("offsetZ", value.offsetZ()));
         }
         return result;
+    }
+
+    private static JSONObject probeToJson(ProbeToolChangeParameters probe) {
+        return new JSONObject().put("toolChangeZ", probe.toolChangeZ()).put("probeDepth", probe.probeDepth())
+                .put("feedRate", probe.feedRate()).put("contactZ", probe.contactZ())
+                .put("toolChangeX", probe.toolChangeX()).put("toolChangeY", probe.toolChangeY());
+    }
+
+    private static JSONObject drillSettingsToJson(DrillCncSettings settings) {
+        DrillJobOptions options = settings.options();
+        JSONObject json = new JSONObject().put("preprocessor", settings.preprocessor().name())
+                .put("toolOrder", settings.toolOrder().name()).put("selectedToolIds", new JSONArray(settings.selectedToolIds()))
+                .put("pauseForToolChange", options.pauseForToolChange()).put("toolChangeZ", options.toolChangeZ())
+                .put("endMoveZ", options.endMoveZ()).put("endMoveX", options.endMoveX()).put("endMoveY", options.endMoveY())
+                .put("rapidFeedRate", options.rapidFeedRate());
+        if (options.probing() != null) json.put("probing", probeToJson(options.probing()));
+        return json;
+    }
+
+    private static DrillCncSettings readDrillSettings(JSONObject javaExtra) throws IOException {
+        try {
+            JSONObject json = optionalObject(javaExtra, "cncSettings");
+            if (json == null) return null;
+            List<Integer> selected = new ArrayList<>();
+            JSONArray ids = json.getJSONArray("selectedToolIds");
+            for (int i = 0; i < ids.length(); i++) selected.add(ids.getInt(i));
+            return new DrillCncSettings(GCodePreprocessor.valueOf(json.getString("preprocessor")),
+                    new DrillJobOptions(json.getBoolean("pauseForToolChange"), json.getDouble("toolChangeZ"),
+                            json.getDouble("endMoveZ"), optionalDouble(json, "endMoveX"), optionalDouble(json, "endMoveY"),
+                            json.optDouble("rapidFeedRate", 0), readProbeParameters(json.optJSONObject("probing"))),
+                    selected, DrillCncSettings.ToolOrder.valueOf(json.getString("toolOrder")));
+        } catch (RuntimeException invalid) {
+            throw new IOException("Configuracao CNC de Drilling invalida; nenhum perfil alternativo foi aplicado.", invalid);
+        }
+    }
+
+    private static JSONObject optionalObject(JSONObject json, String key) {
+        return json == null || !json.has(key) || json.isNull(key) ? null : json.getJSONObject(key);
+    }
+
+    private static Double optionalDouble(JSONObject json, String key) {
+        return json.has(key) && !json.isNull(key) ? json.getDouble(key) : null;
+    }
+
+    private static GeometryCncSettings readGeometrySettings(JSONObject json) {
+        if (json == null) return null;
+        Map<Integer, VTipSettings> tips = new LinkedHashMap<>();
+        JSONObject values = json.optJSONObject("vTools");
+        if (values != null) for (String id : values.keySet()) {
+            JSONObject tip = values.getJSONObject(id);
+            tips.put(Integer.parseInt(id), new VTipSettings(tip.getDouble("tipDiameter"), tip.getDouble("angleDegrees")));
+        }
+        return new GeometryCncSettings(GCodePreprocessor.valueOf(json.getString("preprocessor")),
+                optionalDouble(json, "singleToolDiameter"), tips);
     }
 
     private static Map<Integer, DrillGCodeParameters> readDrillDefaults(JSONObject javaExtra) {
@@ -279,7 +344,8 @@ public final class ProjectFileIO {
                         reader.read(value.getString("wkt")), value.optBoolean("strokeOnly", false),
                         List.copyOf(tools), value.optString("fillColor", null),
                         value.optString("strokeColor", null), value.optBoolean("visible", true),
-                        readGeometryCncDefaults(value.optJSONObject("cncDefaults"))));
+                        readGeometryCncDefaults(value.optJSONObject("cncDefaults")),
+                        readGeometrySettings(optionalObject(value, "cncSettings"))));
             }
         } catch (ParseException | JSONException | IllegalArgumentException invalid) {
             throw new IOException("Invalid embedded Geometry object", invalid);

@@ -77,6 +77,8 @@ import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.app.project.ProjectFile;
+import org.flatcam.app.project.DrillCncSettings;
+import org.flatcam.app.project.GeometryCncSettings;
 import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
@@ -253,6 +255,8 @@ final class MainWindow {
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, Map<Integer, DrillGCodeParameters>> drillDefaultsByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, DrillCncSettings> drillCncSettingsByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, GeometryCncSettings> geometryCncSettingsByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, GeometryEntry> geometryByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, CncJobEntry> cncJobByItem = new LinkedHashMap<>();
     /** Tools unticked in a CNC Job's tools table (Python's per-row "Plot" checkbox). */
@@ -5388,10 +5392,14 @@ final class MainWindow {
         } else if (excellon != null) {
             copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon,
                     drillDefaultsByItem.getOrDefault(sourceItem, Map.of()));
+            if (drillCncSettingsByItem.containsKey(sourceItem))
+                drillCncSettingsByItem.put(copyItem, drillCncSettingsByItem.get(sourceItem));
             copyLayerAppearance(sourceItem, copyItem);
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
                     geometry.geometry().copy(), geometry.strokeOnly(), geometry.tools(), geometry.cncDefaults());
+            if (geometryCncSettingsByItem.containsKey(sourceItem))
+                geometryCncSettingsByItem.put(copyItem, geometryCncSettingsByItem.get(sourceItem));
             copyLayerAppearance(sourceItem, copyItem);
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
@@ -5664,7 +5672,7 @@ final class MainWindow {
         List<DrillGCodeToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
                 .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
                 .map(entry -> new DrillGCodeToolPanel.SourceCandidate(entry.getKey(), entry.getValue(),
-                        drillDefaultsByItem.getOrDefault(entry.getKey(), Map.of())))
+                        drillDefaultsByItem.getOrDefault(entry.getKey(), Map.of()), drillCncSettingsByItem.get(entry.getKey())))
                 .toList();
         DrillGCodeToolPanel.SourceCandidate initialSource = sources.stream()
                 .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
@@ -5714,6 +5722,7 @@ final class MainWindow {
                     drillDefaultsByItem.getOrDefault(item, Map.of()));
             updatedDefaults.putAll(result.settingsByTool());
             drillDefaultsByItem.put(item, Map.copyOf(updatedDefaults));
+            drillCncSettingsByItem.put(item, result.cncSettings());
             AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
             appendConsole("G-code de furacao salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
             GCodeToolpathParser.Result preview = previewOf(job.gcode(), CancellationToken.none());
@@ -6314,7 +6323,7 @@ final class MainWindow {
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
         openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
-                entry.cncDefaults(),
+                entry.cncDefaults(), geometryCncSettingsByItem.get(item),
                 result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
     }
 
@@ -6359,6 +6368,12 @@ final class MainWindow {
         handle.completion()
                 .thenAccept(generated -> Platform.runLater(() -> {
                     CncJobResult job = generated.job();
+                    if (geometryByItem.get(item) == entry) {
+                        geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
+                                entry.strokeOnly(), entry.tools(), result.parameters()));
+                        geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
+                                entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null, result.vTools()));
+                    }
                     AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
                     appendConsole("G-code de Geometry salvo em " + outFile
                             + " (" + job.gcode().lines().count() + " linhas).");
@@ -6415,6 +6430,8 @@ final class MainWindow {
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
         drillDefaultsByItem.remove(item);
+        drillCncSettingsByItem.remove(item);
+        geometryCncSettingsByItem.remove(item);
         gerberFollowItems.remove(item);
         sourcePathByItem.remove(item);
         plotAreaView.removeLayer(item);
@@ -7622,7 +7639,7 @@ final class MainWindow {
                     colors != null ? colors[0].toString() : null, colors != null ? colors[1].toString() : null,
                     plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
                     plotAreaView.isLayerMulticolor(item),
-                    drillDefaultsByItem.getOrDefault(item, Map.of())));
+                    drillDefaultsByItem.getOrDefault(item, Map.of()), drillCncSettingsByItem.get(item)));
         }
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.entrySet().stream()
                 .map(entry -> new ProjectFile.CncJobRecord(entry.getKey().getValue(),
@@ -7638,7 +7655,7 @@ final class MainWindow {
                     geometry.units(), geometry.geometry(), geometry.strokeOnly(), geometry.tools(),
                     colors != null ? colors[0].toString() : null,
                     colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item),
-                    geometry.cncDefaults()));
+                    geometry.cncDefaults(), geometryCncSettingsByItem.get(item)));
         }
         ProjectFile project = new ProjectFile(gerbers, excellons, geometries, jobs,
                 currentProjectImportWarnings);
@@ -7806,6 +7823,7 @@ final class MainWindow {
                         for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
                             TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
                                     loaded.drillDefaults());
+                            if (loaded.cncSettings() != null) drillCncSettingsByItem.put(item, loaded.cncSettings());
                             applyRestoredExcellonState(item, loaded);
                             setDisplayUnits(loaded.image().units());
                         }
@@ -7813,6 +7831,7 @@ final class MainWindow {
                             TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
                                     loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
                                     loaded.cncDefaults());
+                            if (loaded.cncSettings() != null) geometryCncSettingsByItem.put(item, loaded.cncSettings());
                             if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
                                 plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
                                         Color.web(loaded.strokeColorWeb()));
@@ -7900,6 +7919,8 @@ final class MainWindow {
         gerberByItem.clear();
         excellonByItem.clear();
         drillDefaultsByItem.clear();
+        drillCncSettingsByItem.clear();
+        geometryCncSettingsByItem.clear();
         geometryByItem.clear();
         cncJobByItem.clear();
         hiddenCncTools.clear();

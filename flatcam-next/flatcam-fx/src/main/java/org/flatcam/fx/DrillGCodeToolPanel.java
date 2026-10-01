@@ -35,18 +35,24 @@ import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.LegacyToolsDatabase;
+import org.flatcam.app.project.DrillCncSettings;
 
 /** Python-style drilling panel. Machining values are stored per Excellon tool. */
 final class DrillGCodeToolPanel {
 
     record SourceCandidate(TreeItem<String> item, ExcellonImage image,
-                           Map<Integer, DrillGCodeParameters> drillDefaults) {
+                           Map<Integer, DrillGCodeParameters> drillDefaults, DrillCncSettings cncSettings) {
+        SourceCandidate(TreeItem<String> item, ExcellonImage image, Map<Integer, DrillGCodeParameters> drillDefaults) {
+            this(item, image, drillDefaults, null);
+        }
         @Override public String toString() { return item.getValue(); }
     }
 
     record Result(SourceCandidate source, Map<Integer, DrillGCodeParameters> settingsByTool,
                   List<Integer> orderedToolIds, GCodeGenerator.DrillJobOptions options,
-                  GCodePreprocessor preprocessor) { }
+                  GCodePreprocessor preprocessor, DrillCncSettings.ToolOrder toolOrder) {
+        DrillCncSettings cncSettings() { return new DrillCncSettings(preprocessor, options, orderedToolIds, toolOrder); }
+    }
 
     private static final class ToolRow {
         final int id;
@@ -117,6 +123,7 @@ final class DrillGCodeToolPanel {
         boolean metric = "MM".equalsIgnoreCase(initialSource.image().units());
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
         sourceCombo.setValue(initialSource);
+        sourceCombo.setId("drill-source");
         sourceCombo.setMinWidth(0);
         sourceCombo.setPrefWidth(180);
         sourceCombo.setMaxWidth(Double.MAX_VALUE);
@@ -168,6 +175,9 @@ final class DrillGCodeToolPanel {
         RadioButton noOrder = radio("No", orderGroup);
         RadioButton forwardOrder = radio("Forward", orderGroup);
         RadioButton reverseOrder = radio("Reverse", orderGroup);
+        noOrder.setId("drill-order-no");
+        forwardOrder.setId("drill-order-forward");
+        reverseOrder.setId("drill-order-reverse");
         noOrder.setSelected(true);
         HBox orderRow = new HBox(8, new Label("Tool order:"), noOrder, forwardOrder, reverseOrder);
         orderRow.setAlignment(Pos.CENTER_LEFT);
@@ -261,6 +271,7 @@ final class DrillGCodeToolPanel {
                 () -> table.getSelectionModel().getSelectedItems().size() != 1 || table.getItems().size() < 2,
                 table.getSelectionModel().getSelectedItems(), table.getItems()));
         Label feedback = new Label();
+        feedback.setId("drill-feedback");
         feedback.setWrapText(true);
         feedback.managedProperty().bind(feedback.textProperty().isNotEmpty());
         if (!initialSource.drillDefaults().isEmpty()) {
@@ -333,6 +344,8 @@ final class DrillGCodeToolPanel {
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not());
         TextField endMoveZ = field(metric ? "0.5" : "0.02");
         TextField endMoveXY = field("None");
+        endMoveZ.setId("drill-end-z");
+        endMoveXY.setId("drill-end-xy");
         endMoveXY.setPromptText("None ou X,Y");
         endMoveXY.setTooltip(new Tooltip("O movimento XY final usa End move Z como altura; confirme que esta livre de obstaculos."));
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
@@ -376,6 +389,7 @@ final class DrillGCodeToolPanel {
         preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
                 + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
         TextField rapidFeed = field("0");
+        rapidFeed.setId("drill-rapid-feed");
         rapidFeed.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         rapidFeed.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
@@ -449,16 +463,19 @@ final class DrillGCodeToolPanel {
                 }
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),
-                        List.copyOf(orderedIds), options, preprocessor.getValue()));
+                        List.copyOf(orderedIds), options, preprocessor.getValue(),
+                        forwardOrder.isSelected() ? DrillCncSettings.ToolOrder.FORWARD
+                                : reverseOrder.isSelected() ? DrillCncSettings.ToolOrder.REVERSE : DrillCncSettings.ToolOrder.NO));
             } catch (RuntimeException error) { errorLabel.setText(error.getMessage()); }
         });
         Button reset = new Button("Reset Tool");
         reset.setMaxWidth(Double.MAX_VALUE);
+        reset.setId("drill-reset");
         reset.setOnAction(event -> {
-            preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
-            probe.reset(metric);
             sourceCombo.setValue(initialSource);
             updateRows.run();
+            preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+            probe.reset(metric);
             noOrder.setSelected(true);
             toolChange.setSelected(false);
             toolChangeZ.setText(metric ? "15.0" : "0.6");
@@ -480,6 +497,38 @@ final class DrillGCodeToolPanel {
                 selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
                 heading("Common Parameters"), common, probe.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
+        Runnable restoreCommon = () -> {
+            SourceCandidate source = sourceCombo.getValue();
+            boolean sourceMetric = "MM".equalsIgnoreCase(source.image().units());
+            DrillCncSettings saved = source.cncSettings();
+            // Never leak a previous source's common/probe settings into the new source.
+            preprocessor.setValue(saved == null ? GCodePreprocessor.FX_PORTABLE : saved.preprocessor());
+            probe.reset(sourceMetric);
+            noOrder.setSelected(true);
+            toolChange.setSelected(saved == null ? source.drillDefaults().values().stream()
+                    .anyMatch(DrillGCodeParameters::pauseForToolChange) : saved.options().pauseForToolChange());
+            toolChangeZ.setText(saved == null ? (sourceMetric ? "15.0" : "0.6") : Double.toString(saved.options().toolChangeZ()));
+            endMoveZ.setText(saved == null ? (sourceMetric ? "0.5" : "0.02") : Double.toString(saved.options().endMoveZ()));
+            endMoveXY.setText(saved == null || saved.options().endMoveX() == null ? "None"
+                    : saved.options().endMoveX() + ";" + saved.options().endMoveY());
+            rapidFeed.setText(saved == null ? "0" : Double.toString(saved.options().rapidFeedRate()));
+            if (saved != null) {
+                if (saved.options().probing() != null) probe.restore(saved.options().probing());
+                if (saved.toolOrder() == DrillCncSettings.ToolOrder.FORWARD) forwardOrder.setSelected(true);
+                else if (saved.toolOrder() == DrillCncSettings.ToolOrder.REVERSE) reverseOrder.setSelected(true);
+                table.getSelectionModel().clearSelection();
+                for (int i = 0; i < table.getItems().size(); i++)
+                    if (saved.selectedToolIds().contains(table.getItems().get(i).id)) table.getSelectionModel().select(i);
+                feedback.setText("Perfil, parametros CNC e selecao recuperados; confira antes de gerar. "
+                        + (saved.preprocessor().requiresProbe() ? "Confirme novamente os cuidados de sondagem. " : "")
+                        + (table.getSelectionModel().getSelectedItems().size() < saved.selectedToolIds().size()
+                            ? "Ferramentas salvas nao existem mais na origem; confira a selecao." : ""));
+            }
+            errorLabel.setText("");
+            probe.resetConfirmation();
+        };
+        sourceCombo.valueProperty().addListener((observable, oldValue, value) -> { if (value != null) restoreCommon.run(); });
+        restoreCommon.run();
         return box;
     }
 

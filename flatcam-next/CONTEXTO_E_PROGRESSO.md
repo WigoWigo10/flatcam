@@ -10,7 +10,7 @@ e continuar a migração sem recomeçar a investigação.
 > (nenhuma resta), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0. A suíte tem **598 testes** (481 `flatcam-cam`, 48 `flatcam-application`, 69 `flatcam-fx`),
+> na seção 9.0. A suíte tem **662 testes** (481 `flatcam-cam`, 88 `flatcam-application`, 93 `flatcam-fx`),
 > sem falhas; 9 ficam ignorados porque dependem de um projeto real do Python (privado) indicado por
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
@@ -80,8 +80,8 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**598 testes registrados**: 481 em `flatcam-cam`, 48 em `flatcam-application` e 69 em `flatcam-fx`;
-589 executados, 0 falhas, 0 erros e
+**662 testes registrados**: 481 em `flatcam-cam`, 88 em `flatcam-application` e 93 em `flatcam-fx`;
+653 executados, 0 falhas, 0 erros e
 9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
@@ -395,7 +395,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
 | Geometry | parcial | multi-tool via NCC/Paint/SolderPaste e conversões Single↔Multi; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto e borracha faltam |
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão, ICP/HPGL/RML lineares; 19 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 20 de 20 ports parciais; Mach3 com sonda gera G31/G92 e exige confirmação manual, sem prévia; Roland inicialmente só MM/uma ferramenta e sem metadados de diâmetro na reabertura; ver `PREPROCESSADORES.md` |
-| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e parâmetros básicos de Geometry/Drilling; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
+| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e configurações da última geração CNC bem-sucedida: perfil, parâmetros básicos, diâmetro/V-tip de Geometry e globais/seleção/ordem de Drilling; confirmação da sonda não persiste; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
@@ -856,8 +856,9 @@ Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde
 1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
 2. **Tools Database** com editor/salvamento, **salvar `.FlatPrj`**, e completar parâmetros/validar os
    **pós-processadores** (hoje 20 ports parciais de 20 perfis Python, incluindo `Paste_1`;
-   FX portable não entra nessa contagem). Priorizar persistência dos campos globais de Drilling,
-   suplemento de metadados Roland, compensações de mesa e parâmetros individuais/laser.
+   FX portable não entra nessa contagem). Perfil e campos globais CNC já persistem após gerar;
+   priorizar editor da Tools Database, suplemento de metadados Roland, compensações de mesa
+   e parâmetros individuais/laser. Rascunhos de formulários ainda não têm snapshot completo.
 3. **Validação manual** dos painéis novos e, se houver divergência, correção guiada por captura (harness fora
    da tela, sem capturar a tela inteira).
 4. **Plot Area:** margem em volta da vista para a imagem de densidade e, se um profile mostrar necessidade,
@@ -1634,6 +1635,26 @@ uma fatia como concluída:
 
 ## 15. Resumo executivo
 
+**Persistência das configurações CNC (2026-10-01, após `77140231`).**
+Geometry e Excellon agora preservam o perfil escolhido no `.fcnproj` v2, com
+`GeometryCncSettings` e `DrillCncSettings` opcionais, mantendo construtores/arquivos
+anteriores compatíveis. Geometry salva diâmetro informado (quando não tem ferramentas
+associadas), V-Tip Dia/Angle por índice e os parâmetros usados na última geração;
+o callback antes não atualizava esses defaults na origem. Drilling salva Tool change,
+altura de troca, End Z/XY, Feed rapids, sondagem, seleção e ordem das ferramentas,
+além dos defaults individuais já existentes. Os dados são registrados somente
+após gerar/salvar o programa com sucesso; rascunhos não enviados não são salvos.
+Trocar a origem restaura dados daquele objeto; copiar mantém os registros, remover
+ou limpar o projeto os elimina. Confirmação de sondagem nunca persiste e deve ser
+refeita no painel. IDs excluídos não selecionam outras ferramentas e são avisados.
+Perfil novo desconhecido/configuração inválida recusa a abertura sem fallback
+silencioso. A importação `.FlatPrj` continua com o subconjunto anterior; parâmetros
+globais/perfis Python não foram mapeados aqui. Metadados Roland nos CNC Jobs e
+opções CAM adicionais continuam pendentes. Testes regeneram código idêntico para
+20 perfis Geometry e 15 Drilling em JSON/XZ, e exercitam formulários na thread FX,
+precisão, V-tip, subconjunto/ordem, confirmação, troca de origem/reset e versões
+sem os novos campos. Fluxo completo na janela principal aguarda teste manual.
+
 **Sexto incremento de pós-processadores (2026-10-01, após `d87cc986`).**
 Adicionado Toolchange_Probe_MACH3 em Geometry e Drilling: troca Tn/M6 obrigatória,
 duas sondagens G31 (a segunda com metade do avanço), G92 Z de contato e XY de troca
@@ -1753,5 +1774,5 @@ Extract Drills, Paint, Panelize, Film, SolderPaste, Subtract, QRCode, Fiducials,
 Corner Markers e Etch Compensation, além das anteriores), mais Outline→Area e Join Objects. O Plot Area aguenta
 geometrias com centenas de milhares de traços com um LOD por densidade assíncrono. Restam
 o editor da Tools Database, salvar `.FlatPrj` e completar parâmetros/validação dos pós-processadores.
-A suíte atual registra 598 testes (589 executados sem falhas, 9 ignorados); a validação manual dos painéis
+A suíte atual registra 662 testes (653 executados sem falhas, 9 ignorados); a validação manual dos painéis
 recentes no app real é a principal pendência de qualidade. A fila detalhada está na seção 9.0.
