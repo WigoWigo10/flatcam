@@ -18,6 +18,9 @@ e **Geometry → CNC Job** (fresagem e laser). O perfil padrão é
 | Marlin_laser_FAN_pin | `preprocessors/Marlin_laser_FAN_pin.py` | `M106 S1-255` / `M400/M107`; avanço nos G0 |
 | Marlin_laser_Spindle_pin | `preprocessors/Marlin_laser_Spindle_pin.py` | `M3 S...` / `M400/M5`; avanço nos G0 |
 | Z_laser | `preprocessors/Z_laser.py` | `M03/M5`; Focus Z no início de cada ferramenta, com laser desligado |
+| ISEL_CNC | `preprocessors/ISEL_CNC.py` | Somente mm: `G71`, `G00/G01`, `M03/M05`; troca `M06/M01` |
+| Toolchange_Manual | `preprocessors/Toolchange_Manual.py` | Três pausas `M0`, ajuste da ferramenta em `G01 Z0`, retorno à altura livre; sem `M6` |
+| Toolchange_Custom | `preprocessors/Toolchange_Custom.py` | Chama macro `M6` do controlador, sem `M0` adicional |
 
 Os perfis Python são código executável; o FX porta explicitamente os comandos
 essenciais, **não** executa os módulos Python nem reproduz seus
@@ -26,11 +29,10 @@ Geometry ou pelo número do Excellon. Isolamento e cutout geram Geometry na
 interface; a escolha do perfil acontece ao criar o CNC Job desse objeto. Seus
 geradores diretos de G-code aceitam somente os perfis de fresagem.
 
-São **11 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
-**12 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
+São **14 perfis Python selecionáveis**, mais o FX portable. Somando `Paste_1`,
+**15 dos 20 perfis do legado têm um port parcial**. A contagem antiga de 21
 incluía `__init__.py`; FX portable não é um perfil Python. Pendentes: `hpgl`,
-`ISEL_CNC`, `ISEL_ICP_CNC`, `line_xyz`, `Roland_MDX_20`, `Toolchange_Custom`,
-`Toolchange_Manual` e `Toolchange_Probe_MACH3`.
+`ISEL_ICP_CNC`, `line_xyz`, `Roland_MDX_20` e `Toolchange_Probe_MACH3`.
 
 ## Limites e diferenças dos novos perfis
 
@@ -59,6 +61,23 @@ incluía `__init__.py`; FX portable não é um perfil Python. Pendentes: `hpgl`,
   tempo não inclui a intervenção manual nas pausas.
 - Compensações de mesa, troca XY e todos os parâmetros individuais do Python
   ainda não estão portados.
+- **ISEL_CNC:** `G71` indica milímetros neste dialeto. Objetos IN são rejeitados,
+  sem conversão silenciosa. `M01` é parada opcional; habilite-a no controlador
+  se precisar trocar a ferramenta manualmente. O parser só reconhece G71 como
+  unidades quando o cabeçalho identifica ISEL_CNC; não o aceita globalmente.
+- **Toolchange_Manual:** requer origem Z correta e intervenção do operador nos
+  três `M0`. `G01 Z0` tem feed explícito, usando o avanço de corte/furação atual;
+  confira se esse avanço é adequado para o ajuste. A altura de retorno vem de
+  Tool change Z na furação e Travel Z em Geometry. Não há sondagem automática.
+- **Toolchange_Custom:** depende da macro M6 instalada/configurada na máquina;
+  não carrega nem executa arquivos de macro no FX. O gerador seleciona Tn,
+  chama M6 sem M0 adicional e reafirma G90/altura livre antes do próximo XY.
+  A macro deve restaurar o sistema de coordenadas correto. O FX não simula seus
+  movimentos internos. Esse retorno explícito também é aplicado após M06/M01 ISEL.
+- **Troca inicial em Geometry:** a opção de troca agora pode ser ativada mesmo
+  com uma única ferramenta, para executar a sequência inicial. Se desativada,
+  não emite M6/M06 nem o ajuste manual em Z0. Laser continua sem troca mecânica.
+  Nos geradores diretos de Isolation/Cutout não existe sequência de troca.
 
 ## Pasta e validação
 

@@ -36,8 +36,8 @@ class GCodePreprocessorTest {
 
     @Test
     void laserProfilesAreNotOfferedForDrilling() {
-        assertEquals(8, GCodePreprocessor.millingProfiles().size());
-        assertEquals(12, GCodePreprocessor.geometryProfiles().size());
+        assertEquals(11, GCodePreprocessor.millingProfiles().size());
+        assertEquals(15, GCodePreprocessor.geometryProfiles().size());
         assertTrue(GCodePreprocessor.millingProfiles().stream().noneMatch(GCodePreprocessor::isLaser));
         assertEquals(4, GCodePreprocessor.geometryProfiles().stream().filter(GCodePreprocessor::isLaser).count());
     }
@@ -188,5 +188,82 @@ class GCodePreprocessorTest {
         assertNull(parsed.warning());
         assertEquals(1, parsed.cutCenterlines().getLength(), 1e-9);
         assertEquals(1, parsed.travelCenterlines().getLength(), 1e-9);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = GCodePreprocessor.class, names = {"ISEL_CNC", "TOOLCHANGE_MANUAL", "TOOLCHANGE_CUSTOM"})
+    void additionalMillingProfilesGenerateAndReopenTwoTools(GCodePreprocessor profile) {
+        String code = geometry(profile, 12000, true).gcode();
+        var parsed = parse(code);
+        assertNull(parsed.warning(), code);
+        assertEquals(7, parsed.cutCenterlines().getLength(), 1e-9);
+        assertFalse(code.contains("M30"));
+        if (profile == GCodePreprocessor.ISEL_CNC) {
+            assertTrue(code.contains("G71\nG90"));
+            assertFalse(code.contains("G21"));
+            assertEquals(2, code.lines().filter(line -> line.equals("M06")).count());
+            assertEquals(2, code.lines().filter(line -> line.equals("M01")).count());
+            assertFalse(code.contains("\nM0\n"));
+        } else if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL) {
+            assertEquals(6, code.lines().filter(line -> line.equals("M0")).count());
+            assertEquals(2, code.lines().filter(line -> line.equals("G01 Z0 F100.0000")).count());
+            assertFalse(code.contains("\nM6\n"));
+            assertTrue(code.contains("G00 Z2.0000\n(Aperte"));
+        } else {
+            assertEquals(2, code.lines().filter(line -> line.equals("M6")).count());
+            assertFalse(code.contains("\nM0\n"));
+            assertTrue(code.contains("T1\nM6"));
+            assertTrue(code.contains("T2\nM6"));
+            assertTrue(code.contains("G90\nG00 Z2.0000\n"), "Retract after the controller macro before XY");
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = GCodePreprocessor.class, names = {"ISEL_CNC", "TOOLCHANGE_MANUAL", "TOOLCHANGE_CUSTOM"})
+    void additionalDrillProfilesPreserveDiametersAndRetractBeforeToolChanges(GCodePreprocessor profile) {
+        var image = new ExcellonParser().parse(List.of("M48", "METRIC", "T1C0.8", "T2C1.0", "%",
+                "T1", "X1.0Y1.0", "T2", "X3.0Y3.0", "M30"));
+        var parameters = new DrillGCodeParameters(2, 0.7, 150, 12000, true);
+        var job = GCodeGenerator.generateDrillCncJob(image, Map.of(1, parameters, 2, parameters), List.of(1, 2),
+                new GCodeGenerator.DrillJobOptions(true, 15, 3, null, null), profile);
+        var parsed = parse(job.gcode());
+        assertNull(parsed.warning(), job.gcode());
+        assertEquals(2, parsed.stats().hits().size());
+        assertEquals(0.8, parsed.stats().tools().get(0).diameter());
+        assertEquals(1.0, parsed.stats().tools().get(1).diameter());
+        assertTrue(job.gcode().contains("G00 Z15.0000\nT2\n"));
+        if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL) {
+            assertTrue(job.gcode().contains("G01 Z0 F150.0000"));
+            assertTrue(job.gcode().contains("G00 Z15.0000\n(Aperte"));
+            assertEquals(6, job.gcode().lines().filter(line -> line.equals("M0")).count());
+        }
+    }
+
+    @Test
+    void iselRejectsInchSourcesRatherThanSilentlyUsingMetricCoordinates() {
+        assertThrows(IllegalArgumentException.class, () -> GCodeGenerator.generateGeometryCncJob("IN", tools(),
+                new GeometryGCodeParameters(0.1, 0.01, false, 1, 12, 12000, false),
+                Map.of(), CancellationToken.none(), GCodePreprocessor.ISEL_CNC));
+        assertEquals("G71", GCodePreprocessor.ISEL_CNC.unitsCode("mm"));
+        var inches = new ExcellonParser().parse(List.of("M48", "INCH", "T1C0.03", "%", "T1", "X1.0Y1.0", "M30"));
+        assertThrows(IllegalArgumentException.class, () -> GCodeGenerator.generateDrillCncJob(inches,
+                Map.of(1, new DrillGCodeParameters(0.1, 0.02, 12, 12000, true)), List.of(1),
+                new GCodeGenerator.DrillJobOptions(true, 0.6, 0.1, null, null), GCodePreprocessor.ISEL_CNC));
+        assertNotNull(parse("G71\nG90\nG0 X0 Y0\nG1 Z-1\nG1 X1 F100\n").warning(),
+                "G71 can be a different command in other dialects: do not accept it globally");
+        assertNull(parse("(Preprocessor Geometry: ISEL_CNC)\nG71\nG90\nG0 X0 Y0\n"
+                + "G1 Z-1\nG1 X1 F100\n").warning());
+    }
+
+    @Test
+    void manualChangeRequiresExplicitHeightAndFeedAndDisabledChangesEmitNoMacro() {
+        assertThrows(IllegalArgumentException.class,
+                () -> GCodePreprocessor.TOOLCHANGE_MANUAL.pauseForTool(1, 0.8, "MM"));
+        assertThrows(IllegalArgumentException.class,
+                () -> GCodePreprocessor.TOOLCHANGE_MANUAL.pauseForTool(1, 0.8, "MM", 0, 100));
+        assertThrows(IllegalArgumentException.class,
+                () -> GCodePreprocessor.TOOLCHANGE_MANUAL.pauseForTool(1, 0.8, "MM", 2, Double.NaN));
+        assertFalse(geometry(GCodePreprocessor.TOOLCHANGE_CUSTOM, 12000, false).gcode().contains("\nM6\n"));
+        assertFalse(geometry(GCodePreprocessor.TOOLCHANGE_MANUAL, 12000, false).gcode().contains("G01 Z0"));
     }
 }

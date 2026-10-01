@@ -49,7 +49,7 @@ class GeometryCncToolPanelTest {
             var rapid = (TextField) root.lookup("#cnc-rapid-feed");
             var generate = (Button) root.lookup("#cnc-generate");
             var error = (Label) root.lookup("#cnc-error");
-            assertEquals(12, profiles.getItems().size());
+            assertEquals(15, profiles.getItems().size());
             profiles.setValue(GCodePreprocessor.MARLIN_LASER_FAN_PIN);
             assertTrue(depth.isDisabled());
             assertTrue(multi.isDisabled());
@@ -76,6 +76,19 @@ class GeometryCncToolPanelTest {
             generate.fire();
             assertTrue(submitted.get().parameters().multiDepth());
             assertTrue(submitted.get().parameters().pauseForToolChange());
+            // Single-tool jobs can also run an initial manual/custom change sequence.
+            Node single = GeometryCncToolPanel.build("MM", path, List.of(), submitted::set, () -> {});
+            var singlePause = (CheckBox) single.lookup("#cnc-tool-change");
+            assertFalse(singlePause.isDisabled());
+            singlePause.setSelected(true);
+            @SuppressWarnings("unchecked")
+            var singleProfiles = (ComboBox<GCodePreprocessor>) single.lookup("#cnc-preprocessor");
+            singleProfiles.setValue(GCodePreprocessor.TOOLCHANGE_MANUAL);
+            ((Button) single.lookup("#cnc-generate")).fire();
+            assertEquals(GCodePreprocessor.TOOLCHANGE_MANUAL, submitted.get().preprocessor());
+            assertTrue(submitted.get().parameters().pauseForToolChange());
+            singleProfiles.setValue(GCodePreprocessor.ISEL_CNC);
+            assertFalse(singlePause.isDisabled());
             return null;
         });
         Platform.runLater(test);

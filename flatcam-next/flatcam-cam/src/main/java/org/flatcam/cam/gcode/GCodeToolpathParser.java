@@ -52,6 +52,8 @@ public final class GCodeToolpathParser {
             "\\bPreprocessor(?:\\s+(?:Geometry|Excellon))?\\s*:\\s*"
                     + "(?:Marlin|Repetier|Marlin_laser_FAN_pin|Marlin_laser_Spindle_pin)\\b",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern ISEL_PROFILE = Pattern.compile(
+            "\\bPreprocessor(?:\\s+(?:Geometry|Excellon))?\\s*:\\s*ISEL_CNC\\b", Pattern.CASE_INSENSITIVE);
     private static final int MAX_PREVIEW_SEGMENTS = 50_000;
     /**
      * G0 rate assumed for the time estimate - Python's {@code tools_drill_feedrate_rapid}
@@ -318,6 +320,7 @@ public final class GCodeToolpathParser {
         List<String> lines = gcode.lines().toList();
         boolean laserProfile = LASER_PROFILE.matcher(gcode).find();
         boolean explicitRapidFeed = RAPID_FEED_PROFILE.matcher(gcode).find();
+        boolean iselProfile = ISEL_PROFILE.matcher(gcode).find();
         boolean laserOn = false;
         Double laserPower = null;
         List<Geometry> travel = new ArrayList<>();
@@ -448,7 +451,7 @@ public final class GCodeToolpathParser {
                                 warning = "Troca de unidades no mesmo programa: pre-visualizacao indisponivel.";
                             }
                             lastMetric = false;
-                        } else if (code == 21) {
+                        } else if (code == 21 || (code == 71 && iselProfile)) {
                             metric = true;
                             if (lastMetric != null && !lastMetric && havePosition) {
                                 warning = "Troca de unidades no mesmo programa: pre-visualizacao indisponivel.";

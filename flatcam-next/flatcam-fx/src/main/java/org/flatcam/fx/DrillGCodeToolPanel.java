@@ -375,6 +375,7 @@ final class DrillGCodeToolPanel {
         generate.setOnAction(event -> {
             try {
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
+                preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
                 if (selected.isEmpty()) throw new IllegalArgumentException("Selecione ferramentas para furar.");
                 if (!toolChange.isSelected()
                         && selected.stream().map(row -> row.diameter).distinct().count() > 1)

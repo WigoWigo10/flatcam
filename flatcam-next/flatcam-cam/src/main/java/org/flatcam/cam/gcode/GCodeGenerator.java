@@ -131,7 +131,7 @@ public final class GCodeGenerator {
                 ? "Gerado por FlatCAM FX (prototipo) - furacao" : "Gerado por FlatCAM FX - furacao"));
         line(gcode, "%s", preprocessor.comment("Unidades do arquivo de origem: " + image.units()));
         if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
-        line(gcode, image.units().equals("MM") ? "G21" : "G20");
+        line(gcode, "%s", preprocessor.unitsCode(image.units()));
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
@@ -169,7 +169,8 @@ public final class GCodeGenerator {
                     } else {
                         line(gcode, "%s", preprocessor.selectTool(toolId));
                         line(gcode, "%s", preprocessor.pauseForTool(toolId,
-                                diameter != null ? diameter : 0, image.units()));
+                                diameter != null ? diameter : 0, image.units(),
+                                options.toolChangeZ(), params.feedRate()));
                     }
                     if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
@@ -182,7 +183,8 @@ public final class GCodeGenerator {
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                 line(gcode, "%s", preprocessor.selectTool(toolId));
                 if (options.pauseForToolChange()) {
-                    line(gcode, "%s", preprocessor.pauseForTool(toolId, toolDiameter, image.units()));
+                    line(gcode, "%s", preprocessor.pauseForTool(toolId, toolDiameter, image.units(),
+                            options.toolChangeZ(), params.feedRate()));
                     if (Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
@@ -288,7 +290,7 @@ public final class GCodeGenerator {
         line(gcode, "%s", preprocessor.comment("Unidades do arquivo de origem: " + result.units()));
         if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
         line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(toolDiameter)));
-        line(gcode, result.units().equals("MM") ? "G21" : "G20");
+        line(gcode, "%s", preprocessor.unitsCode(result.units()));
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
@@ -367,7 +369,7 @@ public final class GCodeGenerator {
         line(gcode, "%s", preprocessor.comment("Unidades do arquivo de origem: " + result.units()));
         if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
         line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(toolDiameter)));
-        line(gcode, result.units().equals("MM") ? "G21" : "G20");
+        line(gcode, "%s", preprocessor.unitsCode(result.units()));
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
@@ -505,7 +507,7 @@ public final class GCodeGenerator {
                 ? "Gerado por FlatCAM FX (prototipo) - Geometry" : "Gerado por FlatCAM FX - Geometry"));
         line(gcode, "%s", preprocessor.comment("Unidades do objeto de origem: " + units));
         if (preprocessor != GCodePreprocessor.FX_PORTABLE) line(gcode, "%s", preprocessor.header());
-        line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
+        line(gcode, "%s", preprocessor.unitsCode(units));
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
@@ -536,14 +538,14 @@ public final class GCodeGenerator {
                     } else {
                         line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                         line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
-                                tool.toolDiameter(), units));
+                                tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
                     }
                 }
             } else if (preprocessor.emitsToolNumber()) {
                 line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                 if (params.pauseForToolChange()) {
                     line(gcode, "%s", preprocessor.pauseForTool(toolIndex + 1,
-                            tool.toolDiameter(), units));
+                            tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
                 }
             }
             firstTool = false;

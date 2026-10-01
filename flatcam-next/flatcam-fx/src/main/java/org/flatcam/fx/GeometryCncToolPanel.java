@@ -95,9 +95,8 @@ final class GeometryCncToolPanel {
             field.setPrefColumnCount(7);
             field.setMinWidth(0);
         }
-        CheckBox pauseCheck = new CheckBox("Pausar para troca de ferramenta (M0)");
+        CheckBox pauseCheck = new CheckBox("Troca de ferramenta (conforme perfil)");
         pauseCheck.setSelected(defaults == null ? tools.size() > 1 : defaults.pauseForToolChange());
-        pauseCheck.setDisable(tools.size() <= 1);
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.geometryProfiles()));
         preprocessor.setId("cnc-preprocessor");
@@ -126,8 +125,7 @@ final class GeometryCncToolPanel {
         multiDepthCb.disableProperty().bind(laser);
         depthPerPassField.disableProperty().unbind();
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(laser));
-        pauseCheck.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
-                () -> tools.size() <= 1 || laser.get(), laser));
+        pauseCheck.disableProperty().bind(laser);
         rapidFeedField.disableProperty().bind(rapidFeed.not());
         Label profileHelp = new Label();
         profileHelp.setWrapText(true);
@@ -212,6 +210,7 @@ final class GeometryCncToolPanel {
                     throw new IllegalArgumentException("Potencia/RPM deve ser um inteiro nao negativo.");
                 int spindle = (int) power;
                 preprocessor.getValue().validatePower(spindle);
+                preprocessor.getValue().unitsCode(units);
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         !laser.get() && pauseCheck.isSelected(),
