@@ -1085,6 +1085,22 @@ ferramenta no FX não o guarda. Com o projeto real: Excellon→Gerber preserva a
 dá 72 furos, os mesmos do Excellon PTH; as isolações viram 99 e 111 formas (~0,3 s). Testes em
 `ObjectConversionTest`.
 
+**Tooltips animados e descrições das ferramentas (2026-10-01).** `FluidTooltips` substitui o `Tooltip` nativo do
+JavaFX em toda a janela: atraso de 0,45 s (60 ms se outro tooltip fechou há menos de 0,7 s), entrada com fade e
+deslize de 150 ms, saída com fade de 90 ms e, com um tooltip aberto, **deslize de 170 ms até o controle vizinho** em
+vez de fechar e reabrir (com cruzamento de opacidade). Posição abaixo do controle (acima se faltar espaço; ao lado
+nos itens de menu), dentro do monitor, nas cores do tema (`ThemeOption.objectTooltipStyle`), com título opcional em
+negrito. Ele **adota os tooltips nativos que já existem**: ao entrar num controle com `Tooltip`, o texto passa para o
+gerenciador e o nativo é removido, então nenhum painel precisou mudar; células de tabela e árvore mantêm o nativo (se
+atualizam a cada linha). Itens de menu (janelas à parte, que o filtro da cena não vê) ganham os handlers quando o
+menu abre (`attachMenu`). `ToolDescriptions` traz título e texto (baseados nos tooltips do Python) das 24 ferramentas
+do menu Ferramentas, usados nos itens do menu e nos botões da barra; as quatro ainda não portadas dizem isso. Os
+itens de Converter e Juntar Objetos também têm descrição. O popup fecha junto com a janela e antes do "Sair" (um
+tooltip aberto num `Platform.exit()` direto derrubava o toolkit nativo). Limitações: controles desabilitados não
+recebem eventos do mouse, então os botões das ferramentas ainda não portadas não mostram o tooltip na barra; a
+navegação dentro dos menus por tooltip só foi validada por simulação (harness fora da tela), não com o mouse.
+Testes: `ToolDescriptionsTest` (toda ferramenta do menu tem descrição).
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

@@ -630,6 +630,8 @@ final class MainWindow {
     }
 
     private Scene scene;
+    /** Animated tooltips for the whole window (see {@link FluidTooltips}). */
+    private FluidTooltips fluidTooltips;
     private SplitPane horizontalSplit;
     private SplitPane verticalSplit;
     private TreeView<String> projectTree;
@@ -677,6 +679,12 @@ final class MainWindow {
         root.setBottom(buildStatusBar());
 
         scene = new Scene(root);
+        fluidTooltips = new FluidTooltips(scene, () -> currentTheme);
+        root.lookupAll(".menu-bar").forEach(node -> {
+            if (node instanceof MenuBar bar) {
+                bar.getMenus().forEach(fluidTooltips::attachMenu);
+            }
+        });
         configurePlotInteractions();
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (pendingPointPick != null && event.getCode() == KeyCode.ESCAPE) {
@@ -1428,8 +1436,16 @@ final class MainWindow {
 
     private void addToolCommands(Menu menu, List<LegacyUiManifest.Command> commands) {
         for (LegacyUiManifest.Command command : commands) {
-            menu.getItems().add(chromeItem(command.label(), command.icon(), toolAction(command.id())));
+            MenuItem item = chromeItem(command.label(), command.icon(), toolAction(command.id()));
+            ToolDescriptions.apply(item.getProperties(), command.id());
+            menu.getItems().add(item);
         }
+    }
+
+    /** Gives a menu item a tooltip (title and text) shown by {@link FluidTooltips}. */
+    private static MenuItem tipped(MenuItem item, String title, String text) {
+        ToolDescriptions.apply(item.getProperties(), title, text);
+        return item;
     }
 
     private void addPlannedCommands(Menu menu, List<LegacyUiManifest.Command> commands) {
@@ -1537,24 +1553,44 @@ final class MainWindow {
                 plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
                 importMenu, exportMenu, scriptMenu, backupMenu,
                 plannedItem("Imprimir PDF", "pdf32.png"), new SeparatorMenuItem(),
-                chromeItem("Sair", "power16.png", Platform::exit));
+                chromeItem("Sair", "power16.png", () -> {
+                    fluidTooltips.closeNow();
+                    Platform.exit();
+                }));
 
         Menu editMenu = new Menu("Editar");
         Menu conversionsMenu = new Menu("Converter");
         setLegacyMenuIcon(conversionsMenu, "convert32.png");
         conversionsMenu.getItems().addAll(
-                chromeItem("Contorno → Area", "geometry32.png", this::convertOutlineToArea),
-                chromeItem("Single → Multi-Geometry", "geometry32.png", this::convertSingleToMultiGeometry),
-                chromeItem("Multi → Single-Geometry", "geometry32.png", this::convertMultiToSingleGeometry),
-                chromeItem("Objeto → Geometry", "geometry32.png", this::convertSelectedToGeometry),
-                chromeItem("Objeto → Gerber", "flatcam_icon32.png", this::convertSelectedToGerber),
-                chromeItem("Objeto → Excellon", "drill32.png", this::convertSelectedToExcellon));
+                tipped(chromeItem("Contorno → Area", "geometry32.png", this::convertOutlineToArea),
+                        "Contorno → Área", "Fecha o contorno de um Gerber ou Geometry e cria uma Geometry com a "
+                        + "área da placa (a maior região fechada)."),
+                tipped(chromeItem("Single → Multi-Geometry", "geometry32.png", this::convertSingleToMultiGeometry),
+                        "Single → Multi-Geometry", "Coloca a geometria sob uma ferramenta de diâmetro escolhido, "
+                        + "tornando-a multi-ferramenta."),
+                tipped(chromeItem("Multi → Single-Geometry", "geometry32.png", this::convertMultiToSingleGeometry),
+                        "Multi → Single-Geometry", "Une a geometria de todas as ferramentas numa só; a informação "
+                        + "de ferramenta é descartada."),
+                tipped(chromeItem("Objeto → Geometry", "geometry32.png", this::convertSelectedToGeometry),
+                        "Objeto → Geometry", "Cria uma Geometry a partir de um Gerber, Excellon ou Geometry."),
+                tipped(chromeItem("Objeto → Gerber", "flatcam_icon32.png", this::convertSelectedToGerber),
+                        "Objeto → Gerber", "Cria um Gerber a partir de um Excellon (furos e slots) ou de uma "
+                        + "Geometry (regiões e linhas com a largura da ferramenta)."),
+                tipped(chromeItem("Objeto → Excellon", "drill32.png", this::convertSelectedToExcellon),
+                        "Objeto → Excellon", "Cria furos nos centros das formas fechadas de uma Geometry ou dos "
+                        + "flashes de um Gerber (traços de 2 pontos viram slots)."));
         Menu joinMenu = new Menu("Juntar Objetos");
         setLegacyMenuIcon(joinMenu, "union32.png");
         joinMenu.getItems().addAll(
-                chromeItem("Geo/Gerber/Exc → Geo", "geometry32.png", this::joinSelectedToGeometry),
-                chromeItem("Excellon(s) → Excellon", "drill32.png", this::joinSelectedExcellons),
-                chromeItem("Gerber(s) → Gerber", "flatcam_icon32.png", this::joinSelectedGerbers));
+                tipped(chromeItem("Geo/Gerber/Exc → Geo", "geometry32.png", this::joinSelectedToGeometry),
+                        "Juntar em Geometry", "Une os objetos selecionados (Geometry, Gerber ou Excellon) numa "
+                        + "só Geometry."),
+                tipped(chromeItem("Excellon(s) → Excellon", "drill32.png", this::joinSelectedExcellons),
+                        "Juntar Excellons", "Une os Excellons selecionados; ferramentas de mesmo diâmetro "
+                        + "viram uma só."),
+                tipped(chromeItem("Gerber(s) → Gerber", "flatcam_icon32.png", this::joinSelectedGerbers),
+                        "Juntar Gerbers", "Une os Gerbers selecionados num só, juntando aberturas, formas e "
+                        + "geometria."));
         Menu editorToolsMenu = new Menu("Ferramentas dos editores");
         setLegacyMenuIcon(editorToolsMenu, "edit_file32.png");
         excellonEditorMenu = new Menu("Editor Excellon");
@@ -1900,7 +1936,12 @@ final class MainWindow {
 
     private void addToolbarCommands(ToolBar toolbar, List<LegacyUiManifest.Command> commands) {
         for (LegacyUiManifest.Command command : commands) {
-            toolbar.getItems().add(chromeButton(command.label(), command.icon(), toolAction(command.id())));
+            Button button = chromeButton(command.label(), command.icon(), toolAction(command.id()));
+            if (ToolDescriptions.of(command.id()) != null) {
+                button.setTooltip(null);
+                ToolDescriptions.apply(button.getProperties(), command.id());
+            }
+            toolbar.getItems().add(button);
         }
     }
 
