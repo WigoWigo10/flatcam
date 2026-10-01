@@ -65,6 +65,11 @@ final class PlotAreaView extends StackPane {
                         boolean visible, LayerCategory category, boolean filled, boolean multicolor) {
     }
 
+    /** The last density image of a layer and the view it was made for: identical views reuse it. */
+    private record DenseFrame(Geometry geometry, double scale, double centerX, double centerY, int width, int height,
+                              Color color, javafx.scene.image.WritableImage image) {
+    }
+
     /** A cheaper visual-only CNC path used while the precise buffered stroke is subpixel. */
     private record LodGeometry(Geometry centerlines, double strokeWidthWorld, boolean stroked) {
     }
@@ -265,6 +270,12 @@ final class PlotAreaView extends StackPane {
     private final Map<Object, LodGeometry> lodLayers = new LinkedHashMap<>();
     private final Map<Object, PlotDrawableIndex> drawableIndexes = new LinkedHashMap<>();
     private final Map<Object, PlotDrawableIndex> lodDrawableIndexes = new LinkedHashMap<>();
+    /** Layers currently drawn as a density image (see {@link DensityRaster}); gives the mode its hysteresis. */
+    private final java.util.Set<Object> denseLayers = new java.util.HashSet<>();
+    private final Map<Object, DenseFrame> denseFrames = new LinkedHashMap<>();
+    private short[] denseCover = new short[0];
+    private int[] densePixels = new int[0];
+    private boolean lastLayerDense;
     private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
     private final UiFluidityMetrics uiFluidity = new UiFluidityMetrics("fx");
     private Timeline uiFluidityTimer;
@@ -637,6 +648,7 @@ final class PlotAreaView extends StackPane {
         lodLayers.remove(key);
         drawableIndexes.remove(key);
         lodDrawableIndexes.remove(key);
+        forgetDensity(key);
         redraw();
     }
 
@@ -660,6 +672,7 @@ final class PlotAreaView extends StackPane {
             lodLayers.put(key, new LodGeometry(centerlines, strokeWidthWorld, stroked));
         }
         lodDrawableIndexes.remove(key);
+        forgetDensity(key);
         redraw();
     }
 
@@ -673,6 +686,7 @@ final class PlotAreaView extends StackPane {
             lodLayers.remove(key);
             drawableIndexes.remove(key);
             lodDrawableIndexes.remove(key);
+        forgetDensity(key);
             layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
                     layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
@@ -715,6 +729,7 @@ final class PlotAreaView extends StackPane {
         lodLayers.remove(key);
         drawableIndexes.remove(key);
         lodDrawableIndexes.remove(key);
+        forgetDensity(key);
         redraw();
     }
 
@@ -786,6 +801,8 @@ final class PlotAreaView extends StackPane {
         lodLayers.clear();
         drawableIndexes.clear();
         lodDrawableIndexes.clear();
+        denseLayers.clear();
+        denseFrames.clear();
         annotations.clear();
         arrows.clear();
         stopWalk();
@@ -1645,9 +1662,15 @@ final class PlotAreaView extends StackPane {
                         }
                         double wideStroke = lodLineWidth;
                         try {
-                            drawLayer(gc, new RenderLayer(drawnGeometry, true, lodColor, lodColor,
-                                    true, category, true, false), contentWidth, contentHeight, viewBounds, index);
-                            if (lod.stroked() && wideStroke >= PASS_LINES_MIN_WIDTH) {
+                            RenderLayer lodLayer = new RenderLayer(drawnGeometry, true, lodColor, lodColor,
+                                    true, category, true, false);
+                            if (drawDensityLayer(gc, entry.getKey(), lodLayer, index, viewBounds, contentWidth,
+                                    contentHeight, lodLineWidth)) {
+                                // Packed segments already read as one colour: the image stands in for the strokes.
+                            } else {
+                                drawLayer(gc, lodLayer, contentWidth, contentHeight, viewBounds, index);
+                            }
+                            if (!lastLayerDense && lod.stroked() && wideStroke >= PASS_LINES_MIN_WIDTH) {
                                 // Zoomed in on a wide cutter: show each pass as a thin line over the body.
                                 Color passColor = lodColor.deriveColor(0, 1, 0.45, 0.9);
                                 gc.setLineDashes();
@@ -1659,7 +1682,8 @@ final class PlotAreaView extends StackPane {
                             lodLineWidth = Double.NaN;
                         }
                         gc.restore();
-                    } else {
+                    } else if (!drawDensityLayer(gc, entry.getKey(), layer, index, viewBounds, contentWidth,
+                            contentHeight, layer.strokeOnly() ? 1.5 : 1)) {
                         drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
                     }
                     if (profiling) {
@@ -1669,7 +1693,7 @@ final class PlotAreaView extends StackPane {
                         Object key = entry.getKey();
                         String name = key instanceof TreeItem<?> item ? String.valueOf(item.getValue()) : String.valueOf(key);
                         samples.add(new PlotAreaPerformance.LayerSample(
-                                category + ":" + name + (lodActive ? "[LOD]" : ""), elapsed));
+                                category + ":" + name + (lodActive ? "[LOD]" : "") + (lastLayerDense ? "[DENSE]" : ""), elapsed));
                     }
                 }
             }
@@ -1711,6 +1735,60 @@ final class PlotAreaView extends StackPane {
 
     void logPerformancePhase(String phase, long startNanos) {
         performance.logPhase(phase, startNanos);
+    }
+
+    private void forgetDensity(Object key) {
+        denseLayers.remove(key);
+        denseFrames.remove(key);
+    }
+
+    /**
+     * Density level of detail: a stroke-only layer with thousands of packed segments in view is drawn as one image of
+     * per-pixel line counts instead of thousands of Canvas strokes (see {@link DensityRaster}). Returns whether it was
+     * drawn that way; sets {@link #lastLayerDense} either way. Wide strokes and multicolor layers stay vector.
+     */
+    private boolean drawDensityLayer(GraphicsContext gc, Object key, RenderLayer layer, PlotDrawableIndex index,
+                                     Envelope viewBounds, double contentWidth, double contentHeight,
+                                     double lineWidth) {
+        lastLayerDense = false;
+        if (index == null || !layer.strokeOnly() || layer.multicolor() || !(lineWidth <= 2.5)) {
+            denseLayers.remove(key);
+            return false;
+        }
+        double[] load = index.visibleLoad(viewBounds);
+        boolean wasDense = denseLayers.contains(key);
+        if (!DensityRaster.shouldRasterize((long) load[0], load[1], scale, wasDense)) {
+            denseLayers.remove(key);
+            denseFrames.remove(key);
+            return false;
+        }
+        denseLayers.add(key);
+        int width = Math.max(1, (int) Math.ceil(contentWidth));
+        int height = Math.max(1, (int) Math.ceil(contentHeight));
+        Color color = layer.strokeColor();
+        DenseFrame frame = denseFrames.get(key);
+        if (frame == null || frame.geometry() != index.geometry() || frame.scale() != scale
+                || frame.centerX() != viewCenterX || frame.centerY() != viewCenterY || frame.width() != width
+                || frame.height() != height || !frame.color().equals(color)) {
+            int pixels = width * height;
+            if (denseCover.length < pixels) {
+                denseCover = new short[pixels];
+                densePixels = new int[pixels];
+            }
+            DensityRaster.rasterize(index.visibleParts(viewBounds), scale, contentWidth / 2.0 - viewCenterX * scale,
+                    contentHeight / 2.0 + viewCenterY * scale, width, height, denseCover);
+            DensityRaster.toPremultipliedArgb(denseCover, pixels, color.getRed(), color.getGreen(), color.getBlue(),
+                    color.getOpacity(), densePixels);
+            javafx.scene.image.WritableImage image = frame != null && frame.width() == width
+                    && frame.height() == height ? frame.image() : new javafx.scene.image.WritableImage(width, height);
+            image.getPixelWriter().setPixels(0, 0, width, height,
+                    javafx.scene.image.PixelFormat.getIntArgbPreInstance(), densePixels, 0, width);
+            frame = new DenseFrame(index.geometry(), scale, viewCenterX, viewCenterY, width, height, color, image);
+            denseFrames.put(key, frame);
+        }
+        gc.drawImage(frame.image(), RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
+        lastLayerDense = true;
+        return true;
     }
 
     private static boolean useCenterlineLod(RenderLayer layer, LodGeometry lod, double scale) {

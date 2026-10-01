@@ -120,6 +120,34 @@ revise-os: eles podem conter nomes de arquivos e caminhos locais. Para não
 misturar outras opções Java nos testes seguintes, remova a variável criada no
 PowerShell com `Remove-Item Env:JAVA_TOOL_OPTIONS`.
 
+## LOD por densidade (camada 1)
+
+O zoom adaptativo anterior só omitia vértices subpixel e cortava partes fora da tela; nada reduzia a **quantidade de
+traços** enviados ao `Canvas`. Com milhares de segmentos minusculos e juntos (uma Geometry muito densa vista de longe)
+o custo estava na **execucao** dos strokes pelo Prism, nao na thread JavaFX: o `slow redraw` mostra poucos ms, mas o
+pulso seguinte espera o render e a interface trava.
+
+Agora, uma camada de tracos (stroke-only, ou o caminho central de um CNC Job) com muitos segmentos **na area visivel**
+e desenhada como **uma imagem de densidade** (`DensityRaster`): os segmentos sao contados por pixel na CPU, em faixas
+horizontais paralelas, e a imagem usa `1 - (1 - a)^n` da opacidade `a` do traco para `n` linhas no pixel. A regra
+(`shouldRasterize`): `>= 15.000` segmentos visiveis, ou `>= 2.500` com comprimento medio abaixo de ~1,5 px na tela;
+uma camada que ja esta no modo so sai abaixo de 60% desses limites (histerese). Tracos largos (> 2,5 px), camadas
+multicoloridas e poligonos preenchidos continuam vetoriais. Ao aproximar o zoom a densidade cai e volta o vetor.
+A imagem de cada camada fica em cache enquanto a vista e identica (redesenhos por selecao/hover sao quase de graca).
+`[DENSE]` aparece junto do nome da camada no `[PLOT-PROFILE]`. `-Dflatcam.plot.density=false` desliga o modo.
+
+Medido com uma Geometry sintetica (linhas onduladas, tudo visivel, 1000x700, panning: vista nova a cada quadro):
+
+| Tracos x vertices | Vetor (Prism) | Densidade |
+|---|---|---|
+| 20.000 x 30 | ~260 ms | ~24 ms |
+| 100.000 x 20 | ~745 ms | ~41 ms |
+| 500.000 x 20 | ~4.400 ms | ~210 ms |
+
+Perde-se o antialiasing apenas no regime em que os tracos ja se fundem numa cor. Proximos passos possiveis: cache
+de interacao (reaproveitar o quadro durante pan/zoom) e rasterizar fora da thread JavaFX (hoje, com 500 mil tracos,
+~200 ms ainda ocorrem na thread da interface).
+
 ## Comparar GPU integrada e dedicada no Windows
 
 Para testar a preferência automática de GPU de alto desempenho com executável

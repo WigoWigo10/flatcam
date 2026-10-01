@@ -16,7 +16,8 @@ import org.locationtech.jts.index.strtree.STRtree;
 final class PlotDrawableIndex {
     private static final int TREE_THRESHOLD = 128;
 
-    record Part(int index, Geometry geometry, Envelope bounds) {
+    /** {@code segments} and {@code length} (world units) feed the density level of detail. */
+    record Part(int index, Geometry geometry, Envelope bounds, int segments, double length) {
     }
 
     private final Geometry geometry;
@@ -89,7 +90,37 @@ final class PlotDrawableIndex {
                 collect(collection.getGeometryN(i), parts);
             }
         } else {
-            parts.add(new Part(parts.size(), geometry, geometry.getEnvelopeInternal()));
+            parts.add(new Part(parts.size(), geometry, geometry.getEnvelopeInternal(), segmentsOf(geometry),
+                    lengthOf(geometry)));
         }
+    }
+
+    /** What the Canvas would stroke for this part: a stroke-only layer draws a polygon's exterior ring. */
+    private static int segmentsOf(Geometry geometry) {
+        if (geometry instanceof org.locationtech.jts.geom.LineString line) {
+            return Math.max(0, line.getNumPoints() - 1);
+        }
+        if (geometry instanceof org.locationtech.jts.geom.Polygon polygon) {
+            return Math.max(0, polygon.getExteriorRing().getNumPoints() - 1);
+        }
+        return 1;
+    }
+
+    private static double lengthOf(Geometry geometry) {
+        if (geometry instanceof org.locationtech.jts.geom.Polygon polygon) {
+            return polygon.getExteriorRing().getLength();
+        }
+        return geometry.getLength();
+    }
+
+    /** Segment count and total length of the parts that intersect {@code viewport} ({@code null} = all). */
+    double[] visibleLoad(Envelope viewport) {
+        long segments = 0;
+        double length = 0;
+        for (Part part : visibleParts(viewport)) {
+            segments += part.segments();
+            length += part.length();
+        }
+        return new double[] {segments, length};
     }
 }
