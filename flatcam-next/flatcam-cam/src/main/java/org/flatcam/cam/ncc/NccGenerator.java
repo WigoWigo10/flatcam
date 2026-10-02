@@ -193,25 +193,19 @@ public final class NccGenerator {
         } else if (params.order() == NccOrder.FORWARD) {
             tools.sort(java.util.Comparator.naturalOrder());
         }
-        NccToolSettings settings = params.settings();
-        List<Geometry> shrunk = new ArrayList<>();
-        for (Polygon polygon : parts) {
-            Geometry inside = params.offset() == 0 ? polygon : polygon.buffer(-params.offset(), QUADRANT_SEGMENTS);
-            if (!inside.isEmpty()) {
-                shrunk.add(inside);
-            }
-        }
-        if (shrunk.isEmpty()) {
-            throw new IllegalArgumentException("A margem e grande demais: nenhum poligono sobrou para pintar");
-        }
-        Geometry area = factory.buildGeometry(shrunk);
-        Geometry remaining = area;
+        Geometry area = org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(new ArrayList<Geometry>(parts));
+        Geometry cleared = factory.createGeometryCollection();
+        List<Geometry> requestedAreas = new ArrayList<>();
         List<NccToolResult> toolResults = new ArrayList<>();
         List<Geometry> combinedPaths = new ArrayList<>();
         for (int t = 0; t < tools.size(); t++) {
             cancellation.throwIfCancellationRequested();
             double diameter = tools.get(t);
-            Geometry areaForTool = params.restMachining() ? remaining : area;
+            PaintToolSettings toolSettings = params.settingsFor(diameter);
+            NccToolSettings settings = toolSettings.clearing();
+            Geometry desired = toolSettings.offset() == 0 ? area : area.buffer(-toolSettings.offset(), QUADRANT_SEGMENTS);
+            if (!desired.isEmpty()) requestedAreas.add(desired);
+            Geometry areaForTool = params.restMachining() ? desired.difference(cleared).buffer(0) : desired;
             int index = t;
             ToolClearResult result = areaForTool.isEmpty()
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
@@ -222,11 +216,13 @@ public final class NccGenerator {
                 combinedPaths.add(result.geometry());
             }
             if (params.restMachining() && !result.footprint().isEmpty()) {
-                remaining = remaining.difference(result.footprint()).buffer(0);
+                cleared = cleared.union(result.footprint()).buffer(0);
             }
         }
         progress.report(1.0);
-        return new NccResult(units, unionGeometries(factory, combinedPaths), area, toolResults);
+        if (requestedAreas.isEmpty()) throw new IllegalArgumentException("A margem e grande demais: nenhum poligono sobrou para pintar");
+        return new NccResult(units, unionGeometries(factory, combinedPaths),
+                org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(requestedAreas), toolResults);
     }
 
     private static Geometry clearingArea(Geometry boundary, Geometry copper, double keepOutOffset) {

@@ -16,7 +16,12 @@ import java.util.Objects;
  * @param restMachining   each smaller tool only paints what the larger ones could not reach
  */
 public record PaintParameters(List<Double> toolDiameters, double overlapFraction, double offset, NccMethod method,
-                              boolean connect, boolean contour, NccOrder order, boolean restMachining) {
+                              boolean connect, boolean contour, NccOrder order, boolean restMachining,
+                              java.util.Map<Double, PaintToolSettings> toolSettings) {
+    public PaintParameters(List<Double> toolDiameters, double overlapFraction, double offset, NccMethod method,
+                           boolean connect, boolean contour, NccOrder order, boolean restMachining) {
+        this(toolDiameters, overlapFraction, offset, method, connect, contour, order, restMachining, java.util.Map.of());
+    }
 
     public PaintParameters {
         if (toolDiameters == null || toolDiameters.isEmpty()) {
@@ -31,14 +36,19 @@ public record PaintParameters(List<Double> toolDiameters, double overlapFraction
         if (!Double.isFinite(overlapFraction) || overlapFraction < 0 || overlapFraction >= 1) {
             throw new IllegalArgumentException("overlapFraction must be in [0, 1): " + overlapFraction);
         }
-        if (!Double.isFinite(offset) || offset < 0) {
-            throw new IllegalArgumentException("offset cannot be negative: " + offset);
+        if (!Double.isFinite(offset)) {
+            throw new IllegalArgumentException("offset must be finite: " + offset);
         }
         Objects.requireNonNull(method, "method");
         Objects.requireNonNull(order, "order");
+        toolSettings = java.util.Map.copyOf(toolSettings);
+        if (!toolDiameters.containsAll(toolSettings.keySet())) throw new IllegalArgumentException("Paint settings reference a missing diameter");
     }
 
     NccToolSettings settings() {
         return new NccToolSettings(overlapFraction, method, connect, contour, 0);
+    }
+    public PaintToolSettings settingsFor(double diameter) {
+        return toolSettings.getOrDefault(diameter, new PaintToolSettings(overlapFraction, offset, method, connect, contour));
     }
 }

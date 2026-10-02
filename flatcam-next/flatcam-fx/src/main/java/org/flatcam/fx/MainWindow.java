@@ -6048,7 +6048,7 @@ final class MainWindow {
                         String name = uniqueDerivedName(item.getValue() + "_cutout");
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 cutout.geometry(), true,
-                                List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry())));
+                                List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry(), result.profile())), result.machining());
                         if (result.gapType() == CutoutToolPanel.GapType.THIN) {
                             if (cutout.gapGeometry().isEmpty()) {
                                 appendConsole("Thin: nenhuma ponte restante para usinagem rasa.");
@@ -6057,9 +6057,9 @@ final class MainWindow {
                                 addGeometryToProject(thinName, item.getValue(), units,
                                         cutout.gapGeometry(), true,
                                         List.of(new ToolGeometry(result.cutoutParams().toolDiameter(),
-                                                cutout.gapGeometry())));
+                                                cutout.gapGeometry(), result.profile())), result.thinMachining());
                                 appendConsole("Thin criou Geometry para as pontes: " + thinName
-                                        + ". Gere um CNC Job separado com Cut Z mais raso.");
+                                        + ". Thin Depth preservado; revise e gere seu CNC Job separado.");
                             }
                         }
                         if (outcome.mouseBites() != null && !outcome.mouseBites().isEmpty()) {

@@ -95,7 +95,9 @@ public final class LegacyToolsDatabase {
                         data.optDouble("depthperpass", 0.1), data.optDouble("feedrate", 120),
                         data.optInt("spindlespeed", 0), false, data.optDouble("feedrate_rapid", 0), null,
                         data.optDouble("feedrate_z", 60), data.optBoolean("dwell", false), data.optDouble("dwelltime", 1),
-                        data.optBoolean("extracut", false), data.optDouble("extracut_length", 0.1));
+                        data.optBoolean("extracut", false), data.optDouble("extracut_length", 0.1))
+                        .withCompensation(org.flatcam.cam.gcode.ToolPathOffset.fromLegacy(entry.optString("offset", "Path")),
+                                entry.optDouble("offset_value", 0));
                 tools.add(new MillingTool(entry.optString("name", "Tool " + id), diameter, profile, parameters, tip));
             } catch (RuntimeException invalid) {
                 throw new IOException("Invalid Milling tool " + id + ": " + invalid.getMessage(), invalid);
@@ -109,7 +111,8 @@ public final class LegacyToolsDatabase {
     }
 
     public record CutoutTool(String name, CutoutParameters parameters, String gapType,
-                             double biteDiameter, double biteSpacing) {
+                             double biteDiameter, double biteSpacing, GeometryGCodeParameters machining,
+                             double thinDepth, ToolProfile profile) {
         @Override public String toString() { return name + " - " + parameters.toolDiameter(); }
     }
 
@@ -164,7 +167,22 @@ public final class LegacyToolsDatabase {
                         CutoutKind.SINGLE, CutoutShape.FREEFORM, data.optDouble("tools_cutout_gapsize", 4), gaps);
                 if (!Double.isFinite(parameters.toolDiameter()) || !Double.isFinite(parameters.margin())
                         || !Double.isFinite(parameters.gapSize())) throw new IllegalArgumentException("Cutout exige valores finitos.");
-                tools.add(new CutoutTool(entry.optString("name", "Tool " + id), parameters, type, dia, spacing));
+                // Python's DB callback copies milling cutz/multidepth/depthperpass into Cutout.
+                double cutZ = data.optDouble("cutz", data.optDouble("tools_cutout_z", -1.7));
+                if (!Double.isFinite(cutZ) || cutZ >= 0) throw new IllegalArgumentException("Cutout Cut Z deve ser negativo.");
+                var machining = new GeometryGCodeParameters(data.optDouble("travelz", 2), -cutZ,
+                        data.optBoolean("multidepth", data.optBoolean("tools_cutout_mdepth", false)),
+                        data.optDouble("depthperpass", data.optDouble("tools_cutout_depthperpass", 0.5)),
+                        data.optDouble("feedrate", 120), data.optInt("spindlespeed", 0), false,
+                        data.optDouble("feedrate_rapid", 0), null, data.optDouble("feedrate_z", 60),
+                        data.optBoolean("dwell", false), data.optDouble("dwelltime", 1),
+                        data.optBoolean("extracut", false), data.optDouble("extracut_length", 0.1));
+                double thinZ = data.optDouble("tools_cutout_gap_depth", -0.5);
+                if (type.equals("bt") && (!Double.isFinite(thinZ) || thinZ >= 0 || -thinZ >= machining.cutDepth()))
+                    throw new IllegalArgumentException("Thin Depth deve ser negativo e mais raso que Cut Z.");
+                tools.add(new CutoutTool(entry.optString("name", "Tool " + id), parameters, type, dia, spacing,
+                        machining, Double.isFinite(thinZ) && thinZ < 0 ? -thinZ : 0.5,
+                        ToolProfile.fromLegacy(entry.optString("tool_type", "C1"))));
             } catch (RuntimeException invalid) { throw new IOException("Invalid Cutout tool " + id + ": " + invalid.getMessage(), invalid); }
         }
         return List.copyOf(tools);

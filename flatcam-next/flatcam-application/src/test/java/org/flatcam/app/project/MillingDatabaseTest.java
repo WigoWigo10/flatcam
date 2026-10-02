@@ -7,6 +7,27 @@ import org.junit.jupiter.api.Test;
 import org.flatcam.cam.geometry.ToolProfile;
 
 class MillingDatabaseTest {
+    @Test void transfersOffsetAndCutoutDepthsWithoutDoubleCompensation() throws Exception {
+        var root = new JSONObject("""
+                {"1":{"tooldia":1,"offset":"Custom","offset_value":-0.2,"data":{"tool_target":0,
+                "cutz":-2,"tools_cutout_z":-9,"multidepth":true,"depthperpass":0.4,
+                "feedrate":210,"tools_cutout_gap_type":"bt","tools_cutout_gap_depth":-0.3}}}
+                """);
+        var milling = LegacyToolsDatabase.millingTools(root).getFirst().parameters();
+        assertEquals(org.flatcam.cam.gcode.ToolPathOffset.CUSTOM, milling.offset());
+        assertEquals(-0.2, milling.customOffset());
+        var cutout = LegacyToolsDatabase.cutoutTools(root).getFirst();
+        assertEquals(2, cutout.machining().cutDepth());
+        assertTrue(cutout.machining().multiDepth());
+        assertEquals(0.4, cutout.machining().depthPerPass());
+        assertEquals(210, cutout.machining().feedRate());
+        assertEquals(0.3, cutout.thinDepth());
+        assertEquals(org.flatcam.cam.gcode.ToolPathOffset.PATH, cutout.machining().offset());
+        root.getJSONObject("1").getJSONObject("data").put("tools_cutout_gap_depth", -2);
+        assertThrows(IOException.class, () -> LegacyToolsDatabase.cutoutTools(root));
+        root.getJSONObject("1").put("offset_value", 0);
+        assertThrows(IOException.class, () -> LegacyToolsDatabase.millingTools(root));
+    }
     @Test void transfersSupportedFieldsAndFiltersTargets() throws Exception {
         JSONObject root = new JSONObject("""
                 {"1":{"name":"V fine","tooldia":0.3,"tool_type":"V","data":{

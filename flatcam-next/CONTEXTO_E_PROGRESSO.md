@@ -407,7 +407,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
-| Tools Database | parcial | editor com 63 campos Python, busca/filtro, `.FlatDB`, backup e campos desconhecidos preservados; integrado a NCC/Isolation/Drilling/Geometry CNC/Milling/Paint/Cutout; faltam transferência de Offset e profundidades Cutout/Thin, parâmetros Paint individuais e consumo integral de opções avançadas |
+| Tools Database | parcial | editor com 63 campos Python, busca/filtro, `.FlatDB`, backup e campos desconhecidos preservados; integrado a NCC/Isolation/Drilling/Geometry CNC/Milling/Paint/Cutout; Offset e profundidades Cutout/Thin transferidos, Paint individual; falta consumo integral de opções avançadas |
 | Preferências globais | inicial/parcial | aba funcional para tema, snap, grade visual e visibilidade do Plot Area; ainda longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
 
@@ -1985,3 +1985,19 @@ a reabertura do exemplo reserializado pelo Python. Tentativas anteriores tiveram
 erros intermitentes ao excluir temporários Windows; ProjectFileIOTest agora limpa
 somente seu diretório JUnit, com repetição limitada, fechando a enumeração antes
 de apagar. Limpeza não foi desativada e erros persistentes continuam falhando.
+
+## Tools Database: fechamento das transferências — 2026-10-02
+
+Ponto 2: Milling/Geometry CNC recebem Offset/valor da base. Cutout recebe Cut Z,
+Multi-Depth, Depth per pass e Thin Depth, com prioridade dos campos gerais como
+no callback Python. Geometry principal e Thin recebem parâmetros CNC e perfil;
+não reaplicam compensação aos caminhos Cutout. Thin exige profundidade menor.
+Paint agora mantém Overlap, margem, método, Connect e Contour por diâmetro,
+preserva rascunhos inválidos e aplica a todas somente por ação explícita.
+Rest desconta a cobertura anterior da área individual de cada ferramenta.
+
+Install completo aprovado: 743 testes registrados, 732 aprovados, 11 ignorados.
+Repetida uma execução que falhou somente na limpeza de temporário Windows em
+CncSettingsPersistenceTest, sem falha de asserção. Testes adicionais de adaptadores,
+gerador e controles FX aprovados. Validação visual/física permanece pendente.
+Limites em TOOLS_DATABASE_TRANSFER.md.

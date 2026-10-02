@@ -15,6 +15,27 @@ import org.locationtech.jts.operation.overlayng.OverlayNG;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 class PaintGeneratorTest {
+    @Test void individualSettingsKeepMarginsAndMethodsAndRestUsesEachToolsArea() {
+        var settings = java.util.Map.of(
+                2.0, new PaintToolSettings(0.2, 3, NccMethod.STANDARD, false, true),
+                0.5, new PaintToolSettings(0.6, 0, NccMethod.LINES, true, false));
+        var parameters = new PaintParameters(List.of(2.0, 0.5), 0.4, 0,
+                NccMethod.SEED, true, true, NccOrder.NONE, true, settings);
+        var result = paint(box(0, 0, 20, 20), parameters);
+        assertEquals(2, result.toolResults().size());
+        assertTrue(result.toolResults().get(0).geometry().getEnvelopeInternal().getMinX() >= 4 - 1e-6);
+        assertTrue(result.toolResults().get(1).geometry().getEnvelopeInternal().getMinX() < 1);
+        assertEquals(400, result.clearingArea().getArea(), 1e-6);
+        assertEquals(NccMethod.LINES, parameters.settingsFor(0.5).method());
+    }
+
+    @Test void negativePaintMarginExpandsAndOverlappingPolygonsAreNormalized() {
+        var source = FACTORY.buildGeometry(List.of(box(0,0,10,10), box(5,0,15,10)));
+        var result = paint(source, standard(List.of(1.0), -1, false));
+        assertTrue(result.clearingArea().getArea() > 150);
+        assertTrue(result.geometry().getEnvelopeInternal().getMinX() < 0);
+        assertEquals(200, source.getArea(), 1e-6, "input is not mutated");
+    }
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     private static Geometry box(double x1, double y1, double x2, double y2) {

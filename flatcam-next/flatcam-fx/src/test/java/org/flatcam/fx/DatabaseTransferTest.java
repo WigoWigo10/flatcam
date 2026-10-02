@@ -43,7 +43,8 @@ class DatabaseTransferTest {
         FutureTask<Void> task = new FutureTask<>(() -> {
             var db = LegacyToolsDatabase.cutoutTools(new org.json.JSONObject("""
                     {"1":{"tooldia":1.2,"data":{"tool_target":6,"tools_cutout_margin":0.4,
-                    "tools_cutout_gaps_ff":"8","tools_cutout_gap_type":"mb","tools_cutout_mb_dia":0.9}}}
+                    "cutz":-2,"multidepth":true,"depthperpass":0.4,"feedrate":210,
+                    "tools_cutout_gaps_ff":"8","tools_cutout_gap_type":"bt","tools_cutout_gap_depth":-0.3,"tools_cutout_mb_dia":0.9}}}
                     """));
             var result = new java.util.concurrent.atomic.AtomicReference<CutoutToolPanel.Result>();
             var root = CutoutToolPanel.build("MM", (p, done, cancelled) -> false, () -> {}, () -> db, result::set, () -> {});
@@ -57,8 +58,17 @@ class DatabaseTransferTest {
             assertNotNull(result.get());
             assertEquals(1.2, result.get().cutoutParams().toolDiameter());
             assertEquals(0.4, result.get().cutoutParams().margin());
-            assertEquals(CutoutToolPanel.GapType.M_BITES, result.get().gapType());
-            assertEquals(0.9, result.get().biteDiameter());
+            assertEquals(CutoutToolPanel.GapType.THIN, result.get().gapType());
+            assertEquals(2, result.get().machining().cutDepth());
+            assertEquals(0.4, result.get().machining().depthPerPass());
+            assertEquals(210, result.get().machining().feedRate());
+            assertEquals(0.3, result.get().thinMachining().cutDepth());
+            assertEquals(org.flatcam.cam.gcode.ToolPathOffset.PATH, result.get().machining().offset());
+            ((ComboBox<CutoutToolPanel.GapType>) root.lookup("#cutout-gap-type")).setValue(CutoutToolPanel.GapType.M_BITES);
+            generate.fire(); assertEquals(0.9, result.get().biteDiameter());
+            ((ComboBox<CutoutToolPanel.GapType>) root.lookup("#cutout-gap-type")).setValue(CutoutToolPanel.GapType.THIN);
+            result.set(null); ((TextField) root.lookup("#cutout-thin-z")).setText("-3");
+            generate.fire(); assertNull(result.get());
             return null;
         });
         Platform.runLater(task); task.get(20, TimeUnit.SECONDS);
@@ -68,7 +78,8 @@ class DatabaseTransferTest {
         FutureTask<Void> task = new FutureTask<>(() -> {
             var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0), new Coordinate(1,1)});
             var db = new LegacyToolsDatabase.MillingTool("V", 0.3, ToolProfile.V,
-                    new GeometryGCodeParameters(2, 0.2, true, 0.05, 180, 9000, false), new VTipSettings(0.1, 30));
+                    new GeometryGCodeParameters(2, 0.2, true, 0.05, 180, 9000, false)
+                            .withCompensation(ToolPathOffset.CUSTOM, -0.2), new VTipSettings(0.1, 30));
             var result = new java.util.concurrent.atomic.AtomicReference<GeometryCncToolPanel.Result>();
             var root = GeometryCncToolPanel.build("MM", path, List.of(), null, null, () -> List.of(db), result::set, () -> {});
             ((Button) root.lookup("#cnc-db-load")).fire();
@@ -79,6 +90,8 @@ class DatabaseTransferTest {
             assertNotNull(result.get(), ((Label) root.lookup("#cnc-error")).getText());
             assertEquals(ToolProfile.V, result.get().tools().getFirst().toolProfile());
             assertEquals(db.tip(), result.get().vTools().get(0));
+            assertEquals(ToolPathOffset.CUSTOM, result.get().parameters().offset());
+            assertEquals(-0.2, result.get().parameters().customOffset());
             return null;
         });
         Platform.runLater(task); task.get(20, TimeUnit.SECONDS);

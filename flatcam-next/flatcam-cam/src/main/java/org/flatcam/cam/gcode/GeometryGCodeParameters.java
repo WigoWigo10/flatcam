@@ -32,6 +32,11 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
                 pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
                 offset, customOffset, options);
     }
+    public GeometryGCodeParameters withCutting(double depth, boolean multiple, double perPass) {
+        return new GeometryGCodeParameters(safeZ, depth, multiple, perPass, feedRate, spindleSpeedRpm,
+                pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
+                offset, customOffset, jobOptions);
+    }
     public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                   double depthPerPass, double feedRate, int spindleSpeedRpm,
                                   boolean pauseForToolChange, double rapidFeedRate, ProbeToolChangeParameters probing) {

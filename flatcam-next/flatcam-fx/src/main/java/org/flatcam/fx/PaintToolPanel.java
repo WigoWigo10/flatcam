@@ -22,6 +22,9 @@ import javafx.util.Duration;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.PaintParameters;
+import org.flatcam.cam.ncc.PaintToolSettings;
+import javafx.scene.control.TableView;
+import javafx.scene.control.TableColumn;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -234,6 +237,8 @@ final class PaintToolPanel {
 
         // --- parameters (Python's defaults) ---
         TextField diameters = new TextField("0.3");
+        diameters.setMinWidth(0);
+        HBox.setHgrow(diameters, javafx.scene.layout.Priority.ALWAYS);
         diameters.setTooltip(tooltip("Diametros das ferramentas separados por virgula, por exemplo 0.3, 1.0."));
         TextField overlap = new TextField("20");
         TextField margin = new TextField("0.0");
@@ -253,16 +258,65 @@ final class PaintToolPanel {
         rest.setTooltip(tooltip("Cada ferramenta menor pinta apenas o que as maiores nao alcancaram. "
                 + "As ferramentas passam a ser usadas da maior para a menor."));
         order.disableProperty().bind(rest.selectedProperty());
+        TableView<Double> toolTable = new TableView<>(); toolTable.setId("paint-tools");
+        toolTable.setMinWidth(0); toolTable.setPrefHeight(130);
+        toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
+        TableColumn<Double, Number> diameterColumn = new TableColumn<>("Diametro");
+        diameterColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue()));
+        toolTable.getColumns().add(diameterColumn);
+        java.util.Map<Double, String[]> rows = new java.util.LinkedHashMap<>();
+        java.util.function.Supplier<String[]> capture = () -> new String[]{overlap.getText(), margin.getText(), method.getValue().name(),
+                Boolean.toString(connect.isSelected()), Boolean.toString(contour.isSelected())};
+        java.util.function.Consumer<String[]> restore = s -> { overlap.setText(s[0]); margin.setText(s[1]);
+            method.setValue(NccMethod.valueOf(s[2])); connect.setSelected(Boolean.parseBoolean(s[3])); contour.setSelected(Boolean.parseBoolean(s[4])); };
+        Double[] editing = {0.3}; boolean[] syncing = {false};
+        rows.put(0.3, capture.get()); toolTable.getItems().add(0.3); toolTable.getSelectionModel().selectFirst();
+        Label parameterTitle = new Label("Parametros da ferramenta: 0.3");
+        toolTable.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
+            if (syncing[0] || selected == null) return;
+            rows.put(editing[0], capture.get()); editing[0] = selected;
+            restore.accept(rows.get(selected)); parameterTitle.setText("Parametros da ferramenta: " + selected);
+        });
+        Runnable synchronizeTools = () -> {
+            List<Double> values = parseDiameters(diameters.getText());
+            rows.put(editing[0], capture.get());
+            rows.keySet().retainAll(values);
+            for (double value : values) rows.putIfAbsent(value, capture.get());
+            syncing[0] = true;
+            try {
+                toolTable.getItems().setAll(values);
+                editing[0] = values.contains(editing[0]) ? editing[0] : values.getFirst();
+                toolTable.getSelectionModel().select(editing[0]); restore.accept(rows.get(editing[0]));
+                parameterTitle.setText("Parametros da ferramenta: " + editing[0]);
+            } finally { syncing[0] = false; }
+        };
+        Button updateTools = new Button("Atualizar lista"); updateTools.setId("paint-update-tools");
+        updateTools.setOnAction(event -> { try { synchronizeTools.run(); errorLabel.setText(""); }
+            catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
+        Button applyAll = new Button("Aplicar parametros a todas as ferramentas"); applyAll.setId("paint-apply-all");
+        applyAll.setMaxWidth(Double.MAX_VALUE);
+        applyAll.setOnAction(event -> { try { synchronizeTools.run(); for (double d : toolTable.getItems()) rows.put(d,capture.get()); }
+            catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
         VBox database = DatabaseToolPicker.build("paint-db", host::databaseTools, selected -> {
+            synchronizeTools.run();
             PaintParameters p = selected.parameters();
-            diameters.setText(Double.toString(p.toolDiameters().getFirst()));
+            double diameter = p.toolDiameters().getFirst();
+            if (!toolTable.getItems().contains(diameter)) {
+                List<Double> values = new ArrayList<>(toolTable.getItems()); values.add(diameter);
+                diameters.setText(values.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining("; ")));
+                synchronizeTools.run();
+            }
+            toolTable.getSelectionModel().select(Double.valueOf(diameter));
             overlap.setText(Double.toString(p.overlapFraction() * 100)); margin.setText(Double.toString(p.offset()));
             method.setValue(p.method()); connect.setSelected(p.connect()); contour.setSelected(p.contour());
         }, errorLabel);
-        Label transferNote = new Label("Aplicar substitui o diametro e os parametros comuns de Paint; nao altera selecao, ordem ou Rest.");
+        Label transferNote = new Label("Aplicar adiciona a ferramenta da base (ou atualiza o mesmo diametro), preservando as outras linhas. Parametros sao individuais; selecao de poligonos, ordem e Rest permanecem comuns. Pontas V e Laser Lines ainda nao sao suportados.");
         transferNote.setWrapText(true);
 
         Button paint = new Button("Pintar");
+        paint.setId("paint-generate"); overlap.setId("paint-overlap"); margin.setId("paint-margin");
+        method.setId("paint-method"); diameters.setId("paint-diameters"); errorLabel.setId("paint-error");
+        margin.setTooltip(tooltip("Margem individual: positiva contrai, negativa expande a area a pintar. Confira a area e o contorno antes de usinar."));
         paint.setMaxWidth(Double.MAX_VALUE);
         paint.setOnAction(event -> {
             try {
@@ -276,9 +330,18 @@ final class PaintToolPanel {
                     throw new IllegalArgumentException(all.isSelected() ? "A origem nao tem poligonos preenchidos"
                             : "Selecione os poligonos a pintar");
                 }
-                PaintParameters parameters = new PaintParameters(parseDiameters(diameters.getText()),
+                synchronizeTools.run();
+                java.util.Map<Double, PaintToolSettings> settings = new java.util.LinkedHashMap<>();
+                for (double diameter : toolTable.getItems()) {
+                    String[] s = rows.get(diameter);
+                    try { settings.put(diameter,new PaintToolSettings(Double.parseDouble(s[0].trim().replace(',','.'))/100,
+                            Double.parseDouble(s[1].trim().replace(',','.')), NccMethod.valueOf(s[2]),
+                            Boolean.parseBoolean(s[3]),Boolean.parseBoolean(s[4]))); }
+                    catch (RuntimeException invalid) { throw new IllegalArgumentException("Ferramenta " + diameter + ": " + invalid.getMessage()); }
+                }
+                PaintParameters parameters = new PaintParameters(List.copyOf(toolTable.getItems()),
                         number(overlap, "Sobreposicao") / 100.0, number(margin, "Margem"), method.getValue(),
-                        connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected());
+                        connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected(), settings);
                 stopPicking.run();
                 errorLabel.setText("");
                 host.paint(item, host.units(item), polygons, parameters);
@@ -299,10 +362,10 @@ final class PaintToolPanel {
                 new VBox(4, all, single, rectangle, polygonArea, reference), referenceObject,
                 new HBox(6, choose, clear), selectedLabel,
                 new Separator(),
-                new Label("Diametros das ferramentas:"), diameters, database, transferNote,
+                new Label("Diametros das ferramentas:"), new HBox(6,diameters,updateTools), toolTable, database, transferNote, parameterTitle,
                 new HBox(6, new Label("Sobreposicao (%):"), overlap, new Label("Margem:"), margin),
                 new HBox(6, new Label("Metodo:"), method),
-                new HBox(10, connect, contour),
+                new HBox(10, connect, contour), applyAll,
                 new HBox(6, new Label("Ordem:"), order), rest,
                 paint, errorLabel, close);
         panel.setPadding(new Insets(6));

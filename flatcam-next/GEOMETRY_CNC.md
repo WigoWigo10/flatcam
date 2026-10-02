@@ -62,7 +62,9 @@ sem esses campos continuam com Path e posições automáticas. `.FlatPrj` usa
 descartar os metadados privados recupera esses campos disponíveis. Valores
 automáticos de End Z/troca são exportados como alturas explícitas para o Python.
 
-A transferência de Offset da Tools Database ainda é outra etapa. Áreas de
+Offset/valor da Tools Database agora são transferidos explicitamente em Milling
+e Geometry/CNC. Cutout já gera caminhos compensados e mantém Path no CNC.
+Áreas de
 exclusão CNC, compensação G41/G42 e posições distintas por ferramenta não estão
 implementadas. Macros M6 podem mover a máquina; a prévia não simula a macro.
 Start Z não substitui o referenciamento nem confirma que o material está livre.

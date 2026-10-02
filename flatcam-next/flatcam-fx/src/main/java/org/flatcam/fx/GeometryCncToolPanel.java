@@ -465,6 +465,7 @@ final class GeometryCncToolPanel {
             dwellField.setText(Double.toString(p.dwellSeconds())); extraCb.setSelected(p.extraCut());
             extraField.setText(Double.toString(p.extraCutLength()));
             rapidFeedField.setText(Double.toString(p.rapidFeedRate()));
+            offset.setValue(p.offset()); customOffset.setText(Double.toString(p.customOffset()));
             if (selected.tip() != null) {
                 vFields.get(index)[0].setText(Double.toString(selected.tip().tipDiameter()));
                 vFields.get(index)[1].setText(Double.toString(selected.tip().angleDegrees()));
