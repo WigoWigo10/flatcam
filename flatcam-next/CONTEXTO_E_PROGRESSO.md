@@ -871,8 +871,12 @@ Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde
    rasterização incremental.
 5. **Arquitetura/desempenho (decisão em aberto, não iniciada):** a avaliação de um núcleo de geometria nativo
    (Clipper2 via FFM, atrás de uma interface `GeometryEngine`, com o JTS como reserva), de viewport na GPU e das
-   alternativas C++/Rust está registrada na memória do projeto (`architecture-options-native-gpu`). O próximo passo
-   sugerido lá é um protótipo de meio dia comparando união e offset com os Gerbers reais; só depois decidir.
+   alternativas C++/Rust está registrada na memória do projeto (`architecture-options-native-gpu`) e, para continuidade
+   independente dessa memória, em [ARQUITETURA_RENDERIZACAO_FUTURA.md](ARQUITETURA_RENDERIZACAO_FUTURA.md), avaliação de
+   2026-10-02. A direção candidata é JavaFX + core Java/JTS + backend OpenGL experimental, preservando Canvas;
+   Vulkan e motor geométrico nativo são avaliações posteriores e independentes. O primeiro passo recomendado é
+   baseline reproduzível e protótipo de apresentação GPU **integrada** ao JavaFX, incluindo custo de transporte,
+   GPUs híbridas, precisão CAD e fallback. Não há adoção definitiva nem prazo de ganho garantido.
 
 ### 9.1 Completar a paridade NCC (o que resta)
 
