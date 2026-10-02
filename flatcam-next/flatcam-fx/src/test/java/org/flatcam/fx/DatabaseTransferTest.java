@@ -16,6 +16,27 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class DatabaseTransferTest {
+    @Test void cutoutGapHelpExplainsPlacementWidthAndSafetyWithRichAccessibleTooltips() throws Exception {
+        try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
+        FutureTask<Void> task = new FutureTask<>(() -> {
+            var root = CutoutToolPanel.build("MM", (p, done, cancelled) -> false,
+                    () -> {}, result -> {}, () -> {});
+            var pattern = (ComboBox<?>) root.lookup("#cutout-gap-pattern");
+            var width = (TextField) root.lookup("#cutout-gap-size");
+            assertNull(pattern.getTooltip());
+            assertNull(width.getTooltip());
+            assertTrue(pattern.getAccessibleHelp().contains("deslocado pela margem"));
+            assertTrue(pattern.getAccessibleHelp().contains("recusada"));
+            assertTrue(width.getAccessibleHelp().contains("Zero desativa"));
+            assertTrue(width.getAccessibleHelp().contains("Thin"));
+            for (Control control : java.util.List.of(pattern, width)) {
+                assertEquals(control.getAccessibleHelp(), control.getProperties().get(FluidTooltips.TEXT_KEY));
+                assertNotNull(control.getProperties().get(FluidTooltips.CONTENT_KEY));
+            }
+            return null;
+        });
+        Platform.runLater(task); task.get(20, TimeUnit.SECONDS);
+    }
     @Test void cncRowsKeepIndependentParametersAndApplyAllIsExplicit() throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
         FutureTask<Void> task = new FutureTask<>(() -> {

@@ -89,6 +89,7 @@ final class CutoutToolPanel {
         cutZ.setTooltip(new Tooltip("Cut Z negativo e finito, salvo na Geometry do recorte. Exemplo: -1,7.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: confira a espessura da placa e quanto a ferramenta entrará no material de sacrifício antes de gerar CNC."));
         thinZ.setTooltip(new Tooltip("Thin Depth é Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e pontes -0,5. Só é usado no tipo Thin.\n\nO valor vai para a Geometry separada das pontes; o recorte principal conserva Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: unidade do objeto (mm ou in)."));
         TextField gapSizeField = new TextField(metric ? "4" : "0.16");
+        gapSizeField.setId("cutout-gap-size");
         ComboBox<GapType> gapTypeCombo = new ComboBox<>();
         gapTypeCombo.getItems().addAll(GapType.values());
         gapTypeCombo.setValue(GapType.BRIDGE);
@@ -102,6 +103,18 @@ final class CutoutToolPanel {
         ComboBox<GapPattern> gapPatternCombo = new ComboBox<>();
         gapPatternCombo.getItems().addAll(GapPattern.values());
         gapPatternCombo.setValue(GapPattern.FOUR);
+        gapPatternCombo.setId("cutout-gap-pattern");
+        ToolDescriptions.apply(gapPatternCombo, "Posição dos gaps",
+                "LR/TB criam duas pontes; FOUR cria quatro; TWO_LR/TWO_TB criam quatro; EIGHT cria oito.\n\n"
+                + "No recorte retangular, o centro da origem é deslocado pela margem, como no Python. "
+                + "Os padrões duplos usam (dimensão da origem + duas margens) / 4; o raio da fresa não altera esse espaçamento.\n\n"
+                + "Se a margem ou largura eliminar uma ponte solicitada, a geração retangular é recusada. "
+                + "Gaps manuais substituem o padrão. Confira a prévia antes de gerar CNC.");
+        ToolDescriptions.apply(gapSizeField, "Largura da ponte",
+                "Largura de material que deve permanecer, em unidades do objeto. "
+                + "O trecho retirado do caminho da fresa inclui também seu diâmetro. Zero desativa os gaps automáticos no FX.\n\n"
+                + "Thin usa exatamente os trechos retirados para sua Geometry separada; no retangular, M-Bites usa a mesma posição "
+                + "com uma linha deslocada pelo raio da broca. Confira largura, profundidade e furos na prévia.");
         List<Geometry> manualAreas = new ArrayList<>();
         Label manualStatus = new Label("Sem gaps manuais; sera usado o padrao automatico.");
         manualStatus.setWrapText(true);

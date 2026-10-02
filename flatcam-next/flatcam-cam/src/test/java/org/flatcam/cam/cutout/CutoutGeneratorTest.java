@@ -25,6 +25,128 @@ import org.locationtech.jts.geom.LineString;
 
 class CutoutGeneratorTest {
 
+    @Test
+    void rectangularBridgesAndThinSegmentsFollowPythonSourceCenterPlusMargin() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = factory.toGeometry(new Envelope(0, 20, 0, 10));
+        CutoutParameters params = new CutoutParameters(1, 1, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 2, GapPattern.FOUR);
+        CutoutResult result = CutoutGenerator.generate("MM", source, params);
+        assertEquals(4, result.partCount());
+        // Original bbox center (10,5) + margin (1,1), NOT buffered bbox center.
+        Geometry bands = factory.toGeometry(new Envelope(-3, 23, 4.5, 7.5))
+                .union(factory.toGeometry(new Envelope(9.5, 12.5, -3, 13)));
+        Geometry outline = source.buffer(1.5, 32).getBoundary();
+        assertEquals(0, result.geometry().symDifference(outline.difference(bands)).getLength(), 1e-8);
+        assertEquals(0, result.gapGeometry().symDifference(outline.intersection(bands)).getLength(), 1e-8,
+                "Thin must use exactly the portions removed from the main cut path");
+    }
+
+    @Test
+    void quarterGapSpacingIncludesMarginButNotTheCutterRadius() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = factory.toGeometry(new Envelope(0, 20, 0, 10));
+        for (GapPattern pattern : java.util.List.of(GapPattern.TWO_LR, GapPattern.TWO_TB, GapPattern.EIGHT)) {
+            CutoutParameters params = new CutoutParameters(1, 1, false,
+                    CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 1, pattern);
+            CutoutResult result = CutoutGenerator.generate("MM", source, params);
+            Geometry masks = factory.createGeometryCollection();
+            // y center = 6; quarter spacing = (10 + 2) / 4 = 3.
+            if (pattern != GapPattern.TWO_TB) {
+                masks = masks.union(factory.toGeometry(new Envelope(-4, 24, 2, 4)))
+                        .union(factory.toGeometry(new Envelope(-4, 24, 8, 10)));
+            }
+            // x center = 11; quarter spacing = (20 + 2) / 4 = 5.5.
+            if (pattern != GapPattern.TWO_LR) {
+                masks = masks.union(factory.toGeometry(new Envelope(4.5, 6.5, -4, 14)))
+                        .union(factory.toGeometry(new Envelope(15.5, 17.5, -4, 14)));
+            }
+            assertEquals(pattern == GapPattern.EIGHT ? 8 : 4, result.partCount());
+            assertEquals(0, result.geometry().symDifference(source.buffer(1.5, 32)
+                    .getBoundary().difference(masks)).getLength(), 1e-8, pattern.name());
+        }
+    }
+
+    @Test
+    void largeMarginExtendsGapBandsAcrossActualOutlineInsteadOfDroppingBridges() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = factory.toGeometry(new Envelope(0, 20, 0, 10));
+        CutoutParameters params = new CutoutParameters(1, 5, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 2, GapPattern.FOUR);
+        CutoutResult result = CutoutGenerator.generate("MM", source, params);
+        assertEquals(4, result.partCount());
+        Geometry masks = factory.toGeometry(new Envelope(-8, 28, 8.5, 11.5))
+                .union(factory.toGeometry(new Envelope(13.5, 16.5, -8, 18)));
+        Geometry expected = source.buffer(5.5, 32).getBoundary().intersection(masks);
+        assertEquals(expected.getLength(), result.gapGeometry().getLength(), 1e-8);
+        // Curved segments acquire sub-ULP coordinate differences from consecutive overlays.
+        assertTrue(expected.buffer(1e-8).covers(result.gapGeometry()));
+        assertTrue(result.gapGeometry().buffer(1e-8).covers(expected));
+        for (int i = 0; i < result.partCount(); i++) {
+            assertFalse(((LineString) result.geometry().getGeometryN(i)).isClosed());
+        }
+    }
+
+    @Test
+    void mouseBitesShareRectangularBridgePlacementWithMainAndThinPaths() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = factory.toGeometry(new Envelope(0, 20, 0, 10));
+        // Large margin also exercises the formerly too-short legacy transverse span.
+        for (double margin : new double[]{1, 5}) {
+            CutoutParameters params = new CutoutParameters(1, margin, false,
+                    CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 2, GapPattern.FOUR);
+            ExcellonImage bites = CutoutGenerator.generateMouseBites("MM", source, params,
+                    0.4, 0.2, CancellationToken.none());
+            double cx = 10 + margin, cy = 5 + margin;
+            boolean left = false, right = false, top = false, bottom = false;
+            for (ExcellonImage.Drill drill : bites.drills()) {
+                if (drill.x() < 0) {
+                    left = true;
+                    assertTrue(Math.abs(drill.y() - cy) <= 1 + 1e-8);
+                } else if (drill.x() > 20) {
+                    right = true;
+                    assertTrue(Math.abs(drill.y() - cy) <= 1 + 1e-8);
+                } else {
+                    top |= Math.abs(drill.y() - 10 - margin - 0.2) < 1e-8;
+                    bottom |= Math.abs(drill.y() + margin + 0.2) < 1e-8;
+                    assertTrue(Math.abs(drill.x() - cx) <= 1 + 1e-8);
+                }
+            }
+            assertTrue(left && right && top && bottom, "Every bridge must receive holes");
+        }
+    }
+
+    @Test
+    void rejectsAutomaticPatternsThatLoseBridgesOrRemoveTheEntireCut() {
+        GeometryFactory factory = new GeometryFactory();
+        Geometry source = square(factory, 0, 0, 10);
+        for (CutoutParameters params : java.util.List.of(
+                new CutoutParameters(1, 1, false, CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 100, GapPattern.FOUR),
+                new CutoutParameters(1, 20, false, CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 2, GapPattern.EIGHT))) {
+            assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generate("MM", source, params));
+            assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generateMouseBites("MM",
+                    source, params, 0.4, 0.2, CancellationToken.none()));
+        }
+    }
+
+    @Test
+    void rejectsNonfiniteCutoutParametersAndMissingModes() {
+        for (double invalid : new double[]{Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY}) {
+            assertThrows(IllegalArgumentException.class, () -> new CutoutParameters(invalid, 0, false,
+                    CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 1, GapPattern.FOUR));
+            assertThrows(IllegalArgumentException.class, () -> new CutoutParameters(1, invalid, false,
+                    CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 1, GapPattern.FOUR));
+            assertThrows(IllegalArgumentException.class, () -> new CutoutParameters(1, 0, false,
+                    CutoutKind.SINGLE, CutoutShape.RECTANGULAR, invalid, GapPattern.FOUR));
+        }
+        assertThrows(NullPointerException.class, () -> new CutoutParameters(1, 0, false,
+                null, CutoutShape.RECTANGULAR, 1, GapPattern.FOUR));
+        assertThrows(NullPointerException.class, () -> new CutoutParameters(1, 0, false,
+                CutoutKind.SINGLE, null, 1, GapPattern.FOUR));
+        assertThrows(NullPointerException.class, () -> new CutoutParameters(1, 0, false,
+                CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 1, null));
+    }
+
     private static GerberImage simple1() throws Exception {
         return new GerberParser().parse(findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
     }

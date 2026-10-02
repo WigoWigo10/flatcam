@@ -79,12 +79,18 @@ public final class CutoutGenerator {
                 continue;
             }
             cancellationToken.throwIfCancellationRequested();
+            List<Geometry> gapAreas = !manualGapAreas.isEmpty() ? manualGapAreas
+                    : params.gapPattern() == GapPattern.NONE || params.gapSize() <= 0 ? List.of()
+                    : automaticGapBands(outline, part.getEnvelopeInternal(), params,
+                            (params.gapSize() + params.toolDiameter()) / 2.0, geometryFactory);
             Geometry withGaps = manualGapAreas.isEmpty()
-                    ? applyGaps(outline, params, geometryFactory, cancellationToken)
+                    ? applyGaps(outline, gapAreas, params, geometryFactory, cancellationToken)
                     : applyManualGaps(outline, manualGapAreas, geometryFactory, cancellationToken);
-            if (!manualGapAreas.isEmpty()
-                    || params.gapPattern() != GapPattern.NONE && params.gapSize() > 0) {
-                Geometry inGaps = outline.difference(withGaps);
+            if (!gapAreas.isEmpty()) {
+                // Comparing the original with the overlaid result can reintroduce
+                // rounded-corner fragments due to noding roundoff. Extract Thin
+                // directly from the exact masks used to remove the bridges.
+                Geometry inGaps = outline.intersection(geometryFactory.buildGeometry(gapAreas).union());
                 for (int i = 0; i < inGaps.getNumGeometries(); i++) {
                     cancellationToken.throwIfCancellationRequested();
                     if (!inGaps.getGeometryN(i).isEmpty()) {
@@ -158,9 +164,14 @@ public final class CutoutGenerator {
                     ? boxFromEnvelope(part.getEnvelopeInternal(), factory) : part;
             Geometry outline = exteriorRings(shape.buffer(offset, QUADRANT_SEGMENTS));
             List<Geometry> bands = manualGapAreas.isEmpty()
-                    ? buildGapBands(outline.getEnvelopeInternal(), params.gapPattern(),
+                    ? automaticGapBands(outline, part.getEnvelopeInternal(), params,
                             params.gapSize() / 2.0, factory)
                     : manualGapAreas;
+            if (manualGapAreas.isEmpty() && params.shape() == CutoutShape.RECTANGULAR) {
+                // M-Bites must target every requested bridge too, even with a large margin.
+                Geometry remaining = subtractBands(outline, bands, factory, cancellationToken);
+                validateRectangularGaps(remaining, params.gapPattern());
+            }
             for (Geometry band : bands) {
                 cancellationToken.throwIfCancellationRequested();
                 addBiteHoles(outline.intersection(band), holeDiameter, step,
@@ -254,28 +265,68 @@ public final class CutoutGenerator {
      * remain touching end-to-end (appTools/ToolCutOut.py's own
      * subtract_poly_from_geo() + linemerge()).
      */
-    private static Geometry applyGaps(Geometry outline, CutoutParameters params, GeometryFactory geometryFactory,
+    private static Geometry applyGaps(Geometry outline, List<Geometry> gapAreas, CutoutParameters params, GeometryFactory geometryFactory,
                                       CancellationToken cancellationToken) {
         if (params.gapPattern() == GapPattern.NONE || params.gapSize() <= 0) {
             return outline;
         }
-        double halfGap = params.gapSize() / 2.0 + params.toolDiameter() / 2.0;
-        Envelope envelope = outline.getEnvelopeInternal();
+        Geometry result = subtractBands(outline, gapAreas, geometryFactory, cancellationToken);
+        if (params.shape() == CutoutShape.RECTANGULAR) {
+            validateRectangularGaps(result, params.gapPattern());
+        }
+        return result;
+    }
+
+    private static Geometry subtractBands(Geometry outline, List<Geometry> bands, GeometryFactory factory,
+                                          CancellationToken cancellationToken) {
         Geometry result = outline;
-        for (Geometry band : buildGapBands(envelope, params.gapPattern(), halfGap, geometryFactory)) {
+        for (Geometry band : bands) {
             cancellationToken.throwIfCancellationRequested();
             result = result.difference(band);
         }
         cancellationToken.throwIfCancellationRequested();
-        return lineMerge(result, geometryFactory);
+        return lineMerge(result, factory);
+    }
+
+    private static void validateRectangularGaps(Geometry remaining, GapPattern pattern) {
+        int expected = switch (pattern) {
+            case NONE -> 1;
+            case LR, TB -> 2;
+            case FOUR, TWO_LR, TWO_TB -> 4;
+            case EIGHT -> 8;
+        };
+        if (remaining.isEmpty() || remaining.getNumGeometries() != expected) {
+            throw new IllegalArgumentException("Nao foi possivel preservar todos os gaps retangulares. "
+                    + "Reduza a margem/largura ou use gaps manuais.");
+        }
+        for (int i = 0; i < remaining.getNumGeometries(); i++) {
+            if (remaining.getGeometryN(i) instanceof LineString line && line.isClosed()) {
+                throw new IllegalArgumentException("O padrao de gaps deixou um contorno fechado sem bridges.");
+            }
+        }
+    }
+
+    private static List<Geometry> automaticGapBands(Geometry outline, Envelope sourceBounds,
+                                                     CutoutParameters params, double halfGap,
+                                                     GeometryFactory factory) {
+        Envelope span = outline.getEnvelopeInternal();
+        // ToolCutOut.cutout_rect_handler uses ORIGINAL bounds for placement:
+        // center += margin, quarter spacing = (source dimension + 2 * margin) / 4.
+        // Extend only the band's transverse span to the actual buffered outline.
+        // The legacy source-bounds span may miss both edges when margin > gap / 2.
+        // Freeform keeps its existing placement pending a separate oracle comparison.
+        Envelope placement = params.shape() == CutoutShape.RECTANGULAR ? sourceBounds : span;
+        double margin = params.shape() == CutoutShape.RECTANGULAR ? params.margin() : 0;
+        return buildGapBands(span, placement, margin, params.gapPattern(), halfGap, factory);
     }
 
     /** See {@link GapPattern}'s class doc for why LR/TB are one full-span band each, not two. */
-    private static List<Geometry> buildGapBands(Envelope envelope, GapPattern pattern, double halfGap, GeometryFactory geometryFactory) {
-        double centerX = (envelope.getMinX() + envelope.getMaxX()) / 2.0;
-        double centerY = (envelope.getMinY() + envelope.getMaxY()) / 2.0;
-        double quarterWidth = envelope.getWidth() / 4.0;
-        double quarterHeight = envelope.getHeight() / 4.0;
+    private static List<Geometry> buildGapBands(Envelope envelope, Envelope placement, double margin,
+                                                GapPattern pattern, double halfGap, GeometryFactory geometryFactory) {
+        double centerX = (placement.getMinX() + placement.getMaxX()) / 2.0 + margin;
+        double centerY = (placement.getMinY() + placement.getMaxY()) / 2.0 + margin;
+        double quarterWidth = (placement.getWidth() + 2 * margin) / 4.0;
+        double quarterHeight = (placement.getHeight() + 2 * margin) / 4.0;
 
         List<Geometry> bands = new ArrayList<>();
         switch (pattern) {

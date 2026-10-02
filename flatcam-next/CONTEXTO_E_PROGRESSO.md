@@ -10,8 +10,10 @@ e continuar a migração sem recomeçar a investigação.
 > (opções ainda parciais), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0 e nas entregas de 2026-10-02 ao final do documento. A suíte tem **779 testes**
-> (514 `flatcam-cam`, 114 `flatcam-application`, 151 `flatcam-fx`), sem falhas; 11 ficam ignorados
+> na seção 9.0 e nas entregas de 2026-10-02 ao final do documento. A suíte tem **787 testes**
+> (521 `flatcam-cam`, 114 `flatcam-application`, 152 `flatcam-fx`). A execução funcional mais recente
+> passou com limpeza automática TempDir desativada; o modo normal encontrou erros de limpeza Windows
+> (veja a seção 3 e a última entrega). 11 ficam ignorados
 > porque dependem de fixtures/artefatos opcionais indicados por propriedades ou
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
@@ -80,7 +82,7 @@ separação.
 
 ### Verificação mais recente
 
-Em 2026-10-02, `mvnw.cmd -q install` completo (três módulos com JDK 25.0.4.1 e JavaFX 25.0.4) passa com
+Na entrega anterior de 2026-10-02, `mvnw.cmd -q install` completo (três módulos com JDK 25.0.4.1 e JavaFX 25.0.4) passou com
 **779 testes registrados**: 514 em `flatcam-cam`, 114 em `flatcam-application` e 151 em `flatcam-fx`;
 768 executados, 0 falhas, 0 erros e
 11 ignorados (fixtures opcionais de `PythonProjectWriterTest`, `NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
@@ -89,6 +91,19 @@ registra intencionalmente uma `IllegalStateException: boom` ao testar propagaç�
 imprime "Job failed"; esses logs, isoladamente, não representam falha da suíte. O smoke visual anterior
 com `javafx:run` no Java 25 passou (20 s sem exceções). No incremento de pós-processadores, controles
 de Geometry foram verificados na thread FX sem abrir janela; teste manual da tela completa permanece pendente.
+
+**Continuação mais recente:** 787 registrados (521 CAM, 114 application, 152 FX),
+776 aprovados, 11 ignorados, zero erros/falhas de asserções na execução com
+`junit.jupiter.tempdir.cleanup.mode.default=NEVER` e TempDir em `target/junit-temp-parity`
+(via `-DargLine=-Djava.io.tmpdir=CAMINHO_ABSOLUTO`). O install nesse modo passou;
+os temporários são conservados, não se modificou a configuração permanente de testes.
+Quatro tentativas do install normal falharam exclusivamente na limpeza TempDir:
+DirectoryNotEmptyException no diretório raiz, em testes diferentes; os diretórios
+já não existiam na inspeção posterior. Trocar a pasta temporária não resolveu.
+A causa Windows/JDK/JUnit ainda não foi determinada e **o build normal não está
+declarado aprovado**. O núcleo CAM passou com limpeza normal. Corrigir/verificar
+essa infraestrutura é pendência separada, sem esconder exceções nem desativar
+asserções ou pular testes funcionais.
 
 Há testes automatizados de controles JavaFX na thread FX, incluindo persistência CNC e Tools Database,
 mas não uma suíte end-to-end completa da janela. Painéis, `MainWindow` e `PlotAreaView` também são validados por
@@ -2142,3 +2157,29 @@ testes Python do harness passaram. Critérios numéricos não foram relaxados.
 Standard/Paint ainda divergem após erosões sucessivas: investigar a diferença
 geométrica entre kernels, sem afirmar causa definitiva ou mascarar com IoU.
 Arquivos privados somente em target/. Nenhuma modificação do oráculo Python.
+
+## Continuação 2: Cutout retangular, Thin e M-Bites — 2026-10-02
+
+Posições retangulares usam centro da origem + margem e quartos baseados na
+dimensão original + duas margens, sem raio da fresa no espaçamento. Thin e
+M-Bites compartilham essa referência. Bandas atravessam o contorno inteiro com
+margem alta; se o padrão perder pontes ou consumir o caminho, geração recusada.
+Thin é extraído diretamente das máscaras, eliminando segmentos espúrios por
+roundoff de diferenças entre contornos recortados em cantos arredondados.
+Parâmetros não finitos/modos nulos recusados; tooltips ricos/acessíveis explicam
+posicionamento, largura, modos e limitações. Gaps manuais permanecem substitutos
+do padrão. Free-form e gap zero ainda têm diferenças explícitas em CUTOUT.md.
+
+Comparação completa com o projeto privado decodificado independentemente e
+Shapely 1.8.5.post1 isolado: sete MATCH_SAMPLED, três DIFFERENT, zero erros do
+oráculo. Cutout quatro gaps/margem 1 mm passa: maior distância amostrada
+0,00177 mm (antes 1 mm), IoU 99,99329% (antes 96,96954%). NCC Standard, Seed e
+Paint Standard continuam divergentes; strict retorna 1. Cobre igual em área e
+dez G-codes interpretados pelo Python. Não é paridade exata/global, benchmark
+de desempenho ou validação física. Sete testes Python do harness passaram.
+Cinco smoke tests CAM com o projeto real passaram separadamente após o install.
+
+Próximos passos: investigar buffers Standard/Paint e centros/arcos Seed,
+comparar Free-form/Thin/M-Bites com o Python, ampliar Rest/Connect/referências;
+resolver separadamente a limpeza TempDir Windows. Suíte funcional conforme a
+ressalva da seção 3; validação visual manual permanece pendente.

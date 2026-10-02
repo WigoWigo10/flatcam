@@ -94,7 +94,7 @@ métodos, além dos casos
 reais opcionais. Cálculo continua no worker existente. A precisão pode aumentar
 o custo geométrico; não foi medido ganho de desempenho.
 
-## Resultado no projeto real autorizado — 2026-10-02
+## Resultado inicial no projeto real autorizado — 2026-10-02 (9e216530)
 
 Python 3.11.0 com Shapely 1.8.5.post1 isolado: **6 casos atendem aos critérios,
 4 permanecem diferentes, nenhuma exceção do oráculo**. O modo strict retorna 1,
@@ -150,3 +150,38 @@ definitiva nem removida essa divergência. O ponto está registrado no relatóri
 local, sem publicar coordenadas/geometria do projeto privado no repositório.
 Os critérios permanecem iguais, sem transformar cobertura semelhante em
 declaração de paridade exata.
+
+## Continuação: Cutout retangular com margem — 2026-10-02
+
+Os gaps retangulares agora usam a referência do handler Python: centro da origem
+somado à margem, quartos `(dimensão original + 2 × margem) / 4`, sem o raio da fresa no
+espaçamento. Thin e M-Bites acompanham essas posições. Bandas atravessam todo o
+contorno ampliado; padrões que perdem pontes solicitadas são recusados. Isso
+intencionalmente evita reproduzir a perda de bridges do legado com margem alta.
+Thin é extraído diretamente pelas máscaras, sem fragmentos espúrios de diferenças
+entre contornos recortados nos cantos arredondados. Free-form ainda não foi
+alinhado nesse aspecto. Limites e diferenças explícitas em [CUTOUT.md](CUTOUT.md).
+
+Nova comparação completa, usando o projeto original decodificado independentemente
+e Shapely 1.8.5.post1 isolado: **7 MATCH_SAMPLED, 3 DIFFERENT, zero ORACLE_ERROR**.
+Cobre continua com diferença de área zero; parser Python encontrou cortes nos dez
+G-codes. Cutout quatro gaps/margem 1 mm passou de distância amostrada 1 mm para
+**0,001770 mm**, IoU de **96,96954% para 99,99329%** e diferença relativa de
+comprimento de ~0,00110%. Isso satisfaz os critérios, não igualdade exata.
+
+NCC Standard/Paint permanecem aproximadamente 0,02059/0,02159 mm distantes nas
+amostras; Seed, 0,12928 mm, apesar do término alinhado. O modo strict continua
+retornando 1 pelas três divergências. Próximas investigações: buffers sucessivos
+de Standard e escolha do ponto interior/arcos Seed, seguidas de corpus Free-form,
+Thin/M-Bites no Python, Rest, Connect e referências.
+
+Verificação desta continuação: núcleo CAM com 521 testes aprovados em modo
+normal; execução funcional do reactor com 787 registrados, 776 aprovados e
+11 opcionais ignorados. Essa execução completa usou
+`-Djunit.jupiter.tempdir.cleanup.mode.default=NEVER` e uma pasta temporária
+local em `target/` via `argLine`: os temporários ficam preservados. O modo normal
+falhou repetidamente ao limpar diretórios temporários Windows, em testes distintos,
+sem falha nas asserções. Não foi alterada a configuração permanente nem declarada
+aprovação do build normal. Investigar essa infraestrutura separadamente.
+Cinco smoke tests CAM com o projeto real e sete testes Python do harness também
+passaram; não substituem teste visual/manual ou execução a seco na máquina.

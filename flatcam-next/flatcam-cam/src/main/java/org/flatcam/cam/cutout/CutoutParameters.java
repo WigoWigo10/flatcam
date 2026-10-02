@@ -19,10 +19,16 @@ package org.flatcam.cam.cutout;
 public record CutoutParameters(double toolDiameter, double margin, boolean convexShape, CutoutKind kind,
                                 CutoutShape shape, double gapSize, GapPattern gapPattern) {
     public CutoutParameters {
-        if (toolDiameter <= 0) {
+        java.util.Objects.requireNonNull(kind, "kind");
+        java.util.Objects.requireNonNull(shape, "shape");
+        java.util.Objects.requireNonNull(gapPattern, "gapPattern");
+        if (!Double.isFinite(toolDiameter) || toolDiameter <= 0) {
             throw new IllegalArgumentException("toolDiameter must be positive: " + toolDiameter);
         }
-        if (gapSize < 0) {
+        if (!Double.isFinite(margin)) {
+            throw new IllegalArgumentException("margin must be finite: " + margin);
+        }
+        if (!Double.isFinite(gapSize) || gapSize < 0) {
             throw new IllegalArgumentException("gapSize must not be negative: " + gapSize);
         }
         if (shape == CutoutShape.RECTANGULAR && margin < 0) {

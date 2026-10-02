@@ -2,8 +2,9 @@ package org.flatcam.cam.cutout;
 
 /**
  * appTools/ToolCutOut.py's "Gaps" combo (automatic bridge placement, keyed
- * to the outline's own bounding box - the manual click-to-place workflow is
- * a separate, not-yet-ported feature). Each pattern is one or two full-span
+ * to the original source bounds plus margin for rectangular cutouts; freeform
+ * currently uses the buffered outline bounds). Manual masks override it.
+ * Each pattern is one, two or four full-span
  * bands across the outline: a band centered on the bbox's vertical midpoint
  * spanning the full width crosses a (roughly convex) outline exactly twice -
  * once on its left side, once on its right - so LR/TB need only one band
