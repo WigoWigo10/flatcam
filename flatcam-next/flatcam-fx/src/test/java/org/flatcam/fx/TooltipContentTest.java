@@ -54,7 +54,8 @@ class TooltipContentTest {
             box.resize(300, box.prefHeight(300)); box.applyCss(); box.layout();
             assertTrue(rich.getHeight() > 80, "paragraphs must occupy multiple wrapped lines");
             Label plain = new Label();
-            ToolDescriptions.apply(plain.getProperties(), "Outra ferramenta", "Descrição simples.");
+            plain.getProperties().put(FluidTooltips.TITLE_KEY, "Outra ferramenta");
+            plain.getProperties().put(FluidTooltips.TEXT_KEY, "Descrição simples.");
             tooltips.fill(plain);
             assertFalse(rich.isVisible()); assertFalse(rich.isManaged());
             assertTrue(rich.getChildren().isEmpty());

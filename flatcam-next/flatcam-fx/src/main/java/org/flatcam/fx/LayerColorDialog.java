@@ -31,6 +31,7 @@ final class LayerColorDialog {
     static Optional<Color> show(Color currentFill) {
         Dialog<Color> dialog = new Dialog<>();
         dialog.setTitle("Definir Cor");
+        FluidTooltips.install(dialog, "Layer Color");
 
         ButtonType okType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);
@@ -52,6 +53,7 @@ final class LayerColorDialog {
     static Optional<Double> showOpacity(double currentOpacity) {
         Dialog<Double> dialog = new Dialog<>();
         dialog.setTitle("Opacidade");
+        FluidTooltips.install(dialog, "Layer Color");
 
         ButtonType okType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
         dialog.getDialogPane().getButtonTypes().addAll(okType, ButtonType.CANCEL);

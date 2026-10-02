@@ -138,6 +138,7 @@ final class CamExportDialog {
         Dialog<T> dialog = new Dialog<>();
         dialog.initOwner(owner);
         dialog.setTitle(title);
+        FluidTooltips.install(dialog, title);
         dialog.getDialogPane().getButtonTypes().addAll(
                 new ButtonType("Exportar...", ButtonBar.ButtonData.OK_DONE), ButtonType.CANCEL);
         return dialog;

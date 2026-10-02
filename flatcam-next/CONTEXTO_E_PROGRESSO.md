@@ -1863,3 +1863,39 @@ Cinco testes verificam cobertura/conteúdo e dois verificam os metadados nos con
 rótulos (inclusive inputs desabilitados), seções e ações contextuais. `install` completo:
 695 registrados, 686 executados sem falhas/erros, 9 ignorados. Os testes cobrem conteúdo e
 integração nos nós; hover/animação e menus precisam da confirmação manual no app real.
+
+### Tooltips contextuais em todo o FX (2026-10-02)
+
+O formato estruturado de `TooltipContent` agora é compartilhado por `ToolDescriptions`,
+pela Tools Database e pela adoção dos tooltips nativos pelo `FluidTooltips`. Preserva os
+textos existentes, com parágrafos, opções em negrito, unidades em destaque azul e notas
+`Atenção:`/`Integração FX:` em destaque âmbar, adaptados aos quatro temas. Não interpreta
+HTML/Markdown. Mantém os tempos/animações e o fechamento por clique, scroll e teclado.
+
+`PanelTooltips` acrescenta ajuda contextual aos formulários CAM, editores, propriedades
+dos objetos e preferências, por meio de `MainWindow.openToolPanel`/`showProperties`.
+Descreve parâmetros como profundidades, avanços, ponta V, passes, seleção de área,
+rest machining, pontes, espaçamentos, transformações e unidades especiais de calculadoras
+e QR Code. Os significados de Margin, Method e outros rótulos ambíguos dependem da ferramenta;
+os avisos de transferência da base não são reutilizados nos painéis de operação.
+
+Os rótulos oferecem ajuda mesmo com o input desabilitado. Linhas criadas dinamicamente e
+rótulos que mudam conforme o pós-processador atualizam a ajuda; trocar o input de uma linha
+não deixa sua descrição vinculada ao controle antigo. O instalador não percorre skins ou
+células virtualizadas. Tooltips nativos de células continuam sendo atualizados pelo controle.
+Botões textuais óbvios não recebem uma repetição do próprio nome; identificação de comandos
+somente com ícone e descrições de ações não óbvias são preservadas.
+
+Os diálogos de exportação Gerber/Excellon e de cor/opacidade também registram o
+`FluidTooltips` em suas próprias cenas, herdando o tema da janela quando houver owner e
+fechando o popup ao encerrar o diálogo. A ajuda distingue explicitamente L/T do Gerber
+e LZ/TZ do Excellon. Nenhuma alteração em geometria, parâmetros CAM ou formatos de projeto.
+
+Validação: nove novos testes cobrem contexto, unidades, as 24 descrições do menu Tools,
+rótulos/input desabilitado, linhas dinâmicas, troca de input, preservação de ajuda nativa,
+ações óbvias versus ícones, células e instalação em diálogos. Suíte `flatcam-fx`:
+133 registrados, 131 aprovados, 2 ignorados, zero falhas/erros. Capturas sem janela visível
+de NCC, Cutout, sondagem e exportação nos quatro temas foram inspecionadas. A suíte completa
+foi tentada também com diretório temporário isolado, mas falhou na limpeza de `@TempDir`
+(`DirectoryNotEmptyException`) em testes de persistência/CAM, sem falhas de asserção;
+essa execução não deve ser registrada como uma regressão completa aprovada.

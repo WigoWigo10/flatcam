@@ -8,7 +8,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.OverrunStyle;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TitledPane;
-import javafx.scene.control.Tooltip;
 
 /** Legacy artwork for already-functional tool/editor actions missing a graphic. */
 final class ToolPanelIcons {
@@ -111,7 +110,6 @@ final class ToolPanelIcons {
                 button.setGraphic(icon.apply(name));
                 button.setMinWidth(0);
                 button.setTextOverrun(OverrunStyle.ELLIPSIS);
-                if (button.getTooltip() == null) button.setTooltip(new Tooltip(button.getText()));
             }
         }
         if (root instanceof TitledPane pane) {

@@ -2103,6 +2103,7 @@ final class MainWindow {
         toolTab.setText(label);
         if (!content.getStyleClass().contains("tool-panel")) content.getStyleClass().add("tool-panel");
         ToolPanelIcons.decorate(content, fileName -> legacyIcon(fileName, 16));
+        PanelTooltips.install(content, label);
         ScrollPane scroll = new ScrollPane(content);
         scroll.getStyleClass().add("tool-panel-scroll");
         scroll.setFitToWidth(true);
@@ -6447,6 +6448,8 @@ final class MainWindow {
             propertiesContainer.getChildren().setAll(content);
             return;
         }
+        PanelTooltips.install(content, gerberImage != null ? "Gerber Object"
+                : excellonImage != null ? "Excellon Object" : geometry != null ? "Geometry Object" : "CNC Job Object");
         ScrollPane scroll = new ScrollPane(content);
         scroll.getStyleClass().add("object-panel-scroll");
         scroll.setFitToWidth(true);
@@ -7052,6 +7055,7 @@ final class MainWindow {
                 feedback, apply);
         panel.setPadding(new Insets(18));
         panel.setMaxWidth(460);
+        PanelTooltips.install(panel, "Preferencias");
         ScrollPane scroll = new ScrollPane(panel);
         scroll.setFitToWidth(true);
         return scroll;

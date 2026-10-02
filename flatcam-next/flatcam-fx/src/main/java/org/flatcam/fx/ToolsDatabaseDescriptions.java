@@ -1,22 +1,12 @@
 package org.flatcam.fx;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 import javafx.scene.Node;
 import javafx.scene.control.Control;
 
 /** Portuguese help based on ToolsDB2UI, with explicit FX transfer limitations. */
 final class ToolsDatabaseDescriptions {
-    // Keep emphasis restrained: parameter names, units, and distinctions that change how a value is used.
-    private static final Pattern EMPHASIS = Pattern.compile(
-            "mm/min ou in/min|mm ou in|C1 a C4|V-Dia|V-Angle|Cut Z|Shape V|Multi-Depth|Depth / Pass|"
-            + "Dwell Time|Offset Z|Custom Offset|Tool Offset|Drill Slots|Last Drill|Extra Cut Length|Extra Cut|"
-            + "Offset Value|Gap Type|Mouse Bites|M-Bites|Laser_lines|Standard|Seed|Lines|Combo|Both|Exterior|Interior|"
-            + "Climb|Conventional|Bridge|Thin|Clear|Isolation|General|Milling|Drilling|Paint|NCC|Cutout|"
-            + "Save DB|Export DB|Import DB|Ctrl\\+S|Ctrl\\+F|RPM|segundos|graus");
     private static final Set<String> TRANSFERRED = Set.of("name", "tooldia", "tool_type", "tool_target", "tol_min", "tol_max",
             "tools_iso_passes", "tools_iso_overlap", "tools_iso_isotype",
             "tools_ncc_operation", "tools_ncc_overlap", "tools_ncc_method", "tools_ncc_connect", "tools_ncc_contour",
@@ -119,33 +109,11 @@ final class ToolsDatabaseDescriptions {
     }
 
     static TooltipContent content(String text) {
-        List<TooltipContent.Span> spans = new ArrayList<>();
-        // New paragraphs separate explanation, usage, and the two kinds of additional notes.
-        String readable = text.replaceAll("(?<=\\.) (?=\\p{Lu})", "\n\n");
-        String[] paragraphs = readable.split("\n\n", -1);
-        for (int i = 0; i < paragraphs.length; i++) {
-            if (i > 0) spans.add(new TooltipContent.Span("\n\n", TooltipContent.Style.NORMAL));
-            String paragraph = paragraphs[i];
-            int prefix = paragraph.startsWith("Integração FX:") ? "Integração FX:".length()
-                    : paragraph.startsWith("Unidades:") ? "Unidades:".length() : 0;
-            if (prefix > 0) spans.add(new TooltipContent.Span(paragraph.substring(0, prefix),
-                    paragraph.startsWith("Integração FX:") ? TooltipContent.Style.NOTE : TooltipContent.Style.ACCENT));
-            var matches = EMPHASIS.matcher(paragraph);
-            int cursor = prefix;
-            while (matches.find()) {
-                if (matches.start() < cursor) continue;
-                if (matches.start() > cursor) spans.add(new TooltipContent.Span(paragraph.substring(cursor, matches.start()), TooltipContent.Style.NORMAL));
-                spans.add(new TooltipContent.Span(matches.group(), TooltipContent.Style.BOLD));
-                cursor = matches.end();
-            }
-            if (cursor < paragraph.length()) spans.add(new TooltipContent.Span(paragraph.substring(cursor), TooltipContent.Style.NORMAL));
-        }
-        return new TooltipContent(spans);
+        return TooltipContent.describe(text);
     }
 
     static void apply(Map<Object, Object> properties, String title, String text) {
         ToolDescriptions.apply(properties, title, text);
-        properties.put(FluidTooltips.CONTENT_KEY, content(text));
     }
 
     static void apply(Node node, String title, String text) {

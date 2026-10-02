@@ -15,6 +15,8 @@ import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Cell;
 import javafx.scene.control.Control;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
@@ -48,6 +50,7 @@ final class FluidTooltips {
     static final String TEXT_KEY = "fx.tip.text";
     static final String CONTENT_KEY = "fx.tip.content";
     private static final String INSTALLED_KEY = "fx.tip.installed";
+    private static final String SCENE_KEY = "fx.tip.handler";
 
     private static final double SHOW_DELAY_MS = 450;
     private static final double WARM_DELAY_MS = 60;
@@ -78,6 +81,7 @@ final class FluidTooltips {
     FluidTooltips(Scene scene, Supplier<ThemeOption> theme) {
         this.scene = scene;
         this.theme = theme;
+        scene.getProperties().put(SCENE_KEY, this);
         title.setWrapText(true);
         title.setMaxWidth(MAX_WIDTH);
         body.setWrapText(true);
@@ -166,7 +170,7 @@ final class FluidTooltips {
     }
 
     /** The nearest node at or above {@code node} with a tip; a plain JavaFX tooltip is adopted on the way. */
-    private Node ownerOf(Node node) {
+    Node ownerOf(Node node) {
         for (Node current = node; current != null; current = current.getParent()) {
             if (current.getProperties().containsKey(TEXT_KEY)) {
                 return current;
@@ -175,13 +179,44 @@ final class FluidTooltips {
                 Tooltip tooltip = control.getTooltip();
                 String text = tooltip.getText();
                 if (text != null && !text.isBlank()) {
-                    control.getProperties().put(TEXT_KEY, text);
+                    // Labeled buttons do not need a second copy of their visible name; icon-only commands do.
+                    if (control instanceof Button button && text.equals(button.getText())) {
+                        control.setTooltip(null);
+                        continue;
+                    }
+                    Object authoredTitle = control.getProperties().get(TITLE_KEY);
+                    ToolDescriptions.apply(control.getProperties(), authoredTitle == null ? "" : authoredTitle.toString(), text);
+                    control.setAccessibleHelp(text);
                     control.setTooltip(null);
                     return control;
                 }
             }
         }
         return null;
+    }
+
+    /** Dialogs have their own scenes; use the same animation and live theme as their owner. */
+    static void install(Dialog<?> dialog, String context) {
+        var previousShown = dialog.getOnShown();
+        dialog.setOnShown(event -> {
+            if (previousShown != null) previousShown.handle(event);
+            PanelTooltips.install(dialog.getDialogPane().getContent(), context);
+            Scene dialogScene = dialog.getDialogPane().getScene();
+            if (dialogScene.getProperties().containsKey(SCENE_KEY)) return;
+            Scene ownerScene = dialog.getOwner() == null ? null : dialog.getOwner().getScene();
+            FluidTooltips ownerHandler = ownerScene == null ? null
+                    : (FluidTooltips) ownerScene.getProperties().get(SCENE_KEY);
+            if (ownerScene != null) dialogScene.getStylesheets().setAll(ownerScene.getStylesheets());
+            new FluidTooltips(dialogScene, ownerHandler == null
+                    ? () -> AppPreferences.loadTheme(ThemeOption.CLASSIC_LIGHT) : ownerHandler.theme);
+        });
+        var previousHidden = dialog.getOnHidden();
+        dialog.setOnHidden(event -> {
+            Scene dialogScene = dialog.getDialogPane().getScene();
+            if (dialogScene != null && dialogScene.getProperties().get(SCENE_KEY) instanceof FluidTooltips handler)
+                handler.closeNow();
+            if (previousHidden != null) previousHidden.handle(event);
+        });
     }
 
     private void enter(Node node, boolean beside) {

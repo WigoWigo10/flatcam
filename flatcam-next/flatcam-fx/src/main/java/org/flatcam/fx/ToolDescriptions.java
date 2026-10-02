@@ -83,8 +83,7 @@ final class ToolDescriptions {
     static void apply(Map<Object, Object> properties, String id) {
         Description description = TOOLS.get(id);
         if (description != null) {
-            properties.put(FluidTooltips.TITLE_KEY, description.title());
-            properties.put(FluidTooltips.TEXT_KEY, description.text());
+            apply(properties, description.title(), description.text());
         }
     }
 
@@ -92,5 +91,6 @@ final class ToolDescriptions {
     static void apply(Map<Object, Object> properties, String title, String text) {
         properties.put(FluidTooltips.TITLE_KEY, title);
         properties.put(FluidTooltips.TEXT_KEY, text);
+        properties.put(FluidTooltips.CONTENT_KEY, TooltipContent.describe(text));
     }
 }
