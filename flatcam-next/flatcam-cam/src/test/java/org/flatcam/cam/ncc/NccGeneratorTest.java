@@ -29,6 +29,29 @@ class NccGeneratorTest {
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     @Test
+    void seedStopsAtTheFirstEmptyAnnulusLikePython() {
+        Geometry left = FACTORY.toGeometry(new Envelope(0, 4, 0, 4));
+        Geometry right = FACTORY.toGeometry(new Envelope(20, 22, 1, 3));
+        Geometry neck = FACTORY.toGeometry(new Envelope(3, 21, 1.9, 2.1));
+        Geometry polygon = left.union(neck).union(right);
+        PaintParameters noContour = new PaintParameters(List.of(0.5), 0.4, 0,
+                NccMethod.SEED, false, false, NccOrder.NONE, false);
+        NccResult result = NccGenerator.paint("MM", polygon, noContour,
+                CancellationToken.none(), fraction -> { });
+
+        assertFalse(result.isEmpty());
+        assertTrue(result.geometry().getEnvelopeInternal().getMaxX() < 4,
+                "The narrow neck erodes away: expanding rings must stop before the remote island");
+
+        PaintParameters contour = new PaintParameters(List.of(0.5), 0.4, 0,
+                NccMethod.SEED, false, true, NccOrder.NONE, false);
+        NccResult withContour = NccGenerator.paint("MM", polygon, contour,
+                CancellationToken.none(), fraction -> { });
+        assertTrue(withContour.geometry().getEnvelopeInternal().getMaxX() > 21,
+                "Contour still includes every eroded component, independently of the ring stop");
+    }
+
+    @Test
     void allLegacyStrategiesProduceSafeToolpaths() {
         Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
         for (NccMethod method : NccMethod.values()) {

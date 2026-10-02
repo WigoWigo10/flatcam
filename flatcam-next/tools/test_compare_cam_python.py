@@ -3,10 +3,19 @@ import unittest
 from pathlib import Path
 
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, Polygon, box
-from compare_cam_python import compile_rectangular_handler, leaves, lines, metrics, overlay, sampled_distance
+from compare_cam_python import compile_rectangular_handler, leaves, lines, metrics, overlay, sampled_distance, sampled_witness
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_witness_identifies_actual_point_and_nearest_counterpart(self):
+        a = LineString([(0, 0), (10, 0)])
+        b = LineString([(0, 1), (10, 1)])
+        witness = sampled_witness(a, b)
+        self.assertEqual("FX", witness["side"])
+        self.assertEqual([0, 0], witness["point"])
+        self.assertEqual([0, 1], witness["nearest"])
+        self.assertEqual(1, witness["distance"])
+
     def test_actual_nested_handler_keeps_live_bindings_and_uses_original_helpers(self):
         root = Path(__file__).resolve().parents[2]
         if not (root / "appTools" / "ToolCutOut.py").is_file():

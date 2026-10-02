@@ -397,7 +397,9 @@ public final class NccGenerator {
                     .buffer(radius, QUADRANT_SEGMENTS).getBoundary().intersection(safeArea);
             if (!ring.isEmpty()) {
                 collectLines(ring, paths);
-            } else if (radius > farthest) {
+            } else {
+                // clear_polygon2 stops at the first ring outside the eroded area.
+                // Do not jump across an empty annulus to disconnected remnants.
                 break;
             }
         }

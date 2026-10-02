@@ -37,12 +37,22 @@ def lines(geometry):
     return result
 
 
+def sampled_witness(a, b, count=512):
+    """Worst sampled point and nearest counterpart, for reproducible mismatch diagnosis."""
+    from shapely.ops import nearest_points
+    candidates = []
+    for side, source, target in (("FX", a, b), ("Python", b, a)):
+        points = (source.interpolate(i / count, normalized=True) for i in range(count + 1))
+        point = max(points, key=lambda p: p.distance(target))
+        other = nearest_points(point, target)[1]
+        candidates.append({"side": side, "point": list(point.coords[0]),
+                           "nearest": list(other.coords[0]), "distance": point.distance(other)})
+    return max(candidates, key=lambda item: item["distance"])
+
+
 def sampled_distance(a, b, count=512):
     """Symmetric SAMPLE distance, not exact Hausdorff and not a proof of safety."""
-    def directional(source, target):
-        return max(source.interpolate(i / count, normalized=True).distance(target)
-                   for i in range(count + 1))
-    return max(directional(a, b), directional(b, a))
+    return sampled_witness(a, b, count)["distance"]
 
 
 def metrics(fx, python, tolerance, diameter=None):
@@ -50,10 +60,11 @@ def metrics(fx, python, tolerance, diameter=None):
         raise ValueError("Empty output cannot establish parity")
     length_delta = abs(fx.length - python.length) / max(fx.length, python.length)
     bounds_delta = max(abs(a - b) for a, b in zip(fx.bounds, python.bounds))
-    distance = sampled_distance(fx, python)
+    witness = sampled_witness(fx, python)
+    distance = witness["distance"]
     result = {"fxLength": fx.length, "pythonLength": python.length,
             "relativeLengthDelta": length_delta, "boundsMaxDelta": bounds_delta,
-            "sampledDistance": distance, "distanceSamplesPerDirection": 513,
+            "sampledDistance": distance, "distanceWitness": witness, "distanceSamplesPerDirection": 513,
             "tolerance": tolerance, "relativeLengthTolerance": 0.001,
             "matchesSampledCriteria": length_delta <= .001 and bounds_delta <= tolerance
                                        and distance <= tolerance}
@@ -197,6 +208,12 @@ def run(args):
         raise ValueError("Invalid or duplicate case identifiers")
     if any(not math.isfinite(case["diameter"]) or case["diameter"] <= 0 for case in export["cases"]):
         raise ValueError("Invalid tool diameter")
+    cases = export["cases"]
+    if args.cases:
+        requested = set(args.cases.split(","))
+        if not requested.issubset(identifiers):
+            raise ValueError("Unknown requested case identifiers")
+        cases = [case for case in cases if case["id"] in requested]
     fx_copper = wkt.loads(export["sourceWkt"])
     copper = fx_copper
     source_delta = 0
@@ -223,10 +240,11 @@ def run(args):
                                      for path in (Path("camlib.py"), Path("appTools/ToolCutOut.py"),
                                                   Path("appTools/ToolIsolation.py"), Path("appTools/ToolNCC.py"))},
               "scope": "Headless numerical sampling, not full UI/physical validation; no oracle patches",
+              "selectedCases": [case["id"] for case in cases],
               "cases": []}
     cards = []
     handler_cache = {}
-    for case in export["cases"]:
+    for case in cases:
         result = {"id": case["id"], "operation": case["operation"],
                   "fxDetailedPreviewAvailable": case["fxDetailedPreviewAvailable"],
                   "fxPreviewWarning": case["fxPreviewWarning"]}
@@ -249,6 +267,8 @@ def run(args):
             if not python.is_valid or not fx.is_valid:
                 raise ValueError("Invalid output")
             result.update(extra)
+            (args.output / (case["id"] + ".python.wkt")).write_text(python.wkt, encoding="utf-8")
+            (args.output / (case["id"] + ".fx.wkt")).write_text(fx.wkt, encoding="utf-8")
             result.update(metrics(fx, python, tolerance, case["diameter"]))
             result["status"] = "MATCH_SAMPLED" if result["matchesSampledCriteria"] else "DIFFERENT"
             # A partial legacy result is not a parity success, even when the surviving lines agree.
@@ -281,7 +301,7 @@ def run(args):
                 f'<p>{html.escape(json.dumps(counts))}</p>' + "".join(cards) + '</html>')
     (args.output / "index.html").write_text(document, encoding="utf-8")
     print(json.dumps({"counts": counts, "report": str(args.output / "index.html")}))
-    return 1 if args.strict and counts["MATCH_SAMPLED"] != len(export["cases"]) else 0
+    return 1 if args.strict and counts["MATCH_SAMPLED"] != len(cases) else 0
 
 
 def main():
@@ -292,6 +312,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--dependency-path", type=Path,
                         help="Optional isolated dependency directory; does not alter the active environment")
+    parser.add_argument("--cases", help="Optional comma-separated case IDs for focused diagnosis")
     parser.add_argument("--strict", action="store_true", help="Fail on every mismatch or legacy error")
     args = parser.parse_args()
     raise SystemExit(run(args))

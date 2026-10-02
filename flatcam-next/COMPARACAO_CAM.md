@@ -55,6 +55,13 @@ O relatório é `index.html`, com sobreposições azul (FX)/laranja (Python), m�
 JSON e G-code `.nc` para inspeção. Não execute esses arquivos diretamente na CNC:
 são exemplos de comparação, não parâmetros recomendados para sua máquina.
 
+Para investigar casos específicos, acrescente `--cases ncc-standard,ncc-seed,paint-standard`.
+O relatório registra os IDs selecionados. Cada caso também salva WKT completo
+FX/Python e `distanceWitness`: lado, ponto de maior distância **amostrada** e
+ponto mais próximo no outro caminho. Isso permite localizar a divergência sem
+alterar os critérios. Esses arquivos também contêm geometria privada e devem
+permanecer em `target/`.
+
 O checkout legado ainda possui iteração multipart incompatível com Shapely 2 em
 Seed/Lines e no segundo recorte de gaps do Cutout. É possível testar uma biblioteca
 legada em pasta isolada, sem alterar `.venv` ou os algoritmos Python:
@@ -126,3 +133,20 @@ Próximos casos do corpus: Rest/múltiplas ferramentas, Connect, referências/á
 Follow/exceções, free-form/Thin/M-Bites e IN real; comparar movimentos/alturas CNC
 e validar a interação dos painéis no aplicativo. Prévia detalhada editada mantém
 o limite protetor de tamanho; o relatório registra quando ele é atingido.
+
+## Continuação: término dos anéis Seed e diagnóstico — 2026-10-02
+
+Seed agora encerra ao primeiro anel que não intersecta a região erodida, como
+`clear_polygon2`. Antes, o FX continuava expandindo e podia voltar a encontrar
+uma ilha distante depois de um anel vazio. Um teste sintético com duas regiões
+ligadas por um pescoço fino verifica o término e que Contour ainda inclui todos
+os componentes. Sem Contour, o método legado pode deixar ilhas sem preenchimento:
+escolha outro método/Confira a saída se precisar cobrir toda a região.
+
+A investigação de Standard/Paint localizou uma divergência após erosões
+sucessivas: no Paint do exemplo, um ponto do caminho FX fica aproximadamente
+0,02159 mm do Python na região da 16ª erosão. Não foi atribuída uma causa
+definitiva nem removida essa divergência. O ponto está registrado no relatório
+local, sem publicar coordenadas/geometria do projeto privado no repositório.
+Os critérios permanecem iguais, sem transformar cobertura semelhante em
+declaração de paridade exata.

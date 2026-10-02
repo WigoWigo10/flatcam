@@ -2127,3 +2127,18 @@ falhas/erros. Seis testes Python do harness e cinco smoke tests CAM no projeto r
 aprovados separadamente. Prévia detalhada atinge limite de tamanho em Isolation
 3 passes/Seed, sem retirar limites para passar no teste. COMPARACAO_CAM.md descreve
 comandos, critérios, resultados, pendências e distinção de testes headless/visuais.
+
+## Continuação 1: Seed e diagnóstico das divergências — 2026-10-02
+
+Seed encerra os anéis no primeiro resultado vazio, como clear_polygon2; antes
+o FX voltava a atingir ilhas distantes após um intervalo vazio. Teste sintético
+verifica esse término e a independência de Contour, que ainda visita todos os
+componentes erodidos. Isso não garante preenchimento completo pelo método Seed
+legado nem resolve todas as diferenças de centros/arcos do projeto real.
+
+O harness ganhou --cases, WKT completo dos dois resultados e distanceWitness
+(lado, ponto de maior distância amostrada e contraparte mais próxima). Sete
+testes Python do harness passaram. Critérios numéricos não foram relaxados.
+Standard/Paint ainda divergem após erosões sucessivas: investigar a diferença
+geométrica entre kernels, sem afirmar causa definitiva ou mascarar com IoU.
+Arquivos privados somente em target/. Nenhuma modificação do oráculo Python.
