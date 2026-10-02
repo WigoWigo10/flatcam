@@ -39,7 +39,8 @@ import org.locationtech.jts.io.WKTWriter;
  * Gerber/Excellon WKT encoding follow the Python {@code .FlatPrj} conventions,
  * and it supports plain JSON or XZ compression. This is not yet a full
  * {@code .FlatPrj} reader/writer: the native version is 2, whereas Python
- * writes 8.994. {@link PythonProjectIO} handles read-only Python imports;
+ * writes 8.994. {@link PythonProjectIO} handles Python imports and
+ * {@link PythonProjectWriter} provides a separate compatibility exporter;
  * this class accepts only native project versions 1/2.
  * CNC Job and Geometry entries are carried in a {@code "_java"} extension key a real FlatCAM
  * Python install would simply ignore (unknown top-level keys are never
@@ -48,8 +49,8 @@ import org.locationtech.jts.io.WKTWriter;
  *
  * <p>Still uses the {@code .fcnproj} extension by convention (not
  * {@code .FlatPrj}) so a file's extension keeps telling a user which app
- * saved it. A separate compatibility codec and real Python fixtures are
- * needed before advertising export of {@code .FlatPrj} files.
+ * saved it. Compatibility export is validated with the legacy Python serializers;
+ * see {@link PythonProjectWriter} for supported objects and restrictions.
  */
 public final class ProjectFileIO {
 
@@ -65,6 +66,10 @@ public final class ProjectFileIO {
     }
 
     public static void save(ProjectFile project, Path path, boolean compress) throws IOException {
+        writeRoot(toJson(project), path, compress);
+    }
+
+    static JSONObject toJson(ProjectFile project) {
         JSONArray objs = new JSONArray();
         for (ProjectFile.GerberEntry gerber : project.gerbers()) {
             objs.put(GerberFlatPrjCodec.toJson(gerber.name(), gerber.image(), gerber.fillColorWeb(),
@@ -141,6 +146,7 @@ public final class ProjectFileIO {
                 JSONObject byTool = new JSONObject();
                 settings.parametersByTool().forEach((id, p) -> byTool.put(id.toString(), geometryParametersToJson(p)));
                 geometryJson.getJSONObject("cncSettings").put("parametersByTool", byTool);
+                geometryJson.getJSONObject("cncSettings").put("singleToolProfile", settings.singleToolProfile().name());
             }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
@@ -160,6 +166,10 @@ public final class ProjectFileIO {
         javaExtra.put("geometries", geometries);
         root.put("_java", javaExtra);
 
+        return root;
+    }
+
+    static void writeRoot(JSONObject root, Path path, boolean compress) throws IOException {
         byte[] jsonBytes = root.toString().getBytes(StandardCharsets.UTF_8);
         Path destination = path.toAbsolutePath();
         Path temporary = Files.createTempFile(destination.getParent(),
@@ -187,7 +197,10 @@ public final class ProjectFileIO {
     public static ProjectFile load(Path path) throws IOException {
         byte[] raw = Files.readAllBytes(path);
         JSONObject root = parseRoot(raw);
+        return fromJson(root);
+    }
 
+    static ProjectFile fromJson(JSONObject root) throws IOException {
         int version = root.optInt("version", -1);
         if (version == LEGACY_V1_VERSION) {
             return loadLegacyV1(root);
@@ -306,7 +319,8 @@ public final class ProjectFileIO {
             tips.put(Integer.parseInt(id), new VTipSettings(tip.getDouble("tipDiameter"), tip.getDouble("angleDegrees")));
         }
         return new GeometryCncSettings(GCodePreprocessor.valueOf(json.getString("preprocessor")),
-                optionalDouble(json, "singleToolDiameter"), tips, readGeometryToolParameters(json.optJSONObject("parametersByTool")));
+                optionalDouble(json, "singleToolDiameter"), tips, readGeometryToolParameters(json.optJSONObject("parametersByTool")),
+                ToolProfile.fromLegacy(json.optString("singleToolProfile","C1")));
     }
 
     private static Map<Integer, GeometryGCodeParameters> readGeometryToolParameters(JSONObject values) {

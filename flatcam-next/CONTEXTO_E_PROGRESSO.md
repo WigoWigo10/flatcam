@@ -1905,6 +1905,25 @@ foi tentada também com diretório temporário isolado, mas falhou na limpeza de
 essa execução não deve ser registrada como uma regressão completa aprovada.
 # Série de paridade — 2026-10-02
 
+Etapa 4: exportação Python 8.994 `.FlatPrj` (JSON/XZ) no diálogo Salvar Projeto,
+além do formato nativo. Gerber/Excellon/Geometry/CNCJob ficam em `objs`; parâmetros
+CNC nativos são complementados por metadados privados. Reimportação de arquivo
+reserializado pelo Python recupera parâmetros por ferramenta e ponta V disponíveis.
+Corrigida prioridade de unidades Excellon: coordenadas seguem `units`, não o
+cabeçalho original `excellon_units`. Fixture autorizada tinha MM/INCH discordantes.
+Validação headless com os serializadores/parsers reais Python 3.11 e Shapely 2.1.2:
+18 objetos do projeto real aprovados, além de exemplo JSON/XZ e reabertura FX após
+reeserialização Python. Original preservado; artefatos privados somente em target.
+Limitações e comandos em COMPATIBILIDADE_FLATPRJ.md. Sem declaração de paridade
+integral ou validação visual da janela Python.
+
+Regressão final da série: `mvnw.cmd -q test` concluído com sucesso, 727 testes
+registrados (716 aprovados, 11 ignorados), zero falhas/erros. CAM: 483; Application:
+108 (9 ignorados); FX: 136 (2 ignorados). Houve tentativas anteriores com erro de
+limpeza de temporários Windows, sem falha de asserção; a repetição final completa
+passou sem desabilitar a limpeza. Testes opcionais com o projeto real e com o
+arquivo reserializado pelo Python também executados e aprovados separadamente.
+
 Etapa 3: Geometry/CNC possui parâmetros individuais por linha e Aplicar a todas.
 Edições inválidas não desaparecem ao trocar a seleção; todas as linhas são validadas.
 Inclui Feedrate Z distinto de XY, dwell após ligar spindle e Extra Cut em caminhos

@@ -20,7 +20,7 @@ import org.json.JSONObject;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 
-/** Conservative, read-only import of FlatCAM Python 8.9xx .FlatPrj files. */
+/** Import of FlatCAM Python 8.9xx .FlatPrj files, including FX compatibility exports. */
 public final class PythonProjectIO {
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
@@ -31,6 +31,16 @@ public final class PythonProjectIO {
         double version = root.optDouble("version", Double.NaN);
         if (!Double.isFinite(version) || version < 8.9 || version >= 9.0)
             throw new IOException("Versao FlatCAM Python nao suportada: " + version);
+        if (root.optInt("_fx_format", 0) == 1 && root.optJSONObject("_java") != null) {
+            JSONArray encoded = root.getJSONArray("objs");
+            for (int i = 0; i < encoded.length(); i++) {
+                JSONObject object = encoded.getJSONObject(i), extra = object.optJSONObject("_java");
+                if (extra != null && extra.has("fxOriginalFill"))
+                    object.put("fill_color",extra.get("fxOriginalFill")).put("outline_color",extra.get("fxOriginalStroke"));
+            }
+            root.put("version", 2);
+            return ProjectFileIO.fromJson(root);
+        }
         JSONArray objects = root.optJSONArray("objs");
         if (objects == null) throw new IOException("Projeto Python sem lista de objetos.");
 
@@ -127,7 +137,30 @@ public final class PythonProjectIO {
         return new ProjectFile.GeometryEntry(name, "", object.optString("units", "MM"),
                 geometry, geometry.getDimension() < 2, List.copyOf(tools),
                 object.optString("fill_color", null), object.optString("outline_color", null), plot(object),
-                readGeometryCncDefaults(toolJson));
+                readGeometryCncDefaults(toolJson), readGeometrySettings(toolJson));
+    }
+
+    private static GeometryCncSettings readGeometrySettings(JSONObject tools) {
+        if (tools == null || tools.isEmpty()) return null;
+        List<String> ids = new ArrayList<>(tools.keySet()); ids.sort(Comparator.comparingInt(Integer::parseInt));
+        Map<Integer, GeometryGCodeParameters> parameters = new LinkedHashMap<>();
+        Map<Integer, org.flatcam.cam.gcode.VTipSettings> tips = new LinkedHashMap<>();
+        org.flatcam.cam.gcode.GCodePreprocessor profile = org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE;
+        for (int i = 0; i < ids.size(); i++) {
+            JSONObject tool = tools.getJSONObject(ids.get(i)), data = tool.optJSONObject("data");
+            if (data == null) continue;
+            GeometryGCodeParameters p = readMachiningData(data);
+            if (p != null) parameters.put(i,p);
+            String name = data.optString("ppname_g", "");
+            if (i == 0) for (var candidate : org.flatcam.cam.gcode.GCodePreprocessor.geometryProfiles())
+                if (PythonProjectWriter.pythonProfile(candidate).equalsIgnoreCase(name) && !candidate.requiresProbe()) profile = candidate;
+            if (ToolProfile.fromLegacy(tool.optString("tool_type","C1")) == ToolProfile.V) try {
+                var tip = new org.flatcam.cam.gcode.VTipSettings(data.getDouble("vtipdia"),data.getDouble("vtipangle"));
+                tip.cutDepth(tool.getDouble("tooldia")); tips.put(i,tip);
+            } catch (RuntimeException invalid) { /* Optional tip does not discard paths. */ }
+        }
+        if (readGeometryCncDefaults(tools) == null) return null;
+        return new GeometryCncSettings(profile,null,tips,parameters);
     }
 
     private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject tools) {
@@ -137,12 +170,18 @@ public final class PythonProjectIO {
         JSONObject first = tools.getJSONObject(ids.get(0));
         JSONObject data = first.optJSONObject("data");
         if (data == null) return null;
+        return readMachiningData(data);
+    }
+
+    private static GeometryGCodeParameters readMachiningData(JSONObject data) {
         try {
             return new GeometryGCodeParameters(data.getDouble("travelz"),
                     Math.abs(data.getDouble("cutz")), data.optBoolean("multidepth", false),
                     data.optDouble("depthperpass", 0), data.getDouble("feedrate"),
                     data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false),
-                    data.optDouble("feedrate_rapid", 0));
+                    data.optDouble("feedrate_rapid", 0), null, data.optDouble("feedrate_z",data.getDouble("feedrate")),
+                    data.optBoolean("dwell",false), data.optDouble("dwelltime",0),
+                    data.optBoolean("extracut",false), data.optDouble("extracut_length",0));
         } catch (RuntimeException invalid) {
             // Optional CAM settings must not make otherwise valid project geometry disappear.
             return null;

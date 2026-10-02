@@ -5,17 +5,24 @@ import java.util.Objects;
 import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.geometry.ToolProfile;
 
 /** Profile and tool settings supplementing GeometryGCodeParameters in the native project. */
 public record GeometryCncSettings(GCodePreprocessor preprocessor, Double singleToolDiameter,
                                   Map<Integer, VTipSettings> vTools,
-                                  Map<Integer, GeometryGCodeParameters> parametersByTool) {
+                                  Map<Integer, GeometryGCodeParameters> parametersByTool,
+                                  ToolProfile singleToolProfile) {
+    public GeometryCncSettings(GCodePreprocessor preprocessor, Double singleToolDiameter,
+                              Map<Integer, VTipSettings> vTools, Map<Integer, GeometryGCodeParameters> parametersByTool) {
+        this(preprocessor, singleToolDiameter, vTools, parametersByTool, ToolProfile.C1);
+    }
     public GeometryCncSettings(GCodePreprocessor preprocessor, Double singleToolDiameter,
                               Map<Integer, VTipSettings> vTools) {
         this(preprocessor, singleToolDiameter, vTools, Map.of());
     }
     public GeometryCncSettings {
         Objects.requireNonNull(preprocessor, "preprocessor");
+        Objects.requireNonNull(singleToolProfile, "singleToolProfile");
         vTools = Map.copyOf(vTools);
         parametersByTool = Map.copyOf(parametersByTool);
         if (parametersByTool.keySet().stream().anyMatch(id -> id < 0))

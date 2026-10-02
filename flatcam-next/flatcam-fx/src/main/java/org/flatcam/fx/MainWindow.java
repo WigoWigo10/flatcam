@@ -81,6 +81,7 @@ import org.flatcam.app.project.DrillCncSettings;
 import org.flatcam.app.project.GeometryCncSettings;
 import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
+import org.flatcam.app.project.PythonProjectWriter;
 import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.ToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
@@ -6354,9 +6355,10 @@ final class MainWindow {
                     CncJobResult job = generated.job();
                     if (geometryByItem.get(item) == entry) {
                         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
-                                entry.strokeOnly(), result.tools(), result.parameters()));
+                                entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters()));
                         geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
-                                null, result.vTools(), result.parametersByTool()));
+                                entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
+                                result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
                     }
                     AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
                     appendConsole("G-code de Geometry salvo em " + outFile
@@ -7690,7 +7692,8 @@ final class MainWindow {
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"));
+        chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
+                new FileChooser.ExtensionFilter("Projeto FlatCAM Python 8.994 (compatibilidade)", "*.FlatPrj"));
         String fallbackDir = Path.of("").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -7700,10 +7703,9 @@ final class MainWindow {
         if (file == null) {
             return;
         }
-        if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")) {
-            appendConsole("Salvar no formato .FlatPrj do Python ainda nao e suportado. Use .fcnproj.");
-            return;
-        }
+        boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
+        if (pythonFormat) appendConsole("Exportacao Python 8.994: preserva geometria e G-code suportado. "
+                + "Preferencias globais e recursos exclusivos FX nao tem equivalencia completa no Python; mantenha tambem uma copia .fcnproj.");
 
         beginJob("Salvando projeto " + file.getName() + "...");
         // Serialization and XZ compression can take time now that Gerber
@@ -7713,7 +7715,8 @@ final class MainWindow {
         cancelJobButton.setDisable(true);
         JobHandle<Path> handle = jobExecutor.submit(context -> {
             context.reportProgress(Double.NaN, "Serializando projeto...");
-            ProjectFileIO.save(project, file.toPath());
+            if (pythonFormat) PythonProjectWriter.save(project, file.toPath());
+            else ProjectFileIO.save(project, file.toPath());
             context.reportProgress(1, "Projeto salvo.");
             return file.toPath();
         }, (fraction, message) -> Platform.runLater(() -> {

@@ -19,9 +19,11 @@ final class DatabaseToolPicker {
         Button load = new Button("Pick from DB");
         load.setId(id + "-load");
         load.setMaxWidth(Double.MAX_VALUE);
+        ToolsDatabaseDescriptions.apply(load, "Tools Database", "Carrega ferramentas compativeis da base aberta ou de um arquivo. Selecione uma ferramenta e use Aplicar para transferir; carregar nao modifica parametros CAM.");
         Button apply = new Button("Aplicar ferramenta da base");
         apply.setId(id + "-apply");
         apply.setMaxWidth(Double.MAX_VALUE);
+        ToolsDatabaseDescriptions.apply(apply, "Transferir ferramenta", "Transfere somente os campos suportados para este formulario. Confira a unidade e revise os valores antes de gerar caminhos ou G-code. Esta acao nao altera o arquivo da base.");
         apply.disableProperty().bind(choices.valueProperty().isNull());
         load.setOnAction(event -> {
             try {

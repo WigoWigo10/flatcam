@@ -29,7 +29,7 @@ final class ToolsDatabaseDescriptions {
             case "tooldia" -> "Diâmetro de corte da ferramenta, maior que zero. Para Shape V, é calculado ao aplicar alterações em V-Dia, V-Angle ou Cut Z.";
             case "tol_min" -> "Limite inferior absoluto do intervalo de diâmetros aceito na busca de brocas. Não é uma tolerância ±. Exemplo: Min = 0,78 e Max = 0,82 aceita brocas nesse intervalo. O diâmetro exato tem prioridade.";
             case "tol_max" -> "Limite superior do intervalo de diâmetros aceito na busca de brocas; deve ser maior ou igual a Min. O intervalo só é usado quando Max > Min; resultados ambíguos são recusados.";
-            case "tool_target" -> "Define a operação à qual a ferramenta se destina: General, Milling, Drilling, Isolation, Paint, NCC ou Cutout. General é elegível para as três buscas CAM já integradas ao FX. A seleção também determina as seções exibidas.";
+            case "tool_target" -> "Define a operação: General, Milling, Drilling, Isolation, Paint, NCC ou Cutout. General participa de todas as buscas integradas; opções incompatíveis são recusadas. A seleção também determina as seções exibidas.";
             case "tool_type" -> "Formato da ferramenta:\nC1 a C4 = fresa circular com 1 a 4 cortes.\nB = ponta esférica.\nV = ponta em V.\n\nAo escolher V, V-Dia, V-Angle e Cut Z determinam o diâmetro efetivo.";
             case "vtipdia" -> "Diâmetro da ponta da ferramenta em V, não negativo. Disponível para Shape V; participa do cálculo do diâmetro de corte.";
             case "vtipangle" -> "Ângulo total da ponta da ferramenta em V, em graus, entre 0 e 180 (sem incluir os extremos). Participa do cálculo do diâmetro na profundidade Cut Z.";
@@ -78,6 +78,7 @@ final class ToolsDatabaseDescriptions {
             case "tools_cutout_mb_spacing" -> "Espaço entre as bordas dos furos Mouse Bites. No Python, o passo entre centros é o diâmetro mais esse valor. Só fica habilitado com Gap Type M-Bites.";
             default -> throw new IllegalArgumentException("Sem tooltip para " + field.key());
         };
+        if ("tools_paint_method".equals(field.key())) body += "\n\nIntegração FX: transfere Standard, Seed, Lines e Combo; Laser Lines continua não suportado.";
         if (LINEAR.contains(field.key())) body += "\n\nUnidades: valor na unidade do trabalho (mm ou in); a base não converte unidades automaticamente.";
         if (!TRANSFERRED.contains(field.key())) body += "\n\nIntegração FX: este parâmetro é salvo na base, mas sua transferência para o CAM ainda não está implementada.";
         return body;
@@ -100,12 +101,12 @@ final class ToolsDatabaseDescriptions {
     static String groupText(ToolsDatabaseFields.Group group) {
         return switch (group) {
             case DESCRIPTION -> "Identificação, diâmetro, tolerância e operação da ferramenta. Selecione apenas uma ferramenta para editar; seleção múltipla permite copiar ou excluir.";
-            case MILLING -> "Formato e parâmetros de fresagem da ferramenta. A transferência dos parâmetros de Milling da base para o CAM do FX ainda está pendente.";
+            case MILLING -> "Formato, ponta V e parâmetros CNC transferidos para Geometry/Milling. Offset ainda não é transferido; a ajuda de cada campo indica seu suporte.";
             case DRILLING -> "Parâmetros de furação, profundidade por passe, avanço, spindle e compensação Z. A ajuda de cada campo indica se ele já é transferido para o Drilling do FX.";
             case ISOLATION -> "Passes de isolamento, sobreposição, região e opções de fresagem. A ajuda de cada campo indica os parâmetros já transferidos para Isolation no FX.";
-            case PAINT -> "Parâmetros de preenchimento de polígonos. São editáveis e salvos na base; a transferência para o Paint do FX ainda está pendente.";
+            case PAINT -> "Parâmetros de preenchimento transferidos explicitamente para Paint. Aplicar substitui uma ferramenta e os parâmetros comuns; Laser Lines e ponta V não são suportados.";
             case NCC -> "Parâmetros de limpeza de cobre e isolamento. A ajuda de cada campo indica os parâmetros já transferidos para NCC no FX.";
-            case CUTOUT -> "Margem de corte e pontes Bridge, Thin ou Mouse Bites. São editáveis e salvos na base; a transferência para o Cutout do FX ainda está pendente.";
+            case CUTOUT -> "Diâmetro, margem e gaps transferidos para Cutout. Cut Z e Thin Depth continuam sendo configurados depois na Geometry; gaps manuais são preservados.";
         };
     }
 

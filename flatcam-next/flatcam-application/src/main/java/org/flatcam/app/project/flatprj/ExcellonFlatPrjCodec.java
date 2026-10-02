@@ -100,7 +100,9 @@ public final class ExcellonFlatPrjCodec {
     }
 
     public static Decoded fromJson(JSONObject json) {
-        String units = json.optString("excellon_units", json.optString("units", "MM"))
+        // Geometry coordinates are in the object's CURRENT units. The source-header
+        // excellon_units may still say INCH after Python converted the object to MM.
+        String units = json.optString("units", json.optString("excellon_units", "MM"))
                 .toUpperCase(Locale.ROOT);
         units = switch (units) {
             case "MM", "METRIC" -> "MM";

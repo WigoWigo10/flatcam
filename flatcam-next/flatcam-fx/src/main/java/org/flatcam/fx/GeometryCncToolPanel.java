@@ -70,7 +70,7 @@ final class GeometryCncToolPanel {
         List<ToolGeometry> tools = new java.util.ArrayList<>(sourceTools);
         boolean metric = "MM".equalsIgnoreCase(units);
         boolean multiTool = !tools.isEmpty();
-        var singleProfile = new javafx.beans.property.SimpleObjectProperty<>(ToolProfile.C1);
+        var singleProfile = new javafx.beans.property.SimpleObjectProperty<>(settings == null ? ToolProfile.C1 : settings.singleToolProfile());
 
         TextField toolDiaField = new TextField(format(metric ? 0.8 : 0.031));
         toolDiaField.setId("cnc-tool-dia");
