@@ -4166,6 +4166,9 @@ final class MainWindow {
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
         releaseActiveTool();
         openToolPanel("Paint Tool", PaintToolPanel.build(new PaintToolPanel.Host() {
+            @Override public List<LegacyToolsDatabase.PaintTool> databaseTools() {
+                return toolsDatabaseTools(LegacyToolsDatabase::paintTools);
+            }
             @Override
             public List<TreeItem<String>> sources() {
                 return sources;
@@ -5989,6 +5992,7 @@ final class MainWindow {
                         polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
                         onSelected, onCancelled),
                 plotAreaView::cancelPlacement,
+                () -> toolsDatabaseTools(LegacyToolsDatabase::cutoutTools),
                 result -> {
                     plotAreaView.cancelPlacement();
                     runCutoutGeneration(item, units, source, sourceAvailable, result);

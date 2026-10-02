@@ -1905,6 +1905,14 @@ foi tentada também com diretório temporário isolado, mas falhou na limpeza de
 essa execução não deve ser registrada como uma regressão completa aprovada.
 # Série de paridade — 2026-10-02
 
+Etapa 2: Paint/Cutout possuem seleção e aplicação explícita da Tools Database,
+incluindo aviso de unidades e campos suportados. Paint aplica uma ferramenta e seus
+parâmetros comuns, preservando seleção/ordem/Rest. Combo usa índice Python 4;
+Laser Lines (3), padrões inválidos e pontas V são recusados nestes fluxos.
+Cutout transfere diâmetro, margem, convexidade, padrão/tipo de gap e M-Bites;
+preserva gaps manuais. Cut Z e Thin Depth continuam configurados na Geometry,
+com aviso explícito. Testes de adaptadores e controles FX aprovados.
+
 Etapa 1: Tools Database integrada a Geometry/CNC e Milling Excellon. Seleção não
 altera valores até Aplicar; filtra Milling/General e valida diâmetro, Cut Z e ponta V.
 Geometry com caminhos associados não aceita mudar a largura sem regenerar os caminhos.

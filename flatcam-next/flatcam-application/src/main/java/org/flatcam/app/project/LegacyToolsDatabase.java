@@ -14,6 +14,9 @@ import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.gcode.VTipSettings;
+import org.flatcam.cam.ncc.PaintParameters;
+import org.flatcam.cam.ncc.NccOrder;
+import org.flatcam.cam.cutout.*;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
 import org.json.JSONObject;
@@ -95,6 +98,72 @@ public final class LegacyToolsDatabase {
             } catch (RuntimeException invalid) {
                 throw new IOException("Invalid Milling tool " + id + ": " + invalid.getMessage(), invalid);
             }
+        }
+        return List.copyOf(tools);
+    }
+
+    public record PaintTool(String name, PaintParameters parameters) {
+        @Override public String toString() { return name + " - " + parameters.toolDiameters().getFirst(); }
+    }
+
+    public record CutoutTool(String name, CutoutParameters parameters, String gapType,
+                             double biteDiameter, double biteSpacing) {
+        @Override public String toString() { return name + " - " + parameters.toolDiameter(); }
+    }
+
+    private static void requireNonV(JSONObject entry) {
+        if (ToolProfile.fromLegacy(entry.optString("tool_type", "C1")) == ToolProfile.V)
+            throw new IllegalArgumentException("Ponta V nao suportada neste fluxo; use Geometry/CNC com V-Tip explicito.");
+    }
+
+    public static List<PaintTool> paintTools(JSONObject root) throws IOException {
+        List<PaintTool> tools = new ArrayList<>();
+        for (String id : root.keySet()) {
+            try {
+                JSONObject entry = root.getJSONObject(id), data = entry.getJSONObject("data");
+                if (!accepts(data, 4, "Paint")) continue;
+                requireNonV(entry);
+                int method = data.optInt("tools_paint_method", 0);
+                NccMethod value = switch (method) {
+                    case 0 -> NccMethod.STANDARD; case 1 -> NccMethod.SEED; case 2 -> NccMethod.LINES;
+                    case 4 -> NccMethod.COMBO;
+                    default -> throw new IllegalArgumentException("Paint method " + method + " nao suportado (Laser Lines).");
+                };
+                PaintParameters parameters = new PaintParameters(List.of(entry.getDouble("tooldia")),
+                        data.optDouble("tools_paint_overlap", 20) / 100, data.optDouble("tools_paint_offset", 0),
+                        value, data.optBoolean("tools_paint_connect", true), data.optBoolean("tools_paint_contour", true),
+                        NccOrder.REVERSE, false);
+                tools.add(new PaintTool(entry.optString("name", "Tool " + id), parameters));
+            } catch (RuntimeException invalid) { throw new IOException("Invalid Paint tool " + id + ": " + invalid.getMessage(), invalid); }
+        }
+        return List.copyOf(tools);
+    }
+
+    public static List<CutoutTool> cutoutTools(JSONObject root) throws IOException {
+        List<CutoutTool> tools = new ArrayList<>();
+        for (String id : root.keySet()) {
+            try {
+                JSONObject entry = root.getJSONObject(id), data = entry.getJSONObject("data");
+                if (!accepts(data, 6, "Cutout")) continue;
+                requireNonV(entry);
+                GapPattern gaps = switch (data.optString("tools_cutout_gaps_ff", "4")) {
+                    case "None" -> GapPattern.NONE; case "LR" -> GapPattern.LR; case "TB" -> GapPattern.TB;
+                    case "4" -> GapPattern.FOUR; case "2LR" -> GapPattern.TWO_LR;
+                    case "2TB" -> GapPattern.TWO_TB; case "8" -> GapPattern.EIGHT;
+                    default -> throw new IllegalArgumentException("Padrao de gaps desconhecido.");
+                };
+                String type = data.optString("tools_cutout_gap_type", "b");
+                if (!List.of("b", "bt", "mb").contains(type)) throw new IllegalArgumentException("Tipo de gap desconhecido.");
+                double dia = data.optDouble("tools_cutout_mb_dia", 0.6), spacing = data.optDouble("tools_cutout_mb_spacing", 0.3);
+                if (!Double.isFinite(dia) || dia <= 0 || !Double.isFinite(spacing) || spacing < 0)
+                    throw new IllegalArgumentException("M-Bites exige diametro positivo e espacamento nao negativo.");
+                CutoutParameters parameters = new CutoutParameters(entry.getDouble("tooldia"),
+                        data.optDouble("tools_cutout_margin", 0.1), data.optBoolean("tools_cutout_convexshape", false),
+                        CutoutKind.SINGLE, CutoutShape.FREEFORM, data.optDouble("tools_cutout_gapsize", 4), gaps);
+                if (!Double.isFinite(parameters.toolDiameter()) || !Double.isFinite(parameters.margin())
+                        || !Double.isFinite(parameters.gapSize())) throw new IllegalArgumentException("Cutout exige valores finitos.");
+                tools.add(new CutoutTool(entry.optString("name", "Tool " + id), parameters, type, dia, spacing));
+            } catch (RuntimeException invalid) { throw new IOException("Invalid Cutout tool " + id + ": " + invalid.getMessage(), invalid); }
         }
         return List.copyOf(tools);
     }

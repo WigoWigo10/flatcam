@@ -58,6 +58,8 @@ final class PaintToolPanel {
         void preview(Geometry geometry);
 
         void paint(TreeItem<String> source, String units, Geometry polygons, PaintParameters parameters);
+
+        default List<org.flatcam.app.project.LegacyToolsDatabase.PaintTool> databaseTools() { return List.of(); }
     }
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
@@ -251,6 +253,14 @@ final class PaintToolPanel {
         rest.setTooltip(tooltip("Cada ferramenta menor pinta apenas o que as maiores nao alcancaram. "
                 + "As ferramentas passam a ser usadas da maior para a menor."));
         order.disableProperty().bind(rest.selectedProperty());
+        VBox database = DatabaseToolPicker.build("paint-db", host::databaseTools, selected -> {
+            PaintParameters p = selected.parameters();
+            diameters.setText(Double.toString(p.toolDiameters().getFirst()));
+            overlap.setText(Double.toString(p.overlapFraction() * 100)); margin.setText(Double.toString(p.offset()));
+            method.setValue(p.method()); connect.setSelected(p.connect()); contour.setSelected(p.contour());
+        }, errorLabel);
+        Label transferNote = new Label("Aplicar substitui o diametro e os parametros comuns de Paint; nao altera selecao, ordem ou Rest.");
+        transferNote.setWrapText(true);
 
         Button paint = new Button("Pintar");
         paint.setMaxWidth(Double.MAX_VALUE);
@@ -289,7 +299,7 @@ final class PaintToolPanel {
                 new VBox(4, all, single, rectangle, polygonArea, reference), referenceObject,
                 new HBox(6, choose, clear), selectedLabel,
                 new Separator(),
-                new Label("Diametros das ferramentas:"), diameters,
+                new Label("Diametros das ferramentas:"), diameters, database, transferNote,
                 new HBox(6, new Label("Sobreposicao (%):"), overlap, new Label("Margem:"), margin),
                 new HBox(6, new Label("Metodo:"), method),
                 new HBox(10, connect, contour),

@@ -55,6 +55,12 @@ final class CutoutToolPanel {
      */
     static Node build(String units, AreaSelectionStarter areaStarter, Runnable cancelArea,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        return build(units, areaStarter, cancelArea, List::of, onGenerate, onClose);
+    }
+
+    static Node build(String units, AreaSelectionStarter areaStarter, Runnable cancelArea,
+                      java.util.function.Supplier<List<org.flatcam.app.project.LegacyToolsDatabase.CutoutTool>> database,
+                      Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equals(units);
 
         RadioButton singleRadio = new RadioButton("Single");
@@ -116,6 +122,17 @@ final class CutoutToolPanel {
         }
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
+        VBox picker = DatabaseToolPicker.build("cutout-db", database, selected -> {
+            CutoutParameters p = selected.parameters();
+            toolDiaField.setText(Double.toString(p.toolDiameter())); marginField.setText(Double.toString(p.margin()));
+            gapSizeField.setText(Double.toString(p.gapSize())); convexShapeCb.setSelected(p.convexShape());
+            gapPatternCombo.setValue(p.gapPattern());
+            gapTypeCombo.setValue(switch (selected.gapType()) { case "bt" -> GapType.THIN; case "mb" -> GapType.M_BITES; default -> GapType.BRIDGE; });
+            biteDiameterField.setText(Double.toString(selected.biteDiameter()));
+            biteSpacingField.setText(Double.toString(selected.biteSpacing()));
+        }, errorLabel);
+        Label transferNote = new Label("A base transfere diametro, margem e gaps. Cut Z, Thin Depth e parametros CNC ainda sao configurados na Geometry. Gaps manuais sao preservados.");
+        transferNote.setWrapText(true);
 
         GridPane grid = new GridPane();
         grid.setHgap(8);
@@ -157,7 +174,7 @@ final class CutoutToolPanel {
         title.getStyleClass().add("tool-title");
         VBox box = new VBox(10,
                 title, new Label("Unidades do arquivo: " + units),
-                grid, rectangleGapButton, polygonGapButton, clearManualButton, manualStatus, workflowNote,
+                picker, transferNote, grid, rectangleGapButton, polygonGapButton, clearManualButton, manualStatus, workflowNote,
                 errorLabel, freeformButton, rectangularButton, closeButton);
         box.setPadding(new Insets(12));
         return box;

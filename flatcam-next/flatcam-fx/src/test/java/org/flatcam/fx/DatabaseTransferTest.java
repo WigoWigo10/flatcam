@@ -16,6 +16,31 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class DatabaseTransferTest {
+    @Test void cutoutDatabaseTransferUpdatesRealControlsWithoutGenerating() throws Exception {
+        try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
+        FutureTask<Void> task = new FutureTask<>(() -> {
+            var db = LegacyToolsDatabase.cutoutTools(new org.json.JSONObject("""
+                    {"1":{"tooldia":1.2,"data":{"tool_target":6,"tools_cutout_margin":0.4,
+                    "tools_cutout_gaps_ff":"8","tools_cutout_gap_type":"mb","tools_cutout_mb_dia":0.9}}}
+                    """));
+            var result = new java.util.concurrent.atomic.AtomicReference<CutoutToolPanel.Result>();
+            var root = CutoutToolPanel.build("MM", (p, done, cancelled) -> false, () -> {}, () -> db, result::set, () -> {});
+            ((Button) root.lookup("#cutout-db-load")).fire();
+            ((Button) root.lookup("#cutout-db-apply")).fire();
+            assertNull(result.get());
+            var generate = ((javafx.scene.layout.VBox) root).getChildren().stream()
+                    .filter(n -> n instanceof Button b && b.getText().equals("Gerar (Free-form)"))
+                    .map(n -> (Button) n).findFirst().orElseThrow();
+            generate.fire();
+            assertNotNull(result.get());
+            assertEquals(1.2, result.get().cutoutParams().toolDiameter());
+            assertEquals(0.4, result.get().cutoutParams().margin());
+            assertEquals(CutoutToolPanel.GapType.M_BITES, result.get().gapType());
+            assertEquals(0.9, result.get().biteDiameter());
+            return null;
+        });
+        Platform.runLater(task); task.get(20, TimeUnit.SECONDS);
+    }
     @Test void geometryTransferIsExplicitAndCarriesVTip() throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
         FutureTask<Void> task = new FutureTask<>(() -> {
