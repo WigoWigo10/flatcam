@@ -2064,3 +2064,15 @@ cancela a prévia; revisão/seleção obsoletas impedem aplicar resultado antigo
 Sem associação de ferramenta, conferir o diâmetro ao gerar CNC. Não altera o
 diâmetro global como o patch Python; não reclassifica caminhos anteriores.
 Testes direcionados do núcleo e controles FX passaram; validação visual pendente.
+
+## Etapa 2: Transformations Object/Buffer — 2026-10-02
+
+Referência Object usa bounds do objeto escolhido e valida remoção/ausência de
+geometria. Point não aceita mais texto inválido como zero. Buffer por distância
+e percentual, cantos Rounded/mitrados, mesma unidade entre os objetos. Excellon
+altera diâmetros (distância somada ao diâmetro, igual ao Python), não centros ou
+extremos de slots. Geometry conserva associação/diâmetro; Gerber conserva Follow.
+Buffer executado em worker, com publicação atômica, cancelamento e verificação
+de fontes obsoletas. Resultados vazios/inválidos recusados. Limites de Gerber e
+ausência de undo global documentados em TRANSFORMATIONS.md. Testes de núcleo e
+controles aprovados; comparação visual manual pendente.

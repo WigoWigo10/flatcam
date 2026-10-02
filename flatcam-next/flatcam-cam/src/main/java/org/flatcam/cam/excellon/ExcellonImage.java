@@ -97,6 +97,20 @@ public final class ExcellonImage {
      * (not just the aggregate solid geometry).
      */
     public ExcellonImage transformed(TransformOp op) {
+        if (op instanceof TransformOp.Buffer buffer) {
+            Map<Integer,Double> diameters = new java.util.LinkedHashMap<>();
+            toolDiameters.forEach((id,dia) -> {
+                // ParseExcellon.buffer adds the distance to DIAMETER, not twice the distance.
+                double updated = buffer.factor() ? dia * buffer.value() : dia + buffer.value();
+                if (!Double.isFinite(updated) || updated <= 0) throw new IllegalArgumentException("Buffer elimina o diametro da ferramenta Excellon " + id);
+                diameters.put(id,updated);
+            });
+            var factory=solidGeometry == null ? new org.locationtech.jts.geom.GeometryFactory() : solidGeometry.getFactory();
+            List<Geometry> footprints = new java.util.ArrayList<>();
+            for (var drill : drills) footprints.add(factory.createPoint(new Coordinate(drill.x(),drill.y())).buffer(diameters.get(drill.toolId())/2,16));
+            for (var slot : slots) footprints.add(factory.createLineString(new Coordinate[]{new Coordinate(slot.x1(),slot.y1()),new Coordinate(slot.x2(),slot.y2())}).buffer(diameters.get(slot.toolId())/2,16));
+            return new ExcellonImage(units,diameters,drills,slots,factory.buildGeometry(footprints));
+        }
         List<Drill> newDrills = drills.stream()
                 .map(drill -> {
                     Coordinate p = op.apply(new Coordinate(drill.x(), drill.y()));

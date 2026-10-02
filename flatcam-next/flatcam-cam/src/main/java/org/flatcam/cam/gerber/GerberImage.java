@@ -114,11 +114,11 @@ public final class GerberImage {
         List<GerberShape> newShapes = new ArrayList<>(shapes.size());
         for (GerberShape shape : shapes) {
             newShapes.add(new GerberShape(shape.apertureCode(), op.apply(shape.geometry()), shape.clear(),
-                    shape.followGeometry() == null ? null : op.apply(shape.followGeometry())));
+                    shape.followGeometry() == null ? null : op instanceof TransformOp.Buffer ? shape.followGeometry() : op.apply(shape.followGeometry())));
         }
         return new GerberImage(units, apertures,
                 solidGeometry == null ? null : op.apply(solidGeometry),
-                followGeometry == null ? null : op.apply(followGeometry),
+                followGeometry == null ? null : op instanceof TransformOp.Buffer ? followGeometry : op.apply(followGeometry),
                 newApertureGeometry, newShapes);
     }
 

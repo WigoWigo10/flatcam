@@ -6,13 +6,12 @@ import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.util.AffineTransformation;
 
 /**
- * Ports appTools/ToolTransform.py's operations (Buffer excluded - out of
- * scope, see CONTEXTO_E_PROGRESSO.md section 9.2) as pure, composable ops
+ * Ports appTools/ToolTransform.py's affine operations and Buffer as pure ops
  * over a single Geometry or Coordinate, so any object kind (Gerber/Excellon/
  * Geometry) can apply the same configured operation to its own geometry
  * without this package knowing anything about object kinds.
  *
- * <p>Every op but {@link Offset} pivots about an explicit {@link Coordinate} -
+ * <p>Affine ops except {@link Offset} pivot about an explicit {@link Coordinate} -
  * how that pivot itself is computed (Origin/Selection-bounds-center/a typed
  * Point) is a UI-layer concern, matching Python's {@code on_calculate_reference}.
  *
@@ -28,6 +27,35 @@ public sealed interface TransformOp {
     Geometry apply(Geometry geometry);
 
     Coordinate apply(Coordinate point);
+
+    /** Distance buffer or percentage/local-centre scale, as in ToolTransform. */
+    record Buffer(double value, boolean factor, boolean rounded) implements TransformOp {
+        public Buffer {
+            if (!Double.isFinite(value) || (factor ? value <= 0 || value == 1 : value == 0))
+                throw new IllegalArgumentException("Buffer exige distancia finita nao zero ou fator positivo diferente de 1.");
+        }
+        @Override public Geometry apply(Geometry geometry) {
+            if (geometry.isEmpty()) return geometry.copy();
+            if (geometry instanceof org.locationtech.jts.geom.GeometryCollection) {
+                java.util.List<Geometry> parts = new java.util.ArrayList<>();
+                for (int i=0;i<geometry.getNumGeometries();i++) {
+                    Geometry result = apply(geometry.getGeometryN(i));
+                    if (!result.isEmpty()) parts.add(result);
+                }
+                return geometry.getFactory().buildGeometry(parts);
+            }
+            if (factor) {
+                var centre=geometry.getEnvelopeInternal().centre();
+                return new Scale(value,value,centre).apply(geometry);
+            }
+            return org.locationtech.jts.operation.buffer.BufferOp.bufferOp(geometry,value,
+                    new org.locationtech.jts.operation.buffer.BufferParameters(16,
+                            org.locationtech.jts.operation.buffer.BufferParameters.CAP_ROUND,
+                            rounded ? org.locationtech.jts.operation.buffer.BufferParameters.JOIN_ROUND
+                                    : org.locationtech.jts.operation.buffer.BufferParameters.JOIN_MITRE,5));
+        }
+        @Override public Coordinate apply(Coordinate point) { return new Coordinate(point); }
+    }
 
     record Rotate(double angleDegrees, Coordinate pivot) implements TransformOp {
         public Rotate {

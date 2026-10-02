@@ -2752,6 +2752,10 @@ final class MainWindow {
             return;
         }
         TransformOp op = opFactory.apply(selected);
+        if (op instanceof TransformOp.Buffer buffer) {
+            runTransformBuffer(selected, buffer);
+            return;
+        }
         int applied = 0;
         for (TreeItem<String> item : selected) {
             if (applyTransformToItem(item, op)) {
@@ -4448,7 +4452,76 @@ final class MainWindow {
 
     private void openTransformTool() {
         openToolPanel("Transform Tool", TransformToolPanel.build(
-                this::selectionCenterOrOrigin, this::applyTransformToSelection, this::closeToolPanel));
+                this::selectionCenterOrOrigin,
+                () -> projectItemsForTransform(), this::boundsOf,
+                this::applyTransformToSelection, this::closeToolPanel));
+    }
+
+    private List<TreeItem<String>> projectItemsForTransform() {
+        List<TreeItem<String>> items = new ArrayList<>();
+        items.addAll(gerbersNode.getChildren()); items.addAll(excellonNode.getChildren()); items.addAll(geometryNode.getChildren());
+        return List.copyOf(items);
+    }
+
+    private Object transformSource(TreeItem<String> item) {
+        if (gerberByItem.containsKey(item)) return gerberByItem.get(item);
+        if (excellonByItem.containsKey(item)) return excellonByItem.get(item);
+        return geometryByItem.get(item);
+    }
+
+    /** Buffer is expensive: compute all outputs first, then publish atomically if inputs still match. */
+    private void runTransformBuffer(List<TreeItem<String>> items, TransformOp.Buffer buffer) {
+        if (runningJob != null || geometryEditor.isActive() || gerberEditor.isActive() || excellonEditor.isActive()) {
+            appendConsole("Conclua a operacao ou edicao atual antes de Buffer."); return;
+        }
+        Map<TreeItem<String>,Object> inputs=new LinkedHashMap<>();
+        for (var item : items) {
+            Object source=transformSource(item);
+            if (source == null) throw new IllegalArgumentException("Buffer nao aceita CNC Job.");
+            inputs.put(item,source);
+        }
+        long unitCount=inputs.values().stream().map(source -> source instanceof GerberImage g ? g.units()
+                : source instanceof ExcellonImage e ? e.units() : ((GeometryEntry)source).units()).distinct().count();
+        if (unitCount != 1) throw new IllegalArgumentException("Buffer exige objetos na mesma unidade.");
+        beginJob("Aplicando Buffer...");
+        JobHandle<Map<TreeItem<String>,Object>> handle=jobExecutor.submit(context -> {
+            Map<TreeItem<String>,Object> outputs=new LinkedHashMap<>();
+            for (var entry : inputs.entrySet()) {
+                context.checkCancelled();
+                Object source=entry.getValue(), result;
+                Geometry shape;
+                if (source instanceof GerberImage g) {
+                    var output=g.transformed(buffer); result=output; shape=output.solidGeometry();
+                } else if (source instanceof ExcellonImage e) {
+                    var output=e.transformed(buffer); result=output; shape=output.solidGeometry();
+                } else {
+                    var g=(GeometryEntry)source;
+                    List<ToolGeometry> tools=g.tools().stream().map(t -> t.transformed(buffer)).toList();
+                    shape=tools.isEmpty() ? buffer.apply(g.geometry()) : g.geometry().getFactory().buildGeometry(tools.stream().map(ToolGeometry::geometry).toList());
+                    if (tools.stream().anyMatch(t -> t.geometry().isEmpty())) throw new IllegalArgumentException("Buffer elimina caminhos de uma ferramenta.");
+                    result=new GeometryEntry(g.sourceName(),g.units(),shape,false,tools,g.cncDefaults());
+                }
+                if (shape == null || shape.isEmpty() || !shape.isValid()) throw new IllegalArgumentException("Buffer eliminou o objeto ou produziu geometria invalida.");
+                outputs.put(entry.getKey(),result);
+                context.reportProgress((double)outputs.size()/inputs.size(),"Aplicando Buffer...");
+            }
+            context.checkCancelled(); return outputs;
+        },(fraction,message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
+        runningJob=handle;
+        handle.completion().thenAccept(outputs -> Platform.runLater(() -> {
+            onJobFinished();
+            if (inputs.entrySet().stream().anyMatch(entry -> transformSource(entry.getKey()) != entry.getValue())) {
+                appendConsole("Objetos mudaram durante Buffer; resultado descartado."); return;
+            }
+            plotMoveHistory.clear();
+            outputs.forEach((item,result) -> {
+                if (result instanceof GerberImage g) { gerberByItem.put(item,g); plotAreaView.updateLayerGeometry(item,gerberFollowItems.contains(item) ? g.followGeometry() : g.solidGeometry()); }
+                else if (result instanceof ExcellonImage e) { excellonByItem.put(item,e); plotAreaView.updateLayerGeometry(item,e.solidGeometry()); }
+                else { var g=(GeometryEntry)result; geometryByItem.put(item,g); plotAreaView.updateLayerGeometry(item,g.geometry()); }
+            });
+            refreshPlotSelectionOutline(); showProperties(projectTree.getSelectionModel().getSelectedItem());
+            updateProgress(1); setStatus("Buffer concluido.",IDLE_COLOR); appendConsole(outputs.size()+" objeto(s) alterado(s) por Buffer; revise antes de CNC.");
+        })).exceptionally(error -> { Platform.runLater(() -> { reportJobError(error,"Buffer nao aplicado: "); onJobFinished(); }); return null; });
     }
 
     /**

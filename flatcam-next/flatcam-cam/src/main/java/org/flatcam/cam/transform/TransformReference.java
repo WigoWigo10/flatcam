@@ -6,10 +6,8 @@ import org.locationtech.jts.geom.Coordinate;
 /**
  * Computes the pivot {@link Coordinate} for a chosen reference mode -
  * appTools/ToolTransform.py's {@code on_calculate_reference()}/{@code alt_bounds()}.
- * Only Origin and Selection are ported here; Python's third option, a
- * reference Object's own bounding-box center, is deferred (see
- * CONTEXTO_E_PROGRESSO.md section 9.2) - a UI can already build that pivot
- * itself with {@link #selectionCenter} passed a single object's bounds.
+ * A reference Object uses {@link #selectionCenter} with a single object's bounds;
+ * typed Point and object availability are validated by the UI.
  */
 public final class TransformReference {
 
