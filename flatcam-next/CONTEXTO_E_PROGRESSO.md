@@ -399,7 +399,7 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
-| Geometry | parcial | multi-tool e conversões Single↔Multi; CNC por ferramenta, Feed XY/Z, Dwell, Extra Cut, V-Tip e compensação Path/In/Out/Custom; posições comuns de início/fim/troca com validação/persistência, somente fresagem sem sonda neste incremento; editor com seleção/exclusão/desenho/transformações/undo; Texto e Borracha faltam; ver GEOMETRY_CNC.md |
+| Geometry | parcial | multi-tool e conversões Single↔Multi; CNC por ferramenta, Feed XY/Z, Dwell, Extra Cut, V-Tip e compensação Path/In/Out/Custom; posições comuns de início/fim/troca com validação/persistência, somente fresagem sem sonda; editor com seleção/exclusão/desenho/transformações/undo, Texto vetorial e Borracha; faltam Paint Shape e gestos avançados; ver GEOMETRY_CNC.md e GEOMETRY_EDITOR.md |
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão, ICP/HPGL/RML lineares; 19 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 20 de 20 ports parciais; Mach3 com sonda gera G31/G92 e exige confirmação manual, sem prévia; Roland inicialmente só MM/uma ferramenta e sem metadados de diâmetro na reabertura; ver `PREPROCESSADORES.md` |
 | Persistência de projeto | parcial | `.fcnproj` embute objetos/G-code e parâmetros CNC individuais, compensação/posições e seleção/ordem de Drilling; confirmação da sonda não persiste; abertura e exportação `.FlatPrj` JSON/XZ validadas com serializadores Python e 18 objetos reais; não é round-trip universal, ver COMPATIBILIDADE_FLATPRJ.md |
 | Calculadoras | parcial | três calculadoras implementadas |
@@ -2001,3 +2001,30 @@ Repetida uma execução que falhou somente na limpeza de temporário Windows em
 CncSettingsPersistenceTest, sem falha de asserção. Testes adicionais de adaptadores,
 gerador e controles FX aprovados. Validação visual/física permanece pendente.
 Limites em TOOLS_DATABASE_TRANSFER.md.
+
+## Editor Geometry: Texto e Borracha — 2026-10-02
+
+Ponto 4: Texto e Borracha habilitados na barra e no menu Geo Editor. Texto usa
+contornos de fontes instaladas (Java/AWT), tamanho com escala MM/IN do ParseFont
+Python, negrito/itálico e múltiplas linhas; mantém vazios das letras e associação
+de ferramenta. Geração não altera o rascunho: prévia e clique confirmam inserção;
+Esc/botão direito ou mudança de parâmetros/seleção/ferramenta cancelam a prévia.
+
+Borracha usa as selecionadas como molde preenchido, como no Python. Origem e
+destino deslocam a região de recorte, sem mover os originais. Recorta linhas e
+áreas de todas as ferramentas, preserva associações e permite apagamento completo.
+Formas não atingidas conservam IDs; sem alteração não cria undo. Cada ação é uma
+transação undo/redo; cancelamento e falha não aplicam resultado parcial.
+
+Texto, união do molde e recortes usam o executor existente fora da thread FX.
+Corrigida a reabilitação de botões após trabalho/cancelamento. O FX encerra cada
+gesto de borracha (Python permite destinos repetidos). Paint Shape e outros modos
+avançados ainda faltam; não equivale a paridade total. Instruções/limites em
+GEOMETRY_EDITOR.md. Contornos/métricas não são idênticos ao parser FreeType Python.
+
+Install aprovado: 756 testes registrados, 745 aprovados, 11 ignorados, zero falhas
+ou erros. Testes incluem cliques reais no plot sem janela, cancelamento, undo/redo,
+10.000 formas e persistência nativa/legada com regeneração do CNC. Erro intermitente
+de limpeza Windows em CncSettingsPersistenceTest motivou reutilizar a limpeza
+limitada de ProjectFileIOTest via helper comum, sem desativar limpeza nem ocultar
+falhas persistentes. Validação visual e teste na máquina continuam pendentes.

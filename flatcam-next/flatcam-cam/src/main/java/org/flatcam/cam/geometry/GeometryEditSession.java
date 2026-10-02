@@ -32,7 +32,8 @@ public final class GeometryEditSession {
     }
 
     public enum Operation {
-        UNION, INTERSECTION, SUBTRACT, CUT_PATH, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR
+        UNION, INTERSECTION, SUBTRACT, CUT_PATH, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR,
+        TEXT, ERASER_MASK, ERASE
     }
 
     public record ToolPart(Geometry geometry, int toolIndex) {
@@ -40,16 +41,27 @@ public final class GeometryEditSession {
 
     public record OperationResult(long revision, List<Integer> selectedIndices,
                                   boolean replaceSelected, boolean keepCutters,
-                                  List<ToolPart> resultParts) {
+                                  List<ToolPart> resultParts, List<Integer> replacedIndices) {
+        public OperationResult(long revision, List<Integer> selectedIndices, boolean replaceSelected,
+                               boolean keepCutters, List<ToolPart> resultParts) {
+            this(revision, selectedIndices, replaceSelected, keepCutters, resultParts,
+                    !replaceSelected ? List.of() : keepCutters ? selectedIndices.subList(0, 1) : selectedIndices);
+        }
         public OperationResult {
             selectedIndices = List.copyOf(selectedIndices);
             resultParts = List.copyOf(resultParts);
+            replacedIndices = List.copyOf(replacedIndices);
         }
     }
 
     /** Immutable input for a potentially expensive JTS operation on a worker thread. */
     public record OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
-                                   List<ToolPart> inputs, double distance) {
+                                   List<ToolPart> inputs, double distance, TextGeometry.Parameters text,
+                                   int newToolIndex) {
+        public OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
+                                List<ToolPart> inputs, double distance) {
+            this(revision, operation, selectedIndices, inputs, distance, null, -1);
+        }
         public OperationRequest {
             selectedIndices = List.copyOf(selectedIndices);
             inputs = List.copyOf(inputs);
@@ -60,6 +72,55 @@ public final class GeometryEditSession {
             cancellation.throwIfCancellationRequested();
             progress.report(0.05);
             List<ToolPart> outputs = new ArrayList<>();
+            if (operation == Operation.TEXT) {
+                Geometry generated = TextGeometry.generate(text, cancellation, progress);
+                flattenToolParts(generated, newToolIndex, outputs, cancellation);
+                return new OperationResult(revision, selectedIndices, false, false, outputs);
+            }
+            if (operation == Operation.ERASER_MASK) {
+                List<Geometry> masks = new ArrayList<>();
+                for (int i = 0; i < inputs.size(); i++) {
+                    cancellation.throwIfCancellationRequested();
+                    Geometry input = inputs.get(i).geometry();
+                    Geometry filled;
+                    if (input instanceof Polygon polygon) {
+                        filled = input.getFactory().createPolygon((LinearRing) polygon.getExteriorRing());
+                    } else if (input instanceof LineString line && line.isClosed() && line.getNumPoints() >= 4) {
+                        filled = input.getFactory().createPolygon(line.getCoordinates());
+                        if (!filled.isValid()) filled = filled.buffer(0);
+                    } else {
+                        // Python turns open paths into a very thin erase region.
+                        filled = input.buffer(1e-7);
+                    }
+                    if (!filled.isEmpty()) masks.add(filled);
+                    progress.report(0.05 + 0.5 * (i + 1) / inputs.size());
+                }
+                Geometry mask = OverlayNGRobust.union(masks);
+                if (mask == null || mask.isEmpty()) throw new IllegalArgumentException("As formas nao geraram area de borracha.");
+                cancellation.throwIfCancellationRequested();
+                progress.report(1);
+                return new OperationResult(revision, selectedIndices, false, false, List.of(new ToolPart(mask, -1)));
+            }
+            if (operation == Operation.ERASE) {
+                Geometry mask = inputs.getLast().geometry();
+                List<Integer> replaced = new ArrayList<>();
+                for (int i = 0; i < inputs.size() - 1; i++) {
+                    cancellation.throwIfCancellationRequested();
+                    ToolPart input = inputs.get(i);
+                    Geometry shape = input.geometry();
+                    if (shape.getEnvelopeInternal().intersects(mask.getEnvelopeInternal()) && shape.intersects(mask)) {
+                        Geometry remaining = OverlayNGRobust.overlay(shape, mask, org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE);
+                        if (!remaining.equalsTopo(shape)) {
+                            replaced.add(i);
+                            flattenToolParts(remaining, input.toolIndex(), outputs, cancellation);
+                        }
+                    }
+                    progress.report(0.05 + 0.9 * (i + 1) / (inputs.size() - 1));
+                }
+                cancellation.throwIfCancellationRequested();
+                progress.report(1);
+                return new OperationResult(revision, selectedIndices, true, false, outputs, replaced);
+            }
             boolean replace = operation == Operation.UNION || operation == Operation.INTERSECTION
                     || operation == Operation.SUBTRACT || operation == Operation.CUT_PATH;
             if (replace) {
@@ -303,6 +364,8 @@ public final class GeometryEditSession {
 
     public OperationRequest prepareOperation(Operation operation, double distance) {
         Objects.requireNonNull(operation);
+        if (operation == Operation.TEXT || operation == Operation.ERASER_MASK || operation == Operation.ERASE)
+            throw new IllegalArgumentException("Use o preparo especifico de Texto/Borracha.");
         boolean booleanOperation = operation == Operation.UNION || operation == Operation.INTERSECTION
                 || operation == Operation.SUBTRACT || operation == Operation.CUT_PATH;
         if (selected.size() < (booleanOperation ? 2 : 1)) {
@@ -340,10 +403,11 @@ public final class GeometryEditSession {
         if (result.revision() != revision || !result.selectedIndices().equals(List.copyOf(selected))) {
             return false;
         }
+        if (result.resultParts().isEmpty() && result.replacedIndices().isEmpty()) return false;
+        Set<Integer> replaced = new java.util.HashSet<>(result.replacedIndices());
         List<Part> updated = new ArrayList<>();
         for (int i = 0; i < parts.size(); i++) {
-            if (!result.replaceSelected() || !selected.contains(i)
-                    || (result.keepCutters() && i != result.selectedIndices().get(0))) {
+            if (!replaced.contains(i)) {
                 updated.add(parts.get(i));
             }
         }
@@ -649,6 +713,50 @@ public final class GeometryEditSession {
         List<Part> updated = new ArrayList<>(parts);
         updated.add(new Part(nextId++, shape, toolIndex));
         commit(updated, Set.of());
+    }
+
+    public OperationRequest prepareText(TextGeometry.Parameters parameters, int toolIndex) {
+        validateNewTool(toolIndex);
+        return new OperationRequest(revision, Operation.TEXT, List.copyOf(selected), List.of(), 0,
+                Objects.requireNonNull(parameters), toolIndex);
+    }
+
+    public OperationRequest prepareEraserMask() {
+        if (selected.isEmpty()) throw new IllegalArgumentException("Selecione formas para usar como molde da borracha.");
+        return new OperationRequest(revision, Operation.ERASER_MASK, List.copyOf(selected),
+                selected.stream().map(i -> new ToolPart(parts.get(i).geometry(), parts.get(i).toolIndex())).toList(), 0);
+    }
+
+    /** Only envelope candidates are intersected in the worker; all tools retain their association. */
+    public OperationRequest prepareErase(Geometry mask, double dx, double dy) {
+        finiteDisplacement(dx, dy);
+        if (mask == null || mask.isEmpty() || mask.getDimension() != 2 || !mask.isValid())
+            throw new IllegalArgumentException("Borracha exige um molde com area valida.");
+        List<ToolPart> inputs = new ArrayList<>();
+        for (Part part : parts) inputs.add(new ToolPart(part.geometry(), part.toolIndex()));
+        inputs.add(new ToolPart(AffineTransformation.translationInstance(dx, dy).transform(mask), -1));
+        return new OperationRequest(revision, Operation.ERASE, List.copyOf(selected), inputs, 0);
+    }
+
+    /** Adds an entire generated text in one undo transaction, retaining holes and tool association. */
+    public void addGeneratedGeometry(Geometry geometry, int toolIndex) {
+        validateNewTool(toolIndex);
+        if (geometry == null || geometry.isEmpty() || !geometry.isValid() || geometry.getDimension() != 2)
+            throw new IllegalArgumentException("A geometria gerada precisa conter areas validas.");
+        for (Coordinate point : geometry.getCoordinates()) {
+            if (!Double.isFinite(point.x) || !Double.isFinite(point.y))
+                throw new IllegalArgumentException("As coordenadas devem ser finitas.");
+        }
+        List<Part> added = new ArrayList<>();
+        flatten(geometry, toolIndex, added);
+        List<Part> updated = new ArrayList<>(parts);
+        for (Part part : added) updated.add(new Part(part.id(), millingDirection(part.geometry()), toolIndex));
+        commit(updated, List.of());
+    }
+
+    private void validateNewTool(int toolIndex) {
+        if (sourceTools.isEmpty() ? toolIndex != -1 : toolIndex < 0 || toolIndex >= sourceTools.size())
+            throw new IllegalArgumentException("Selecione uma ferramenta valida para a nova forma.");
     }
 
     private void commit(List<Part> updated, Collection<Integer> newSelection) {

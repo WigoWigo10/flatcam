@@ -16,6 +16,8 @@ import javafx.scene.control.Label;
 import javafx.scene.control.RadioButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TextArea;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.ToolBar;
@@ -29,6 +31,8 @@ import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import org.flatcam.cam.geometry.GeometryEditSession;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.TextGeometry;
+import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.Coordinate;
 
@@ -90,6 +94,15 @@ final class GeometryEditorController {
     private Button bufferButton;
     private Button explodeButton;
     private Button transformButton;
+    private Button textButton;
+    private Button eraserButton;
+    private TitledPane textPane;
+    private TextArea textContent;
+    private ComboBox<String> textFont;
+    private TextField textSize;
+    private CheckBox textBold;
+    private CheckBox textItalic;
+    private String units;
     private TextField bufferDistance;
     private ComboBox<String> bufferMode;
     private List<Button> editorButtons;
@@ -119,11 +132,16 @@ final class GeometryEditorController {
     }
 
     void start(TreeItem<String> sourceItem, Geometry geometry, List<ToolGeometry> tools, boolean strokeOnly) {
+        start(sourceItem, geometry, tools, strokeOnly, "MM");
+    }
+
+    void start(TreeItem<String> sourceItem, Geometry geometry, List<ToolGeometry> tools, boolean strokeOnly, String units) {
         if (isActive()) {
             host.log("Ja existe uma edicao de Geometry em andamento.");
             return;
         }
         item = sourceItem;
+        this.units = units;
         session = new GeometryEditSession(geometry, tools);
         session.setClimbMilling(AppPreferences.loadGeometryEditorClimb());
         implicitToolIndex = tools.isEmpty() ? -1 : 0;
@@ -156,6 +174,8 @@ final class GeometryEditorController {
         instruction = new Label("Selecione uma linha na tabela ou uma forma no desenho.");
         instruction.setWrapText(true);
         shapeTable = new TableView<>(FXCollections.observableArrayList(session.shapeRows()));
+        shapeTable.setId("geometry-shapes");
+        instruction.setId("geometry-instruction");
         shapeTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         shapeTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY);
         TableColumn<GeometryEditSession.ShapeRow, String> idColumn = new TableColumn<>("ID");
@@ -178,6 +198,7 @@ final class GeometryEditorController {
             if (syncingTable || busy || session == null) {
                 return;
             }
+            plotArea.cancelPlacement();
             Set<Integer> current = new LinkedHashSet<>(shapeTable.getSelectionModel().getSelectedIndices());
             tableSelectionOrder.retainAll(current);
             for (int index : current) {
@@ -208,6 +229,8 @@ final class GeometryEditorController {
         bufferButton = new Button("Criar buffer arredondado");
         explodeButton = new Button("Explodir poligonos");
         transformButton = new Button("Transformacoes");
+        textButton = new Button("Texto"); textButton.setId("geometry-text");
+        eraserButton = new Button("Borracha"); eraserButton.setId("geometry-eraser");
         bufferDistance = new TextField();
         bufferDistance.setPromptText("Distancia positiva (unidade do projeto)");
         bufferMode = new ComboBox<>();
@@ -217,7 +240,7 @@ final class GeometryEditorController {
         Button cancelButton = new Button("Cancelar edicao");
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
-                bufferButton, explodeButton, cutPathButton, transformButton,
+                bufferButton, explodeButton, cutPathButton, transformButton, textButton, eraserButton,
                 undoButton, redoButton, applyButton, cancelButton);
         iconize(selectButton, "pointer32.png");
         iconize(pathButton, "path32.png");
@@ -240,6 +263,11 @@ final class GeometryEditorController {
         iconize(bufferButton, "buffer16-2.png");
         iconize(explodeButton, "explode32.png");
         iconize(transformButton, "transform.png");
+        iconize(textButton, "text32.png");
+        iconize(eraserButton, "eraser26.png");
+        eraserButton.setTooltip(new Tooltip("Selecione formas como molde. Clique na origem e no destino para apagar nessa area.\n"
+                + "O molde nao e movido. Aneis fechados e exteriores de poligonos sao preenchidos, como no Python.\n"
+                + "Ctrl+Z desfaz; Esc cancela antes da confirmacao."));
         iconize(cancelButton, "power16.png");
         selectButton.setOnAction(event -> startSelection());
         pathButton.setOnAction(event -> startPath());
@@ -260,7 +288,33 @@ final class GeometryEditorController {
         redoButton.setOnAction(event -> redo());
         applyButton.setOnAction(event -> apply());
         cancelButton.setOnAction(event -> cancel());
+        textButton.setOnAction(event -> startText());
+        eraserButton.setOnAction(event -> startEraser());
         VBox panel = new VBox(8, new Label("Geometry Editor"), shapeTable, status, instruction);
+        textContent = new TextArea(); textContent.setId("geometry-text-content");
+        textContent.setPromptText("Texto para converter em geometria"); textContent.setPrefRowCount(3);
+        textContent.setWrapText(true);
+        textFont = new ComboBox<>(FXCollections.observableArrayList(TextGeometry.fontFamilies()));
+        textFont.setId("geometry-text-font"); textFont.setMaxWidth(Double.MAX_VALUE);
+        textFont.setValue(textFont.getItems().contains("Arial") ? "Arial" : "SansSerif");
+        textSize = new TextField("10"); textSize.setId("geometry-text-size"); textSize.setPrefColumnCount(5);
+        textSize.setTooltip(new Tooltip("Escala de tamanho do ParseFont Python (nao altura exata da letra).\n"
+                + "Contornos vetoriais nas unidades " + units + ". Confira as dimensoes na previa antes de usinar."));
+        textBold = new CheckBox("Negrito"); textItalic = new CheckBox("Italico");
+        for (var property : List.of(textContent.textProperty(), textSize.textProperty(), textFont.valueProperty()))
+            property.addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
+        textBold.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
+        textItalic.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
+        Button placeText = new Button("Gerar e posicionar texto"); placeText.setId("geometry-text-place");
+        placeText.getStyleClass().add("primary-action"); placeText.setMaxWidth(Double.MAX_VALUE);
+        placeText.setOnAction(event -> generateText());
+        Label textHelp = new Label("Texto vira areas editaveis com vazios das letras preservados. "
+                + "A origem e a linha de base da primeira linha. Clique para inserir; Esc cancela.");
+        textHelp.setWrapText(true);
+        textPane = new TitledPane("Texto vetorial", new VBox(8, new Label("Fonte:"), textFont,
+                new HBox(8, new Label("Tamanho:"), textSize), new HBox(8, textBold, textItalic),
+                textContent, textHelp, placeText));
+        textPane.setExpanded(false); panel.getChildren().add(textPane);
         TextField angleField = new TextField("90");
         angleField.setPrefColumnCount(6);
         TextField scaleField = new TextField("1.0");
@@ -316,6 +370,7 @@ final class GeometryEditorController {
             }
             toolChoice.getSelectionModel().selectFirst();
             toolChoice.setMaxWidth(Double.MAX_VALUE);
+            toolChoice.valueProperty().addListener((obs, old, value) -> plotArea.cancelPlacement());
         }
         exitButton = new Button("Salvar e sair do editor");
         exitButton.getStyleClass().add("primary-action");
@@ -327,9 +382,9 @@ final class GeometryEditorController {
         panel.getChildren().addAll(exitButton, discardButton);
         ToolBar toolbar = new ToolBar(selectButton, circleButton, arcButton, rectangleButton,
                 new Separator(), pathButton, polygonButton,
-                new Separator(), plannedToolButton("Texto", "text32.png"), bufferButton,
+                new Separator(), textButton, bufferButton,
                 plannedToolButton("Paint Shape", "paint20_1.png"),
-                plannedToolButton("Borracha", "eraser26.png"),
+                eraserButton,
                 new Separator(), unionButton, explodeButton, intersectionButton, subtractButton,
                 new Separator(), cutPathButton,
                 copyButton, deleteButton, transformButton, moveButton,
@@ -574,6 +629,70 @@ final class GeometryEditorController {
         startMoveOrCopy(true);
     }
 
+    void startText() {
+        if (!readyForTool()) return;
+        plotArea.cancelPlacement();
+        textPane.setExpanded(true);
+        textContent.requestFocus();
+        instruction.setText("Configure o texto e clique em Gerar e posicionar texto.");
+    }
+
+    private void generateText() {
+        if (!readyForTool()) return;
+        plotArea.cancelPlacement();
+        GeometryEditSession editing = session;
+        int toolIndex = selectedToolIndex();
+        try {
+            var p = new TextGeometry.Parameters(textContent.getText(), textFont.getValue(),
+                    parseTransformNumber(textSize, "Tamanho"), textBold.isSelected(), textItalic.isSelected(), units);
+            calculate(editing.prepareText(p, toolIndex), result -> {
+                Geometry text = new org.locationtech.jts.geom.GeometryFactory().buildGeometry(
+                        result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
+                boolean started = plotArea.beginEditorFlashPlacement(text, new PlotAreaView.PlacementHandler() {
+                    public void onCommit(double x, double y) {
+                        if (session != editing) return;
+                        try {
+                            editing.addGeneratedGeometry(AffineTransformation.translationInstance(x, y).transform(text), toolIndex);
+                            refreshGeometry(); instruction.setText("Texto adicionado. Ctrl+Z desfaz.");
+                        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
+                    }
+                    public void onCancel() { if (session == editing) instruction.setText("Texto cancelado; rascunho preservado."); }
+                });
+                instruction.setText(started ? "Clique para posicionar a linha de base do texto; Esc cancela."
+                        : "Nao foi possivel iniciar o posicionamento do texto.");
+            });
+        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
+    }
+
+    void startEraser() {
+        if (!readyForTool()) return;
+        plotArea.cancelPlacement();
+        GeometryEditSession editing = session;
+        try {
+            calculate(editing.prepareEraserMask(), result -> {
+                Geometry mask = result.resultParts().getFirst().geometry();
+                Set<Integer> originalSelection = editing.selectedIndices();
+                boolean started = plotArea.beginEditorPlacement(List.of(mask), false, new PlotAreaView.PlacementHandler() {
+                    public void onAnchorChosen() { if (session == editing) instruction.setText("Clique no destino para apagar; Esc cancela."); }
+                    public void onCommit(double dx, double dy) {
+                        if (session != editing || !editing.selectedIndices().equals(originalSelection)) return;
+                        try {
+                            calculate(editing.prepareErase(mask, dx, dy), erased -> {
+                                boolean changed = editing.applyOperation(erased);
+                                refreshGeometry();
+                                instruction.setText(changed ? "Area apagada. Ctrl+Z desfaz."
+                                        : "Nenhuma forma foi alterada nessa area.");
+                            });
+                        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
+                    }
+                    public void onCancel() { if (session == editing) instruction.setText("Borracha cancelada."); }
+                });
+                instruction.setText(started ? "Borracha: clique na origem do molde e depois no destino; Esc cancela."
+                        : "Nao foi possivel iniciar a borracha.");
+            });
+        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
+    }
+
     private void startMoveOrCopy(boolean copy) {
         if (!readyForTool() || session.selectedCount() == 0) {
             if (isActive()) {
@@ -718,21 +837,29 @@ final class GeometryEditorController {
             instruction.setText(invalid.getMessage());
             return;
         }
-        busy = true;
-        refreshSelection();
-        instruction.setText("Calculando " + operation.name().toLowerCase(java.util.Locale.ROOT) + "...");
-        boolean accepted = host.runOperation(request, result -> {
-            if (session != editing) {
-                return;
-            }
-            busy = false;
+        calculate(request, result -> {
             if (editing.applyOperation(result)) {
                 refreshGeometry();
                 instruction.setText("Operacao concluida. Ctrl+Z desfaz.");
             } else {
                 refreshSelection();
-                instruction.setText("O rascunho mudou durante o calculo; resultado descartado.");
+                instruction.setText("O rascunho mudou durante o calculo ou nao houve alteracao; resultado descartado.");
             }
+        });
+    }
+
+    private void calculate(GeometryEditSession.OperationRequest request, Consumer<GeometryEditSession.OperationResult> success) {
+        GeometryEditSession editing = session;
+        busy = true;
+        refreshSelection();
+        instruction.setText("Calculando " + request.operation().name().toLowerCase(java.util.Locale.ROOT) + "...");
+        boolean accepted = host.runOperation(request, result -> {
+            if (session != editing) {
+                return;
+            }
+            busy = false;
+            refreshSelection();
+            success.accept(result);
         }, error -> {
             if (session == editing) {
                 busy = false;
@@ -797,6 +924,7 @@ final class GeometryEditorController {
     }
 
     private void refreshSelection() {
+        editorButtons.forEach(button -> button.setDisable(busy));
         if (!syncingTable) {
             syncingTable = true;
             tableSelectionOrder.clear();
@@ -830,6 +958,9 @@ final class GeometryEditorController {
         bufferButton.setDisable(session.selectedCount() == 0);
         explodeButton.setDisable(session.selectedCount() == 0);
         transformButton.setDisable(session.selectedCount() == 0);
+        eraserButton.setDisable(session.selectedCount() == 0);
+        textPane.setDisable(busy);
+        if (toolChoice != null) toolChoice.setDisable(busy);
         if (busy) {
             editorButtons.forEach(button -> button.setDisable(true));
         }
@@ -869,6 +1000,8 @@ final class GeometryEditorController {
         bufferButton = null;
         explodeButton = null;
         transformButton = null;
+        textButton = null; eraserButton = null; textPane = null; textContent = null;
+        textFont = null; textSize = null; textBold = null; textItalic = null; units = null;
         bufferDistance = null;
         bufferMode = null;
         editorButtons = null;

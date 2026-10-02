@@ -14,6 +14,29 @@ import org.junit.jupiter.api.io.TempDir;
 import org.locationtech.jts.geom.*;
 
 class PythonProjectWriterTest {
+    @Test void textAndErasedGeometryKeepHolesToolsAndCncAfterNativeAndLegacySave() throws Exception {
+        Geometry text = TextGeometry.generate(new TextGeometry.Parameters("OB","SansSerif",10,false,false,"MM"),
+                org.flatcam.cam.CancellationToken.none(),org.flatcam.cam.ProgressCallback.none());
+        var session = new GeometryEditSession(text,List.of(new ToolGeometry(0.3,text,ToolProfile.C2)));
+        Geometry cut = new GeometryFactory().toGeometry(new Envelope(-1,1,-1,10));
+        assertTrue(session.applyOperation(session.prepareErase(cut,0,0).execute(
+                org.flatcam.cam.CancellationToken.none(),org.flatcam.cam.ProgressCallback.none())));
+        var parameters = new GeometryGCodeParameters(2,0.1,false,0.1,100,0,false);
+        var project = new ProjectFile(List.of(),List.of(),List.of(new ProjectFile.GeometryEntry(
+                "text","","MM",session.resultGeometry(),true,session.resultTools(),null,null,true,parameters)),List.of());
+        String expected = GCodeGenerator.generateGeometryCncJob("MM",session.resultTools(),parameters,Map.of(),
+                org.flatcam.cam.CancellationToken.none(),GCodePreprocessor.DEFAULT_NO_M6).gcode();
+        for (boolean legacy : List.of(false,true)) {
+            Path file=dir.resolve(legacy ? "text.FlatPrj" : "text.fcnproj");
+            if (legacy) PythonProjectWriter.save(project,file,false); else ProjectFileIO.save(project,file);
+            var loaded=(legacy ? PythonProjectIO.load(file) : ProjectFileIO.load(file)).geometries().getFirst();
+            assertEquals(session.resultGeometry().getArea(),loaded.geometry().getArea(),1e-6);
+            assertTrue(loaded.geometry().isValid());
+            assertEquals(ToolProfile.C2,loaded.tools().getFirst().toolProfile());
+            assertEquals(expected,GCodeGenerator.generateGeometryCncJob("MM",loaded.tools(),parameters,Map.of(),
+                    org.flatcam.cam.CancellationToken.none(),GCodePreprocessor.DEFAULT_NO_M6).gcode());
+        }
+    }
     @TempDir Path dir;
     private ProjectFile sample() throws Exception {
         var gerber = new GerberParser().parse(List.of("%FSLAX24Y24*%","%MOMM*%","%ADD10C,1*%","D10*","X10000Y10000D03*","M02*"));

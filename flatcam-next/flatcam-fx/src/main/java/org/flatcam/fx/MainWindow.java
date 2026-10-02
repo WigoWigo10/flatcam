@@ -1041,7 +1041,7 @@ final class MainWindow {
             appendConsole("Selecione um objeto Geometry para editar.");
             return;
         }
-        geometryEditor.start(item, entry.geometry(), entry.tools(), entry.strokeOnly());
+        geometryEditor.start(item, entry.geometry(), entry.tools(), entry.strokeOnly(), entry.units());
     }
 
     private void editSelectedGCode() {
@@ -1501,6 +1501,8 @@ final class MainWindow {
                 case "subtract" -> geometryEditor::startSubtract;
                 case "cut_path" -> geometryEditor::startCutPath;
                 case "buffer" -> geometryEditor::startBuffer;
+                case "text" -> geometryEditor::startText;
+                case "eraser" -> geometryEditor::startEraser;
                 case "explode" -> geometryEditor::explode;
                 default -> null;
             };
