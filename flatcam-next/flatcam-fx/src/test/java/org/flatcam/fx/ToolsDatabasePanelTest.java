@@ -84,6 +84,8 @@ class ToolsDatabasePanelTest {
                 assertNotNull(input.getProperties().get(FluidTooltips.TITLE_KEY), field.key());
                 assertEquals(ToolsDatabaseDescriptions.fieldText(field), input.getProperties().get(FluidTooltips.TEXT_KEY));
                 assertEquals(input.getProperties().get(FluidTooltips.TEXT_KEY), label.getProperties().get(FluidTooltips.TEXT_KEY));
+                assertInstanceOf(TooltipContent.class, input.getProperties().get(FluidTooltips.CONTENT_KEY));
+                assertEquals(input.getProperties().get(FluidTooltips.CONTENT_KEY), label.getProperties().get(FluidTooltips.CONTENT_KEY));
                 assertFalse(label.isDisabled()); assertNull(input.getTooltip());
             }
             assertTrue(text(panel, "depthperpass").isDisabled());
@@ -94,23 +96,27 @@ class ToolsDatabasePanelTest {
             return null;
         });
     }
-    @Test void toolbarFiltersTableSectionsAndContextActionsHaveHelpWithoutCompetingNativePopups() throws Exception {
+    @Test void usefulCommandsHaveRichHelpAndObviousActionsStayQuiet() throws Exception {
         onFx(() -> {
             var panel = panel();
-            for (String id : List.of("add", "copy", "delete", "apply", "new", "import", "export", "save", "search", "filter", "table", "scope", "location")) {
+            for (String id : List.of("apply", "new", "import", "export", "save", "search", "filter", "table", "scope", "location")) {
                 var control = (Control) panel.lookup("#db-" + id);
                 assertNotNull(control.getProperties().get(FluidTooltips.TITLE_KEY), id);
                 assertTrue(control.getProperties().get(FluidTooltips.TEXT_KEY).toString().length() > 70, id);
                 assertNull(control.getTooltip(), id);
+                assertInstanceOf(TooltipContent.class, control.getProperties().get(FluidTooltips.CONTENT_KEY), id);
             }
             for (var group : ToolsDatabaseFields.Group.values()) {
                 var pane = panel.lookup("#db-group-" + group.name().toLowerCase(Locale.ROOT));
                 assertTrue(pane.getProperties().get(FluidTooltips.TEXT_KEY).toString().contains("recolher ou expandir"));
             }
-            for (var item : panel.contextMenuForTooltips().getItems()) {
-                assertEquals(item.getText(), item.getProperties().get(FluidTooltips.TITLE_KEY));
-                assertEquals(ToolsDatabaseDescriptions.actionText(item.getText()), item.getProperties().get(FluidTooltips.TEXT_KEY));
+            for (String id : List.of("add", "copy", "delete")) {
+                var control = (Control) panel.lookup("#db-" + id);
+                assertNull(control.getTooltip(), id);
+                assertFalse(control.getProperties().containsKey(FluidTooltips.TEXT_KEY), id);
             }
+            for (var item : panel.contextMenuForTooltips().getItems())
+                assertFalse(item.getProperties().containsKey(FluidTooltips.TEXT_KEY), item.getText());
             return null;
         });
     }

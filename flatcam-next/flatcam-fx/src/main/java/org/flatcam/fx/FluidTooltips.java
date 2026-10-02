@@ -25,6 +25,7 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.text.TextFlow;
 import javafx.stage.Popup;
 import javafx.stage.Screen;
 import javafx.stage.WindowEvent;
@@ -33,7 +34,8 @@ import javafx.util.Duration;
 /**
  * The application's tooltips: a short delay (almost none when moving between neighbouring controls), a fade and slide in,
  * a glide from one control to the next while a tip is already open, and a fade out. A tip has an optional bold title and a
- * wrapped body, in the colours of the theme.
+ * wrapped body, in the colours of the theme. Structured content can add bold spans, paragraphs and semantic colours
+ * without changing how existing plain-text tips are displayed.
  *
  * <p>It takes over the plain JavaFX {@link Tooltip}s of every control it meets: when the mouse enters a control that has
  * one, its text is moved here and the native tooltip is removed, so no panel has to change. A control (or a menu item) can
@@ -44,6 +46,7 @@ final class FluidTooltips {
 
     static final String TITLE_KEY = "fx.tip.title";
     static final String TEXT_KEY = "fx.tip.text";
+    static final String CONTENT_KEY = "fx.tip.content";
     private static final String INSTALLED_KEY = "fx.tip.installed";
 
     private static final double SHOW_DELAY_MS = 450;
@@ -60,6 +63,7 @@ final class FluidTooltips {
     private final VBox box = new VBox(3);
     private final Label title = new Label();
     private final Label body = new Label();
+    private final TextFlow richBody = new TextFlow();
     private final PauseTransition delay = new PauseTransition();
     private Timeline motion;
     private FadeTransition fade;
@@ -78,7 +82,11 @@ final class FluidTooltips {
         title.setMaxWidth(MAX_WIDTH);
         body.setWrapText(true);
         body.setMaxWidth(MAX_WIDTH);
-        box.getChildren().addAll(title, body);
+        richBody.setMaxWidth(MAX_WIDTH);
+        richBody.setLineSpacing(2);
+        richBody.setVisible(false);
+        richBody.setManaged(false);
+        box.getChildren().addAll(title, body, richBody);
         box.setMouseTransparent(true);
         box.setMaxWidth(MAX_WIDTH + 24);
         popup.getContent().add(box);
@@ -146,6 +154,8 @@ final class FluidTooltips {
         item.getProperties().put(INSTALLED_KEY, Boolean.TRUE);
         node.getProperties().put(TITLE_KEY, item.getProperties().get(TITLE_KEY));
         node.getProperties().put(TEXT_KEY, item.getProperties().get(TEXT_KEY));
+        Object content = item.getProperties().get(CONTENT_KEY);
+        if (content != null) node.getProperties().put(CONTENT_KEY, content);
         node.addEventHandler(MouseEvent.MOUSE_ENTERED, event -> enter(node, true));
         node.addEventHandler(MouseEvent.MOUSE_EXITED, event -> {
             if (owner == node) {
@@ -199,7 +209,7 @@ final class FluidTooltips {
         delay.playFromStart();
     }
 
-    private void fill(Node node) {
+    void fill(Node node) {
         Object tipTitle = node.getProperties().get(TITLE_KEY);
         Object tipText = node.getProperties().get(TEXT_KEY);
         ThemeOption current = theme.get();
@@ -213,6 +223,13 @@ final class FluidTooltips {
         title.setStyle("-fx-font-weight: bold;");
         body.setText(tipText == null ? "" : tipText.toString());
         body.setTextFill(title.isVisible() ? text.deriveColor(0, 1, 1, 0.9) : text);
+        boolean rich = node.getProperties().get(CONTENT_KEY) instanceof TooltipContent;
+        body.setVisible(!rich);
+        body.setManaged(!rich);
+        richBody.setVisible(rich);
+        richBody.setManaged(rich);
+        richBody.getChildren().clear();
+        if (rich) ((TooltipContent) node.getProperties().get(CONTENT_KEY)).renderInto(richBody, current);
     }
 
     /** Where the tip's top-left corner goes: under the node (or above when there is no room), or beside it. */

@@ -1,11 +1,22 @@
 package org.flatcam.fx;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import javafx.scene.Node;
 import javafx.scene.control.Control;
 
 /** Portuguese help based on ToolsDB2UI, with explicit FX transfer limitations. */
 final class ToolsDatabaseDescriptions {
+    // Keep emphasis restrained: parameter names, units, and distinctions that change how a value is used.
+    private static final Pattern EMPHASIS = Pattern.compile(
+            "mm/min ou in/min|mm ou in|C1 a C4|V-Dia|V-Angle|Cut Z|Shape V|Multi-Depth|Depth / Pass|"
+            + "Dwell Time|Offset Z|Custom Offset|Tool Offset|Drill Slots|Last Drill|Extra Cut Length|Extra Cut|"
+            + "Offset Value|Gap Type|Mouse Bites|M-Bites|Laser_lines|Standard|Seed|Lines|Combo|Both|Exterior|Interior|"
+            + "Climb|Conventional|Bridge|Thin|Clear|Isolation|General|Milling|Drilling|Paint|NCC|Cutout|"
+            + "Save DB|Export DB|Import DB|Ctrl\\+S|Ctrl\\+F|RPM|segundos|graus");
     private static final Set<String> TRANSFERRED = Set.of("name", "tooldia", "tool_type", "tool_target", "tol_min", "tol_max",
             "tools_iso_passes", "tools_iso_overlap", "tools_iso_isotype",
             "tools_ncc_operation", "tools_ncc_overlap", "tools_ncc_method", "tools_ncc_connect", "tools_ncc_contour",
@@ -21,10 +32,10 @@ final class ToolsDatabaseDescriptions {
         String body = switch (field.key()) {
             case "name" -> "Nome para identificar a ferramenta na biblioteca. Não altera o diâmetro nem a geometria do trabalho.";
             case "tooldia" -> "Diâmetro de corte da ferramenta, maior que zero. Para Shape V, é calculado ao aplicar alterações em V-Dia, V-Angle ou Cut Z.";
-            case "tol_min" -> "Limite inferior absoluto do intervalo de diâmetros aceito na busca de brocas. Não é uma tolerância ±. O diâmetro exato tem prioridade.";
+            case "tol_min" -> "Limite inferior absoluto do intervalo de diâmetros aceito na busca de brocas. Não é uma tolerância ±. Exemplo: Min = 0,78 e Max = 0,82 aceita brocas nesse intervalo. O diâmetro exato tem prioridade.";
             case "tol_max" -> "Limite superior do intervalo de diâmetros aceito na busca de brocas; deve ser maior ou igual a Min. O intervalo só é usado quando Max > Min; resultados ambíguos são recusados.";
             case "tool_target" -> "Define a operação à qual a ferramenta se destina: General, Milling, Drilling, Isolation, Paint, NCC ou Cutout. General é elegível para as três buscas CAM já integradas ao FX. A seleção também determina as seções exibidas.";
-            case "tool_type" -> "Formato da ferramenta: C1 a C4 = fresa circular com 1 a 4 cortes; B = ponta esférica; V = ponta em V. Ao escolher V, V-Dia, V-Angle e Cut Z determinam o diâmetro efetivo.";
+            case "tool_type" -> "Formato da ferramenta:\nC1 a C4 = fresa circular com 1 a 4 cortes.\nB = ponta esférica.\nV = ponta em V.\n\nAo escolher V, V-Dia, V-Angle e Cut Z determinam o diâmetro efetivo.";
             case "vtipdia" -> "Diâmetro da ponta da ferramenta em V, não negativo. Disponível para Shape V; participa do cálculo do diâmetro de corte.";
             case "vtipangle" -> "Ângulo total da ponta da ferramenta em V, em graus, entre 0 e 180 (sem incluir os extremos). Participa do cálculo do diâmetro na profundidade Cut Z.";
             case "type" -> "Classificação da usinagem: Iso = isolamento; Rough = desbaste; Finish = acabamento. É uma descrição da ferramenta, não um ajuste automático de velocidade.";
@@ -54,17 +65,17 @@ final class ToolsDatabaseDescriptions {
             case "tools_iso_isotype" -> "Região a isolar: Both = bordas externas e internas; Exterior = apenas externas; Interior = apenas contornos de aberturas internas do polígono.";
             case "tools_paint_overlap", "tools_ncc_overlap" -> "Sobreposição entre caminhos, em porcentagem da largura da ferramenta (0 a menos de 100%). Valores maiores criam mais trajetos e podem aumentar o tempo de cálculo e de usinagem.";
             case "tools_paint_offset" -> "Distância para afastar o preenchimento das bordas do polígono a pintar. Define a margem entre o preenchimento e o contorno.";
-            case "tools_paint_method" -> "Método de preenchimento: Standard = passos para dentro; Seed = expansão de uma semente; Lines = linhas paralelas; Combo = tenta métodos alternativos. Laser_lines aparece desabilitado nesta base, como no Python.";
+            case "tools_paint_method" -> "Método de preenchimento:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta métodos alternativos.\n\nLaser_lines aparece desabilitado nesta base, como no Python.";
             case "tools_paint_connect", "tools_ncc_connect" -> "Liga segmentos resultantes para reduzir levantamentos da ferramenta. A conexão deve permanecer dentro da área permitida para usinagem.";
             case "tools_paint_contour", "tools_ncc_contour" -> "Adiciona um caminho ao redor do perímetro do polígono para completar o acabamento das bordas.";
             case "tools_ncc_operation" -> "Clear remove o cobre livre. Isolation cria passes de isolamento antes da limpeza; ferramentas V são tratadas como Isolation pelo adaptador NCC do FX.";
             case "tools_ncc_margin" -> "Margem ao redor da caixa delimitadora usada para limitar a limpeza de cobre. Não é o mesmo parâmetro que Offset das trilhas.";
-            case "tools_ncc_method" -> "Método de limpeza: Standard = passos para dentro; Seed = expansão de uma semente; Lines = linhas paralelas; Combo = tenta alternativas para cobrir a área.";
+            case "tools_ncc_method" -> "Método de limpeza:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta alternativas para cobrir a área.";
             case "tools_ncc_offset_choice" -> "Ativa um afastamento das trilhas e pads ao limpar o cobre. Habilita Offset Value, que define essa distância.";
             case "tools_ncc_offset_value" -> "Afastamento das regiões de cobre ao executar a limpeza. Só é aplicado quando Offset está marcado.";
             case "tools_cutout_margin" -> "Margem em relação ao limite da placa. Um valor positivo afasta o contorno de corte da borda original.";
             case "tools_cutout_gapsize" -> "Largura das pontes que mantêm a placa presa ao material durante o corte. O tipo de ponte é escolhido em Gap Type.";
-            case "tools_cutout_gaps_ff" -> "Distribuição das pontes: None = nenhuma; LR = esquerda/direita; TB = superior/inferior; 4 = uma por lado; 2LR e 2TB = duas em cada lado indicado; 8 = duas por lado.";
+            case "tools_cutout_gaps_ff" -> "Distribuição das pontes:\nNone = nenhuma.\nLR = esquerda/direita.\nTB = superior/inferior.\n4 = uma por lado.\n2LR e 2TB = duas em cada lado indicado.\n8 = duas por lado.";
             case "tools_cutout_convexshape" -> "Cria um contorno convexo que envolve toda a placa, sem acompanhar suas reentrâncias. No Python, essa opção se destina a objetos Gerber.";
             case "tools_cutout_gap_type" -> "Tipo de ponte: Bridge = interrupção do corte; Thin = ponte parcialmente fresada para ficar mais fina; M-Bites = ponte perfurada com furos para facilitar a separação.";
             case "tools_cutout_gap_depth" -> "Coordenada Z do corte parcial usado para afinar as pontes. Só fica habilitada com Gap Type Thin; deve preservar material suficiente para manter a ponte.";
@@ -72,8 +83,8 @@ final class ToolsDatabaseDescriptions {
             case "tools_cutout_mb_spacing" -> "Espaço entre as bordas dos furos Mouse Bites. No Python, o passo entre centros é o diâmetro mais esse valor. Só fica habilitado com Gap Type M-Bites.";
             default -> throw new IllegalArgumentException("Sem tooltip para " + field.key());
         };
-        if (LINEAR.contains(field.key())) body += "\nValor na unidade do trabalho (mm ou in); a base não converte unidades automaticamente.";
-        if (!TRANSFERRED.contains(field.key())) body += "\nNo FX, este parâmetro é salvo na base, mas sua transferência para o CAM ainda não está implementada.";
+        if (LINEAR.contains(field.key())) body += "\n\nUnidades: valor na unidade do trabalho (mm ou in); a base não converte unidades automaticamente.";
+        if (!TRANSFERRED.contains(field.key())) body += "\n\nIntegração FX: este parâmetro é salvo na base, mas sua transferência para o CAM ainda não está implementada.";
         return body;
     }
 
@@ -103,9 +114,44 @@ final class ToolsDatabaseDescriptions {
         };
     }
 
+    static boolean hasActionHelp(String label) {
+        return !Set.of("Adicionar ferramenta", "Copiar", "Excluir").contains(label);
+    }
+
+    static TooltipContent content(String text) {
+        List<TooltipContent.Span> spans = new ArrayList<>();
+        // New paragraphs separate explanation, usage, and the two kinds of additional notes.
+        String readable = text.replaceAll("(?<=\\.) (?=\\p{Lu})", "\n\n");
+        String[] paragraphs = readable.split("\n\n", -1);
+        for (int i = 0; i < paragraphs.length; i++) {
+            if (i > 0) spans.add(new TooltipContent.Span("\n\n", TooltipContent.Style.NORMAL));
+            String paragraph = paragraphs[i];
+            int prefix = paragraph.startsWith("Integração FX:") ? "Integração FX:".length()
+                    : paragraph.startsWith("Unidades:") ? "Unidades:".length() : 0;
+            if (prefix > 0) spans.add(new TooltipContent.Span(paragraph.substring(0, prefix),
+                    paragraph.startsWith("Integração FX:") ? TooltipContent.Style.NOTE : TooltipContent.Style.ACCENT));
+            var matches = EMPHASIS.matcher(paragraph);
+            int cursor = prefix;
+            while (matches.find()) {
+                if (matches.start() < cursor) continue;
+                if (matches.start() > cursor) spans.add(new TooltipContent.Span(paragraph.substring(cursor, matches.start()), TooltipContent.Style.NORMAL));
+                spans.add(new TooltipContent.Span(matches.group(), TooltipContent.Style.BOLD));
+                cursor = matches.end();
+            }
+            if (cursor < paragraph.length()) spans.add(new TooltipContent.Span(paragraph.substring(cursor), TooltipContent.Style.NORMAL));
+        }
+        return new TooltipContent(spans);
+    }
+
+    static void apply(Map<Object, Object> properties, String title, String text) {
+        ToolDescriptions.apply(properties, title, text);
+        properties.put(FluidTooltips.CONTENT_KEY, content(text));
+    }
+
     static void apply(Node node, String title, String text) {
         if (node instanceof Control control) control.setTooltip(null); // Avoid competing native and animated popups.
-        ToolDescriptions.apply(node.getProperties(), title, text);
+        node.setAccessibleHelp(text);
+        apply(node.getProperties(), title, text);
     }
 
     private ToolsDatabaseDescriptions() { }

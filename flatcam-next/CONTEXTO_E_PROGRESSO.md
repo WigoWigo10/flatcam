@@ -113,6 +113,10 @@ Sempre refaça essas verificações depois de mudanças relevantes; números e r
   Excellon/Geometry estão catalogados em Editar → Ferramentas dos editores,
   desabilitados até esses editores existirem.
 - Temas Original (branco/preto) e Gelo (branco/preto), todos próprios e alternáveis no menu Tema.
+- Tools Database tem tooltips com parágrafos, opções em linhas separadas, termos em negrito e destaques de unidades
+  e integração CAM legíveis nos quatro temas. Adicionar/Copiar/Excluir não têm tooltip redundante; campos desabilitados
+  continuam com ajuda no rótulo. Em 2026-10-02: 40 testes direcionados passaram e capturas fora da tela conferiram os
+  quatro temas; a suíte completa não foi repetida neste incremento.
 - A Plot Area acompanha o tema ativo, inclusive fundo, grade, eixos e textos.
 - Canvas com pan, zoom, enquadramento, réguas, grade adaptativa, origem, posição
   e delta do cursor.
