@@ -40,7 +40,8 @@ import org.locationtech.jts.geom.Geometry;
 final class GeometryCncToolPanel {
 
     record Result(List<ToolGeometry> tools, GeometryGCodeParameters parameters,
-                  Map<Integer, VTipSettings> vTools, GCodePreprocessor preprocessor) {
+                  Map<Integer, VTipSettings> vTools, GCodePreprocessor preprocessor,
+                  Map<Integer, GeometryGCodeParameters> parametersByTool) {
     }
 
     private GeometryCncToolPanel() {
@@ -110,6 +111,18 @@ final class GeometryCncToolPanel {
         TextField spindleField = new TextField(defaults == null ? "10000"
                 : Integer.toString(defaults.spindleSpeedRpm()));
         TextField rapidFeedField = new TextField(defaults == null ? "0" : Double.toString(defaults.rapidFeedRate()));
+        TextField feedZField = new TextField(defaults == null ? feedField.getText() : Double.toString(defaults.feedRateZ()));
+        feedZField.setId("cnc-feed-z");
+        CheckBox dwellCb = new CheckBox("Dwell");
+        dwellCb.setSelected(defaults != null && defaults.dwell());
+        dwellCb.setId("cnc-dwell");
+        TextField dwellField = new TextField(defaults == null ? "1" : Double.toString(defaults.dwellSeconds()));
+        dwellField.setId("cnc-dwell-time");
+        CheckBox extraCb = new CheckBox("Extra Cut (caminhos fechados)");
+        extraCb.setSelected(defaults != null && defaults.extraCut());
+        extraCb.setId("cnc-extra-cut");
+        TextField extraField = new TextField(defaults == null ? "0.1" : Double.toString(defaults.extraCutLength()));
+        extraField.setId("cnc-extra-length");
         rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
@@ -148,6 +161,11 @@ final class GeometryCncToolPanel {
         var roland = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> preprocessor.getValue().isRoland(), preprocessor.valueProperty());
         var noCutZ = laser.or(plotter);
+        feedZField.disableProperty().bind(noCutZ);
+        extraCb.disableProperty().bind(noCutZ);
+        extraField.disableProperty().bind(extraCb.selectedProperty().not().or(noCutZ));
+        dwellCb.disableProperty().bind(noCutZ.or(roland));
+        dwellField.disableProperty().bind(dwellCb.selectedProperty().not().or(noCutZ).or(roland));
         var rapidFeed = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty());
         cutDepthField.disableProperty().bind(noCutZ);
@@ -191,6 +209,9 @@ final class GeometryCncToolPanel {
         grid.addRow(row++, new Label("Cut Z (nao V):"), cutDepthField);
         grid.addRow(row++, multiDepthCb, depthPerPassField);
         grid.addRow(row++, new Label("Feed rate:"), feedField);
+        grid.addRow(row++, new Label("Feedrate Z:"), feedZField);
+        grid.addRow(row++, dwellCb, dwellField);
+        grid.addRow(row++, extraCb, extraField);
         grid.addRow(row++, new Label("Feed rapids:"), rapidFeedField);
         grid.addRow(row++, powerLabel, spindleField);
         grid.add(pauseCheck, 0, row++, 2, 1);
@@ -199,6 +220,39 @@ final class GeometryCncToolPanel {
         Label errorLabel = new Label();
         errorLabel.setId("cnc-error");
         errorLabel.getStyleClass().add("form-error-label");
+        // Raw snapshots preserve invalid edits when switching rows; all rows validate before generation.
+        List<TextField> machiningFields = List.of(safeZField, cutDepthField, depthPerPassField,
+                feedField, spindleField, feedZField, dwellField, extraField);
+        List<CheckBox> machiningChecks = List.of(multiDepthCb, dwellCb, extraCb);
+        Supplier<String[]> capture = () -> java.util.stream.Stream.concat(machiningFields.stream().map(TextField::getText),
+                machiningChecks.stream().map(c -> Boolean.toString(c.isSelected()))).toArray(String[]::new);
+        Consumer<String[]> restore = values -> {
+            for (int i = 0; i < machiningFields.size(); i++) machiningFields.get(i).setText(values[i]);
+            for (int i = 0; i < machiningChecks.size(); i++) machiningChecks.get(i).setSelected(Boolean.parseBoolean(values[8 + i]));
+        };
+        Map<Integer, String[]> snapshots = new LinkedHashMap<>();
+        String[] initialValues = capture.get();
+        if (multiTool) for (int i = 0; i < tools.size(); i++) {
+            GeometryGCodeParameters p = settings == null ? null : settings.parametersByTool().get(i);
+            snapshots.put(i, p == null ? initialValues.clone() : new String[]{Double.toString(p.safeZ()),
+                    Double.toString(p.cutDepth()), Double.toString(p.depthPerPass()), Double.toString(p.feedRate()),
+                    Integer.toString(p.spindleSpeedRpm()), Double.toString(p.feedRateZ()), Double.toString(p.dwellSeconds()),
+                    Double.toString(p.extraCutLength()), Boolean.toString(p.multiDepth()), Boolean.toString(p.dwell()), Boolean.toString(p.extraCut())});
+        }
+        int[] editing = {0};
+        if (multiTool) {
+            restore.accept(snapshots.get(0));
+            toolTable.getSelectionModel().select(0);
+            toolTable.getSelectionModel().selectedIndexProperty().addListener((obs, old, value) -> {
+                if (value.intValue() < 0) return;
+                snapshots.put(editing[0], capture.get());
+                editing[0] = value.intValue(); restore.accept(snapshots.get(editing[0]));
+            });
+        }
+        Button applyAll = new Button("Aplicar parametros a todas as ferramentas");
+        applyAll.setId("cnc-apply-all");
+        applyAll.setMaxWidth(Double.MAX_VALUE);
+        applyAll.setOnAction(event -> { for (int i = 0; i < tools.size(); i++) snapshots.put(i, capture.get()); });
         Map<Integer, TextField[]> vFields = new LinkedHashMap<>();
         VBox vSettings = new VBox(8);
         vSettings.disableProperty().bind(noCutZ);
@@ -265,7 +319,11 @@ final class GeometryCncToolPanel {
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
                         rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0,
-                        preprocessor.getValue().requiresProbe() ? probe.parameters() : null);
+                        preprocessor.getValue().requiresProbe() ? probe.parameters() : null,
+                        noCutZ.get() ? feed : parse(feedZField, "Feedrate Z"),
+                        !noCutZ.get() && !roland.get() && dwellCb.isSelected(),
+                        dwellCb.isSelected() && !dwellField.isDisabled() ? parse(dwellField, "Dwell time") : 0,
+                        !noCutZ.get() && extraCb.isSelected(), extraCb.isSelected() && !noCutZ.get() ? parse(extraField, "Extra Cut Length") : 0);
                 preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
@@ -283,8 +341,28 @@ final class GeometryCncToolPanel {
                     vTools.put(entry.getKey(), tipSettings);
                 }
                 errorLabel.setText("");
+                Map<Integer, GeometryGCodeParameters> byTool = new LinkedHashMap<>();
+                if (multiTool && !noCutZ.get()) {
+                    snapshots.put(editing[0], capture.get());
+                    for (int i = 0; i < tools.size(); i++) {
+                        String[] s = snapshots.get(i);
+                        GeometryGCodeParameters p = new GeometryGCodeParameters(
+                                parseText(s[0], "Tool " + (i+1) + " Travel Z"), parseText(s[1], "Cut Z"), Boolean.parseBoolean(s[8]),
+                                Boolean.parseBoolean(s[8]) ? parseText(s[2], "Depth per pass") : 1,
+                                parseText(s[3], "Feedrate XY"), integerPower(s[4]), params.pauseForToolChange(),
+                                params.rapidFeedRate(), params.probing(), parseText(s[5], "Feedrate Z"),
+                                !roland.get() && Boolean.parseBoolean(s[9]), Boolean.parseBoolean(s[9]) && !roland.get() ? parseText(s[6], "Dwell") : 0,
+                                Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) ? parseText(s[7], "Extra Cut Length") : 0);
+                        preprocessor.getValue().validatePower(p.spindleSpeedRpm());
+                        preprocessor.getValue().validateFeedRates(p.feedRate(), params.rapidFeedRate());
+                        byTool.put(i, p);
+                    }
+                    if (byTool.values().stream().allMatch(params::equals)) byTool.clear();
+                    if (!byTool.isEmpty() && (roland.get() || preprocessor.getValue().requiresProbe()))
+                        throw new IllegalArgumentException("Este perfil exige parametros comuns; aplique a todas as ferramentas.");
+                }
                 onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools),
-                        preprocessor.getValue()));
+                        preprocessor.getValue(), Map.copyOf(byTool)));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }
@@ -320,6 +398,9 @@ final class GeometryCncToolPanel {
             safeZField.setText(Double.toString(p.safeZ())); cutDepthField.setText(Double.toString(p.cutDepth()));
             multiDepthCb.setSelected(p.multiDepth()); depthPerPassField.setText(Double.toString(p.depthPerPass()));
             feedField.setText(Double.toString(p.feedRate())); spindleField.setText(Integer.toString(p.spindleSpeedRpm()));
+            feedZField.setText(Double.toString(p.feedRateZ())); dwellCb.setSelected(p.dwell());
+            dwellField.setText(Double.toString(p.dwellSeconds())); extraCb.setSelected(p.extraCut());
+            extraField.setText(Double.toString(p.extraCutLength()));
             rapidFeedField.setText(Double.toString(p.rapidFeedRate()));
             if (selected.tip() != null) {
                 vFields.get(index)[0].setText(Double.toString(selected.tip().tipDiameter()));
@@ -327,6 +408,16 @@ final class GeometryCncToolPanel {
             }
         }, errorLabel));
         box.getChildren().add(grid);
+        if (multiTool) {
+            Label modeHelp = new Label();
+            modeHelp.setWrapText(true);
+            modeHelp.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(() ->
+                    noCutZ.get() || roland.get() || preprocessor.getValue().requiresProbe()
+                            ? "Este perfil usa os parametros comuns da ferramenta exibida; configuracoes individuais nao sao aplicadas."
+                            : "Selecione uma linha para editar seus parametros. Feed rapids, troca e preprocessor sao comuns ao trabalho.",
+                    preprocessor.valueProperty()));
+            box.getChildren().addAll(modeHelp, applyAll);
+        }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
         box.getChildren().addAll(probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
@@ -335,8 +426,19 @@ final class GeometryCncToolPanel {
     }
 
     private static double parse(TextField field, String name) {
+        return parseText(field.getText(), name);
+    }
+
+    private static int integerPower(String text) {
+        double value = parseText(text, "Spindle RPM");
+        if (!Double.isFinite(value) || value < 0 || value > Integer.MAX_VALUE || value != Math.rint(value))
+            throw new IllegalArgumentException("Potencia/RPM deve ser inteiro nao negativo.");
+        return (int) value;
+    }
+
+    private static double parseText(String text, String name) {
         try {
-            return Double.parseDouble(field.getText().trim().replace(',', '.'));
+            return Double.parseDouble(text.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(name + ": numero invalido");
         }

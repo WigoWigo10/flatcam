@@ -123,6 +123,9 @@ public final class ProjectFileIO {
                         .put("spindleSpeedRpm", defaults.spindleSpeedRpm())
                         .put("pauseForToolChange", defaults.pauseForToolChange())
                         .put("rapidFeedRate", defaults.rapidFeedRate()));
+                geometryJson.getJSONObject("cncDefaults").put("feedRateZ", defaults.feedRateZ())
+                        .put("dwell", defaults.dwell()).put("dwellSeconds", defaults.dwellSeconds())
+                        .put("extraCut", defaults.extraCut()).put("extraCutLength", defaults.extraCutLength());
                 if (defaults.probing() != null) {
                     ProbeToolChangeParameters probe = defaults.probing();
                     geometryJson.getJSONObject("cncDefaults").put("probing", probeToJson(probe));
@@ -135,6 +138,9 @@ public final class ProjectFileIO {
                         .put("tipDiameter", tip.tipDiameter()).put("angleDegrees", tip.angleDegrees())));
                 geometryJson.put("cncSettings", new JSONObject().put("preprocessor", settings.preprocessor().name())
                         .put("singleToolDiameter", settings.singleToolDiameter()).put("vTools", vTools));
+                JSONObject byTool = new JSONObject();
+                settings.parametersByTool().forEach((id, p) -> byTool.put(id.toString(), geometryParametersToJson(p)));
+                geometryJson.getJSONObject("cncSettings").put("parametersByTool", byTool);
             }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
@@ -300,7 +306,25 @@ public final class ProjectFileIO {
             tips.put(Integer.parseInt(id), new VTipSettings(tip.getDouble("tipDiameter"), tip.getDouble("angleDegrees")));
         }
         return new GeometryCncSettings(GCodePreprocessor.valueOf(json.getString("preprocessor")),
-                optionalDouble(json, "singleToolDiameter"), tips);
+                optionalDouble(json, "singleToolDiameter"), tips, readGeometryToolParameters(json.optJSONObject("parametersByTool")));
+    }
+
+    private static Map<Integer, GeometryGCodeParameters> readGeometryToolParameters(JSONObject values) {
+        if (values == null) return Map.of();
+        Map<Integer, GeometryGCodeParameters> result = new LinkedHashMap<>();
+        for (String id : values.keySet()) result.put(Integer.parseInt(id), readGeometryCncDefaults(values.getJSONObject(id)));
+        return Map.copyOf(result);
+    }
+
+    static JSONObject geometryParametersToJson(GeometryGCodeParameters p) {
+        JSONObject value = new JSONObject().put("safeZ", p.safeZ()).put("cutDepth", p.cutDepth())
+                .put("multiDepth", p.multiDepth()).put("depthPerPass", p.depthPerPass()).put("feedRate", p.feedRate())
+                .put("feedRateZ", p.feedRateZ()).put("spindleSpeedRpm", p.spindleSpeedRpm())
+                .put("pauseForToolChange", p.pauseForToolChange()).put("rapidFeedRate", p.rapidFeedRate())
+                .put("dwell", p.dwell()).put("dwellSeconds", p.dwellSeconds())
+                .put("extraCut", p.extraCut()).put("extraCutLength", p.extraCutLength());
+        if (p.probing() != null) value.put("probing", probeToJson(p.probing()));
+        return value;
     }
 
     private static Map<Integer, DrillGCodeParameters> readDrillDefaults(JSONObject javaExtra) {
@@ -359,7 +383,9 @@ public final class ProjectFileIO {
                 json.getBoolean("multiDepth"), json.getDouble("depthPerPass"),
                 json.getDouble("feedRate"), json.getInt("spindleSpeedRpm"),
                 json.getBoolean("pauseForToolChange"), json.optDouble("rapidFeedRate", 0),
-                readProbeParameters(json.optJSONObject("probing")));
+                readProbeParameters(json.optJSONObject("probing")), json.optDouble("feedRateZ", json.getDouble("feedRate")),
+                json.optBoolean("dwell", false), json.optDouble("dwellSeconds", 0),
+                json.optBoolean("extraCut", false), json.optDouble("extraCutLength", 0));
     }
 
     private static ProbeToolChangeParameters readProbeParameters(JSONObject json) {

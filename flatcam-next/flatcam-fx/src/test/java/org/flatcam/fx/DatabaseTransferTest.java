@@ -16,6 +16,28 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class DatabaseTransferTest {
+    @Test void cncRowsKeepIndependentParametersAndApplyAllIsExplicit() throws Exception {
+        try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
+        FutureTask<Void> task = new FutureTask<>(() -> {
+            var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0), new Coordinate(1,1)});
+            var result = new java.util.concurrent.atomic.AtomicReference<GeometryCncToolPanel.Result>();
+            var root = GeometryCncToolPanel.build("MM", path, List.of(new ToolGeometry(0.2,path),new ToolGeometry(0.4,path)), result::set, () -> {});
+            var table = (TableView<?>) root.lookup("#cnc-tools");
+            var feed = (TextField) root.lookup("#cnc-feed");
+            feed.setText("120"); table.getSelectionModel().select(1); feed.setText("240");
+            table.getSelectionModel().select(0); assertEquals("120", feed.getText());
+            ((Button) root.lookup("#cnc-generate")).fire();
+            assertNotNull(result.get()); assertEquals(120, result.get().parametersByTool().get(0).feedRate());
+            assertEquals(240, result.get().parametersByTool().get(1).feedRate());
+            ((Button) root.lookup("#cnc-apply-all")).fire();
+            ((Button) root.lookup("#cnc-generate")).fire();
+            assertTrue(result.get().parametersByTool().isEmpty());
+            table.getSelectionModel().select(1); feed.setText("invalid"); table.getSelectionModel().select(0);
+            result.set(null); ((Button) root.lookup("#cnc-generate")).fire(); assertNull(result.get());
+            return null;
+        });
+        Platform.runLater(task); task.get(20, TimeUnit.SECONDS);
+    }
     @Test void cutoutDatabaseTransferUpdatesRealControlsWithoutGenerating() throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
         FutureTask<Void> task = new FutureTask<>(() -> {

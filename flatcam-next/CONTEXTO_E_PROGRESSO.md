@@ -1905,6 +1905,17 @@ foi tentada também com diretório temporário isolado, mas falhou na limpeza de
 essa execução não deve ser registrada como uma regressão completa aprovada.
 # Série de paridade — 2026-10-02
 
+Etapa 3: Geometry/CNC possui parâmetros individuais por linha e Aplicar a todas.
+Edições inválidas não desaparecem ao trocar a seleção; todas as linhas são validadas.
+Inclui Feedrate Z distinto de XY, dwell após ligar spindle e Extra Cut em caminhos
+fechados (no máximo um perímetro adicional). Defaults, campos novos e mapa por ferramenta
+persistem no formato nativo; versões antigas usam XY como Feed Z. Tools Database
+transfere esses campos em Milling. Troca/probing, avanço rápido e perfil são comuns.
+Laser/HPGL/Roland/sondagem continuam com parâmetros comuns e aviso explícito;
+diferenças individuais não são aceitas para Roland/sondagem. Testes de gerador,
+perfis, persistência e controles FX aprovados. A execução adicional ProjectFileIOTest
+teve erros somente na limpeza de temporários Windows, sem falha de asserção.
+
 Etapa 2: Paint/Cutout possuem seleção e aplicação explícita da Tools Database,
 incluindo aviso de unidades e campos suportados. Paint aplica uma ferramenta e seus
 parâmetros comuns, preservando seleção/ordem/Rest. Combo usa índice Python 4;

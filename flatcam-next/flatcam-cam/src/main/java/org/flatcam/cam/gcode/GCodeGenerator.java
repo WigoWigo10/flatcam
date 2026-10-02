@@ -496,6 +496,24 @@ public final class GCodeGenerator {
                                                        Map<Integer, VTipSettings> vTools,
                                                        CancellationToken cancellationToken,
                                                        GCodePreprocessor preprocessor) {
+        return generateGeometryCncJob(units, tools, params, vTools, Map.of(), cancellationToken, preprocessor);
+    }
+
+    /** Per-tool machining parameters indexed by the original Geometry tool order; job-level change/rapid settings stay common. */
+    public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
+            GeometryGCodeParameters params, Map<Integer, VTipSettings> vTools,
+            Map<Integer, GeometryGCodeParameters> parametersByTool,
+            CancellationToken cancellationToken, GCodePreprocessor preprocessor) {
+        Objects.requireNonNull(parametersByTool, "parametersByTool");
+        if (parametersByTool.keySet().stream().anyMatch(id -> id < 0 || id >= tools.size()))
+            throw new IllegalArgumentException("Invalid tool parameter index");
+        for (var p : parametersByTool.values()) {
+            preprocessor.validatePower(p.spindleSpeedRpm());
+            preprocessor.validateFeedRates(p.feedRate(), params.rapidFeedRate());
+        }
+        if ((preprocessor.isLaser() || preprocessor.isPlotter() || preprocessor.isRoland() || preprocessor.requiresProbe())
+                && !parametersByTool.isEmpty())
+            throw new IllegalArgumentException("Individual machining parameters currently require a milling G-code profile without probing.");
         Objects.requireNonNull(units, "units");
         Objects.requireNonNull(tools, "tools");
         Objects.requireNonNull(params, "params");
@@ -519,7 +537,8 @@ public final class GCodeGenerator {
         List<List<Double>> depthsByTool = new ArrayList<>(tools.size());
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
-            double depth = params.cutDepth();
+            GeometryGCodeParameters machining = parametersByTool.getOrDefault(i, params);
+            double depth = machining.cutDepth();
             if (tool.toolProfile() == ToolProfile.V && !tool.geometry().isEmpty()) {
                 VTipSettings settings = vTools.get(i);
                 if (settings == null)
@@ -527,7 +546,7 @@ public final class GCodeGenerator {
                             + " exige V-Tip Dia e V-Tip Angle.");
                 depth = settings.cutDepth(tool.toolDiameter());
             }
-            depthsByTool.add(passDepths(depth, params.multiDepth(), params.depthPerPass()));
+            depthsByTool.add(passDepths(depth, machining.multiDepth(), machining.depthPerPass()));
         }
         cancellationToken.throwIfCancellationRequested();
 
@@ -548,6 +567,9 @@ public final class GCodeGenerator {
         double lastX = 0;
         double lastY = 0;
         boolean firstTool = true;
+        int previousSpindle = 0;
+        double clearance = Math.max(params.safeZ(), parametersByTool.values().stream()
+                .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
 
         for (int toolIndex = 0; toolIndex < tools.size(); toolIndex++) {
             ToolGeometry tool = tools.get(toolIndex);
@@ -555,9 +577,11 @@ public final class GCodeGenerator {
             if (tool.geometry() == null || tool.geometry().isEmpty()) {
                 continue;
             }
+            GeometryGCodeParameters machining = parametersByTool.getOrDefault(toolIndex, params);
             List<Double> depths = depthsByTool.get(toolIndex);
+            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
             if (!firstTool) {
-                if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
+                if (preprocessor.controlsSpindle(previousSpindle)) {
                     line(gcode, "%s", preprocessor.spindleOff());
                 }
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
@@ -586,14 +610,17 @@ public final class GCodeGenerator {
                         toolIndex + 1, fmt(tool.toolDiameter()), fmt(settings.tipDiameter()),
                         fmt(settings.angleDegrees()), fmt(depths.get(depths.size() - 1)))));
             }
-            if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
-                line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
+            previousSpindle = machining.spindleSpeedRpm();
+            if (preprocessor.controlsSpindle(previousSpindle)) {
+                line(gcode, "%s S%d", preprocessor.spindleOn(), previousSpindle);
+                if (machining.dwell()) line(gcode, "G4 P%s", fmt(machining.dwellSeconds()));
             }
 
             double radius = tool.toolDiameter() / 2.0;
-            for (Coordinate[] coordinates : orderedByNearestNeighbor(
+            for (Coordinate[] original : orderedByNearestNeighbor(
                     tool.geometry(), lastX, lastY, cancellationToken)) {
                 cancellationToken.throwIfCancellationRequested();
+                Coordinate[] coordinates = machining.extraCut() ? extraCut(original, machining.extraCutLength()) : original;
                 if (coordinates.length == 0) {
                     continue;
                 }
@@ -610,30 +637,47 @@ public final class GCodeGenerator {
                 line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
                 for (double depth : depths) {
                     cancellationToken.throwIfCancellationRequested();
-                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(params.feedRate()));
+                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(machining.feedRateZ()));
                     for (int p = 1; p < coordinates.length; p++) {
                         cancellationToken.throwIfCancellationRequested();
                         line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmt(coordinates[p].x),
-                                fmt(coordinates[p].y), fmt(params.feedRate()));
+                                fmt(coordinates[p].y), fmt(machining.feedRate()));
                     }
                     if (depth != depths.get(depths.size() - 1)) {
-                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
                         line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
                     }
                 }
-                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
             }
         }
 
-        if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
+        if (preprocessor.controlsSpindle(previousSpindle)) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
-        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
         cancellationToken.throwIfCancellationRequested();
         String code = preprocessor.finish(gcode, params.rapidFeedRate(), units, cancellationToken);
         if (preprocessor.requiresProbe()) return withoutProbePreview(code);
         return new CncJobResult(code,
                 travelFootprint(travelShapes), cutShapes.result());
+    }
+
+    /** Append up to one additional circuit to a closed path; never extend open paths. */
+    private static Coordinate[] extraCut(Coordinate[] path, double length) {
+        if (length == 0 || path.length < 3 || !path[0].equals2D(path[path.length - 1])) return path;
+        List<Coordinate> result = new ArrayList<>(List.of(path));
+        double remaining = length;
+        for (int i = 1; i < path.length && remaining > 0; i++) {
+            double segment = path[i - 1].distance(path[i]);
+            if (segment == 0) continue;
+            double t = Math.min(1, remaining / segment);
+            result.add(new Coordinate(path[i - 1].x + t * (path[i].x - path[i - 1].x),
+                    path[i - 1].y + t * (path[i].y - path[i - 1].y)));
+            remaining -= segment;
+        }
+        if (remaining > 1e-9) throw new IllegalArgumentException("Extra Cut Length exceeds the closed path perimeter.");
+        return result.toArray(Coordinate[]::new);
     }
 
     private static void requireMilling(GCodePreprocessor profile) {

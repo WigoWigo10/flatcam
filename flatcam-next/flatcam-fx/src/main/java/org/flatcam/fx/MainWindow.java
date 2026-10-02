@@ -6337,7 +6337,7 @@ final class MainWindow {
         JobHandle<GeneratedCncJob> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
             CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), result.tools(),
-                    result.parameters(), result.vTools(), context::isCancelled, result.preprocessor());
+                    result.parameters(), result.vTools(), result.parametersByTool(), context::isCancelled, result.preprocessor());
             context.checkCancelled();
             context.reportProgress(0.85, "Salvando G-code de Geometry...");
             Files.writeString(outFile.toPath(), job.gcode());
@@ -6354,9 +6354,9 @@ final class MainWindow {
                     CncJobResult job = generated.job();
                     if (geometryByItem.get(item) == entry) {
                         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
-                                entry.strokeOnly(), entry.tools(), result.parameters()));
+                                entry.strokeOnly(), result.tools(), result.parameters()));
                         geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
-                                entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null, result.vTools()));
+                                null, result.vTools(), result.parametersByTool()));
                     }
                     AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
                     appendConsole("G-code de Geometry salvo em " + outFile

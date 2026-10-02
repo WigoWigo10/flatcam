@@ -77,6 +77,9 @@ public record ProjectFile(
                                 String fillColorWeb, String strokeColorWeb, boolean visible,
                                 GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings) {
         public GeometryEntry {
+            if (cncSettings != null && cncSettings.parametersByTool().keySet().stream()
+                    .anyMatch(id -> id >= Math.max(1, tools.size())))
+                throw new IllegalArgumentException("Parametros CNC sem ferramenta correspondente.");
             if (cncSettings != null && cncDefaults == null)
                 throw new IllegalArgumentException("Perfil CNC de Geometry sem parametros de geracao.");
             if (cncSettings != null && cncSettings.preprocessor().requiresProbe()

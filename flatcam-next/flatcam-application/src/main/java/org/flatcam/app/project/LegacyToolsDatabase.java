@@ -93,7 +93,9 @@ public final class LegacyToolsDatabase {
                 GeometryGCodeParameters parameters = new GeometryGCodeParameters(
                         data.optDouble("travelz", 2), Math.abs(cutZ), data.optBoolean("multidepth", false),
                         data.optDouble("depthperpass", 0.1), data.optDouble("feedrate", 120),
-                        data.optInt("spindlespeed", 0), false, data.optDouble("feedrate_rapid", 0));
+                        data.optInt("spindlespeed", 0), false, data.optDouble("feedrate_rapid", 0), null,
+                        data.optDouble("feedrate_z", 60), data.optBoolean("dwell", false), data.optDouble("dwelltime", 1),
+                        data.optBoolean("extracut", false), data.optDouble("extracut_length", 0.1));
                 tools.add(new MillingTool(entry.optString("name", "Tool " + id), diameter, profile, parameters, tip));
             } catch (RuntimeException invalid) {
                 throw new IOException("Invalid Milling tool " + id + ": " + invalid.getMessage(), invalid);

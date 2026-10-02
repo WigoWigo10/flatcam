@@ -10,6 +10,7 @@ final class ToolsDatabaseDescriptions {
     private static final Set<String> TRANSFERRED = Set.of("name", "tooldia", "tool_type", "tool_target", "tol_min", "tol_max",
             "tools_iso_passes", "tools_iso_overlap", "tools_iso_isotype",
             "vtipdia", "vtipangle", "cutz", "multidepth", "depthperpass", "travelz", "feedrate", "feedrate_rapid", "spindlespeed",
+            "feedrate_z", "dwell", "dwelltime", "extracut", "extracut_length",
             "tools_paint_overlap", "tools_paint_offset", "tools_paint_method", "tools_paint_connect", "tools_paint_contour",
             "tools_cutout_margin", "tools_cutout_gapsize", "tools_cutout_gaps_ff", "tools_cutout_convexshape",
             "tools_cutout_gap_type", "tools_cutout_mb_dia", "tools_cutout_mb_spacing",
