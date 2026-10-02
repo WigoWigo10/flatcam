@@ -12,7 +12,26 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
                                       double depthPerPass, double feedRate, int spindleSpeedRpm,
                                       boolean pauseForToolChange, double rapidFeedRate,
                                       ProbeToolChangeParameters probing, double feedRateZ,
-                                      boolean dwell, double dwellSeconds, boolean extraCut, double extraCutLength) {
+                                      boolean dwell, double dwellSeconds, boolean extraCut, double extraCutLength,
+                                      ToolPathOffset offset, double customOffset, GeometryJobOptions jobOptions) {
+    public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
+                                  double depthPerPass, double feedRate, int spindleSpeedRpm,
+                                  boolean pauseForToolChange, double rapidFeedRate, ProbeToolChangeParameters probing,
+                                  double feedRateZ, boolean dwell, double dwellSeconds, boolean extraCut, double extraCutLength) {
+        this(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm, pauseForToolChange,
+                rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
+                ToolPathOffset.PATH, 0, GeometryJobOptions.AUTOMATIC);
+    }
+    public GeometryGCodeParameters withCompensation(ToolPathOffset mode, double distance) {
+        return new GeometryGCodeParameters(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm,
+                pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
+                mode, distance, jobOptions);
+    }
+    public GeometryGCodeParameters withJobOptions(GeometryJobOptions options) {
+        return new GeometryGCodeParameters(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm,
+                pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
+                offset, customOffset, options);
+    }
     public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                   double depthPerPass, double feedRate, int spindleSpeedRpm,
                                   boolean pauseForToolChange, double rapidFeedRate, ProbeToolChangeParameters probing) {
@@ -31,6 +50,11 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
     }
 
     public GeometryGCodeParameters {
+        java.util.Objects.requireNonNull(offset, "offset");
+        java.util.Objects.requireNonNull(jobOptions, "jobOptions");
+        if (!Double.isFinite(customOffset)) throw new IllegalArgumentException("Custom Offset deve ser finito.");
+        if (offset == ToolPathOffset.CUSTOM && customOffset == 0)
+            throw new IllegalArgumentException("Custom Offset nao pode ser zero; use Path para manter os caminhos.");
         if (!Double.isFinite(feedRateZ) || feedRateZ <= 0)
             throw new IllegalArgumentException("Feedrate Z must be positive");
         if (!Double.isFinite(dwellSeconds) || dwellSeconds < 0)

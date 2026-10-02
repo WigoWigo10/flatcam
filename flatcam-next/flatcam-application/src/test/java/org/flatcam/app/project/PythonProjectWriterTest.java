@@ -57,6 +57,46 @@ class PythonProjectWriterTest {
         assertThrows(IOException.class, () -> PythonProjectWriter.save(invalid,file));
         assertEquals("original",Files.readString(file));
     }
+    @Test void compensationAndCommonPositionsSurviveWithoutPrivateFxMetadata() throws Exception {
+        var positions = new GeometryJobOptions(5.0,0.5,20.0,30.0,15.0,-1.0,-2.0);
+        var p = new GeometryGCodeParameters(2,0.1,false,1,100,0,true)
+                .withCompensation(ToolPathOffset.CUSTOM,-0.25).withJobOptions(positions);
+        var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0),new Coordinate(10,0),
+                new Coordinate(10,10),new Coordinate(0,10),new Coordinate(0,0)});
+        var settings = new GeometryCncSettings(GCodePreprocessor.DEFAULT_NO_M6,null,Map.of(),Map.of(0,p));
+        String code = GCodeGenerator.generateGeometryCncJob("MM",List.of(new ToolGeometry(0.5,path)),p,Map.of(),
+                org.flatcam.cam.CancellationToken.none(),GCodePreprocessor.DEFAULT_NO_M6).gcode();
+        var project = new ProjectFile(List.of(),List.of(),List.of(new ProjectFile.GeometryEntry("outline","","MM",path,true,
+                List.of(new ToolGeometry(0.5,path)),null,null,true,p,settings)),
+                List.of(new ProjectFile.CncJobRecord("outline.nc","outline","outline.nc",code)));
+        Path file = dir.resolve("positions.FlatPrj"); PythonProjectWriter.save(project,file,false);
+        var root = ProjectFileIO.parseRoot(Files.readAllBytes(file));
+        var obj = root.getJSONArray("objs").getJSONObject(0);
+        assertEquals("Custom",obj.getJSONObject("tools").getJSONObject("1").getString("offset"));
+        assertEquals(-0.25,obj.getJSONObject("tools").getJSONObject("1").getDouble("offset_value"));
+        assertEquals(positions.endZ(),obj.getJSONObject("options").getDouble("endz"));
+        root.remove("_java"); root.remove("_fx_format"); ProjectFileIO.writeRoot(root,file,false);
+        var loaded = PythonProjectIO.load(file).geometries().getFirst();
+        assertEquals(p,loaded.cncDefaults()); assertEquals(p,loaded.cncSettings().parametersByTool().get(0));
+        assertTrue(path.equalsExact(loaded.tools().getFirst().geometry()));
+        // Python takes End XY from the Geometry object's common options, not the tool's stale copy.
+        obj.getJSONObject("options").put("endxy",new org.json.JSONArray(List.of(40,50)));
+        var data = obj.getJSONObject("tools").getJSONObject("1").getJSONObject("data");
+        for (String key : List.of("startz", "endz", "toolchangez", "toolchangexy")) data.remove(key);
+        ProjectFileIO.writeRoot(root,file,false);
+        var common = PythonProjectIO.load(file).geometries().getFirst().cncDefaults().jobOptions();
+        assertEquals(40,common.endX()); assertEquals(50,common.endY());
+        assertEquals(positions.startZ(),common.startZ()); assertEquals(positions.toolChangeX(),common.toolChangeX());
+        String output = System.getProperty("flatcam.compat.output");
+        if (output != null) PythonProjectWriter.save(project,Path.of(output).resolve("advanced-positions.FlatPrj"),false);
+        String resaved = System.getProperty("flatcam.compat.advancedResaved");
+        if (resaved != null) {
+            var restored = PythonProjectIO.load(Path.of(resaved));
+            assertEquals(p,restored.geometries().getFirst().cncDefaults());
+            assertEquals(p,restored.geometries().getFirst().cncSettings().parametersByTool().get(0));
+            assertEquals(code,restored.cncJobs().getFirst().gcode());
+        }
+    }
     @Test void cncOnlyInchesGetsMatchingGlobalUnitsAndMixedProjectsAreRefused() throws Exception {
         var inches = new ProjectFile.CncJobRecord("in.nc","","in.nc","G20\nG90\nG0 Z0.1\nG1 X1 F2\nM30\n");
         Path file = dir.resolve("units.FlatPrj");

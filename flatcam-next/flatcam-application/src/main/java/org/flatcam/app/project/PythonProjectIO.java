@@ -137,10 +137,10 @@ public final class PythonProjectIO {
         return new ProjectFile.GeometryEntry(name, "", object.optString("units", "MM"),
                 geometry, geometry.getDimension() < 2, List.copyOf(tools),
                 object.optString("fill_color", null), object.optString("outline_color", null), plot(object),
-                readGeometryCncDefaults(toolJson), readGeometrySettings(toolJson));
+                readGeometryCncDefaults(toolJson, object.optJSONObject("options")), readGeometrySettings(toolJson, object.optJSONObject("options")));
     }
 
-    private static GeometryCncSettings readGeometrySettings(JSONObject tools) {
+    private static GeometryCncSettings readGeometrySettings(JSONObject tools, JSONObject options) {
         if (tools == null || tools.isEmpty()) return null;
         List<String> ids = new ArrayList<>(tools.keySet()); ids.sort(Comparator.comparingInt(Integer::parseInt));
         Map<Integer, GeometryGCodeParameters> parameters = new LinkedHashMap<>();
@@ -149,7 +149,7 @@ public final class PythonProjectIO {
         for (int i = 0; i < ids.size(); i++) {
             JSONObject tool = tools.getJSONObject(ids.get(i)), data = tool.optJSONObject("data");
             if (data == null) continue;
-            GeometryGCodeParameters p = readMachiningData(data);
+            GeometryGCodeParameters p = readMachiningTool(tool, options);
             if (p != null) parameters.put(i,p);
             String name = data.optString("ppname_g", "");
             if (i == 0) for (var candidate : org.flatcam.cam.gcode.GCodePreprocessor.geometryProfiles())
@@ -159,18 +159,34 @@ public final class PythonProjectIO {
                 tip.cutDepth(tool.getDouble("tooldia")); tips.put(i,tip);
             } catch (RuntimeException invalid) { /* Optional tip does not discard paths. */ }
         }
-        if (readGeometryCncDefaults(tools) == null) return null;
+        if (readGeometryCncDefaults(tools, options) == null) return null;
         return new GeometryCncSettings(profile,null,tips,parameters);
     }
 
-    private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject tools) {
+    private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject tools, JSONObject options) {
         if (tools == null || tools.isEmpty()) return null;
         List<String> ids = new ArrayList<>(tools.keySet());
         ids.sort(Comparator.comparingInt(Integer::parseInt));
         JSONObject first = tools.getJSONObject(ids.get(0));
         JSONObject data = first.optJSONObject("data");
         if (data == null) return null;
-        return readMachiningData(data);
+        return readMachiningTool(first, options);
+    }
+
+    private static GeometryGCodeParameters readMachiningTool(JSONObject tool, JSONObject options) {
+        JSONObject original = tool.optJSONObject("data");
+        if (original == null) return null;
+        JSONObject data = new JSONObject(original.toString());
+        if (options != null) {
+            for (String key : List.of("startz", "endz", "endxy", "toolchangez", "toolchangexy"))
+                if ((!data.has(key) || key.equals("endxy")) && options.has(key)) data.put(key, options.get(key));
+        }
+        GeometryGCodeParameters p = readMachiningData(data);
+        if (p == null) return null;
+        try {
+            return p.withCompensation(org.flatcam.cam.gcode.ToolPathOffset.fromLegacy(tool.optString("offset", "Path")),
+                    tool.optDouble("offset_value", 0));
+        } catch (RuntimeException invalid) { return null; }
     }
 
     private static GeometryGCodeParameters readMachiningData(JSONObject data) {
@@ -181,11 +197,33 @@ public final class PythonProjectIO {
                     data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false),
                     data.optDouble("feedrate_rapid", 0), null, data.optDouble("feedrate_z",data.getDouble("feedrate")),
                     data.optBoolean("dwell",false), data.optDouble("dwelltime",0),
-                    data.optBoolean("extracut",false), data.optDouble("extracut_length",0));
+                    data.optBoolean("extracut",false), data.optDouble("extracut_length",0))
+                    .withJobOptions(readLegacyPositions(data));
         } catch (RuntimeException invalid) {
             // Optional CAM settings must not make otherwise valid project geometry disappear.
             return null;
         }
+    }
+
+    private static org.flatcam.cam.gcode.GeometryJobOptions readLegacyPositions(JSONObject data) {
+        Double[] end = legacyXY(data.opt("endxy")), change = legacyXY(data.opt("toolchangexy"));
+        return new org.flatcam.cam.gcode.GeometryJobOptions(legacyOptional(data.opt("startz")), legacyOptional(data.opt("endz")),
+                end[0], end[1], legacyOptional(data.opt("toolchangez")), change[0], change[1]);
+    }
+    private static Double legacyOptional(Object value) {
+        if (value == null || value == JSONObject.NULL || value.toString().isBlank() || value.toString().equalsIgnoreCase("None")) return null;
+        return Double.valueOf(value.toString().trim());
+    }
+    private static Double[] legacyXY(Object value) {
+        if (value == null || value == JSONObject.NULL || value.toString().isBlank() || value.toString().equalsIgnoreCase("None"))
+            return new Double[]{null, null};
+        if (value instanceof JSONArray a) {
+            if (a.length() != 2) throw new IllegalArgumentException("Posicao XY invalida.");
+            return new Double[]{a.getDouble(0), a.getDouble(1)};
+        }
+        String[] xy = value.toString().replace("(", "").replace(")", "").replace("[", "").replace("]", "").split(",", -1);
+        if (xy.length != 2) throw new IllegalArgumentException("Posicao XY invalida.");
+        return new Double[]{Double.valueOf(xy[0].trim()), Double.valueOf(xy[1].trim())};
     }
 
     private static Map<Integer, DrillGCodeParameters> readDrillDefaults(JSONObject object) {

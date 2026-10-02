@@ -5,13 +5,14 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-01**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
+> Atualizado em **2026-10-02**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
 > migrou para **Java 25 + JavaFX 25.0.4**, portou **todas as 24 ferramentas do menu Ferramentas do Python**
 > (nenhuma resta), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0. A suíte tem **695 testes** (481 `flatcam-cam`, 95 `flatcam-application`, 119 `flatcam-fx`),
-> sem falhas; 9 ficam ignorados porque dependem de um projeto real do Python (privado) indicado por
+> na seção 9.0 e nas entregas de 2026-10-02 ao final do documento. A suíte tem **739 testes**
+> (491 `flatcam-cam`, 110 `flatcam-application`, 138 `flatcam-fx`), sem falhas; 11 ficam ignorados
+> porque dependem de fixtures/artefatos opcionais indicados por propriedades ou
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
 > não substitui o código como fonte final da verdade. Os trechos mais antigos das seções 4, 5 e 8
@@ -79,10 +80,10 @@ separação.
 
 ### Verificação mais recente
 
-Em 2026-10-01, `install` completo (compila e testa os três módulos com JDK 25.0.4 e JavaFX 25.0.4) passa com
-**695 testes registrados**: 481 em `flatcam-cam`, 95 em `flatcam-application` e 119 em `flatcam-fx`;
-686 executados, 0 falhas, 0 erros e
-9 ignorados (`NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
+Em 2026-10-02, `mvnw.cmd -q install` completo (três módulos com JDK 25.0.4.1 e JavaFX 25.0.4) passa com
+**739 testes registrados**: 491 em `flatcam-cam`, 110 em `flatcam-application` e 138 em `flatcam-fx`;
+728 executados, 0 falhas, 0 erros e
+11 ignorados (fixtures opcionais de `PythonProjectWriterTest`, `NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
 imprime "Job failed"; esses logs, isoladamente, não representam falha da suíte. O smoke visual anterior
@@ -398,15 +399,15 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
-| Geometry | parcial | multi-tool via NCC/Paint/SolderPaste e conversões Single↔Multi; Geometry → CNC preserva cada ferramenta, recupera parâmetros básicos de corte de projetos Python e calcula Cut Z de ferramenta V por V-Tip Dia/Angle; editor seleciona/exclui/move/copia, desenha formas, transforma e usa undo/redo; texto e borracha faltam |
+| Geometry | parcial | multi-tool e conversões Single↔Multi; CNC por ferramenta, Feed XY/Z, Dwell, Extra Cut, V-Tip e compensação Path/In/Out/Custom; posições comuns de início/fim/troca com validação/persistência, somente fresagem sem sonda neste incremento; editor com seleção/exclusão/desenho/transformações/undo; Texto e Borracha faltam; ver GEOMETRY_CNC.md |
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão, ICP/HPGL/RML lineares; 19 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 20 de 20 ports parciais; Mach3 com sonda gera G31/G92 e exige confirmação manual, sem prévia; Roland inicialmente só MM/uma ferramenta e sem metadados de diâmetro na reabertura; ver `PREPROCESSADORES.md` |
-| Persistência de projeto | parcial | `.fcnproj` próprio embute Gerber, Excellon, Geometry, texto G-code e configurações da última geração CNC bem-sucedida: perfil, parâmetros básicos, diâmetro/V-tip de Geometry e globais/seleção/ordem de Drilling; confirmação da sonda não persiste; importação somente leitura de `.FlatPrj` Python 8.9xx validada com um projeto real 8.994; o FX avisa quais opções não aplicou; salvar como `.FlatPrj` ainda não é suportado |
+| Persistência de projeto | parcial | `.fcnproj` embute objetos/G-code e parâmetros CNC individuais, compensação/posições e seleção/ordem de Drilling; confirmação da sonda não persiste; abertura e exportação `.FlatPrj` JSON/XZ validadas com serializadores Python e 18 objetos reais; não é round-trip universal, ver COMPATIBILIDADE_FLATPRJ.md |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
 | Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
-| Tools Database | parcial | editor na aba central, 63 campos do formulário Python, busca/filtro, copiar/excluir, `.FlatDB` com backup e preservação de campos desconhecidos; NCC, Isolation e Drilling usam a base aberta; faltam transferência para Milling/Paint/Cutout e consumo integral de parâmetros avançados |
+| Tools Database | parcial | editor com 63 campos Python, busca/filtro, `.FlatDB`, backup e campos desconhecidos preservados; integrado a NCC/Isolation/Drilling/Geometry CNC/Milling/Paint/Cutout; faltam transferência de Offset e profundidades Cutout/Thin, parâmetros Paint individuais e consumo integral de opções avançadas |
 | Preferências globais | inicial/parcial | aba funcional para tema, snap, grade visual e visibilidade do Plot Area; ainda longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
 
@@ -1951,3 +1952,36 @@ da base não é convertida automaticamente; a interface avisa. Offset, dwell, Fe
 e extra cut ainda não são transferidos nesta etapa. Parâmetros por ferramenta seguem
 na etapa 3. Testes direcionados: MillingDatabaseTest, DatabaseTransferTest e
 GeometryCncToolPanelTest aprovados.
+
+## Geometry → CNC: compensação e posições — 2026-10-02
+
+Tool Offset Path/In/Out/Custom por ferramenta, sem modificar a Geometry original.
+Buffer mitrado compatível com a estratégia Python; linhas fechadas viram polígonos,
+linhas abertas usam contorno de buffer positivo e compensações que eliminam um
+elemento são recusadas. Custom zero exige Path. Todos os rascunhos são validados.
+
+Painel recolhível com Start Z, End Z/XY e Tool change Z/XY comuns. Retração antes
+de XY e pausa/troca, inclusive primeira troca com posição explícita; movimentação
+final em altura segura antes de baixar ao End Z (diferença deliberada do Python).
+Após M0/M6, G90 e altura de troca são reafirmados antes do próximo movimento XY.
+Altura de troca não pode ser menor que o maior Travel Z. Movimentos de troca/fim
+constam da prévia; corrigida também a prévia do retorno XY entre passes abertos.
+Novos campos só em fresagem sem sonda; perfis incompatíveis recusam configurações
+ativas em vez de ignorá-las. A sonda conserva seu painel próprio.
+
+Persistência nativa retrocompatível; `.FlatPrj` guarda offset/valor e posições nos
+campos CAM padrão. End XY comum do objeto tem prioridade sobre cópia antiga da
+ferramenta, como no Python. Opções globais servem de fallback quando o dado por
+ferramenta falta. Reimportação após reserialização Python conserva os novos valores.
+
+Testes de núcleo, persistência e controles JavaFX aprovados. Serializadores/parser
+Python validaram exemplo avançado (Geometry + CNC Job) e os 18 objetos do projeto
+real autorizado, sem modificar o original. Conferência visual e teste a seco
+permanecem pendentes. Limites e instruções em GEOMETRY_CNC.md.
+
+Regressão final: install aprovado, 739 testes registrados, 728 aprovados,
+11 ignorados, zero falhas/erros; propriedade opcional advancedResaved verificou
+a reabertura do exemplo reserializado pelo Python. Tentativas anteriores tiveram
+erros intermitentes ao excluir temporários Windows; ProjectFileIOTest agora limpa
+somente seu diretório JUnit, com repetição limitada, fechando a enumeração antes
+de apagar. Limpeza não foi desativada e erros persistentes continuam falhando.

@@ -22,6 +22,7 @@ import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.io.TempDir;
 import org.json.JSONObject;
 import org.locationtech.jts.geom.Coordinate;
@@ -32,6 +33,34 @@ class ProjectFileIOTest {
 
     @TempDir
     Path tempDir;
+
+    /** Windows can report a pending file deletion as DirectoryNotEmpty for a few milliseconds. */
+    @AfterEach
+    void cleanOwnedTemporaryDirectoryWithBoundedWindowsRetry() throws IOException {
+        if (!System.getProperty("os.name").startsWith("Windows") || tempDir == null) return;
+        Path owned = tempDir.toAbsolutePath().normalize();
+        if (owned.getNameCount() < 2 || !owned.getFileName().toString().startsWith("junit-"))
+            throw new IOException("Refusing cleanup outside the JUnit-owned temporary directory: " + owned);
+        IOException last = null;
+        for (int attempt = 0; attempt < 6; attempt++) {
+            if (Files.notExists(owned)) return;
+            try {
+                List<Path> entries;
+                // Close directory enumeration handles before asking Windows to delete the root.
+                try (var walk = Files.walk(owned)) { entries = walk.sorted(java.util.Comparator.reverseOrder()).toList(); }
+                for (Path entry : entries) {
+                    if (!entry.toAbsolutePath().normalize().startsWith(owned)) throw new IOException("Unexpected cleanup path: " + entry);
+                    Files.deleteIfExists(entry);
+                }
+                return;
+            } catch (IOException pendingDelete) { last = pendingDelete; }
+            try { Thread.sleep(25L * (attempt + 1)); }
+            catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt(); throw new IOException("Temporary cleanup interrupted", interrupted);
+            }
+        }
+        throw last;
+    }
 
     @Test
     void probeDefaultsAndMachineProgramRoundTripWithoutInventingContactGeometry() throws IOException {

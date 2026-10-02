@@ -16,6 +16,7 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.VBox;
 import javafx.util.StringConverter;
@@ -23,6 +24,8 @@ import javafx.collections.FXCollections;
 import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.GeometryCncSettings;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.GeometryJobOptions;
+import org.flatcam.cam.gcode.ToolPathOffset;
 import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
@@ -123,6 +126,17 @@ final class GeometryCncToolPanel {
         extraCb.setId("cnc-extra-cut");
         TextField extraField = new TextField(defaults == null ? "0.1" : Double.toString(defaults.extraCutLength()));
         extraField.setId("cnc-extra-length");
+        ComboBox<ToolPathOffset> offset = new ComboBox<>(FXCollections.observableArrayList(ToolPathOffset.values()));
+        offset.setId("cnc-offset");
+        offset.setValue(defaults == null ? ToolPathOffset.PATH : defaults.offset());
+        offset.setMinWidth(0);
+        offset.setMaxWidth(Double.MAX_VALUE);
+        TextField customOffset = new TextField(defaults == null ? "0" : Double.toString(defaults.customOffset()));
+        customOffset.setId("cnc-custom-offset");
+        customOffset.setMinWidth(0);
+        customOffset.setPrefColumnCount(7);
+        offset.setTooltip(new Tooltip("Path preserva os caminhos. In/Out aplicam metade do diametro para dentro/fora; Custom usa uma distancia assinada.\n\nA compensacao modifica somente os caminhos do CNC Job, nao a Geometry original. Em linhas abertas, Out cria o contorno do buffer, como no Python; In pode eliminar o caminho e sera recusado."));
+        customOffset.setTooltip(new Tooltip("Custom Offset: positivo expande; negativo contrai. Unidades do objeto.\n\nAtenção: caminhos de Isolation/NCC ja sao centros de ferramenta; normalmente use Path para evitar compensacao duplicada."));
         rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
@@ -161,6 +175,11 @@ final class GeometryCncToolPanel {
         var roland = javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> preprocessor.getValue().isRoland(), preprocessor.valueProperty());
         var noCutZ = laser.or(plotter);
+        var unsupportedPositions = javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> noCutZ.get() || roland.get() || preprocessor.getValue().requiresProbe(), preprocessor.valueProperty());
+        offset.disableProperty().bind(unsupportedPositions);
+        customOffset.disableProperty().bind(unsupportedPositions.or(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> offset.getValue() != ToolPathOffset.CUSTOM, offset.valueProperty())));
         feedZField.disableProperty().bind(noCutZ);
         extraCb.disableProperty().bind(noCutZ);
         extraField.disableProperty().bind(extraCb.selectedProperty().not().or(noCutZ));
@@ -212,23 +231,55 @@ final class GeometryCncToolPanel {
         grid.addRow(row++, new Label("Feedrate Z:"), feedZField);
         grid.addRow(row++, dwellCb, dwellField);
         grid.addRow(row++, extraCb, extraField);
+        grid.addRow(row++, new Label("Tool Offset:"), offset);
+        grid.addRow(row++, new Label("Custom Offset:"), customOffset);
         grid.addRow(row++, new Label("Feed rapids:"), rapidFeedField);
         grid.addRow(row++, powerLabel, spindleField);
         grid.add(pauseCheck, 0, row++, 2, 1);
         grid.addRow(row, new Label("Preprocessor:"), preprocessor);
 
+        GeometryJobOptions savedPositions = defaults == null ? GeometryJobOptions.AUTOMATIC : defaults.jobOptions();
+        TextField startZ = optionalField("cnc-start-z", savedPositions.startZ());
+        TextField endZ = optionalField("cnc-end-z", savedPositions.endZ());
+        TextField endXY = xyField("cnc-end-xy", savedPositions.endX(), savedPositions.endY());
+        TextField changeZ = optionalField("cnc-change-z", savedPositions.toolChangeZ());
+        TextField changeXY = xyField("cnc-change-xy", savedPositions.toolChangeX(), savedPositions.toolChangeY());
+        startZ.setTooltip(new Tooltip("Start Z: movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z.\n\nAntes de qualquer deslocamento XY, o FX sobe para a altura de seguranca."));
+        endZ.setTooltip(new Tooltip("End Z: altura final depois de desligar o spindle. Vazio/None usa o maior Travel Z.\n\nSe End Z for menor que Travel Z, o movimento End X,Y ocorre primeiro em altura segura; so depois desce para End Z. Confirme que o destino esta livre."));
+        endXY.setTooltip(new Tooltip("Posicao final X,Y nas unidades do objeto. None mantem a posicao do ultimo corte.\n\nUse X,Y ou X;Y (ponto ou virgula decimal quando separado por ;). O movimento aparece na previa."));
+        changeZ.setTooltip(new Tooltip("Tool change Z: altura usada antes da troca. Vazio/None usa o maior Travel Z.\n\nDeve ser pelo menos o maior Travel Z das ferramentas. So e aplicada quando a troca esta ativa ou o perfil seleciona ferramentas automaticamente."));
+        changeXY.setTooltip(new Tooltip("Tool change X,Y: posicao para trocar a ferramenta, inclusive a primeira. None troca na posicao atual.\n\nO FX retrai antes do movimento XY e antes de executar M0/M6. Confira a posicao, grampos e a macro da maquina."));
+        GridPane positionGrid = new GridPane();
+        positionGrid.setHgap(8); positionGrid.setVgap(8);
+        positionGrid.addRow(0, new Label("Start Z:"), startZ);
+        positionGrid.addRow(1, new Label("End Z:"), endZ);
+        positionGrid.addRow(2, new Label("End X,Y:"), endXY);
+        positionGrid.addRow(3, new Label("Tool change Z:"), changeZ);
+        positionGrid.addRow(4, new Label("Tool change X,Y:"), changeXY);
+        positionGrid.disableProperty().bind(unsupportedPositions);
+        changeZ.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> !pauseCheck.isSelected() && !preprocessor.getValue().automaticToolSelection(), pauseCheck.selectedProperty(), preprocessor.valueProperty()));
+        changeXY.disableProperty().bind(changeZ.disableProperty());
+        Label positionsHelp = new Label("Posicoes comuns a todas as ferramentas. None = automatico. Disponiveis para fresagem sem sondagem; a sonda usa o painel proprio. Configuracoes preservadas nao sao ignoradas ao mudar de perfil.");
+        positionsHelp.setWrapText(true);
+        TitledPane positionsPane = new TitledPane("Posicoes e troca de ferramenta", new VBox(8, positionGrid, positionsHelp));
+        positionsPane.setExpanded(!savedPositions.isAutomatic());
+
         Label errorLabel = new Label();
         errorLabel.setId("cnc-error");
+        errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("form-error-label");
         // Raw snapshots preserve invalid edits when switching rows; all rows validate before generation.
         List<TextField> machiningFields = List.of(safeZField, cutDepthField, depthPerPassField,
                 feedField, spindleField, feedZField, dwellField, extraField);
         List<CheckBox> machiningChecks = List.of(multiDepthCb, dwellCb, extraCb);
-        Supplier<String[]> capture = () -> java.util.stream.Stream.concat(machiningFields.stream().map(TextField::getText),
-                machiningChecks.stream().map(c -> Boolean.toString(c.isSelected()))).toArray(String[]::new);
+        Supplier<String[]> capture = () -> java.util.stream.Stream.concat(java.util.stream.Stream.concat(machiningFields.stream().map(TextField::getText),
+                machiningChecks.stream().map(c -> Boolean.toString(c.isSelected()))),
+                java.util.stream.Stream.of(offset.getValue().name(), customOffset.getText())).toArray(String[]::new);
         Consumer<String[]> restore = values -> {
             for (int i = 0; i < machiningFields.size(); i++) machiningFields.get(i).setText(values[i]);
             for (int i = 0; i < machiningChecks.size(); i++) machiningChecks.get(i).setSelected(Boolean.parseBoolean(values[8 + i]));
+            offset.setValue(ToolPathOffset.valueOf(values[11])); customOffset.setText(values[12]);
         };
         Map<Integer, String[]> snapshots = new LinkedHashMap<>();
         String[] initialValues = capture.get();
@@ -237,7 +288,8 @@ final class GeometryCncToolPanel {
             snapshots.put(i, p == null ? initialValues.clone() : new String[]{Double.toString(p.safeZ()),
                     Double.toString(p.cutDepth()), Double.toString(p.depthPerPass()), Double.toString(p.feedRate()),
                     Integer.toString(p.spindleSpeedRpm()), Double.toString(p.feedRateZ()), Double.toString(p.dwellSeconds()),
-                    Double.toString(p.extraCutLength()), Boolean.toString(p.multiDepth()), Boolean.toString(p.dwell()), Boolean.toString(p.extraCut())});
+                    Double.toString(p.extraCutLength()), Boolean.toString(p.multiDepth()), Boolean.toString(p.dwell()), Boolean.toString(p.extraCut()),
+                    p.offset().name(), Double.toString(p.customOffset())});
         }
         int[] editing = {0};
         if (multiTool) {
@@ -315,6 +367,9 @@ final class GeometryCncToolPanel {
                 int spindle = (int) power;
                 preprocessor.getValue().validatePower(spindle);
                 preprocessor.getValue().unitsCode(units);
+                Double[] end = parseXY(endXY, "End X,Y"), change = parseXY(changeXY, "Tool change X,Y");
+                GeometryJobOptions positions = new GeometryJobOptions(parseOptional(startZ, "Start Z"), parseOptional(endZ, "End Z"),
+                        end[0], end[1], parseOptional(changeZ, "Tool change Z"), change[0], change[1]);
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
@@ -323,7 +378,8 @@ final class GeometryCncToolPanel {
                         noCutZ.get() ? feed : parse(feedZField, "Feedrate Z"),
                         !noCutZ.get() && !roland.get() && dwellCb.isSelected(),
                         dwellCb.isSelected() && !dwellField.isDisabled() ? parse(dwellField, "Dwell time") : 0,
-                        !noCutZ.get() && extraCb.isSelected(), extraCb.isSelected() && !noCutZ.get() ? parse(extraField, "Extra Cut Length") : 0);
+                        !noCutZ.get() && extraCb.isSelected(), extraCb.isSelected() && !noCutZ.get() ? parse(extraField, "Extra Cut Length") : 0,
+                        offset.getValue(), parse(customOffset, "Custom Offset"), positions);
                 preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
@@ -352,7 +408,8 @@ final class GeometryCncToolPanel {
                                 parseText(s[3], "Feedrate XY"), integerPower(s[4]), params.pauseForToolChange(),
                                 params.rapidFeedRate(), params.probing(), parseText(s[5], "Feedrate Z"),
                                 !roland.get() && Boolean.parseBoolean(s[9]), Boolean.parseBoolean(s[9]) && !roland.get() ? parseText(s[6], "Dwell") : 0,
-                                Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) ? parseText(s[7], "Extra Cut Length") : 0);
+                                Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) ? parseText(s[7], "Extra Cut Length") : 0,
+                                ToolPathOffset.valueOf(s[11]), parseText(s[12], "Custom Offset"), positions);
                         preprocessor.getValue().validatePower(p.spindleSpeedRpm());
                         preprocessor.getValue().validateFeedRates(p.feedRate(), params.rapidFeedRate());
                         byTool.put(i, p);
@@ -361,6 +418,12 @@ final class GeometryCncToolPanel {
                     if (!byTool.isEmpty() && (roland.get() || preprocessor.getValue().requiresProbe()))
                         throw new IllegalArgumentException("Este perfil exige parametros comuns; aplique a todas as ferramentas.");
                 }
+                double clearance = Math.max(params.safeZ(), byTool.values().stream().mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
+                positions.validate(preprocessor.getValue(), clearance, params.pauseForToolChange() || preprocessor.getValue().automaticToolSelection());
+                if (unsupportedPositions.get() && (params.offset() != ToolPathOffset.PATH
+                        || byTool.values().stream().anyMatch(p -> p.offset() != ToolPathOffset.PATH)
+                        || snapshots.values().stream().anyMatch(s -> !s[11].equals(ToolPathOffset.PATH.name()))))
+                    throw new IllegalArgumentException("Offset exige perfil de fresagem sem sondagem. Volte ao perfil de fresagem e use Path para limpar a compensacao.");
                 onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools),
                         preprocessor.getValue(), Map.copyOf(byTool)));
             } catch (RuntimeException ex) {
@@ -419,7 +482,7 @@ final class GeometryCncToolPanel {
             box.getChildren().addAll(modeHelp, applyAll);
         }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
-        box.getChildren().addAll(probe.view(), profileHelp, errorLabel, generateButton, closeButton);
+        box.getChildren().addAll(positionsPane, probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         if (settings != null) preprocessor.setValue(settings.preprocessor());
         return box;
@@ -427,6 +490,28 @@ final class GeometryCncToolPanel {
 
     private static double parse(TextField field, String name) {
         return parseText(field.getText(), name);
+    }
+
+    private static TextField optionalField(String id, Double value) {
+        TextField field = new TextField(value == null ? "None" : Double.toString(value));
+        field.setId(id); field.setMinWidth(0); field.setPrefColumnCount(10); return field;
+    }
+    private static TextField xyField(String id, Double x, Double y) {
+        TextField field = optionalField(id, null);
+        if (x != null) field.setText(x + ", " + y);
+        return field;
+    }
+    private static boolean absent(String text) { return text.isBlank() || text.equalsIgnoreCase("None"); }
+    private static Double parseOptional(TextField field, String label) {
+        return absent(field.getText().trim()) ? null : parse(field, label);
+    }
+    private static Double[] parseXY(TextField field, String label) {
+        String text = field.getText().trim();
+        if (absent(text)) return new Double[]{null, null};
+        text = text.replace("(", "").replace(")", "").replace("[", "").replace("]", "");
+        String[] xy = text.split(text.contains(";") ? ";" : ",", -1);
+        if (xy.length != 2) throw new IllegalArgumentException(label + ": use None ou X,Y (X;Y com virgula decimal).");
+        return new Double[]{parseText(xy[0], label), parseText(xy[1], label)};
     }
 
     private static int integerPower(String text) {

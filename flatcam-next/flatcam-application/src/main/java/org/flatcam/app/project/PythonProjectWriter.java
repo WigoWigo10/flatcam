@@ -94,8 +94,15 @@ public final class PythonProjectWriter {
             var p = entry.cncSettings() == null ? entry.cncDefaults()
                     : entry.cncSettings().parametersByTool().getOrDefault(i, entry.cncDefaults());
             JSONObject data = p == null ? new JSONObject() : machining(p);
-            data.put("endz",p == null ? 2 : p.safeZ()).put("endxy", "").put("startz",JSONObject.NULL)
-                    .put("toolchangez",p == null ? 2 : p.safeZ()).put("toolchangexy","0.0, 0.0")
+            var common = entry.cncDefaults() == null ? p : entry.cncDefaults();
+            var positions = common == null ? org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC : common.jobOptions();
+            double clearance = common == null ? 2 : common.safeZ();
+            if (entry.cncSettings() != null) clearance = Math.max(clearance, entry.cncSettings().parametersByTool().values()
+                    .stream().mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(clearance));
+            data.put("endz",positions.endZ() == null ? clearance : positions.endZ()).put("endxy", legacyXY(positions.endX(), positions.endY()))
+                    .put("startz",positions.startZ() == null ? JSONObject.NULL : positions.startZ())
+                    .put("toolchangez",positions.toolChangeZ() == null ? clearance : positions.toolChangeZ())
+                    .put("toolchangexy",legacyXY(positions.toolChangeX(), positions.toolChangeY()))
                     .put("area_exclusion",false).put("area_shape","polygon").put("area_strategy","over").put("area_overz",1)
                     .put("ppname_g","Default_no_M6").put("vtipdia",0.1).put("vtipangle",30);
             data.put("name",entry.name()).put("tooldia",tool.toolDiameter());
@@ -108,13 +115,21 @@ public final class PythonProjectWriter {
                         .put("cutz",-tip.cutDepth(tool.toolDiameter()));
             }
             tools.put(Integer.toString(i+1), new JSONObject().put("tooldia",tool.toolDiameter())
-                    .put("tool_type",tool.toolProfile().name()).put("type","Rough").put("offset","Path").put("offset_value",0)
+                    .put("tool_type",tool.toolProfile().name()).put("type","Rough").put("offset",p == null ? "Path" : p.offset().label())
+                    .put("offset_value",p == null ? 0 : p.offset().distance(tool.toolDiameter(), p.customOffset()))
                     .put("data",data).put("solid_geometry",parts(tool.geometry())));
+            if (i == 0) {
+                JSONObject options = object.getJSONObject("options");
+                for (String key : List.of("startz", "endz", "endxy", "toolchangez", "toolchangexy", "toolchange"))
+                    if (data.has(key)) options.put(key, data.get(key));
+            }
         }
         object.put("tools",tools);
         colors(object, entry.fillColorWeb(), entry.strokeColorWeb());
         return object;
     }
+
+    private static String legacyXY(Double x, Double y) { return x == null ? "" : x + ", " + y; }
 
     private static JSONObject machining(GeometryGCodeParameters p) {
         return new JSONObject().put("travelz",p.safeZ()).put("cutz",-p.cutDepth()).put("multidepth",p.multiDepth())

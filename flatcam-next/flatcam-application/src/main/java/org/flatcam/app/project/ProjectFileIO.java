@@ -119,22 +119,7 @@ public final class ProjectFileIO {
             geometryJson.put("visible", entry.visible());
             if (entry.cncDefaults() != null) {
                 GeometryGCodeParameters defaults = entry.cncDefaults();
-                geometryJson.put("cncDefaults", new JSONObject()
-                        .put("safeZ", defaults.safeZ())
-                        .put("cutDepth", defaults.cutDepth())
-                        .put("multiDepth", defaults.multiDepth())
-                        .put("depthPerPass", defaults.depthPerPass())
-                        .put("feedRate", defaults.feedRate())
-                        .put("spindleSpeedRpm", defaults.spindleSpeedRpm())
-                        .put("pauseForToolChange", defaults.pauseForToolChange())
-                        .put("rapidFeedRate", defaults.rapidFeedRate()));
-                geometryJson.getJSONObject("cncDefaults").put("feedRateZ", defaults.feedRateZ())
-                        .put("dwell", defaults.dwell()).put("dwellSeconds", defaults.dwellSeconds())
-                        .put("extraCut", defaults.extraCut()).put("extraCutLength", defaults.extraCutLength());
-                if (defaults.probing() != null) {
-                    ProbeToolChangeParameters probe = defaults.probing();
-                    geometryJson.getJSONObject("cncDefaults").put("probing", probeToJson(probe));
-                }
+                geometryJson.put("cncDefaults", geometryParametersToJson(defaults));
             }
             if (entry.cncSettings() != null) {
                 GeometryCncSettings settings = entry.cncSettings();
@@ -337,6 +322,11 @@ public final class ProjectFileIO {
                 .put("pauseForToolChange", p.pauseForToolChange()).put("rapidFeedRate", p.rapidFeedRate())
                 .put("dwell", p.dwell()).put("dwellSeconds", p.dwellSeconds())
                 .put("extraCut", p.extraCut()).put("extraCutLength", p.extraCutLength());
+        value.put("offset", p.offset().name()).put("customOffset", p.customOffset());
+        var positions = p.jobOptions();
+        value.put("jobOptions", new JSONObject().put("startZ", positions.startZ()).put("endZ", positions.endZ())
+                .put("endX", positions.endX()).put("endY", positions.endY()).put("toolChangeZ", positions.toolChangeZ())
+                .put("toolChangeX", positions.toolChangeX()).put("toolChangeY", positions.toolChangeY()));
         if (p.probing() != null) value.put("probing", probeToJson(p.probing()));
         return value;
     }
@@ -399,7 +389,16 @@ public final class ProjectFileIO {
                 json.getBoolean("pauseForToolChange"), json.optDouble("rapidFeedRate", 0),
                 readProbeParameters(json.optJSONObject("probing")), json.optDouble("feedRateZ", json.getDouble("feedRate")),
                 json.optBoolean("dwell", false), json.optDouble("dwellSeconds", 0),
-                json.optBoolean("extraCut", false), json.optDouble("extraCutLength", 0));
+                json.optBoolean("extraCut", false), json.optDouble("extraCutLength", 0),
+                org.flatcam.cam.gcode.ToolPathOffset.fromLegacy(json.optString("offset", "Path")),
+                json.optDouble("customOffset", 0), readGeometryJobOptions(json.optJSONObject("jobOptions")));
+    }
+
+    private static org.flatcam.cam.gcode.GeometryJobOptions readGeometryJobOptions(JSONObject json) {
+        if (json == null) return org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC;
+        return new org.flatcam.cam.gcode.GeometryJobOptions(optionalDouble(json, "startZ"), optionalDouble(json, "endZ"),
+                optionalDouble(json, "endX"), optionalDouble(json, "endY"), optionalDouble(json, "toolChangeZ"),
+                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"));
     }
 
     private static ProbeToolChangeParameters readProbeParameters(JSONObject json) {

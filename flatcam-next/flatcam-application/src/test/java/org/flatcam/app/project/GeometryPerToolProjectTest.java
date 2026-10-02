@@ -22,7 +22,9 @@ class GeometryPerToolProjectTest {
         assertTrue(loaded.tools().isEmpty()); assertEquals(settings,loaded.cncSettings());
     }
     @Test void distinctParametersAndNewFieldsSurviveNativeSaveReload() throws Exception {
-        var p = new GeometryGCodeParameters(3,0.2,true,0.05,200,10000,true,600,null,80,true,0.5,true,0.1);
+        var p = new GeometryGCodeParameters(3,0.2,true,0.05,200,10000,true,600,null,80,true,0.5,true,0.1)
+                .withCompensation(ToolPathOffset.CUSTOM,-0.15)
+                .withJobOptions(new GeometryJobOptions(4.0,0.5,10.0,20.0,15.0,0.0,0.0));
         var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0), new Coordinate(1,1)});
         var settings = new GeometryCncSettings(GCodePreprocessor.GRBL_11, null, Map.of(), Map.of(0,p));
         var entry = new ProjectFile.GeometryEntry("paths", "", "MM", path, true, List.of(new ToolGeometry(0.3,path)), null,null,true,p,settings);
@@ -30,5 +32,17 @@ class GeometryPerToolProjectTest {
         ProjectFileIO.save(new ProjectFile(List.of(),List.of(),List.of(entry),List.of()), file);
         var loaded = ProjectFileIO.load(file).geometries().getFirst();
         assertEquals(p, loaded.cncDefaults()); assertEquals(settings, loaded.cncSettings());
+    }
+    @Test void projectsWithoutNewFieldsKeepAutomaticPositionsAndPath() throws Exception {
+        var p = new GeometryGCodeParameters(2,0.1,false,1,100,0,false);
+        var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0),new Coordinate(1,1)});
+        Path file = dir.resolve("old.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(),List.of(),List.of(new ProjectFile.GeometryEntry(
+                "old","","MM",path,true,List.of(),null,null,true,p)),List.of()),file);
+        var root = ProjectFileIO.parseRoot(java.nio.file.Files.readAllBytes(file));
+        var fields = root.getJSONObject("_java").getJSONArray("geometries").getJSONObject(0).getJSONObject("cncDefaults");
+        fields.remove("offset"); fields.remove("customOffset"); fields.remove("jobOptions");
+        ProjectFileIO.writeRoot(root,file,false);
+        assertEquals(p,ProjectFileIO.load(file).geometries().getFirst().cncDefaults());
     }
 }

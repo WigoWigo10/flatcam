@@ -524,6 +524,19 @@ public final class GCodeGenerator {
             throw new IllegalArgumentException("At least one tool geometry is required");
         }
         preprocessor.validatePower(params.spindleSpeedRpm());
+        double clearance = Math.max(params.safeZ(), parametersByTool.values().stream()
+                .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
+        GeometryJobOptions positions = params.jobOptions();
+        boolean changing = params.pauseForToolChange() || preprocessor.automaticToolSelection();
+        positions.validate(preprocessor, clearance, changing);
+        for (int i = 0; i < tools.size(); i++) {
+            GeometryGCodeParameters p = parametersByTool.getOrDefault(i, params);
+            if (!p.jobOptions().isAutomatic() && !p.jobOptions().equals(positions))
+                throw new IllegalArgumentException("Posicoes de inicio/fim/troca sao comuns ao trabalho, nao individuais.");
+            if (p.offset() != ToolPathOffset.PATH && (preprocessor.isLaser() || preprocessor.isPlotter()
+                    || preprocessor.isRoland() || preprocessor.requiresProbe()))
+                throw new IllegalArgumentException("Offset exige perfil de fresagem sem sondagem.");
+        }
         if (preprocessor.isPlotter()) {
             return generateHpglCncJob(units, tools, params, cancellationToken);
         }
@@ -535,6 +548,7 @@ public final class GCodeGenerator {
             throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo e nao suporta troca mecanica.");
         validateProbing(preprocessor, params.pauseForToolChange(), params.probing());
         List<List<Double>> depthsByTool = new ArrayList<>(tools.size());
+        List<Geometry> compensatedPaths = new ArrayList<>(tools.size());
         for (int i = 0; i < tools.size(); i++) {
             ToolGeometry tool = tools.get(i);
             GeometryGCodeParameters machining = parametersByTool.getOrDefault(i, params);
@@ -547,6 +561,8 @@ public final class GCodeGenerator {
                 depth = settings.cutDepth(tool.toolDiameter());
             }
             depthsByTool.add(passDepths(depth, machining.multiDepth(), machining.depthPerPass()));
+            compensatedPaths.add(GeometryPathCompensation.apply(tool.geometry(),
+                    machining.offset().distance(tool.toolDiameter(), machining.customOffset()), cancellationToken));
         }
         cancellationToken.throwIfCancellationRequested();
 
@@ -560,7 +576,7 @@ public final class GCodeGenerator {
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
         line(gcode, "G94");
-        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.startZ() == null ? params.safeZ() : positions.startZ()));
 
         List<Geometry> travelShapes = new ArrayList<>();
         Footprints cutShapes = new Footprints();
@@ -568,8 +584,7 @@ public final class GCodeGenerator {
         double lastY = 0;
         boolean firstTool = true;
         int previousSpindle = 0;
-        double clearance = Math.max(params.safeZ(), parametersByTool.values().stream()
-                .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
+        double lastToolRadius = tools.getFirst().toolDiameter() / 2;
 
         for (int toolIndex = 0; toolIndex < tools.size(); toolIndex++) {
             ToolGeometry tool = tools.get(toolIndex);
@@ -580,8 +595,21 @@ public final class GCodeGenerator {
             GeometryGCodeParameters machining = parametersByTool.getOrDefault(toolIndex, params);
             List<Double> depths = depthsByTool.get(toolIndex);
             line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+            // Explicit positions also cover the initial portable tool, whose legacy default pauses only between tools.
+            boolean changeHere = changing && (!firstTool || preprocessor.emitsToolNumber()
+                    || positions.toolChangeZ() != null || positions.toolChangeX() != null);
+            double changeZ = positions.toolChangeZ() == null ? clearance : positions.toolChangeZ();
+            if (changeHere && !preprocessor.requiresProbe()) {
+                if (preprocessor.controlsSpindle(previousSpindle)) line(gcode, "%s", preprocessor.spindleOff());
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
+                if (positions.toolChangeX() != null) {
+                    addTravel(travelShapes, lastX, lastY, positions.toolChangeX(), positions.toolChangeY(), lastToolRadius);
+                    line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(positions.toolChangeX()), fmt(positions.toolChangeY()));
+                    lastX = positions.toolChangeX(); lastY = positions.toolChangeY();
+                }
+            }
             if (!firstTool) {
-                if (preprocessor.controlsSpindle(previousSpindle)) {
+                if ((!changeHere || preprocessor.requiresProbe()) && preprocessor.controlsSpindle(previousSpindle)) {
                     line(gcode, "%s", preprocessor.spindleOff());
                 }
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
@@ -591,15 +619,23 @@ public final class GCodeGenerator {
                     } else {
                         line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                         line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
-                                tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
+                                tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, params.feedRate()));
                     }
                 }
             } else if (preprocessor.emitsToolNumber()) {
                 line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
-                            tool.toolDiameter(), units, params.safeZ(), params.feedRate()));
+                            tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, params.feedRate()));
                 }
+            } else if (changeHere) {
+                line(gcode, "%s", toolChangeCode(preprocessor, null, toolIndex + 1,
+                        tool.toolDiameter(), units, changeZ, params.feedRate()));
+            }
+            if (changeHere && !preprocessor.requiresProbe()) {
+                // M0/M6 may move Z or leave incremental mode; restore clearance before the next XY.
+                line(gcode, "G90");
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
             }
             firstTool = false;
             line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
@@ -617,8 +653,9 @@ public final class GCodeGenerator {
             }
 
             double radius = tool.toolDiameter() / 2.0;
+            lastToolRadius = radius;
             for (Coordinate[] original : orderedByNearestNeighbor(
-                    tool.geometry(), lastX, lastY, cancellationToken)) {
+                    compensatedPaths.get(toolIndex), lastX, lastY, cancellationToken)) {
                 cancellationToken.throwIfCancellationRequested();
                 Coordinate[] coordinates = machining.extraCut() ? extraCut(original, machining.extraCutLength()) : original;
                 if (coordinates.length == 0) {
@@ -644,6 +681,8 @@ public final class GCodeGenerator {
                                 fmt(coordinates[p].y), fmt(machining.feedRate()));
                     }
                     if (depth != depths.get(depths.size() - 1)) {
+                        if (!preprocessor.requiresProbe()) addTravel(travelShapes, last.x, last.y,
+                                coordinates[0].x, coordinates[0].y, radius);
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
                         line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
                     }
@@ -656,6 +695,13 @@ public final class GCodeGenerator {
             line(gcode, "%s", preprocessor.spindleOff());
         }
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+        if (positions.endX() != null) {
+            // Never lower to a small End Z before a lateral parking move.
+            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(Math.max(clearance, positions.endZ() == null ? clearance : positions.endZ())));
+            addTravel(travelShapes, lastX, lastY, positions.endX(), positions.endY(), lastToolRadius);
+            line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(positions.endX()), fmt(positions.endY()));
+        }
+        if (positions.endZ() != null) line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.endZ()));
         cancellationToken.throwIfCancellationRequested();
         String code = preprocessor.finish(gcode, params.rapidFeedRate(), units, cancellationToken);
         if (preprocessor.requiresProbe()) return withoutProbePreview(code);

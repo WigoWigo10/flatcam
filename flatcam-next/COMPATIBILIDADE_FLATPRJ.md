@@ -10,6 +10,8 @@ temporário: uma falha de validação não sobrescreve o destino.
 - Gerber: geometria resolvida, aperturas/elementos disponíveis, cores e visibilidade.
 - Excellon: diâmetros, furos, slots, sólidos por ferramenta e parâmetros de furação disponíveis.
 - Geometry: caminhos por ferramenta, perfil, ponta V e parâmetros CNC disponíveis.
+- Geometry/CNC: compensação Path/In/Out/Custom e posições comuns de início,
+  fim e troca; campos CAM padrão são recuperados mesmo sem metadados privados FX.
 - CNC Job: G-code integral e geometria de prévia compatível com o leitor Python.
 
 Os objetos ficam na lista `objs`, não apenas numa extensão privada que o Python
@@ -18,6 +20,9 @@ nativas na reabertura direta pelo FX. O Python descarta os metadados privados da
 raiz ao salvar; os campos CAM padronizados continuam disponíveis no reimportador.
 Em Geometry sem ferramentas associadas, o diâmetro/perfil CNC fica nas configurações
 e não transforma o objeto em uma Geometry multigeo com diâmetro fixo.
+Alturas automáticas de fim/troca são exportadas como valores explícitos para o
+Python. O FX faz o estacionamento XY em altura segura antes de descer ao End Z;
+o Python pode executar esses movimentos em outra ordem. Ver `GEOMETRY_CNC.md`.
 
 ## Limitações e validação
 
@@ -46,6 +51,8 @@ Validação automatizada realizada sem abrir janelas:
 - Projeto autorizado do usuário: 3 Gerbers, 3 Excellons, 3 Geometries e 9 CNC Jobs.
   O arquivo original não foi modificado; artefatos ficam em `target/python-compat`.
 - Arquivo de exemplo salvo novamente pelos serializadores Python e reaberto pelo FX.
+- Exemplo Geometry/CNC com Custom Offset, Start/End e posições de troca
+  reserializado pelo Python e reaberto pelo FX com os mesmos parâmetros/G-code.
 
 O teste Python usa o código real de serialização e parsers com o stub já existente
 no legado, não a janela completa. A conferência visual no aplicativo Python ainda
