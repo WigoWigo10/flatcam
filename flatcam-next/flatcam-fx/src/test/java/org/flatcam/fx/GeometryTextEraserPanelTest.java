@@ -75,6 +75,27 @@ class GeometryTextEraserPanelTest {
                         false,false,false,false,type==MouseEvent.MOUSE_PRESSED,false,false,false,false,true,null));
         }
     }
+    @Test void editorControlsExposeSpecificHelpWithoutNativeTooltipDuplication() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                PanelTooltips.install(h.panel,"Editor Geometry");
+                var text=h.button("geometry-text");
+                var eraser=h.button("geometry-eraser");
+                assertEquals("Texto vetorial",text.getAccessibleText());
+                assertTrue(text.getAccessibleHelp().contains("linha de base"));
+                assertTrue(eraser.getAccessibleHelp().contains("todas as ferramentas"));
+                assertNull(text.getTooltip()); assertNull(eraser.getTooltip());
+                h.controller.startText();
+                var size=(TextField) h.panel.lookup("#geometry-text-size");
+                var place=(Button) h.panel.lookup("#geometry-text-place");
+                assertTrue(size.getAccessibleHelp().contains("0.1"));
+                assertTrue(place.getAccessibleHelp().contains("Ctrl+Z"));
+                assertNotNull(place.getProperties().get(FluidTooltips.CONTENT_KEY));
+                return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
     @Test void textPreviewDoesNotCommitUntilClickAndCancelAndUndoWork() throws Exception {
         var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
         try {

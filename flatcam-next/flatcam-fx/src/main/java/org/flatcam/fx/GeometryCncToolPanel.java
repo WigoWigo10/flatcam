@@ -126,6 +126,8 @@ final class GeometryCncToolPanel {
         extraCb.setId("cnc-extra-cut");
         TextField extraField = new TextField(defaults == null ? "0.1" : Double.toString(defaults.extraCutLength()));
         extraField.setId("cnc-extra-length");
+        extraCb.setTooltip(new Tooltip("Extra Cut acrescenta um trecho após completar um caminho fechado. Não tem efeito em caminhos abertos e não está disponível para laser/HPGL.\n\nO ajuste é individual por ferramenta; Aplicar parâmetros a todas copia a configuração explicitamente."));
+        extraField.setTooltip(new Tooltip("Extra Cut Length: comprimento adicional no encontro entre o início e o fim de um caminho fechado. Só é usado com Extra Cut marcado.\n\nUnidades: unidade do objeto (mm ou in). Não é profundidade nem número de passes."));
         ComboBox<ToolPathOffset> offset = new ComboBox<>(FXCollections.observableArrayList(ToolPathOffset.values()));
         offset.setId("cnc-offset");
         offset.setValue(defaults == null ? ToolPathOffset.PATH : defaults.offset());
@@ -135,8 +137,8 @@ final class GeometryCncToolPanel {
         customOffset.setId("cnc-custom-offset");
         customOffset.setMinWidth(0);
         customOffset.setPrefColumnCount(7);
-        offset.setTooltip(new Tooltip("Path preserva os caminhos. In/Out aplicam metade do diametro para dentro/fora; Custom usa uma distancia assinada.\n\nA compensacao modifica somente os caminhos do CNC Job, nao a Geometry original. Em linhas abertas, Out cria o contorno do buffer, como no Python; In pode eliminar o caminho e sera recusado."));
-        customOffset.setTooltip(new Tooltip("Custom Offset: positivo expande; negativo contrai. Unidades do objeto.\n\nAtenção: caminhos de Isolation/NCC ja sao centros de ferramenta; normalmente use Path para evitar compensacao duplicada."));
+        offset.setTooltip(new Tooltip("Path preserva os caminhos. In/Out aplicam metade do diâmetro para dentro/fora; Custom usa uma distância assinada. O ajuste é individual por ferramenta e não altera a Geometry original.\n\nEm linhas abertas, Out cria o contorno do buffer; In pode eliminar o caminho e é recusado.\n\nDisponível em fresagem sem sonda. Configurações ativas não são descartadas ao mudar para um perfil incompatível: volte à fresagem e limpe-as antes de gerar."));
+        customOffset.setTooltip(new Tooltip("Custom Offset: positivo expande; negativo contrai. Disponível quando Tool Offset é Custom; zero exige Path.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: Isolation/NCC/Cutout já geram caminhos compensados; normalmente use Path para evitar compensação duplicada."));
         rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
@@ -244,11 +246,11 @@ final class GeometryCncToolPanel {
         TextField endXY = xyField("cnc-end-xy", savedPositions.endX(), savedPositions.endY());
         TextField changeZ = optionalField("cnc-change-z", savedPositions.toolChangeZ());
         TextField changeXY = xyField("cnc-change-xy", savedPositions.toolChangeX(), savedPositions.toolChangeY());
-        startZ.setTooltip(new Tooltip("Start Z: movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z.\n\nAntes de qualquer deslocamento XY, o FX sobe para a altura de seguranca."));
+        startZ.setTooltip(new Tooltip("Start Z: movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z exibido ao gerar; aceita zero ou valor positivo.\n\nAntes de deslocar em XY, o FX retrai para a altura de segurança. Start Z não faz referenciamento nem confirma que a ferramenta está livre.\n\nUnidades: unidade do objeto (mm ou in)."));
         endZ.setTooltip(new Tooltip("End Z: altura final depois de desligar o spindle. Vazio/None usa o maior Travel Z.\n\nSe End Z for menor que Travel Z, o movimento End X,Y ocorre primeiro em altura segura; so depois desce para End Z. Confirme que o destino esta livre."));
-        endXY.setTooltip(new Tooltip("Posicao final X,Y nas unidades do objeto. None mantem a posicao do ultimo corte.\n\nUse X,Y ou X;Y (ponto ou virgula decimal quando separado por ;). O movimento aparece na previa."));
+        endXY.setTooltip(new Tooltip("Posição final X,Y. Vazio/None mantém a posição do último corte. Use 10.5;20.5 ou, com vírgula decimal, 10,5;20,5.\n\nO FX desloca em altura segura antes de descer para End Z. O movimento aparece na prévia.\n\nUnidades: unidade do objeto (mm ou in)."));
         changeZ.setTooltip(new Tooltip("Tool change Z: altura usada antes da troca. Vazio/None usa o maior Travel Z.\n\nDeve ser pelo menos o maior Travel Z das ferramentas. So e aplicada quando a troca esta ativa ou o perfil seleciona ferramentas automaticamente."));
-        changeXY.setTooltip(new Tooltip("Tool change X,Y: posicao para trocar a ferramenta, inclusive a primeira. None troca na posicao atual.\n\nO FX retrai antes do movimento XY e antes de executar M0/M6. Confira a posicao, grampos e a macro da maquina."));
+        changeXY.setTooltip(new Tooltip("Tool change X,Y: posição para a troca, inclusive a primeira, quando ativada. Vazio/None troca na posição atual. Use 10.5;20.5 ou 10,5;20,5.\n\nO FX retrai antes de XY e M0/M6.\n\nAtenção: confira grampos e a macro da máquina; a prévia não simula movimentos internos de uma macro M6.\n\nUnidades: unidade do objeto (mm ou in)."));
         GridPane positionGrid = new GridPane();
         positionGrid.setHgap(8); positionGrid.setVgap(8);
         positionGrid.addRow(0, new Label("Start Z:"), startZ);
@@ -263,6 +265,8 @@ final class GeometryCncToolPanel {
         Label positionsHelp = new Label("Posicoes comuns a todas as ferramentas. None = automatico. Disponiveis para fresagem sem sondagem; a sonda usa o painel proprio. Configuracoes preservadas nao sao ignoradas ao mudar de perfil.");
         positionsHelp.setWrapText(true);
         TitledPane positionsPane = new TitledPane("Posicoes e troca de ferramenta", new VBox(8, positionGrid, positionsHelp));
+        ToolDescriptions.apply(positionsPane, "Posições comuns do CNC",
+                "Start Z, End Z/XY e Tool change Z/XY valem para todas as ferramentas. Vazio/None mantém os valores automáticos.\n\nSomente para fresagem sem sonda; laser, HPGL, Roland e sondagem usam seus próprios ajustes. Campos desabilitados conservam os valores: configurações incompatíveis ativas são recusadas, não ignoradas. Volte à fresagem para limpá-las.\n\nTroca Z/XY só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente.");
         positionsPane.setExpanded(!savedPositions.isAutomatic());
 
         Label errorLabel = new Label();

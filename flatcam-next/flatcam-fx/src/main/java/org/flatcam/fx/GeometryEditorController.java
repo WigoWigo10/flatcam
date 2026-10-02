@@ -265,9 +265,19 @@ final class GeometryEditorController {
         iconize(transformButton, "transform.png");
         iconize(textButton, "text32.png");
         iconize(eraserButton, "eraser26.png");
-        eraserButton.setTooltip(new Tooltip("Selecione formas como molde. Clique na origem e no destino para apagar nessa area.\n"
-                + "O molde nao e movido. Aneis fechados e exteriores de poligonos sao preenchidos, como no Python.\n"
-                + "Ctrl+Z desfaz; Esc cancela antes da confirmacao."));
+        GeometryEditorDescriptions.apply(textButton, "text");
+        GeometryEditorDescriptions.apply(eraserButton, "eraser");
+        GeometryEditorDescriptions.apply(bufferButton, "buffer");
+        GeometryEditorDescriptions.apply(cutPathButton, "cut_path");
+        GeometryEditorDescriptions.apply(subtractButton, "subtract");
+        GeometryEditorDescriptions.apply(unionButton, "union");
+        GeometryEditorDescriptions.apply(intersectionButton, "intersection");
+        GeometryEditorDescriptions.apply(explodeButton, "explode");
+        GeometryEditorDescriptions.apply(moveButton, "move");
+        GeometryEditorDescriptions.apply(copyButton, "copy");
+        ToolDescriptions.apply(bufferMode, "Modo do Buffer", GeometryEditorDescriptions.of("buffer").text());
+        ToolDescriptions.apply(bufferDistance, "Distância do Buffer",
+                "Distância positiva e finita na unidade do objeto. Interior contrai; Exterior expande; Completo cria uma faixa ao redor do contorno.\n\nUnidades: mm ou in. Escolha o modo em vez de usar uma distância negativa.");
         iconize(cancelButton, "power16.png");
         selectButton.setOnAction(event -> startSelection());
         pathButton.setOnAction(event -> startPath());
@@ -294,12 +304,16 @@ final class GeometryEditorController {
         textContent = new TextArea(); textContent.setId("geometry-text-content");
         textContent.setPromptText("Texto para converter em geometria"); textContent.setPrefRowCount(3);
         textContent.setWrapText(true);
+        ToolDescriptions.apply(textContent, "Conteúdo do texto",
+                "Texto simples, com até 512 caracteres; Enter acrescenta outra linha abaixo da primeira. O estilo vale para todo o conteúdo.\n\nAo inserir, as letras viram áreas editáveis: não será possível reabrir o resultado como texto. Editar este campo cancela uma prévia anterior, sem apagar formas já inseridas.");
         textFont = new ComboBox<>(FXCollections.observableArrayList(TextGeometry.fontFamilies()));
         textFont.setId("geometry-text-font"); textFont.setMaxWidth(Double.MAX_VALUE);
         textFont.setValue(textFont.getItems().contains("Arial") ? "Arial" : "SansSerif");
+        ToolDescriptions.apply(textFont, "Fonte dos contornos",
+                "Escolha uma fonte instalada. Fontes ausentes ou sem os caracteres necessários são recusadas.\n\nA Geometry salva contém os contornos vetoriais e não depende mais da fonte; métricas e curvas podem diferir das geradas pelo Python.");
         textSize = new TextField("10"); textSize.setId("geometry-text-size"); textSize.setPrefColumnCount(5);
-        textSize.setTooltip(new Tooltip("Escala de tamanho do ParseFont Python (nao altura exata da letra).\n"
-                + "Contornos vetoriais nas unidades " + units + ". Confira as dimensoes na previa antes de usinar."));
+        ToolDescriptions.apply(textSize, "Tamanho do texto",
+                "Escala de tamanho do ParseFont Python, de 0.1 a 1000; não é a altura exata da letra.\n\nUnidades: os contornos são gerados em " + units + ". Confira as dimensões na prévia antes de usinar.");
         textBold = new CheckBox("Negrito"); textItalic = new CheckBox("Italico");
         for (var property : List.of(textContent.textProperty(), textSize.textProperty(), textFont.valueProperty()))
             property.addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
@@ -307,6 +321,8 @@ final class GeometryEditorController {
         textItalic.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
         Button placeText = new Button("Gerar e posicionar texto"); placeText.setId("geometry-text-place");
         placeText.getStyleClass().add("primary-action"); placeText.setMaxWidth(Double.MAX_VALUE);
+        ToolDescriptions.apply(placeText, "Prévia e inserção do texto",
+                "Calcula os contornos em segundo plano e mostra uma prévia. A primeira linha usa o ponto clicado como linha de base; linhas seguintes descem.\n\nClique no plot para confirmar; Esc/botão direito cancela sem perder o formulário. Ctrl+Z desfaz a inserção inteira. Salvar e sair do editor aplica o rascunho ao objeto.");
         placeText.setOnAction(event -> generateText());
         Label textHelp = new Label("Texto vira areas editaveis com vazios das letras preservados. "
                 + "A origem e a linha de base da primeira linha. Clique para inserir; Esc cancela.");
@@ -370,6 +386,8 @@ final class GeometryEditorController {
             }
             toolChoice.getSelectionModel().selectFirst();
             toolChoice.setMaxWidth(Double.MAX_VALUE);
+            ToolDescriptions.apply(toolChoice, "Ferramenta das novas formas",
+                    "Associa os novos desenhos e o Texto a esta ferramenta da Geometry. Não muda o diâmetro nem transfere formas já existentes para outra ferramenta. Mover/copiar preservam a associação original; Borracha pode recortar formas de todas as ferramentas. Trocar aqui cancela a prévia atual.");
             toolChoice.valueProperty().addListener((obs, old, value) -> plotArea.cancelPlacement());
         }
         exitButton = new Button("Salvar e sair do editor");
@@ -407,6 +425,7 @@ final class GeometryEditorController {
         String label = button.getText();
         button.setText(null);
         button.setGraphic(host.icon(icon));
+        button.setAccessibleText(label);
         button.setTooltip(new Tooltip(label));
     }
 

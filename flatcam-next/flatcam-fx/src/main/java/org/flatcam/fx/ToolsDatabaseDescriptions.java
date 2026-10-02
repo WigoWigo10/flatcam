@@ -3,17 +3,16 @@ package org.flatcam.fx;
 import java.util.Map;
 import java.util.Set;
 import javafx.scene.Node;
-import javafx.scene.control.Control;
 
 /** Portuguese help based on ToolsDB2UI, with explicit FX transfer limitations. */
 final class ToolsDatabaseDescriptions {
     private static final Set<String> TRANSFERRED = Set.of("name", "tooldia", "tool_type", "tool_target", "tol_min", "tol_max",
             "tools_iso_passes", "tools_iso_overlap", "tools_iso_isotype",
             "vtipdia", "vtipangle", "cutz", "multidepth", "depthperpass", "travelz", "feedrate", "feedrate_rapid", "spindlespeed",
-            "feedrate_z", "dwell", "dwelltime", "extracut", "extracut_length",
+            "feedrate_z", "dwell", "dwelltime", "extracut", "extracut_length", "offset", "offset_value",
             "tools_paint_overlap", "tools_paint_offset", "tools_paint_method", "tools_paint_connect", "tools_paint_contour",
             "tools_cutout_margin", "tools_cutout_gapsize", "tools_cutout_gaps_ff", "tools_cutout_convexshape",
-            "tools_cutout_gap_type", "tools_cutout_mb_dia", "tools_cutout_mb_spacing",
+            "tools_cutout_gap_type", "tools_cutout_gap_depth", "tools_cutout_mb_dia", "tools_cutout_mb_spacing",
             "tools_ncc_operation", "tools_ncc_overlap", "tools_ncc_method", "tools_ncc_connect", "tools_ncc_contour",
             "tools_ncc_offset_choice", "tools_ncc_offset_value", "tools_drill_cutz", "tools_drill_multidepth",
             "tools_drill_depthperpass", "tools_drill_travelz", "tools_drill_feedrate_z", "tools_drill_spindlespeed",
@@ -34,9 +33,9 @@ final class ToolsDatabaseDescriptions {
             case "vtipdia" -> "Diâmetro da ponta da ferramenta em V, não negativo. Disponível para Shape V; participa do cálculo do diâmetro de corte.";
             case "vtipangle" -> "Ângulo total da ponta da ferramenta em V, em graus, entre 0 e 180 (sem incluir os extremos). Participa do cálculo do diâmetro na profundidade Cut Z.";
             case "type" -> "Classificação da usinagem: Iso = isolamento; Rough = desbaste; Finish = acabamento. É uma descrição da ferramenta, não um ajuste automático de velocidade.";
-            case "offset" -> "Posição do caminho: Path = sem compensação; In = para dentro por meio diâmetro; Out = para fora por meio diâmetro; Custom = usa Custom Offset.";
-            case "offset_value" -> "Deslocamento personalizado em relação ao caminho original. O campo fica habilitado somente quando Tool Offset é Custom.";
-            case "cutz" -> "Coordenada Z de corte em relação à superfície. Normalmente negativa para entrar no material. Em Shape V, também determina o diâmetro efetivo de corte.";
+            case "offset" -> "Posição do caminho: Path = sem compensação; In/Out = para dentro/fora por meio diâmetro; Custom = usa Custom Offset.\n\nIntegração FX: transferido para Milling/Geometry CNC. Cutout já compensa seus caminhos e não reaplica este Offset.";
+            case "offset_value" -> "Custom Offset: positivo expande; negativo contrai o caminho. Só é aplicado com Tool Offset Custom; zero exige Path no CNC do FX.\n\nIntegração FX: transferido para Milling/Geometry CNC, não para Cutout.\n\nAtenção: Isolation/NCC já geram centros de ferramenta; normalmente mantenha Path para evitar compensação duplicada.";
+            case "cutz" -> "Coordenada Z de corte em relação à superfície. Deve ser negativa ao transferir para Milling ou Cutout no FX. Em Shape V, também determina o diâmetro efetivo de corte.\n\nIntegração FX: Cutout recebe este Cut Z e os ajustes gerais de Multi-Depth/Depth / Pass na Geometry gerada.";
             case "tools_drill_cutz" -> "Profundidade de furação abaixo da superfície, normalmente escrita como Z negativo. O FX utiliza sua magnitude e aplica a compensação Offset Z ao gerar.";
             case "multidepth", "tools_drill_multidepth" -> "Divide o corte em passes de profundidade limitada até atingir Cut Z. Habilita Depth / Pass; na furação, há retração entre os passes.";
             case "depthperpass", "tools_drill_depthperpass" -> "Profundidade máxima adicionada em cada passe, como valor positivo. Só fica habilitada quando Multi-Depth está marcado.";
@@ -59,7 +58,7 @@ final class ToolsDatabaseDescriptions {
             case "tools_iso_follow" -> "Gera um caminho que segue o centro das trilhas Gerber, em vez de isolar suas bordas. Esse modo corta sobre a trilha.";
             case "tools_iso_isotype" -> "Região a isolar: Both = bordas externas e internas; Exterior = apenas externas; Interior = apenas contornos de aberturas internas do polígono.";
             case "tools_paint_overlap", "tools_ncc_overlap" -> "Sobreposição entre caminhos, em porcentagem da largura da ferramenta (0 a menos de 100%). Valores maiores criam mais trajetos e podem aumentar o tempo de cálculo e de usinagem.";
-            case "tools_paint_offset" -> "Distância para afastar o preenchimento das bordas do polígono a pintar. Define a margem entre o preenchimento e o contorno.";
+            case "tools_paint_offset" -> "Margem individual do Paint: positiva contrai a área a preencher; zero usa a área original; negativa expande.\n\nAtenção: uma margem negativa pode levar caminhos para fora do polígono original. Confira a Geometry gerada antes de usinar.";
             case "tools_paint_method" -> "Método de preenchimento:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta métodos alternativos.\n\nLaser_lines aparece desabilitado nesta base, como no Python.";
             case "tools_paint_connect", "tools_ncc_connect" -> "Liga segmentos resultantes para reduzir levantamentos da ferramenta. A conexão deve permanecer dentro da área permitida para usinagem.";
             case "tools_paint_contour", "tools_ncc_contour" -> "Adiciona um caminho ao redor do perímetro do polígono para completar o acabamento das bordas.";
@@ -73,7 +72,7 @@ final class ToolsDatabaseDescriptions {
             case "tools_cutout_gaps_ff" -> "Distribuição das pontes:\nNone = nenhuma.\nLR = esquerda/direita.\nTB = superior/inferior.\n4 = uma por lado.\n2LR e 2TB = duas em cada lado indicado.\n8 = duas por lado.";
             case "tools_cutout_convexshape" -> "Cria um contorno convexo que envolve toda a placa, sem acompanhar suas reentrâncias. No Python, essa opção se destina a objetos Gerber.";
             case "tools_cutout_gap_type" -> "Tipo de ponte: Bridge = interrupção do corte; Thin = ponte parcialmente fresada para ficar mais fina; M-Bites = ponte perfurada com furos para facilitar a separação.";
-            case "tools_cutout_gap_depth" -> "Coordenada Z do corte parcial usado para afinar as pontes. Só fica habilitada com Gap Type Thin; deve preservar material suficiente para manter a ponte.";
+            case "tools_cutout_gap_depth" -> "Thin Depth: Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e ponte -0,5. Só fica habilitado com Gap Type Thin.\n\nIntegração FX: transfere a profundidade para a Geometry separada das pontes; gere seu CNC Job separadamente. O recorte principal conserva Cut Z.\n\nAtenção: a ponte precisa conservar material suficiente para prender a placa.";
             case "tools_cutout_mb_dia" -> "Diâmetro dos furos que perfuram as pontes Mouse Bites. Só fica habilitado com Gap Type M-Bites.";
             case "tools_cutout_mb_spacing" -> "Espaço entre as bordas dos furos Mouse Bites. No Python, o passo entre centros é o diâmetro mais esse valor. Só fica habilitado com Gap Type M-Bites.";
             default -> throw new IllegalArgumentException("Sem tooltip para " + field.key());
@@ -101,12 +100,12 @@ final class ToolsDatabaseDescriptions {
     static String groupText(ToolsDatabaseFields.Group group) {
         return switch (group) {
             case DESCRIPTION -> "Identificação, diâmetro, tolerância e operação da ferramenta. Selecione apenas uma ferramenta para editar; seleção múltipla permite copiar ou excluir.";
-            case MILLING -> "Formato, ponta V e parâmetros CNC transferidos para Geometry/Milling. Offset ainda não é transferido; a ajuda de cada campo indica seu suporte.";
+            case MILLING -> "Formato, ponta V e parâmetros CNC transferidos para Geometry/Milling, incluindo Tool Offset/Custom Offset. Cutout recebe parâmetros de corte, mas não reaplica Offset aos caminhos já compensados. A ajuda de cada campo indica os limites do suporte.";
             case DRILLING -> "Parâmetros de furação, profundidade por passe, avanço, spindle e compensação Z. A ajuda de cada campo indica se ele já é transferido para o Drilling do FX.";
             case ISOLATION -> "Passes de isolamento, sobreposição, região e opções de fresagem. A ajuda de cada campo indica os parâmetros já transferidos para Isolation no FX.";
-            case PAINT -> "Parâmetros de preenchimento transferidos explicitamente para Paint. Aplicar substitui uma ferramenta e os parâmetros comuns; Laser Lines e ponta V não são suportados.";
+            case PAINT -> "Aplicar adiciona uma ferramenta no Paint ou atualiza a linha do mesmo diâmetro. Overlap, margem, método, Connect e Contour são individuais; outras linhas, seleção, ordem e Rest são preservados. Laser Lines, ponta V e transferência de parâmetros CNC não são suportados nesse fluxo.";
             case NCC -> "Parâmetros de limpeza de cobre e isolamento. A ajuda de cada campo indica os parâmetros já transferidos para NCC no FX.";
-            case CUTOUT -> "Diâmetro, margem e gaps transferidos para Cutout. Cut Z e Thin Depth continuam sendo configurados depois na Geometry; gaps manuais são preservados.";
+            case CUTOUT -> "Diâmetro, margem, gaps e Thin Depth transferidos para Cutout. Cut Z, Multi-Depth e Depth / Pass vêm da seção Milling. As Geometry geradas recebem as profundidades; gaps manuais são preservados. Thin gera uma Geometry separada e M-Bites gera Excellon para configurar a furação depois.";
         };
     }
 
@@ -123,9 +122,7 @@ final class ToolsDatabaseDescriptions {
     }
 
     static void apply(Node node, String title, String text) {
-        if (node instanceof Control control) control.setTooltip(null); // Avoid competing native and animated popups.
-        node.setAccessibleHelp(text);
-        apply(node.getProperties(), title, text);
+        ToolDescriptions.apply(node, title, text);
     }
 
     private ToolsDatabaseDescriptions() { }

@@ -12,9 +12,9 @@ record TooltipContent(List<Span> spans) {
     private static final Pattern EMPHASIS = Pattern.compile(
             "\\b(?:mm/min ou in/min|mm ou in|C1 a C4|V-Dia|V-Angle|Cut Z|Shape V|Multi-Depth|Depth / Pass|"
             + "Dwell Time|Offset Z|Custom Offset|Tool Offset|Drill Slots|Last Drill|Extra Cut Length|Extra Cut|"
-            + "Offset Value|Gap Type|Mouse Bites|M-Bites|Laser_lines|Standard|Seed|Lines|Combo|Both|Exterior|Interior|"
+            + "Offset Value|Gap Type|Thin Depth|Start Z|End Z|Travel Z|Texto|Borracha|Mouse Bites|M-Bites|Laser_lines|Standard|Seed|Lines|Combo|Both|Exterior|Interior|"
             + "Climb|Conventional|Bridge|Thin|Clear|Isolation|General|Milling|Drilling|Paint|NCC|Cutout|"
-            + "Save DB|Export DB|Import DB|Ctrl\\+S|Ctrl\\+F|RPM|segundos|graus)\\b");
+            + "Save DB|Export DB|Import DB|Ctrl\\+S|Ctrl\\+F|Ctrl\\+Z|Ctrl\\+Y|Esc|RPM|segundos|graus)\\b");
     enum Style { NORMAL, BOLD, ACCENT, NOTE }
     record Span(String text, Style style) { }
 

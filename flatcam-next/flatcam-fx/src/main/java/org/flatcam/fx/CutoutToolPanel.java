@@ -86,8 +86,8 @@ final class CutoutToolPanel {
         var seed = new java.util.concurrent.atomic.AtomicReference<>(new GeometryGCodeParameters(
                 metric ? 3 : 0.12, metric ? 1.7 : 0.067, true, metric ? 0.5 : 0.02, metric ? 120 : 5, 0, false));
         var profile = new java.util.concurrent.atomic.AtomicReference<>(ToolProfile.C1);
-        cutZ.setTooltip(new Tooltip("Cut Z negativo. O valor e gravado na Geometry de recorte e recuperado ao gerar CNC. Confira a espessura e o sacrificio da placa."));
-        thinZ.setTooltip(new Tooltip("Thin Depth: Cut Z negativo e mais raso que o recorte completo. E aplicado somente a Geometry das pontes; o recorte principal conserva sua profundidade."));
+        cutZ.setTooltip(new Tooltip("Cut Z negativo e finito, salvo na Geometry do recorte. Exemplo: -1,7.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: confira a espessura da placa e quanto a ferramenta entrará no material de sacrifício antes de gerar CNC."));
+        thinZ.setTooltip(new Tooltip("Thin Depth é Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e pontes -0,5. Só é usado no tipo Thin.\n\nO valor vai para a Geometry separada das pontes; o recorte principal conserva Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: unidade do objeto (mm ou in)."));
         TextField gapSizeField = new TextField(metric ? "4" : "0.16");
         ComboBox<GapType> gapTypeCombo = new ComboBox<>();
         gapTypeCombo.getItems().addAll(GapType.values());
@@ -179,6 +179,10 @@ final class CutoutToolPanel {
         Button rectangularButton = new Button("Gerar (Rectangular)");
         rectangularButton.getStyleClass().add("primary-action");
         rectangularButton.setMaxWidth(Double.MAX_VALUE);
+        ToolDescriptions.apply(freeformButton, "Recorte Free-form",
+                "Gera Geometry acompanhando o contorno da origem; Convex Shape usa seu contorno convexo. O caminho já compensa o raio da ferramenta.\n\nThin gera outra Geometry com Thin Depth; M-Bites gera Excellon. Gaps manuais substituem o padrão automático. Confira as saídas e gere/configure seus CNC Jobs depois.");
+        ToolDescriptions.apply(rectangularButton, "Recorte Rectangular",
+                "Gera Geometry ao redor da caixa retangular da origem, sem acompanhar reentrâncias. O caminho já compensa o raio da ferramenta.\n\nThin gera outra Geometry com Thin Depth; M-Bites gera Excellon. Gaps manuais substituem o padrão automático. Confira as saídas e gere/configure seus CNC Jobs depois.");
         Button closeButton = new Button("Fechar");
         closeButton.setMaxWidth(Double.MAX_VALUE);
 

@@ -24,6 +24,35 @@ import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 class PanelTooltipsTest {
+    @Test void updatedCutoutAndGeometryHelpDoesNotReuseWrongUnitsOrSigns() {
+        String thin = PanelTooltips.help("Cutout Tool", "Tipo de gap:");
+        assertTrue(thin.contains("Thin Depth")); assertTrue(thin.contains("CNC Job separadamente"));
+        assertTrue(PanelTooltips.help("Cutout Tool", "Cut Z:").contains("Z negativo"));
+        assertFalse(PanelTooltips.help("Cutout Tool", "Cut Z:").contains("magnitude positiva"));
+        assertTrue(PanelTooltips.help("Cutout Tool", "Adicionar gap por retangulo").contains("substitui o padrão automático"));
+        assertTrue(PanelTooltips.help("Paint Tool", "Margem:").contains("negativa expande"));
+        assertTrue(PanelTooltips.help("Editor Geometry", "Buffer").contains("não aceita distância negativa"));
+        assertTrue(PanelTooltips.help("Editor Gerber", "Buffer").contains("negativos contraem"));
+        assertNull(PanelTooltips.help("Unknown Tool", "Fonte:"));
+    }
+
+    @Test @EnabledOnOs(OS.WINDOWS)
+    void authoredRichHelpIsCopiedToDisabledFieldCaptionAndSurvivesLaterRowUpdates() throws Exception {
+        fx(() -> {
+            Label label = new Label("Spindle RPM:"); TextField input = new TextField("0");
+            GridPane row = new GridPane(); row.addRow(0,label,input);
+            PanelTooltips.install(row,"Geometry CNC Job");
+            String authored = "Unidades: valor particular deste perfil.\n\nAtenção: ajuda escrita para este controle.";
+            ToolDescriptions.apply(input,"Perfil específico",authored); input.setDisable(true);
+            label.setText("Parâmetro específico:");
+            assertEquals(authored,input.getAccessibleHelp()); assertEquals(authored,label.getAccessibleHelp());
+            assertEquals(TooltipContent.describe(authored),input.getProperties().get(FluidTooltips.CONTENT_KEY));
+            assertEquals(TooltipContent.describe(authored),label.getProperties().get(FluidTooltips.CONTENT_KEY));
+            assertNull(input.getTooltip()); assertSame(input,label.getLabelFor());
+            row.getChildren().add(new Button("Excluir")); label.setText("Spindle RPM:");
+            assertEquals(authored,input.getAccessibleHelp()); assertEquals(authored,label.getAccessibleHelp());
+        });
+    }
     @Test void sameLabelUsesOperationContextInsteadOfDatabaseTransferWarnings() {
         String ncc = PanelTooltips.help("NCC Tool", "Margin (comum):");
         String paint = PanelTooltips.help("Paint Tool", "Margem:");

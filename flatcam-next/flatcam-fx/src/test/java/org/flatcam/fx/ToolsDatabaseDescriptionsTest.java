@@ -23,10 +23,22 @@ class ToolsDatabaseDescriptionsTest {
         assertTrue(ToolsDatabaseDescriptions.actionText("Save DB").contains("Ctrl+S"));
     }
     @Test void unsupportedFieldsAreNotPresentedAsWorkingCamParameters() {
-        for (String key : List.of("offset", "tools_iso_follow", "tools_ncc_margin", "tools_drill_feedrate_rapid", "tools_drill_drill_slots", "tools_cutout_gap_depth"))
+        for (String key : List.of("tools_iso_follow", "tools_ncc_margin", "tools_drill_feedrate_rapid", "tools_drill_drill_slots"))
             assertTrue(help(key).contains("transferência para o CAM ainda não está implementada"), key);
-        for (String key : List.of("tooldia", "tools_iso_passes", "tools_ncc_overlap", "tools_drill_feedrate_z", "cutz", "tools_paint_method", "tools_cutout_gapsize"))
+        for (String key : List.of("tooldia", "tools_iso_passes", "tools_ncc_overlap", "tools_drill_feedrate_z", "cutz", "tools_paint_method", "tools_cutout_gapsize", "offset", "offset_value", "tools_cutout_gap_depth"))
             assertFalse(help(key).contains("ainda não está implementada"), key);
+    }
+    @Test void updatedTransferHelpExplainsPerToolPaintCutoutDepthAndOffsetScope() {
+        assertTrue(help("offset").contains("não reaplica"));
+        assertTrue(help("offset_value").contains("zero exige Path"));
+        assertTrue(help("offset_value").contains("compensação duplicada"));
+        assertTrue(help("cutz").contains("Deve ser negativa"));
+        assertTrue(help("tools_cutout_gap_depth").contains("mais raso"));
+        assertTrue(help("tools_cutout_gap_depth").contains("CNC Job separadamente"));
+        assertTrue(help("tools_paint_offset").contains("negativa expande"));
+        String paint = ToolsDatabaseDescriptions.groupText(ToolsDatabaseFields.Group.PAINT);
+        assertTrue(paint.contains("mesmo diâmetro")); assertTrue(paint.contains("individuais"));
+        assertFalse(paint.contains("parâmetros comuns"));
     }
     @Test void unitsDependenciesAndPythonSpecificOptionsAreExplained() {
         assertTrue(help("tooldia").contains("não converte unidades"));

@@ -1,6 +1,9 @@
 package org.flatcam.fx;
 
 import java.util.Map;
+import javafx.scene.Node;
+import javafx.scene.control.Control;
+import javafx.scene.control.Labeled;
 
 /**
  * What each tool of the Tools menu does, in a sentence or two, for its tooltip. The texts follow the tooltips of the
@@ -92,5 +95,14 @@ final class ToolDescriptions {
         properties.put(FluidTooltips.TITLE_KEY, title);
         properties.put(FluidTooltips.TEXT_KEY, text);
         properties.put(FluidTooltips.CONTENT_KEY, TooltipContent.describe(text));
+    }
+
+    /** Authored help is immediately rich and accessible, without a competing native popup. */
+    static void apply(Node node, String title, String text) {
+        if (node instanceof Control control) control.setTooltip(null);
+        if (node instanceof Labeled label && (label.getText() == null || label.getText().isBlank()))
+            node.setAccessibleText(title);
+        node.setAccessibleHelp(text);
+        apply(node.getProperties(), title, text);
     }
 }

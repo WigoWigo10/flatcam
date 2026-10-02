@@ -345,7 +345,7 @@ final class IsolationToolPanel {
             if (selected) reverseOrder.setSelected(true);
         });
         CheckBox follow = new CheckBox("Follow");
-        follow.setTooltip(new javafx.scene.control.Tooltip("Segue o centro das trilhas; usa somente uma ferramenta."));
+        follow.setTooltip(new javafx.scene.control.Tooltip("Segue o centro das trilhas Gerber, em vez de isolar as bordas; usa somente uma ferramenta.\n\nAtenção: Follow corta sobre a trilha. Confira a Geometry gerada antes de criar o CNC Job."));
         follow.selectedProperty().addListener((observable, oldValue, selected) -> {
             if (selected) rest.setSelected(false);
         });

@@ -534,7 +534,7 @@ final class NccToolPanel {
         contourCb.setSelected(true);
         contourCb.setTooltip(tooltip("Adiciona um passe final contornando a borda interna da area limpa."));
         CheckBox offsetCb = new CheckBox("Copper offset");
-        offsetCb.setTooltip(tooltip("Aumenta a distancia minima mantida em torno do cobre, alem da margem."));
+        offsetCb.setTooltip(tooltip("Ativa uma distância adicional de proteção ao redor das trilhas e pads. Habilita o valor de Offset.\n\nNão é a margem: Margin define o limite externo da área de limpeza; Offset protege o cobre dentro dessa área."));
         Spinner<Double> offsetSpinner = spinner(0, 10, 0, metric ? 0.1 : 0.01);
         TextField offsetField = offsetSpinner.getEditor();
         CheckBox restCb = new CheckBox("Rest Machining");

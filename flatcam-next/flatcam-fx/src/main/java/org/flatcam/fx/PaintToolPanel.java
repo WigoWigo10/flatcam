@@ -239,7 +239,7 @@ final class PaintToolPanel {
         TextField diameters = new TextField("0.3");
         diameters.setMinWidth(0);
         HBox.setHgrow(diameters, javafx.scene.layout.Priority.ALWAYS);
-        diameters.setTooltip(tooltip("Diametros das ferramentas separados por virgula, por exemplo 0.3, 1.0."));
+        diameters.setTooltip(tooltip("Diâmetros positivos separados por vírgula, ponto e vírgula ou espaço, sem repetir. Use ponto decimal: 0.3; 1.0.\n\nAtualizar lista preserva os parâmetros dos diâmetros que continuam na lista; novos diâmetros recebem os parâmetros exibidos. Pintar também sincroniza a lista.\n\nUnidades: unidade da origem (mm ou in); vírgula é separador de ferramentas, não separador decimal neste campo."));
         TextField overlap = new TextField("20");
         TextField margin = new TextField("0.0");
         overlap.setPrefColumnCount(5);
@@ -255,8 +255,7 @@ final class PaintToolPanel {
         order.getItems().addAll(NccOrder.values());
         order.getSelectionModel().select(NccOrder.REVERSE);
         CheckBox rest = new CheckBox("Rest machining");
-        rest.setTooltip(tooltip("Cada ferramenta menor pinta apenas o que as maiores nao alcancaram. "
-                + "As ferramentas passam a ser usadas da maior para a menor."));
+        rest.setTooltip(tooltip("Cada ferramenta menor preenche somente o que as maiores não alcançaram, usando a margem individual de sua linha.\n\nRest usa a ordem do maior para o menor e desabilita a ordem manual; não copia parâmetros entre ferramentas."));
         order.disableProperty().bind(rest.selectedProperty());
         TableView<Double> toolTable = new TableView<>(); toolTable.setId("paint-tools");
         toolTable.setMinWidth(0); toolTable.setPrefHeight(130);
@@ -264,6 +263,8 @@ final class PaintToolPanel {
         TableColumn<Double, Number> diameterColumn = new TableColumn<>("Diametro");
         diameterColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue()));
         toolTable.getColumns().add(diameterColumn);
+        ToolDescriptions.apply(toolTable, "Ferramentas do Paint",
+                "Selecione uma linha para editar Overlap, margem, método, Connect e Contour dessa ferramenta. Trocar de linha preserva o rascunho, inclusive valores inválidos; Pintar valida todas as linhas.\n\nPara adicionar/remover diâmetros, edite a lista acima e use Atualizar lista. Ordem e Rest são comuns; Aplicar parâmetros a todas copia os valores da linha exibida.");
         java.util.Map<Double, String[]> rows = new java.util.LinkedHashMap<>();
         java.util.function.Supplier<String[]> capture = () -> new String[]{overlap.getText(), margin.getText(), method.getValue().name(),
                 Boolean.toString(connect.isSelected()), Boolean.toString(contour.isSelected())};
@@ -291,10 +292,14 @@ final class PaintToolPanel {
             } finally { syncing[0] = false; }
         };
         Button updateTools = new Button("Atualizar lista"); updateTools.setId("paint-update-tools");
+        ToolDescriptions.apply(updateTools, "Sincronizar ferramentas",
+                "Atualiza a tabela a partir da lista de diâmetros. Preserva linhas mantidas; novas linhas recebem os parâmetros exibidos.\n\nAtenção: retirar um diâmetro da lista remove seu rascunho de parâmetros deste painel. Não altera Geometry já gerada nem a Tools Database.");
         updateTools.setOnAction(event -> { try { synchronizeTools.run(); errorLabel.setText(""); }
             catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
         Button applyAll = new Button("Aplicar parametros a todas as ferramentas"); applyAll.setId("paint-apply-all");
         applyAll.setMaxWidth(Double.MAX_VALUE);
+        ToolDescriptions.apply(applyAll, "Copiar parâmetros do Paint",
+                "Copia Overlap, margem, método, Connect e Contour da linha exibida para todos os diâmetros, substituindo os rascunhos individuais. Seleção de polígonos, ordem e Rest não mudam.\n\nNão grava na Tools Database e não regenera Geometry já criada.");
         applyAll.setOnAction(event -> { try { synchronizeTools.run(); for (double d : toolTable.getItems()) rows.put(d,capture.get()); }
             catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
         VBox database = DatabaseToolPicker.build("paint-db", host::databaseTools, selected -> {
@@ -316,8 +321,10 @@ final class PaintToolPanel {
         Button paint = new Button("Pintar");
         paint.setId("paint-generate"); overlap.setId("paint-overlap"); margin.setId("paint-margin");
         method.setId("paint-method"); diameters.setId("paint-diameters"); errorLabel.setId("paint-error");
-        margin.setTooltip(tooltip("Margem individual: positiva contrai, negativa expande a area a pintar. Confira a area e o contorno antes de usinar."));
+        margin.setTooltip(tooltip("Margem individual: positiva contrai, negativa expande a área a pintar.\n\nUnidades: unidade da origem (mm ou in).\n\nAtenção: uma margem negativa pode criar caminhos fora do polígono original; confira a Geometry antes de usinar."));
         paint.setMaxWidth(Double.MAX_VALUE);
+        ToolDescriptions.apply(paint, "Gerar caminhos do Paint",
+                "Sincroniza os diâmetros, valida todas as ferramentas e cria Geometry com os caminhos de preenchimento. Usa os polígonos escolhidos e os parâmetros de cada linha.\n\nNão gera G-code. Depois, use Geometry → CNC Job para configurar/revisar corte, alturas, avanços e spindle.");
         paint.setOnAction(event -> {
             try {
                 TreeItem<String> item = source.getValue();

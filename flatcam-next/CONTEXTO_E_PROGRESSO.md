@@ -2028,3 +2028,26 @@ ou erros. Testes incluem cliques reais no plot sem janela, cancelamento, undo/re
 de limpeza Windows em CncSettingsPersistenceTest motivou reutilizar a limpeza
 limitada de ProjectFileIOTest via helper comum, sem desativar limpeza nem ocultar
 falhas persistentes. Validação visual e teste na máquina continuam pendentes.
+
+## Revisão dos tooltips após as implementações de paridade — 2026-10-02
+
+Atualizadas as descrições de Tools Database para Offset/Custom Offset, Thin Depth
+e parâmetros individuais do Paint, removendo avisos de transferência pendente que
+já não correspondiam à implementação. Ajuda adicional no Editor Geometry (Texto,
+Borracha, Buffer e operações de seleção), consistente entre barra e menu. Campos
+de texto explicam limites, fontes instaladas, prévia, inserção e cancelamento.
+
+Paint explica rascunhos por ferramenta, sincronização da lista e aplicação a todas.
+Cutout distingue Free-form/Rectangular, Cut Z/Thin Depth e saídas separadas; gaps
+manuais substituem o padrão automático. CNC detalha compensação, posições comuns,
+perfis incompatíveis e limites da prévia de macros. Isolation Follow avisa que corta
+sobre o cobre; NCC distingue margem externa de afastamento do cobre.
+
+Reutilizado o padrão fluido com parágrafos, negrito e cores semânticas dos temas,
+sem novos tooltips para Excluir/Fechar. Corrigida a prioridade de ajuda específica
+em relação ao catálogo genérico, inclusive cópia para legendas de campos desabilitados
+e atualização posterior do formulário. Ícones receberam identificação acessível.
+
+Install completo aprovado: 762 testes registrados, 751 aprovados, 11 ignorados,
+zero falhas/erros. Testes verificam controles reais, metadados, textos, prioridade,
+consistência barra/menu e contraste dos temas; validação visual manual pendente.

@@ -87,6 +87,9 @@ final class PanelTooltips {
         String text = help(context, label.getText());
         if (value instanceof Control control && control.getTooltip() != null)
             text = control.getTooltip().getText();
+        else if (value != null && !isOwnHelp(value)
+                && value.getProperties().get(FluidTooltips.TEXT_KEY) instanceof String authored)
+            text = authored;
         if (text == null || text.isBlank()) {
             clearOwn(label);
             if (value != null) clearOwn(value);
@@ -107,7 +110,7 @@ final class PanelTooltips {
             if (node.getAccessibleHelp() == null) node.setAccessibleHelp(control.getTooltip().getText());
             return;
         }
-        if (node.getProperties().containsKey(FluidTooltips.TEXT_KEY) && !node.getProperties().containsKey(OWN_HELP)) return;
+        if (node.getProperties().containsKey(FluidTooltips.TEXT_KEY) && !isOwnHelp(node)) return;
         ToolDescriptions.apply(node.getProperties(), title == null ? "" : title.replaceFirst(":$", ""), text);
         node.setAccessibleHelp(text);
         node.getProperties().put(OWN_HELP, text);
@@ -120,6 +123,11 @@ final class PanelTooltips {
         node.getProperties().remove(FluidTooltips.TEXT_KEY);
         node.getProperties().remove(FluidTooltips.CONTENT_KEY);
         if (previous.equals(node.getAccessibleHelp())) node.setAccessibleHelp(null);
+    }
+
+    private static boolean isOwnHelp(Node node) {
+        Object previous = node.getProperties().get(OWN_HELP);
+        return previous != null && previous.equals(node.getProperties().get(FluidTooltips.TEXT_KEY));
     }
 
     private static String companion(String label, String fallback) {
@@ -190,7 +198,7 @@ final class PanelTooltips {
                 case "method", "metodo" : return "Método de preenchimento:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta métodos alternativos.";
                 case "margin (comum)", "margin", "margem" : return context.equals("NCC Tool")
                         ? "Margem da caixa usada como limite da limpeza. Não é Offset: o afastamento das trilhas é configurado separadamente." + LINEAR
-                        : "Distância entre o preenchimento e a borda do polígono. Um valor positivo mantém os caminhos afastados do contorno." + LINEAR;
+                        : "Margem individual entre o preenchimento e a borda do polígono. Positiva contrai a área; negativa expande.\n\nAtenção: valores negativos podem criar caminhos fora do contorno original." + LINEAR;
                 case "offset", "copper offset" : return "Ativa uma distância adicional de proteção ao redor das trilhas e pads durante a limpeza. Habilita o valor de Offset.";
                 case "selection" : return "Itself = caixa da origem.\nArea = área desenhada no plot.\nReference = limite dado por outro objeto.\n\nDefine onde a limpeza pode ocorrer, sem trocar o cobre de origem.";
                 case "operation" : return "Clear remove o cobre fora do circuito.\nIsolation cria caminhos ao redor das trilhas antes da limpeza.\n\nA operação é configurada por ferramenta.";
@@ -212,10 +220,12 @@ final class PanelTooltips {
                 case "margin" -> "Margem em relação ao limite da placa. Um valor positivo afasta o caminho de corte da borda original." + LINEAR;
                 case "gap size" -> "Largura das pontes que mantêm a placa presa ao material durante o corte." + LINEAR;
                 case "gaps" -> "None = sem pontes.\nLR/TB = esquerda-direita/superior-inferior.\n4 = uma por lado.\n2LR/2TB = duas nos lados indicados.\n8 = duas por lado.";
-                case "tipo de gap" -> "Bridge interrompe o corte.\nThin cria uma Geometry adicional para afinar as pontes; configure seu Cut Z ao gerar o CNC Job.\nM-Bites cria furos nas pontes para facilitar a separação.";
+                case "tipo de gap" -> "Bridge interrompe o corte.\nThin cria uma Geometry adicional com Thin Depth para afinar as pontes; gere seu CNC Job separadamente.\nM-Bites cria um Excellon de furos nas pontes; configure sua furação depois.";
+                case "cut z" -> "Z negativo do recorte completo, salvo na Geometry gerada. Exemplo: -1,7. Revise a espessura da placa e a entrada no material de sacrifício." + LINEAR;
+                case "thin depth" -> "Z negativo da Geometry das pontes, mais raso que Cut Z. Exemplo: recorte -1,7 e Thin Depth -0,5. Só se aplica ao tipo Thin; gere os dois CNC Jobs separadamente." + LINEAR;
                 case "m-bites dia" -> "Diâmetro dos furos Mouse Bites. Aplicado somente ao tipo M-Bites." + LINEAR;
                 case "m-bites spacing" -> "Espaço entre as bordas dos furos Mouse Bites. O passo entre centros é o diâmetro mais esse valor." + LINEAR;
-                case "adicionar gap por retangulo", "adicionar gap por poligono" -> "Desenhe uma região no plot para abrir uma ponte manual onde ela cruza o caminho de corte. Gere e inspecione a Geometry antes de usinar.";
+                case "adicionar gap por retangulo", "adicionar gap por poligono" -> "Desenhe uma região no plot para abrir uma ponte manual onde ela cruza o caminho de corte.\n\nAtenção: se existir qualquer gap manual, ele substitui o padrão automático; sua largura depende da região desenhada. Limpar gaps manuais volta ao padrão automático.";
                 default -> null;
             };
         }
@@ -346,6 +356,15 @@ final class PanelTooltips {
         };
         if (context.equals("Milling Tool") && name.startsWith("tool diameter ("))
             return "Diâmetro da fresa usada para abrir furos ou slots maiores. Não pode exceder o diâmetro da ferramenta Excellon selecionada. Gera uma Geometry; a profundidade e o avanço são configurados depois, no CNC Job." + LINEAR;
+        if (context.equals("Editor Geometry")) {
+            String geometryHelp = switch (name) {
+                case "fonte" -> "Fonte instalada usada para criar contornos vetoriais. Letras viram polígonos editáveis com seus vazios preservados. Fontes ausentes ou caracteres não suportados são recusados.";
+                case "tamanho" -> "Escala do tamanho da fonte, de 0.1 a 1000; não é a altura exata da letra. MM/IN usam a escala do ParseFont Python, mas as métricas podem diferir. Confira as dimensões na prévia.";
+                case "buffer", "criar buffer arredondado" -> GeometryEditorDescriptions.of("buffer").text();
+                default -> null;
+            };
+            if (geometryHelp != null) return geometryHelp;
+        }
         if (context.startsWith("Editor ")) return editor(name);
         return null;
     }

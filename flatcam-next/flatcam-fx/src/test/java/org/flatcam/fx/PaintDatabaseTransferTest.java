@@ -38,6 +38,13 @@ class PaintDatabaseTransferTest {
                 public void paint(TreeItem<String> source, String units, Geometry polygons, PaintParameters p) { output.set(p); }
                 public List<LegacyToolsDatabase.PaintTool> databaseTools() { return List.of(db); }
             }, () -> {});
+            PanelTooltips.install(root,"Paint Tool");
+            var applyAll=(Button) root.lookup("#paint-apply-all");
+            assertTrue(applyAll.getAccessibleHelp().contains("rascunhos individuais"));
+            assertTrue(applyAll.getAccessibleHelp().contains("Database"));
+            assertNull(applyAll.getTooltip());
+            assertNotNull(applyAll.getProperties().get(FluidTooltips.CONTENT_KEY));
+            assertTrue(((Button) root.lookup("#paint-generate")).getAccessibleHelp().contains("CNC"));
             var overlap = (TextField) root.lookup("#paint-overlap");
             var table = (TableView<?>) root.lookup("#paint-tools");
             overlap.setText("35");

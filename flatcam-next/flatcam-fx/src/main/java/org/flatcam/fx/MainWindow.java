@@ -1506,8 +1506,10 @@ final class MainWindow {
                 case "explode" -> geometryEditor::explode;
                 default -> null;
             };
-            menu.getItems().add(action == null ? plannedItem(command.label(), command.icon())
-                    : chromeItem(command.label(), command.icon(), action));
+            MenuItem item = action == null ? plannedItem(command.label(), command.icon())
+                    : chromeItem(command.label(), command.icon(), action);
+            if (action != null) GeometryEditorDescriptions.apply(item, command.id());
+            menu.getItems().add(item);
         }
     }
 
