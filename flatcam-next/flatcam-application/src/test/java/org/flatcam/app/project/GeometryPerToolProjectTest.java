@@ -45,4 +45,16 @@ class GeometryPerToolProjectTest {
         ProjectFileIO.writeRoot(root,file,false);
         assertEquals(p,ProjectFileIO.load(file).geometries().getFirst().cncDefaults());
     }
+    @Test void exclusionsRoundtripNativelyButLegacyExportFailsBeforeCreatingFile() throws Exception {
+        var f=new GeometryFactory(); var area=CncExclusionArea.of(f.toGeometry(new Envelope(4,6,-1,1)),CncExclusionArea.Strategy.OVER,20);
+        var p=new GeometryGCodeParameters(3,.1,false,1,100,100,false).withJobOptions(GeometryJobOptions.AUTOMATIC.withExclusions(true,List.of(area)));
+        var path=f.createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});
+        var project=new ProjectFile(List.of(),List.of(),List.of(new ProjectFile.GeometryEntry("paths","","MM",path,true,List.of(new ToolGeometry(1,path)),null,null,true,p)),List.of());
+        var file=dir.resolve("exclusions.fcnproj"); ProjectFileIO.save(project,file);
+        var loaded=ProjectFileIO.load(file).geometries().getFirst(); assertEquals(p,loaded.cncDefaults());
+        assertEquals(GCodeGenerator.generateGeometryCncJob("MM",project.geometries().getFirst().tools(),p).gcode(),
+                GCodeGenerator.generateGeometryCncJob("MM",loaded.tools(),loaded.cncDefaults()).gcode());
+        var legacy=dir.resolve("unsafe.FlatPrj"); assertThrows(java.io.IOException.class,()->PythonProjectWriter.save(project,legacy));
+        assertFalse(java.nio.file.Files.exists(legacy));
+    }
 }

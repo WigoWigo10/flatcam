@@ -64,9 +64,11 @@ automáticos de End Z/troca são exportados como alturas explícitas para o Pyth
 
 Offset/valor da Tools Database agora são transferidos explicitamente em Milling
 e Geometry/CNC. Cutout já gera caminhos compensados e mantém Path no CNC.
-Áreas de
-exclusão CNC, compensação G41/G42 e posições distintas por ferramenta não estão
-implementadas. Macros M6 podem mover a máquina; a prévia não simula a macro.
+Áreas de exclusão Around/Over implementadas para Geometry, com recusa de cortes
+que atingem as regiões protegidas e persistência nativa; ver CNC_EXCLUSIONS.md.
+Exportação de projetos Python com exclusões bloqueada para evitar perda silenciosa.
+Compensação G41/G42 e posições distintas por ferramenta não estão implementadas.
+Macros M6 podem mover a máquina; a prévia não simula a macro.
 Start Z não substitui o referenciamento nem confirma que o material está livre.
 
 Testes: `GeometryAdvancedCncTest`, `GeometryAdvancedPanelTest`,

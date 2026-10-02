@@ -326,7 +326,9 @@ public final class ProjectFileIO {
         var positions = p.jobOptions();
         value.put("jobOptions", new JSONObject().put("startZ", positions.startZ()).put("endZ", positions.endZ())
                 .put("endX", positions.endX()).put("endY", positions.endY()).put("toolChangeZ", positions.toolChangeZ())
-                .put("toolChangeX", positions.toolChangeX()).put("toolChangeY", positions.toolChangeY()));
+                .put("toolChangeX", positions.toolChangeX()).put("toolChangeY", positions.toolChangeY())
+                .put("exclusionsEnabled",positions.exclusionsEnabled()).put("exclusions",new JSONArray(positions.exclusions().stream()
+                        .map(area -> new JSONObject().put("wkt",area.wkt()).put("strategy",area.strategy().name()).put("overZ",area.overZ())).toList())));
         if (p.probing() != null) value.put("probing", probeToJson(p.probing()));
         return value;
     }
@@ -398,7 +400,18 @@ public final class ProjectFileIO {
         if (json == null) return org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC;
         return new org.flatcam.cam.gcode.GeometryJobOptions(optionalDouble(json, "startZ"), optionalDouble(json, "endZ"),
                 optionalDouble(json, "endX"), optionalDouble(json, "endY"), optionalDouble(json, "toolChangeZ"),
-                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"));
+                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),json.optBoolean("exclusionsEnabled",false),readCncExclusions(json.optJSONArray("exclusions")));
+    }
+
+    private static List<org.flatcam.cam.gcode.CncExclusionArea> readCncExclusions(JSONArray array) {
+        if(array==null)return List.of();
+        List<org.flatcam.cam.gcode.CncExclusionArea> areas=new ArrayList<>();
+        for(int i=0;i<array.length();i++) {
+            var area=array.getJSONObject(i);
+            areas.add(new org.flatcam.cam.gcode.CncExclusionArea(area.getString("wkt"),
+                    org.flatcam.cam.gcode.CncExclusionArea.Strategy.valueOf(area.getString("strategy")),area.getDouble("overZ")));
+        }
+        return List.copyOf(areas);
     }
 
     private static ProbeToolChangeParameters readProbeParameters(JSONObject json) {

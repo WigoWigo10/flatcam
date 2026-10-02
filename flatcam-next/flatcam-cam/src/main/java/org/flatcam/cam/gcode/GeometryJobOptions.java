@@ -2,9 +2,15 @@ package org.flatcam.cam.gcode;
 
 /** Optional job-level positions. Null preserves the existing automatic behaviour. */
 public record GeometryJobOptions(Double startZ, Double endZ, Double endX, Double endY,
-                                 Double toolChangeZ, Double toolChangeX, Double toolChangeY) {
+                                 Double toolChangeZ, Double toolChangeX, Double toolChangeY,
+                                 boolean exclusionsEnabled, java.util.List<CncExclusionArea> exclusions) {
+    public GeometryJobOptions(Double startZ,Double endZ,Double endX,Double endY,Double toolChangeZ,Double toolChangeX,Double toolChangeY) {
+        this(startZ,endZ,endX,endY,toolChangeZ,toolChangeX,toolChangeY,false,java.util.List.of());
+    }
     public static final GeometryJobOptions AUTOMATIC = new GeometryJobOptions(null, null, null, null, null, null, null);
     public GeometryJobOptions {
+        exclusions=java.util.List.copyOf(exclusions);
+        if(exclusions.size()>100) throw new IllegalArgumentException("Maximo de 100 exclusoes por trabalho.");
         nonNegative(startZ, "Start Z"); nonNegative(endZ, "End Z"); positive(toolChangeZ, "Tool change Z");
         xy(endX, endY, "End X,Y"); xy(toolChangeX, toolChangeY, "Tool change X,Y");
     }
@@ -20,8 +26,14 @@ public record GeometryJobOptions(Double startZ, Double endZ, Double endX, Double
         if ((x == null) != (y == null) || x != null && (!Double.isFinite(x) || !Double.isFinite(y)))
             throw new IllegalArgumentException(label + " exige duas coordenadas finitas.");
     }
-    public boolean isAutomatic() { return equals(AUTOMATIC); }
+    public GeometryJobOptions withExclusions(boolean enabled,java.util.List<CncExclusionArea> areas) {
+        return new GeometryJobOptions(startZ,endZ,endX,endY,toolChangeZ,toolChangeX,toolChangeY,enabled,areas);
+    }
+    public boolean isAutomatic() {
+        return startZ==null && endZ==null && endX==null && toolChangeZ==null && toolChangeX==null && !exclusionsEnabled;
+    }
     public void validate(GCodePreprocessor profile, double clearance, boolean toolChange) {
+        if(exclusionsEnabled && exclusions.isEmpty()) throw new IllegalArgumentException("Exclusoes ativadas: desenhe ao menos uma area ou desmarque a opcao.");
         if (!isAutomatic() && (profile.isLaser() || profile.isPlotter() || profile.isRoland() || profile.requiresProbe()))
             throw new IllegalArgumentException("Posicoes comuns avancadas exigem perfil de fresagem sem sondagem. A sonda possui seu proprio painel de troca.");
         if (toolChange && toolChangeZ != null && toolChangeZ < clearance)

@@ -20,6 +20,12 @@ public final class PythonProjectWriter {
     public static void save(ProjectFile project, Path path) throws IOException { save(project, path, true); }
 
     public static void save(ProjectFile project, Path path, boolean compressed) throws IOException {
+        for(var entry:project.geometries()) {
+            var common=entry.cncDefaults();
+            boolean hasAreas=common!=null && !common.jobOptions().exclusions().isEmpty()
+                    || entry.cncSettings()!=null && entry.cncSettings().parametersByTool().values().stream().anyMatch(p -> !p.jobOptions().exclusions().isEmpty());
+            if(hasAreas) throw new IOException("Exclusoes CNC nao possuem representacao segura no projeto Python. Salve em .fcnproj e exporte o G-code validado. Objeto: "+entry.name());
+        }
         JSONObject root = ProjectFileIO.toJson(project);
         root.put("version", 8.994).put("_fx_format", 1);
         JSONArray objects = root.getJSONArray("objs");

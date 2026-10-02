@@ -70,6 +70,13 @@ final class GeometryCncToolPanel {
                       GeometryGCodeParameters defaults, GeometryCncSettings settings,
                       Supplier<List<LegacyToolsDatabase.MillingTool>> database,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        return build(units,combinedGeometry,sourceTools,defaults,settings,database,null,ignored -> {},onGenerate,onClose);
+    }
+
+    static Node build(String units,Geometry combinedGeometry,List<ToolGeometry> sourceTools,
+                      GeometryGCodeParameters defaults,GeometryCncSettings settings,
+                      Supplier<List<LegacyToolsDatabase.MillingTool>> database,CncExclusionEditor.AreaSelector areaSelector,
+                      Consumer<Geometry> exclusionPreview,Consumer<Result> onGenerate,Runnable onClose) {
         List<ToolGeometry> tools = new java.util.ArrayList<>(sourceTools);
         boolean metric = "MM".equalsIgnoreCase(units);
         boolean multiTool = !tools.isEmpty();
@@ -268,6 +275,7 @@ final class GeometryCncToolPanel {
         ToolDescriptions.apply(positionsPane, "Posições comuns do CNC",
                 "Start Z, End Z/XY e Tool change Z/XY valem para todas as ferramentas. Vazio/None mantém os valores automáticos.\n\nSomente para fresagem sem sonda; laser, HPGL, Roland e sondagem usam seus próprios ajustes. Campos desabilitados conservam os valores: configurações incompatíveis ativas são recusadas, não ignoradas. Volte à fresagem para limpá-las.\n\nTroca Z/XY só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente.");
         positionsPane.setExpanded(!savedPositions.isAutomatic());
+        var exclusions=new CncExclusionEditor(savedPositions,units,areaSelector,exclusionPreview);
 
         Label errorLabel = new Label();
         errorLabel.setId("cnc-error");
@@ -374,6 +382,7 @@ final class GeometryCncToolPanel {
                 Double[] end = parseXY(endXY, "End X,Y"), change = parseXY(changeXY, "Tool change X,Y");
                 GeometryJobOptions positions = new GeometryJobOptions(parseOptional(startZ, "Start Z"), parseOptional(endZ, "End Z"),
                         end[0], end[1], parseOptional(changeZ, "Tool change Z"), change[0], change[1]);
+                positions=exclusions.applyTo(positions);
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
@@ -487,7 +496,7 @@ final class GeometryCncToolPanel {
             box.getChildren().addAll(modeHelp, applyAll);
         }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
-        box.getChildren().addAll(positionsPane, probe.view(), profileHelp, errorLabel, generateButton, closeButton);
+        box.getChildren().addAll(positionsPane,exclusions.view(), probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         if (settings != null) preprocessor.setValue(settings.preprocessor());
         return box;

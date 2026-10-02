@@ -527,6 +527,9 @@ public final class GCodeGenerator {
         double clearance = Math.max(params.safeZ(), parametersByTool.values().stream()
                 .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
         GeometryJobOptions positions = params.jobOptions();
+        Map<Double,CncExclusionPlanner> exclusionPlanners=new java.util.HashMap<>();
+        java.util.function.DoubleFunction<CncExclusionPlanner> plannerFor=diameter -> positions.exclusionsEnabled()
+                ? exclusionPlanners.computeIfAbsent(diameter,d -> new CncExclusionPlanner(units,positions.exclusions(),d,cancellationToken)) : null;
         boolean changing = params.pauseForToolChange() || preprocessor.automaticToolSelection();
         positions.validate(preprocessor, clearance, changing);
         for (int i = 0; i < tools.size(); i++) {
@@ -563,6 +566,12 @@ public final class GCodeGenerator {
             depthsByTool.add(passDepths(depth, machining.multiDepth(), machining.depthPerPass()));
             compensatedPaths.add(GeometryPathCompensation.apply(tool.geometry(),
                     machining.offset().distance(tool.toolDiameter(), machining.customOffset()), cancellationToken));
+            if (positions.exclusionsEnabled() && !tool.geometry().isEmpty()) {
+                List<Coordinate[]> paths=new ArrayList<>();
+                collectCoordinatePaths(compensatedPaths.getLast(),paths,cancellationToken);
+                for(var path:paths) plannerFor.apply(tool.toolDiameter()).validateCut(path.length==1
+                        ? GEOMETRY_FACTORY.createPoint(path[0]) : GEOMETRY_FACTORY.createLineString(path));
+            }
         }
         cancellationToken.throwIfCancellationRequested();
 
@@ -603,8 +612,8 @@ public final class GCodeGenerator {
                 if (preprocessor.controlsSpindle(previousSpindle)) line(gcode, "%s", preprocessor.spindleOff());
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
                 if (positions.toolChangeX() != null) {
-                    addTravel(travelShapes, lastX, lastY, positions.toolChangeX(), positions.toolChangeY(), lastToolRadius);
-                    line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(positions.toolChangeX()), fmt(positions.toolChangeY()));
+                    exclusionTravel(gcode,travelShapes,lastX,lastY,positions.toolChangeX(),positions.toolChangeY(),
+                            Math.max(lastToolRadius,tool.toolDiameter()/2),changeZ,preprocessor,plannerFor.apply(Math.max(lastToolRadius*2,tool.toolDiameter())));
                     lastX = positions.toolChangeX(); lastY = positions.toolChangeY();
                 }
             }
@@ -662,16 +671,16 @@ public final class GCodeGenerator {
                     continue;
                 }
                 if (!preprocessor.requiresProbe()) {
-                    addTravel(travelShapes, lastX, lastY, coordinates[0].x, coordinates[0].y, radius);
                     cutShapes.add(coordinates.length == 1
                             ? GEOMETRY_FACTORY.createPoint(coordinates[0])
                             : GEOMETRY_FACTORY.createLineString(coordinates), radius);
                 }
                 Coordinate last = coordinates[coordinates.length - 1];
+                exclusionTravel(gcode,travelShapes,lastX,lastY,coordinates[0].x,coordinates[0].y,radius,
+                        clearance,preprocessor,plannerFor.apply(tool.toolDiameter()));
                 lastX = last.x;
                 lastY = last.y;
 
-                line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
                 for (double depth : depths) {
                     cancellationToken.throwIfCancellationRequested();
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(machining.feedRateZ()));
@@ -681,10 +690,9 @@ public final class GCodeGenerator {
                                 fmt(coordinates[p].y), fmt(machining.feedRate()));
                     }
                     if (depth != depths.get(depths.size() - 1)) {
-                        if (!preprocessor.requiresProbe()) addTravel(travelShapes, last.x, last.y,
-                                coordinates[0].x, coordinates[0].y, radius);
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
-                        line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(coordinates[0].x), fmt(coordinates[0].y));
+                        exclusionTravel(gcode,travelShapes,last.x,last.y,coordinates[0].x,coordinates[0].y,radius,
+                                clearance,preprocessor,plannerFor.apply(tool.toolDiameter()));
                     }
                 }
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
@@ -698,8 +706,8 @@ public final class GCodeGenerator {
         if (positions.endX() != null) {
             // Never lower to a small End Z before a lateral parking move.
             line(gcode, "%s Z%s", preprocessor.rapid(), fmt(Math.max(clearance, positions.endZ() == null ? clearance : positions.endZ())));
-            addTravel(travelShapes, lastX, lastY, positions.endX(), positions.endY(), lastToolRadius);
-            line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(positions.endX()), fmt(positions.endY()));
+            exclusionTravel(gcode,travelShapes,lastX,lastY,positions.endX(),positions.endY(),lastToolRadius,
+                    Math.max(clearance,positions.endZ()==null?clearance:positions.endZ()),preprocessor,plannerFor.apply(lastToolRadius*2));
         }
         if (positions.endZ() != null) line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.endZ()));
         cancellationToken.throwIfCancellationRequested();
@@ -710,6 +718,22 @@ public final class GCodeGenerator {
     }
 
     /** Append up to one additional circuit to a closed path; never extend open paths. */
+    private static void exclusionTravel(StringBuilder code,List<Geometry> preview,double sx,double sy,double ex,double ey,
+            double radius,double safeZ,GCodePreprocessor profile,CncExclusionPlanner planner) {
+        if(planner==null) {
+            if(!profile.requiresProbe()) addTravel(preview,sx,sy,ex,ey,radius);
+            line(code,"%s X%s Y%s",profile.rapid(),fmt(ex),fmt(ey)); return;
+        }
+        var travel=planner.travel(new Coordinate(sx,sy),new Coordinate(ex,ey),safeZ);
+        line(code,"%s Z%s",profile.rapid(),fmt(travel.z()));
+        for(int i=1;i<travel.points().size();i++) {
+            var from=travel.points().get(i-1); var to=travel.points().get(i);
+            addTravel(preview,from.x,from.y,to.x,to.y,radius);
+            line(code,"%s X%s Y%s",profile.rapid(),fmt(to.x),fmt(to.y));
+        }
+        if(travel.z()!=safeZ) line(code,"%s Z%s",profile.rapid(),fmt(safeZ));
+    }
+
     private static Coordinate[] extraCut(Coordinate[] path, double length) {
         if (length == 0 || path.length < 3 || !path[0].equals2D(path[path.length - 1])) return path;
         List<Coordinate> result = new ArrayList<>(List.of(path));

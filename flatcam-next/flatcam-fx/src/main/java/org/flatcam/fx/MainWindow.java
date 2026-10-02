@@ -6387,7 +6387,11 @@ final class MainWindow {
         openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
                 entry.cncDefaults(), geometryCncSettingsByItem.get(item),
                 () -> toolsDatabaseTools(LegacyToolsDatabase::millingTools),
-                result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
+                (polygon,onSelected,onCancelled) -> beginNccAreaSelection(entry.geometry(),polygon?NccToolPanel.AreaShape.POLYGON:NccToolPanel.AreaShape.RECTANGLE,onSelected,onCancelled),
+                shape -> plotAreaView.setEditorHighlight(shape,false),
+                result -> { plotAreaView.cancelPlacement(); clearToolOverlays(); runGeometryCncGeneration(item,entry,result); },
+                () -> { plotAreaView.cancelPlacement(); clearToolOverlays(); closeToolPanel(); }));
+        activeToolCleanup=this::clearToolOverlays;
     }
 
     private void runGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,

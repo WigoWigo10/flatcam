@@ -2076,3 +2076,16 @@ Buffer executado em worker, com publicação atômica, cancelamento e verificaç
 de fontes obsoletas. Resultados vazios/inválidos recusados. Limites de Gerber e
 ausência de undo global documentados em TRANSFORMATIONS.md. Testes de núcleo e
 controles aprovados; comparação visual manual pendente.
+
+## Etapa 3: exclusões Geometry/CNC — 2026-10-02
+
+Painel para desenhar/editar áreas Around/Over, ativação explícita com rascunhos
+preservados, unidades e tooltips. Desvio usa grafo de visibilidade sobre união de
+áreas ampliadas por raio + 0,1 mm equivalente. Over sobe antes de todo o deslocamento
+para a maior altura necessária, conservando clearance. Cortes e origem/destino
+dentro das áreas são recusados. Troca/fim e retornos de passes também roteados;
+prévia XY representa desvios. Áreas/ativação persistem em `.fcnproj`. Exportação
+`.FlatPrj` com áreas bloqueada: sem mapeamento seguro para armazenamento global
+legado, não se descarta informação de segurança. Drilling permanece sem exclusões.
+Testes de roteamento, geração, cancelamento, incompatibilidade de perfis, controles
+e persistência passaram. Limites/validação física pendente em CNC_EXCLUSIONS.md.
