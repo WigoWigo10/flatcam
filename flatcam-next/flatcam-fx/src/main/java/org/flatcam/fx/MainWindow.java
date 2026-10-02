@@ -81,6 +81,7 @@ import org.flatcam.app.project.DrillCncSettings;
 import org.flatcam.app.project.GeometryCncSettings;
 import org.flatcam.app.project.PythonProjectIO;
 import org.flatcam.app.project.LegacyToolsDatabase;
+import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.ToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
@@ -5740,6 +5741,7 @@ final class MainWindow {
                 .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
         if (initial == null) return;
         openToolPanel("Milling Tool", ExcellonMillingToolPanel.build(sources, initial,
+                () -> toolsDatabaseTools(LegacyToolsDatabase::millingTools),
                 this::runExcellonMilling, this::closeToolPanel));
     }
 
@@ -5775,6 +5777,14 @@ final class MainWindow {
                 String name = uniqueDerivedName(item.getValue() + suffix);
                 TreeItem<String> generated = addGeometryToProject(name, item.getValue(), image.units(),
                         geometry, true, List.of(new ToolGeometry(result.millDiameter(), geometry)));
+                if (result.databaseTool() != null) {
+                    var db = result.databaseTool();
+                    GeometryEntry created = geometryByItem.get(generated);
+                    geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), geometry,
+                            true, List.of(new ToolGeometry(db.diameter(), geometry, db.profile())), db.parameters()));
+                    geometryCncSettingsByItem.put(generated, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE,
+                            null, db.tip() == null ? Map.of() : Map.of(0, db.tip())));
+                }
                 appendConsole("Geometry de fresagem criada: " + name + ". Revise os caminhos antes de gerar CNC Job.");
                 selectProjectItem(generated);
                 plotAreaView.fitToLayer(generated);
@@ -6293,6 +6303,7 @@ final class MainWindow {
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
         openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
                 entry.cncDefaults(), geometryCncSettingsByItem.get(item),
+                () -> toolsDatabaseTools(LegacyToolsDatabase::millingTools),
                 result -> runGeometryCncGeneration(item, entry, result), this::closeToolPanel));
     }
 

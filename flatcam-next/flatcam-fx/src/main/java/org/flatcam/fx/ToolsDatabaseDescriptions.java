@@ -9,6 +9,7 @@ import javafx.scene.control.Control;
 final class ToolsDatabaseDescriptions {
     private static final Set<String> TRANSFERRED = Set.of("name", "tooldia", "tool_type", "tool_target", "tol_min", "tol_max",
             "tools_iso_passes", "tools_iso_overlap", "tools_iso_isotype",
+            "vtipdia", "vtipangle", "cutz", "multidepth", "depthperpass", "travelz", "feedrate", "feedrate_rapid", "spindlespeed",
             "tools_ncc_operation", "tools_ncc_overlap", "tools_ncc_method", "tools_ncc_connect", "tools_ncc_contour",
             "tools_ncc_offset_choice", "tools_ncc_offset_value", "tools_drill_cutz", "tools_drill_multidepth",
             "tools_drill_depthperpass", "tools_drill_travelz", "tools_drill_feedrate_z", "tools_drill_spindlespeed",

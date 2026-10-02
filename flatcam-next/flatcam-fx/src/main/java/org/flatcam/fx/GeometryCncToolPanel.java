@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import org.flatcam.app.project.LegacyToolsDatabase;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -57,14 +59,24 @@ final class GeometryCncToolPanel {
     static Node build(String units, Geometry combinedGeometry, List<ToolGeometry> tools,
                       GeometryGCodeParameters defaults, GeometryCncSettings settings,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        return build(units, combinedGeometry, tools, defaults, settings, List::of, onGenerate, onClose);
+    }
+
+    static Node build(String units, Geometry combinedGeometry, List<ToolGeometry> sourceTools,
+                      GeometryGCodeParameters defaults, GeometryCncSettings settings,
+                      Supplier<List<LegacyToolsDatabase.MillingTool>> database,
+                      Consumer<Result> onGenerate, Runnable onClose) {
+        List<ToolGeometry> tools = new java.util.ArrayList<>(sourceTools);
         boolean metric = "MM".equalsIgnoreCase(units);
         boolean multiTool = !tools.isEmpty();
+        var singleProfile = new javafx.beans.property.SimpleObjectProperty<>(ToolProfile.C1);
 
         TextField toolDiaField = new TextField(format(metric ? 0.8 : 0.031));
         toolDiaField.setId("cnc-tool-dia");
         if (!multiTool && settings != null && settings.singleToolDiameter() != null)
             toolDiaField.setText(Double.toString(settings.singleToolDiameter()));
         TableView<ToolGeometry> toolTable = new TableView<>();
+        toolTable.setId("cnc-tools");
         toolTable.setMinWidth(0);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         if (multiTool) {
@@ -190,9 +202,8 @@ final class GeometryCncToolPanel {
         Map<Integer, TextField[]> vFields = new LinkedHashMap<>();
         VBox vSettings = new VBox(8);
         vSettings.disableProperty().bind(noCutZ);
-        for (int i = 0; i < tools.size(); i++) {
-            ToolGeometry tool = tools.get(i);
-            if (tool.toolProfile() != ToolProfile.V || tool.geometry().isEmpty()) continue;
+        for (int i = 0; i < Math.max(1, tools.size()); i++) {
+            ToolGeometry tool = multiTool ? tools.get(i) : new ToolGeometry(0.8, combinedGeometry);
             TextField tipDia = new TextField(metric ? "0.1" : "0.004");
             TextField tipAngle = new TextField("30");
             tipDia.setId("cnc-v-tip-dia-" + i);
@@ -209,7 +220,7 @@ final class GeometryCncToolPanel {
             Runnable updateDepth = () -> {
                 try {
                     double depth = new VTipSettings(parse(tipDia, "V-Tip Dia"),
-                            parse(tipAngle, "V-Tip Angle")).cutDepth(tool.toolDiameter());
+                            parse(tipAngle, "V-Tip Angle")).cutDepth(multiTool ? tool.toolDiameter() : parse(toolDiaField, "Tool Dia"));
                     calculated.setText("Cut Z calculado: -" + format(depth) + " " + units);
                 } catch (RuntimeException error) {
                     calculated.setText("Cut Z: " + error.getMessage());
@@ -217,14 +228,20 @@ final class GeometryCncToolPanel {
             };
             tipDia.textProperty().addListener((obs, oldValue, value) -> updateDepth.run());
             tipAngle.textProperty().addListener((obs, oldValue, value) -> updateDepth.run());
+            toolDiaField.textProperty().addListener((obs, oldValue, value) -> updateDepth.run());
             updateDepth.run();
             GridPane vGrid = new GridPane();
             vGrid.setHgap(8);
             vGrid.setVgap(6);
             vGrid.addRow(0, new Label("V-Tip Dia:"), tipDia);
             vGrid.addRow(1, new Label("V-Tip Angle (graus):"), tipAngle);
-            vSettings.getChildren().addAll(new Label("Ferramenta " + (i + 1)
-                    + " — largura " + format(tool.toolDiameter()) + " " + units), vGrid, calculated);
+            VBox toolTip = new VBox(6, new Label("Ferramenta " + (i + 1) + " - V-Tip"), vGrid, calculated);
+            final int index = i;
+            toolTip.visibleProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                    () -> multiTool ? tools.get(index).toolProfile() == ToolProfile.V : singleProfile.get() == ToolProfile.V,
+                    singleProfile, toolTable.itemsProperty()));
+            toolTip.managedProperty().bind(toolTip.visibleProperty());
+            vSettings.getChildren().add(toolTip);
             vFields.put(i, new TextField[]{tipDia, tipAngle});
         }
         Button generateButton = new Button("Gerar CNC Job...");
@@ -252,12 +269,13 @@ final class GeometryCncToolPanel {
                 preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
-                        : List.of(new ToolGeometry(parse(toolDiaField, "Tool Dia"), combinedGeometry));
+                        : List.of(new ToolGeometry(parse(toolDiaField, "Tool Dia"), combinedGeometry, singleProfile.get()));
                 if (roland.get() && resultTools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1)
                     throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo.");
                 Map<Integer, VTipSettings> vTools = new LinkedHashMap<>();
                 for (var entry : vFields.entrySet()) {
                     if (noCutZ.get()) break;
+                    if (resultTools.get(entry.getKey()).toolProfile() != ToolProfile.V) continue;
                     TextField[] fields = entry.getValue();
                     VTipSettings tipSettings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
                             parse(fields[1], "V-Tip Angle"));
@@ -287,6 +305,27 @@ final class GeometryCncToolPanel {
         if (multiTool) {
             box.getChildren().addAll(new Label("Ferramentas/caminhos associados:"), toolTable);
         }
+        box.getChildren().add(DatabaseToolPicker.build("cnc-db", database, selected -> {
+            int index = multiTool ? toolTable.getSelectionModel().getSelectedIndex() : 0;
+            if (multiTool && index < 0) throw new IllegalArgumentException("Selecione a ferramenta na tabela.");
+            if (multiTool && Math.abs(tools.get(index).toolDiameter() - selected.diameter()) > 1e-6)
+                throw new IllegalArgumentException("Diametro da base diferente do caminho. Regenere a Geometry para mudar a largura.");
+            if (!multiTool) { toolDiaField.setText(Double.toString(selected.diameter())); singleProfile.set(selected.profile()); }
+            else {
+                tools.set(index, new ToolGeometry(selected.diameter(), tools.get(index).geometry(), selected.profile()));
+                toolTable.setItems(FXCollections.observableArrayList(tools));
+                toolTable.getSelectionModel().select(index);
+            }
+            GeometryGCodeParameters p = selected.parameters();
+            safeZField.setText(Double.toString(p.safeZ())); cutDepthField.setText(Double.toString(p.cutDepth()));
+            multiDepthCb.setSelected(p.multiDepth()); depthPerPassField.setText(Double.toString(p.depthPerPass()));
+            feedField.setText(Double.toString(p.feedRate())); spindleField.setText(Integer.toString(p.spindleSpeedRpm()));
+            rapidFeedField.setText(Double.toString(p.rapidFeedRate()));
+            if (selected.tip() != null) {
+                vFields.get(index)[0].setText(Double.toString(selected.tip().tipDiameter()));
+                vFields.get(index)[1].setText(Double.toString(selected.tip().angleDegrees()));
+            }
+        }, errorLabel));
         box.getChildren().add(grid);
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
         box.getChildren().addAll(probe.view(), profileHelp, errorLabel, generateButton, closeButton);

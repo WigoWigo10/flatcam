@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import org.flatcam.app.project.LegacyToolsDatabase;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -26,13 +28,20 @@ final class ExcellonMillingToolPanel {
         @Override public String toString() { return item.getValue(); }
     }
 
-    record Result(SourceCandidate source, Set<Integer> toolIds, double millDiameter, Kind kind) { }
+    record Result(SourceCandidate source, Set<Integer> toolIds, double millDiameter, Kind kind,
+                  LegacyToolsDatabase.MillingTool databaseTool) { }
 
     private record ToolRow(int id, double diameter, int drills, int slots) { }
 
     private ExcellonMillingToolPanel() { }
 
     static Node build(List<SourceCandidate> sources, SourceCandidate initial,
+                      Consumer<Result> onGenerate, Runnable onClose) {
+        return build(sources, initial, List::of, onGenerate, onClose);
+    }
+
+    static Node build(List<SourceCandidate> sources, SourceCandidate initial,
+                      Supplier<List<LegacyToolsDatabase.MillingTool>> database,
                       Consumer<Result> onGenerate, Runnable onClose) {
         ComboBox<SourceCandidate> source = new ComboBox<>(FXCollections.observableArrayList(sources));
         source.setValue(initial);
@@ -65,19 +74,26 @@ final class ExcellonMillingToolPanel {
         error.getStyleClass().add("form-error-label");
         error.setWrapText(true);
         error.managedProperty().bind(error.textProperty().isNotEmpty());
+        var imported = new java.util.concurrent.atomic.AtomicReference<LegacyToolsDatabase.MillingTool>();
+        diameter.textProperty().addListener((obs, old, value) -> imported.set(null));
+        VBox picker = DatabaseToolPicker.build("mill-db", database, selected -> {
+            diameter.setText(Double.toString(selected.diameter())); imported.set(selected);
+        }, error);
+        Consumer<Result> transfer = result -> onGenerate.accept(new Result(result.source(), result.toolIds(),
+                result.millDiameter(), result.kind(), imported.get()));
         Button drills = new Button("Generate Geometry for Drills");
         drills.getStyleClass().add("primary-action");
         Button slots = new Button("Generate Geometry for Slots");
         for (Button button : List.of(drills, slots)) button.setMaxWidth(Double.MAX_VALUE);
-        drills.setOnAction(event -> submit(source, table, diameter, Kind.DRILLS, error, onGenerate));
-        slots.setOnAction(event -> submit(source, table, diameter, Kind.SLOTS, error, onGenerate));
+        drills.setOnAction(event -> submit(source, table, diameter, Kind.DRILLS, error, transfer));
+        slots.setOnAction(event -> submit(source, table, diameter, Kind.SLOTS, error, transfer));
         Button close = new Button("Close");
         close.setMaxWidth(Double.MAX_VALUE);
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(9, new Label("Milling Tool"), new Label("EXCELLON:"), source,
                 new Label("Tools Table (selecione as ferramentas)"), table,
-                new Label("Tool diameter (" + initial.image().units() + "):"), diameter,
+                new Label("Tool diameter (" + initial.image().units() + "):"), diameter, picker,
                 new Label("Gera caminhos de centro para uma Geometry editavel. Depois crie o CNC Job pela Geometry."),
                 error, drills, slots, close);
         panel.setPadding(new Insets(12));
@@ -105,7 +121,7 @@ final class ExcellonMillingToolPanel {
                     throw new IllegalArgumentException("A fresa excede o diametro de T" + id + ".");
             }
             error.setText("");
-            callback.accept(new Result(source.getValue(), Set.copyOf(selected), value, kind));
+            callback.accept(new Result(source.getValue(), Set.copyOf(selected), value, kind, null));
         } catch (NumberFormatException exception) {
             error.setText("Informe um diametro numerico valido.");
         } catch (IllegalArgumentException exception) {

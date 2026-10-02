@@ -12,6 +12,8 @@ import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccToolSettings;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
+import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
 import org.json.JSONObject;
@@ -55,6 +57,46 @@ public final class LegacyToolsDatabase {
     }
 
     private LegacyToolsDatabase() {
+    }
+
+    public record MillingTool(String name, double diameter, ToolProfile profile,
+                              GeometryGCodeParameters parameters, VTipSettings tip) {
+        @Override public String toString() { return name + " - " + diameter + " (" + profile + ")"; }
+    }
+
+    private static boolean accepts(JSONObject data, int index, String name) {
+        Object target = data.opt("tool_target");
+        return target instanceof Number n && (n.intValue() == 0 || n.intValue() == index)
+                || "General".equalsIgnoreCase(String.valueOf(target))
+                || name.equalsIgnoreCase(String.valueOf(target));
+    }
+
+    public static List<MillingTool> millingTools(JSONObject root) throws IOException {
+        List<MillingTool> tools = new ArrayList<>();
+        for (String id : root.keySet()) {
+            try {
+                JSONObject entry = root.getJSONObject(id), data = entry.getJSONObject("data");
+                if (!accepts(data, 1, "Milling")) continue;
+                double diameter = entry.getDouble("tooldia");
+                if (!Double.isFinite(diameter) || diameter <= 0)
+                    throw new IllegalArgumentException("tool diameter must be positive");
+                double cutZ = data.optDouble("cutz", -0.1);
+                if (!Double.isFinite(cutZ) || cutZ >= 0)
+                    throw new IllegalArgumentException("Milling Cut Z must be below the surface");
+                ToolProfile profile = ToolProfile.fromLegacy(entry.optString("tool_type", "C1"));
+                VTipSettings tip = profile == ToolProfile.V
+                        ? new VTipSettings(data.optDouble("vtipdia", 0.1), data.optDouble("vtipangle", 30)) : null;
+                if (tip != null) tip.cutDepth(diameter);
+                GeometryGCodeParameters parameters = new GeometryGCodeParameters(
+                        data.optDouble("travelz", 2), Math.abs(cutZ), data.optBoolean("multidepth", false),
+                        data.optDouble("depthperpass", 0.1), data.optDouble("feedrate", 120),
+                        data.optInt("spindlespeed", 0), false, data.optDouble("feedrate_rapid", 0));
+                tools.add(new MillingTool(entry.optString("name", "Tool " + id), diameter, profile, parameters, tip));
+            } catch (RuntimeException invalid) {
+                throw new IOException("Invalid Milling tool " + id + ": " + invalid.getMessage(), invalid);
+            }
+        }
+        return List.copyOf(tools);
     }
 
     public static List<NccTool> loadNccTools(Path path) throws IOException {

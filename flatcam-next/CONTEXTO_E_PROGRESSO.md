@@ -1903,3 +1903,13 @@ de NCC, Cutout, sondagem e exportação nos quatro temas foram inspecionadas. A 
 foi tentada também com diretório temporário isolado, mas falhou na limpeza de `@TempDir`
 (`DirectoryNotEmptyException`) em testes de persistência/CAM, sem falhas de asserção;
 essa execução não deve ser registrada como uma regressão completa aprovada.
+# Série de paridade — 2026-10-02
+
+Etapa 1: Tools Database integrada a Geometry/CNC e Milling Excellon. Seleção não
+altera valores até Aplicar; filtra Milling/General e valida diâmetro, Cut Z e ponta V.
+Geometry com caminhos associados não aceita mudar a largura sem regenerar os caminhos.
+Milling preserva perfil, ponta V e parâmetros básicos na Geometry criada. A unidade
+da base não é convertida automaticamente; a interface avisa. Offset, dwell, Feed Z
+e extra cut ainda não são transferidos nesta etapa. Parâmetros por ferramenta seguem
+na etapa 3. Testes direcionados: MillingDatabaseTest, DatabaseTransferTest e
+GeometryCncToolPanelTest aprovados.
