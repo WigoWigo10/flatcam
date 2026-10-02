@@ -49,7 +49,12 @@ formas não atingidas conservam IDs. Uma primitiva JTS em andamento não pode se
 interrompida imediatamente. Histórico e reconstrução da tabela/índice permanecem
 em memória; placas enormes ainda exigem perfilamento.
 
-Paint Shape do editor continua pendente (Paint do aplicativo está disponível).
+Paint Shape acrescenta caminhos aos polígonos/anéis fechados selecionados, sem
+substituir contornos. Standard/Seed/Lines/Combo, margem, sobreposição, Connect e
+Contour; cálculo cancelável em segundo plano, prévia fixa e confirmação por clique
+ou botão. Esc/botão direito cancela; Ctrl+Z desfaz a inserção inteira. Ferramentas
+associadas conservam o diâmetro (selecione uma por vez); sem associação, confira
+o diâmetro ao gerar CNC. Resultados vazios/incompletos são recusados atomicamente.
 Modos/atalhos avançados de arco e transformações interativas não reproduzem
 integralmente os gestos Python. Texto/Borracha não tornam o editor 100% equivalente.
 

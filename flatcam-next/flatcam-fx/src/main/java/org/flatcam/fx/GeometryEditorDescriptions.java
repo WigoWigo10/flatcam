@@ -9,6 +9,8 @@ final class GeometryEditorDescriptions {
 
     static ToolDescriptions.Description of(String id) {
         return switch (id) {
+            case "paint" -> new ToolDescriptions.Description("Paint Shape",
+                    "Acrescenta caminhos de preenchimento nas areas selecionadas, sem apagar os contornos originais. Aceita poligonos e aneis fechados simples; linhas abertas sao recusadas.\n\nCalcule a previa em segundo plano e confirme por clique no plot ou Confirmar Paint; Esc cancela. Ctrl+Z desfaz todo o preenchimento. Diametro deve coincidir com a ferramenta associada; sem associacao, confira-o ao gerar CNC.");
             case "text" -> new ToolDescriptions.Description("Texto vetorial",
                     "Converte texto em polígonos editáveis, com os vazios das letras preservados. Escolha fonte, tamanho e estilo no painel.\n\nGerar e posicionar mostra uma prévia: clique no plot para inserir pela linha de base da primeira linha; Esc/botão direito cancela. Ctrl+Z desfaz a inserção inteira. O resultado usa a ferramenta escolhida para novas formas.");
             case "eraser" -> new ToolDescriptions.Description("Borracha por molde",

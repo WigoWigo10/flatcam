@@ -2051,3 +2051,16 @@ e atualização posterior do formulário. Ícones receberam identificação aces
 Install completo aprovado: 762 testes registrados, 751 aprovados, 11 ignorados,
 zero falhas/erros. Testes verificam controles reais, metadados, textos, prioridade,
 consistência barra/menu e contraste dos temas; validação visual manual pendente.
+
+## Etapa 1: Paint Shape no Editor Geometry — 2026-10-02
+
+Paint acrescenta caminhos de preenchimento às áreas selecionadas, preservando
+contornos e associação/diâmetro das ferramentas. Anéis fechados simples aceitos;
+linhas abertas, diâmetro incompatível e resultados vazios/incompletos recusados.
+Standard/Seed/Lines/Combo, margem, Connect/Contour e sobreposição. Cálculo usa o
+executor existente, com cancelamento, prévia fixa e confirmação separada por botão
+ou clique; Esc/botão direito cancela. Uma inserção = um undo. Mudança de parâmetros
+cancela a prévia; revisão/seleção obsoletas impedem aplicar resultado antigo.
+Sem associação de ferramenta, conferir o diâmetro ao gerar CNC. Não altera o
+diâmetro global como o patch Python; não reclassifica caminhos anteriores.
+Testes direcionados do núcleo e controles FX passaram; validação visual pendente.

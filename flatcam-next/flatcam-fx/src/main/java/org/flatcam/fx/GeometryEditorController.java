@@ -96,6 +96,11 @@ final class GeometryEditorController {
     private Button transformButton;
     private Button textButton;
     private Button eraserButton;
+    private Button paintButton;
+    private TitledPane paintPane;
+    private TextField paintDiameter, paintOverlap, paintMargin;
+    private ComboBox<org.flatcam.cam.ncc.NccMethod> paintMethod;
+    private CheckBox paintConnect, paintContour;
     private TitledPane textPane;
     private TextArea textContent;
     private ComboBox<String> textFont;
@@ -231,6 +236,7 @@ final class GeometryEditorController {
         transformButton = new Button("Transformacoes");
         textButton = new Button("Texto"); textButton.setId("geometry-text");
         eraserButton = new Button("Borracha"); eraserButton.setId("geometry-eraser");
+        paintButton = new Button("Paint Shape"); paintButton.setId("geometry-paint");
         bufferDistance = new TextField();
         bufferDistance.setPromptText("Distancia positiva (unidade do projeto)");
         bufferMode = new ComboBox<>();
@@ -240,7 +246,7 @@ final class GeometryEditorController {
         Button cancelButton = new Button("Cancelar edicao");
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
-                bufferButton, explodeButton, cutPathButton, transformButton, textButton, eraserButton,
+                bufferButton, explodeButton, cutPathButton, transformButton, textButton, eraserButton, paintButton,
                 undoButton, redoButton, applyButton, cancelButton);
         iconize(selectButton, "pointer32.png");
         iconize(pathButton, "path32.png");
@@ -265,6 +271,8 @@ final class GeometryEditorController {
         iconize(transformButton, "transform.png");
         iconize(textButton, "text32.png");
         iconize(eraserButton, "eraser26.png");
+        iconize(paintButton, "paint20_1.png");
+        GeometryEditorDescriptions.apply(paintButton, "paint");
         GeometryEditorDescriptions.apply(textButton, "text");
         GeometryEditorDescriptions.apply(eraserButton, "eraser");
         GeometryEditorDescriptions.apply(bufferButton, "buffer");
@@ -300,6 +308,7 @@ final class GeometryEditorController {
         cancelButton.setOnAction(event -> cancel());
         textButton.setOnAction(event -> startText());
         eraserButton.setOnAction(event -> startEraser());
+        paintButton.setOnAction(event -> startPaint());
         VBox panel = new VBox(8, new Label("Geometry Editor"), shapeTable, status, instruction);
         textContent = new TextArea(); textContent.setId("geometry-text-content");
         textContent.setPromptText("Texto para converter em geometria"); textContent.setPrefRowCount(3);
@@ -331,6 +340,32 @@ final class GeometryEditorController {
                 new HBox(8, new Label("Tamanho:"), textSize), new HBox(8, textBold, textItalic),
                 textContent, textHelp, placeText));
         textPane.setExpanded(false); panel.getChildren().add(textPane);
+        paintDiameter = new TextField("0.3"); paintDiameter.setId("geometry-paint-diameter");
+        paintOverlap = new TextField("40"); paintOverlap.setId("geometry-paint-overlap");
+        paintMargin = new TextField("0"); paintMargin.setId("geometry-paint-margin");
+        paintMethod = new ComboBox<>(FXCollections.observableArrayList(org.flatcam.cam.ncc.NccMethod.values()));
+        paintMethod.setValue(org.flatcam.cam.ncc.NccMethod.STANDARD); paintMethod.setId("geometry-paint-method");
+        paintConnect = new CheckBox("Connect"); paintConnect.setSelected(true);
+        paintContour = new CheckBox("Contour"); paintContour.setSelected(true);
+        Button paintPreview = new Button("Calcular previa"); paintPreview.setId("geometry-paint-preview");
+        Button paintConfirm = new Button("Confirmar Paint"); paintConfirm.setId("geometry-paint-confirm");
+        Button paintCancel = new Button("Cancelar previa");
+        paintPreview.setOnAction(event -> generatePaint());
+        paintConfirm.setOnAction(event -> plotArea.confirmEditorFixedPreview());
+        paintCancel.setOnAction(event -> plotArea.cancelPlacement());
+        paintConfirm.disableProperty().bind(paintPreview.disableProperty());
+        for (javafx.beans.value.ObservableValue<?> property : List.<javafx.beans.value.ObservableValue<?>>of(paintDiameter.textProperty(), paintOverlap.textProperty(), paintMargin.textProperty(), paintMethod.valueProperty()))
+            property.addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
+        paintConnect.selectedProperty().addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
+        paintContour.selectedProperty().addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
+        ToolDescriptions.apply(paintDiameter, "Diametro do Paint", "Diametro positivo na unidade do objeto. Em Geometry com ferramentas, deve coincidir com a ferramenta das formas selecionadas; nao muda diametros existentes. Sem associacao, confira o mesmo diametro ao gerar CNC.");
+        ToolDescriptions.apply(paintMargin, "Margem do Paint", "Positiva contrai a area; negativa expande.\n\nAtenção: margem negativa pode gerar cortes fora da forma original. Unidades: mm ou in.");
+        ToolDescriptions.apply(paintPreview, "Previa do Paint", GeometryEditorDescriptions.of("paint").text());
+        paintPane = new TitledPane("Paint Shape", new VBox(8,
+                new HBox(8, new Label("Tool Dia:"), paintDiameter), new HBox(8, new Label("Overlap (%):"), paintOverlap),
+                new HBox(8, new Label("Margem:"), paintMargin), new HBox(8, new Label("Method:"), paintMethod),
+                new HBox(8, paintConnect, paintContour), paintPreview, paintConfirm, paintCancel));
+        paintPane.setExpanded(false); panel.getChildren().add(paintPane);
         TextField angleField = new TextField("90");
         angleField.setPrefColumnCount(6);
         TextField scaleField = new TextField("1.0");
@@ -401,7 +436,7 @@ final class GeometryEditorController {
         ToolBar toolbar = new ToolBar(selectButton, circleButton, arcButton, rectangleButton,
                 new Separator(), pathButton, polygonButton,
                 new Separator(), textButton, bufferButton,
-                plannedToolButton("Paint Shape", "paint20_1.png"),
+                paintButton,
                 eraserButton,
                 new Separator(), unionButton, explodeButton, intersectionButton, subtractButton,
                 new Separator(), cutPathButton,
@@ -654,6 +689,37 @@ final class GeometryEditorController {
         textPane.setExpanded(true);
         textContent.requestFocus();
         instruction.setText("Configure o texto e clique em Gerar e posicionar texto.");
+    }
+
+    void startPaint() {
+        if (!readyForTool()) return;
+        plotArea.cancelPlacement();
+        paintDiameter.setText(Double.toString(session.selectedToolDiameter(0.3)));
+        paintPane.setExpanded(true);
+        instruction.setText("Selecione areas fechadas, configure Paint e calcule a previa.");
+    }
+
+    private void generatePaint() {
+        if (!readyForTool()) return;
+        plotArea.cancelPlacement();
+        GeometryEditSession editing = session;
+        try {
+            var p = new org.flatcam.cam.ncc.PaintParameters(List.of(parseTransformNumber(paintDiameter, "Diametro")),
+                    parseTransformNumber(paintOverlap, "Overlap") / 100, parseTransformNumber(paintMargin, "Margem"),
+                    paintMethod.getValue(), paintConnect.isSelected(), paintContour.isSelected(), org.flatcam.cam.ncc.NccOrder.NONE, false);
+            calculate(editing.preparePaint(p, units), result -> {
+                Geometry paths = new org.locationtech.jts.geom.GeometryFactory().buildGeometry(result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
+                boolean started = plotArea.beginEditorFixedPreview(paths, new PlotAreaView.PlacementHandler() {
+                    public void onCommit(double dx, double dy) {
+                        if (session != editing) return;
+                        if (editing.applyOperation(result)) { refreshGeometry(); instruction.setText("Paint adicionado; contornos preservados. Ctrl+Z desfaz."); }
+                        else instruction.setText("Selecao ou rascunho mudou; previa descartada.");
+                    }
+                    public void onCancel() { if (session == editing) instruction.setText("Previa do Paint cancelada; formas preservadas."); }
+                });
+                instruction.setText(started ? "Confira a previa fixa; clique no plot ou Confirmar Paint. Esc cancela." : "Nao foi possivel mostrar a previa.");
+            });
+        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
     }
 
     private void generateText() {
@@ -978,6 +1044,8 @@ final class GeometryEditorController {
         explodeButton.setDisable(session.selectedCount() == 0);
         transformButton.setDisable(session.selectedCount() == 0);
         eraserButton.setDisable(session.selectedCount() == 0);
+        paintButton.setDisable(session.selectedCount() == 0);
+        paintPane.setDisable(busy);
         textPane.setDisable(busy);
         if (toolChoice != null) toolChoice.setDisable(busy);
         if (busy) {
@@ -1020,6 +1088,8 @@ final class GeometryEditorController {
         explodeButton = null;
         transformButton = null;
         textButton = null; eraserButton = null; textPane = null; textContent = null;
+        paintButton = null; paintPane = null; paintDiameter = null; paintOverlap = null; paintMargin = null;
+        paintMethod = null; paintConnect = null; paintContour = null;
         textFont = null; textSize = null; textBold = null; textItalic = null; units = null;
         bufferDistance = null;
         bufferMode = null;

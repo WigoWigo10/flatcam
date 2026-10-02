@@ -26,7 +26,7 @@ class GeometryEditorDescriptionsTest {
         assertTrue(GeometryEditorDescriptions.of("eraser").text().contains("Durante o cálculo"));
         assertTrue(GeometryEditorDescriptions.of("buffer").text().contains("distância negativa"));
         assertTrue(GeometryEditorDescriptions.of("cut_path").text().contains("mantém os cortadores"));
-        assertNull(GeometryEditorDescriptions.of("delete")); assertNull(GeometryEditorDescriptions.of("paint"));
+        assertNull(GeometryEditorDescriptions.of("delete")); assertNotNull(GeometryEditorDescriptions.of("paint"));
     }
     @Test @EnabledOnOs(OS.WINDOWS)
     void menuAndIconUseIdenticalRichHelpWithoutTwoTooltips() throws Exception {

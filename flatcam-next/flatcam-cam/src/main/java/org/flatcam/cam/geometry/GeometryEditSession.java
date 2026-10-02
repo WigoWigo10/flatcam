@@ -33,7 +33,7 @@ public final class GeometryEditSession {
 
     public enum Operation {
         UNION, INTERSECTION, SUBTRACT, CUT_PATH, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR,
-        TEXT, ERASER_MASK, ERASE
+        TEXT, ERASER_MASK, ERASE, PAINT
     }
 
     public record ToolPart(Geometry geometry, int toolIndex) {
@@ -57,7 +57,11 @@ public final class GeometryEditSession {
     /** Immutable input for a potentially expensive JTS operation on a worker thread. */
     public record OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
                                    List<ToolPart> inputs, double distance, TextGeometry.Parameters text,
-                                   int newToolIndex) {
+                                   int newToolIndex, org.flatcam.cam.ncc.PaintParameters paint, String units) {
+        public OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
+                                List<ToolPart> inputs, double distance, TextGeometry.Parameters text, int newToolIndex) {
+            this(revision, operation, selectedIndices, inputs, distance, text, newToolIndex, null, "MM");
+        }
         public OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
                                 List<ToolPart> inputs, double distance) {
             this(revision, operation, selectedIndices, inputs, distance, null, -1);
@@ -72,6 +76,25 @@ public final class GeometryEditSession {
             cancellation.throwIfCancellationRequested();
             progress.report(0.05);
             List<ToolPart> outputs = new ArrayList<>();
+            if (operation == Operation.PAINT) {
+                for (int i = 0; i < inputs.size(); i++) {
+                    cancellation.throwIfCancellationRequested();
+                    ToolPart input = inputs.get(i);
+                    Geometry area = input.geometry();
+                    if (area instanceof LineString line && line.isClosed() && line.getNumPoints() >= 4)
+                        area = area.getFactory().createPolygon(line.getCoordinates());
+                    if (!(area instanceof Polygon) || !area.isValid())
+                        throw new IllegalArgumentException("Paint exige poligonos validos ou aneis fechados simples.");
+                    int index = i;
+                    var result = org.flatcam.cam.ncc.NccGenerator.paint(units, area, paint, cancellation,
+                            fraction -> progress.report(0.05 + 0.9 * (index + fraction) / inputs.size()));
+                    if (result.isEmpty() || result.totalFailedPolygonCount() > 0)
+                        throw new IllegalArgumentException("Paint incompleto; ajuste diametro, margem ou metodo. Nenhuma forma alterada.");
+                    flattenToolParts(result.geometry(), input.toolIndex(), outputs, cancellation);
+                }
+                cancellation.throwIfCancellationRequested(); progress.report(1);
+                return new OperationResult(revision, selectedIndices, false, false, outputs);
+            }
             if (operation == Operation.TEXT) {
                 Geometry generated = TextGeometry.generate(text, cancellation, progress);
                 flattenToolParts(generated, newToolIndex, outputs, cancellation);
@@ -364,7 +387,7 @@ public final class GeometryEditSession {
 
     public OperationRequest prepareOperation(Operation operation, double distance) {
         Objects.requireNonNull(operation);
-        if (operation == Operation.TEXT || operation == Operation.ERASER_MASK || operation == Operation.ERASE)
+        if (operation == Operation.TEXT || operation == Operation.ERASER_MASK || operation == Operation.ERASE || operation == Operation.PAINT)
             throw new IllegalArgumentException("Use o preparo especifico de Texto/Borracha.");
         boolean booleanOperation = operation == Operation.UNION || operation == Operation.INTERSECTION
                 || operation == Operation.SUBTRACT || operation == Operation.CUT_PATH;
@@ -719,6 +742,31 @@ public final class GeometryEditSession {
         validateNewTool(toolIndex);
         return new OperationRequest(revision, Operation.TEXT, List.copyOf(selected), List.of(), 0,
                 Objects.requireNonNull(parameters), toolIndex);
+    }
+
+    /** Paint appends paths without replacing selected outlines or changing existing tool diameters. */
+    public OperationRequest preparePaint(org.flatcam.cam.ncc.PaintParameters parameters, String units) {
+        Objects.requireNonNull(parameters);
+        if (!"MM".equals(units) && !"IN".equals(units)) throw new IllegalArgumentException("Unidades invalidas.");
+        if (parameters.toolDiameters().size() != 1 || parameters.restMachining())
+            throw new IllegalArgumentException("Paint Shape usa uma ferramenta sem Rest.");
+        if (selected.isEmpty()) throw new IllegalArgumentException("Selecione poligonos ou aneis fechados para pintar.");
+        List<ToolPart> inputs = new ArrayList<>();
+        for (int index : selected) {
+            Part part = parts.get(index);
+            if (!(part.geometry() instanceof Polygon) && !(part.geometry() instanceof LineString line && line.isClosed() && line.getNumPoints() >= 4))
+                throw new IllegalArgumentException("Paint nao aceita linhas abertas; feche o contorno primeiro.");
+            if (part.toolIndex() >= 0 && Math.abs(sourceTools.get(part.toolIndex()).toolDiameter() - parameters.toolDiameters().getFirst()) > 1e-9)
+                throw new IllegalArgumentException("O diametro do Paint deve corresponder a ferramenta das formas selecionadas. Selecione uma ferramenta por vez.");
+            inputs.add(new ToolPart(part.geometry(), part.toolIndex()));
+        }
+        return new OperationRequest(revision, Operation.PAINT, List.copyOf(selected), inputs, 0, null, -1, parameters, units);
+    }
+
+    public double selectedToolDiameter(double fallback) {
+        if (selected.isEmpty()) return fallback;
+        int index = parts.get(selected.iterator().next()).toolIndex();
+        return index < 0 ? fallback : sourceTools.get(index).toolDiameter();
     }
 
     public OperationRequest prepareEraserMask() {

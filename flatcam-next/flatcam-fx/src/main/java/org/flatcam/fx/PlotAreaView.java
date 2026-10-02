@@ -365,6 +365,7 @@ final class PlotAreaView extends StackPane {
     private double placementCurrentWorldY;
     private boolean placementPrimaryPressed;
     private boolean placementAnchorChosen;
+    private boolean placementFixedPreview;
     private double placementTrackWidth;
     private boolean placementRegion;
     private boolean placementFreePath;
@@ -1084,6 +1085,20 @@ final class PlotAreaView extends StackPane {
         return startPlacement(List.of(), List.of(preview), 0, 0, true, handler);
     }
 
+    /** Fixed, absolute preview: click confirms without translating the generated paths. */
+    boolean beginEditorFixedPreview(Geometry paths, PlacementHandler handler) {
+        if (!beginEditorFlashPlacement(paths, handler)) return false;
+        placementFixedPreview = true;
+        redraw();
+        return true;
+    }
+
+    boolean confirmEditorFixedPreview() {
+        if (!placementFixedPreview || placementHandler == null) return false;
+        PlacementHandler handler = placementHandler;
+        clearPlacement(); handler.onCommit(0, 0); return true;
+    }
+
     /** A multi-point track using the five bend modes from the legacy Gerber editor. */
     boolean beginEditorTrackPlacement(double apertureDiameter, TrackPlacementHandler handler) {
         if (selectionHandler == null) {
@@ -1266,6 +1281,7 @@ final class PlotAreaView extends StackPane {
         placementLayers = List.of();
         placementPrimaryPressed = false;
         placementAnchorChosen = false;
+        placementFixedPreview = false;
         placementTrackWidth = 0;
         placementRegion = false;
         placementFreePath = false;
@@ -1404,6 +1420,8 @@ final class PlotAreaView extends StackPane {
                         }
                     }
                     redraw();
+                } else if (placementFixedPreview) {
+                    confirmEditorFixedPreview();
                 } else if (!placementAnchorChosen) {
                     placementAnchorWorldX = world[0];
                     placementAnchorWorldY = world[1];
@@ -1516,7 +1534,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void updatePlacement(double screenX, double screenY) {
-        if (placementHandler != null && placementAnchorChosen && insidePlot(screenX, screenY)) {
+        if (placementHandler != null && !placementFixedPreview && placementAnchorChosen && insidePlot(screenX, screenY)) {
             double[] world = snappedWorld(screenX, screenY);
             placementCurrentWorldX = world[0];
             placementCurrentWorldY = world[1];

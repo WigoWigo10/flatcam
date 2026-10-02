@@ -130,6 +130,29 @@ class GeometryTextEraserPanelTest {
             });
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }
+    @Test void paintPreviewIsFixedCancelableAndAddsOnlyAfterConfirmation() throws Exception {
+        var f=new GeometryFactory(); var source=f.toGeometry(new Envelope(45,55,35,45));
+        var h=fx(() -> new Harness(source,List.of(new ToolGeometry(1,source))));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.button("geometry-paint").fire();
+                assertEquals("1.0",((TextField)h.panel.lookup("#geometry-paint-diameter")).getText());
+                ((Button)h.panel.lookup("#geometry-paint-preview")).fire(); return null;
+            });
+            h.finish();
+            fx(() -> {
+                assertFalse(h.controller.hasUnappliedChanges()); assertTrue(h.plot.isPlacementActive());
+                h.plot.cancelPlacement(); assertEquals(1,h.table().getItems().size());
+                ((Button)h.panel.lookup("#geometry-paint-preview")).fire(); return null;
+            });
+            h.finish();
+            fx(() -> {
+                h.click(60,50); // Confirmation location must NOT translate the generated paths.
+                assertTrue(h.controller.hasUnappliedChanges()); assertTrue(h.table().getItems().size()>1);
+                h.controller.apply(); assertTrue(source.covers(h.applied)); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
     @Test void eraserRequiresSelectionAndTwoClicksThenRunsOffUiWithUndo() throws Exception {
         var f=new GeometryFactory();
         Geometry template=f.toGeometry(new Envelope(30,32,30,32)), target=f.toGeometry(new Envelope(40,44,30,34));

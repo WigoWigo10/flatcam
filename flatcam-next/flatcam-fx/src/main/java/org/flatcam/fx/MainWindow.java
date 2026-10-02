@@ -1502,6 +1502,7 @@ final class MainWindow {
                 case "cut_path" -> geometryEditor::startCutPath;
                 case "buffer" -> geometryEditor::startBuffer;
                 case "text" -> geometryEditor::startText;
+                case "paint" -> geometryEditor::startPaint;
                 case "eraser" -> geometryEditor::startEraser;
                 case "explode" -> geometryEditor::explode;
                 default -> null;
