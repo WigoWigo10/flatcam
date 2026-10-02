@@ -2183,3 +2183,30 @@ Próximos passos: investigar buffers Standard/Paint e centros/arcos Seed,
 comparar Free-form/Thin/M-Bites com o Python, ampliar Rest/Connect/referências;
 resolver separadamente a limpeza TempDir Windows. Suíte funcional conforme a
 ressalva da seção 3; validação visual manual permanece pendente.
+
+## Inicializadores: avisos Java 25 — 2026-10-02
+
+O log enviado pelo usuário mostrava startup/stop normais e D3D na GTX 1650,
+não falha do aplicativo. Wrapper atualizado de Maven 3.9.9 para 3.9.12, com
+Guava 33.5.0-jre, removendo o uso legado de UnsafeAtomicHelper no build.
+`.mvn/jvm.config` habilita native access para Jansi no classpath da JVM Maven;
+o launcher C++ e o javafx-maven-plugin habilitam apenas `javafx.graphics` na
+JVM da aplicação. Não há supressão global de Unsafe ou alteração das variáveis
+de ambiente do usuário. Critérios de GPU e fallback SW permanecem iguais.
+
+LauncherProbe inicializa JavaFX e verifica um pixel em Canvas 16×16, sem janela,
+projeto ou preferências. O --probe nativo usa illegal-native-access=deny para
+detectar ausência de permissão; build-native.cmd executa esse teste. Smoke de
+renderização D3D (GTX 1650), SW forçado e iniciador Java/Maven passaram sem os
+avisos do anexo. As mensagens Prism/VRAM/shaders de --verbose-gpu são mantidas.
+NATIVE_GPU.md documenta as permissões e comandos.
+
+A execução normal de testes ainda apresentou DirectoryNotEmptyException ao
+limpar TempDir (agora em ExcellonExporterTest), sem falha de asserção; não foi
+atribuída relação aos avisos de inicialização nem declarado conserto desse
+problema separado. A configuração permanente de limpeza não foi alterada.
+Regressão funcional com limpeza TempDir desativada: 787 registrados, 776
+aprovados, 11 opcionais ignorados, zero falhas/erros. Essa opção foi usada
+somente na invocação de teste, não nos scripts de execução. Controle negativo
+com JavaFX sem permissão nativa e política deny foi recusado (exit 1), como
+esperado: o probe realmente detecta a configuração faltante.

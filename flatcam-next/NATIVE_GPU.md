@@ -62,6 +62,40 @@ O launcher atualmente é um fluxo de desenvolvimento para Windows. Distribuir
 um aplicativo autônomo ainda requer empacotar o runtime Java e as dependências
 de modo independente da árvore `target/`.
 
+## Avisos Java 25 e teste de inicialização
+
+O Wrapper usa Maven 3.9.12 (Guava 33.5.0-jre), substituindo a versão antiga
+responsável pelo aviso `AbstractFuture$UnsafeAtomicHelper` no build. A configuração
+local `.mvn/jvm.config` habilita acesso nativo para as bibliotecas de console do
+Maven no classpath. Essa permissão não altera variáveis globais do Windows.
+
+Os dois iniciadores da aplicação habilitam acesso nativo **somente** ao módulo
+`javafx.graphics`, que carrega Glass/Prism. Maven e aplicação são JVMs diferentes:
+a configuração de uma não substitui a da outra. Isso segue a
+[política de acesso nativo do Java 25](https://docs.oracle.com/en/java/javase/25/docs/specs/man/java.html).
+Não se usa `--sun-misc-unsafe-memory-access=allow` para ocultar a dependência antiga.
+
+O teste nativo agora inicializa JavaFX e verifica um pixel de um Canvas de 16×16,
+sem abrir janela, carregar projeto ou alterar preferências. No modo probe, acesso
+nativo não autorizado é **negado**, para que uma permissão faltante resulte em
+falha real em vez de apenas aviso:
+
+```powershell
+.\run-native.cmd --probe --verbose-gpu
+.\target\native\FlatCAMFX.exe --probe --software --verbose-gpu
+```
+
+Para verificar o iniciador Java/Maven sem abrir a interface:
+
+```powershell
+.\mvnw.cmd -q -pl flatcam-fx '-Djavafx.mainClass=org.flatcam.fx.LauncherProbe' org.openjfx:javafx-maven-plugin:0.0.8:run
+```
+
+`--verbose-gpu` continua exibindo informações de pipeline, shaders, textura e
+pool de VRAM: esses diagnósticos não são erros. Para uso normal, execute
+`run.cmd`/`run-native.cmd` sem essa opção. A permissão nativa não altera o
+critério de escolha da GPU, o fallback SW ou a precisão CAM.
+
 ## Problemas comuns
 
 - **`Unsupported major.minor version 67.0` ao abrir:** o JavaFX 25 exige Java 23+ e a JVM carregada foi a antiga

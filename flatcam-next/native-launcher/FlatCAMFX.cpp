@@ -163,9 +163,13 @@ int wmain(int argc, wchar_t** argv) {
         "-Djava.class.path=" + utf8(paths.classPath),
         "--module-path=" + utf8(paths.modulePath),
         "--add-modules=javafx.controls",
+        // Glass/Prism load platform libraries in javafx.graphics (JDK 24+ native-access policy).
+        "--enable-native-access=javafx.graphics",
         "-Dfile.encoding=UTF-8",
         std::string("-Dprism.order=") + (software ? "sw" : "d3d,sw")
     };
+    // A probe must fail, not merely warn, if a native library lacks explicit permission.
+    if (probe) optionValues.emplace_back("--illegal-native-access=deny");
     if (verbose) optionValues.emplace_back("-Dprism.verbose=true");
     std::vector<JavaVMOption> options;
     for (std::string& value : optionValues) options.push_back({value.data(), nullptr});
@@ -182,6 +186,18 @@ int wmain(int argc, wchar_t** argv) {
               << "; high-performance GPU requested from hybrid drivers." << std::endl;
     jclass applicationClass = env->FindClass("javafx/application/Application");
     bool failed = describeJavaError(env, "loading JavaFX") || applicationClass == nullptr;
+    if (!failed && probe) {
+        jclass probeClass = env->FindClass("org/flatcam/fx/LauncherProbe");
+        failed = describeJavaError(env, "loading launcher probe") || probeClass == nullptr;
+        if (!failed) {
+            jmethodID run = env->GetStaticMethodID(probeClass, "run", "()V");
+            failed = describeJavaError(env, "finding launcher probe") || run == nullptr;
+            if (!failed) {
+                env->CallStaticVoidMethod(probeClass, run);
+                failed = describeJavaError(env, "probing JavaFX native rendering");
+            }
+        }
+    }
     if (!failed && !probe) {
         jclass mainClass = env->FindClass("org/flatcam/fx/MainApp");
         failed = describeJavaError(env, "loading MainApp") || mainClass == nullptr;
