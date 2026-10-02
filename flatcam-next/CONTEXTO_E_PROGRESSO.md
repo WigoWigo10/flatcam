@@ -7,11 +7,11 @@ e continuar a migração sem recomeçar a investigação.
 
 > Atualizado em **2026-10-02**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
 > migrou para **Java 25 + JavaFX 25.0.4**, portou **todas as 24 ferramentas do menu Ferramentas do Python**
-> (nenhuma resta), ganhou Conversion/Join Objects parciais,
+> (opções ainda parciais), ganhou Conversion/Join Objects parciais,
 > barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
 > muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0 e nas entregas de 2026-10-02 ao final do documento. A suíte tem **739 testes**
-> (491 `flatcam-cam`, 110 `flatcam-application`, 138 `flatcam-fx`), sem falhas; 11 ficam ignorados
+> na seção 9.0 e nas entregas de 2026-10-02 ao final do documento. A suíte tem **779 testes**
+> (514 `flatcam-cam`, 114 `flatcam-application`, 151 `flatcam-fx`), sem falhas; 11 ficam ignorados
 > porque dependem de fixtures/artefatos opcionais indicados por propriedades ou
 > variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
 > Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
@@ -81,8 +81,8 @@ separação.
 ### Verificação mais recente
 
 Em 2026-10-02, `mvnw.cmd -q install` completo (três módulos com JDK 25.0.4.1 e JavaFX 25.0.4) passa com
-**739 testes registrados**: 491 em `flatcam-cam`, 110 em `flatcam-application` e 138 em `flatcam-fx`;
-728 executados, 0 falhas, 0 erros e
+**779 testes registrados**: 514 em `flatcam-cam`, 114 em `flatcam-application` e 151 em `flatcam-fx`;
+768 executados, 0 falhas, 0 erros e
 11 ignorados (fixtures opcionais de `PythonProjectWriterTest`, `NccPythonParityTest`, `PythonProjectCamSmokeTest`, `PythonProjectIOTest` e `PlotAreaNestedGeometryTest`,
 que só rodam com um projeto real do Python indicado por variável de ambiente, como `FLATCAM_PARITY_PROJECT`). `JobExecutorTest`
 registra intencionalmente uma `IllegalStateException: boom` ao testar propagação de erro, e um teste de jobs
@@ -265,9 +265,8 @@ Implementado nesta revisão (2026-09-22), pesquisado diretamente em
   em qualquer campo de texto da aplicação.
 - **Ferramenta completa** (`TransformToolPanel`, aberta pelo botão
   "Transformations" do mini-painel, ícone `transform.png`): Reference
-  (Origin/Selection/Point - a quarta opção do Python, "Object", fica de fora,
-  ver "falta" abaixo), Rotate, Skew X/Y (com Link), Scale X/Y (com Link),
-  Flip X/Y, Offset X/Y, Reset Tool (ícone `reset32.png`). Cada botão aplica
+  (Origin/Selection/Point/Object), Rotate, Skew X/Y (com Link), Scale X/Y (com Link),
+  Flip X/Y, Offset X/Y, Buffer distância/percentual e Reset Tool (ícone `reset32.png`). Cada botão aplica
   de imediato à seleção atual da árvore, sem passo de "Gerar" - igual ao
   Python. Botões sem ícone (igual ao Python - só Reset e o combo de tipo de
   objeto de referência têm ícone lá).
@@ -279,9 +278,10 @@ Implementado nesta revisão (2026-09-22), pesquisado diretamente em
 - CNC Job recusa transformação (`CNC Job nao pode ser transformado`), igual
   ao Python.
 
-Falta (fora de escopo por ora, ver seção 9.2): Buffer (distância/fator) e a
-referência "Object" (centro de outro objeto escolhido) - ambos triviais de
-adicionar depois reaproveitando a infraestrutura já criada.
+Buffer e referência Object entregues em 2026-10-02. Buffer usa worker, valida
+unidades e publica atomicamente; Excellon atualiza diâmetros, conservando centros.
+Gerber conserva Follow, mas não reconstrói integralmente metadados/macros de
+aberturas no percentual. Não há undo global; limites em TRANSFORMATIONS.md.
 
 ## 5. NCC: estado exato da implementação atual
 
@@ -399,14 +399,14 @@ Os rótulos abaixo são deliberadamente conservadores.
 | Ferramentas Gerber/Geometry | parcial | Isolation tem Follow, Rest Machining, saídas separadas e áreas de exceção; Cutout aceita Gerber ou Geometry preenchida e tem Bridge, Thin, M-Bites e gaps manuais por área, mas não o gesto exato do cursor Python; NCC é multi-tool com Rest Machining, ISO/CLEAR, boundary, validação e leitura de `.FlatDB`; faltam comparação visual com projetos reais e opções avançadas |
 | Editor Gerber | funcional, paridade parcial | todos os comandos da paleta têm ação: seleção, desenho, edição de aberturas, operações geométricas e undo/redo; várias ferramentas avançadas usam parâmetros numéricos no painel em vez dos gestos/controles exatos do Python; falta validação manual da interação completa e corpus amplo de Gerbers |
 | Importação/plot Excellon | parcial | parser, plot, editor de furos/slots, exportação `.drl` do estado editado, Drilling Tool com Multi-Depth/Dwell/Offset Z e `.FlatDB`; projetos Python importam valores básicos de furação por ferramenta; Milling Tool cria Geometry para furos/slots; faltam opções avançadas e validação manual ampla |
-| Geometry | parcial | multi-tool e conversões Single↔Multi; CNC por ferramenta, Feed XY/Z, Dwell, Extra Cut, V-Tip e compensação Path/In/Out/Custom; posições comuns de início/fim/troca com validação/persistência, somente fresagem sem sonda; editor com seleção/exclusão/desenho/transformações/undo, Texto vetorial e Borracha; faltam Paint Shape e gestos avançados; ver GEOMETRY_CNC.md e GEOMETRY_EDITOR.md |
+| Geometry | parcial | multi-tool e conversões Single↔Multi; CNC por ferramenta, Feed XY/Z, Dwell, Extra Cut, V-Tip e compensação Path/In/Out/Custom; posições comuns e exclusões Around/Over com validação/persistência, somente fresagem sem sonda; editor com Texto, Borracha e Paint Shape transacional; faltam gestos avançados; ver GEOMETRY_CNC.md, CNC_EXCLUSIONS.md e GEOMETRY_EDITOR.md |
 | CNC Job | parcial | geração, plot (com numeração, setas e navegação passo a passo, além do Python), abertura e edição de G-code, Aplicar/Cancelar e Salvar; prévia G0-G3 em XY, laser por estado de emissão, ICP/HPGL/RML lineares; 19 perfis Python no seletor e `Paste_1` embutido no SolderPaste, total 20 de 20 ports parciais; Mach3 com sonda gera G31/G92 e exige confirmação manual, sem prévia; Roland inicialmente só MM/uma ferramenta e sem metadados de diâmetro na reabertura; ver `PREPROCESSADORES.md` |
 | Persistência de projeto | parcial | `.fcnproj` embute objetos/G-code e parâmetros CNC individuais, compensação/posições e seleção/ordem de Drilling; confirmação da sonda não persiste; abertura e exportação `.FlatPrj` JSON/XZ validadas com serializadores Python e 18 objetos reais; não é round-trip universal, ver COMPATIBILIDADE_FLATPRJ.md |
 | Calculadoras | parcial | três calculadoras implementadas |
 | Ferramentas do menu Ferramentas | forte/parcial | 24 de 24 portadas (seção 4); vários painéis têm só a lógica testada e ainda precisam de validação manual no app |
 | Plot Area com geometria densa | forte | LOD por densidade assíncrono (seção 4 e `PLOT_PERFORMANCE.md`); faltam margem em volta da vista e fidelidade total em diagonais de 45° |
 | Plataforma (Java/launcher) | forte | Java 25 + JavaFX 25.0.4; launcher nativo opcional para pedir a GPU de alto desempenho (exige `g++`); opções de arquitetura futuras guardadas na memória do projeto (ver 9.0) |
-| Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset completos para Gerber/Excellon/Geometry; falta Buffer e referência "Object" |
+| Transformations | forte/parcial | Rotate/Skew/Scale/Flip/Offset, Buffer distância/percentual e referência Object; Buffer assíncrono/atômico; reconstrução de metadados/macros Gerber ainda parcial, ver TRANSFORMATIONS.md |
 | Tools Database | parcial | editor com 63 campos Python, busca/filtro, `.FlatDB`, backup e campos desconhecidos preservados; integrado a NCC/Isolation/Drilling/Geometry CNC/Milling/Paint/Cutout; Offset e profundidades Cutout/Thin transferidos, Paint individual; falta consumo integral de opções avançadas |
 | Preferências globais | inicial/parcial | aba funcional para tema, snap, grade visual e visibilidade do Plot Area; ainda longe da cobertura do Python |
 | Automação/CLI/scripts | ausente | não é a prioridade imediata |
@@ -855,13 +855,20 @@ cada ferramenta nova, sem bloquear o NCC depois.
 
 Esta é a sequência recomendada, sujeita a revisão com evidência do legado:
 
-### 9.0 Fila atual (2026-10-01)
+### 9.0 Fila atual (2026-10-02)
+
+Sequência Paint Shape → Transformations Object/Buffer → exclusões Geometry/CNC
+→ comparação CAM real entregue; consulte as quatro etapas ao final e
+COMPARACAO_CAM.md. Próximas prioridades: divergências diferenciais restantes,
+corpus Rest/referências/múltiplas ferramentas, exclusões Drilling e validação
+manual dos painéis/segurança física. Não declarar paridade total com base nos
+testes headless ou na simples existência das 24 ferramentas.
 
 Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde que alinhada ao Python:
 
 1. **Ferramentas do menu:** todas portadas; resta validar manualmente os painéis novos. As conversões (Convert Any e Single↔MultiGeo) já foram feitas.
-2. **Tools Database**: editor/salvamento entregues; completar integração com Milling/Paint/Cutout,
-   **salvar `.FlatPrj`**, e completar parâmetros/validar os
+2. **Tools Database/projetos**: integração Milling/Paint/Cutout e exportação `.FlatPrj` entregues;
+   completar opções avançadas, ampliar round-trip legado e validar os
    **pós-processadores** (hoje 20 ports parciais de 20 perfis Python, incluindo `Paste_1`;
    FX portable não entra nessa contagem). Perfil e campos globais CNC já persistem após gerar;
    priorizar transferência dos parâmetros da Tools Database, suplemento de metadados Roland, compensações de mesa
@@ -882,7 +889,7 @@ Em ordem aproximada de valor para o usuário; qualquer ordem é aceitável desde
 ### 9.1 Completar a paridade NCC (o que resta)
 
 - validação manual dos parâmetros por ferramenta e contornos ISO;
-- Tools Database;
+- opções avançadas da Tools Database (integração básica concluída);
 - fixtures diferenciais e casos de desempenho (incl. Rest Machining e
   boundary por referência num board real).
 
@@ -2089,3 +2096,34 @@ prévia XY representa desvios. Áreas/ativação persistem em `.fcnproj`. Export
 legado, não se descarta informação de segurança. Drilling permanece sem exclusões.
 Testes de roteamento, geração, cancelamento, incompatibilidade de perfis, controles
 e persistência passaram. Limites/validação física pendente em CNC_EXCLUSIONS.md.
+
+## Etapa 4: comparação CAM real e preservação de detalhes — 2026-10-02
+
+Harness Java exporta dez casos Isolation/NCC/Paint/Cutout e G-code. Script Python
+decodifica independentemente o projeto original e usa rotinas reais do checkout,
+incluindo AST do handler/helpers Cutout sem alterações de algoritmo. Relatório
+HTML/SVG/JSON, pegada da ferramenta, comprimento/bounds e distância amostrada;
+strict falha diante de divergência. Fonte legado tem SHA-256 registrado. Arquivos
+privados, dependência de teste isolada e relatórios somente em target/; original
+preservado, ambiente .venv continua Shapely 2.1.2.
+
+Comparação revelou perda de passes por simplificação de entrada do Buffer JTS.
+Standard usa epsilon Python e erosão sem simplificação; Seed/Lines/conectores
+também preservam entalhes. NCC Standard passou de IoU 98,8652% para ~99,9992%.
+Não é medida de paridade global nem ganho de FPS. Teste sintético cobre pequeno
+entalhe em todos os métodos e o epsilon inicial. Código continua Java/JTS/worker.
+
+Com Shapely 1.8.5.post1 em pasta isolada, seis casos atendem aos critérios, quatro
+continuam diferentes (Standard, Seed, Paint e Cutout quatro gaps com margem);
+zero exceções. Cobre importado idêntico em área; parser Python interpretou os dez
+G-codes. Standard/Paint têm pequenas diferenças de caminhos e Seed ainda requer
+comparação de centros/arcos. Cutout FX centra gaps no contorno; Python os desloca
+pela margem. Revisar com Thin/M-Bites e verificar manutenção das bridges antes de
+alterar isso. Shapely 2 não executa os casos multipart antigos: sem patches do
+oráculo, o harness registra erro, não aprovação.
+
+Install completo: 779 registrados, 768 aprovados, 11 opcionais ignorados, zero
+falhas/erros. Seis testes Python do harness e cinco smoke tests CAM no projeto real
+aprovados separadamente. Prévia detalhada atinge limite de tamanho em Isolation
+3 passes/Seed, sem retirar limites para passar no teste. COMPARACAO_CAM.md descreve
+comandos, critérios, resultados, pendências e distinção de testes headless/visuais.

@@ -15,6 +15,40 @@ import org.locationtech.jts.operation.overlayng.OverlayNG;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 class PaintGeneratorTest {
+    @Test void clearingMethodsDoNotSimplifyAwaySmallConcaveNotchesBeforeOffsetting() {
+        var source = FACTORY.createPolygon(new org.locationtech.jts.geom.Coordinate[]{
+                new org.locationtech.jts.geom.Coordinate(0, 0),
+                new org.locationtech.jts.geom.Coordinate(20, 0),
+                new org.locationtech.jts.geom.Coordinate(20, 10),
+                new org.locationtech.jts.geom.Coordinate(0, 10),
+                new org.locationtech.jts.geom.Coordinate(0, 6),
+                new org.locationtech.jts.geom.Coordinate(.002, 5.5),
+                new org.locationtech.jts.geom.Coordinate(0, 5),
+                new org.locationtech.jts.geom.Coordinate(0, 0)});
+        double diameter = .5;
+        var notch = FACTORY.createPoint(new org.locationtech.jts.geom.Coordinate(.002, 5.5));
+        for (NccMethod method : NccMethod.values()) {
+            var parameters = new PaintParameters(List.of(diameter), .4, 0,
+                    method, false, true, NccOrder.NONE, false);
+            var result = paint(source, parameters);
+            assertTrue(result.geometry().distance(notch) >= diameter / 2 - 1e-5,
+                    method + " must not shortcut the notch; allow only circle tessellation error");
+        }
+        assertEquals(.002, source.getCoordinates()[5].x, 1e-12, "source is unchanged");
+    }
+
+    @Test void standardStartsAtTheSameInwardEpsilonAsLegacyClearPolygon() {
+        double diameter = .5;
+        var parameters = new PaintParameters(List.of(diameter), .4, 0,
+                NccMethod.STANDARD, false, true, NccOrder.NONE, false);
+        var result = paint(box(0, 0, 20, 10), parameters);
+        Envelope paths = result.geometry().getEnvelopeInternal();
+        assertEquals(diameter / 1.999999, paths.getMinX(), 1e-12);
+        assertEquals(diameter / 1.999999, paths.getMinY(), 1e-12);
+        assertEquals(20 - diameter / 1.999999, paths.getMaxX(), 1e-12);
+        assertEquals(10 - diameter / 1.999999, paths.getMaxY(), 1e-12);
+    }
+
     @Test void individualSettingsKeepMarginsAndMethodsAndRestUsesEachToolsArea() {
         var settings = java.util.Map.of(
                 2.0, new PaintToolSettings(0.2, 3, NccMethod.STANDARD, false, true),

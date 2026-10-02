@@ -35,6 +35,10 @@ Em Linux/macOS:
 ./mvnw -q clean test
 ```
 
+Para comparar caminhos CAM com as rotinas reais do Python e gerar sobreposições
+HTML/SVG locais, consulte [COMPARACAO_CAM.md](COMPARACAO_CAM.md). O corpus privado
+e os relatórios ficam fora do Git; a comparação não substitui teste a seco.
+
 ## Executar
 
 Windows PowerShell:

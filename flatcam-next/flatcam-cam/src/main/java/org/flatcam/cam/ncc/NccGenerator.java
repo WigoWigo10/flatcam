@@ -295,7 +295,7 @@ public final class NccGenerator {
                 failures++;
             } else {
                 if (settings.connect()) {
-                    Geometry safeCenterArea = polygon.buffer(-toolDiameter / 2.0, QUADRANT_SEGMENTS);
+                    Geometry safeCenterArea = preciseRoundBuffer(polygon, -toolDiameter / 2.0);
                     paths = connectSafePaths(paths, safeCenterArea, factory, cancellation);
                 }
                 allPaths.addAll(paths);
@@ -317,6 +317,13 @@ public final class NccGenerator {
         }
         BufferParameters parameters = new BufferParameters(
                 QUADRANT_SEGMENTS, BufferParameters.CAP_ROUND, BufferParameters.JOIN_MITRE, 5.0);
+        return BufferOp.bufferOp(geometry, distance, parameters);
+    }
+
+    /** Preserve small notches/necks when computing the cutter-center keep-in area. */
+    private static Geometry preciseRoundBuffer(Geometry geometry, double distance) {
+        BufferParameters parameters = new BufferParameters(QUADRANT_SEGMENTS);
+        parameters.setSimplifyFactor(0);
         return BufferOp.bufferOp(geometry, distance, parameters);
     }
 
@@ -343,15 +350,20 @@ public final class NccGenerator {
     private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                    CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
-        double radius = toolDiameter / 2.0;
+        // Match clear_polygon's inward epsilon, avoiding exactly tangent/zero-width remnants.
+        double radius = toolDiameter / 1.999999;
         double step = toolDiameter * (1.0 - settings.overlapFraction());
-        Geometry current = polygon.buffer(-radius, QUADRANT_SEGMENTS);
+        BufferParameters parameters = new BufferParameters(QUADRANT_SEGMENTS);
+        // The default 1% input simplification can erase tiny notches/necks before erosion.
+        // Repeated erosion amplifies this into missing passes on real PCB copper.
+        parameters.setSimplifyFactor(0);
+        Geometry current = BufferOp.bufferOp(polygon, -radius, parameters);
         Envelope envelope = polygon.getEnvelopeInternal();
         int maxPasses = (int) Math.ceil(Math.max(envelope.getWidth(), envelope.getHeight()) / step) + 4;
         for (int pass = 0; pass < maxPasses && current != null && !current.isEmpty(); pass++) {
             cancellation.throwIfCancellationRequested();
             collectBoundaryLines(current, paths);
-            Geometry next = current.buffer(-step, QUADRANT_SEGMENTS);
+            Geometry next = BufferOp.bufferOp(current, -step, parameters);
             if (next.isEmpty() || Math.abs(next.getArea() - current.getArea()) < 1e-14) {
                 break;
             }
@@ -366,7 +378,7 @@ public final class NccGenerator {
         List<LineString> paths = new ArrayList<>();
         double toolRadius = toolDiameter / 2.0;
         double step = toolDiameter * (1.0 - settings.overlapFraction());
-        Geometry safeArea = polygon.buffer(-toolRadius, QUADRANT_SEGMENTS);
+        Geometry safeArea = preciseRoundBuffer(polygon, -toolRadius);
         if (safeArea.isEmpty()) {
             return paths;
         }
@@ -399,9 +411,9 @@ public final class NccGenerator {
     private static List<LineString> linePaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
-        double toolRadius = toolDiameter / 2.0;
+        double toolRadius = toolDiameter / 1.99999999;
         double step = toolDiameter * (1.0 - settings.overlapFraction());
-        Geometry safeArea = polygon.buffer(-toolRadius, QUADRANT_SEGMENTS);
+        Geometry safeArea = preciseRoundBuffer(polygon, -toolRadius);
         if (safeArea.isEmpty()) {
             return paths;
         }
