@@ -22,6 +22,7 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.LineString;
 import org.junit.jupiter.api.Test;
 
 class NccGeneratorTest {
@@ -315,6 +316,77 @@ class NccGeneratorTest {
         assertEquals(secondAlone.totalLength(), result.toolResults().get(1).geometry().getLength(), 1e-8);
         assertEquals(firstAlone.clearingArea().getArea(), result.clearingArea().getArea(), 1e-8,
                 "the represented area is the union of the tool-specific clearing areas");
+    }
+
+    @Test
+    void connectRefusesAJoinWhoseToolWidthWouldEscapeANarrowCorridor() {
+        // camlib.py's paint_connect buffers the candidate connector by the tool radius before
+        // testing it against the safe area - a bare centerline can thread a corridor the tool
+        // itself would not fit through. Dumbbell: two 4x4 rooms joined by a corridor only 0.5
+        // tall, well under a 0.9-diameter tool's own width.
+        Geometry left = FACTORY.toGeometry(new Envelope(0, 4, 0, 4));
+        Geometry right = FACTORY.toGeometry(new Envelope(10, 14, 0, 4));
+        Geometry corridor = FACTORY.toGeometry(new Envelope(4, 10, 1.75, 2.25));
+        Geometry safeArea = left.union(corridor).union(right);
+        LineString pathInLeftRoom = FACTORY.createLineString(
+                new Coordinate[]{new Coordinate(1, 2), new Coordinate(3, 2)});
+        LineString pathInRightRoom = FACTORY.createLineString(
+                new Coordinate[]{new Coordinate(11, 2), new Coordinate(13, 2)});
+
+        List<LineString> result = NccGenerator.connectSafePaths(
+                new ArrayList<>(List.of(pathInLeftRoom, pathInRightRoom)), safeArea, 0.9,
+                FACTORY, CancellationToken.none());
+
+        assertEquals(2, result.size(), "the tool-wide corridor is too narrow to join through; both lifts stay separate");
+    }
+
+    @Test
+    void connectJoinsThroughACorridorWideEnoughForTheToolItself() {
+        // Same shape, but the corridor is 1.2 tall - comfortably wider than a 0.9-diameter tool.
+        Geometry left = FACTORY.toGeometry(new Envelope(0, 4, 0, 4));
+        Geometry right = FACTORY.toGeometry(new Envelope(10, 14, 0, 4));
+        Geometry corridor = FACTORY.toGeometry(new Envelope(4, 10, 1.4, 2.6));
+        Geometry safeArea = left.union(corridor).union(right);
+        LineString pathInLeftRoom = FACTORY.createLineString(
+                new Coordinate[]{new Coordinate(1, 2), new Coordinate(3, 2)});
+        LineString pathInRightRoom = FACTORY.createLineString(
+                new Coordinate[]{new Coordinate(11, 2), new Coordinate(13, 2)});
+
+        List<LineString> result = NccGenerator.connectSafePaths(
+                new ArrayList<>(List.of(pathInLeftRoom, pathInRightRoom)), safeArea, 0.9,
+                FACTORY, CancellationToken.none());
+
+        assertEquals(1, result.size(), "wide enough for the tool: both paths join into one continuous travel");
+    }
+
+    @Test
+    void connectRefusesAJoinLongerThanTenToolDiameters() {
+        // camlib.py's paint_connect defaults max_walk to 10 * tooldia: a connector can be
+        // entirely safe and still get refused for being an excessively long "joining" travel.
+        Geometry safeArea = FACTORY.toGeometry(new Envelope(0, 20, 0, 2)); // tall and wide enough for the tool, no obstruction
+        double toolDiameter = 0.5; // max_walk = 5
+        LineString firstPath = FACTORY.createLineString(new Coordinate[]{new Coordinate(0.5, 1), new Coordinate(1, 1)});
+        LineString farPath = FACTORY.createLineString(new Coordinate[]{new Coordinate(18, 1), new Coordinate(18.5, 1)});
+
+        List<LineString> result = NccGenerator.connectSafePaths(
+                new ArrayList<>(List.of(firstPath, farPath)), safeArea, toolDiameter,
+                FACTORY, CancellationToken.none());
+
+        assertEquals(2, result.size(), "17mm of travel exceeds max_walk (5mm) even though the area is otherwise wide open");
+    }
+
+    @Test
+    void connectJoinsAShortSafeTravelWithinMaxWalk() {
+        Geometry safeArea = FACTORY.toGeometry(new Envelope(0, 20, 0, 2));
+        double toolDiameter = 0.5; // max_walk = 5
+        LineString firstPath = FACTORY.createLineString(new Coordinate[]{new Coordinate(0.5, 1), new Coordinate(1, 1)});
+        LineString nearPath = FACTORY.createLineString(new Coordinate[]{new Coordinate(4, 1), new Coordinate(4.5, 1)});
+
+        List<LineString> result = NccGenerator.connectSafePaths(
+                new ArrayList<>(List.of(firstPath, nearPath)), safeArea, toolDiameter,
+                FACTORY, CancellationToken.none());
+
+        assertEquals(1, result.size(), "3mm of travel is within max_walk and the area is safe: must join");
     }
 
     @Test

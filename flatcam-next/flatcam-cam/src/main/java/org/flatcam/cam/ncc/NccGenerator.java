@@ -297,7 +297,7 @@ public final class NccGenerator {
             } else {
                 if (settings.connect()) {
                     Geometry safeCenterArea = preciseRoundBuffer(polygon, -toolDiameter / 2.0);
-                    paths = connectSafePaths(paths, safeCenterArea, factory, cancellation);
+                    paths = connectSafePaths(paths, safeCenterArea, toolDiameter, factory, cancellation);
                 }
                 allPaths.addAll(paths);
                 for (LineString path : paths) {
@@ -488,11 +488,22 @@ public final class NccGenerator {
     }
 
     /** Greedily orders paths and joins only connectors contained by the safe cutter-center area. */
-    private static List<LineString> connectSafePaths(List<LineString> source, Geometry safeArea,
-                                                      GeometryFactory factory, CancellationToken cancellation) {
+    /**
+     * camlib.py's {@code paint_connect}: joins disjoint paths that can be reached by a straight
+     * tool travel without lifting, to cut down on lifts. Python buffers each candidate connecting
+     * segment by the tool's own radius before testing it against the safe area - a bare centerline
+     * can be fully inside while the tool sweeping along it would still clip the boundary - and
+     * refuses a connection longer than {@code 10 * toolDiameter} ({@code max_walk}'s default) even
+     * when the swept connector is safe, so joining does not turn into one long meandering travel
+     * across an otherwise-fine area.
+     */
+    static List<LineString> connectSafePaths(List<LineString> source, Geometry safeArea,
+                                             double toolDiameter, GeometryFactory factory,
+                                             CancellationToken cancellation) {
         if (source.size() < 2 || safeArea == null || safeArea.isEmpty()) {
             return source;
         }
+        double maxWalk = 10 * toolDiameter;
         List<LineString> remaining = new ArrayList<>(source);
         List<LineString> connected = new ArrayList<>();
         List<Coordinate> current = new ArrayList<>();
@@ -526,8 +537,10 @@ public final class NccGenerator {
             if (reverse) {
                 coordinates = reversed(coordinates);
             }
-            LineString connector = factory.createLineString(new Coordinate[]{end, coordinates[0]});
-            if (bestDistance < 1e-12 || relaxedSafeArea.covers(connector)) {
+            boolean walkable = bestDistance < 1e-12 || (bestDistance < maxWalk
+                    && relaxedSafeArea.covers(factory.createLineString(new Coordinate[]{end, coordinates[0]})
+                            .buffer(toolDiameter / 2.0, QUADRANT_SEGMENTS)));
+            if (walkable) {
                 addCoordinates(current, coordinates, true);
             } else {
                 connected.add(factory.createLineString(current.toArray(new Coordinate[0])));

@@ -132,9 +132,23 @@ Referências: [comparação CAM](COMPARACAO_CAM.md) e [Cutout](CUTOUT.md).
 - 538 testes em `flatcam-cam` aprovados (3 novos: duas margens negativas de
   Cutout, uma de Forced Rest), 824 no reactor completo. Build completo e
   abertura do FX verificados depois do `install`.
+- NCC/Paint "Connect" (`paint_connect` do Python) tinha duas lacunas: (1) o
+  Python testa se o segmento de ligação, já expandido pelo raio da
+  ferramenta, cabe na área segura (`walk_cut.buffer(tooldia/2).within(...)`),
+  mas a FX só testava a linha fina do segmento, aceitando ligações que uma
+  ferramenta real não atravessaria; (2) o Python limita a distância de
+  ligação a `max_walk = 10 * tooldia` por padrão, e a FX não tinha limite
+  algum. Corrigido em `NccGenerator.connectSafePaths`, que agora expande o
+  conector pelo raio da ferramenta antes de testar contenção e aplica o
+  teto de `10 * toolDiameter`. Quatro testes de regressão cobrem o corredor
+  estreito demais para a ferramenta, o corredor largo o suficiente, a
+  travessia maior que `max_walk` e a travessia dentro do limite.
+- 542 testes em `flatcam-cam` aprovados (4 novos, de Connect), 828 no reactor
+  completo. Build completo e abertura do FX verificados depois do `install`.
 
-Ainda não abordado: Connect/referências/áreas de NCC com Rest, operações em
-IN para os casos acima, e o restante do escopo desta etapa.
+Ainda não abordado: referências/áreas de NCC com Rest, operações em IN para
+os casos desta etapa, e o restante do escopo (Isolation Follow e exceções,
+Cutout Thin/M-Bites/concavidades com um projeto real).
 
 ### 4. Completar Drilling e validar CNC além de XY
 
