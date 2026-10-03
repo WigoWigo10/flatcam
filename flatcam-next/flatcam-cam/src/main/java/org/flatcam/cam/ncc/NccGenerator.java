@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.function.DoubleConsumer;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ProgressCallback;
+import org.flatcam.cam.ncc.geosbuffer.GeosBufferOp;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
@@ -320,11 +321,16 @@ public final class NccGenerator {
         return BufferOp.bufferOp(geometry, distance, parameters);
     }
 
-    /** Preserve small notches/necks when computing the cutter-center keep-in area. */
+    /**
+     * Preserve small notches/necks when computing the cutter-center keep-in area, with GEOS 3.10.3's
+     * buffer rules instead of JTS's own - see {@link GeosBufferOp}'s package for why and how, and
+     * INVESTIGACAO_CAM.md for the measurements. The GEOS-faithful input simplifier (left at its
+     * default tolerance here, unlike stock JTS buffering below) is what actually protects small
+     * notches; it is not a separate "simplification off" workaround layered on top.
+     */
     private static Geometry preciseRoundBuffer(Geometry geometry, double distance) {
         BufferParameters parameters = new BufferParameters(QUADRANT_SEGMENTS);
-        parameters.setSimplifyFactor(0);
-        return BufferOp.bufferOp(geometry, distance, parameters);
+        return GeosBufferOp.bufferOp(geometry, distance, parameters);
     }
 
     private static List<LineString> clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,
@@ -346,7 +352,19 @@ public final class NccGenerator {
         };
     }
 
-    /** Inward-offset strategy: the legacy clear_polygon() method. */
+    /**
+     * Inward-offset strategy: the legacy clear_polygon() method.
+     *
+     * <p>Each erosion pass uses {@link GeosBufferOp}, a local port of JTS's buffer algorithm
+     * aligned to GEOS 3.10.3's offset-curve and input-simplification rules instead of JTS's own
+     * (see that package's class docs and INVESTIGACAO_CAM.md). Successive JTS/GEOS erosions of the
+     * same real board copper disagreed by as much as ~0.021 mm by the time Rest Machining's later,
+     * smaller tools ran; on the public synthetic fixtures this port's own output matches a real GEOS
+     * 3.10.3/3.13.1 oracle to within floating-point noise (~1e-14 mm), at every resolution and pass
+     * tested. It is not a general buffer replacement: only Standard's repeated erosion and the Seed/
+     * Lines/Rest-Machining safe-area erosion in {@link #preciseRoundBuffer} switch to it; every other
+     * buffer call in this file (margins, mitred boundaries, footprint unions) is unaffected.
+     */
     private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                    CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
@@ -354,16 +372,13 @@ public final class NccGenerator {
         double radius = toolDiameter / 1.999999;
         double step = toolDiameter * (1.0 - settings.overlapFraction());
         BufferParameters parameters = new BufferParameters(QUADRANT_SEGMENTS);
-        // The default 1% input simplification can erase tiny notches/necks before erosion.
-        // Repeated erosion amplifies this into missing passes on real PCB copper.
-        parameters.setSimplifyFactor(0);
-        Geometry current = BufferOp.bufferOp(polygon, -radius, parameters);
+        Geometry current = GeosBufferOp.bufferOp(polygon, -radius, parameters);
         Envelope envelope = polygon.getEnvelopeInternal();
         int maxPasses = (int) Math.ceil(Math.max(envelope.getWidth(), envelope.getHeight()) / step) + 4;
         for (int pass = 0; pass < maxPasses && current != null && !current.isEmpty(); pass++) {
             cancellation.throwIfCancellationRequested();
             collectBoundaryLines(current, paths);
-            Geometry next = BufferOp.bufferOp(current, -step, parameters);
+            Geometry next = GeosBufferOp.bufferOp(current, -step, parameters);
             if (next.isEmpty() || Math.abs(next.getArea() - current.getArea()) < 1e-14) {
                 break;
             }

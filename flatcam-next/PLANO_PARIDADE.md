@@ -77,9 +77,18 @@ autoriza classificar trajetos diferentes como iguais.
 **Investigação em 2026-10-03:** diferenças dos buffers Standard/Paint e
 instabilidade da scan-line Seed reproduzidas em casos sintéticos. Protótipo
 isolado passa Standard/Paint na placa real, mas Seed ainda difere com entrada
-decodificada independentemente. Nenhuma correção CAM foi incorporada nesta
-etapa; a aplicação distribuída mantém suas três divergências. Evidências,
-controles públicos e próxima implementação em [INVESTIGACAO_CAM.md](INVESTIGACAO_CAM.md).
+decodificada independentemente.
+
+**Correção em 2026-10-03:** a parte Standard/Paint da investigação foi
+incorporada à aplicação (`org.flatcam.cam.ncc.geosbuffer`, um buffer próprio
+do projeto que alinha só as duas regras que divergiam do GEOS 3.10.3, sem
+tocar na dependência JTS global). No projeto real autorizado, `ncc-standard`
+e `paint-standard` passaram de `DIFFERENT` (~0,0206 mm e ~0,0216 mm) para
+`MATCH_SAMPLED` (~0,0006 mm e ~0,0000011 mm); no probe público, a distância
+contra o oráculo GEOS caiu a ruído de ponto flutuante. Seed continua
+`DIFFERENT` - a instabilidade do ponto inicial (item 3 da investigação) não
+foi resolvida nesta entrega. Nenhuma outra etapa foi avançada. Detalhes,
+testes e limites em [INVESTIGACAO_CAM.md](INVESTIGACAO_CAM.md).
 
 ### 3. Ampliar a validação e completar opções CAM
 

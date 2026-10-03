@@ -1,9 +1,9 @@
-# Investigação Standard/Paint/Seed — 2026-10-03
+# Investigação Standard/Paint/Seed — 2026-10-03, correção em 2026-10-03
 
 Base da aplicação: `89653e29`, Java 25.0.4.1/JTS 1.20.0. Oráculo: checkout
 Python local, Python 3.11.0/Shapely 1.8.5.post1/**GEOS 3.10.3** isolados.
 As conclusões são específicas dessas versões e entradas, não uma declaração
-de paridade geral. Não foi alterado nenhum algoritmo da aplicação ou do Python.
+de paridade geral. Não foi alterado nenhum algoritmo do Python.
 
 ## Resultado
 
@@ -17,9 +17,11 @@ de diferença entre linguagens:
   interior**. Mesmo reproduzindo o kernel legado, a entrada decodificada
   independentemente pode gerar outro ponto inicial e, portanto, outros anéis.
 
-O FX distribuído continua com os três casos `DIFFERENT`. Não aumentar tolerâncias
-nem contabilizar o protótipo como correção entregue. O projeto original foi
-somente lido; geometrias privadas e classes experimentais ficaram em `target/`.
+**Atualização:** a correção do item Standard/Paint descrita como "próxima
+implementação recomendada" (seção abaixo) foi incorporada à aplicação - ver
+"Correção entregue" mais abaixo. Seed continua `DIFFERENT`; nenhuma política de
+ponto inicial foi decidida ainda. O projeto original foi somente lido;
+geometrias privadas e classes experimentais do protótipo ficaram em `target/`.
 
 ## 1. Buffers Standard/Paint
 
@@ -139,17 +141,73 @@ Relatórios privados locais: `target/cam-investigation/production-report`,
 `experimental-full/seed-input-report.json`. Nenhum WKT/coordinate privado foi
 incluído neste documento ou nos probes versionados.
 
+## Correção entregue — Standard/Paint, 2026-10-03
+
+`org.flatcam.cam.ncc.geosbuffer` (flatcam-cam) porta as classes de buffer do
+JTS 1.20.0 necessárias (EPL-2.0/EDL-1.0, a mesma licença da dependência
+`jts-core` já usada) para uma camada própria do projeto, alterando só as duas
+regras documentadas acima: o fator de separação/escolha de endpoint em
+`GeosOffsetSegmentGenerator.addOutsideTurn` e o índice inicial/ordem dos
+argumentos do teste amostrado em `GeosBufferInputLineSimplifier`. O resto do
+pipeline (geração de curva, nó, extração de polígono por profundidade) é o
+mesmo código do JTS, só copiado para ter acesso às classes `package-private`
+que o compila - não há classe do JTS substituída globalmente nem dependência
+nova. `GeosBufferOp` reproduz a mesma órbita de fallback por precisão
+reduzida que `BufferOp` usa. `NccGenerator.standardPaths` (erosões sucessivas
+de Standard) e `preciseRoundBuffer` (área segura de Seed/Lines e do
+footprint do Rest Machining) passam a usar esse buffer, com o simplificador
+na tolerância padrão (1% do offset) em vez de desativado - é o próprio
+simplificador fiel ao GEOS que preserva entalhes pequenos, não mais a
+desativação usada antes.
+
+Verificação:
+
+- Probe público (`tools/CamKernelProbe.java`, oito erosões sucessivas,
+  resolução 4/16/64): com `GeosBufferOp`, a distância de fronteira amostrada
+  contra o oráculo real (GEOS 3.10.3 e 3.13.1, mesmo resultado) caiu de
+  ~0,000386 mm (motor distribuído) para ~4-7×10⁻¹⁵ mm - ruído de ponto
+  flutuante - nas três resoluções testadas.
+- Projeto real autorizado (`PythonCamComparisonExportTest` +
+  `tools/compare_cam_python.py`, sem `--strict`): `ncc-standard` passou de
+  `DIFFERENT` (distância amostrada 0,020589 mm) para `MATCH_SAMPLED`
+  (0,000643 mm); `paint-standard` de `DIFFERENT` (0,021587 mm) para
+  `MATCH_SAMPLED` (0,0000011 mm). `ncc-seed`/`ncc-lines` e dois casos de
+  Cutout continuam `ORACLE_ERROR` nesta execução - incompatibilidade
+  multipart do Python legado com Shapely 2, já registrada em
+  [COMPARACAO_CAM.md](COMPARACAO_CAM.md), não uma regressão desta correção.
+- `521` testes de `flatcam-cam` aprovados, incluindo os seis novos de
+  `GeosBufferOpTest` (ancorados no mesmo valor do oráculo público acima) e os
+  já existentes de entalhe côncavo/epsilon em `PaintGeneratorTest` -
+  nenhuma regressão. `813` testes no reactor completo. Build completo e
+  abertura do FX verificados depois do `install`.
+
+Fora do escopo desta entrega: Seed continua sem a política de ponto inicial
+descrita no item 3 abaixo e segue `DIFFERENT`; nenhum outro uso de buffer em
+`NccGenerator` (margens, fronteiras com mitra, uniões de footprint) foi
+alterado; Isolation e Cutout não usam este buffer e não foram tocados.
+
 ## Próxima implementação recomendada
 
-1. Isolar um buffer de compatibilidade para Standard/Paint, sem substituir
-   classes da dependência global. Preservar licenças se houver código derivado;
-   testar cancelamento, detalhes pequenos, MM/IN e todas as outras ferramentas.
+1. ~~Isolar um buffer de compatibilidade para Standard/Paint, sem substituir
+   classes da dependência global.~~ Entregue - ver "Correção entregue" acima.
+   Cancelamento não precisou de mudança (`NccGenerator` já verifica entre
+   passes de erosão, não dentro de uma chamada de buffer, igual a antes).
+   Licença preservada (cabeçalho EPL-2.0/EDL-1.0 original mantido em cada
+   arquivo copiado). MM/IN não exigem tratamento especial no buffer em si
+   (opera em números, não em unidades); os testes existentes de Paint/NCC em
+   IN continuam passando. As outras ferramentas (Isolation, Cutout) não usam
+   este buffer.
 2. Verificar orçamento de vértices/tempo e a prévia visual com o buffer alinhado,
-   mantendo intactos os caminhos CNC e seus limites de proteção.
+   mantendo intactos os caminhos CNC e seus limites de proteção. **Pendente:**
+   o simplificador fiel ao GEOS gera bem mais vértices que o anterior (ex.: 8198
+   contra 278 no probe público, oitava erosão) - o limite de prévia detalhada do
+   FX já existe e foi respeitado nos testes, mas tempo de geração/memória em
+   placas grandes com muitas ferramentas não foi medido nesta entrega.
 3. Para Seed, avaliar preservação da entrada legado e escolha explícita/estável
    do ponto inicial. Documentar eventual diferença deliberada em vez de declarar
    equivalência apenas pela cobertura. Para comparação previsível, priorizar
    Standard/Lines e conferir as saídas enquanto essa política estiver pendente.
+   **Ainda pendente** - não alterado nesta entrega.
 
 O experimento Java mostra que C++/Rust não é um requisito demonstrado para essa
 correção numérica. Um backend GEOS nativo continua sendo uma decisão arquitetural
