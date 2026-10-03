@@ -145,10 +145,24 @@ Referências: [comparação CAM](COMPARACAO_CAM.md) e [Cutout](CUTOUT.md).
   travessia maior que `max_walk` e a travessia dentro do limite.
 - 542 testes em `flatcam-cam` aprovados (4 novos, de Connect), 828 no reactor
   completo. Build completo e abertura do FX verificados depois do `install`.
+- Revisão do código (não do comportamento) mostrou que Isolation Follow e
+  Exceptions (`IsolationGenerator.generateFollow`/`excludeArea`, incluindo a
+  checkbox e o combo "Excluir area" no `IsolationToolPanel`, ligados em
+  `MainWindow`) já estavam implementados e testados de ponta a ponta antes
+  desta sessão; a observação anterior nesta seção estava desatualizada e foi
+  corrigida. Da mesma forma, NCC com Rest Machining já resolve o
+  `NccBoundary` (Itself/Area/Reference) uma única vez, antes do laço por
+  ferramenta, então um limite customizado (Area ou Reference) já valia para
+  toda ferramenta sob Rest - só faltava um teste de regressão cobrindo a
+  combinação. Adicionado
+  `restMachiningUsesTheSelectedAreaBoundaryNotTheCoppersOwnHull`, que passou
+  de primeira sem alterar `NccGenerator`, confirmando o comportamento em vez
+  de corrigi-lo.
+- 543 testes em `flatcam-cam` aprovados (1 novo), 829 no reactor completo.
+  Build completo e abertura do FX verificados depois do `install`.
 
-Ainda não abordado: referências/áreas de NCC com Rest, operações em IN para
-os casos desta etapa, e o restante do escopo (Isolation Follow e exceções,
-Cutout Thin/M-Bites/concavidades com um projeto real).
+Ainda não abordado: operações em IN para os casos desta etapa, e Cutout
+Thin/M-Bites/concavidades com um projeto real.
 
 ### 4. Completar Drilling e validar CNC além de XY
 
