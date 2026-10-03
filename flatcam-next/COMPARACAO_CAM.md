@@ -40,7 +40,7 @@ exceção ou saída vazia. O modo normal sempre produz um relatório dos casos;
 
 ## Executar no PowerShell
 
-Na pasta `flatcam-next`, com os três módulos instalados:
+Na pasta `flatcam-next`, com o reactor instalado (incluindo o suporte de testes):
 
 ```powershell
 .\mvnw.cmd -q install

@@ -22,8 +22,6 @@ import org.locationtech.jts.geom.GeometryFactory;
 
 class CncSettingsPersistenceTest {
     @TempDir Path directory;
-    @org.junit.jupiter.api.AfterEach
-    void cleanOwnedTemporaryDirectory() throws IOException { TestTemporaryDirectories.cleanOwnedWindowsDirectory(directory); }
     private static final ProbeToolChangeParameters PROBE = new ProbeToolChangeParameters(15, -5, 50, 0.5, 7.0, 11.0);
 
     private static ProjectFile.GeometryEntry geometry(GCodePreprocessor profile, boolean vTool) {

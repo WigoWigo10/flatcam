@@ -19,9 +19,13 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>25</maven.compiler.release>
         <javafx.version>25.0.4</javafx.version>
+        <junit.version>6.1.3</junit.version>
+        <!-- Allow callers to add JVM test arguments without overriding native access. -->
+        <argLine></argLine>
     </properties>
 
     <modules>
+        <module>flatcam-test-support</module>
         <module>flatcam-application</module>
         <module>flatcam-cam</module>
         <module>flatcam-fx</module>
@@ -29,6 +33,18 @@
 
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.flatcam.next</groupId>
+                <artifactId>flatcam-test-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>org.flatcam.next</groupId>
                 <artifactId>flatcam-application</artifactId>
@@ -54,6 +70,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>3.5.4</version>
                 </plugin>
             </plugins>
         </pluginManagement>

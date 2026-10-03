@@ -1,8 +1,8 @@
 # Plano de paridade: FlatCAM FX e FlatCAM Python
 
-Atualizado em **2026-10-03**. Base: revisão `91d3ce50` do FX e o checkout
-Python deste repositório. Este documento registra trabalho futuro; não declara
-as etapas abaixo implementadas ou verificadas.
+Atualizado em **2026-10-03**. Base inicial: revisão `91d3ce50` do FX e o checkout
+Python deste repositório. Este documento registra a sequência futura e as
+entregas explicitamente verificadas; não declara todas as etapas concluídas.
 
 ## Objetivo e escopo
 
@@ -15,7 +15,7 @@ UI/UX. Ter uma ferramenta no menu ou um teste headless aprovado não comprova
 que seu fluxo completo equivale ao Python. Diferenças deliberadas de segurança
 devem ser documentadas, não removidas apenas para imitar o legado.
 
-## Ponto de partida
+## Ponto de partida (antes da etapa 1)
 
 - O FX já possui importação Gerber/Excellon, editores, operações CAM, geração
   CNC, banco de ferramentas, conversões/junções e compatibilidade de projetos.
@@ -52,6 +52,15 @@ dependência isolada necessária para executar os algoritmos legados.
 limpeza ativa; comparação reproduzível sem modificar o algoritmo Python nem
 o ambiente principal do usuário. Não resolver desativando permanentemente
 limpeza, testes ou verificações.
+
+**Entrega local em 2026-10-03:** suporte de testes compartilhado, JUnit 6.1.3
+via BOM e Surefire 3.5.4; repetição limitada para diretórios Windows já vazios,
+sem ocultar falhas persistentes. Três execuções finais da suíte normal passaram
+com limpeza ativa: 807 registrados, 796 aprovados, 11 opcionais ignorados.
+Os 20 testes novos incluem controles de arquivo bloqueado e junctions.
+Detalhes em [TESTES.md](TESTES.md). A causa exata da falha histórica e a
+validação em outros sistemas continuam abertas; os casos CAM divergentes não
+foram reclassificados nem alterados nesta entrega.
 
 ### 2. Resolver ou caracterizar Standard/Paint/Seed — prioridade imediata
 

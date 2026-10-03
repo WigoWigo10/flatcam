@@ -2210,3 +2210,37 @@ aprovados, 11 opcionais ignorados, zero falhas/erros. Essa opção foi usada
 somente na invocação de teste, não nos scripts de execução. Controle negativo
 com JavaFX sem permissão nativa e política deny foi recusado (exit 1), como
 esperado: o probe realmente detecta a configuração faltante.
+
+## Plano de paridade e estabilização de testes — 2026-10-03
+
+PLANO_PARIDADE.md registra sete etapas priorizadas, critérios de conclusão e
+limites da evidência; documento inicial commitado em 5157740e. Infraestrutura
+vem primeiro, seguida da investigação Standard/Paint/Seed; demais etapas cobrem
+corpus CAM, Drilling/CNC, projetos, editores/UX e preferências/automação.
+
+JUnit centralizado via BOM 6.1.3 e Surefire 3.5.4. Novo flatcam-test-support é
+dependência exclusivamente test dos três módulos do aplicativo. A SPI pública
+de remoção TempDir permite delegar a limpeza recursiva/links ao JUnit e repetir
+apenas DirectoryNotEmptyException em diretórios Windows já vazios, dentro da
+raiz exata fornecida. Máximo seis tentativas adicionais/375 ms por diretório;
+sem repetir recursivamente conteúdo novo, suprimir falhas ou forçar GC.
+Erros de arquivo/acesso e falhas persistentes continuam fazendo o teste falhar.
+Helper antigo em dois testes foi substituído pela estratégia compartilhada.
+Permissão nativa ALL-UNNAMED limitada à JVM Surefire FX, que usa classpath;
+permissão específica javafx.graphics do launcher permanece inalterada.
+
+Vinte testes novos verificam limite/recuperação/interrupção/escopo, cem ciclos
+internos com recursos fechados, falha de asserção preservada, política NEVER
+explícita e cleanup real recusado com handle NOSHARE_DELETE. Junctions reais
+Windows preservam o destino fora da raiz; controles limpam seus próprios
+artefatos, sem varrer temporários antigos ou remover projetos do usuário.
+
+Três execuções finais consecutivas da suíte normal aprovadas com limpeza ativa:
+807 registrados, 796 aprovados, 11 opcionais ignorados, zero falhas/erros.
+Install normal também passou. Sete auxiliares Python e probe Java/Maven passaram;
+árvore runtime FX sem suporte/JUnit confirmada. Nenhum algoritmo CAM ou critério
+numérico foi alterado, comparação completa privada não foi reexecutada nesta
+etapa e suas três divergências permanecem pendentes. Causa exata da falha
+histórica Windows não comprovada; resultados repetidos locais não garantem
+ausência global de falhas intermitentes. TESTES.md documenta comandos, contratos
+e limites, incluindo necessidade de validação em outros sistemas/CI.

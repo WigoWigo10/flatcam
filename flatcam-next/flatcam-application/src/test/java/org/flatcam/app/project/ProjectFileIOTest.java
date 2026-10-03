@@ -22,7 +22,6 @@ import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.app.project.flatprj.GerberFlatPrjCodec;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.io.TempDir;
 import org.json.JSONObject;
 import org.locationtech.jts.geom.Coordinate;
@@ -33,12 +32,6 @@ class ProjectFileIOTest {
 
     @TempDir
     Path tempDir;
-
-    /** Windows can report a pending file deletion as DirectoryNotEmpty for a few milliseconds. */
-    @AfterEach
-    void cleanOwnedTemporaryDirectoryWithBoundedWindowsRetry() throws IOException {
-        TestTemporaryDirectories.cleanOwnedWindowsDirectory(tempDir);
-    }
 
     @Test
     void probeDefaultsAndMachineProgramRoundTripWithoutInventingContactGeometry() throws IOException {

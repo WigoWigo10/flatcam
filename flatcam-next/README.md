@@ -42,6 +42,9 @@ Para comparar caminhos CAM com as rotinas reais do Python e gerar sobreposiçõe
 HTML/SVG locais, consulte [COMPARACAO_CAM.md](COMPARACAO_CAM.md). O corpus privado
 e os relatórios ficam fora do Git; a comparação não substitui teste a seco.
 
+Detalhes da infraestrutura, limpeza de temporários Windows e ressalvas de
+validação: [TESTES.md](TESTES.md).
+
 ## Executar
 
 Windows PowerShell:
@@ -70,6 +73,8 @@ não ser resolvido sem `pluginGroups` configurado no `settings.xml`.
 
 ## Módulos
 
+- `flatcam-test-support` — infraestrutura JUnit compartilhada, somente no
+  classpath de testes; não faz parte da execução do aplicativo.
 - `flatcam-application` — projeto, jobs, progresso e cancelamento, sem JavaFX.
 - `flatcam-cam` — parsing Gerber/Excellon, geometria JTS, operações CAM e G-code,
   sem JavaFX.
