@@ -13,6 +13,9 @@ Para estado detalhado, limitações e próximos passos, leia
 originais estão em [`../CONTEXTO_FLATCAM_FX.md`](../CONTEXTO_FLATCAM_FX.md), e o
 inventário de paridade visual/funcional em [`UI_INVENTORY.md`](UI_INVENTORY.md).
 
+A sequência priorizada para alcançar a paridade, com critérios de conclusão e
+pendências de validação, está em [`PLANO_PARIDADE.md`](PLANO_PARIDADE.md).
+
 ## Requisitos
 
 - JDK 25 (LTS). Testado com Java 25.0.4 (Oracle) e Temurin 25.0.2; `JAVA_HOME` deve apontar para um JDK 25.
