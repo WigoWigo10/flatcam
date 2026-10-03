@@ -2244,3 +2244,34 @@ etapa e suas três divergências permanecem pendentes. Causa exata da falha
 histórica Windows não comprovada; resultados repetidos locais não garantem
 ausência global de falhas intermitentes. TESTES.md documenta comandos, contratos
 e limites, incluindo necessidade de validação em outros sistemas/CI.
+
+## Investigação Standard/Paint/Seed — 2026-10-03
+
+INVESTIGACAO_CAM.md registra experimentos controlados sobre JTS 1.20.0 e
+GEOS 3.10.3/Shapely 1.8.5.post1 isolados. Standard/Paint diferem nas heurísticas
+de separação de offsets, seleção do endpoint e simplificador de entrada.
+Reproduzir apenas parte dessas regras não basta; protótipo Java com regras
+legadas alinhadas passa ambos os casos reais mantendo os critérios existentes.
+Foi compilado exclusivamente em target/, sem modificar classes/JARs de produção
+ou o algoritmo Python. Não é correção distribuída nem prova das outras ferramentas.
+
+Seed fica caracterizado como sensível à entrada: losango sintético com fronteira
+alterada ~7e-13 mm muda o ponto interior ~2 mm em ambos os kernels. No projeto
+real, três regiões mudam de ponto por mudança do intervalo da scan-line, apesar
+de fronteiras seguras extremamente próximas. Protótipo Seed coincide sobre a
+mesma entrada, mas continua DIFFERENT com projeto decodificado independentemente.
+Isso não justifica arredondar o oráculo, aumentar tolerâncias ou declarar paridade
+por cobertura. Standard/Paint alinhados aumentam vértices e atingem o limite de
+prévia detalhada no protótipo; limite preservado, desempenho não medido.
+
+Probes públicos em tools/CamKernelProbe.java e compare_cam_kernel_probe.py
+reproduzem três Standard, 36 Seed e o par de losangos, sem dados privados.
+Harness principal passou a registrar GEOS; 16 testes auxiliares Python aprovados
+em Shapely 2.1.2 e 1.8.5.post1. Testes normais CAM/suporte aprovados; não foi
+reexecutado/recontado o reactor completo nesta investigação. Comparação dos três
+casos da aplicação distribuída mantém DIFFERENT e strict=1. Nenhum algoritmo
+CAM/CNC, preferência ou projeto do usuário foi alterado. Relatórios privados
+em target/cam-investigation; não foram incluídos no Git. Próximo passo: buffer
+de compatibilidade isolado para Standard/Paint e validação do custo/da prévia,
+seguido de política explícita para o ponto inicial Seed. Backend nativo não é
+requisito demonstrado para essa correção.

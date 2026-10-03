@@ -74,6 +74,12 @@ legada em pasta isolada, sem alterar `.venv` ou os algoritmos Python:
 O wheel depende de Python/plataforma compatíveis. A versão realmente carregada
 consta do relatório. Não sobrescreva uma pasta de dependências já utilizada.
 
+Os novos relatórios também registram a versão GEOS efetivamente carregada;
+Shapely sozinho não identifica o kernel numérico. A investigação posterior
+dos buffers e do ponto inicial Seed, com controles públicos reproduzíveis,
+está em [INVESTIGACAO_CAM.md](INVESTIGACAO_CAM.md). Os protótipos dessa
+investigação não alteram os resultados entregues pela aplicação.
+
 ## Correção decorrente da comparação
 
 Standard (NCC/Paint) agora usa o epsilon inicial `diâmetro / 1.999999` do Python e

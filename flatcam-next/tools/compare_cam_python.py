@@ -18,6 +18,17 @@ from pathlib import Path
 from types import SimpleNamespace
 
 
+def dependency_metadata():
+    """Identify the loaded geometry engine, not only its Python wrapper."""
+    import shapely
+    version = getattr(shapely, "geos_version_string", None)
+    if version is None:
+        # Shapely 1.x exposes GEOS through this module; avoid its deprecated import in 2.x.
+        from shapely.geos import geos_version_string
+        version = geos_version_string
+    return {"python": sys.version.split()[0], "shapely": shapely.__version__, "geos": version}
+
+
 def leaves(geometry):
     if isinstance(geometry, (list, tuple)):
         return [leaf for child in geometry for leaf in leaves(child)]
@@ -233,7 +244,7 @@ def run(args):
     engine.solid_geometry = copper
     tolerance = .003 / 25.4 if export["units"] in ("IN", "INCH") else .003
     args.output.mkdir(parents=True, exist_ok=True)
-    report = {"schema": 1, "python": sys.version.split()[0], "shapely": shapely.__version__,
+    report = {"schema": 1, **dependency_metadata(),
               "source": export["sourceName"], "units": export["units"],
               "sourceAreaDelta": source_delta, "independentProjectDecode": bool(args.project),
               "legacySourceSha256": {str(path): hashlib.sha256((root / path).read_bytes()).hexdigest()

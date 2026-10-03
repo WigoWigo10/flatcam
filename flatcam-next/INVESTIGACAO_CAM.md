@@ -1,0 +1,157 @@
+# Investigação Standard/Paint/Seed — 2026-10-03
+
+Base da aplicação: `89653e29`, Java 25.0.4.1/JTS 1.20.0. Oráculo: checkout
+Python local, Python 3.11.0/Shapely 1.8.5.post1/**GEOS 3.10.3** isolados.
+As conclusões são específicas dessas versões e entradas, não uma declaração
+de paridade geral. Não foi alterado nenhum algoritmo da aplicação ou do Python.
+
+## Resultado
+
+As divergências investigadas têm causas demonstradas, não apenas uma hipótese
+de diferença entre linguagens:
+
+- Standard/Paint: regras internas diferentes dos buffers JTS/GEOS, amplificadas
+  pelas erosões sucessivas. Um protótipo isolado reproduziu o comportamento
+  legado e passou pelos critérios nos dois casos reais.
+- Seed: diferenças no buffer e **instabilidade da escolha da scan-line/ponto
+  interior**. Mesmo reproduzindo o kernel legado, a entrada decodificada
+  independentemente pode gerar outro ponto inicial e, portanto, outros anéis.
+
+O FX distribuído continua com os três casos `DIFFERENT`. Não aumentar tolerâncias
+nem contabilizar o protótipo como correção entregue. O projeto original foi
+somente lido; geometrias privadas e classes experimentais ficaram em `target/`.
+
+## 1. Buffers Standard/Paint
+
+Os códigos oficiais mostram duas diferenças relevantes:
+
+1. Para segmentos quase paralelos, o JTS usa fator de separação **0,05** e
+   escolhe o endpoint do segmento mais longo; GEOS 3.10.3 usa **0,001** e o
+   endpoint do segmento de entrada. Desativar `simplifyFactor` não desativa
+   essa heurística interna. Fontes: [JTS 1.20.0](https://raw.githubusercontent.com/locationtech/jts/1.20.0/modules/core/src/main/java/org/locationtech/jts/operation/buffer/OffsetSegmentGenerator.java)
+   e [GEOS 3.10.3](https://raw.githubusercontent.com/libgeos/geos/3.10.3/src/operation/buffer/OffsetSegmentGenerator.cpp).
+2. O simplificador legado começa no índice 1 inclusive em anéis; o JTS atual
+   começa no índice 0 para anéis. Há também uma diferença na ordem dos argumentos
+   do teste amostrado de distância, que muda quais concavidades são removidas.
+   O GEOS legado usa tolerância equivalente a 1% do offset, mas **habilitar
+   simplesmente 1% no JTS não reproduz essas regras**. Fontes:
+   [simplificador JTS](https://raw.githubusercontent.com/locationtech/jts/1.20.0/modules/core/src/main/java/org/locationtech/jts/operation/buffer/BufferInputLineSimplifier.java),
+   [simplificador GEOS](https://raw.githubusercontent.com/libgeos/geos/3.10.3/src/operation/buffer/BufferInputLineSimplifier.cpp)
+   e [offset GEOS](https://raw.githubusercontent.com/libgeos/geos/3.10.3/src/operation/buffer/OffsetCurveBuilder.cpp).
+
+### Experimentos controlados
+
+Reprodução pública: quadrado 12×12 com vazio circular de raio 1, resoluções
+4/16/64 por quadrante; ferramenta 0,5, inset inicial `0,5 / 1,999999`, passos
+de 0,3 e oito erosões. Com os motores distribuídos, a maior distância entre
+fronteiras fica em aproximadamente **0,000386 mm**. No caso de resolução 64,
+a primeira fronteira possui 262 pontos JTS contra 518 GEOS; na quinta erosão,
+262 contra 8198. Esse exemplo demonstra a redução de vértices, mas não reproduz
+sozinho os ~0,021 mm da placa real.
+
+No contorno real investigado, mudar só o fator de separação recupera muitos
+vértices, mas **não resolve a divergência**. Reproduzir também a seleção do
+endpoint e o simplificador antigo reduz as diferenças das 18 primeiras
+erosões para menos de **9×10⁻¹³ mm**, com contagens de pontos iguais. O controle
+com simplificador JTS atual a 1% ainda diverge e piora a primeira erosão.
+
+Essas medidas de fronteira usam `hausdorff_distance` do GEOS, **Hausdorff discreta**,
+não um limite certificado sobre todos os pontos contínuos. A comparação completa
+dos caminhos abaixo mantém os critérios amostrados de [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
+
+O protótipo compilou cópias de duas classes JTS e de `NccGenerator` exclusivamente
+em diretórios ignorados, com classpath separado. Não modificou o JAR instalado,
+o código de produção nem o oráculo Python. Não é uma solução pronta para distribuir:
+altera heurísticas globalmente no processo experimental, inclusive buffers usados
+por outras ferramentas, que não foram comparadas nesse experimento.
+
+| Caso real, projeto decodificado independentemente | FX distribuído: distância amostrada | Protótipo: distância amostrada | Protótipo |
+| --- | --- | --- | --- |
+| NCC Standard | 0,020589 mm | 0,000000094 mm | MATCH_SAMPLED |
+| Paint Standard | 0,021587 mm | 0,000001083 mm | MATCH_SAMPLED |
+| NCC Seed | 0,129283 mm | 0,147661 mm | DIFFERENT |
+
+Os G-codes experimentais foram gerados e interpretados pelo parser Python,
+mas isso não valida alturas, feeds ou execução física. A maior quantidade de
+vértices fez Standard/Paint atingir o limite de prévia detalhada do FX no
+protótipo; o limite foi preservado. Não foi medido ganho de desempenho.
+
+## 2. Seed: escolher um ponto interior não é uma operação estável
+
+Os dois motores usam uma linha horizontal situada entre os vértices próximos
+ao centro vertical da área; depois escolhem o meio do maior trecho interior.
+Pequenas alterações podem mudar o intervalo vertical escolhido, não apenas
+desempatar trechos horizontais. Fontes:
+[InteriorPointArea JTS](https://raw.githubusercontent.com/locationtech/jts/1.20.0/modules/core/src/main/java/org/locationtech/jts/algorithm/InteriorPointArea.java)
+e [InteriorPointArea GEOS](https://raw.githubusercontent.com/libgeos/geos/3.10.3/src/algorithm/InteriorPointArea.cpp).
+
+Reprodução mínima pública, sem buffer: losango `(0,0), (2,2), (0,4), (-2,2)`.
+Mover os dois vértices de Y=2 para Y=`2 + 10⁻¹²` altera a fronteira em cerca
+de **7,07×10⁻¹³ mm**, mas o ponto interior muda aproximadamente **2 mm**.
+Isso ocorre tanto no JTS quanto no GEOS. Os pontos continuam interiores:
+é uma descontinuidade do critério, não prova de caminho inválido.
+
+No projeto real, após alinhar experimentalmente os buffers:
+
+- Sobre exatamente o mesmo WKT de entrada, os pontos iniciais coincidem.
+- Com decodificação independente, três regiões mudam de ponto inicial:
+  deslocamentos de aproximadamente **0,42036 / 0,42036 / 0,13347 mm**.
+- Suas fronteiras seguras diferem apenas ~**0,00000063 mm** na medida discreta,
+  mas os intervalos da scan-line mudam. Diferença de área zero antes da erosão
+  não significa coordenadas/vértices idênticos bit a bit.
+- No controle sem decodificação independente, o NCC Seed experimental atende
+  aos critérios: distância amostrada ~**1,59×10⁻¹⁴ mm**, comprimento relativo
+  zero. Esse controle **não substitui** a comparação com o projeto original.
+
+Portanto, apenas trocar a biblioteca de buffers não garante anéis idênticos.
+A escolha do ponto inicial também precisa de uma política explícita. Normalizar
+ou arredondar a entrada do oráculo apenas para obter aprovação esconderia isso.
+
+## 3. Reproduzir os controles públicos
+
+Novos probes não usam a placa do usuário nem dependem de uma interface gráfica.
+Na pasta `flatcam-next`, com o reactor instalado, obtenha o classpath e execute:
+
+```powershell
+.\mvnw.cmd -q -pl flatcam-application dependency:build-classpath '-Dmdep.includeScope=test' '-Dmdep.outputFile=../target/cam-kernel-probe/classpath.txt'
+$kernelProbeClasspath = (Get-Content target/cam-kernel-probe/classpath.txt -Raw).Trim()
+java --class-path $kernelProbeClasspath tools/CamKernelProbe.java target/cam-kernel-probe/jts.json
+..\.venv\Scripts\python.exe tools/compare_cam_kernel_probe.py --trace target/cam-kernel-probe/jts.json --output target/cam-kernel-probe/geos.json --dependency-path target/legacy-shapely185
+..\.venv\Scripts\python.exe -m unittest discover -s tools -p 'test_compare_cam*.py'
+```
+
+A dependência isolada é preparada conforme [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
+O relatório registra Java/JTS/Python/Shapely/**GEOS**. O harness principal também
+passou a registrar GEOS, sem mudar métricas ou tolerâncias. Os probes contêm três
+casos Standard, 36 variantes Seed e o par de losangos; comparam fronteiras e
+pontos, não certificam CAM/CNC. Inverter apenas a orientação dos anéis não
+mudou os pontos nos 36 controles executados; não atribuir a causa a isso.
+
+Verificação desta investigação: **16 testes auxiliares Python aprovados** tanto
+com Shapely 2.1.2 quanto com 1.8.5.post1 isolado; probes públicos executados com
+GEOS 3.10.3 e 3.13.1, com os mesmos resultados nesses controles; **541 testes
+normais CAM/suporte aprovados**, zero falhas/erros/ignorados. A suíte completa anterior
+não foi recontada nesta etapa. O modo strict do FX distribuído continua recusando
+as três divergências; o experimental com projeto independente recusa Seed.
+
+Relatórios privados locais: `target/cam-investigation/production-report`,
+`experimental-full/report`, `experimental-full/report-shared-source` e
+`experimental-full/seed-input-report.json`. Nenhum WKT/coordinate privado foi
+incluído neste documento ou nos probes versionados.
+
+## Próxima implementação recomendada
+
+1. Isolar um buffer de compatibilidade para Standard/Paint, sem substituir
+   classes da dependência global. Preservar licenças se houver código derivado;
+   testar cancelamento, detalhes pequenos, MM/IN e todas as outras ferramentas.
+2. Verificar orçamento de vértices/tempo e a prévia visual com o buffer alinhado,
+   mantendo intactos os caminhos CNC e seus limites de proteção.
+3. Para Seed, avaliar preservação da entrada legado e escolha explícita/estável
+   do ponto inicial. Documentar eventual diferença deliberada em vez de declarar
+   equivalência apenas pela cobertura. Para comparação previsível, priorizar
+   Standard/Lines e conferir as saídas enquanto essa política estiver pendente.
+
+O experimento Java mostra que C++/Rust não é um requisito demonstrado para essa
+correção numérica. Um backend GEOS nativo continua sendo uma decisão arquitetural
+separada, com empacotamento, licenças e desempenho a validar; não foi instalado
+nem incorporado ao aplicativo nesta investigação.

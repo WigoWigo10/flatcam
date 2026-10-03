@@ -74,6 +74,13 @@ regressão, ou explicação demonstrada com limite explícito e orientação ao
 usuário. Manter os critérios numéricos existentes; cobertura próxima não
 autoriza classificar trajetos diferentes como iguais.
 
+**Investigação em 2026-10-03:** diferenças dos buffers Standard/Paint e
+instabilidade da scan-line Seed reproduzidas em casos sintéticos. Protótipo
+isolado passa Standard/Paint na placa real, mas Seed ainda difere com entrada
+decodificada independentemente. Nenhuma correção CAM foi incorporada nesta
+etapa; a aplicação distribuída mantém suas três divergências. Evidências,
+controles públicos e próxima implementação em [INVESTIGACAO_CAM.md](INVESTIGACAO_CAM.md).
+
 ### 3. Ampliar a validação e completar opções CAM
 
 Adicionar casos para Isolation/NCC com Rest, múltiplas ferramentas, Connect,

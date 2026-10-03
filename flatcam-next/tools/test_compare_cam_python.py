@@ -3,10 +3,17 @@ import unittest
 from pathlib import Path
 
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, Polygon, box
-from compare_cam_python import compile_rectangular_handler, leaves, lines, metrics, overlay, sampled_distance, sampled_witness
+from compare_cam_python import compile_rectangular_handler, dependency_metadata, leaves, lines, metrics, overlay, sampled_distance, sampled_witness
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_metadata_identifies_loaded_geos_and_shapely(self):
+        import shapely
+        metadata = dependency_metadata()
+        self.assertEqual(shapely.__version__, metadata["shapely"])
+        self.assertRegex(metadata["python"], r"^\d+\.\d+\.\d+")
+        self.assertRegex(metadata["geos"], r"^\d+\.\d+\.\d+")
+
     def test_witness_identifies_actual_point_and_nearest_counterpart(self):
         a = LineString([(0, 0), (10, 0)])
         b = LineString([(0, 1), (10, 1)])
