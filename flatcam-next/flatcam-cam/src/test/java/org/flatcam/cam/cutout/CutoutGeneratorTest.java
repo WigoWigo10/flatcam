@@ -228,6 +228,27 @@ class CutoutGeneratorTest {
     }
 
     @Test
+    void mouseBitesWithNegativeMarginSubtractsTheDrillRadiusTooLikePython() {
+        GeometryFactory geometryFactory = new GeometryFactory();
+        Geometry tenByTen = square(geometryFactory, 0, 0, 10);
+        double holeDiameter = 0.6;
+        double margin = -1.0;
+        CutoutParameters params = new CutoutParameters(1.0, margin, false, CutoutKind.SINGLE,
+                CutoutShape.FREEFORM, 0.5, GapPattern.LR);
+
+        ExcellonImage bites = CutoutGenerator.generateMouseBites("MM", tenByTen, params,
+                holeDiameter, 0.2, CancellationToken.none());
+
+        // LR places its bridges on the left/right edges of the eroded outline, so the bites
+        // drilled there sit right on its min-X: the 10-wide square eroded inward from x=0 by
+        // Python's margin-radius (1.3), not the "always add" bug's margin+radius (0.7) - a 0.6
+        // difference, easily distinguished at 0.05 tolerance.
+        double expectedMinX = -(margin - holeDiameter / 2.0);
+        double actualMinX = bites.drills().stream().mapToDouble(ExcellonImage.Drill::x).min().orElseThrow();
+        assertEquals(expectedMinX, actualMinX, 0.05);
+    }
+
+    @Test
     void manualMouseBitesUseOnlyDrawnAreaAndWorkWithoutAutomaticPattern() {
         GeometryFactory factory = new GeometryFactory();
         Geometry source = square(factory, 0, 0, 10);
@@ -320,6 +341,29 @@ class CutoutGeneratorTest {
                 new CutoutParameters(0.1, 0.0, true, CutoutKind.SINGLE, CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
 
         assertTrue(convex.totalLength() < direct.totalLength(), "the convex hull's perimeter must be shorter than the L-shape's own");
+    }
+
+    @Test
+    void negativeMarginSubtractsTheToolRadiusLikeCutoutHandlerDoes() {
+        // appTools/ToolCutOut.py's cutout_handler: margin>=0 buffers by margin+radius (grow
+        // outward, same sign as the margin itself), but margin<0 buffers by margin-radius
+        // (grow the erosion, not shrink it) - a plain "+radius" for every sign gets this wrong
+        // by a full tool diameter once margin goes negative.
+        GeometryFactory geometryFactory = new GeometryFactory();
+        Geometry tenByTen = square(geometryFactory, 0, 0, 10);
+        double toolDiameter = 1.0;
+        double margin = -2.0;
+
+        CutoutResult result = CutoutGenerator.generate("MM", tenByTen,
+                new CutoutParameters(toolDiameter, margin, false, CutoutKind.SINGLE,
+                        CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
+
+        double expectedOffset = margin - toolDiameter / 2.0; // Python: -2.5, eroding the 10x10 square to 5x5
+        double[] bounds = result.bounds();
+        assertEquals(-expectedOffset, bounds[0], 1e-9);
+        assertEquals(-expectedOffset, bounds[1], 1e-9);
+        assertEquals(10 + expectedOffset, bounds[2], 1e-9);
+        assertEquals(10 + expectedOffset, bounds[3], 1e-9);
     }
 
     @Test

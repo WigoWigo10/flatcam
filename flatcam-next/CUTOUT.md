@@ -55,8 +55,23 @@ lados, padrões inviáveis e valores não finitos. Há teste de controles/toolti
 na thread JavaFX, sem teste manual de todos os cliques. A comparação headless
 com o projeto real autorizado está descrita em [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
 
-Free-form conserva o posicionamento anterior no FX, baseado na caixa do contorno
-ampliado. Seu handler Python possui diferenças de referência; essa parte ainda
-requer corpus específico, inclusive margem negativa, concavidades, Thin e
-M-Bites. Esta entrega não declara paridade completa de Cutout nem validação
-física da CNC.
+Free-form, margem negativa (2026-10-03): corrigido um erro onde o deslocamento
+do caminho sempre somava o raio da fresa (ou, em M-Bites, o raio da broca),
+mesmo com margem negativa. O `cutout_handler` do Python soma o raio só quando
+a margem é `>= 0`; com margem negativa ele **subtrai** o raio, aprofundando a
+erosão (cortar para dentro do contorno original). A versão anterior do FX
+somava sempre, ficando um diâmetro de fresa inteiro mais raso que o Python
+nesse caso. Corrigido em `CutoutGenerator.signedOffset`, usado tanto no
+contorno Free-form quanto em M-Bites Free-form. Veja
+`CutoutGeneratorTest.negativeMarginSubtractsTheToolRadiusLikeCutoutHandlerDoes`
+e `...mouseBitesWithNegativeMarginSubtractsTheDrillRadiusTooLikePython`.
+
+Fora disso, Free-form ainda conserva o posicionamento anterior no FX, baseado
+na caixa do contorno ampliado - que corresponde ao `recursive_bounds` do
+Python sobre o contorno já expandido, não à caixa original do objeto. Objetos
+com múltiplas partes desconexas (Gerber Multi-Polygon) em modo `SINGLE` usam a
+caixa delimitadora do conjunto, como o Python faz (`object_geo = box(...)`
+quando o resultado é `MultiPolygon`); em modo `PANEL`, cada parte recebe seu
+próprio contorno. Concavidades, Thin e M-Bites com formas não retangulares
+ainda não têm comparação headless com um projeto real; esta entrega não
+declara paridade completa de Cutout nem validação física da CNC.

@@ -159,7 +159,7 @@ public final class CutoutGenerator {
             cancellationToken.throwIfCancellationRequested();
             // Python shifts the M-Bites row by half the drill diameter instead of
             // half the cutter diameter, so the holes touch the remaining bridge.
-            double offset = params.margin() + holeDiameter / 2.0;
+            double offset = signedOffset(params.margin(), holeDiameter / 2.0);
             Geometry shape = params.shape() == CutoutShape.RECTANGULAR
                     ? boxFromEnvelope(part.getEnvelopeInternal(), factory) : part;
             Geometry outline = exteriorRings(shape.buffer(offset, QUADRANT_SEGMENTS));
@@ -231,17 +231,29 @@ public final class CutoutGenerator {
         return parts;
     }
 
-    /** Buffers the part's real outline outward by margin+radius, then takes just the exterior ring as the cut path. */
+    /** Buffers the part's real outline by margin+/-radius (see {@link #signedOffset}), then takes just the exterior ring. */
     private static Geometry freeformOutline(Geometry part, CutoutParameters params) {
-        double offset = params.margin() + params.toolDiameter() / 2.0;
+        double offset = signedOffset(params.margin(), params.toolDiameter() / 2.0);
         Geometry buffered = part.buffer(offset, QUADRANT_SEGMENTS);
         return exteriorRings(buffered);
+    }
+
+    /**
+     * cutout_handler's margin compensation: for margin &gt;= 0 (cutting outside the source,
+     * clearance around the board) the radius grows the same outward buffer; for margin &lt; 0
+     * (cutting inside the source, trimming the board itself) the radius grows the erosion
+     * instead, i.e. it is subtracted, not added. A plain "margin + radius" for every sign
+     * would make the cut path a full tool diameter closer to the board than Python's once
+     * margin goes negative.
+     */
+    private static double signedOffset(double margin, double radius) {
+        return margin >= 0 ? margin + radius : margin - radius;
     }
 
     /** Cuts the part's bounding box instead of its real shape - CutoutParameters already rejects a negative margin here. */
     private static Geometry rectangularOutline(Geometry part, CutoutParameters params, GeometryFactory geometryFactory) {
         Geometry box = boxFromEnvelope(part.getEnvelopeInternal(), geometryFactory);
-        double offset = params.margin() + params.toolDiameter() / 2.0;
+        double offset = signedOffset(params.margin(), params.toolDiameter() / 2.0);
         Geometry buffered = box.buffer(offset, QUADRANT_SEGMENTS);
         return exteriorRings(buffered);
     }
