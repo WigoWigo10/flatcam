@@ -62,8 +62,8 @@ final class IsolationToolPanel {
     }
 
     record Result(SourceCandidate source, List<IsolationParameters> tools, Map<Double, ToolProfile> profiles,
-                  boolean restMachining, boolean combinePasses, boolean follow, boolean checkValidity,
-                  Geometry exceptionMask) {
+                  boolean restMachining, boolean forcedRest, boolean combinePasses, boolean follow,
+                  boolean checkValidity, Geometry exceptionMask) {
     }
 
     private static final class ToolRow {
@@ -344,6 +344,15 @@ final class IsolationToolPanel {
             for (RadioButton radio : List.of(noOrder, forwardOrder, reverseOrder)) radio.setDisable(selected);
             if (selected) reverseOrder.setSelected(true);
         });
+        CheckBox forcedRest = new CheckBox("Forced Rest");
+        forcedRest.setSelected(true);
+        forcedRest.setTooltip(new javafx.scene.control.Tooltip(
+                "Com Rest Machining: se a ferramenta atual nao conseguir isolar todos os furos de um "
+                        + "poligono logo na primeira passada, o poligono inteiro e descartado para essa "
+                        + "ferramenta e tentado de novo pela proxima ferramenta, menor.\n\n"
+                        + "Desmarcado, o resultado da ferramenta atual e aceito mesmo que algum furo "
+                        + "tenha se fundido com o contorno."));
+        forcedRest.disableProperty().bind(rest.selectedProperty().not());
         CheckBox follow = new CheckBox("Follow");
         follow.setTooltip(new javafx.scene.control.Tooltip("Segue o centro das trilhas Gerber, em vez de isolar as bordas; usa somente uma ferramenta.\n\nAtenção: Follow corta sobre a trilha. Confira a Geometry gerada antes de criar o CNC Job."));
         follow.selectedProperty().addListener((observable, oldValue, selected) -> {
@@ -402,8 +411,10 @@ final class IsolationToolPanel {
         advancedGrid.setHgap(8);
         advancedGrid.setVgap(8);
         advancedGrid.addRow(0, rest, follow);
-        advancedGrid.addRow(1, new Label("Isolation Type:"), typeCombo);
-        advancedGrid.addRow(2, new Label("Excluir area:"), exceptionCombo);
+        advancedGrid.addRow(1, forcedRest);
+        GridPane.setColumnSpan(forcedRest, 2);
+        advancedGrid.addRow(2, new Label("Isolation Type:"), typeCombo);
+        advancedGrid.addRow(3, new Label("Excluir area:"), exceptionCombo);
         VBox advancedBox = new VBox(8, advancedGrid, rectangle, polygon, clearArea, areaStatus);
         TitledPane advanced = new TitledPane("Opcoes avancadas", advancedBox);
         advanced.setExpanded(false);
@@ -437,7 +448,7 @@ final class IsolationToolPanel {
                 }
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), List.copyOf(tools), Map.copyOf(profiles),
-                        rest.isSelected(), combine.isSelected(), follow.isSelected(),
+                        rest.isSelected(), forcedRest.isSelected(), combine.isSelected(), follow.isSelected(),
                         checkValidity.isSelected(), drawnMask[0] != null ? drawnMask[0]
                                 : exceptionCombo.getValue().geometry()));
             } catch (RuntimeException error) { errorLabel.setText(error.getMessage()); }
@@ -454,6 +465,7 @@ final class IsolationToolPanel {
             combine.setSelected(true);
             checkValidity.setSelected(false);
             rest.setSelected(false);
+            forcedRest.setSelected(true);
             follow.setSelected(false);
             typeCombo.setValue(IsolationType.BOTH);
             exceptionCombo.setValue(none);

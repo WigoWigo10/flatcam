@@ -112,6 +112,30 @@ de geração quando um padrão Cutout perde pontes solicitadas.
 
 Referências: [comparação CAM](COMPARACAO_CAM.md) e [Cutout](CUTOUT.md).
 
+**Entregas em 2026-10-03:**
+
+- Cutout Free-form com margem negativa somava o raio da fresa/broca
+  independentemente do sinal da margem; `cutout_handler` do Python subtrai o
+  raio quando a margem é negativa, aprofundando o corte para dentro do
+  contorno em vez de encolher a compensação. Corrigido em
+  `CutoutGenerator.signedOffset` (contorno e M-Bites Free-form); dois testes
+  de regressão fixam o deslocamento esperado. Ver [Cutout](CUTOUT.md).
+- Isolation com Rest Machining não tinha o equivalente do checkbox "Forced
+  Rest" do Python (`tools_iso_force`, marcado por padrão): quando uma
+  ferramenta funde um furo com o contorno já na primeira passada de um
+  polígono com mais de um furo, o Python descarta o polígono inteiro para
+  essa ferramenta e tenta de novo com a próxima menor, em vez de aceitar o
+  resultado com o furo perdido. Adicionado em
+  `IsolationGenerator.generateRest` (parâmetro `forcedRest`, exposto como
+  checkbox na ferramenta, marcado por padrão) com teste de regressão
+  cobrindo os dois comportamentos (marcado/desmarcado).
+- 538 testes em `flatcam-cam` aprovados (3 novos: duas margens negativas de
+  Cutout, uma de Forced Rest), 824 no reactor completo. Build completo e
+  abertura do FX verificados depois do `install`.
+
+Ainda não abordado: Connect/referências/áreas de NCC com Rest, operações em
+IN para os casos acima, e o restante do escopo desta etapa.
+
 ### 4. Completar Drilling e validar CNC além de XY
 
 Priorizar exclusões em Drilling, parâmetros avançados por ferramenta e seu

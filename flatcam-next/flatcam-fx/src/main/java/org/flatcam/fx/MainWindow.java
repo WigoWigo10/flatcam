@@ -5935,7 +5935,7 @@ final class MainWindow {
             List<IsolationGenerator.ToolResult> results;
             if (params.restMachining() && !params.follow()) {
                 results = IsolationGenerator.generateRest(image.units(), image.solidGeometry(),
-                        params.tools(), context::isCancelled);
+                        params.tools(), params.forcedRest(), context::isCancelled);
             } else {
                 results = new ArrayList<>();
                 for (IsolationParameters tool : params.tools()) {

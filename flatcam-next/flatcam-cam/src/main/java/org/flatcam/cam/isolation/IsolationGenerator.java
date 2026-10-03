@@ -66,6 +66,20 @@ public final class IsolationGenerator {
     public static List<ToolResult> generateRest(String units, Geometry copperGeometry,
                                                 List<IsolationParameters> tools,
                                                 CancellationToken cancellationToken) {
+        return generateRest(units, copperGeometry, tools, true, cancellationToken);
+    }
+
+    /**
+     * @param forcedRest Python's "Forced Rest" checkbox (defaults checked, {@code tools_iso_force}):
+     *                   on the first pass, a copper polygon with more than one hole is rejected for
+     *                   the current tool - not just skipped for that pass, the whole polygon is
+     *                   retried by the next smaller tool - if the tool was too wide to isolate every
+     *                   hole as its own ring (some merged into the exterior or each other). With
+     *                   this off, whatever the buffer produces is accepted even if holes were lost.
+     */
+    public static List<ToolResult> generateRest(String units, Geometry copperGeometry,
+                                                List<IsolationParameters> tools, boolean forcedRest,
+                                                CancellationToken cancellationToken) {
         Objects.requireNonNull(tools, "tools");
         Objects.requireNonNull(cancellationToken, "cancellationToken");
         if (tools.isEmpty()) throw new IllegalArgumentException("Select at least one isolation tool");
@@ -97,6 +111,14 @@ public final class IsolationGenerator {
                     }
                     if (blocked) continue;
                     Geometry buffered = polygon.buffer(offset, QUADRANT_SEGMENTS);
+                    if (pass == 0 && forcedRest && polygon.getNumInteriorRing() > 1) {
+                        int expectedParts = 1 + polygon.getNumInteriorRing();
+                        if (countTopLevelParts(buffered) != expectedParts) {
+                            // This tool merged away at least one hole on the very first pass - not
+                            // just missing this pass, the whole polygon is unusable with it.
+                            break;
+                        }
+                    }
                     collectRings(buffered, tool.type(), passes.get(pass), factory, cancellationToken);
                     isolated = true;
                 }
@@ -115,6 +137,14 @@ public final class IsolationGenerator {
         }
         cancellationToken.throwIfCancellationRequested();
         return List.copyOf(results);
+    }
+
+    /** Python's "1 + len(temp_geo.interiors)" for a single Polygon, or "len(temp_geo)" for a MultiPolygon. */
+    private static int countTopLevelParts(Geometry geometry) {
+        if (geometry instanceof Polygon polygon) {
+            return 1 + polygon.getNumInteriorRing();
+        }
+        return geometry.getNumGeometries();
     }
 
     private static void collectPolygons(Geometry geometry, List<Polygon> polygons) {

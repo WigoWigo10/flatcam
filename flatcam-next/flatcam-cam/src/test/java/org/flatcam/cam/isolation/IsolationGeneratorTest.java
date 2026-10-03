@@ -160,6 +160,32 @@ class IsolationGeneratorTest {
     }
 
     @Test
+    void forcedRestRejectsAToolThatMergesAwayAHoleOnTheFirstPass() throws Exception {
+        // A tool whose first-pass offset is wider than a hole swallows it entirely when the
+        // polygon is buffered outward - "Forced Rest" (checked by default in Python,
+        // tools_iso_force) means that tool is rejected outright for this polygon, not just for
+        // that one pass, since it could not isolate every hole; the next smaller tool retries it.
+        WKTReader reader = new WKTReader();
+        var twoSmallHoles = reader.read("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), "
+                + "(2 2, 2.3 2, 2.3 2.3, 2 2.3, 2 2), (6 6, 6.3 6, 6.3 6.3, 6 6.3, 6 6))");
+        var large = new IsolationParameters(1.0, 1, 0, IsolationType.BOTH); // pass-0 offset 0.5: swallows a 0.3-wide hole
+        var small = new IsolationParameters(0.2, 1, 0, IsolationType.BOTH); // pass-0 offset 0.1: both holes survive
+
+        var forced = IsolationGenerator.generateRest("MM", twoSmallHoles, List.of(small, large), true,
+                CancellationToken.none());
+        assertEquals(1, forced.get(0).remainingCopperCount(), "the large tool must reject the (single) polygon entirely");
+        assertEquals(0, forced.get(0).isolation().ringCount(), "no rings at all, not even a first pass, from the large tool");
+        assertEquals(0, forced.get(1).remainingCopperCount(), "the small tool isolates what the large one rejected");
+        assertEquals(3, forced.get(1).isolation().ringCount(), "exterior + both interiors");
+
+        var lenient = IsolationGenerator.generateRest("MM", twoSmallHoles, List.of(small, large), false,
+                CancellationToken.none());
+        assertEquals(0, lenient.get(0).remainingCopperCount(),
+                "without Forced Rest the large tool keeps the polygon even though a hole vanished");
+        assertTrue(lenient.get(0).isolation().ringCount() > 0);
+    }
+
+    @Test
     void isolationGeometryCanBeEditedThenUsedForGeometryCncJob() throws Exception {
         GerberImage gerber = new GerberParser().parse(
                 findRepoRoot().resolve("tests/gerber_files/simple1.gbr"));
