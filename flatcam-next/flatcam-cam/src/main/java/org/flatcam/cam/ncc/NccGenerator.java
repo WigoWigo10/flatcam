@@ -387,7 +387,14 @@ public final class NccGenerator {
         return paths;
     }
 
-    /** Expanding-ring strategy: the legacy clear_polygon2() method. */
+    /**
+     * Expanding-ring strategy: the legacy clear_polygon2() method.
+     *
+     * <p>The starting point is {@link StableInteriorPoint}, not JTS's {@code getInteriorPoint()}
+     * (which Python's own {@code representative_point()} shares the same scan-line algorithm
+     * with) - a deliberate divergence from Python for the reasons documented on that class,
+     * not an unintentional gap. See also INVESTIGACAO_CAM.md.
+     */
     private static List<LineString> seedPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
@@ -397,7 +404,10 @@ public final class NccGenerator {
         if (safeArea.isEmpty()) {
             return paths;
         }
-        Coordinate seed = safeArea.getInteriorPoint().getCoordinate();
+        Coordinate seed = StableInteriorPoint.find(safeArea, toolRadius * 0.01, cancellation);
+        if (seed == null) {
+            return paths;
+        }
         Envelope envelope = safeArea.getEnvelopeInternal();
         double farthest = Math.max(
                 Math.max(seed.distance(new Coordinate(envelope.getMinX(), envelope.getMinY())),

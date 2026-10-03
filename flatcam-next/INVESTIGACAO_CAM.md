@@ -17,11 +17,11 @@ de diferença entre linguagens:
   interior**. Mesmo reproduzindo o kernel legado, a entrada decodificada
   independentemente pode gerar outro ponto inicial e, portanto, outros anéis.
 
-**Atualização:** a correção do item Standard/Paint descrita como "próxima
-implementação recomendada" (seção abaixo) foi incorporada à aplicação - ver
-"Correção entregue" mais abaixo. Seed continua `DIFFERENT`; nenhuma política de
-ponto inicial foi decidida ainda. O projeto original foi somente lido;
-geometrias privadas e classes experimentais do protótipo ficaram em `target/`.
+**Atualização:** as correções Standard/Paint e Seed descritas como "próxima
+implementação recomendada" (seção abaixo) foram incorporadas à aplicação - ver
+"Correção entregue" mais abaixo em cada uma. O projeto original foi somente
+lido; geometrias privadas e classes experimentais do protótipo ficaram em
+`target/`.
 
 ## 1. Buffers Standard/Paint
 
@@ -194,6 +194,48 @@ descrita no item 3 abaixo e segue `DIFFERENT`; nenhum outro uso de buffer em
 `NccGenerator` (margens, fronteiras com mitra, uniões de footprint) foi
 alterado; Isolation e Cutout não usam este buffer e não foram tocados.
 
+## Correção entregue — Seed, 2026-10-03
+
+`org.flatcam.cam.ncc.StableInteriorPoint` (flatcam-cam) substitui
+`Geometry.getInteriorPoint()` como ponto de partida de Seed por uma busca
+"pole of inaccessibility" (algoritmo polylabel): refinamento de grade que
+maximiza a distância até a fronteira, parando quando nenhuma célula restante
+pode melhorar o resultado além da precisão pedida. Diferente do ponto
+interior por scan-line (usado tanto pelo JTS quanto pelo
+`representative_point()` do Python/GEOS - ambos chamam, no fundo, a mesma
+`InteriorPointArea`/`GEOSPointOnSurface`), a distância até a fronteira é uma
+função contínua dos vértices do polígono: uma perturbação pequena na entrada
+move o ponto encontrado por uma quantidade correspondentemente pequena, nunca
+um salto desproporcional.
+
+Isto é uma **diferença deliberada** do Python, documentada na própria classe,
+não uma tentativa de reproduzir o algoritmo legado:
+
+- No caso sintético mínimo do losango (mover dois vértices em 10⁻¹²), o ponto
+  por scan-line pula ~2 mm; o novo ponto se move menos de 10⁻³ mm para a
+  mesma perturbação (`StableInteriorPointTest`).
+- No projeto real autorizado, medido com a dependência isolada
+  Shapely 1.8.5.post1/GEOS 3.10.3 (necessária para este caso - ver seção 3):
+  `ncc-seed` **continua `DIFFERENT`**, distância amostrada 0,1499 mm - na
+  mesma ordem de grandeza de antes (0,1293 mm distribuído, 0,1477 mm só com
+  o buffer corrigido), não uma melhora nem uma piora relevante. Isso é
+  esperado, não uma falha: a comparação agora opõe dois algoritmos
+  deliberadamente diferentes, não duas instâncias ruidosas do mesmo
+  algoritmo, então não há razão para a distância amostrada cair. O que
+  importa é `footprintIntersectionOverUnion = 0,999957` - a área realmente
+  limpa pelas duas ferramentas continua praticamente idêntica; só a
+  sequência/posição dos anéis concêntricos muda.
+- `535` testes de `flatcam-cam` aprovados, incluindo os oito novos de
+  `StableInteriorPointTest` (quadrado, polígono com furo, dois polígonos
+  disjuntos, L côncavo com valor esperado calculado analiticamente, a
+  reprodução do losango, geometria vazia, cancelamento cooperativo e
+  consistência entre precisões). `821` testes no reactor completo. Build
+  completo e abertura do FX verificados depois do `install`.
+
+Fora do escopo: nenhuma tentativa foi feita de aproximar o ponto do Python
+(isso exigiria reproduzir a mesma instabilidade, não eliminá-la). Lines e
+Standard não usam este código (só Seed chama `StableInteriorPoint`).
+
 ## Próxima implementação recomendada
 
 1. ~~Isolar um buffer de compatibilidade para Standard/Paint, sem substituir
@@ -211,11 +253,12 @@ alterado; Isolation e Cutout não usam este buffer e não foram tocados.
    contra 278 no probe público, oitava erosão) - o limite de prévia detalhada do
    FX já existe e foi respeitado nos testes, mas tempo de geração/memória em
    placas grandes com muitas ferramentas não foi medido nesta entrega.
-3. Para Seed, avaliar preservação da entrada legado e escolha explícita/estável
-   do ponto inicial. Documentar eventual diferença deliberada em vez de declarar
-   equivalência apenas pela cobertura. Para comparação previsível, priorizar
-   Standard/Lines e conferir as saídas enquanto essa política estiver pendente.
-   **Ainda pendente** - não alterado nesta entrega.
+3. ~~Para Seed, avaliar preservação da entrada legado e escolha
+   explícita/estável do ponto inicial.~~ Entregue - ver "Correção entregue —
+   Seed" acima. A política escolhida foi NÃO preservar o comportamento
+   legado (instável nos dois motores) e usar um ponto estável e documentado
+   como diferença deliberada, em vez de perseguir uma equivalência que o
+   próprio Python não garante de uma execução para outra.
 
 O experimento Java mostra que C++/Rust não é um requisito demonstrado para essa
 correção numérica. Um backend GEOS nativo continua sendo uma decisão arquitetural
