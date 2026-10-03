@@ -18,6 +18,8 @@ import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.gerber.GerberImage;
 import org.flatcam.cam.gerber.GerberParser;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.io.WKTReader;
 import org.junit.jupiter.api.Test;
 
@@ -183,6 +185,28 @@ class IsolationGeneratorTest {
         assertEquals(0, lenient.get(0).remainingCopperCount(),
                 "without Forced Rest the large tool keeps the polygon even though a hole vanished");
         assertTrue(lenient.get(0).isolation().ringCount() > 0);
+    }
+
+    @Test
+    void forcedRestRejectsAToolThatMergesAwayAHoleOnTheFirstPassInInchesToo() throws Exception {
+        // Same fixture as forcedRestRejectsAToolThatMergesAwayAHoleOnTheFirstPass, scaled by
+        // 1/25.4 and relabeled "IN": generateRest takes every distance as a plain number, with
+        // no internal MM<->IN conversion (the units string is carried through as metadata
+        // only), so the same relative outcome should hold regardless of which unit the numbers
+        // represent.
+        WKTReader reader = new WKTReader();
+        Geometry twoSmallHoles = reader.read("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), "
+                + "(2 2, 2.3 2, 2.3 2.3, 2 2.3, 2 2), (6 6, 6.3 6, 6.3 6.3, 6 6.3, 6 6))");
+        twoSmallHoles = AffineTransformation.scaleInstance(1.0 / 25.4, 1.0 / 25.4).transform(twoSmallHoles);
+        var large = new IsolationParameters(1.0 / 25.4, 1, 0, IsolationType.BOTH);
+        var small = new IsolationParameters(0.2 / 25.4, 1, 0, IsolationType.BOTH);
+
+        var forced = IsolationGenerator.generateRest("IN", twoSmallHoles, List.of(small, large), true,
+                CancellationToken.none());
+        assertEquals(1, forced.get(0).remainingCopperCount(), "the large tool must reject the (single) polygon entirely");
+        assertEquals(0, forced.get(0).isolation().ringCount(), "no rings at all, not even a first pass, from the large tool");
+        assertEquals(0, forced.get(1).remainingCopperCount(), "the small tool isolates what the large one rejected");
+        assertEquals(3, forced.get(1).isolation().ringCount(), "exterior + both interiors");
     }
 
     @Test

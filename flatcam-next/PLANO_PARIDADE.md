@@ -160,9 +160,27 @@ Referências: [comparação CAM](COMPARACAO_CAM.md) e [Cutout](CUTOUT.md).
   de corrigi-lo.
 - 543 testes em `flatcam-cam` aprovados (1 novo), 829 no reactor completo.
   Build completo e abertura do FX verificados depois do `install`.
+- Operações em IN: nenhum gerador de CAM (`CutoutGenerator`, `IsolationGenerator`,
+  `NccGenerator`) faz conversão MM<->IN internamente - cada um recebe
+  distâncias já nas unidades do objeto e a string `units` só é carregada como
+  metadado no resultado (confirmado lendo os três; nenhuma tolerância
+  absoluta em escala mm encontrada, só relativas como `toolRadius * 0.01` ou
+  infinitesimais como `1e-10`/`1e-12`, negligíveis em qualquer unidade). Isso
+  espelha o Python: `camlib.py`/`ToolCutOut.py`/`ToolIsolation.py` também
+  operam nas unidades já carregadas pelo objeto, sem reescalar. Para fechar a
+  lacuna de cobertura (não de implementação) nos três casos entregues nesta
+  etapa, três testes em polegadas replicam as fixtures MM já existentes
+  escaladas por `1/25.4`
+  (`negativeMarginSubtractsTheToolRadiusInInchesToo`,
+  `forcedRestRejectsAToolThatMergesAwayAHoleOnTheFirstPassInInchesToo`,
+  `restMachiningUsesTheSelectedAreaBoundaryInInchesToo`); os três passaram de
+  primeira, sem alteração de produção.
+- 546 testes em `flatcam-cam` aprovados (3 novos, de IN), 832 no reactor
+  completo. Build completo e abertura do FX verificados depois do `install`.
 
-Ainda não abordado: operações em IN para os casos desta etapa, e Cutout
-Thin/M-Bites/concavidades com um projeto real.
+Ainda não abordado: Cutout Thin/M-Bites/concavidades com um projeto real -
+depende de um projeto real não-retangular, fora do escopo testável apenas
+com fixtures sintéticas.
 
 ### 4. Completar Drilling e validar CNC além de XY
 

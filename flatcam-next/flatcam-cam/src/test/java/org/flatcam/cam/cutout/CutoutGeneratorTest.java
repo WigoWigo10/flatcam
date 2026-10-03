@@ -367,6 +367,31 @@ class CutoutGeneratorTest {
     }
 
     @Test
+    void negativeMarginSubtractsTheToolRadiusInInchesToo() {
+        // CutoutGenerator.signedOffset takes margin/toolDiameter as plain numbers, with no
+        // internal MM<->IN conversion (Python's cutout_handler works the same way: callers
+        // pass values already in the object's own units). Scaling every input from the MM
+        // test above by 1/25.4 and asserting the same relative geometry confirms that holds -
+        // the units string itself is carried through as metadata only.
+        GeometryFactory geometryFactory = new GeometryFactory();
+        double side = 10.0 / 25.4;
+        Geometry tenByTen = square(geometryFactory, 0, 0, side);
+        double toolDiameter = 1.0 / 25.4;
+        double margin = -2.0 / 25.4;
+
+        CutoutResult result = CutoutGenerator.generate("IN", tenByTen,
+                new CutoutParameters(toolDiameter, margin, false, CutoutKind.SINGLE,
+                        CutoutShape.FREEFORM, 0.0, GapPattern.NONE));
+
+        double expectedOffset = margin - toolDiameter / 2.0;
+        double[] bounds = result.bounds();
+        assertEquals(-expectedOffset, bounds[0], 1e-9);
+        assertEquals(-expectedOffset, bounds[1], 1e-9);
+        assertEquals(side + expectedOffset, bounds[2], 1e-9);
+        assertEquals(side + expectedOffset, bounds[3], 1e-9);
+    }
+
+    @Test
     void rejectsNegativeMarginForRectangularShape() {
         assertThrows(IllegalArgumentException.class,
                 () -> new CutoutParameters(1.0, -0.5, false, CutoutKind.SINGLE, CutoutShape.RECTANGULAR, 0.0, GapPattern.NONE));

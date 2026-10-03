@@ -294,6 +294,37 @@ class NccGeneratorTest {
     }
 
     @Test
+    void restMachiningUsesTheSelectedAreaBoundaryInInchesToo() {
+        // Same fixture as restMachiningUsesTheSelectedAreaBoundaryNotTheCoppersOwnHull, scaled
+        // by 1/25.4 and relabeled "IN": generate() takes every distance as a plain number, with
+        // no internal MM<->IN conversion, so the same relative outcome should hold regardless
+        // of which unit the numbers represent.
+        Geometry copper = FACTORY.toGeometry(new Envelope(4 / 25.4, 6 / 25.4, 4 / 25.4, 6 / 25.4));
+        Geometry selectedArea = FACTORY.toGeometry(new Envelope(0, 8 / 25.4, 0, 8 / 25.4));
+
+        NccParameters bigAlone = new NccParameters(List.of(1.0 / 25.4), 0.1, 0.0, NccMethod.STANDARD,
+                false, true, 0, false, NccOrder.NONE, new NccBoundary.Area(selectedArea));
+        NccResult bigAloneResult = NccGenerator.generate("IN", copper, bigAlone);
+
+        NccParameters restParams = new NccParameters(List.of(0.2 / 25.4, 1.0 / 25.4), 0.1, 0.0,
+                NccMethod.STANDARD, false, true, 0, true, NccOrder.NONE, new NccBoundary.Area(selectedArea));
+        NccResult restResult = NccGenerator.generate("IN", copper, restParams);
+
+        assertEquals(2, restResult.toolResults().size());
+        NccToolResult big = restResult.toolResults().get(0);
+        NccToolResult small = restResult.toolResults().get(1);
+        assertEquals(1.0 / 25.4, big.toolDiameter(), 1e-9, "rest machining always goes largest-first");
+        assertEquals(0.2 / 25.4, small.toolDiameter(), 1e-9);
+
+        assertEquals(bigAloneResult.clearingArea().getArea(), restResult.clearingArea().getArea(), 1e-9,
+                "the selected area, not the copper's own convex hull, bounds every tool under Rest Machining");
+        assertEquals(bigAloneResult.toolResults().get(0).geometry().getLength(), big.geometry().getLength(), 1e-9,
+                "the first (largest) rest tool clears exactly as much as it would alone, inside the selected area");
+        assertFalse(small.isEmpty(),
+                "the smaller tool should still find leftover corners the big tool could not reach");
+    }
+
+    @Test
     void referenceGerberBoundaryIntersectsBothConvexHulls() {
         Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
         Geometry referenceGerber = FACTORY.toGeometry(new Envelope(4, 5, 0, 10));
