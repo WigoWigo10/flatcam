@@ -171,10 +171,18 @@ Verificação:
   `tools/compare_cam_python.py`, sem `--strict`): `ncc-standard` passou de
   `DIFFERENT` (distância amostrada 0,020589 mm) para `MATCH_SAMPLED`
   (0,000643 mm); `paint-standard` de `DIFFERENT` (0,021587 mm) para
-  `MATCH_SAMPLED` (0,0000011 mm). `ncc-seed`/`ncc-lines` e dois casos de
-  Cutout continuam `ORACLE_ERROR` nesta execução - incompatibilidade
-  multipart do Python legado com Shapely 2, já registrada em
+  `MATCH_SAMPLED` (0,0000011 mm). Com Shapely 2 (`.venv` principal),
+  `ncc-seed`/`ncc-lines` e dois casos de Cutout batem em `ORACLE_ERROR` -
+  incompatibilidade multipart do Python legado, já registrada em
   [COMPARACAO_CAM.md](COMPARACAO_CAM.md), não uma regressão desta correção.
+  Repetindo com a dependência isolada Shapely 1.8.5.post1/GEOS 3.10.3 (que
+  contorna essa incompatibilidade): `ncc-lines` **também** passou a
+  `MATCH_SAMPLED` (0,000643 mm - usa a mesma `preciseRoundBuffer`); `ncc-seed`
+  **continua `DIFFERENT`**, com distância amostrada 0,1477 mm - pior que os
+  0,129283 mm da aplicação distribuída antes desta correção, não melhor.
+  Confirma exatamente a previsão da seção 2 abaixo: o buffer não resolve a
+  instabilidade da escolha do ponto interior de Seed, e corrigi-lo pode
+  simplesmente mover a descontinuidade para outro lugar, não eliminá-la.
 - `521` testes de `flatcam-cam` aprovados, incluindo os seis novos de
   `GeosBufferOpTest` (ancorados no mesmo valor do oráculo público acima) e os
   já existentes de entalhe côncavo/epsilon em `PaintGeneratorTest` -
