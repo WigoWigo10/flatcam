@@ -86,6 +86,7 @@ import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.ToolsDatabase;
 import org.flatcam.app.project.ProjectFileIO;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.tcl.TclException;
 import org.flatcam.cam.convert.InvertGerber;
 import org.flatcam.cam.convert.CornerMarkers;
 import org.flatcam.cam.convert.EtchCompensation;
@@ -157,7 +158,7 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
  * demand and reused rather than duplicated. This class replicates that
  * shape; auxiliary tabs use the same open/reuse/focus pattern as Python.
  */
-final class MainWindow {
+final class MainWindow implements TclFlatcamHost {
 
     private static final Color IDLE_COLOR = Color.web("#4caf50");
     private static final Color RUNNING_COLOR = Color.web("#f0ad4e");
@@ -7188,6 +7189,128 @@ final class MainWindow {
         centerTabs.getTabs().add(tab); centerTabs.getSelectionModel().select(tab);
     }
 
+    // ---- TclFlatcamHost: what the Tcl Terminal's FlatCAM commands see of this live session ----
+
+    @Override
+    public String openGerber(Path file, String outname) throws IOException {
+        GerberImage image = new GerberParser().parse(file);
+        setDisplayUnits(image.units());
+        addGerberToProject(outname, file, image);
+        return outname;
+    }
+
+    @Override
+    public String openExcellon(Path file, String outname) throws IOException {
+        ExcellonImage image = new ExcellonParser().parse(file);
+        setDisplayUnits(image.units());
+        addExcellonToProject(outname, file, image);
+        return outname;
+    }
+
+    @Override
+    public List<String> objectNames() {
+        List<String> names = new ArrayList<>();
+        for (TreeItem<String> item : gerberByItem.keySet()) names.add(item.getValue());
+        for (TreeItem<String> item : excellonByItem.keySet()) names.add(item.getValue());
+        for (TreeItem<String> item : geometryByItem.keySet()) names.add(item.getValue());
+        for (TreeItem<String> item : cncJobByItem.keySet()) names.add(item.getValue());
+        return names;
+    }
+
+    /** Resolves a Tcl object name across every kind - Python's single shared {@code collection.get_by_name}. */
+    private TreeItem<String> findTclItemByName(String name) {
+        for (TreeItem<String> item : gerberByItem.keySet()) if (name.equals(item.getValue())) return item;
+        for (TreeItem<String> item : excellonByItem.keySet()) if (name.equals(item.getValue())) return item;
+        for (TreeItem<String> item : geometryByItem.keySet()) if (name.equals(item.getValue())) return item;
+        for (TreeItem<String> item : cncJobByItem.keySet()) if (name.equals(item.getValue())) return item;
+        return null;
+    }
+
+    @Override
+    public Optional<ObjectRef> find(String name) {
+        TreeItem<String> item = findTclItemByName(name);
+        if (item == null) return Optional.empty();
+        Kind kind = gerberByItem.containsKey(item) ? Kind.GERBER
+                : excellonByItem.containsKey(item) ? Kind.EXCELLON
+                : geometryByItem.containsKey(item) ? Kind.GEOMETRY
+                : Kind.CNC_JOB;
+        return Optional.of(new ObjectRef(kind, name));
+    }
+
+    @Override
+    public void delete(String name) {
+        TreeItem<String> item = findTclItemByName(name);
+        if (item != null) {
+            removeSelectionFromProject(List.of(item));
+        }
+    }
+
+    @Override
+    public void deleteAll() {
+        List<TreeItem<String>> all = new ArrayList<>();
+        all.addAll(gerberByItem.keySet());
+        all.addAll(excellonByItem.keySet());
+        all.addAll(geometryByItem.keySet());
+        all.addAll(cncJobByItem.keySet());
+        removeSelectionFromProject(all);
+    }
+
+    @Override
+    public Optional<double[]> boundsOf(String name) {
+        TreeItem<String> item = findTclItemByName(name);
+        if (item == null) {
+            return Optional.empty();
+        }
+        GerberImage gerber = gerberByItem.get(item);
+        if (gerber != null) {
+            return Optional.of(gerber.bounds());
+        }
+        ExcellonImage excellon = excellonByItem.get(item);
+        if (excellon != null) {
+            return Optional.of(excellon.bounds());
+        }
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (geometry != null) {
+            Envelope env = geometry.geometry().getEnvelopeInternal();
+            return Optional.of(new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()});
+        }
+        CncJobEntry cncJob = cncJobByItem.get(item);
+        if (cncJob != null && cncJob.cutGeometry() != null && !cncJob.cutGeometry().isEmpty()) {
+            Envelope env = cncJob.cutGeometry().getEnvelopeInternal();
+            return Optional.of(new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()});
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public String newEmptyGeometry(String name) {
+        addGeometryToProject(name, "", "MM", CNC_GEOMETRY_FACTORY.createGeometryCollection(), false);
+        return name;
+    }
+
+    /** Python's TclCommandBbox: always buffers the envelope (rounding its corners), then squares that back off unless {@code rounded}. */
+    @Override
+    public String newBoundingBoxGeometry(String sourceName, String outname, double margin, boolean rounded)
+            throws TclException {
+        TreeItem<String> item = findTclItemByName(sourceName);
+        Geometry sourceGeometry;
+        String units;
+        if (item != null && gerberByItem.containsKey(item)) {
+            sourceGeometry = gerberByItem.get(item).solidGeometry();
+            units = gerberByItem.get(item).units();
+        } else if (item != null && geometryByItem.containsKey(item)) {
+            sourceGeometry = geometryByItem.get(item).geometry();
+            units = geometryByItem.get(item).units();
+        } else {
+            throw new TclException("Expected a Gerber or Geometry object, got: " + sourceName);
+        }
+        Geometry envelopeGeometry = CNC_GEOMETRY_FACTORY.toGeometry(sourceGeometry.getEnvelopeInternal());
+        Geometry buffered = envelopeGeometry.buffer(margin, 32);
+        Geometry result = rounded ? buffered : CNC_GEOMETRY_FACTORY.toGeometry(buffered.getEnvelopeInternal());
+        addGeometryToProject(outname, sourceName, units, result, false);
+        return outname;
+    }
+
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */
     private void openTerminal() {
         for (Tab tab : centerTabs.getTabs()) if ("terminal-tab".equals(tab.getId())) {
@@ -7197,6 +7320,7 @@ final class MainWindow {
         }
         if (terminalPanel == null) {
             terminalPanel = new TerminalPanel(new org.flatcam.cam.tcl.TclInterpreter(), "em desenvolvimento");
+            new TclFlatcamCommands(this).registerOn(terminalPanel.interpreter());
         }
         Tab tab = new Tab(); tab.setId("terminal-tab"); tab.setText("Terminal"); tab.setContent(terminalPanel);
         tab.setGraphic(legacyIcon("shell32.png", 16));
