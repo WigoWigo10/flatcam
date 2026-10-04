@@ -183,6 +183,7 @@ final class MainWindow {
 
     private final JobExecutor jobExecutor;
     private ToolsDatabasePanel toolsDatabasePanel;
+    private TerminalPanel terminalPanel;
 
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label progressPercentLabel = new Label("0%");
@@ -1764,7 +1765,7 @@ final class MainWindow {
         addToolCommands(camMenu, LegacyUiManifest.TOOLS_CAM);
         Menu utilitiesMenu = new Menu("Utilitarios");
         addToolCommands(utilitiesMenu, LegacyUiManifest.TOOLS_UTILITIES);
-        toolsMenu.getItems().addAll(plannedItem("Linha de Comando Tcl", "shell32.png"),
+        toolsMenu.getItems().addAll(chromeItem("Linha de Comando Tcl", "shell32.png", this::openTerminal),
                 new SeparatorMenuItem(), preparationMenu, camMenu, utilitiesMenu);
 
         Menu helpMenu = new Menu("Ajuda");
@@ -1889,7 +1890,7 @@ final class MainWindow {
                 chromeButton("Afastar", "zoom_out32.png", null),
                 chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject));
         toolbarGroup(bar, TOOLBAR_SHELL, true,
-                chromeButton("Linha de Comando", "shell32.png", null),
+                chromeButton("Linha de Comando", "shell32.png", this::openTerminal),
                 chromeButton("Novo Script", "script_new24.png", null),
                 chromeButton("Abrir Script", "open_script32.png", null),
                 chromeButton("Executar Script", "script16.png", null));
@@ -7185,6 +7186,22 @@ final class MainWindow {
                 .then("Tools Database *").otherwise("Tools Database"));
         tab.setOnCloseRequest(event -> { if (!toolsDatabasePanel.confirmClose()) event.consume(); });
         centerTabs.getTabs().add(tab); centerTabs.getSelectionModel().select(tab);
+    }
+
+    /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */
+    private void openTerminal() {
+        for (Tab tab : centerTabs.getTabs()) if ("terminal-tab".equals(tab.getId())) {
+            centerTabs.getSelectionModel().select(tab);
+            terminalPanel.focusInput();
+            return;
+        }
+        if (terminalPanel == null) {
+            terminalPanel = new TerminalPanel(new org.flatcam.cam.tcl.TclInterpreter(), "em desenvolvimento");
+        }
+        Tab tab = new Tab(); tab.setId("terminal-tab"); tab.setText("Terminal"); tab.setContent(terminalPanel);
+        tab.setGraphic(legacyIcon("shell32.png", 16));
+        centerTabs.getTabs().add(tab); centerTabs.getSelectionModel().select(tab);
+        terminalPanel.focusInput();
     }
 
     boolean confirmToolsDatabaseClose() {
