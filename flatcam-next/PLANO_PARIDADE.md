@@ -269,13 +269,36 @@ Entregue nesta etapa:
 - 592 testes em `flatcam-cam` aprovados (46 novos), 883 no reactor completo.
   Build completo e abertura do FX verificados depois do `install`.
 
-Ainda não abordado: os comandos próprios do FlatCAM (`open_gerber`,
-`isolate`, `cutout`, `ncc`/`paint`, `cncjob`, `export_*`, `offset`/`scale`/
-`mirror`/`skew`, `bbox`, `options`, `delete`, `plot_all`, `set_sys`/`get_sys`/
-`list_sys`, etc.) - precisam de um registro de objetos por nome, hoje
-inexistente (o `MainWindow` guarda objetos em mapas por `TreeItem`, não por
-nome, já que o nome exibido pode ser editado). Esse registro e o primeiro
-lote de comandos ficam para o próximo incremento.
+- `org.flatcam.fx.TclFlatcamHost`/`TclFlatcamCommands` (`flatcam-fx`): o
+  registro de objetos por nome que faltava (`MainWindow` implementa a
+  interface, resolvendo por nome nos seus mapas por `TreeItem` existentes -
+  o mesmo que o `collection.get_by_name` único do Python faz entre tipos) e
+  13 comandos próprios, cada um espelhando um `TclCommand*.py`:
+  `open_gerber`, `open_excellon`, `new_geometry`, `delete`/`del`,
+  `get_names`, `bbox`/`bounding_box`, `bounds`/`get_bounds`, `isolate`,
+  `cutout` (só retangular, como o próprio comando Tcl do Python),
+  `ncc`/`ncc_clear` (`-all`/`-box`, métodos Standard/Seed), `cncjob`
+  (subconjunto reduzido de flags), `export_gcode`, `write_gcode`. Opções sem
+  fallback razoável fora de um sistema de preferências ainda não exposto ao
+  Tcl (`-dia`, `-gapsize`, `-tooldia`, os sinalizadores obrigatórios de
+  `cncjob`) são exigidas explicitamente em vez de usar um padrão
+  inventado, com erro claro se ausentes. A interface é testável com um host
+  falso, sem depender de JavaFX. `TclArgs` ganhou `isPresent` para
+  sinalizadores sem valor (`-all`), distinto de `has` (exige valor real) -
+  um bug real pego ao ligar `-all`, documentado no commit.
+  32 testes (`TclFlatcamCommandsTest`) + 2 (`TclArgsTest.isPresent`).
+- 593 testes em `flatcam-cam` aprovados, 916 no reactor completo. Build
+  completo e abertura do FX verificados depois do `install`.
+
+Ainda não abordado: `open_project` (recriar todos os objetos de um arquivo
+de projeto via Tcl - exigiria extrair o fluxo assíncrono existente de
+"aplicar projeto carregado" para algo que um comando síncrono possa chamar,
+sem arriscar esse caminho já ajustado); os demais ~55 comandos do Python
+(`offset`/`scale`/`mirror`/`skew`, `options`, `plot_all`/`plot_objects`,
+`set_sys`/`get_sys`/`list_sys`, `panelize`, `join_*`, `subtract_*`,
+`align_drill*`, export para DXF/SVG/Excellon/Gerber, etc.); `-combine
+False` (um objeto por passada em `isolate`), `-follow`, `-order` do NCC, e
+os métodos Lines/Combo do NCC.
 
 ## Desempenho: trabalho transversal
 
