@@ -234,6 +234,49 @@ pretendida com a automação Python antes de implementar novos comandos.
 fluxos correspondentes; comandos cobertos têm argumentos, erros e resultados
 documentados e testados. Recursos sem equivalente ficam identificados.
 
+**Entregas em 2026-10-03 (Terminal/Tcl):**
+
+O Python embute um interpretador Tcl de verdade (`tkinter.Tcl()`, Tcl 8.6) e
+registra ~69 comandos próprios (`tclCommands/TclCommand*.py`) como procs Tcl.
+Não existe Tcl puro-Java mantido hoje; a única opção no Maven Central
+(`jacl:jacl:1.2.6`) é um jar do ano 2000 (Tcl 8.0/8.2), abandonado há ~25
+anos, de procedência incerta - destoando das demais dependências do projeto
+(todas mantidas). Decisão (com o usuário, ver histórico da sessão): construir
+um interpretador próprio e deliberadamente reduzido em vez de depender do
+Jacl, cobrindo exatamente o que os scripts reais do FlatCAM usam
+(`assets/examples/*.FlatScript`): variáveis, substituição `$var`/`[cmd]`, e
+`set/unset/incr/append/puts/if-elseif-else/while/foreach/expr/list/llength/
+lindex`. Sem `proc`, sem o formato real de lista do Tcl, sem `catch`/
+`switch`/`string`/`array` - um script que dependa de mais Tcl do que isso não
+roda aqui. É uma divergência deliberada e documentada do oráculo Python
+(ver javadoc de `TclInterpreter`), não uma lacuna de paridade.
+
+Entregue nesta etapa:
+- `org.flatcam.cam.tcl.TclInterpreter`/`TclExpr`/`TclArgs` (`flatcam-cam`):
+  o motor (parsing de palavras com chaves/aspas/colchetes, substituição,
+  controle de fluxo, gramática de expressão) e o parsing `-opcao valor`
+  compartilhado por todo comando Tcl do FlatCAM (mesmo algoritmo do
+  `TclCommand.parse_arguments` do Python). 46 testes.
+- `org.flatcam.fx.TerminalPanel` (`flatcam-fx`): a porta do `TermWidget` do
+  Python - saída somente leitura + entrada de linha com histórico
+  (Seta Cima/Baixo). `help`/`version`/`clear_shell` registrados diretamente
+  no painel, como os utilitários de shell do Python
+  (`TclCommandHelp`/`TclCommandVersion`/`TclCommandClearShell`). As duas
+  entradas de UI que eram stubs há tempos ("Linha de Comando Tcl" no menu
+  Ferramentas e "Linha de Comando" na toolbar Shell) agora abrem/selecionam
+  uma aba persistente "Terminal" nas abas centrais. 5 testes com o toolkit
+  JavaFX real.
+- 592 testes em `flatcam-cam` aprovados (46 novos), 883 no reactor completo.
+  Build completo e abertura do FX verificados depois do `install`.
+
+Ainda não abordado: os comandos próprios do FlatCAM (`open_gerber`,
+`isolate`, `cutout`, `ncc`/`paint`, `cncjob`, `export_*`, `offset`/`scale`/
+`mirror`/`skew`, `bbox`, `options`, `delete`, `plot_all`, `set_sys`/`get_sys`/
+`list_sys`, etc.) - precisam de um registro de objetos por nome, hoje
+inexistente (o `MainWindow` guarda objetos em mapas por `TreeItem`, não por
+nome, já que o nome exibido pode ser editado). Esse registro e o primeiro
+lote de comandos ficam para o próximo incremento.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas
