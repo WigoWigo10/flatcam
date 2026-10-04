@@ -109,6 +109,10 @@ import org.flatcam.cam.merge.GeometryJoin;
 import org.flatcam.cam.merge.GerberJoin;
 import org.flatcam.cam.cutout.CutoutGenerator;
 import org.flatcam.cam.cutout.CutoutResult;
+import org.flatcam.cam.cutout.CutoutParameters;
+import org.flatcam.cam.cutout.CutoutKind;
+import org.flatcam.cam.cutout.CutoutShape;
+import org.flatcam.cam.cutout.GapPattern;
 import org.flatcam.cam.dxf.DxfExporter;
 import org.flatcam.cam.dxf.DxfImporter;
 import org.flatcam.cam.excellon.ExcellonExporter;
@@ -136,10 +140,14 @@ import org.flatcam.cam.gerber.edit.GerberEditSession;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationResult;
+import org.flatcam.cam.isolation.IsolationType;
 import org.flatcam.cam.ncc.NccGenerator;
 import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccResult;
+import org.flatcam.cam.ncc.NccMethod;
+import org.flatcam.cam.ncc.NccOrder;
+import org.flatcam.cam.ncc.NccBoundary;
 import org.flatcam.cam.transform.AlignObjects;
 import org.flatcam.cam.transform.TransformOp;
 import org.flatcam.cam.transform.TransformReference;
@@ -7309,6 +7317,130 @@ final class MainWindow implements TclFlatcamHost {
         Geometry result = rounded ? buffered : CNC_GEOMETRY_FACTORY.toGeometry(buffered.getEnvelopeInternal());
         addGeometryToProject(outname, sourceName, units, result, false);
         return outname;
+    }
+
+    @Override
+    public Optional<Kind> kindOf(String name) {
+        return find(name).map(ObjectRef::kind);
+    }
+
+    @Override
+    public Optional<Geometry> geometryOf(String name) {
+        TreeItem<String> item = findTclItemByName(name);
+        if (item == null) {
+            return Optional.empty();
+        }
+        GerberImage gerber = gerberByItem.get(item);
+        if (gerber != null) {
+            return Optional.of(gerber.solidGeometry());
+        }
+        ExcellonImage excellon = excellonByItem.get(item);
+        if (excellon != null) {
+            return Optional.of(excellon.solidGeometry());
+        }
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (geometry != null) {
+            return Optional.of(geometry.geometry());
+        }
+        CncJobEntry cncJob = cncJobByItem.get(item);
+        if (cncJob != null && cncJob.cutGeometry() != null) {
+            return Optional.of(cncJob.cutGeometry());
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public String isolate(String sourceName, String outname, double toolDiameter, int passes,
+                          double overlapFraction, IsolationType type) throws TclException {
+        TreeItem<String> item = findTclItemByName(sourceName);
+        if (item == null || !gerberByItem.containsKey(item)) {
+            throw new TclException("Expected a Gerber object, got: " + sourceName);
+        }
+        GerberImage image = gerberByItem.get(item);
+        IsolationParameters params = new IsolationParameters(toolDiameter, passes, overlapFraction, type);
+        IsolationResult result = IsolationGenerator.generate(image.units(), image.solidGeometry(), params);
+        addGeometryToProject(outname, sourceName, image.units(), result.geometry(), true);
+        return outname;
+    }
+
+    @Override
+    public String cutoutRectangular(String sourceName, String outname, double toolDiameter, double margin,
+                                    double gapSize, GapPattern gaps) throws TclException {
+        Optional<Geometry> source = geometryOf(sourceName);
+        if (source.isEmpty()) {
+            throw new TclException("Could not retrieve object: " + sourceName);
+        }
+        String units = unitsOf(sourceName);
+        CutoutParameters params = new CutoutParameters(toolDiameter, margin, false, CutoutKind.SINGLE,
+                CutoutShape.RECTANGULAR, gapSize, gaps);
+        CutoutResult result = CutoutGenerator.generate(units, source.get(), params);
+        addGeometryToProject(outname, sourceName, units, result.geometry(), true);
+        return outname;
+    }
+
+    @Override
+    public String nccClear(String sourceName, String outname, List<Double> toolDiameters, double overlapFraction,
+                           double margin, NccMethod method, boolean connect, boolean contour, boolean rest,
+                           NccBoundary boundary) throws TclException {
+        Optional<Geometry> source = geometryOf(sourceName);
+        if (source.isEmpty()) {
+            throw new TclException("Could not retrieve object: " + sourceName);
+        }
+        String units = unitsOf(sourceName);
+        NccParameters params = new NccParameters(toolDiameters, overlapFraction, margin, method, connect, contour,
+                0, rest, NccOrder.NONE, boundary);
+        NccResult result = NccGenerator.generate(units, source.get(), params);
+        addGeometryToProject(outname, sourceName, units, result.geometry(), true);
+        return outname;
+    }
+
+    @Override
+    public String cncjob(String sourceName, String outname, double toolDiameter, double zCut, double zMove,
+                         double feedrate, double feedrateZ, double feedrateRapid) throws TclException {
+        Optional<Geometry> source = geometryOf(sourceName);
+        if (source.isEmpty()) {
+            throw new TclException("Object not found: " + sourceName);
+        }
+        String units = unitsOf(sourceName);
+        GeometryGCodeParameters params = new GeometryGCodeParameters(zMove, zCut, false, 0,
+                feedrate, 0, false, feedrateRapid, null, feedrateZ, false, 0, false, 0);
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob(units, source.get(), params, toolDiameter);
+        addCncJobToProject(outname, sourceName, Path.of(outname), job.gcode(), job.travelGeometry(), job.cutGeometry());
+        return outname;
+    }
+
+    @Override
+    public String exportGcode(String cncJobName, String preamble, String postamble) throws TclException {
+        TreeItem<String> item = findTclItemByName(cncJobName);
+        if (item == null || !cncJobByItem.containsKey(item)) {
+            throw new TclException("Expected CNCjob, got: " + cncJobName);
+        }
+        return preamble + cncJobByItem.get(item).gcode() + postamble;
+    }
+
+    @Override
+    public void writeGcode(String cncJobName, Path outputFile, String preamble, String postamble)
+            throws TclException, IOException {
+        TreeItem<String> item = findTclItemByName(cncJobName);
+        if (item == null || !cncJobByItem.containsKey(item)) {
+            throw new TclException("Could not retrieve object: " + cncJobName);
+        }
+        Files.writeString(outputFile, preamble + cncJobByItem.get(item).gcode() + postamble);
+    }
+
+    /** The display units of a Tcl-resolvable object - Gerber/Excellon's own, else the Geometry/CncJob entry's recorded units. */
+    private String unitsOf(String name) {
+        TreeItem<String> item = findTclItemByName(name);
+        if (item == null) {
+            return "MM";
+        }
+        GerberImage gerber = gerberByItem.get(item);
+        if (gerber != null) return gerber.units();
+        ExcellonImage excellon = excellonByItem.get(item);
+        if (excellon != null) return excellon.units();
+        GeometryEntry geometry = geometryByItem.get(item);
+        if (geometry != null) return geometry.units();
+        return "MM";
     }
 
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */

@@ -41,6 +41,14 @@ class TclArgsTest {
     }
 
     @Test
+    void isPresentIsTrueForABareTrailingFlagEvenThoughHasIsFalse() {
+        TclArgs args = TclArgs.parse(List.of("name", "-all"));
+        assertFalse(args.has("all"), "has() requires a real value");
+        assertTrue(args.isPresent("all"), "isPresent() only checks the option was given at all");
+        assertFalse(args.isPresent("box"));
+    }
+
+    @Test
     void anOptionFollowedByAnotherOptionIsAlsoAbsent() {
         TclArgs args = TclArgs.parse(List.of("-first", "-second", "value"));
         assertFalse(args.has("first"));

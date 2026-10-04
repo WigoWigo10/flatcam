@@ -73,6 +73,17 @@ public final class TclArgs {
         return options.containsKey(option) && options.get(option) != null;
     }
 
+    /**
+     * True if {@code -option} appeared at all, even as a bare trailing flag with no following
+     * value - Python's own {@code 'name' in args} check (its {@code check_args} keeps a
+     * value-less option as a present key mapped to {@code None}, not an absent one). Use this for
+     * a flag whose mere presence means something (Python's {@code ncc}'s {@code -all}, no value
+     * expected); use {@link #has} when the option must carry a real value.
+     */
+    public boolean isPresent(String option) {
+        return options.containsKey(option);
+    }
+
     public String option(String name) {
         return options.get(name);
     }
