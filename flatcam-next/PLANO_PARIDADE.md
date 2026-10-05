@@ -224,6 +224,25 @@ aplicativos, com temas claros/escuros e escalas de tela relevantes. Registrar
 diferenças intencionais de UX e impedir perda de seleção ou alterações por
 ações inesperadas. Testes headless complementam, mas não substituem essa etapa.
 
+**Ajuste de UX em 2026-10-05:** console inferior recolhido mantém progresso
+compacto de 128 px com porcentagem e Cancelar na infobar, ao lado do feedback
+à esquerda. Console aberto mantém barra longa e Cancelar adjacente. As duas
+apresentações usam a mesma fração/job; cancelamento indisponível fica oculto
+e fases indeterminadas não recebem porcentagem artificial. Sete regressões
+novas passaram, incluindo layout/contraste nos quatro temas e sincronização
+ao alternar apresentações. Capturas offscreen inspecionadas; teste manual com
+importação/CAM pesada ainda pendente. Install normal: 946 registrados,
+935 aprovados, 11 opcionais ignorados, zero falhas/erros.
+
+**Transições em 2026-10-05:** expansão/recolhimento do painel lateral e do console
+inferior animados em 180 ms, com inversão por clique rápido e remoção completa
+ao recolher. Preferências não recebem posições intermediárias; largura por
+monitor, altura expandida e restrições originais são preservadas. Progresso
+compacto permanece disponível durante a abertura. Sete regressões adicionais
+cobrem a transição, eventos FX e divisores aninhados. Install completo:
+953 registrados, 942 aprovados, 11 opcionais ignorados, zero falhas/erros.
+Validação manual com projetos densos e dois monitores ainda pendente.
+
 ### 7. Completar preferências e automação
 
 Inventariar preferências globais, defaults por ferramenta, persistência e

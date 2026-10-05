@@ -226,6 +226,48 @@
     -fx-text-fill: -fc-panel-text;
 }
 
+/* Keep percentage text white on its dark badge, overriding the infobar label palette. */
+.status-bar .progress-percentage {
+    -fx-text-fill: white;
+}
+
+.job-cancel-button {
+    -fx-min-width: 22;
+    -fx-pref-width: 22;
+    -fx-max-width: 22;
+    -fx-min-height: 20;
+    -fx-pref-height: 20;
+    -fx-max-height: 20;
+    -fx-padding: 2;
+    -fx-alignment: center;
+    -fx-content-display: graphic-only;
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-background-radius: 4;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+
+.job-cancel-button:hover {
+    -fx-background-color: -fc-status-hover;
+    -fx-border-color: -fc-danger;
+}
+
+.job-cancel-button:hover .icon-glyph-stroke {
+    -fx-stroke: -fc-danger;
+}
+
+.job-cancel-button:armed {
+    -fx-background-color: derive(-fc-status-hover, -8%);
+    -fx-border-color: -fc-danger;
+}
+
+.job-cancel-button:focused {
+    -fx-border-color: -fc-accent;
+}
+
 .plot-status-controls {
     -fx-alignment: center-right;
 }

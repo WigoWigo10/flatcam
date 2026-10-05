@@ -64,6 +64,14 @@ final class Icons {
         return scaled(square, size);
     }
 
+    /** Wrap the scaled glyph so button layout measures rendered bounds, not the unscaled 24px geometry. */
+    static Node cancel(double size) {
+        SVGPath cross = new SVGPath();
+        cross.setContent("M4 4 L20 20 M20 4 L4 20");
+        cross.getStyleClass().add("icon-glyph-stroke");
+        return new Group(scaled(cross, size));
+    }
+
     /**
      * A raster icon copied straight from the legacy app's own assets/resources/ (e.g.
      * ObjectCollection.py's icon_files map: flatcam_icon16.png/drill16.png/cnc16.png for

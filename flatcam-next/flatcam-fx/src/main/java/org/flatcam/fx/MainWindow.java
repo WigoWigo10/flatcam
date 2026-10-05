@@ -203,6 +203,8 @@ final class MainWindow implements TclFlatcamHost {
     private final Label unitsLabel = new Label("[mm]");
     private final Button runDemoJobButton = new Button();
     private final Button cancelJobButton = new Button();
+    private final CompactJobProgress compactJobProgress = new CompactJobProgress(
+            progressBar.progressProperty(), cancelJobButton.disableProperty(), this::cancelDemoJob);
     private final TextArea console = new TextArea();
     private final TabPane centerTabs = new TabPane();
     private final StackPane propertiesContainer = new StackPane();
@@ -662,6 +664,9 @@ final class MainWindow implements TclFlatcamHost {
     private FluidTooltips fluidTooltips;
     private SplitPane horizontalSplit;
     private SplitPane verticalSplit;
+    private AnimatedSplitPanel sidebarAnimation;
+    private AnimatedSplitPanel consoleAnimation;
+    private SplitPane.Divider observedConsoleDivider;
     private TreeView<String> projectTree;
     private TabPane leftTabs;
     private Tab projectTab;
@@ -807,6 +812,8 @@ final class MainWindow implements TclFlatcamHost {
                 plotContextMenu.hide();
             }
             sidebarDividerDragging = isSidebarDividerTarget(event.getTarget());
+            if (sidebarDividerDragging && sidebarAnimation.isAnimating()) sidebarAnimation.finish();
+            if (isDividerTarget(event.getTarget(), verticalSplit) && consoleAnimation.isAnimating()) consoleAnimation.finish();
         });
         scene.addEventFilter(MouseEvent.MOUSE_RELEASED, event -> {
             if (sidebarDividerDragging) {
@@ -836,14 +843,15 @@ final class MainWindow implements TclFlatcamHost {
         if (sidebarDividerDragging) {
             saveSidebarDividerPosition();
         }
-        if (consoleCollapsed) {
+        if (consoleCollapsed || panelsAnimating()) {
             return; // the collapsed (~1.0) position is not a real layout preference - see toggleConsole().
         }
         AppPreferences.saveSplitVertical(verticalSplit.getDividerPositions()[0]);
     }
 
     private void saveSidebarDividerPosition() {
-        if (sidebarCollapsed || horizontalSplit.getDividers().isEmpty()) {
+        if (sidebarCollapsed || (sidebarAnimation != null && sidebarAnimation.isAnimating())
+                || horizontalSplit.getDividers().isEmpty()) {
             return;
         }
         double position = horizontalSplit.getDividerPositions()[0];
@@ -853,15 +861,24 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private boolean isSidebarDividerTarget(Object target) {
+        return isDividerTarget(target, horizontalSplit);
+    }
+
+    private static boolean isDividerTarget(Object target, SplitPane split) {
         if (!(target instanceof Node node)) {
             return false;
         }
-        for (Node current = node; current != null && current != horizontalSplit; current = current.getParent()) {
-            if (current.getStyleClass().contains("split-pane-divider")) {
-                return true;
-            }
+        boolean divider = false;
+        for (Node current = node; current != null; current = current.getParent()) {
+            if (current instanceof SplitPane) return divider && current == split;
+            divider |= current.getStyleClass().contains("split-pane-divider");
         }
         return false;
+    }
+
+    private boolean panelsAnimating() {
+        return (sidebarAnimation != null && sidebarAnimation.isAnimating())
+                || (consoleAnimation != null && consoleAnimation.isAnimating());
     }
 
     /**
@@ -881,6 +898,8 @@ final class MainWindow implements TclFlatcamHost {
         if (horizontalSplit == null) {
             return;
         }
+        if (sidebarAnimation != null) sidebarAnimation.finish();
+        if (consoleAnimation != null) consoleAnimation.finish();
         scheduleSidebarRestore();
     }
 
@@ -895,7 +914,7 @@ final class MainWindow implements TclFlatcamHost {
         sidebarRestoreQueued = true;
         Platform.runLater(() -> {
             sidebarRestoreQueued = false;
-            if (sidebarCollapsed || sidebarDividerDragging || horizontalSplit.getWidth() <= 0) {
+            if (sidebarCollapsed || sidebarDividerDragging || panelsAnimating() || horizontalSplit.getWidth() <= 0) {
                 return;
             }
             horizontalSplit.setDividerPositions(
@@ -905,23 +924,23 @@ final class MainWindow implements TclFlatcamHost {
 
     /**
      * Collapses the resizable progress/console panel, or restores it. Moving the
-     * divider to 1.0 alone does not reach a true 100% collapse - the console
-     * TextArea has a nonzero intrinsic min-height, so a sliver always stayed
-     * visible. Removing the pane from the SplitPane's items entirely (and
-     * re-adding it to restore) has no such floor.
+     * panel is clipped while sliding and removed at the end, so its TextArea's
+     * intrinsic min-height cannot leave a sliver visible. Animation positions
+     * are never saved as the user's preferred expanded height.
      */
     private void toggleConsole(boolean show) {
-        if (!show) {
+        if (show == !consoleCollapsed) return;
+        if (!show && !consoleAnimation.isAnimating()) {
             dividerBeforeConsoleCollapse = verticalSplit.getDividerPositions()[0];
-            consoleCollapsed = true;
-            verticalSplit.getItems().remove(bottomPanel);
-        } else {
-            consoleCollapsed = false;
-            verticalSplit.getItems().add(bottomPanel);
-            verticalSplit.setDividerPositions(dividerBeforeConsoleCollapse);
-            attachVerticalDividerSaveListener(); // re-adding creates a new Divider instance.
         }
+        consoleCollapsed = !show;
+        consoleAnimation.setVisible(show);
+        updateConsoleProgressVisibility();
         AppPreferences.saveConsoleOpen(show);
+    }
+
+    private void updateConsoleProgressVisibility() {
+        compactJobProgress.setVisible(consoleCollapsed || (consoleAnimation != null && consoleAnimation.isAnimating()));
     }
 
     /** A disabled entry is an explicit roadmap marker, never a no-op click. */
@@ -949,15 +968,9 @@ final class MainWindow implements TclFlatcamHost {
         if (visible == !sidebarCollapsed) {
             return;
         }
-        if (visible) {
-            sidebarCollapsed = false;
-            horizontalSplit.getItems().add(0, leftTabs);
-            scheduleSidebarRestore();
-        } else {
-            saveSidebarDividerPosition();
-            sidebarCollapsed = true;
-            horizontalSplit.getItems().remove(leftTabs);
-        }
+        if (!visible) saveSidebarDividerPosition();
+        sidebarCollapsed = !visible;
+        sidebarAnimation.setVisible(visible);
         sidebarToggle.setSelected(visible);
     }
 
@@ -1868,7 +1881,8 @@ final class MainWindow implements TclFlatcamHost {
         runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
         runDemoJobButton.setOnAction(e -> runDemoJob());
 
-        cancelJobButton.setGraphic(Icons.stop(16));
+        cancelJobButton.setGraphic(Icons.cancel(14));
+        cancelJobButton.getStyleClass().add("job-cancel-button");
         cancelJobButton.setTooltip(new Tooltip("Cancelar a operacao em andamento"));
         cancelJobButton.setDisable(true);
         cancelJobButton.setOnAction(e -> cancelDemoJob());
@@ -2001,10 +2015,13 @@ final class MainWindow implements TclFlatcamHost {
         unitsLabel.setTooltip(new Tooltip("Unidades do projeto"));
         statusLabel.setMinWidth(0);
         statusLabel.setMaxWidth(Double.MAX_VALUE);
-        HBox.setHgrow(statusLabel, Priority.ALWAYS);
-        cancelJobButton.visibleProperty().bind(cancelJobButton.disableProperty().not());
-        cancelJobButton.managedProperty().bind(cancelJobButton.visibleProperty());
-        HBox bar = new HBox(6, statusLabel, statusControls.node(), cancelJobButton, unitsLabel, statusDot, activityLabel);
+        HBox.setHgrow(statusLabel, Priority.NEVER);
+        updateConsoleProgressVisibility();
+        HBox feedback = new HBox(6, statusLabel, compactJobProgress);
+        feedback.setAlignment(Pos.CENTER_LEFT);
+        feedback.setMinWidth(0);
+        HBox.setHgrow(feedback, Priority.ALWAYS);
+        HBox bar = new HBox(6, feedback, statusControls.node(), unitsLabel, statusDot, activityLabel);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.getStyleClass().add("status-bar");
         return bar;
@@ -2032,6 +2049,15 @@ final class MainWindow implements TclFlatcamHost {
         // uses, just applied before the first layout instead of via a later user click.
         verticalSplit = consoleCollapsed ? new SplitPane(horizontalSplit) : new SplitPane(horizontalSplit, bottomPanel);
         verticalSplit.setOrientation(Orientation.VERTICAL);
+        sidebarAnimation = new AnimatedSplitPanel(horizontalSplit, leftTabs, 0,
+                () -> AppPreferences.loadSplitHorizontalForScreen(currentScreenId, AppPreferences.loadSplitHorizontal(0.22)),
+                () -> { if (!sidebarCollapsed) scheduleSidebarRestore(); });
+        consoleAnimation = new AnimatedSplitPanel(verticalSplit, bottomPanel, 1,
+                () -> dividerBeforeConsoleCollapse, () -> {
+                    if (!consoleCollapsed) attachVerticalDividerSaveListener();
+                    updateConsoleProgressVisibility();
+                    scheduleSidebarRestore();
+                });
 
         // Reapply after each Stage width change. A transfer between monitors can
         // resize this SplitPane for several pulses before the new Stage settles.
@@ -2058,8 +2084,11 @@ final class MainWindow implements TclFlatcamHost {
      * called again each time the panel is restored, not just once at startup.
      */
     private void attachVerticalDividerSaveListener() {
-        verticalSplit.getDividers().get(0).positionProperty()
-                .addListener((obs, oldVal, newVal) -> saveSplitPositions());
+        if (verticalSplit.getDividers().isEmpty()) return;
+        SplitPane.Divider divider = verticalSplit.getDividers().getFirst();
+        if (divider == observedConsoleDivider) return;
+        observedConsoleDivider = divider;
+        divider.positionProperty().addListener((obs, oldVal, newVal) -> saveSplitPositions());
     }
 
     /**
@@ -7581,13 +7610,18 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private VBox buildBottomPanel() {
+        progressBar.setId("console-job-progress");
+        progressPercentLabel.setId("console-job-percent");
+        cancelJobButton.setId("console-job-cancel");
         progressBar.setMaxWidth(Double.MAX_VALUE);
         progressPercentLabel.setMouseTransparent(true);
         progressPercentLabel.getStyleClass().add("progress-percentage");
         StackPane progressWithPercentage = new StackPane(progressBar, progressPercentLabel);
         HBox.setHgrow(progressWithPercentage, Priority.ALWAYS);
 
-        HBox progressRow = new HBox(8, progressWithPercentage);
+        cancelJobButton.visibleProperty().bind(cancelJobButton.disableProperty().not());
+        cancelJobButton.managedProperty().bind(cancelJobButton.visibleProperty());
+        HBox progressRow = new HBox(8, progressWithPercentage, cancelJobButton);
         progressRow.setAlignment(Pos.CENTER_LEFT);
         progressRow.setPadding(new Insets(4));
 
@@ -8058,12 +8092,12 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void updateProgress(double fraction) {
-        progressBar.setProgress(fraction);
-        if (Double.isNaN(fraction) || fraction < 0) {
+        double bounded = !Double.isFinite(fraction) || fraction < 0 ? -1 : Math.min(1, fraction);
+        progressBar.setProgress(bounded);
+        if (bounded < 0) {
             progressPercentLabel.setText("...");
             return;
         }
-        double bounded = Math.max(0, Math.min(1, fraction));
         progressPercentLabel.setText(Math.round(bounded * 100) + "%");
     }
 

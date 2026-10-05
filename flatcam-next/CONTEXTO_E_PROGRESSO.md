@@ -5,14 +5,18 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base `5fa4b871`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `5830cbf2`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
 > a execução/cancelamento do Terminal e a grade inicial não limitada de Seed.
+> O console inferior recolhido agora mantém uma barra curta com porcentagem e
+> Cancelar na barra de status; a versão expandida mantém a barra longa.
+> Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
+> reversível, sem persistir dimensões intermediárias.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **939 testes registrados, 928 aprovados, 11 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 114 application, 203 FX e 20 de suporte de testes.
+> **953 testes registrados, 942 aprovados, 11 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 114 application, 217 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -83,6 +87,12 @@ native. Só devem ser criados quando houver uma fronteira real que justifique a
 separação.
 
 ### Verificação mais recente
+
+Após os ajustes do console recolhido e das transições, **953 registrados, 942 aprovados e 11
+opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
+normal. Quatorze novos testes verificam barra compacta, porcentagem, cancelamento,
+alternância entre apresentações, transições e layout nos quatro temas. Capturas fora da
+tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
 928 aprovados, 11 opcionais ignorados**, zero falhas/erros, com limpeza TempDir
@@ -2325,3 +2335,61 @@ Antes de ampliar o Terminal, testar os fluxos com projetos densos. Próxima
 implementação sugerida: `open_project` e transformações Tcl, preservando
 worker/FX, cancelamento e testes do host real. Os limites do dialeto e das
 flags continuam em `PLANO_PARIDADE.md`; não declarar paridade Tcl completa.
+
+## Progresso com console recolhido — 2026-10-05
+
+Atendendo às imagens do console inferior (não à aba central Tcl), o progresso
+das operações da janela principal continua visível quando esse painel é
+recolhido. `CompactJobProgress` espelha a fração real da barra existente,
+com largura preferida de 128 px, porcentagem sobreposta e botão Cancelar ao
+lado. Fica à esquerda da infobar, junto da mensagem de status, sem deslocar
+os controles do Plot para outra linha. Ao reabrir o console, a versão compacta
+sai do layout e reaparece a barra longa, também com Cancelar ao lado.
+
+Ambos os botões solicitam cancelamento do mesmo job. Ficam ocultos quando
+inativos ou quando a operação não é cancelável (por exemplo, publicação de
+arquivo). O último percentual continua visível após concluir, inclusive 100%.
+Fases sem fração conhecida permanecem indeterminadas (`...`), sem porcentagem
+inventada. Não houve alteração de algoritmos CAM ou cálculo de progresso.
+O progresso independente da aba Tcl não foi misturado com o job principal.
+
+`CompactJobProgressTest`: sete casos, incluindo quatro temas, sincronização,
+cancelamento real pelo handle, limite visual de tamanho e alternância sem
+perder a fração. Capturas offscreen dos quatro temas inspecionadas. Install
+completo: **946 registrados, 935 aprovados, 11 opcionais ignorados**, zero
+falhas/erros e limpeza normal ativa. Sem validação manual de importação pesada
+nesta entrega; iniciar o app e recolher/reabrir o console durante uma operação.
+
+Ajuste visual seguinte: o quadrado de Cancelar usava um Group escalado cujos
+bounds de layout não refletiam o tamanho desenhado; ficou 6 px fora do centro.
+`Icons.cancel` usa um X e um wrapper que mede os bounds já escalados. Botões
+compacto/expandido compartilham `job-cancel-button` (22×20 px), borda leve,
+hover/pressionado/foco e cores do tema. Os testes agora verificam também o
+centro real do desenho nos quatro temas e no botão expandido, além dos estados
+interativos. Sem alterar o helper global de outros ícones.
+
+## Transições dos painéis — 2026-10-05
+
+`AnimatedSplitPanel` anima o divisor do painel lateral Projeto/Propriedades/
+Ferramenta e o do console inferior durante 180 ms, com aceleração/desaceleração.
+Não se refere à aba central Tcl. Durante a transição, um clip limita o desenho
+ao espaço disponível e o mínimo do eixo é temporariamente zero. Ao recolher,
+o painel é removido do SplitPane; ao terminar, mínimos, clip e comportamento
+do mouse originais são restaurados. Cliques rápidos invertem a partir da posição
+atual; callbacks de animações interrompidas não encerram a nova transição.
+
+Posições intermediárias não são gravadas nas preferências. A largura salva por
+monitor e a altura expandida do console permanecem como destinos. Troca de
+monitor conclui a transição usando o destino atualizado. A identificação do
+divisor usa o SplitPane ancestral mais próximo, sem confundir divisores dos
+painéis aninhados. Listeners do console não se duplicam ao inverter a animação.
+A barra compacta permanece disponível durante a abertura do console.
+
+`AnimatedSplitPanelTest`: sete casos cobrem posições intermediárias, reversão,
+repetição, início recolhido, restauração de restrições, destino atualizado,
+proteção da persistência e execução de eventos FX durante a Timeline real.
+Install completo: **953 registrados, 942 aprovados, 11 opcionais ignorados**,
+zero falhas/erros, limpeza normal ativa. Validar manualmente com projeto denso,
+cliques rápidos e troca de monitor. Não foi medida fluidez de projeto privado
+nem alterado o renderer/CAM; a animação continua dependendo do custo de layout
+e desenho por pulse.

@@ -127,9 +127,9 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 939 registrados, 928 aprovados, 11 opcionais ignorados,
-zero falhas/erros (602 CAM, 114 application, 203 FX, 20 test-support).
-Probes nativos `--probe` e `--probe --software` passaram com as classes atuais.
+limpeza normal ativa: 953 registrados, 942 aprovados, 11 opcionais ignorados,
+zero falhas/erros (602 CAM, 114 application, 217 FX, 20 test-support).
+Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
 
@@ -142,6 +142,24 @@ resultados cuja origem/projeto mudou. Os testes FX são Windows-only.
 `TclInterpreterTest` verifica cancelamento em loops/substituição/parse;
 `StableInteriorPointTest` cobre a grade estreita, cancelamento inicial,
 coordenadas grandes, não poligonais e precisão inválida.
+
+`CompactJobProgressTest` cobre percentual/cancelamento compartilhados, fases
+indeterminadas, visibilidade/tamanho e quatro temas. Teste de integração do
+MainWindow verifica a troca de apresentações, parent do Cancelar junto da
+barra longa e cancelamento do handle real sem modificar preferências. Capturas
+opcionais (`-Dflatcam.tests.snapshots=true`) vão para
+`flatcam-fx/target/compact-progress-TEMA.png`; foram inspecionadas nesta entrega.
+O mesmo teste compara os centros do botão e do desenho do Cancelar; a versão
+anterior falhou com deslocamento de 6 px nos quatro temas. A regressão passa
+com X centralizado e verifica hover/pressionado/foco e o botão expandido.
+
+`AnimatedSplitPanelTest` cobre sete cenários: posições intermediárias do painel
+lateral/console, restauração de tamanho mínimo/clip/mouse, inversão com callback
+antigo, ciclos repetidos, início recolhido, mudança de destino por monitor,
+guardas de persistência e identificação de divisores aninhados. Uma Timeline
+real verifica múltiplos frames e processamento de outro evento FX durante a
+transição. Os testes não escrevem preferências; fluidez com projeto denso e
+troca física de monitor continuam sendo verificações manuais.
 
 A comparação CAM privada e os painéis completos não foram testados manualmente
 nesta sessão. Warnings de erros deliberados nos testes de jobs/Tcl/arquivos
