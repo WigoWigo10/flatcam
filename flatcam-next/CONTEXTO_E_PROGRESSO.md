@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `900bda8a`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `2bc6ffb4`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
@@ -18,9 +18,11 @@ e continuar a migração sem recomeçar a investigação.
 > sem o fundo quase branco herdado do Modena no escuro.
 > Tabelas #/diâmetro/TT de Isolation, NCC e Geometry→CNC têm colunas compactas
 > e conteúdo centralizado; a largura extra fica no diâmetro, como no Python.
+> Alternar Snap atualiza imediatamente coordenadas/prévia/cruz e não é desfeito
+> por texto inválido nos campos de passo X/Y.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **965 testes registrados, 954 aprovados, 11 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 114 application, 229 FX e 20 de suporte de testes.
+> **976 testes registrados, 965 aprovados, 11 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 114 application, 240 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -92,10 +94,10 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições e tabelas, **965 registrados, 954 aprovados e 11
+Após os ajustes do console, transições, tabelas e Snap, **976 registrados, 965 aprovados e 11
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Vinte e seis novos testes verificam barra compacta, porcentagem, cancelamento,
-alternância entre apresentações, transições e seleção/layout nos quatro temas. Capturas fora da
+normal. Trinta e sete novos testes verificam barra compacta, porcentagem, cancelamento,
+transições, Snap e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
@@ -2446,3 +2448,32 @@ Não houve alteração de parâmetros CAM ou das outras tabelas, como aperturas 
 Drills/Slots. Validação manual no painel completo permanece pendente; abaixo
 dos mínimos somados ou com muitos itens, os limites do viewport continuam
 valendo, sem garantia de eliminar toda rolagem em qualquer largura.
+
+## Alternância do Snap — 2026-10-05
+
+As tabelas foram commitadas em `2bc6ffb4`. Na investigação seguinte, o usuário
+relatou que o botão mudava de estado, mas o Plot continuava preso à grade.
+O teste básico de alternar com passos válidos já liberava as coordenadas reais;
+não foi reproduzido um bloqueio persistente de novos pontos nesse caminho.
+Foram reproduzidos dois defeitos relacionados: HUD/prévia não atualizados até
+o próximo movimento do mouse, e clique desfeito se o texto de passo era inválido.
+
+`setGridSnap` agora recalcula coordenadas, posição da prévia e cruz no último
+cursor dentro do Plot, imediatamente. O botão mantém o estado escolhido mesmo
+com passo inválido: restaura os últimos valores válidos, aplica/salva o estado
+e avisa no feedback. Não oculta a grade visual, que é uma preferência separada.
+Pontos/âncoras já confirmados não são reposicionados ao alternar.
+
+`PlotStatusControlsTest`: onze casos com salvamento injetado, sem alterar as
+preferências reais. Cobrem botão/rota de menu-G, passos X/Y independentes,
+vazios/zero/negativos/NaN/infinito/texto (vinculados e não vinculados), HUD,
+cruz transparente, prévia de área e movimento de objeto, deslocamento confirmado
+sem arredondamento e trilha do editor sem pontos de dobra após desligar Snap.
+Eventos MouseEvent exercitam o Plot real; G usa a mesma rota toggleGrid, mas
+não houve automação de teclado/clique no app completo.
+
+Install completo: **976 registrados, 965 aprovados, 11 opcionais ignorados**,
+zero falhas/erros, limpeza normal ativa. Reabrir o app e validar o caso exato
+do usuário; a correção imediata não prova a causa de toda captura persistente
+possível. Não houve alteração de geometria CAM, formato de projeto ou prefs
+do usuário durante os testes.

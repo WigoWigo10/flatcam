@@ -878,10 +878,16 @@ final class PlotAreaView extends StackPane {
         gridSnapEnabled = enabled;
         gridStepX = stepX;
         gridStepY = stepY;
-        if (trackPlacementHandler != null) {
-            redraw();
+        if (cursorInsidePlot) {
+            // A toggle/spacing edit must refresh the current cursor and placement too;
+            // repainting only the cross leaves the HUD and preview snapped until mouse movement.
+            updatePlacement(cursorScreenX, cursorScreenY);
+            updateCoordLabel(cursorScreenX, cursorScreenY);
         } else {
             drawSnapCursor();
+        }
+        if (trackPlacementHandler != null) {
+            redraw();
         }
     }
 

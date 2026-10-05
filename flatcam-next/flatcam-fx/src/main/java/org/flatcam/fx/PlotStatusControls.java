@@ -17,6 +17,7 @@ final class PlotStatusControls {
 
     private final PlotAreaView plot;
     private final Consumer<String> feedback;
+    private final Consumer<AppPreferences.PlotStatusSettings> saveSettings;
     private final HBox root;
     private final Label coordinates = new Label("X: -   Y: -");
     private final ToggleButton gridSnap;
@@ -32,9 +33,17 @@ final class PlotStatusControls {
 
     PlotStatusControls(PlotAreaView plot, Function<String, Node> icon, Node consoleToggle,
                        Consumer<String> feedback, Runnable openPreferences) {
+        this(plot, icon, consoleToggle, feedback, openPreferences,
+                AppPreferences.loadPlotStatusSettings(), AppPreferences::savePlotStatusSettings);
+    }
+
+    PlotStatusControls(PlotAreaView plot, Function<String, Node> icon, Node consoleToggle,
+                       Consumer<String> feedback, Runnable openPreferences,
+                       AppPreferences.PlotStatusSettings saved,
+                       Consumer<AppPreferences.PlotStatusSettings> saveSettings) {
         this.plot = plot;
         this.feedback = feedback;
-        AppPreferences.PlotStatusSettings saved = AppPreferences.loadPlotStatusSettings();
+        this.saveSettings = saveSettings;
         gridVisible = saved.gridVisible();
         plot.setGridVisible(gridVisible);
         stepX = saved.gridX();
@@ -50,12 +59,14 @@ final class PlotStatusControls {
         gridSnap = toggle(icon.apply("grid32.png"), "Ativar/desativar snap na grade", saved.gridSnap());
         gridSnap.getStyleClass().add("status-grid-snap");
         gridSnap.setOnAction(event -> {
-            if (applySpacing()) {
-                feedback.accept(gridSnap.isSelected() ? "Snap na grade ativado." : "Snap na grade desativado.");
-            } else {
-                gridSnap.setSelected(!gridSnap.isSelected());
+            boolean validSpacing = applySpacing();
+            if (!validSpacing) {
+                // Invalid text restores the last valid spacing, not the old toggle state.
                 plot.setGridSnap(gridSnap.isSelected(), stepX, stepY);
+                save();
             }
+            feedback.accept((gridSnap.isSelected() ? "Snap na grade ativado." : "Snap na grade desativado.")
+                    + (validSpacing ? "" : " Passos invalidos; mantidos os ultimos valores validos."));
         });
         gridX.setTooltip(new Tooltip("Distancia do snap em X"));
         gridY.setTooltip(new Tooltip("Distancia do snap em Y"));
@@ -195,7 +206,7 @@ final class PlotStatusControls {
     }
 
     private void save() {
-        AppPreferences.savePlotStatusSettings(new AppPreferences.PlotStatusSettings(
+        saveSettings.accept(new AppPreferences.PlotStatusSettings(
                 gridSnap.isSelected(), gridVisible, stepX, stepY, link.isSelected(), axis.isSelected(),
                 hud.isSelected(), workspace.isSelected()));
     }

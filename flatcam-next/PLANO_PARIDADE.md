@@ -260,6 +260,14 @@ ausência de reticências em C1 e edição do perfil. Install completo:
 965 registrados, 954 aprovados, 11 opcionais ignorados, zero falhas/erros.
 Capturas inspecionadas; validar o layout no painel completo manualmente.
 
+**Snap em 2026-10-05:** alternância atualiza coordenadas/prévia/cruz de imediato.
+Texto inválido em X/Y não desfaz o clique; mantém passos válidos e informa o
+usuário. Grade visual permanece independente. Onze regressões cobrem controles,
+persistência injetada, entradas inválidas, movimentos confirmados e desenho
+livre. Install: 976 registrados, 965 aprovados, 11 opcionais ignorados, zero
+falhas/erros. Revalidar manualmente o relato de captura persistente do usuário;
+o teste básico com passos válidos já liberava novos pontos antes da correção.
+
 ### 7. Completar preferências e automação
 
 Inventariar preferências globais, defaults por ferramenta, persistência e

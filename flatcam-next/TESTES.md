@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 965 registrados, 954 aprovados, 11 opcionais ignorados,
-zero falhas/erros (602 CAM, 114 application, 229 FX, 20 test-support).
+limpeza normal ativa: 976 registrados, 965 aprovados, 11 opcionais ignorados,
+zero falhas/erros (602 CAM, 114 application, 240 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -176,6 +176,15 @@ de #/TT, preenchimento do viewport, alinhamento/tamanho dos campos, C1 sem
 reticências, seleção/itens preservados e troca de perfil refletida no modelo.
 Snapshots opcionais em `flatcam-fx/target/compact-tools-PAINEL-TEMA.png` foram
 inspecionados nos quatro temas. Não gera CAM nem escreve preferências.
+
+`PlotStatusControlsTest`: onze casos exercitam botão/rota toggleGrid, estado do
+Plot e persistência injetada, passos independentes/vinculados, seis entradas
+inválidas e atualização imediata de coordenadas/prévia/cruz. MouseEvent reais
+verificam área/movimento de objeto com deslocamento livre confirmado e trilha
+sem arredondamento/dobras após desligar Snap. Sete casos iniciais falharam antes
+da correção (seis entradas inválidas e coordenadas desatualizadas); os demais
+protegem comportamento existente. Não escreve preferências reais. Validação
+do relato exato no app completo continua sendo manual.
 
 A comparação CAM privada e os painéis completos não foram testados manualmente
 nesta sessão. Warnings de erros deliberados nos testes de jobs/Tcl/arquivos
