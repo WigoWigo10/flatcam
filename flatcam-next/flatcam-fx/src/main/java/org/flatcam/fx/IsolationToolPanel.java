@@ -140,6 +140,7 @@ final class IsolationToolPanel {
                 setAlignment(Pos.CENTER);
                 setPadding(new javafx.geometry.Insets(1, 2, 1, 2));
                 choice.getStyleClass().add("table-editor-combo");
+                ToolProfilePicker.decorate(choice);
                 choice.setMinWidth(0);
                 choice.setMaxWidth(Double.MAX_VALUE);
                 choice.prefWidthProperty().bind(typeColumn.widthProperty().subtract(6));
