@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `5830cbf2`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `900bda8a`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
@@ -14,9 +14,13 @@ e continuar a migração sem recomeçar a investigação.
 > Cancelar na barra de status; a versão expandida mantém a barra longa.
 > Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
 > reversível, sem persistir dimensões intermediárias.
+> Seleções de tabelas sem foco agora usam destaque discreto coerente com o tema,
+> sem o fundo quase branco herdado do Modena no escuro.
+> Tabelas #/diâmetro/TT de Isolation, NCC e Geometry→CNC têm colunas compactas
+> e conteúdo centralizado; a largura extra fica no diâmetro, como no Python.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **953 testes registrados, 942 aprovados, 11 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 114 application, 217 FX e 20 de suporte de testes.
+> **965 testes registrados, 954 aprovados, 11 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 114 application, 229 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -88,10 +92,10 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console recolhido e das transições, **953 registrados, 942 aprovados e 11
+Após os ajustes do console, transições e tabelas, **965 registrados, 954 aprovados e 11
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Quatorze novos testes verificam barra compacta, porcentagem, cancelamento,
-alternância entre apresentações, transições e layout nos quatro temas. Capturas fora da
+normal. Vinte e seis novos testes verificam barra compacta, porcentagem, cancelamento,
+alternância entre apresentações, transições e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
@@ -2393,3 +2397,52 @@ zero falhas/erros, limpeza normal ativa. Validar manualmente com projeto denso,
 cliques rápidos e troca de monitor. Não foi medida fluidez de projeto privado
 nem alterado o renderer/CAM; a animação continua dependendo do custo de layout
 e desenho por pulse.
+
+## Seleção de tabelas sem foco — 2026-10-05
+
+Após o commit `900bda8a` dos painéis/progresso, foi confirmado que Isolation,
+NCC e outros painéis selecionam a primeira ferramenta ao abrir. A seleção é
+funcional e foi preservada; o defeito era visual. No tema clássico, o fundo
+inativo herdado do Modena ficava quase branco mesmo no escuro. O Ice já tinha
+estilo de seleção em painéis, mas não diferenciava foco da tabela.
+
+Os dois arquivos de componentes agora aplicam regras comuns para TableView,
+inclusive fora dos painéis: sem foco, destaque discreto usando a paleta de
+seleção inativa existente; com foco, cor forte `-fc-selection-row`, com texto
+contrastante. O foco vem da tabela, não do índice do FocusModel da linha.
+Valores de ComboBox embutidos conservam a cor de texto da própria entrada.
+Células de totais mantêm a cor de destaque original após desselecionar.
+Não foram alteradas seleção inicial, geração CAM ou preferências.
+
+`TableSelectionThemeTest`: oito casos parametrizados nos quatro temas,
+cada um verificando tabelas genéricas, tool-panel e object-panel. Cobrem
+seleção inicial, cores computadas da linha/célula/Text, contraste mínimo 4,5:1,
+foco CSS, hover, seleção múltipla, desseleção, troca de tema e ComboBox.
+O teste reproduziu o fundo incorreto antes do ajuste; capturas offscreen dos
+quatro temas foram inspecionadas após a correção. Install completo aprovado:
+**961 registrados, 950 aprovados, 11 opcionais ignorados**, zero falhas/erros.
+O foco real por clique e navegação entre painéis ainda precisa de teste manual.
+
+## Colunas e conteúdo das tabelas de ferramentas — 2026-10-05
+
+`CompactToolsTable` padroniza as tabelas de três colunas de Isolation, NCC e
+Geometry→CNC: # fixo em 32 px, TT entre 72 e 96 px (preferência 84), diâmetro
+flexível com mínimo 64 px. Segue a disposição do Python em ToolIsolation/
+ToolNCC: índice fixo, diâmetro esticado, tipo compacto. A coluna TT não toma
+metade da tabela nem cria uma coluna vazia ao lado. Valores/seletores ficam
+centralizados sob os cabeçalhos nos quatro temas. Linhas de 28 px e seletores
+de 24 px mantêm alinhamento vertical; padding interno permite ler C1-C4 sem
+reticências nas larguras verificadas. Geometry→CNC reserva 40 px de cabeçalho/
+borda na altura, evitando scrollbar vertical desnecessária com poucos itens.
+
+`CompactToolsTableTest`: quatro casos (um por tema), usando as tabelas reais
+dos três painéis e ciclos entre 180/240/320/560 px. Verificam limites das
+colunas, preenchimento do viewport sem coluna vazia, ausência de rolagem
+horizontal nessas condições, alinhamento, tamanho/valor renderizado do
+ComboBox, preservação dos itens/seleção e mudança C1→C2 no modelo real.
+Capturas fora da tela foram inspecionadas nos quatro temas. Install aprovado:
+**965 registrados, 954 aprovados, 11 opcionais ignorados**, zero falhas/erros.
+Não houve alteração de parâmetros CAM ou das outras tabelas, como aperturas e
+Drills/Slots. Validação manual no painel completo permanece pendente; abaixo
+dos mínimos somados ou com muitos itens, os limites do viewport continuam
+valendo, sem garantia de eliminar toda rolagem em qualquer largura.

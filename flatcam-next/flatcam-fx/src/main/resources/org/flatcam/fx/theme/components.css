@@ -68,6 +68,53 @@
     -fx-text-fill: -fc-panel-text;
 }
 
+/* Table selection follows control focus, not the FocusModel's current row.
+ * Modena's inactive selection can become nearly white in a dark theme.
+ * Keep embedded ComboBox values on their own input palette. */
+.table-view .table-cell {
+    -fx-text-fill: -fc-panel-text;
+}
+
+.table-view .table-row-cell:filled:selected {
+    -fx-background-color: -fc-selection-bg-unfocused;
+    -fx-background-insets: 0;
+}
+
+.table-view .table-row-cell:filled:selected .table-cell,
+.table-view .table-row-cell:filled:selected .table-cell.total-cell {
+    -fx-text-fill: -fc-selection-text-unfocused;
+}
+
+.table-view:focused .table-row-cell:filled:selected {
+    -fx-background-color: -fc-selection-row;
+}
+
+.table-view:focused .table-row-cell:filled:selected .table-cell,
+.table-view:focused .table-row-cell:filled:selected .table-cell.total-cell {
+    -fx-text-fill: -fc-selection-row-text;
+}
+
+.table-view .combo-box > .list-cell {
+    -fx-text-fill: -fc-panel-text;
+}
+
+/* Compact # / Diameter / TT tables keep values under the centered headers. */
+.compact-tools-table .table-cell {
+    -fx-alignment: center;
+    -fx-padding: 2 5;
+}
+
+.compact-tools-table .combo-box > .list-cell {
+    -fx-alignment: center;
+    -fx-padding: 2 4;
+}
+
+.compact-tools-table .table-editor-combo {
+    -fx-min-height: 24;
+    -fx-pref-height: 24;
+    -fx-max-height: 24;
+}
+
 /*
  * Base text color for every filled row, selected or not - Modena's own
  * default .tree-cell .text fill (derived from -fx-text-background-color,

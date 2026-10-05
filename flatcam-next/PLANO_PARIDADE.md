@@ -243,6 +243,23 @@ cobrem a transição, eventos FX e divisores aninhados. Install completo:
 953 registrados, 942 aprovados, 11 opcionais ignorados, zero falhas/erros.
 Validação manual com projetos densos e dois monitores ainda pendente.
 
+**Seleção de tabelas em 2026-10-05:** corrigido fundo quase branco da seleção
+sem foco no tema clássico escuro. Regras comuns aos quatro temas distinguem
+seleção inativa discreta e seleção com foco forte, preservando escolhas iniciais
+dos painéis, ComboBox embutidos e destaque dos totais ao desselecionar. Oito
+regressões cobrem cores computadas, contraste, troca de tema e seleção múltipla.
+Capturas offscreen inspecionadas; foco real por clique ainda a validar.
+Install completo: 961 registrados, 950 aprovados, 11 opcionais ignorados,
+zero falhas/erros.
+
+**Layout de Tools Table em 2026-10-05:** Isolation, NCC e Geometry→CNC usam
+# fixo, TT compacto (72–96 px) e diâmetro flexível, seguindo o comportamento
+do Python. Valores/seletores centralizados e alturas consistentes nos quatro
+temas. Quatro regressões usam os painéis reais, verificam redimensionamento,
+ausência de reticências em C1 e edição do perfil. Install completo:
+965 registrados, 954 aprovados, 11 opcionais ignorados, zero falhas/erros.
+Capturas inspecionadas; validar o layout no painel completo manualmente.
+
 ### 7. Completar preferências e automação
 
 Inventariar preferências globais, defaults por ferramenta, persistência e

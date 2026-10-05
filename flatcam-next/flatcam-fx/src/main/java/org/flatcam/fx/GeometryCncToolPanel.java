@@ -101,8 +101,9 @@ final class GeometryCncToolPanel {
             typeColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
                     cellData.getValue().toolProfile().name()));
             toolTable.getColumns().addAll(List.of(idColumn, diaColumn, typeColumn));
+            CompactToolsTable.configure(toolTable, idColumn, diaColumn, typeColumn);
             toolTable.getItems().setAll(tools);
-            toolTable.setPrefHeight(Math.min(160, 28 + tools.size() * 28));
+            toolTable.setPrefHeight(Math.min(160, 40 + tools.size() * 28));
         } else if (tools.size() == 1) {
             toolDiaField.setText(format(tools.get(0).toolDiameter()));
         }

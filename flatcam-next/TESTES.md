@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 953 registrados, 942 aprovados, 11 opcionais ignorados,
-zero falhas/erros (602 CAM, 114 application, 217 FX, 20 test-support).
+limpeza normal ativa: 965 registrados, 954 aprovados, 11 opcionais ignorados,
+zero falhas/erros (602 CAM, 114 application, 229 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -160,6 +160,22 @@ guardas de persistência e identificação de divisores aninhados. Uma Timeline
 real verifica múltiplos frames e processamento de outro evento FX durante a
 transição. Os testes não escrevem preferências; fluidez com projeto denso e
 troca física de monitor continuam sendo verificações manuais.
+
+`TableSelectionThemeTest`: oito casos parametrizados nos quatro temas verificam
+TableView genérica e nos painéis de ferramenta/objeto, cores computadas de
+seleção inicial sem foco, foco CSS, hover, seleção múltipla, troca de tema,
+desseleção e cores de totais/ComboBox. Contraste do texto selecionado >= 4,5:1.
+Falhou antes da correção e passou depois; snapshots opcionais em
+`flatcam-fx/target/table-selection-TEMA.png` foram inspecionados nos quatro temas.
+O teste de CSS simula a pseudo-classe da tabela; foco real por clique continua
+exigindo validação manual. Não grava preferências nem altera seleção funcional.
+
+`CompactToolsTableTest`: quatro casos nos temas, usando tabelas reais de
+Isolation/NCC/Geometry→CNC e ciclos de largura 180/240/320/560 px. Cobrem limites
+de #/TT, preenchimento do viewport, alinhamento/tamanho dos campos, C1 sem
+reticências, seleção/itens preservados e troca de perfil refletida no modelo.
+Snapshots opcionais em `flatcam-fx/target/compact-tools-PAINEL-TEMA.png` foram
+inspecionados nos quatro temas. Não gera CAM nem escreve preferências.
 
 A comparação CAM privada e os painéis completos não foram testados manualmente
 nesta sessão. Warnings de erros deliberados nos testes de jobs/Tcl/arquivos

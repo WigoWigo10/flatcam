@@ -186,8 +186,6 @@ final class NccToolPanel {
                 setText(empty ? null : Integer.toString(getIndex() + 1));
             }
         });
-        numberColumn.setMinWidth(32);
-        numberColumn.setMaxWidth(32);
         TableColumn<ToolRow, Double> diaColumn = new TableColumn<>("Diametro");
         diaColumn.setSortable(false);
         diaColumn.setCellValueFactory(cellData ->
@@ -208,8 +206,10 @@ final class NccToolPanel {
             private boolean updating;
             {
                 setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER);
                 setPadding(new javafx.geometry.Insets(1, 2, 1, 2));
                 choice.getStyleClass().add("table-editor-combo");
+                choice.setMinWidth(0);
                 choice.setMaxWidth(Double.MAX_VALUE);
                 choice.prefWidthProperty().bind(typeColumn.widthProperty().subtract(6));
                 choice.setOnAction(event -> {
@@ -243,11 +243,8 @@ final class NccToolPanel {
                 + "V: exige Gerber e Isolation; configure V-Tip Dia/Angle ao gerar CNC Job."));
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
-        typeColumn.setMinWidth(80);
-        typeColumn.setPrefWidth(84);
         toolTable.getColumns().addAll(numberColumn, diaColumn, typeColumn);
-        toolTable.setMinWidth(0);
-        toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
+        CompactToolsTable.configure(toolTable, numberColumn, diaColumn, typeColumn);
         Runnable updateTableHeight = () ->
                 toolTable.setPrefHeight(Math.min(150, 32 + Math.max(tools.size(), 1) * 28));
         tools.addListener((javafx.collections.ListChangeListener<ToolRow>) change -> {

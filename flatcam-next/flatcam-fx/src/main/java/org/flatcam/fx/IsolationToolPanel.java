@@ -114,12 +114,8 @@ final class IsolationToolPanel {
         toolMessage.managedProperty().bind(toolMessage.textProperty().isNotEmpty());
         TableView<ToolRow> table = new TableView<>(rows);
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        table.setMinWidth(0);
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         TableColumn<ToolRow, String> numberColumn = new TableColumn<>("#");
         numberColumn.setSortable(false);
-        numberColumn.setMinWidth(32);
-        numberColumn.setMaxWidth(32);
         numberColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(""));
         numberColumn.setCellFactory(column -> new TableCell<>() {
             @Override protected void updateItem(String item, boolean empty) {
@@ -133,8 +129,6 @@ final class IsolationToolPanel {
                 new javafx.beans.property.SimpleDoubleProperty(cell.getValue().diameter));
         TableColumn<ToolRow, ToolProfile> typeColumn = new TableColumn<>("TT");
         typeColumn.setSortable(false);
-        typeColumn.setMinWidth(80);
-        typeColumn.setPrefWidth(84);
         typeColumn.setCellValueFactory(cell ->
                 new javafx.beans.property.SimpleObjectProperty<>(cell.getValue().profile));
         typeColumn.setCellFactory(column -> new TableCell<>() {
@@ -143,8 +137,10 @@ final class IsolationToolPanel {
             private boolean updating;
             {
                 setContentDisplay(javafx.scene.control.ContentDisplay.GRAPHIC_ONLY);
+                setAlignment(Pos.CENTER);
                 setPadding(new javafx.geometry.Insets(1, 2, 1, 2));
                 choice.getStyleClass().add("table-editor-combo");
+                choice.setMinWidth(0);
                 choice.setMaxWidth(Double.MAX_VALUE);
                 choice.prefWidthProperty().bind(typeColumn.widthProperty().subtract(6));
                 choice.setOnAction(event -> {
@@ -169,6 +165,7 @@ final class IsolationToolPanel {
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
         table.getColumns().addAll(numberColumn, diameterColumn, typeColumn);
+        CompactToolsTable.configure(table, numberColumn, diameterColumn, typeColumn);
         table.setPrefHeight(64);
         rows.addListener((javafx.collections.ListChangeListener<ToolRow>) change -> {
             table.setPrefHeight(Math.min(160, 36 + Math.max(1, rows.size()) * 28));
