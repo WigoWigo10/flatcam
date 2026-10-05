@@ -30,7 +30,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-call ".\mvnw.cmd" -q -pl flatcam-fx org.openjfx:javafx-maven-plugin:0.0.8:run
+call ".\mvnw.cmd" -q -pl flatcam-fx "-Dflatcam.args=%*" org.openjfx:javafx-maven-plugin:0.0.8:run
 set "FLATCAM_FX_EXIT=%errorlevel%"
 popd
 exit /b %FLATCAM_FX_EXIT%

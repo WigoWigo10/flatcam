@@ -277,6 +277,16 @@ falhas/erros. Validar manualmente o clique físico e foco do campo de edição.
 
 ### 7. Completar preferências e automação
 
+**Diagnósticos em 2026-10-05:** logs persistentes/JFR por sessão, exceções,
+estado CPU/RAM/JVM e detecção de resposta FX atrasada. Launcher nativo configura
+relatório fatal e enumera adaptadores; Maven/Java mantém relatório fatal no
+target. Menu Ajuda > Diagnosticos abre pasta ou solicita captura. Heap dump é
+opt-in; nada é enviado e sessões antigas não são apagadas automaticamente.
+Dezenove regressões novas; install completo: 1003 registrados, 991 aprovados,
+12 opcionais ignorados, zero falhas/erros. Isso acrescenta observabilidade,
+não paridade CAM nem garantia contra crash. Menu/overhead com projeto real
+continuam manuais; não foi induzido crash fatal/OOME. [Guia](DIAGNOSTICOS.md).
+
 Inventariar preferências globais, defaults por ferramenta, persistência e
 menus parciais. Depois, definir o escopo de scripts/CLI e a compatibilidade
 pretendida com a automação Python antes de implementar novos comandos.

@@ -5,6 +5,9 @@ build/
 .venv/
 venv/
 *.jfr
+*.hprof
+hs_err_pid*.log
+replay_pid*.log
 plot-profile-*.log
 ui-fluidity-*.log
 .venv312/

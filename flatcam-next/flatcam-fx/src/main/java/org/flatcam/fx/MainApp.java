@@ -45,6 +45,7 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        FlatCamLauncher.monitorUi();
         jobExecutor = new JobExecutor();
         // The DPI-rescale workaround below hides the old Stage and shows a fresh one
         // right after - with the JavaFX default (true), that momentary zero-showing-
@@ -332,11 +333,13 @@ public class MainApp extends Application {
 
     @Override
     public void stop() {
-        jobExecutor.shutdown();
+        FlatCamLauncher.stopUiMonitor();
+        if (jobExecutor != null) jobExecutor.shutdown();
         LOG.log(Level.INFO, "MainApp stopped");
     }
 
     public static void main(String[] args) {
-        launch(args);
+        try { FlatCamLauncher.main(args); }
+        catch (Exception failure) { throw new IllegalStateException("FlatCAM FX failed to launch", failure); }
     }
 }

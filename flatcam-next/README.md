@@ -71,6 +71,12 @@ antigos do repositório Maven local e causar falhas tardias ao usar ferramentas.
 O goal JavaFX foi escrito por extenso porque o prefixo curto `javafx:run` pode
 não ser resolvido sem `pluginGroups` configurado no `settings.xml`.
 
+Logs e JFR agora são coletados localmente, em uma pasta por execução. Em
+**Ajuda > Diagnosticos**, abra a pasta da sessão ou solicite uma captura manual.
+No Windows, a raiz padrão é `%LOCALAPPDATA%\FlatCAMFX\diagnostics`.
+Use `--no-diagnostics` para desativar; heap dump é opcional. Veja limites,
+privacidade, detecção de travamentos e probes em [DIAGNOSTICOS.md](DIAGNOSTICOS.md).
+
 ## Módulos
 
 - `flatcam-test-support` — infraestrutura JUnit compartilhada, somente no

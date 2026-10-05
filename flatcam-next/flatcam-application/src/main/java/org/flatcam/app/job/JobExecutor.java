@@ -68,6 +68,11 @@ public final class JobExecutor {
             } catch (Exception e) {
                 LOG.log(Level.WARNING, "Job failed", e);
                 completion.completeExceptionally(e);
+            } catch (Error fatal) {
+                // FutureTask otherwise absorbs Error and leaves our public completion pending forever.
+                completion.completeExceptionally(fatal);
+                LOG.log(Level.ERROR, "Job failed with an Error", fatal);
+                throw fatal;
             }
         });
 

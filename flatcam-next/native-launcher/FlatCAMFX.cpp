@@ -2,6 +2,7 @@
 #include <jni.h>
 
 #include <filesystem>
+#include <fstream>
 #include <cstring>
 #include <iostream>
 #include <string>
@@ -115,18 +116,47 @@ bool describeJavaError(JNIEnv* env, const char* phase) {
     return true;
 }
 
+fs::path createDiagnosticSession() {
+    std::wstring configured = environment(L"FLATCAM_FX_DIAGNOSTICS_DIR");
+    std::wstring local = environment(L"LOCALAPPDATA");
+    fs::path base = !configured.empty() ? fs::path(configured)
+            : !local.empty() ? fs::path(local) / L"FlatCAMFX" / L"diagnostics"
+            : fs::temp_directory_path() / L"FlatCAMFX" / L"diagnostics";
+    base = fs::absolute(base);
+    fs::create_directories(base);
+    SYSTEMTIME now{}; GetSystemTime(&now);
+    wchar_t name[128]{};
+    swprintf_s(name, sizeof(name) / sizeof(name[0]), L"session-%04u%02u%02u-%02u%02u%02u-%03u-%lu-%llu",
+               now.wYear, now.wMonth, now.wDay, now.wHour, now.wMinute, now.wSecond,
+               now.wMilliseconds, GetCurrentProcessId(), static_cast<unsigned long long>(GetTickCount64()));
+    fs::path session = base / name;
+    if (!fs::create_directory(session)) throw std::runtime_error("Diagnostic session already exists");
+    std::ofstream adapters(session / L"graphics-adapters.txt");
+    adapters << "Windows display adapters (not proof of the adapter selected by Prism):\n";
+    DISPLAY_DEVICEW device{};
+    for (DWORD index = 0;; ++index) {
+        device = {}; device.cb = sizeof(device);
+        if (!EnumDisplayDevicesW(nullptr, index, &device, 0)) break;
+        adapters << utf8(device.DeviceName) << " | " << utf8(device.DeviceString)
+                 << " | " << utf8(device.DeviceID) << "\n";
+    }
+    return session;
+}
+
 }  // namespace
 
 int wmain(int argc, wchar_t** argv) {
     bool probe = false;
     bool software = false;
     bool verbose = false;
+    bool diagnostics = _wcsicmp(environment(L"FLATCAM_FX_DIAGNOSTICS").c_str(), L"false") != 0;
     std::vector<std::wstring> applicationArgs;
     for (int i = 1; i < argc; ++i) {
         std::wstring arg = argv[i];
         if (arg == L"--probe") probe = true;
         else if (arg == L"--software") software = true;
         else if (arg == L"--verbose-gpu") verbose = true;
+        else if (arg == L"--no-diagnostics") diagnostics = false;
         else applicationArgs.push_back(arg);
     }
 
@@ -171,6 +201,18 @@ int wmain(int argc, wchar_t** argv) {
     // A probe must fail, not merely warn, if a native library lacks explicit permission.
     if (probe) optionValues.emplace_back("--illegal-native-access=deny");
     if (verbose) optionValues.emplace_back("-Dprism.verbose=true");
+    if (!diagnostics) optionValues.emplace_back("-Dflatcam.diagnostics.enabled=false");
+    if (diagnostics && !probe) {
+        try {
+            fs::path session = createDiagnosticSession();
+            optionValues.emplace_back("-Dflatcam.diagnostics.session=" + utf8(session.wstring()));
+            optionValues.emplace_back("-XX:ErrorFile=" + utf8((session / L"hs_err_pid%p.log").wstring()));
+            optionValues.emplace_back("-XX:FlightRecorderOptions=repository=" + utf8((session / L"jfr-repository").wstring()));
+            std::cout << "FlatCAM FX diagnostics: " << utf8(session.wstring()) << std::endl;
+        } catch (const std::exception& failure) {
+            std::cerr << "FlatCAM FX: native diagnostics unavailable: " << failure.what() << "\n";
+        }
+    }
     std::vector<JavaVMOption> options;
     for (std::string& value : optionValues) options.push_back({value.data(), nullptr});
     JavaVMInitArgs vmArgs{JNI_VERSION_1_8, static_cast<jint>(options.size()), options.data(), JNI_FALSE};
@@ -199,12 +241,11 @@ int wmain(int argc, wchar_t** argv) {
         }
     }
     if (!failed && !probe) {
-        jclass mainClass = env->FindClass("org/flatcam/fx/MainApp");
+        jclass mainClass = env->FindClass("org/flatcam/fx/FlatCamLauncher");
         failed = describeJavaError(env, "loading MainApp") || mainClass == nullptr;
         if (!failed) {
-            jmethodID launch = env->GetStaticMethodID(applicationClass, "launch",
-                    "(Ljava/lang/Class;[Ljava/lang/String;)V");
-            failed = describeJavaError(env, "finding Application.launch") || launch == nullptr;
+            jmethodID launch = env->GetStaticMethodID(mainClass, "main", "([Ljava/lang/String;)V");
+            failed = describeJavaError(env, "finding FlatCamLauncher.main") || launch == nullptr;
             if (!failed) {
                 jclass stringClass = env->FindClass("java/lang/String");
                 jobjectArray args = env->NewObjectArray(static_cast<jsize>(applicationArgs.size()),
@@ -216,7 +257,7 @@ int wmain(int argc, wchar_t** argv) {
                     env->SetObjectArrayElement(args, i, arg);
                     env->DeleteLocalRef(arg);
                 }
-                env->CallStaticVoidMethod(applicationClass, launch, mainClass, args);
+                env->CallStaticVoidMethod(mainClass, launch, args);
                 failed = describeJavaError(env, "running JavaFX");
             }
         }

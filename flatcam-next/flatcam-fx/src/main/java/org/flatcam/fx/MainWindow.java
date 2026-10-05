@@ -1793,6 +1793,14 @@ final class MainWindow implements TclFlatcamHost {
                 new SeparatorMenuItem(), preparationMenu, camMenu, utilitiesMenu);
 
         Menu helpMenu = new Menu("Ajuda");
+        Menu diagnosticsMenu = new Menu("Diagnosticos");
+        setLegacyMenuIcon(diagnosticsMenu, "bug32.png");
+        diagnosticsMenu.setDisable(FlatCamLauncher.diagnosticDirectory() == null);
+        diagnosticsMenu.getItems().addAll(
+                chromeItem("Abrir pasta desta sessao", "folder32.png", () -> FlatCamLauncher.openDiagnosticDirectory(this::appendConsole)),
+                chromeItem("Capturar estado agora", "project_save32.png", () -> appendConsole(FlatCamLauncher.captureNow()
+                        ? "Captura de diagnostico solicitada em segundo plano."
+                        : "Diagnosticos indisponiveis ou limite de cinco incidentes atingido.")));
         MenuItem demoJobItem = new MenuItem("Executar job de demonstracao");
         demoJobItem.setOnAction(e -> runDemoJob());
         demoJobItem.disableProperty().bind(runDemoJobButton.disableProperty());
@@ -1803,6 +1811,7 @@ final class MainWindow implements TclFlatcamHost {
                 plannedItem("Como Usar", "videohelp24.png"),
                 plannedItem("Reportar Problema", "bug32.png"),
                 new SeparatorMenuItem(),
+                diagnosticsMenu,
                 demoJobItem,
                 chromeItem("Sobre", "about32.png", () ->
                         appendConsole("FlatCAM FX - em desenvolvimento.")),

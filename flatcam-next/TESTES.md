@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 984 registrados, 972 aprovados, 12 opcionais ignorados,
-zero falhas/erros (602 CAM, 114 application, 248 FX, 20 test-support).
+limpeza normal ativa: 1003 registrados, 991 aprovados, 12 opcionais ignorados,
+zero falhas/erros (602 CAM, 115 application, 266 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -218,3 +218,24 @@ Repetições locais não provam ausência de toda falha intermitente nem substit
 CI em outros sistemas. Casos opcionais ignorados devem ser executados quando
 seus fixtures estiverem disponíveis. Testes headless não comprovam paridade
 de interação, fluidez visual ou execução segura de uma CNC.
+
+## Diagnósticos por sessão
+
+`DiagnosticSessionTest`: dez testes de UTF-8/JUL, streams/handler restaurados,
+exceção real em thread, limite de incidentes, lock/reabertura, diretório inválido,
+JFR configurado/legível/fechado, rotação real de logs, falha de lançamento,
+desativação sem escrita e shutdown hook em uma JVM filha própria.
+`UiWatchdogTest`: seis cenários com relógio injetado verificam callback único,
+limiar, ausência de spam, recuperação, shutdown e toolkit indisponível.
+`DiagnosticsFxTest`: dois casos Windows-only usam o toolkit de testes para
+confirmar uma exceção real em runLater, continuidade da FX e captura por worker
+enquanto a thread FX está bloqueada num latch. Não clica no app do usuário.
+`JobExecutorTest` acrescenta regressão de Error completando a operação em vez
+de deixar a completion pendente.
+
+Logs SEVERE dos fixtures são intencionais; não são crashes reais. Probes
+`--diagnostics-probe` Java/Maven e nativo verificam integração e arquivos sem
+abrir projeto. Também foi verificada a ativação do heap dump por flag, não sua
+geração: não se induziu OutOfMemoryError nem crash fatal. Limites e comandos
+em [DIAGNOSTICOS.md](DIAGNOSTICOS.md). O menu e overhead no projeto real ainda
+precisam de validação manual.

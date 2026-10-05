@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `fdc1d200`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `9783772c`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
@@ -22,9 +22,11 @@ e continuar a migração sem recomeçar a investigação.
 > por texto inválido nos campos de passo X/Y.
 > A árvore só inicia renomeação por F2 ou comando Renomear; repetir um clique
 > numa linha selecionada não abre mais o editor de nome.
+> Diagnósticos locais por sessão: logs/JFR limitados, exceções, CPU/RAM/JVM,
+> watchdog FX e menu Ajuda > Diagnosticos. Heap dump é opt-in.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **984 testes registrados, 972 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 114 application, 248 FX e 20 de suporte de testes.
+> **1003 testes registrados, 991 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 115 application, 266 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -96,10 +98,10 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições, tabelas, Snap e árvore, **984 registrados, 972 aprovados e 12
+Após os ajustes do console, transições, tabelas, Snap, árvore e diagnósticos, **1003 registrados, 991 aprovados e 12
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Quarenta e quatro novos testes verificam barra compacta, porcentagem, cancelamento,
-transições, Snap, árvore e seleção/layout nos quatro temas. Capturas fora da
+normal. Sessenta e três novos testes verificam barra compacta, porcentagem, cancelamento,
+transições, Snap, árvore, diagnósticos e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
@@ -2525,3 +2527,45 @@ O teste Robot fica desabilitado por padrão e é registrado como um caso ignorad
 quando habilitado, executa os dois passos parametrizados. O commit reúne a
 renomeação explícita da árvore, suas regressões e a investigação opcional do
 Snap; não declara resolvido o relato persistente.
+
+## Diagnósticos locais e watchdog FX — 2026-10-05
+
+`FlatCamLauncher` é o entry point Java/Maven e nativo, iniciando diagnósticos
+antes de Application.launch. `MainApp` inicia/encerra só o monitor UI. Uma pasta
+única por execução fica em LOCALAPPDATA/FlatCAMFX/diagnostics no Windows, com
+override por FLATCAM_FX_DIAGNOSTICS_DIR. Nada é enviado nem projetos/prefs alterados.
+
+`DiagnosticSession` captura System.Logger/JUL e stdout/stderr em logs rotativos
+(quatro de aproximadamente 2 MiB por conjunto), amostra versão/build/OS/CPU/RAM,
+inicia JFR default com retenção de 10 minutos/64 MiB e salva checkpoint a cada
+60 segundos/incidente. Exceções não tratadas preservam o handler anterior. Um
+worker separado grava até cinco incidentes, com fila pendente limitada a dois;
+dumps de até 256 threads de plataforma/64 frames. `UiWatchdog` envia no máximo
+um callback pendente, reporta atraso de 5–6 segundos uma vez por interrupção e
+permite novo incidente depois da recuperação. Não se declara todo atraso deadlock.
+
+Launcher nativo configura ErrorFile e repositório JFR antes de criar a JVM e
+registra os adaptadores Windows; Java/Maven configura o hs_err em flatcam-fx/target.
+`flatcam.diagnostics.heapDump=true` habilita dump do heap por HotSpot MXBean;
+permanece opt-in, sem quota e potencialmente sensível. `--no-diagnostics` e
+FLATCAM_FX_DIAGNOSTICS=false desativam a instrumentação do app. Sessões antigas
+não são apagadas automaticamente. Menu Ajuda > Diagnosticos abre pasta ou solicita
+captura manual sem fazer a coleta pesada na thread FX.
+
+`JobExecutor` agora completa excepcionalmente e registra um Error que escape do
+job, antes de relançá-lo: antes o FutureTask absorvia a falha e deixava a
+completion pública pendente indefinidamente. Não há alteração dos algoritmos CAM.
+
+Dezenove regressões novas: dez DiagnosticSessionTest, seis UiWatchdogTest, duas
+DiagnosticsFxTest (exceção de callback e bloqueio real com captura independente)
+e uma JobExecutorTest. Cobrem rotação/UTF-8, restauração/locks, limites, JFR
+legível, shutdown hook em JVM filha e retorno da FX depois da falha controlada.
+Install completo: **1003 registrados, 991 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Probes diagnósticos Java/Maven e nativo passaram; heap dump
+opt-in foi configurado/verificado sem induzir OOME. Probes de renderização
+D3D→SW/software passaram. Nenhum crash fatal nativo foi induzido. Build nativo
+padrão passou após o usuário fechar o app que inicialmente bloqueava seus JARs.
+
+Guia, localização, limites, privacidade e comandos: `DIAGNOSTICOS.md`. Ainda
+validar manualmente os dois comandos do menu e overhead/fluidez no projeto real.
+O relato persistente do Snap permanece não reproduzido; esta entrega não o resolve.

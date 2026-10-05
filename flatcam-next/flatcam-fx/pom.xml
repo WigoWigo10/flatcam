@@ -20,7 +20,8 @@
     </description>
 
     <properties>
-        <javafx.mainClass>org.flatcam.fx.MainApp</javafx.mainClass>
+        <javafx.mainClass>org.flatcam.fx.FlatCamLauncher</javafx.mainClass>
+        <flatcam.args></flatcam.args>
     </properties>
 
     <dependencies>
@@ -64,6 +65,10 @@
     <build>
         <resources>
             <resource>
+                <directory>src/main/filtered-resources</directory>
+                <filtering>true</filtering>
+            </resource>
+            <resource>
                 <directory>src/main/resources</directory>
             </resource>
             <!-- The legacy toolbar/menu artwork is small (<1 MB for both themes).
@@ -98,8 +103,11 @@
                 <version>0.0.8</version>
                 <configuration>
                     <mainClass>${javafx.mainClass}</mainClass>
+                    <commandlineArgs>${flatcam.args}</commandlineArgs>
                     <options>
                         <option>--enable-native-access=javafx.graphics</option>
+                        <!-- target already exists before the child JVM starts. Native launcher uses its session directory. -->
+                        <option>-XX:ErrorFile=${project.build.directory}/hs_err_pid%p.log</option>
                     </options>
                 </configuration>
             </plugin>

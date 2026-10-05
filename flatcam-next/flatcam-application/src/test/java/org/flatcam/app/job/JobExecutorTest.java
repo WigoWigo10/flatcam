@@ -109,4 +109,13 @@ class JobExecutorTest {
         );
         assertTrue(handle.completion().isCancelled());
     }
+
+    @Test
+    void errorInJobDoesNotLeaveCompletionPending() {
+        AssertionError error = new AssertionError("intentional job Error");
+        JobHandle<Void> handle = executor.submit(context -> { throw error; }, null);
+        ExecutionException thrown = org.junit.jupiter.api.Assertions.assertThrows(ExecutionException.class,
+                () -> handle.completion().get(2, TimeUnit.SECONDS));
+        org.junit.jupiter.api.Assertions.assertSame(error, thrown.getCause());
+    }
 }
