@@ -595,7 +595,7 @@ final class MainWindow implements TclFlatcamHost {
         for (Tab openTab : centerTabs.getTabs()) {
             if ((openTab.getText().equals("Fonte - " + item.getValue())
                     || openTab.getText().equals(item.getValue()))
-                    && openTab.getContent() instanceof TextArea viewer && !viewer.isEditable()) {
+                    && openTab.getContent() instanceof CodeEditor viewer && !viewer.isEditable()) {
                 viewer.setText(text);
             }
         }
@@ -701,6 +701,10 @@ final class MainWindow implements TclFlatcamHost {
 
     MainWindow(JobExecutor jobExecutor) {
         this.jobExecutor = jobExecutor;
+        centerTabs.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) change -> {
+            while (change.next()) for (Tab removed : change.getRemoved())
+                if (removed.getContent() instanceof CodeEditor code) code.close();
+        });
     }
 
     Scene createScene() {
@@ -827,12 +831,12 @@ final class MainWindow implements TclFlatcamHost {
         return scene;
     }
 
-    private static boolean isTextInputTarget(Object target) {
+    static boolean isTextInputTarget(Object target) {
         if (!(target instanceof Node node)) {
             return false;
         }
         for (Node current = node; current != null; current = current.getParent()) {
-            if (current instanceof TextInputControl) {
+            if (current instanceof TextInputControl || current instanceof org.fxmisc.richtext.GenericStyledArea<?, ?, ?>) {
                 return true;
             }
         }
@@ -5202,7 +5206,12 @@ final class MainWindow implements TclFlatcamHost {
         CncJobEntry cncJob = cncJobByItem.get(item);
         GeometryEntry geometry = geometryByItem.get(item);
         if (geometry != null) {
-            source = geometry.geometry().toText();
+            openAuxiliaryTab("Fonte - " + item.getValue(), () -> {
+                CodeEditor viewer = new CodeEditor("", CodeSyntax.Language.GEOMETRY, false);
+                viewer.loadText(() -> geometry.geometry().toText(), message -> appendConsole("Falha ao exibir Geometry: " + message));
+                return viewer;
+            });
+            return;
         } else if (cncJob != null) {
             source = cncJob.gcode();
         } else {
@@ -5211,16 +5220,18 @@ final class MainWindow implements TclFlatcamHost {
                 appendConsole("Fonte indisponivel para " + item.getValue() + ".");
                 return;
             }
-            try {
-                source = Files.readString(path);
-            } catch (IOException e) {
-                appendConsole("Falha ao ler a fonte " + path + ": " + e.getMessage());
-                setStatus("Falhou.", ERROR_COLOR);
-                return;
-            }
+            var language = item.getParent() == gerbersNode ? CodeSyntax.Language.GERBER : CodeSyntax.Language.EXCELLON;
+            openAuxiliaryTab("Fonte - " + item.getValue(), () -> {
+                CodeEditor viewer = new CodeEditor("", language, false);
+                viewer.loadFile(path, message -> {
+                    appendConsole("Falha ao ler a fonte " + path + ": " + message); setStatus("Falhou.", ERROR_COLOR);
+                });
+                return viewer;
+            });
+            return;
         }
         String tabTitle = "Fonte - " + item.getValue();
-        openAuxiliaryTab(tabTitle, () -> buildGCodeViewer(source));
+        openAuxiliaryTab(tabTitle, () -> new CodeEditor(source, CodeSyntax.Language.MACHINE, false));
     }
 
     private void saveObjectAs(TreeItem<String> item) {
@@ -5628,11 +5639,8 @@ final class MainWindow implements TclFlatcamHost {
         centerTabs.getSelectionModel().select(0);
     }
 
-    private TextArea buildGCodeViewer(String gcode) {
-        TextArea area = new TextArea(gcode);
-        area.setEditable(false);
-        area.setStyle("-fx-font-family: monospace;");
-        return area;
+    private CodeEditor buildGCodeViewer(String gcode) {
+        return new CodeEditor(gcode, CodeSyntax.Language.MACHINE, false);
     }
 
     /**

@@ -7,7 +7,6 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
-import javafx.scene.control.TextArea;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.VBox;
 
@@ -30,7 +29,7 @@ final class GCodeEditorController {
     private final Host host;
     private TreeItem<String> item;
     private Tab tab;
-    private TextArea editor;
+    private CodeEditor editor;
     private Button applyButton;
     private Button saveButton;
     private Button cancelButton;
@@ -63,20 +62,20 @@ final class GCodeEditorController {
             return;
         }
         item = selectedItem;
-        originalText = gcode;
-        editor = new TextArea(gcode);
-        editor.setWrapText(false);
-        editor.setStyle("-fx-font-family: monospace;");
-        editor.textProperty().addListener((observable, oldText, newText) -> {
+        originalText = CodeEditor.normalize(gcode);
+        editor = new CodeEditor(gcode, CodeSyntax.Language.MACHINE, true);
+        editor.onEdit(() -> {
             dirty = true;
             updateButtons();
         });
+        editor.loadingProperty().addListener((observable, oldValue, value) -> updateButtons());
         tab = new Tab("Editor G-Code - " + item.getValue(), editor);
         tab.setClosable(false);
         tabs.getTabs().add(tab);
         tabs.getSelectionModel().select(tab);
 
         Label info = new Label("Editando: " + item.getValue());
+        info.setWrapText(true);
         Label help = new Label("Edite o texto e clique Aplicar para atualizar o CNC Job em memoria. "
                 + "Salvar arquivo grava uma copia do rascunho; nao altera o arquivo original automaticamente. "
                 + "Cancelar descarta as alteracoes. A pre-visualizacao cobre movimentos G0/G1, arcos G2/G3 em XY "
@@ -84,6 +83,10 @@ final class GCodeEditorController {
                 + "sondagem G31 e referencia G92 deixam a previa indisponivel. Macros e resets de origem nao sao simulados "
                 + "e nao valida a seguranca do programa para uma maquina CNC.");
         help.setWrapText(true);
+        var details = new javafx.scene.control.TitledPane("Pré-visualização e segurança", help);
+        details.setExpanded(false);
+        Label hint = new Label("Ctrl+F busca • Ctrl+Z / Ctrl+Y desfaz/refaz.\nA prévia não valida a segurança para CNC.");
+        hint.setWrapText(true);
         stateLabel = new Label();
         stateLabel.setWrapText(true);
         applyButton = new Button("Aplicar ao CNC Job");
@@ -95,11 +98,11 @@ final class GCodeEditorController {
         applyButton.setOnAction(event -> apply());
         saveButton.setOnAction(event -> saveAs());
         cancelButton.setOnAction(event -> cancel());
-        VBox panel = new VBox(10, info, help, stateLabel, applyButton, saveButton, cancelButton);
+        VBox panel = new VBox(10, info, hint, stateLabel, applyButton, saveButton, cancelButton, details);
         panel.setPadding(new Insets(12));
         host.openToolPanel("Editor G-Code", panel);
         updateButtons();
-        editor.requestFocus();
+        editor.focusCode();
     }
 
     void cancelIfEditing(TreeItem<String> removed) {
@@ -121,7 +124,7 @@ final class GCodeEditorController {
     }
 
     private void apply() {
-        if (!isActive() || busy) {
+        if (!isActive() || busy || editor.isLoading()) {
             return;
         }
         if (!dirty || editor.getText().equals(originalText) || editor.getText().isBlank()) {
@@ -154,7 +157,7 @@ final class GCodeEditorController {
     }
 
     private void saveAs() {
-        if (!isActive() || busy || editor.getText().isBlank()) {
+        if (!isActive() || busy || editor.isLoading() || editor.getText().isBlank()) {
             return;
         }
         String text = editor.getText();
@@ -176,14 +179,16 @@ final class GCodeEditorController {
         if (applyButton == null) {
             return;
         }
-        applyButton.setDisable(busy || !dirty);
-        saveButton.setDisable(busy || editor.getText().isBlank());
+        applyButton.setDisable(busy || editor.isLoading() || !dirty);
+        saveButton.setDisable(busy || editor.isLoading() || editor.area().getLength() == 0);
         cancelButton.setDisable(busy);
         editor.setEditable(!busy);
-        stateLabel.setText(busy ? "Processando..." : dirty ? "Alteracoes ainda nao aplicadas." : "Sem alteracoes.");
+        stateLabel.setText(busy ? "Processando..." : editor.isLoading() ? "Carregando código..."
+                : dirty ? "Alteracoes ainda nao aplicadas." : "Sem alteracoes.");
     }
 
     private void close() {
+        editor.close();
         tabs.getTabs().remove(tab);
         tabs.getSelectionModel().select(0);
         host.closeToolPanel();

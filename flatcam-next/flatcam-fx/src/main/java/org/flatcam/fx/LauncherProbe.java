@@ -20,6 +20,13 @@ public final class LauncherProbe {
             if (image.getPixelReader().getArgb(8, 8) != 0xff6495ed) {
                 throw new IllegalStateException("JavaFX launcher probe did not render the expected pixel");
             }
+            try (CodeEditor editor = new CodeEditor("(probe)\nG21\nG1 X1 F100\n", CodeSyntax.Language.MACHINE, false)) {
+                var scene = new javafx.scene.Scene(editor, 600, 220); ThemeOption.CLASSIC_DARK.applyTo(scene);
+                editor.resize(600, 220); editor.applyCss(); editor.layout(); editor.snapshot(null, null);
+                if (!editor.getText().contains("G1 X1") || editor.lookup(".lineno") == null) {
+                    throw new IllegalStateException("Code editor dependencies/layout probe failed");
+                }
+            }
             return GraphicsRuntimeInfo.query(null);
         });
         try {

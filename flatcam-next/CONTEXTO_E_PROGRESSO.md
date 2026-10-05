@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `330dba47`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `1b309154`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
@@ -28,9 +28,11 @@ e continuar a migração sem recomeçar a investigação.
 > do repositório, atribuições e sistema; copia dados técnicos sem fechar.
 > Sistema mostra CPU/RAM/heap e consulta o pipeline gráfico ativo: GPU/driver
 > Direct3D da janela ou compatibilidade por software, sem inferir de prism.order.
+> Editor G-code e Ver Fonte agora usam CodeEditor/RichTextFX: linhas numeradas,
+> sintaxe por tema, linha atual, posição do cursor e busca literal assíncrona.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **1023 testes registrados, 1011 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 115 application, 286 FX e 20 de suporte de testes.
+> **1041 testes registrados, 1029 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 115 application, 304 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -102,9 +104,9 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições, tabelas, Snap, árvore, diagnósticos e Sobre, **1023 registrados, 1011 aprovados e 12
+Após os ajustes do console, transições, tabelas, Snap, árvore, diagnósticos, Sobre e editores, **1041 registrados, 1029 aprovados e 12
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Oitenta e três novos testes verificam barra compacta, porcentagem, cancelamento,
+normal. Cento e um novos testes verificam barra compacta, porcentagem, cancelamento,
 transições, Snap, árvore, diagnósticos, Sobre e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
@@ -2634,3 +2636,60 @@ nativo SW e Maven modular passaram; D3D identificou Intel Arc, driver
 igd9trinity64.dll 32.0.101.8991. Testes não induzem crash nem alteram projetos.
 Validar manualmente a aba pelo menu e reabrir após mover o app entre monitores
 (o teste de owner real usa apenas um monitor).
+
+## Apresentação das áreas de código — 2026-10-05
+
+Sobre/hardware commitados em `1b309154` na branch `flatcam-next`. Esta entrega
+posterior troca TextArea no Editor G-code e nas views Ver Fonte (Gerber,
+Excellon, Geometry/WKT, CNC) por `CodeEditor`, com RichTextFX **0.11.7** e
+VirtualizedScrollPane. Essa versão é necessária para JavaFX 25:
+https://github.com/FXMisc/RichTextFX#requirements.
+
+Há gutter numerado, fonte monoespaçada, linha atual, barra com linguagem e
+modo rascunho/somente leitura, Ln/Col/total de linhas e sintaxe colorida nos
+quatro temas, incluindo troca de tema com editor aberto. Ctrl+F abre busca
+literal case-sensitive; Enter/F3 e Shift+Enter/Shift+F3 percorrem ocorrências
+com retorno ao início/fim; Esc fecha busca. Menu de contexto oferece edição,
+cópia/seleção e busca, respeitando leitura/busy. Atalhos de texto são reconhecidos
+pelo filtro da janela para não acionar mover/Snap/remoção do Plot.
+
+Leitura de arquivos e geração de WKT rodam no worker. Documentos com pelo menos
+200 mil caracteres são preparados fora da FX; a publicação do modelo ocorre
+na FX. WKT gerado quebra linha após vírgulas para não desenhar um único parágrafo
+gigante; a geometria equivalente foi testada. Quebras CRLF/CR são normalizadas
+para LF na apresentação/edição. Fonte de Gerber/Excellon não é regravada.
+
+Sintaxe roda em worker após debounce de 80 ms, por viewport (até 120 linhas /
+aproximadamente 64 Ki caracteres por lote); linhas acima de 8192 caracteres
+não recebem segmentação sintática. Filas têm um slot, resultados antigos de
+conteúdo/viewport/busca são descartados e close encerra workers/subscription.
+Arquivos continuam inteiros em memória; não é editor streaming e não garante
+fluidez para tamanhos arbitrários. Coloração é lexical, não validação semântica.
+
+Aplicar/Salvar arquivo/Cancelar mantêm os contratos existentes; não se grava o
+original automaticamente. Ajuda longa da lateral fica em seção recolhível,
+com aviso de segurança visível. Textos de QR/Geometry, console e aba Sobre
+continuam controles de texto comuns: não são edição de código.
+
+Avisos BSD 2-Clause completos de RichTextFX, ReactFX, UndoFX, Flowless e
+WellBehavedFX são empacotados em about/editor-licenses.txt, acessíveis na aba
+Licença do Sobre; LICENSE principal do repositório não foi alterado.
+
+18 regressões novas cobrem léxico, temas/cores/troca, gutter/cursor, atalhos,
+busca, undo/redo, rascunho/busy/falha/aplicar/salvar/cancelar, documento de 40 mil
+linhas, cargas obsoletas, erro de leitura e equivalência WKT. Snapshots dos quatro
+temas inspecionados; warnings de CSS do gutter foram eliminados usando Text
+em vez de Label em células de medição destacadas do Flowless. A dependência
+JavaFX no classpath em Surefire ainda produz o aviso conhecido de unnamed module.
+
+Validar manualmente com Cobre_Morto_Bottom_cnc e os arquivos densos reais:
+rolagem, seleção, digitação, Ctrl+Z/Y, busca, menu e alternância de temas.
+Entrega do editor autorizada para commit pelo usuário em 2026-10-05.
+
+Install completo da entrega: **1041 registrados, 1029 aprovados, 12 opcionais
+ignorados**, zero falhas/erros. Probes do launcher com CodeEditor passaram em
+D3D e software; também passou o caminho modular Maven. O app do usuário foi
+reaberto enquanto os testes finais continuavam; reiniciar para carregar as
+últimas classes/recursos. Não foi fechado automaticamente nem foram removidos
+JARs de dependências em uso; as cinco bibliotecas novas já estavam copiadas
+pelo build do usuário, e os probes utilizaram esse runtime atualizado.

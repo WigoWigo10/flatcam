@@ -2,6 +2,15 @@
  * Ice dark palette: the current FlatCAM FX look on plain JavaFX (Modena).
  */
 .root {
+    -fc-code-bg: #14202c;
+    -fc-code-gutter: #1c2a38;
+    -fc-code-text: #e1edf5;
+    -fc-code-muted: #a0b5c6;
+    -fc-code-line: #23374a;
+    -fc-code-comment: #9dc8af;
+    -fc-code-command: #7ad8ee;
+    -fc-code-axis: #f1ce8b;
+    -fc-code-number: #c7b8f6;
     -fx-base: #1d2937;
     -fx-background: #151d28;
     -fx-control-inner-background: #1f2b39;

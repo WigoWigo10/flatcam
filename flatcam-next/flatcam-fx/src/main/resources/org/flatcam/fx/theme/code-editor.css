@@ -1,0 +1,53 @@
+/* Shared by the four palettes; all syntax colours are explicit theme tokens. */
+.code-editor { -fx-background-color: -fc-code-bg; }
+.code-editor .code-area {
+    -fx-background-color: -fc-code-bg;
+    -fx-font-family: "Consolas", "DejaVu Sans Mono", "Monospaced";
+    -fx-font-size: 13px;
+    -fx-padding: 6 0 6 0;
+    -fx-highlight-fill: -fc-selection-bg-focused;
+    -fx-highlight-text-fill: -fc-selection-text-focused;
+}
+.code-editor .code-area .text { -fx-fill: -fc-code-text; }
+.code-editor .code-area .caret { -fx-stroke: -fc-code-text; }
+.code-editor .code-area .selection { -fx-fill: -fc-selection-bg-focused; }
+.code-editor .code-area .paragraph-box:has-caret { -fx-background-color: -fc-code-line; }
+.code-editor .code-area .paragraph-text { -fx-line-spacing: 3; }
+.code-editor .code-area .lineno {
+    -fx-background-color: -fc-code-gutter;
+    -fx-text-fill: -fc-code-muted;
+    -fx-font-family: "Consolas", "DejaVu Sans Mono", "Monospaced";
+    -fx-font-size: 13px;
+    -fx-padding: 0 12 0 10;
+    -fx-border-color: transparent -fc-panel-border transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.code-editor .code-area .paragraph-box:has-caret .lineno { -fx-text-fill: -fc-code-text; }
+.code-editor .code-area .lineno .code-line-number {
+    -fx-fill: -fc-code-muted;
+    -fx-font-family: "Consolas", "DejaVu Sans Mono", "Monospaced";
+    -fx-font-size: 13px;
+}
+.code-editor .code-area .paragraph-box:has-caret .lineno .code-line-number { -fx-fill: -fc-code-text; }
+.code-editor .code-area .code-comment { -fx-fill: -fc-code-comment; }
+.code-editor .code-area .code-command { -fx-fill: -fc-code-command; -fx-font-weight: bold; }
+.code-editor .code-area .code-axis { -fx-fill: -fc-code-axis; }
+.code-editor .code-area .code-number { -fx-fill: -fc-code-number; }
+.code-editor .code-area .code-keyword { -fx-fill: -fc-code-command; }
+.code-editor .code-area .code-string { -fx-fill: -fc-code-comment; }
+.code-editor .code-area .code-punctuation { -fx-fill: -fc-code-muted; }
+.code-editor .code-toolbar, .code-editor .code-search-bar {
+    -fx-alignment: center-left;
+    -fx-background-color: -fc-code-gutter;
+    -fx-padding: 5 10;
+    -fx-border-color: transparent transparent -fc-panel-border transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.code-editor .code-toolbar .label { -fx-text-fill: -fc-code-muted; }
+.code-editor .code-toolbar .code-language { -fx-text-fill: -fc-code-text; -fx-font-weight: bold; }
+.code-editor .code-status {
+    -fx-text-fill: -fc-code-muted;
+    -fx-background-color: -fc-code-gutter;
+    -fx-padding: 5 10;
+    -fx-max-width: infinity;
+}

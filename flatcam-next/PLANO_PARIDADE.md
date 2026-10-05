@@ -277,6 +277,13 @@ falhas/erros. Validar manualmente o clique físico e foco do campo de edição.
 
 ### 7. Completar preferências e automação
 
+**Áreas de código em 2026-10-05:** Editor G-code e Ver Fonte usam componente
+virtualizado com gutter, sintaxe por tema, linha atual, cursor/status, busca
+literal e menu. Leitura/preparação grande e sintaxe ocorrem fora da FX;
+aplicar/salvar rascunho/cancelar preservados. 18 regressões novas; ainda validar
+manualmente edição/rolagem em CNC Jobs densos reais. Não é validação semântica
+nem editor streaming; o documento completo permanece em memória.
+
 **Sobre em 2026-10-05:** diálogo com cinco abas do Python, 33 créditos de
 programadores e oito idiomas históricos, licença copiada do repositório,
 atribuições de ícones e links explicitamente do legado. Sistema/Copiar dados

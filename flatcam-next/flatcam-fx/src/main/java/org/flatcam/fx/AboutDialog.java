@@ -86,13 +86,16 @@ final class AboutDialog extends Dialog<Void> {
         VBox license = new VBox(8, label("Licença MIT — texto original do LICENSE deste repositório."),
                 link("MIT — Open Source Initiative", "http://www.opensource.org/licenses/mit-license.php", openLink), licenseText);
         VBox.setVgrow(licenseText, Priority.ALWAYS);
+        TextArea editorNotices = readOnly(AboutInfo.resource("editor-licenses.txt")); editorNotices.setPrefRowCount(7);
+        var editorLicenses = new javafx.scene.control.TitledPane("Bibliotecas do editor — avisos BSD 2-Clause", editorNotices);
+        editorLicenses.setExpanded(false); license.getChildren().add(editorLicenses);
         VBox attributions = new VBox(10, label("O FX reutiliza os recursos gráficos do legado, que atribui ícones a:"),
                 link("Freepik / Flaticon", "https://www.flaticon.com/authors/freepik", openLink),
                 link("Icons8", "https://icons8.com", openLink),
                 link("oNline Web Fonts", "http://www.onlinewebfonts.com", openLink),
                 link("Pixel perfect / Flaticon", "https://www.flaticon.com/authors/pixel-perfect", openLink),
                 label("Os ícones vetoriais do FX também incluem o desenho de pasta do Feather Icons (MIT)."),
-                label("O FX usa OpenJFX, JTS, org.json e ZXing. Componentes e recursos têm seus próprios avisos e licenças; "
+                label("O FX usa OpenJFX, RichTextFX, JTS, org.json e ZXing. Componentes e recursos têm seus próprios avisos e licenças; "
                         + "a licença do aplicativo não substitui os termos dessas dependências."));
         TextArea system = readOnly(AboutInfo.technicalSummary()); system.setId("about-system");
         tabs.getTabs().addAll(tab("Apresentação", scroll(presentation)), tab("Programadores", programmers),

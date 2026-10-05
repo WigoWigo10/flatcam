@@ -80,7 +80,7 @@ public enum ThemeOption {
         }
         scene.getStylesheets().setAll(
                 resource(varsResource),
-                resource(componentsResource)
+                resource(componentsResource), resource("code-editor.css")
         );
     }
 

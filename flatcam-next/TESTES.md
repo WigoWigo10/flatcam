@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 1023 registrados, 1011 aprovados, 12 opcionais ignorados,
-zero falhas/erros (602 CAM, 115 application, 286 FX, 20 test-support).
+limpeza normal ativa: 1041 registrados, 1029 aprovados, 12 opcionais ignorados,
+zero falhas/erros (602 CAM, 115 application, 304 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -267,3 +267,20 @@ modular com `-Djavafx.mainClass=org.flatcam.fx.LauncherProbe`. D3D identificou
 Intel Arc/igd9trinity64.dll 32.0.101.8991; SW não atribuiu GPU à renderização.
 A ponte interna precisa ser revalidada ao atualizar JavaFX. A seleção real
 em dois monitores e uso da aba no app do usuário continuam manuais.
+
+## Áreas de código
+
+`CodeSyntaxTest`: cinco casos de comandos/eixos/números/comentários, G04 Gerber
+versus dwell CNC, semicolons HPGL/Roland, offsets nos quatro tipos e linha longa.
+`CodeEditorTest`: quatro temas com sintaxe/gutter/Ln/Col e troca ao vivo; texto
+normalizado, undo/redo, documento de 40 mil linhas assíncrono/carga obsoleta,
+arquivo ausente, busca literal nos dois sentidos, Ctrl+F/Enter/Ctrl+Z/Y/Esc e
+equivalência WKT após formatação. `GCodeEditorControllerTest`: três casos de
+aplicar/busy/falha/fechar, salvar sem aplicar/cancelar e recusa de rascunho vazio.
+São 18 testes adicionais, sem clipboard nem arquivos CNC do usuário alterados.
+
+Snapshots opcionais `target/code-editor-TEMA.png` foram inspecionados nos
+quatro temas. O probe do launcher agora também cria/layouta/snapshot/dispose
+um CodeEditor sem janela para validar as novas dependências no caminho modular.
+Testar manualmente rolagem/seleção/digitação em CNC Jobs grandes reais; esses
+testes não são um benchmark de FPS nem uma prova de fluidez em qualquer tamanho.

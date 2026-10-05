@@ -3,6 +3,15 @@
  * Plain JavaFX (Modena), without a third-party user-agent stylesheet.
  */
 .root {
+    -fc-code-bg: #202124;
+    -fc-code-gutter: #292b2f;
+    -fc-code-text: #e5e9f0;
+    -fc-code-muted: #a3afbe;
+    -fc-code-line: #30333a;
+    -fc-code-comment: #a4bd9b;
+    -fc-code-command: #8dc8ff;
+    -fc-code-axis: #ead49c;
+    -fc-code-number: #dcb6f5;
     -fx-base: #2b2b2b;
     -fx-background: #2b2b2b;
     -fx-control-inner-background: #333333;

@@ -126,6 +126,10 @@ Area, cada um com sua toolbar+menu dedicados (seção 1).
   botões embutidos (salvar/abrir/imprimir PDF).
 - **G-Code Editor** (`appGCodeEditor`) - visualização/edição de G-Code de um
   CNCJob; embrulha um `AppTextEditor`; Name, "Update G-Code", "Exit Editor".
+  No FX (2026-10-05): CodeEditor/RichTextFX em G-code e Ver Fonte, gutter,
+  sintaxe nos quatro temas, linha atual, Ln/Col, busca literal e menu de edição.
+  Aplicar/Salvar rascunho/Cancelar preservados; ajuda longa da lateral recolhível.
+  Fontes Gerber/Excellon e WKT gerado são lidos/preparados fora da FX.
 
 ---
 
