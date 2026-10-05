@@ -1813,8 +1813,7 @@ final class MainWindow implements TclFlatcamHost {
                 new SeparatorMenuItem(),
                 diagnosticsMenu,
                 demoJobItem,
-                chromeItem("Sobre", "about32.png", () ->
-                        appendConsole("FlatCAM FX - em desenvolvimento.")),
+                chromeItem("Sobre", "about32.png", () -> new AboutDialog(scene.getWindow(), currentTheme).showAndWait()),
                 chromeItem("Executar job de demonstracao", "code.png", this::runDemoJob));
 
         return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, objectsMenu, toolsMenu, helpMenu,

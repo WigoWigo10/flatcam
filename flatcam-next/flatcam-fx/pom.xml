@@ -65,6 +65,11 @@
     <build>
         <resources>
             <resource>
+                <directory>../..</directory>
+                <targetPath>org/flatcam/fx/about</targetPath>
+                <includes><include>LICENSE</include></includes>
+            </resource>
+            <resource>
                 <directory>src/main/filtered-resources</directory>
                 <filtering>true</filtering>
             </resource>
@@ -106,6 +111,12 @@
                     <commandlineArgs>${flatcam.args}</commandlineArgs>
                     <options>
                         <option>--enable-native-access=javafx.graphics</option>
+                        <!-- Optional read-only renderer bridge; keep in sync with the native launcher. -->
+                        <option>--add-exports=javafx.graphics/com.sun.prism=ALL-UNNAMED</option>
+                        <option>--add-exports=javafx.graphics/com.sun.javafx.tk=ALL-UNNAMED</option>
+                        <option>--add-exports=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED</option>
+                        <option>--add-exports=javafx.graphics/com.sun.javafx.tk.quantum=ALL-UNNAMED</option>
+                        <option>--add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED</option>
                         <!-- target already exists before the child JVM starts. Native launcher uses its session directory. -->
                         <option>-XX:ErrorFile=${project.build.directory}/hs_err_pid%p.log</option>
                     </options>
@@ -113,4 +124,17 @@
             </plugin>
         </plugins>
     </build>
+    <profiles>
+        <profile>
+            <id>windows-graphics-info</id>
+            <activation><os><family>Windows</family></os></activation>
+            <build><plugins><plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <configuration><options combine.children="append">
+                    <option>--add-opens=javafx.graphics/com.sun.prism.d3d=ALL-UNNAMED</option>
+                </options></configuration>
+            </plugin></plugins></build>
+        </profile>
+    </profiles>
 </project>

@@ -202,7 +202,13 @@ modal). Agrupados por função:
 
 ## 6. Outras janelas/diálogos avulsos
 
-- **About** (`app_Main.py`, `AboutDialog`) - modal, versão/data/créditos.
+- **About** (`app_Main.py`, `AboutDialog`) - modal, versão/data/arquitetura,
+  logo/site e abas Splash, Programmers (33), Translators (8 idiomas), License
+  (MIT) e Attributions (Freepik/Flaticon, Icons8, oNline Web Fonts, Pixel perfect).
+  FX em 2026-10-05: diálogo equivalente com créditos históricos identificados,
+  licença do arquivo raiz e aba Sistema/Copiar informações; segue os quatro temas.
+  Sistema inclui CPU/RAM/heap e pipeline ativo (GPU/driver D3D ou modo software),
+  com consulta assíncrona; não infere escolha de GPU da lista de placas instaladas.
 - **How To** (`HowtoDialog`) - modal, links (open source, novidades, bug
   tracker, doações).
 - **DialogBoxChoice** - modal genérico com `RadioSet` (ex.: escolher canto

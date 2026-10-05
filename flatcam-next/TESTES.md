@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 1003 registrados, 991 aprovados, 12 opcionais ignorados,
-zero falhas/erros (602 CAM, 115 application, 266 FX, 20 test-support).
+limpeza normal ativa: 1023 registrados, 1011 aprovados, 12 opcionais ignorados,
+zero falhas/erros (602 CAM, 115 application, 286 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -239,3 +239,31 @@ abrir projeto. Também foi verificada a ativação do heap dump por flag, não s
 geração: não se induziu OutOfMemoryError nem crash fatal. Limites e comandos
 em [DIAGNOSTICOS.md](DIAGNOSTICOS.md). O menu e overhead no projeto real ainda
 precisam de validação manual.
+
+## Sobre
+
+`AboutInfoTest`: quatro casos com licença empacotada idêntica ao LICENSE raiz,
+33 programadores na ordem do Python, oito linhas de tradutores com correções/
+contatos presentes no legado e dados de build/sistema sem alegar paridade total.
+`AboutDialogTest`: quatro temas, seis abas, larguras 360/480/700, quebra do
+cabeçalho, contorno do logo no escuro, créditos/licença, cópia e nove links com
+callbacks injetados. Um quinto caso mostra o diálogo e verifica que copiar não
+o fecha e que fechar funciona. Não altera clipboard nem abre navegador reais.
+Snapshots opcionais com `-Dflatcam.tests.snapshots=true` em `target/about-TEMA-*.png`
+foram inspecionados nos quatro temas. Uso pelo menu e destinos externos ainda
+exigem validação manual; não houve verificação online dos links históricos.
+
+Sistema acrescenta onze casos: quatro `SystemHardwareInfoTest` (registro CPU,
+unidades/indisponibilidade, RAM versus heap e coleta real), cinco
+`GraphicsRuntimeInfoTest` (identidade/ordinal/factory ausente, não inferir de
+prism.order, consulta real no renderer e processo separado forçado a SW), mais
+dois `AboutDialogTest` com atualização/cópia assíncrona e owner real mostrado.
+Timeouts mantêm a FX responsiva; nenhum processo provoca crash/OOME ou abre o
+projeto do usuário. Snapshot opcional `about-system-dark.png` cobre a aba.
+
+O launcher `--probe` agora imprime hardware e pipeline/GPU/driver após verificar
+o pixel offscreen. Testados nativo padrão D3D→SW, `--probe --software` e Maven
+modular com `-Djavafx.mainClass=org.flatcam.fx.LauncherProbe`. D3D identificou
+Intel Arc/igd9trinity64.dll 32.0.101.8991; SW não atribuiu GPU à renderização.
+A ponte interna precisa ser revalidada ao atualizar JavaFX. A seleção real
+em dois monitores e uso da aba no app do usuário continuam manuais.

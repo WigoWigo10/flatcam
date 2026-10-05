@@ -12,7 +12,7 @@ public final class LauncherProbe {
     }
 
     public static void run() throws Exception {
-        FutureTask<Void> render = new FutureTask<>(() -> {
+        FutureTask<java.util.concurrent.CompletableFuture<GraphicsRuntimeInfo>> render = new FutureTask<>(() -> {
             Canvas canvas = new Canvas(16, 16);
             canvas.getGraphicsContext2D().setFill(Color.CORNFLOWERBLUE);
             canvas.getGraphicsContext2D().fillRect(0, 0, 16, 16);
@@ -20,13 +20,17 @@ public final class LauncherProbe {
             if (image.getPixelReader().getArgb(8, 8) != 0xff6495ed) {
                 throw new IllegalStateException("JavaFX launcher probe did not render the expected pixel");
             }
-            return null;
+            return GraphicsRuntimeInfo.query(null);
         });
         try {
             // Wait until startup completes before allowing the toolkit to shut down.
             Platform.startup(() -> Platform.runLater(render));
-            render.get(20, TimeUnit.SECONDS);
-            System.out.println("FlatCAM FX: JavaFX native libraries and offscreen rendering OK.");
+            var graphics = render.get(20, TimeUnit.SECONDS).get(4, TimeUnit.SECONDS);
+            // Match the application's diagnostic output even when Windows stdout uses a legacy code page.
+            var output = new java.io.PrintStream(System.out, true, java.nio.charset.StandardCharsets.UTF_8);
+            output.println("FlatCAM FX: JavaFX native libraries and offscreen rendering OK.");
+            output.println(graphics.summary());
+            output.println(SystemHardwareInfo.collect().summary());
         } finally {
             Platform.exit();
         }

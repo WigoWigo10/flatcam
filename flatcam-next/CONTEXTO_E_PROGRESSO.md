@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `9783772c`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `330dba47`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
@@ -24,9 +24,13 @@ e continuar a migração sem recomeçar a investigação.
 > numa linha selecionada não abre mais o editor de nome.
 > Diagnósticos locais por sessão: logs/JFR limitados, exceções, CPU/RAM/JVM,
 > watchdog FX e menu Ajuda > Diagnosticos. Heap dump é opt-in.
+> Ajuda > Sobre agora abre diálogo com logo/versão, créditos do Python, licença
+> do repositório, atribuições e sistema; copia dados técnicos sem fechar.
+> Sistema mostra CPU/RAM/heap e consulta o pipeline gráfico ativo: GPU/driver
+> Direct3D da janela ou compatibilidade por software, sem inferir de prism.order.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **1003 testes registrados, 991 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 115 application, 266 FX e 20 de suporte de testes.
+> **1023 testes registrados, 1011 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 115 application, 286 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -98,10 +102,10 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições, tabelas, Snap, árvore e diagnósticos, **1003 registrados, 991 aprovados e 12
+Após os ajustes do console, transições, tabelas, Snap, árvore, diagnósticos e Sobre, **1023 registrados, 1011 aprovados e 12
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Sessenta e três novos testes verificam barra compacta, porcentagem, cancelamento,
-transições, Snap, árvore, diagnósticos e seleção/layout nos quatro temas. Capturas fora da
+normal. Oitenta e três novos testes verificam barra compacta, porcentagem, cancelamento,
+transições, Snap, árvore, diagnósticos, Sobre e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
@@ -2569,3 +2573,64 @@ padrão passou após o usuário fechar o app que inicialmente bloqueava seus JAR
 Guia, localização, limites, privacidade e comandos: `DIAGNOSTICOS.md`. Ainda
 validar manualmente os dois comandos do menu e overhead/fluidez no projeto real.
 O relato persistente do Snap permanece não reproduzido; esta entrega não o resolve.
+
+## Ajuda > Sobre — 2026-10-05
+
+Diagnósticos commitados em `330dba47`. Sobre era apenas uma mensagem no console;
+agora `AboutDialog` abre um diálogo redimensionável/modal vinculado à janela.
+Mantém a estrutura do `app_Main.py:on_about`: apresentação, programadores,
+tradutores, licença e atribuições. Acrescenta Sistema e botão Copiar informações,
+que não fecha o diálogo; Fechar/Esc continuam disponíveis. Logo original tem
+contorno claro no escuro; textos quebram linha sem reticências verticais.
+
+Os 33 programadores e oito idiomas/tradutores/corretores/contatos históricos
+foram preservados em TSV UTF-8. Créditos são explicitamente do Python, não
+autorias inventadas do port ou promessa de idiomas disponíveis no FX. A licença
+é copiada pelo build diretamente do LICENSE raiz, incluindo copyright. Links
+históricos são rotulados Python e só abrem por ação explícita no navegador;
+não foram verificados online. Não há WebView, novas dependências ou rede ao abrir.
+Versão/data de build vêm do recurso Maven filtrado; Java/OS/arquitetura/CPU/heap
+são dados locais reais. A referência Python 8.994 BETA (2020/11/7) fica separada.
+
+`AboutInfoTest`: quatro casos, incluindo comparação dos nomes/ordem contra o
+fonte Python e licença contra o arquivo raiz. `AboutDialogTest`: quatro temas,
+todas as abas em larguras 360/480/700, logo/estilos/cópia/links com callbacks
+injetados e um caso com diálogo mostrado verificando copiar sem fechar/fechar.
+Capturas de apresentação/créditos nos quatro temas foram inspecionadas.
+Install completo: **1012 registrados, 1000 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Clipboard/navegador reais não foram acionados nos testes;
+validar manualmente pelo menu. Implementação de Sobre pronta e validada.
+
+### Sistema: hardware e renderizador ativo — 2026-10-05
+
+`SystemHardwareInfo` acrescenta modelo de CPU (registro Windows somente leitura;
+/proc/cpuinfo no Linux), processadores lógicos disponíveis ao Java, RAM física
+total/disponível, heap usado/reservado/máximo e threads Java de plataforma.
+Consultas rodam num daemon; o registro tem timeout de três segundos e saída
+limitada. Não depende de PowerShell, WMI, rede nem biblioteca extra. RAM/heap
+ficam explicitamente separados; valores indisponíveis não são apresentados como zero.
+
+`GraphicsRuntimeInfo` isola reflexão opcional sobre Prism 25.0.4. A thread FX
+captura o ordinal do monitor da janela principal; um RenderJob lê o pipeline
+instalado e a factory já inicializada, sem criar dispositivo ou alterar escolha
+de GPU. Em D3D consulta descrição/driver do adaptador correspondente. SW mostra
+compatibilidade por software/CPU, sem atribuir a GPU instalada à renderização.
+Offscreen resolve a factory padrão por identidade, não presume adaptador zero.
+Outros backends têm nome do pipeline, sem identificação da GPU implementada.
+
+Launcher nativo e Maven têm cinco exports específicos e um opens D3D (somente
+Windows no Maven). Internals podem mudar: falta de acesso, factory ausente ou
+timeout produz informação indisponível, não impede o diálogo. Revalidar ao
+atualizar JavaFX. Dados são uma amostra ao abrir Sobre; não medem uso/VRAM da GPU.
+Consultas não bloqueiam a FX, com timeout total e descarte de atualização de
+diálogo já fechado. Copiar usa o texto exibido. GPU vem antes da RAM para ficar
+visível no tamanho inicial; detalhes completos podem ser rolados/copiados.
+
+Onze regressões adicionais: parsing/unidades/valores reais, seleção de adaptador
+sem inferência, janela proprietária real, informação/cópia assíncrona e JVM
+separada forçada a SW. Install completo: **1023 registrados, 1011 aprovados,
+12 opcionais ignorados**, sem falhas/erros, limpeza normal. Probes nativo D3D,
+nativo SW e Maven modular passaram; D3D identificou Intel Arc, driver
+igd9trinity64.dll 32.0.101.8991. Testes não induzem crash nem alteram projetos.
+Validar manualmente a aba pelo menu e reabrir após mover o app entre monitores
+(o teste de owner real usa apenas um monitor).

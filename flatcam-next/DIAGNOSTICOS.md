@@ -55,6 +55,26 @@ Não há medição de uso/VRAM da GPU nesta implementação. CPU/RAM são amostr
 não uma captura atômica de todo o PC; valores de carga negativos significam
 que a JVM não conseguiu medir aquele indicador.
 
+### Identificação na janela Sobre
+
+**Ajuda > Sobre > Sistema** também apresenta modelo de CPU, RAM física e heap
+Java separados, threads e identificação do renderizador ativo. A coleta ocorre
+em segundo plano ao abrir o diálogo; **Copiar informações** copia o texto exibido.
+No Windows/Direct3D, a placa e o driver vêm do adaptador Prism da janela
+principal. No pipeline SW, mostra **Compatibilidade por software (CPU)**.
+Não deduz a escolha da primeira placa enumerada nem da ordem solicitada.
+Os JSON de diagnóstico continuam registrando apenas a configuração gráfica
+solicitada; a identificação ativa, nesta entrega, é mostrada no Sobre e no probe.
+
+A ponte é opcional e isolada em `GraphicsRuntimeInfo`, validada em JavaFX
+25.0.4, com exports/opens específicos nos launchers. Usa internals documentados
+no código do [D3DPipeline](https://github.com/openjdk/jfx25u/blob/master/modules/javafx.graphics/src/main/java/com/sun/prism/d3d/D3DPipeline.java)
+e [D3DDriverInformation](https://github.com/openjdk/jfx25u/blob/master/modules/javafx.graphics/src/main/java/com/sun/prism/d3d/D3DDriverInformation.java).
+Revalidar após atualizar JavaFX; se acesso/informação falhar ou o renderer não
+responder, o diálogo informa indisponibilidade. Outros backends mostram o
+pipeline, mas a identificação da placa neles não está implementada. Isso não
+mede VRAM/uso da GPU nem muda a escolha do driver ou acelera o CAM.
+
 ## Travamentos e limites
 
 Um watchdog daemon envia no máximo um callback pendente para a thread FX.

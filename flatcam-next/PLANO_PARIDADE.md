@@ -277,6 +277,17 @@ falhas/erros. Validar manualmente o clique físico e foco do campo de edição.
 
 ### 7. Completar preferências e automação
 
+**Sobre em 2026-10-05:** diálogo com cinco abas do Python, 33 créditos de
+programadores e oito idiomas históricos, licença copiada do repositório,
+atribuições de ícones e links explicitamente do legado. Sistema/Copiar dados
+técnicos são melhorias FX. Os créditos não prometem esses idiomas no FX nem
+atribuem autoria do port aos autores legados. Sistema acrescenta CPU/RAM/heap e
+pipeline ativo com GPU/driver D3D ou compatibilidade SW; coleta assíncrona,
+indisponibilidade explícita e ponte Prism isolada/revalidável ao atualizar JavaFX.
+Vinte testes novos de Sobre/hardware e capturas nos
+quatro temas; install completo: 1023 registrados, 1011 aprovados, 12 opcionais
+ignorados, zero falhas/erros. Navegador/clipboard e links externos ficam manuais.
+
 **Diagnósticos em 2026-10-05:** logs persistentes/JFR por sessão, exceções,
 estado CPU/RAM/JVM e detecção de resposta FX atrasada. Launcher nativo configura
 relatório fatal e enumera adaptadores; Maven/Java mantém relatório fatal no

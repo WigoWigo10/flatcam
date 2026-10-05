@@ -195,6 +195,13 @@ int wmain(int argc, wchar_t** argv) {
         "--add-modules=javafx.controls",
         // Glass/Prism load platform libraries in javafx.graphics (JDK 24+ native-access policy).
         "--enable-native-access=javafx.graphics",
+        // Read-only Prism bridge for About > System. Java fails soft if internals change.
+        "--add-exports=javafx.graphics/com.sun.prism=ALL-UNNAMED",
+        "--add-exports=javafx.graphics/com.sun.javafx.tk=ALL-UNNAMED",
+        "--add-exports=javafx.graphics/com.sun.javafx.stage=ALL-UNNAMED",
+        "--add-exports=javafx.graphics/com.sun.javafx.tk.quantum=ALL-UNNAMED",
+        "--add-exports=javafx.graphics/com.sun.glass.ui=ALL-UNNAMED",
+        "--add-opens=javafx.graphics/com.sun.prism.d3d=ALL-UNNAMED",
         "-Dfile.encoding=UTF-8",
         std::string("-Dprism.order=") + (software ? "sw" : "d3d,sw")
     };
