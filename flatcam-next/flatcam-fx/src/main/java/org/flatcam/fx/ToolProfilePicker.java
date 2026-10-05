@@ -44,7 +44,7 @@ final class ToolProfilePicker {
                     return;
                 }
                 setText(compact ? profile.name() : profile.name() + " — " + description(profile));
-                setGraphic(icon(profile, compact ? 14 : 32, textFillProperty()));
+                setGraphic(icon(profile, compact ? 14 : 40, textFillProperty()));
                 setAccessibleText(profile.name() + ": " + description(profile));
             }
         };
@@ -98,12 +98,16 @@ final class ToolProfilePicker {
     }
 
     static String path(ToolProfile profile) {
+        // Side views of real cutters: shank, shoulder, chamfered or rounded cutting end, helical flutes.
         if (profile == ToolProfile.B)
-            return "M11 2 H21 V13 H23 V23 A7 7 0 0 1 9 23 V13 H11 Z M11 13 H21 M10 17 L22 21 M11 23 L19 28";
+            return "M11 2 H21 V10 L22 12 V21 A6 6 0 0 1 10 21 V12 L11 10 Z M11 10 H21 "
+                    + "M10 20 Q16 17 22 13 M10.5 25 Q16 22 21.5 18";
         if (profile == ToolProfile.V)
-            return "M11 2 H21 V13 H25 L17 30 H15 L7 13 H11 Z M11 13 H21 M12 16 L16 27";
+            return "M11 2 H21 V10 L22 12 L17 30 H15 L10 12 L11 10 Z M11 10 H21 "
+                    + "M11.5 15 Q15.5 15 17.5 20 M13.5 22 Q15.5 22 16.5 26";
         int teeth = switch (profile) { case C1 -> 1; case C2 -> 2; case C3 -> 3; case C4 -> 4; default -> throw new IllegalArgumentException(); };
-        StringBuilder path = new StringBuilder("M4 2 H12 V12 H14 V29 H2 V12 H4 Z M4 12 H12 M3 17 L13 21 M3 23 L13 27 "
+        StringBuilder path = new StringBuilder("M4 2 H12 V10 L13 12 V27 L11.5 29.5 H4.5 L3 27 V12 L4 10 Z M4 10 H12 "
+                + "M3 22 Q8 20 13 14.5 M3 27 Q8 25 13 20 "
                 + "M29 22 A6 6 0 1 1 17 22 A6 6 0 1 1 29 22 ");
         for (int tooth = 0; tooth < teeth; tooth++) {
             double angle = -Math.PI / 2 + tooth * 2 * Math.PI / teeth;
