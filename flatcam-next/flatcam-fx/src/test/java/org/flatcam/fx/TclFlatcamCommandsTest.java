@@ -52,10 +52,23 @@ class TclFlatcamCommandsTest {
         final List<NccCall> nccCalls = new ArrayList<>();
         final List<CncjobCall> cncjobCalls = new ArrayList<>();
         final List<Path> writtenFiles = new ArrayList<>();
+        final List<Path> openedProjects = new ArrayList<>();
+        final List<TclTransformRequest> transforms = new ArrayList<>();
+        String transformedName;
         final List<String> writtenContents = new ArrayList<>();
         boolean deletedAll;
         boolean failWrite;
         String nextOpenFails;
+
+        @Override public void openProject(Path file) throws IOException {
+            if (file.toString().equals(nextOpenFails)) throw new IOException("boom");
+            openedProjects.add(file);
+        }
+
+        @Override public void transform(String name, TclTransformRequest request) {
+            transformedName = name;
+            transforms.add(request);
+        }
 
         @Override
         public String openGerber(Path file, String outname) throws IOException {
@@ -526,5 +539,89 @@ class TclFlatcamCommandsTest {
         host.order.add("geo");
         interpreter.eval("cncjob geo -dia 0.5 -z_cut -1 -z_move 2 -feedrate 100");
         assertThrows(TclException.class, () -> interpreter.eval("write_gcode geo_cnc out.gcode"));
+    }
+
+    @Test void opensQuotedProjectPathsAndReportsIoFailures() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        assertEquals("", interp.eval("open_project {folder with spaces/project.fcnproj}"));
+        assertEquals(List.of(Path.of("folder with spaces/project.fcnproj")), host.openedProjects);
+        host.nextOpenFails = "missing";
+        assertTrue(assertThrows(TclException.class, () -> interp.eval("open_project missing")).getMessage().contains("boom"));
+        for (String script : List.of("open_project", "open_project a b", "open_project a -plot true"))
+            assertThrows(TclException.class, () -> interp.eval(script));
+        assertEquals(1, host.openedProjects.size());
+    }
+
+    @Test void offsetsAcceptBothLegacyPositionalsAndNamedAxes() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("offset {board name} 1.2 -0.3");
+        assertEquals("board name", host.transformedName);
+        assertEquals(1.2, host.transforms.getLast().x()); assertEquals(-0.3, host.transforms.getLast().y());
+        interp.eval("offset board -y -2");
+        assertEquals(0, host.transforms.getLast().x()); assertEquals(-2, host.transforms.getLast().y());
+        interp.eval("offset board"); assertEquals(0, host.transforms.getLast().x());
+        assertThrows(TclException.class, () -> interp.eval("offset board 1 -x 2"));
+    }
+
+    @Test void scaleDefaultsToCenterAndSupportsUniformFactorPrecedence() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("scale board 2 -x 7 -y 9");
+        var request = host.transforms.getLast();
+        assertEquals(TclTransformRequest.Reference.CENTER, request.reference());
+        var result = request.resolve(new Envelope(10, 20, 30, 50), null).apply(new org.locationtech.jts.geom.Coordinate(10, 30));
+        assertEquals(5, result.x); assertEquals(20, result.y);
+        assertEquals(2, request.x()); assertEquals(2, request.y());
+    }
+
+    @Test void scaleSupportsIndependentAxesWithoutCollapsingAnOmittedAxis() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("scale board -x -2 -origin origin");
+        var request = host.transforms.getLast(); assertEquals(-2, request.x()); assertEquals(1, request.y());
+        interp.eval("scale board -y 3 -origin min_bounds");
+        request = host.transforms.getLast(); assertEquals(1, request.x()); assertEquals(3, request.y());
+        assertEquals(TclTransformRequest.Reference.MIN_BOUNDS, request.reference());
+        interp.eval("scale board 2 -origin {(3.0, 2.1)}");
+        assertEquals(3, host.transforms.getLast().pivotX()); assertEquals(2.1, host.transforms.getLast().pivotY());
+    }
+
+    @Test void mirrorUsesPythonAxisConventionAndBoxTakesPrecedence() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("mirror board -axis X -origin 3,4");
+        var result = host.transforms.getLast().resolve(null, null).apply(new org.locationtech.jts.geom.Coordinate(7, 8));
+        assertEquals(7, result.x); assertEquals(0, result.y);
+        interp.eval("mirror board -box reference -origin ignored");
+        var request = host.transforms.getLast(); assertEquals("reference", request.box());
+        result = request.resolve(null, new Envelope(10, 20, 30, 50)).apply(new org.locationtech.jts.geom.Coordinate(10, 30));
+        assertEquals(20, result.x); assertEquals(30, result.y);
+        interp.eval("mirror board");
+        assertEquals(0, host.transforms.getLast().pivotX());
+    }
+
+    @Test void skewUsesMinBoundsAndDegrees() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("skew board -x 45");
+        var result = host.transforms.getLast().resolve(new Envelope(10, 20, 30, 50), null)
+                .apply(new org.locationtech.jts.geom.Coordinate(10, 40));
+        assertEquals(20, result.x, 1e-12); assertEquals(40, result.y);
+        assertEquals(0, host.transforms.getLast().y());
+    }
+
+    @Test void invalidTransformArgumentsNeverReachTheHost() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String script : List.of("scale board", "scale board 0", "scale board NaN", "scale board Infinity",
+                "scale board -x", "scale board -x 0", "scale board 2 -origin center()",
+                "scale board 2 -origin 3,4,5", "scale board 2 -origin {__import__('os').system('bad')}",
+                "offset board -y", "offset board -x NaN", "offset board 1 2 3",
+                "mirror board -axis Z", "mirror board -box", "mirror board -origin (1)",
+                "skew board -x 90", "skew board -y -90", "skew board -x NaN", "skew board 1",
+                "offset board -unknown 1"))
+            assertThrows(TclException.class, () -> interp.eval(script), script);
+        assertTrue(host.transforms.isEmpty());
+    }
+
+    @Test void emptyGeometryCannotProvideABoundsPivot() {
+        var request = new TclTransformRequest(TclTransformRequest.Operation.SCALE, 2, 2,
+                TclTransformRequest.Reference.CENTER, 0, 0, null);
+        assertThrows(TclException.class, () -> request.resolve(new Envelope(), null));
     }
 }

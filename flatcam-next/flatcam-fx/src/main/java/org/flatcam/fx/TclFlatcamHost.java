@@ -24,6 +24,12 @@ import org.locationtech.jts.geom.Geometry;
  */
 interface TclFlatcamHost {
 
+    /** Replaces the project only after complete worker preparation and validation. */
+    void openProject(Path file) throws IOException, TclException;
+
+    /** Updates one Gerber/Excellon/Geometry in place, preserving its name and settings. */
+    void transform(String name, TclTransformRequest request) throws TclException;
+
     enum Kind { GERBER, EXCELLON, GEOMETRY, CNC_JOB }
 
     record ObjectRef(Kind kind, String name) {

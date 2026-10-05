@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 1041 registrados, 1029 aprovados, 12 opcionais ignorados,
-zero falhas/erros (602 CAM, 115 application, 304 FX, 20 test-support).
+limpeza normal ativa: 1063 registrados, 1051 aprovados, 12 opcionais ignorados,
+zero falhas/erros (602 CAM, 115 application, 326 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -138,7 +138,12 @@ FX responsiva, entrada serializada, cancelar, histórico, erros, progresso e
 saída limitada. `TclExecutionTest` verifica a fila FX cancelada e propagação
 de erro. `TclLiveHostTest` usa MainWindow sem janela visível e geradores reais,
 verificando Z do G-code, nomes entre tipos, importação/CAM e descarte de
-resultados cuja origem/projeto mudou. Os testes FX são Windows-only.
+resultados cuja origem/projeto mudou. Agora também cobre abertura nativa e
+Python comprimida, cancelamento antes de publicar, rascunhos e operação ativa,
+edições concorrentes, manutenção da aparência/configuração, todos os dados
+transformados e script que continua depois de abrir o projeto. Foram adicionadas
+22 regressões entre host real e parsing dos cinco comandos. Roteiro/limites em
+[TERMINAL_TCL.md](TERMINAL_TCL.md). Os testes FX são Windows-only.
 `TclInterpreterTest` verifica cancelamento em loops/substituição/parse;
 `StableInteriorPointTest` cobre a grade estreita, cancelamento inicial,
 coordenadas grandes, não poligonais e precisão inválida.

@@ -5,9 +5,9 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `1b309154`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `94ad07b1`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
-> parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
+> parciais, editores, Tools Database e Terminal com 18 famílias de comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
 > a execução/cancelamento do Terminal e a grade inicial não limitada de Seed.
 > O console inferior recolhido agora mantém uma barra curta com porcentagem e
@@ -30,9 +30,11 @@ e continuar a migração sem recomeçar a investigação.
 > Direct3D da janela ou compatibilidade por software, sem inferir de prism.order.
 > Editor G-code e Ver Fonte agora usam CodeEditor/RichTextFX: linhas numeradas,
 > sintaxe por tema, linha atual, posição do cursor e busca literal assíncrona.
+> Terminal agora abre projetos nativo/Python e transforma Gerber/Excellon/Geometry
+> por offset/scale/mirror/skew, com worker, ajuda e descarte de resultados atrasados.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **1041 testes registrados, 1029 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 115 application, 304 FX e 20 de suporte de testes.
+> **1063 testes registrados, 1051 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 115 application, 326 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -104,10 +106,10 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições, tabelas, Snap, árvore, diagnósticos, Sobre e editores, **1041 registrados, 1029 aprovados e 12
+Após os ajustes do console, transições, tabelas, Snap, árvore, diagnósticos, Sobre, editores e comandos Tcl, **1063 registrados, 1051 aprovados e 12
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Cento e um novos testes verificam barra compacta, porcentagem, cancelamento,
-transições, Snap, árvore, diagnósticos, Sobre e seleção/layout nos quatro temas. Capturas fora da
+normal. Cento e vinte e três novos testes verificam barra compacta, porcentagem, cancelamento,
+transições, Snap, árvore, diagnósticos, Sobre, áreas de código, abertura/transformações Tcl e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
@@ -2693,3 +2695,47 @@ reaberto enquanto os testes finais continuavam; reiniciar para carregar as
 últimas classes/recursos. Não foi fechado automaticamente nem foram removidos
 JARs de dependências em uso; as cinco bibliotecas novas já estavam copiadas
 pelo build do usuário, e os probes utilizaram esse runtime atualizado.
+
+## Projetos e transformações pelo Terminal — 2026-10-05
+
+Entrega sobre `94ad07b1`, branch `flatcam-next`, autorizada para commit pelo usuário em 2026-10-05.
+`open_project`, `offset`, `scale`, `mirror` e `skew` foram adicionados: agora
+são 18 famílias FlatCAM, além dos aliases e comandos internos. Ajuda disponível
+por `help nome_do_comando`; roteiro e diferenças em [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+O fluxo do menu foi extraído para `loadProject` (worker) e `restoreProject` (FX),
+compartilhados com o Terminal. O script espera a publicação e pode continuar sem
+se autocancelar. Falhas/cancelamento antes da publicação preservam a sessão;
+rascunhos, outro job, alterações de identidade/nome/quantidade, aparência e
+configurações durante a carga bloqueiam a troca. Cores são validadas antes de
+limpar o projeto. O original não é regravado; Tcl não muda a preferência de
+último diretório. Callback do menu agora trata erros de publicação e libera o job.
+Não há rollback geral para falhas inesperadas depois de começar a restauração FX.
+
+Transformações preparam versões novas fora da FX e verificam origem/referência/
+epoch antes de substituir as entradas. Atualizam sólido/follow/formas/aberturas,
+furos/slots e caminhos por ferramenta; mantêm nomes/parâmetros/aparência. CNC
+Jobs são recusados; histórico de Mover é limpo. Sem novo undo Tcl. Identidades
+(offset/skew 0, scale 1) não recalculam nem trocam versões.
+
+Diferenças deliberadas: sem eval em coordenadas; scale mantém eixo omitido com
+fator 1 e recusa zero; mirror sem referência usa (0,0); skew limita ângulos a
+(-90,90). Eixo X de mirror reflete Y, e vice-versa, como o comando Python, não
+como o nome da operação interna de UI. Validação recusa resultados não finitos.
+Limites já existentes das dimensões das aberturas não foram removidos.
+
+22 regressões adicionais entre argumentos e MainWindow real. Abriram fixtures
+nativo e Python comprimido com quatro tipos, preservaram arquivo fonte, cores,
+follow, ferramentas/defaults, provaram continuação do script e FX responsiva,
+cancelamento, rascunhos, erros e descarte de resultados atrasados. Install completo:
+**1063 registrados, 1051 aprovados, 12 opcionais ignorados**, zero falhas/erros,
+limpeza normal ativa (602 CAM, 115 application, 326 FX, 20 test-support).
+Probes nativos D3D e software aprovados. Não houve teste físico CNC nem benchmark
+ou reexecução da comparação privada Python; validação manual segue necessária.
+
+Cancelamento continua cooperativo: decode JSON/XZ e uma transformação JTS
+individual não são interrompidos no meio; publicação da árvore/Plot é FX em lote.
+O percentual da abertura é por fase, não medição byte a byte do decode. Comandos
+já publicados não são desfeitos por cancelar um script. Próxima fatia recomendada:
+`save_project` e controle de plot/seleção pelo Terminal, sem ampliar o dialeto
+silenciosamente nem declarar paridade de automação completa.

@@ -210,9 +210,9 @@ final class TerminalPanel extends BorderPane {
         interpreter.register("version", (interp, args) -> versionLabel);
         interpreter.register("help", (interp, args) -> {
             if (!args.isEmpty()) {
-                // No per-command structured help text yet (Python's get_decorated_help()) -
-                // at least confirm the name exists rather than silently doing nothing.
                 String name = args.get(0);
+                String details = TclFlatcamCommands.help(name);
+                if (details != null && interp.commandNames().contains(name)) return details;
                 return interp.commandNames().contains(name)
                         ? name + ": sem texto de ajuda detalhado ainda."
                         : "Comando desconhecido: " + name;

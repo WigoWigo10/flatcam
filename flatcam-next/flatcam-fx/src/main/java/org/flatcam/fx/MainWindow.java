@@ -75,6 +75,7 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.TextAlignment;
 import javafx.stage.FileChooser;
 import org.flatcam.app.job.JobExecutor;
+import org.flatcam.app.job.JobContext;
 import org.flatcam.app.job.JobHandle;
 import org.flatcam.app.project.ProjectFile;
 import org.flatcam.app.project.DrillCncSettings;
@@ -7264,6 +7265,174 @@ final class MainWindow implements TclFlatcamHost {
     // ---- TclFlatcamHost: what the Tcl Terminal's FlatCAM commands see of this live session ----
 
     @Override
+    public void openProject(Path file) throws IOException, TclException {
+        requireWorkerCommand();
+        TclProjectState before = TclExecution.onFx(() -> {
+            requireProjectReplacementAllowed();
+            return captureTclProjectState();
+        });
+        LoadedProject loaded = loadProject(file, new JobContext() {
+            @Override public boolean isCancelled() { return TclExecution.cancellation().isCancellationRequested(); }
+            @Override public void reportProgress(double fraction, String message) {
+                TclExecution.progress(message).report(fraction);
+            }
+        });
+        TclExecution.onFx(() -> {
+            requireProjectReplacementAllowed();
+            checkTclProjectState(before);
+            restoreProject(loaded, false);
+            reportOpenedProject(file, loaded);
+            return null;
+        });
+    }
+
+    /** The Tcl worker cannot wait for another job on FX or transform live JavaFX state. */
+    private static void requireWorkerCommand() {
+        if (Platform.isFxApplicationThread())
+            throw new IllegalStateException("Execute este comando pelo Terminal (worker), nao pela thread FX.");
+    }
+
+    private boolean hasEditorChanges() {
+        return gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()
+                || geometryEditor.hasUnappliedChanges() || excellonEditor.hasUnappliedChanges();
+    }
+
+    private void requireProjectReplacementAllowed() {
+        if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
+        if (hasEditorChanges())
+            throw new IllegalStateException("Aplique ou cancele as alteracoes do editor antes de abrir outro projeto.");
+    }
+
+    private record TclAppearance(boolean visible, boolean filled, boolean multicolor, Color fill, Color stroke) { }
+    private record TclItemState(TreeItem<String> item, String name, Object version, TclAppearance appearance) { }
+    private record TclProjectState(long epoch, List<TclItemState> items, List<Object> settings) { }
+
+    private TclAppearance tclAppearance(Object item) {
+        var colors = plotAreaView.layerColors(item);
+        return new TclAppearance(plotAreaView.isLayerVisible(item), plotAreaView.isLayerFilled(item),
+                plotAreaView.isLayerMulticolor(item), colors == null ? null : colors[0], colors == null ? null : colors[1]);
+    }
+
+    private List<Object> tclProjectSettings() {
+        Map<TreeItem<String>, Set<Integer>> hidden = new LinkedHashMap<>();
+        hiddenCncTools.forEach((item, tools) -> hidden.put(item, Set.copyOf(tools)));
+        Map<TreeItem<String>, List<TclAppearance>> cncAppearance = new LinkedHashMap<>();
+        cncJobByItem.keySet().forEach(item -> cncAppearance.put(item,
+                List.of(tclAppearance(new CncCutLayerKey(item)), tclAppearance(new CncTravelLayerKey(item)))));
+        return List.of(new LinkedHashMap<>(drillDefaultsByItem), new LinkedHashMap<>(drillCncSettingsByItem),
+                new LinkedHashMap<>(geometryCncSettingsByItem), new LinkedHashSet<>(gerberFollowItems),
+                hidden, new LinkedHashSet<>(cncAnnotationsOff), new LinkedHashSet<>(cncArrowsOff), cncAppearance);
+    }
+
+    private List<TreeItem<String>> allTclItems() {
+        List<TreeItem<String>> items = new ArrayList<>(gerberByItem.keySet());
+        items.addAll(excellonByItem.keySet()); items.addAll(geometryByItem.keySet()); items.addAll(cncJobByItem.keySet());
+        return items;
+    }
+
+    private TclProjectState captureTclProjectState() {
+        return new TclProjectState(tclProjectEpoch, allTclItems().stream()
+                .map(item -> new TclItemState(item, item.getValue(), tclVersion(item), tclAppearance(item))).toList(),
+                tclProjectSettings());
+    }
+
+    private void checkTclProjectState(TclProjectState before) {
+        checkTclProject(before.epoch());
+        if (allTclItems().size() != before.items().size() || !before.settings().equals(tclProjectSettings()))
+            throw new IllegalStateException("Os objetos do projeto mudaram durante o carregamento; resultado descartado.");
+        for (TclItemState state : before.items())
+            if (tclVersion(state.item()) != state.version() || !Objects.equals(state.name(), state.item().getValue())
+                    || !state.appearance().equals(tclAppearance(state.item())))
+                throw new IllegalStateException("O projeto foi editado durante o carregamento; resultado descartado.");
+    }
+
+    private void requireTclTransformAllowed() {
+        if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())
+            throw new IllegalStateException("Conclua a operacao ou feche o editor de objetos antes de transformar pelo Terminal.");
+    }
+
+    @Override
+    public void transform(String name, TclTransformRequest request) throws TclException {
+        requireWorkerCommand();
+        TclExecution.onFx(() -> { requireTclTransformAllowed(); return null; });
+        TclSource source = tclSource(name);
+        if (source.kind() == Kind.CNC_JOB)
+            throw new TclException("Only Gerber, Excellon and Geometry objects can be transformed; CNC G-code is not rewritten.");
+        if (request.operation() == TclTransformRequest.Operation.OFFSET && request.x() == 0 && request.y() == 0
+                || request.operation() == TclTransformRequest.Operation.SKEW && request.x() == 0 && request.y() == 0
+                || request.operation() == TclTransformRequest.Operation.SCALE && request.x() == 1 && request.y() == 1) {
+            TclExecution.cancellation().throwIfCancellationRequested();
+            return;
+        }
+        TclSource box = request.reference() == TclTransformRequest.Reference.BOX ? tclSource(request.box()) : null;
+        TclExecution.phase("Transformando " + name + "...");
+        TransformOp op = request.resolve(source.geometry() == null ? null : source.geometry().getEnvelopeInternal(),
+                box == null || box.geometry() == null ? null : box.geometry().getEnvelopeInternal());
+        Object transformed;
+        if (source.version() instanceof GerberImage image) {
+            GerberImage result = image.transformed(op);
+            checkFiniteGeometry(result.solidGeometry()); checkFiniteGeometry(result.followGeometry());
+            for (Geometry geometry : result.apertureGeometry().values()) checkFiniteGeometry(geometry);
+            for (var shape : result.shapes()) { checkFiniteGeometry(shape.geometry()); checkFiniteGeometry(shape.followGeometry()); }
+            transformed = result;
+        } else if (source.version() instanceof ExcellonImage image) {
+            ExcellonImage result = image.transformed(op);
+            checkFiniteGeometry(result.solidGeometry());
+            for (var drill : result.drills()) checkFinitePoint(drill.x(), drill.y());
+            for (var slot : result.slots()) { checkFinitePoint(slot.x1(), slot.y1()); checkFinitePoint(slot.x2(), slot.y2()); }
+            transformed = result;
+        } else {
+            GeometryEntry entry = (GeometryEntry) source.version();
+            Geometry geometry = op.apply(entry.geometry()); checkFiniteGeometry(geometry);
+            List<ToolGeometry> tools = new ArrayList<>();
+            for (ToolGeometry tool : entry.tools()) {
+                TclExecution.cancellation().throwIfCancellationRequested();
+                ToolGeometry result = tool.transformed(op); checkFiniteGeometry(result.geometry()); tools.add(result);
+            }
+            transformed = new GeometryEntry(entry.sourceName(), entry.units(), geometry,
+                    entry.strokeOnly(), List.copyOf(tools), entry.cncDefaults());
+        }
+        TclExecution.cancellation().throwIfCancellationRequested();
+        TclExecution.onFx(() -> {
+            requireTclTransformAllowed(); checkTclSource(source);
+            if (box != null) checkTclSource(box);
+            plotMoveHistory.clear();
+            if (transformed instanceof GerberImage image) {
+                gerberByItem.put(source.item(), image);
+                plotAreaView.updateLayerGeometry(source.item(), gerberFollowItems.contains(source.item())
+                        ? image.followGeometry() : image.solidGeometry());
+            } else if (transformed instanceof ExcellonImage image) {
+                excellonByItem.put(source.item(), image);
+                plotAreaView.updateLayerGeometry(source.item(), image.solidGeometry());
+            } else {
+                GeometryEntry entry = (GeometryEntry) transformed;
+                geometryByItem.put(source.item(), entry);
+                plotAreaView.updateLayerGeometry(source.item(), entry.geometry());
+            }
+            refreshPlotSelectionOutline();
+            if (projectTree.getSelectionModel().getSelectedItem() == source.item()) showProperties(source.item());
+            return null;
+        });
+    }
+
+    private static void checkFinitePoint(double x, double y) {
+        TclExecution.cancellation().throwIfCancellationRequested();
+        if (!Double.isFinite(x) || !Double.isFinite(y))
+            throw new IllegalArgumentException("Transform would create non-finite coordinates; object preserved.");
+    }
+
+    private static void checkFiniteGeometry(Geometry geometry) {
+        if (geometry == null) return;
+        geometry.apply(new org.locationtech.jts.geom.CoordinateSequenceFilter() {
+            @Override public void filter(org.locationtech.jts.geom.CoordinateSequence sequence, int i) {
+                checkFinitePoint(sequence.getX(i), sequence.getY(i));
+            }
+            @Override public boolean isDone() { return false; }
+            @Override public boolean isGeometryChanged() { return false; }
+        });
+    }
+
+    @Override
     public String openGerber(Path file, String outname) throws IOException {
         long epoch = TclExecution.onFx(() -> tclProjectEpoch);
         GerberImage image = new GerberParser().parse(file, TclExecution.cancellation(),
@@ -8281,141 +8450,167 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
 
+        TclProjectState before = captureTclProjectState();
         beginJob("Abrindo projeto " + file.getName() + "...");
-        JobHandle<LoadedProject> handle = jobExecutor.submit(context -> {
-            CancellationToken cancellation = context::isCancelled;
-            cancellation.throwIfCancellationRequested();
-            context.reportProgress(0.05, "Lendo " + file.getName() + "...");
-            long decodeStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
-            ProjectFile project = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")
-                    ? PythonProjectIO.load(file.toPath()) : ProjectFileIO.load(file.toPath());
-            plotAreaView.logPerformancePhase("project decode (worker)", decodeStart);
-            cancellation.throwIfCancellationRequested();
-            context.reportProgress(0.5, "Projeto decodificado.");
-
-            List<LoadedCncJob> cncJobs = new ArrayList<>();
-            List<String> warnings = new ArrayList<>();
-            warnings.addAll(project.importWarnings());
-            int total = Math.max(1, project.cncJobs().size());
-            int processed = 0;
-            for (ProjectFile.CncJobRecord job : project.cncJobs()) {
-                cancellation.throwIfCancellationRequested();
-                Path outputPath = Path.of(job.outputPath());
-                context.reportProgress(0.5 + 0.5 * processed / total, "Lendo G-code " + outputPath.getFileName() + "...");
-                try {
-                    String gcode = job.gcode() != null ? job.gcode() : Files.readString(outputPath);
-                    Geometry travel = null;
-                    Geometry cut = null;
-                    Geometry travelCenterlines = null;
-                    Geometry cutCenterlines = null;
-                    double previewStrokeWidth = 0;
-                    String units = null;
-                    GCodeToolpathParser.ToolpathStats stats = null;
-                    try {
-                        int jobIndex = processed;
-                        GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(gcode, cancellation,
-                                fraction -> context.reportProgress(0.5 + 0.5 * (jobIndex + fraction) / total,
-                                        "Analisando G-code " + outputPath.getFileName() + "..."));
-                        travel = parsed.travelGeometry();
-                        cut = parsed.cutGeometry();
-                        travelCenterlines = parsed.travelCenterlines();
-                        cutCenterlines = parsed.cutCenterlines();
-                        previewStrokeWidth = previewWidthFor(parsed);
-                        stats = parsed.stats();
-                        units = parsed.plotAvailable() ? parsed.units() : null;
-                        if (parsed.warning() != null) {
-                            warnings.add("Aviso: " + outputPath.getFileName() + ": " + parsed.warning());
-                        }
-                    } catch (IllegalArgumentException invalidGcode) {
-                        warnings.add("Aviso: pre-visualizacao de " + outputPath.getFileName()
-                                + " indisponivel: " + invalidGcode.getMessage());
-                    }
-                    String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
-                    cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode,
-                            travel, cut, travelCenterlines, cutCenterlines,
-                            previewStrokeWidth, units, job.visible(), stats));
-                } catch (IOException e) {
-                    warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
-                }
-                processed++;
-            }
-
-            cancellation.throwIfCancellationRequested();
-            context.reportProgress(1, "Projeto carregado.");
-            return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
-                    List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings());
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
+        JobHandle<LoadedProject> handle = jobExecutor.submit(context -> loadProject(file.toPath(), context),
+                (fraction, message) -> Platform.runLater(() -> {
+                    updateProgress(fraction);
+                    statusLabel.setText(message);
+                }));
         runningJob = handle;
+        handle.completion().whenComplete((project, failure) -> Platform.runLater(() -> {
+            try {
+                if (failure != null) throw new java.util.concurrent.CompletionException(failure);
+                if (handle.isCancelled()) throw new CancellationException("Carregamento cancelado.");
+                checkTclProjectState(before);
+                if (hasEditorChanges()) throw new IllegalStateException("O editor foi alterado durante o carregamento.");
+                restoreProject(project, true);
+                reportOpenedProject(file.toPath(), project);
+                AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+                updateProgress(1);
+                setStatus("Concluido.", IDLE_COLOR);
+            } catch (Exception error) {
+                reportJobError(error, "Falha ao abrir projeto: ");
+                appendConsole("O projeto atual foi preservado se a restauracao ainda nao tinha iniciado.");
+            } finally {
+                onJobFinished();
+            }
+        }));
+    }
 
-        handle.completion()
-                .thenAccept(project -> Platform.runLater(() -> {
-                    long restoreStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
-                    plotAreaView.beginBatchUpdate();
-                    try {
-                        clearProject();
-                        currentProjectImportWarnings = project.importWarnings();
-                        for (ProjectFile.GerberEntry loaded : project.gerbers()) {
-                            TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
-                            applyRestoredGerberState(item, loaded.image(), loaded);
-                            setDisplayUnits(loaded.image().units());
-                        }
-                        for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
-                            TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
-                                    loaded.drillDefaults());
-                            if (loaded.cncSettings() != null) drillCncSettingsByItem.put(item, loaded.cncSettings());
-                            applyRestoredExcellonState(item, loaded);
-                            setDisplayUnits(loaded.image().units());
-                        }
-                        for (ProjectFile.GeometryEntry loaded : project.geometries()) {
-                            TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
-                                    loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
-                                    loaded.cncDefaults());
-                            if (loaded.cncSettings() != null) geometryCncSettingsByItem.put(item, loaded.cncSettings());
-                            if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
-                                plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
-                                        Color.web(loaded.strokeColorWeb()));
-                            }
-                            if (!loaded.visible()) {
-                                setObjectVisible(item, false);
-                            }
-                            setDisplayUnits(loaded.units());
-                        }
-                        for (LoadedCncJob loaded : project.cncJobs()) {
-                            TreeItem<String> item = addCncJobToProject(loaded.name(), loaded.sourceName(),
-                                    loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry(),
-                                    loaded.travelCenterlines(), loaded.cutCenterlines(), loaded.previewStrokeWidth(),
-                                    loaded.stats());
-                            if (!loaded.visible()) setObjectVisible(item, false);
-                            if (loaded.units() != null) {
-                                setDisplayUnits(loaded.units());
-                            }
-                        }
-                    } finally {
-                        plotAreaView.endBatchUpdate();
+    /** Shared worker preparation for menu and Tcl; no visible project mutation. */
+    private LoadedProject loadProject(Path file, JobContext context) throws IOException {
+        CancellationToken cancellation = context::isCancelled;
+        cancellation.throwIfCancellationRequested();
+        context.reportProgress(0.05, "Lendo " + file.getFileName().toString() + "...");
+        cancellation.throwIfCancellationRequested();
+        long decodeStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
+        ProjectFile project = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")
+                ? PythonProjectIO.load(file) : ProjectFileIO.load(file);
+        plotAreaView.logPerformancePhase("project decode (worker)", decodeStart);
+        validateProjectColors(project);
+        cancellation.throwIfCancellationRequested();
+        context.reportProgress(0.5, "Projeto decodificado.");
+
+        List<LoadedCncJob> cncJobs = new ArrayList<>();
+        List<String> warnings = new ArrayList<>();
+        warnings.addAll(project.importWarnings());
+        int total = Math.max(1, project.cncJobs().size());
+        int processed = 0;
+        for (ProjectFile.CncJobRecord job : project.cncJobs()) {
+            cancellation.throwIfCancellationRequested();
+            Path outputPath = Path.of(job.outputPath());
+            context.reportProgress(0.5 + 0.5 * processed / total, "Lendo G-code " + outputPath.getFileName() + "...");
+            try {
+                String gcode = job.gcode() != null ? job.gcode() : Files.readString(outputPath);
+                Geometry travel = null;
+                Geometry cut = null;
+                Geometry travelCenterlines = null;
+                Geometry cutCenterlines = null;
+                double previewStrokeWidth = 0;
+                String units = null;
+                GCodeToolpathParser.ToolpathStats stats = null;
+                try {
+                    int jobIndex = processed;
+                    GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(gcode, cancellation,
+                            fraction -> context.reportProgress(0.5 + 0.5 * (jobIndex + fraction) / total,
+                                    "Analisando G-code " + outputPath.getFileName() + "..."));
+                    travel = parsed.travelGeometry();
+                    cut = parsed.cutGeometry();
+                    travelCenterlines = parsed.travelCenterlines();
+                    cutCenterlines = parsed.cutCenterlines();
+                    previewStrokeWidth = previewWidthFor(parsed);
+                    stats = parsed.stats();
+                    units = parsed.plotAvailable() ? parsed.units() : null;
+                    if (parsed.warning() != null) {
+                        warnings.add("Aviso: " + outputPath.getFileName() + ": " + parsed.warning());
                     }
-                    plotAreaView.logPerformancePhase("project restore (FX thread)", restoreStart);
-                    project.warnings().forEach(this::appendConsole);
-                    AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
-                    appendConsole("Projeto aberto: " + file);
-                    if (file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")) {
-                        appendConsole("Projeto Python importado. Salvar Projeto grava apenas .fcnproj; "
-                                + "o arquivo .FlatPrj original nao sera alterado.");
-                    }
-                    updateProgress(1);
-                    setStatus("Concluido.", IDLE_COLOR);
-                    onJobFinished();
-                }))
-                .exceptionally(error -> {
-                    Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao abrir projeto: ");
-                        appendConsole("O projeto atual foi preservado.");
-                        onJobFinished();
-                    });
-                    return null;
-                });
+                } catch (IllegalArgumentException invalidGcode) {
+                    warnings.add("Aviso: pre-visualizacao de " + outputPath.getFileName()
+                            + " indisponivel: " + invalidGcode.getMessage());
+                }
+                String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
+                cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode,
+                        travel, cut, travelCenterlines, cutCenterlines,
+                        previewStrokeWidth, units, job.visible(), stats));
+            } catch (IOException e) {
+                warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
+            }
+            processed++;
+        }
+
+        cancellation.throwIfCancellationRequested();
+        context.reportProgress(1, "Projeto carregado.");
+        return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
+                List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings());
+    }
+
+    /** Fail before replacing anything if a stored colour cannot be restored. */
+    private static void validateProjectColors(ProjectFile project) {
+        for (var entry : project.gerbers()) validateColors(entry.fillColorWeb(), entry.strokeColorWeb());
+        for (var entry : project.excellons()) validateColors(entry.fillColorWeb(), entry.strokeColorWeb());
+        for (var entry : project.geometries()) validateColors(entry.fillColorWeb(), entry.strokeColorWeb());
+    }
+
+    private static void validateColors(String fill, String stroke) {
+        if (fill != null) Color.web(fill);
+        if (stroke != null) Color.web(stroke);
+    }
+
+    /** FX-only publication. Tcl replacement must not cancel its own running script. */
+    private void restoreProject(LoadedProject project, boolean cancelTerminal) {
+        long restoreStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
+        plotAreaView.beginBatchUpdate();
+        try {
+            clearProject(cancelTerminal);
+            currentProjectImportWarnings = project.importWarnings();
+            for (ProjectFile.GerberEntry loaded : project.gerbers()) {
+                TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
+                applyRestoredGerberState(item, loaded.image(), loaded);
+                setDisplayUnits(loaded.image().units());
+            }
+            for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
+                TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
+                        loaded.drillDefaults());
+                if (loaded.cncSettings() != null) drillCncSettingsByItem.put(item, loaded.cncSettings());
+                applyRestoredExcellonState(item, loaded);
+                setDisplayUnits(loaded.image().units());
+            }
+            for (ProjectFile.GeometryEntry loaded : project.geometries()) {
+                TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
+                        loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
+                        loaded.cncDefaults());
+                if (loaded.cncSettings() != null) geometryCncSettingsByItem.put(item, loaded.cncSettings());
+                if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
+                    plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
+                            Color.web(loaded.strokeColorWeb()));
+                }
+                if (!loaded.visible()) {
+                    setObjectVisible(item, false);
+                }
+                setDisplayUnits(loaded.units());
+            }
+            for (LoadedCncJob loaded : project.cncJobs()) {
+                TreeItem<String> item = addCncJobToProject(loaded.name(), loaded.sourceName(),
+                        loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry(),
+                        loaded.travelCenterlines(), loaded.cutCenterlines(), loaded.previewStrokeWidth(),
+                        loaded.stats());
+                if (!loaded.visible()) setObjectVisible(item, false);
+                if (loaded.units() != null) {
+                    setDisplayUnits(loaded.units());
+                }
+            }
+        } finally {
+            plotAreaView.endBatchUpdate();
+        }
+        plotAreaView.logPerformancePhase("project restore (FX thread)", restoreStart);
+    }
+
+    private void reportOpenedProject(Path file, LoadedProject project) {
+        project.warnings().forEach(this::appendConsole);
+        appendConsole("Projeto aberto: " + file);
+        if (file.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj"))
+            appendConsole("Projeto Python importado. A abertura nao altera o arquivo .FlatPrj original.");
     }
 
     /** Restores a reloaded Gerber's plot appearance/visibility/follow-mode - see ProjectFile.GerberEntry. */
@@ -8448,8 +8643,12 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void clearProject() {
+        clearProject(true);
+    }
+
+    private void clearProject(boolean cancelTerminal) {
         tclProjectEpoch++;
-        if (terminalPanel != null) terminalPanel.cancel();
+        if (cancelTerminal && terminalPanel != null) terminalPanel.cancel();
         plotAreaView.cancelPlacement();
         plotMoveHistory.clear();
         gerberEditor.cancel();

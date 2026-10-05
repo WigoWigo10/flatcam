@@ -369,7 +369,7 @@ Entregue nesta etapa:
 - 593 testes em `flatcam-cam` aprovados, 916 no reactor completo. Build
   completo e abertura do FX verificados depois do `install`.
 
-Ainda não abordado: `open_project` (recriar todos os objetos de um arquivo
+Limites ao final da entrega de 2026-10-03 (atualização abaixo): `open_project` (recriar todos os objetos de um arquivo
 de projeto via Tcl - exigiria extrair o fluxo assíncrono existente de
 "aplicar projeto carregado" para algo que um comando síncrono possa chamar,
 sem arriscar esse caminho já ajustado); os demais ~55 comandos do Python
@@ -416,9 +416,22 @@ Fluxo visual/manual com placas densas ainda precisa de validação pelo usuário
 A comparação privada CAM/Python não foi reexecutada; Seed permanece uma
 diferença deliberada e não há promessa de continuidade global do ponto escolhido.
 
-Próximo incremento: `open_project` assíncrono e comandos de transformação,
-com testes do host real e proteção equivalente contra resultados atrasados.
-Os limites Tcl restantes listados acima continuam válidos.
+**Incremento em 2026-10-05, sobre `94ad07b1`:** `open_project` usa o mesmo
+carregador/preparação do menu em worker e aguarda a publicação FX antes do
+próximo comando. Não cancela o próprio script; arquivos original/privados não
+são modificados. Rascunhos, outra operação, cancelamento e alterações concorrentes
+do projeto impedem a substituição. Cores são validadas antes de limpar a sessão.
+
+`offset`, `scale`, `mirror` e `skew` agora atuam em Gerber/Excellon/Geometry
+no worker, preservando ferramentas, parâmetros e aparência. Referências seguem
+o checkout Python, inclusive a convenção dos eixos de mirror; eixos omitidos
+de scale permanecem em 1, não zero, e mirror sem referência usa (0,0), diferenças
+deliberadas. Pontos não usam eval; CNC Job/valores não finitos são recusados.
+Há ajuda por comando e 22 regressões adicionais de argumentos e host real.
+Limites, roteiros e pendências: [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+Próximo incremento: `save_project`, controle de plot/seleção e outros comandos
+Tcl restantes. O dialeto continua reduzido; não declarar paridade Tcl completa.
 
 ## Desempenho: trabalho transversal
 

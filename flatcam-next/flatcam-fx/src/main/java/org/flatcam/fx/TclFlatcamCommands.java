@@ -24,7 +24,7 @@ import org.locationtech.jts.geom.Geometry;
  * for exactly which flags are covered and which are deliberately not (yet): object creation/
  * lookup/deletion (open_gerber, open_excellon, new_geometry, delete/del, get_names, bbox, bounds),
  * and the CAM operations built on this port's existing generators (isolate, cutout, ncc/ncc_clear,
- * cncjob, export_gcode, write_gcode).
+ * cncjob, export_gcode, write_gcode), project loading and affine transformations.
  */
 final class TclFlatcamCommands {
 
@@ -37,6 +37,8 @@ final class TclFlatcamCommands {
     void registerOn(TclInterpreter interpreter) {
         registerOpenGerber(interpreter);
         registerOpenExcellon(interpreter);
+        registerOpenProject(interpreter);
+        registerTransforms(interpreter);
         registerNewGeometry(interpreter);
         registerDelete(interpreter);
         registerGetNames(interpreter);
@@ -53,6 +55,129 @@ final class TclFlatcamCommands {
     /** Keep the normal empty result, but disclose a name suffixed to avoid collisions. */
     private static String creationResult(String requested, String actual) {
         return requested.equals(actual) ? "" : actual;
+    }
+
+    static String help(String command) {
+        return switch (command) {
+            case "open_project" -> "open_project {C:/pasta/projeto.fcnproj}\n"
+                    + "Aceita .fcnproj e .FlatPrj. Substitui o projeto atual apos carregar; nao salva alteracoes. "
+                    + "Aplique/cancele rascunhos antes. Use / e chaves em caminhos Windows.";
+            case "offset" -> "offset {nome} -x 1.2 -y -0.3\nTambem aceita offset {nome} 1.2 -0.3. Eixos omitidos: 0.";
+            case "scale" -> "scale {nome} 2 -origin center\nscale {nome} -x 2 -y 1 -origin {(3,4)}\n"
+                    + "Referencia: center (padrao), origin, min_bounds ou x,y. Eixo omitido: 1; fator zero recusado.";
+            case "mirror" -> "mirror {nome} -axis X -origin 0,0\nmirror {nome} -axis Y -box {referencia}\n"
+                    + "X reflete Y; Y reflete X (padrao). -box usa o centro da referencia e prevalece sobre -origin. Sem referencia: (0,0).";
+            case "skew" -> "skew {nome} -x 10 -y 0\nAngulos em graus, entre -90 e 90; referencia: canto inferior esquerdo. Eixos omitidos: 0.";
+            default -> null;
+        };
+    }
+
+    private void registerOpenProject(TclInterpreter interpreter) {
+        interpreter.register("open_project", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of());
+            requirePositionals(args, 1, 1);
+            try { host.openProject(Path.of(args.positional(0))); }
+            catch (IOException | java.nio.file.InvalidPathException error) {
+                throw new TclException("Could not open project: " + error.getMessage());
+            }
+            return "";
+        });
+    }
+
+    private void registerTransforms(TclInterpreter interpreter) {
+        interpreter.register("offset", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("x", "y"));
+            requirePositionals(args, 1, 3);
+            double x = axisValue(args, "x", 1, 0), y = axisValue(args, "y", 2, 0);
+            return transform(args, TclTransformRequest.Operation.OFFSET, x, y,
+                    TclTransformRequest.Reference.ORIGIN, 0, 0, null);
+        });
+        interpreter.register("scale", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("x", "y", "origin"));
+            requirePositionals(args, 1, 2);
+            double x, y;
+            // Validate supplied options even when the positional uniform factor takes precedence.
+            double axisX = optionNumber(args, "x", 1), axisY = optionNumber(args, "y", 1);
+            if (args.positionalCount() == 2) x = y = number(args.positional(1));
+            else {
+                if (!args.isPresent("x") && !args.isPresent("y"))
+                    throw new TclException("Expected a scale factor or -x/-y factors.");
+                x = axisX; y = axisY;
+            }
+            String origin = args.isPresent("origin") ? args.requireOption("origin") : "center";
+            TclTransformRequest.Reference ref = switch (origin) {
+                case "origin" -> TclTransformRequest.Reference.ORIGIN;
+                case "center" -> TclTransformRequest.Reference.CENTER;
+                case "min_bounds" -> TclTransformRequest.Reference.MIN_BOUNDS;
+                default -> TclTransformRequest.Reference.POINT;
+            };
+            double[] point = ref == TclTransformRequest.Reference.POINT ? point(origin) : new double[]{0, 0};
+            return transform(args, TclTransformRequest.Operation.SCALE, x, y, ref, point[0], point[1], null);
+        });
+        interpreter.register("mirror", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("axis", "box", "origin"));
+            requirePositionals(args, 1, 1);
+            String axis = args.isPresent("axis") ? args.requireOption("axis") : "Y";
+            if (!axis.equalsIgnoreCase("X") && !axis.equalsIgnoreCase("Y"))
+                throw new TclException("Mirror axis must be X or Y.");
+            String box = args.isPresent("box") ? args.requireOption("box") : null;
+            double[] point = box == null && args.isPresent("origin")
+                    ? point(args.requireOption("origin")) : new double[]{0, 0};
+            return transform(args, TclTransformRequest.Operation.MIRROR, axis.equalsIgnoreCase("X") ? 0 : 1, 0,
+                    box == null ? TclTransformRequest.Reference.POINT : TclTransformRequest.Reference.BOX,
+                    point[0], point[1], box);
+        });
+        interpreter.register("skew", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("x", "y"));
+            requirePositionals(args, 1, 1);
+            return transform(args, TclTransformRequest.Operation.SKEW,
+                    optionNumber(args, "x", 0), optionNumber(args, "y", 0),
+                    TclTransformRequest.Reference.MIN_BOUNDS, 0, 0, null);
+        });
+    }
+
+    private String transform(TclArgs args, TclTransformRequest.Operation op, double x, double y,
+                             TclTransformRequest.Reference ref, double px, double py, String box) throws TclException {
+        try { host.transform(args.positional(0), new TclTransformRequest(op, x, y, ref, px, py, box)); }
+        catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+        return "";
+    }
+
+    private static void requirePositionals(TclArgs args, int min, int max) throws TclException {
+        if (args.positionalCount() < min || args.positionalCount() > max)
+            throw new TclException("Expected " + min + (max == min ? "" : " to " + max) + " positional argument(s).");
+    }
+
+    private static double optionNumber(TclArgs args, String axis, double fallback) throws TclException {
+        return args.isPresent(axis) ? number(args.requireOption(axis)) : fallback;
+    }
+
+    private static double axisValue(TclArgs args, String axis, int position, double fallback) throws TclException {
+        if (args.isPresent(axis) && args.positionalCount() > position)
+            throw new TclException("Specify " + axis + " either positionally or as an option, not both.");
+        return args.isPresent(axis) ? number(args.requireOption(axis))
+                : args.positionalCount() > position ? number(args.positional(position)) : fallback;
+    }
+
+    private static double number(String text) throws TclException {
+        try {
+            double value = Double.parseDouble(text.trim());
+            if (!Double.isFinite(value)) throw new NumberFormatException();
+            return value;
+        } catch (NumberFormatException error) { throw new TclException("Expected a finite number, got: " + text); }
+    }
+
+    private static double[] point(String text) throws TclException {
+        String value = text.trim();
+        if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1);
+        String[] xy = value.split(",", -1);
+        if (xy.length != 2) throw new TclException("Expected an origin in x,y or (x,y) format.");
+        return new double[]{number(xy[0]), number(xy[1])};
     }
 
     /** Python's TclCommandOpenGerber: {@code open_gerber filename ?-outname name?}. */
