@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.flatcam.cam.CancellationToken;
 
 /**
  * A small, deliberately reduced Tcl-like command interpreter - not a Tcl implementation. Python
@@ -56,6 +57,7 @@ public final class TclInterpreter {
     private final Map<String, String> variables = new LinkedHashMap<>();
     private final Map<String, TclCommand> commands = new LinkedHashMap<>();
     private Consumer<String> outputSink = text -> { };
+    private CancellationToken cancellation = CancellationToken.none();
 
     public TclInterpreter() {
         registerBuiltins();
@@ -105,10 +107,12 @@ public final class TclInterpreter {
      * returns "".
      */
     public String eval(String script) throws TclException {
+        cancellation.throwIfCancellationRequested();
         String continued = collapseLineContinuations(script);
         List<List<Word>> parsedCommands = splitScript(continued);
         String result = "";
         for (List<Word> words : parsedCommands) {
+            cancellation.throwIfCancellationRequested();
             List<String> resolved = new ArrayList<>(words.size());
             for (Word word : words) {
                 resolved.add(word.type() == WordType.BRACED ? word.raw() : substitute(word.raw()));
@@ -123,6 +127,14 @@ public final class TclInterpreter {
         return result;
     }
 
+    /** Single-worker execution; recursive evaluations inherit the same cancellation token. */
+    public String eval(String script, CancellationToken token) throws TclException {
+        CancellationToken previous = cancellation;
+        cancellation = Objects.requireNonNull(token);
+        try { return eval(script); }
+        finally { cancellation = previous; }
+    }
+
     /**
      * Applies {@code $var}/{@code [cmd]} substitution and backslash escapes to raw word text -
      * exposed so control commands can re-apply it to their own (possibly still-raw) condition or
@@ -133,6 +145,7 @@ public final class TclInterpreter {
         int i = 0;
         int n = raw.length();
         while (i < n) {
+            cancellation.throwIfCancellationRequested();
             char c = raw.charAt(i);
             if (c == '\\' && i + 1 < n) {
                 result.append(unescape(raw.charAt(i + 1)));
@@ -200,16 +213,18 @@ public final class TclInterpreter {
     }
 
     /** A backslash immediately followed by a newline (and any indentation after it) joins the two lines with a space. */
-    private static String collapseLineContinuations(String script) {
+    private String collapseLineContinuations(String script) {
         StringBuilder result = new StringBuilder(script.length());
         int i = 0;
         int n = script.length();
         while (i < n) {
+            cancellation.throwIfCancellationRequested();
             char c = script.charAt(i);
             if (c == '\\' && i + 1 < n && (script.charAt(i + 1) == '\n'
                     || (script.charAt(i + 1) == '\r' && i + 2 < n && script.charAt(i + 2) == '\n'))) {
                 i += script.charAt(i + 1) == '\r' ? 3 : 2;
                 while (i < n && (script.charAt(i) == ' ' || script.charAt(i) == '\t')) {
+                    cancellation.throwIfCancellationRequested();
                     i++;
                 }
                 result.append(' ');
@@ -227,6 +242,7 @@ public final class TclInterpreter {
         int[] cursor = {0};
         int n = script.length();
         while (cursor[0] < n) {
+            cancellation.throwIfCancellationRequested();
             char c = script.charAt(cursor[0]);
             if (c == ' ' || c == '\t' || c == '\r') {
                 cursor[0]++;
@@ -242,6 +258,7 @@ public final class TclInterpreter {
             }
             if (c == '#' && current.isEmpty()) {
                 while (cursor[0] < n && script.charAt(cursor[0]) != '\n') {
+                    cancellation.throwIfCancellationRequested();
                     cursor[0]++;
                 }
                 continue;
@@ -271,6 +288,7 @@ public final class TclInterpreter {
         int depth = 1;
         StringBuilder sb = new StringBuilder();
         while (cursor[0] < n) {
+            cancellation.throwIfCancellationRequested();
             char ch = s.charAt(cursor[0]);
             if (ch == '\\' && cursor[0] + 1 < n && (s.charAt(cursor[0] + 1) == '{' || s.charAt(cursor[0] + 1) == '}')) {
                 sb.append(ch).append(s.charAt(cursor[0] + 1));
@@ -304,6 +322,7 @@ public final class TclInterpreter {
         StringBuilder sb = new StringBuilder();
         int bracketDepth = 0;
         while (cursor[0] < n) {
+            cancellation.throwIfCancellationRequested();
             char ch = s.charAt(cursor[0]);
             if (ch == '\\' && cursor[0] + 1 < n) {
                 sb.append(ch).append(s.charAt(cursor[0] + 1));
@@ -338,6 +357,7 @@ public final class TclInterpreter {
         int bracketDepth = 0;
         int braceDepth = 0;
         while (cursor[0] < n) {
+            cancellation.throwIfCancellationRequested();
             char ch = s.charAt(cursor[0]);
             if (ch == '\\' && cursor[0] + 1 < n) {
                 sb.append(ch).append(s.charAt(cursor[0] + 1));
@@ -461,6 +481,7 @@ public final class TclInterpreter {
             String bodyRaw = args.get(1);
             int iterations = 0;
             while (TclExpr.evaluateBoolean(interp.substitute(conditionRaw))) {
+                interp.cancellation.throwIfCancellationRequested();
                 interp.eval(bodyRaw);
                 if (++iterations > MAX_LOOP_ITERATIONS) {
                     throw new TclException("too many iterations (possible infinite loop) in \"while\"");
@@ -478,6 +499,7 @@ public final class TclInterpreter {
             String bodyRaw = args.get(2);
             int iterations = 0;
             for (String element : listText.isBlank() ? new String[0] : listText.trim().split("\\s+")) {
+                interp.cancellation.throwIfCancellationRequested();
                 interp.setVariable(variableName, element);
                 interp.eval(bodyRaw);
                 if (++iterations > MAX_LOOP_ITERATIONS) {

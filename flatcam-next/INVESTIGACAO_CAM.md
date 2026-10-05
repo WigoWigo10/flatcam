@@ -200,13 +200,15 @@ alterado; Isolation e Cutout não usam este buffer e não foram tocados.
 `Geometry.getInteriorPoint()` como ponto de partida de Seed por uma busca
 "pole of inaccessibility" (algoritmo polylabel): refinamento de grade que
 maximiza a distância até a fronteira, parando quando nenhuma célula restante
-pode melhorar o resultado além da precisão pedida. Diferente do ponto
+pode melhorar o resultado além da precisão pedida ou ao atingir o orçamento
+de busca. Diferente do ponto
 interior por scan-line (usado tanto pelo JTS quanto pelo
 `representative_point()` do Python/GEOS - ambos chamam, no fundo, a mesma
 `InteriorPointArea`/`GEOSPointOnSurface`), a distância até a fronteira é uma
-função contínua dos vértices do polígono: uma perturbação pequena na entrada
-move o ponto encontrado por uma quantidade correspondentemente pequena, nunca
-um salto desproporcional.
+função contínua dos vértices do polígono, mas isso **não garante continuidade
+do ponto escolhido**: máximos empatados podem trocar de prioridade. A busca
+evita o limiar específico de scan-line observado no losango, não todo salto
+possível em qualquer entrada.
 
 Isto é uma **diferença deliberada** do Python, documentada na própria classe,
 não uma tentativa de reproduzir o algoritmo legado:
@@ -264,3 +266,20 @@ O experimento Java mostra que C++/Rust não é um requisito demonstrado para ess
 correção numérica. Um backend GEOS nativo continua sendo uma decisão arquitetural
 separada, com empacotamento, licenças e desempenho a validar; não foi instalado
 nem incorporado ao aplicativo nesta investigação.
+
+### Endurecimento da busca Seed — 2026-10-05
+
+A grade inicial passou a ter no máximo 256 células e a verificar cancelamento
+antes da coleta e durante sua construção. A grade anterior podia alocar
+milhões de células para polígonos extremamente estreitos antes de consultar o
+token. Índices inteiros evitam incrementos flutuantes sem progresso. Partes
+não poligonais são ignoradas; precisão deve ser finita e positiva.
+
+O limite de 20.000 células processadas por polígono já existia e continua.
+Ao esgotá-lo, retorna-se o melhor candidato interior encontrado, não uma
+garantia da precisão alvo. Um ponto interior de fallback protege geometrias
+cujos centros de grade/centroide caem fora. As 14 regressões de
+`StableInteriorPointTest` passaram; install completo também passou.
+A comparação privada Seed/Python não foi reexecutada e seus resultados acima
+permanecem históricos. Esta é uma proteção de custo/cancelamento, não uma
+declaração de equivalência numérica ou de continuidade global do ponto.

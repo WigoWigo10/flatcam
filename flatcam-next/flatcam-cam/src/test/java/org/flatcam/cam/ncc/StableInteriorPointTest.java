@@ -19,6 +19,60 @@ class StableInteriorPointTest {
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     @Test
+    void nonPolygonPartsAreIgnoredInsteadOfRecursingIntoThemselves() {
+        Geometry line = FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(1, 1)});
+        assertNull(StableInteriorPoint.find(line, 0.01, CancellationToken.none()));
+        Geometry square = FACTORY.toGeometry(new Envelope(0, 10, 0, 10));
+        Coordinate point = StableInteriorPoint.find(FACTORY.createGeometryCollection(new Geometry[]{line, square}),
+                0.01, CancellationToken.none());
+        assertEquals(5, point.x, 0.05);
+    }
+
+    @Test
+    void cancellationPrecedesEvenTheInitialGridOfAnExtremelyThinPolygon() {
+        Geometry thin = FACTORY.toGeometry(new Envelope(0, 1, 0, 1e-12));
+        java.util.concurrent.atomic.AtomicInteger checks = new java.util.concurrent.atomic.AtomicInteger();
+        org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.CancellationException.class,
+                () -> StableInteriorPoint.find(thin, 1e-14, () -> checks.incrementAndGet() > 0));
+        assertEquals(1, checks.get());
+    }
+
+    @Test
+    void initialGridIsCancellableDuringConstruction() {
+        Geometry thin = FACTORY.toGeometry(new Envelope(0, 1, 0, 1e-12));
+        java.util.concurrent.atomic.AtomicInteger checks = new java.util.concurrent.atomic.AtomicInteger();
+        org.junit.jupiter.api.Assertions.assertThrows(java.util.concurrent.CancellationException.class,
+                () -> StableInteriorPoint.find(thin, 1e-14, () -> checks.incrementAndGet() > 8));
+        assertEquals(9, checks.get());
+    }
+
+    @Test
+    void extremeAspectRatioFinishesWithAnInteriorCandidate() {
+        Geometry thin = FACTORY.toGeometry(new Envelope(0, 1, 0, 1e-12));
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> {
+            Coordinate point = StableInteriorPoint.find(thin, 1e-14, CancellationToken.none());
+            assertTrue(thin.contains(FACTORY.createPoint(point)));
+        });
+    }
+
+    @Test
+    void largeCoordinateOffsetsDoNotStallTheGrid() {
+        Geometry offset = FACTORY.toGeometry(new Envelope(1e15, 1e15 + 100, 1e15, 1e15 + 1));
+        org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(java.time.Duration.ofSeconds(10), () -> {
+            Coordinate point = StableInteriorPoint.find(offset, 0.01, CancellationToken.none());
+            assertTrue(offset.contains(FACTORY.createPoint(point)));
+        });
+    }
+
+    @Test
+    void invalidPrecisionIsRejected() {
+        Geometry square = FACTORY.toGeometry(new Envelope(0, 10, 0, 10));
+        for (double precision : new double[]{0, -1, Double.NaN, Double.POSITIVE_INFINITY})
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                    () -> StableInteriorPoint.find(square, precision, CancellationToken.none()));
+    }
+
+    @Test
     void aSquaresPointLandsAtItsCentre() {
         Geometry square = FACTORY.toGeometry(new Envelope(0, 10, 0, 10));
 

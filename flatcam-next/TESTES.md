@@ -126,6 +126,27 @@ pasta vazia e não deixa os temporários da suíte preservados.
 
 ## Limites da evidência
 
+Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
+limpeza normal ativa: 939 registrados, 928 aprovados, 11 opcionais ignorados,
+zero falhas/erros (602 CAM, 114 application, 203 FX, 20 test-support).
+Probes nativos `--probe` e `--probe --software` passaram com as classes atuais.
+Contar apenas os XML produzidos pela execução atual: relatórios antigos de
+classes removidas podem permanecer em `target/surefire-reports`.
+
+Regressões do Terminal: `TerminalPanelTest` verifica execução no worker,
+FX responsiva, entrada serializada, cancelar, histórico, erros, progresso e
+saída limitada. `TclExecutionTest` verifica a fila FX cancelada e propagação
+de erro. `TclLiveHostTest` usa MainWindow sem janela visível e geradores reais,
+verificando Z do G-code, nomes entre tipos, importação/CAM e descarte de
+resultados cuja origem/projeto mudou. Os testes FX são Windows-only.
+`TclInterpreterTest` verifica cancelamento em loops/substituição/parse;
+`StableInteriorPointTest` cobre a grade estreita, cancelamento inicial,
+coordenadas grandes, não poligonais e precisão inválida.
+
+A comparação CAM privada e os painéis completos não foram testados manualmente
+nesta sessão. Warnings de erros deliberados nos testes de jobs/Tcl/arquivos
+inválidos não significam falha; consultar o resumo Surefire.
+
 Repetições locais não provam ausência de toda falha intermitente nem substituem
 CI em outros sistemas. Casos opcionais ignorados devem ser executados quando
 seus fixtures estiverem disponíveis. Testes headless não comprovam paridade

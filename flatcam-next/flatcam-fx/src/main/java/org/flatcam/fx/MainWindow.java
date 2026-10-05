@@ -193,6 +193,7 @@ final class MainWindow implements TclFlatcamHost {
     private final JobExecutor jobExecutor;
     private ToolsDatabasePanel toolsDatabasePanel;
     private TerminalPanel terminalPanel;
+    private long tclProjectEpoch;
 
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label progressPercentLabel = new Label("0%");
@@ -7201,122 +7202,195 @@ final class MainWindow implements TclFlatcamHost {
 
     @Override
     public String openGerber(Path file, String outname) throws IOException {
-        GerberImage image = new GerberParser().parse(file);
-        setDisplayUnits(image.units());
-        addGerberToProject(outname, file, image);
-        return outname;
+        long epoch = TclExecution.onFx(() -> tclProjectEpoch);
+        GerberImage image = new GerberParser().parse(file, TclExecution.cancellation(),
+                TclExecution.progress("Carregando Gerber..."));
+        return TclExecution.onFx(() -> {
+            checkTclProject(epoch);
+            String name = uniqueDerivedName(outname);
+            setDisplayUnits(image.units());
+            addGerberToProject(name, file, image);
+            return name;
+        });
     }
 
     @Override
     public String openExcellon(Path file, String outname) throws IOException {
-        ExcellonImage image = new ExcellonParser().parse(file);
-        setDisplayUnits(image.units());
-        addExcellonToProject(outname, file, image);
-        return outname;
+        long epoch = TclExecution.onFx(() -> tclProjectEpoch);
+        ExcellonImage image = new ExcellonParser().parse(file, TclExecution.cancellation(),
+                TclExecution.progress("Carregando Excellon..."));
+        return TclExecution.onFx(() -> {
+            checkTclProject(epoch);
+            String name = uniqueDerivedName(outname);
+            setDisplayUnits(image.units());
+            addExcellonToProject(name, file, image);
+            return name;
+        });
     }
 
     @Override
     public List<String> objectNames() {
-        List<String> names = new ArrayList<>();
-        for (TreeItem<String> item : gerberByItem.keySet()) names.add(item.getValue());
-        for (TreeItem<String> item : excellonByItem.keySet()) names.add(item.getValue());
-        for (TreeItem<String> item : geometryByItem.keySet()) names.add(item.getValue());
-        for (TreeItem<String> item : cncJobByItem.keySet()) names.add(item.getValue());
-        return names;
+        return TclExecution.onFx(() -> {
+            List<String> names = new ArrayList<>();
+            for (TreeItem<String> item : gerberByItem.keySet()) names.add(item.getValue());
+            for (TreeItem<String> item : excellonByItem.keySet()) names.add(item.getValue());
+            for (TreeItem<String> item : geometryByItem.keySet()) names.add(item.getValue());
+            for (TreeItem<String> item : cncJobByItem.keySet()) names.add(item.getValue());
+            return names;
+        });
     }
 
     /** Resolves a Tcl object name across every kind - Python's single shared {@code collection.get_by_name}. */
     private TreeItem<String> findTclItemByName(String name) {
-        for (TreeItem<String> item : gerberByItem.keySet()) if (name.equals(item.getValue())) return item;
-        for (TreeItem<String> item : excellonByItem.keySet()) if (name.equals(item.getValue())) return item;
-        for (TreeItem<String> item : geometryByItem.keySet()) if (name.equals(item.getValue())) return item;
-        for (TreeItem<String> item : cncJobByItem.keySet()) if (name.equals(item.getValue())) return item;
-        return null;
+        TreeItem<String> found = null;
+        List<TreeItem<String>> items = new ArrayList<>();
+        items.addAll(gerberByItem.keySet()); items.addAll(excellonByItem.keySet());
+        items.addAll(geometryByItem.keySet()); items.addAll(cncJobByItem.keySet());
+        for (TreeItem<String> item : items) {
+            if (!name.equals(item.getValue())) continue;
+            if (found != null) throw new IllegalArgumentException("Nome ambiguo no projeto: " + name);
+            found = item;
+        }
+        return found;
     }
 
     @Override
     public Optional<ObjectRef> find(String name) {
-        TreeItem<String> item = findTclItemByName(name);
-        if (item == null) return Optional.empty();
-        Kind kind = gerberByItem.containsKey(item) ? Kind.GERBER
-                : excellonByItem.containsKey(item) ? Kind.EXCELLON
-                : geometryByItem.containsKey(item) ? Kind.GEOMETRY
-                : Kind.CNC_JOB;
-        return Optional.of(new ObjectRef(kind, name));
+        return TclExecution.onFx(() -> {
+            TreeItem<String> item = findTclItemByName(name);
+            if (item == null) return Optional.empty();
+            Kind kind = gerberByItem.containsKey(item) ? Kind.GERBER
+                    : excellonByItem.containsKey(item) ? Kind.EXCELLON
+                    : geometryByItem.containsKey(item) ? Kind.GEOMETRY
+                    : Kind.CNC_JOB;
+            return Optional.of(new ObjectRef(kind, name));
+        });
     }
 
     @Override
     public void delete(String name) {
-        TreeItem<String> item = findTclItemByName(name);
-        if (item != null) {
-            removeSelectionFromProject(List.of(item));
-        }
+        TclExecution.onFx(() -> {
+            TreeItem<String> item = findTclItemByName(name);
+            if (item != null) {
+                removeSelectionFromProject(List.of(item));
+            }
+            return null;
+        });
     }
 
     @Override
     public void deleteAll() {
-        List<TreeItem<String>> all = new ArrayList<>();
-        all.addAll(gerberByItem.keySet());
-        all.addAll(excellonByItem.keySet());
-        all.addAll(geometryByItem.keySet());
-        all.addAll(cncJobByItem.keySet());
-        removeSelectionFromProject(all);
+        TclExecution.onFx(() -> {
+            List<TreeItem<String>> all = new ArrayList<>();
+            all.addAll(gerberByItem.keySet());
+            all.addAll(excellonByItem.keySet());
+            all.addAll(geometryByItem.keySet());
+            all.addAll(cncJobByItem.keySet());
+            removeSelectionFromProject(all);
+            return null;
+        });
     }
 
     @Override
     public Optional<double[]> boundsOf(String name) {
-        TreeItem<String> item = findTclItemByName(name);
-        if (item == null) {
+        return TclExecution.onFx(() -> {
+            TreeItem<String> item = findTclItemByName(name);
+            if (item == null) {
+                return Optional.empty();
+            }
+            GerberImage gerber = gerberByItem.get(item);
+            if (gerber != null) {
+                return Optional.of(gerber.bounds());
+            }
+            ExcellonImage excellon = excellonByItem.get(item);
+            if (excellon != null) {
+                return Optional.of(excellon.bounds());
+            }
+            GeometryEntry geometry = geometryByItem.get(item);
+            if (geometry != null) {
+                Envelope env = geometry.geometry().getEnvelopeInternal();
+                return Optional.of(new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()});
+            }
+            CncJobEntry cncJob = cncJobByItem.get(item);
+            if (cncJob != null && cncJob.cutGeometry() != null && !cncJob.cutGeometry().isEmpty()) {
+                Envelope env = cncJob.cutGeometry().getEnvelopeInternal();
+                return Optional.of(new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()});
+            }
             return Optional.empty();
-        }
-        GerberImage gerber = gerberByItem.get(item);
-        if (gerber != null) {
-            return Optional.of(gerber.bounds());
-        }
-        ExcellonImage excellon = excellonByItem.get(item);
-        if (excellon != null) {
-            return Optional.of(excellon.bounds());
-        }
-        GeometryEntry geometry = geometryByItem.get(item);
-        if (geometry != null) {
-            Envelope env = geometry.geometry().getEnvelopeInternal();
-            return Optional.of(new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()});
-        }
-        CncJobEntry cncJob = cncJobByItem.get(item);
-        if (cncJob != null && cncJob.cutGeometry() != null && !cncJob.cutGeometry().isEmpty()) {
-            Envelope env = cncJob.cutGeometry().getEnvelopeInternal();
-            return Optional.of(new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()});
-        }
-        return Optional.empty();
+        });
     }
 
     @Override
     public String newEmptyGeometry(String name) {
-        addGeometryToProject(name, "", "MM", CNC_GEOMETRY_FACTORY.createGeometryCollection(), false);
-        return name;
+        return TclExecution.onFx(() -> {
+            String actual = uniqueDerivedName(name);
+            addGeometryToProject(actual, "", "MM", CNC_GEOMETRY_FACTORY.createGeometryCollection(), false);
+            return actual;
+        });
+    }
+
+    /** Snapshot immutable session entries on FX; validate their identity before publishing a worker result. */
+    private record TclSource(TreeItem<String> item, String name, Object version, Kind kind,
+                             String units, Geometry geometry, String gcode, long epoch) { }
+
+    private Object tclVersion(TreeItem<String> item) {
+        if (gerberByItem.containsKey(item)) return gerberByItem.get(item);
+        if (excellonByItem.containsKey(item)) return excellonByItem.get(item);
+        if (geometryByItem.containsKey(item)) return geometryByItem.get(item);
+        return cncJobByItem.get(item);
+    }
+
+    private TclSource tclSource(String name) throws TclException {
+        TclSource source = TclExecution.onFx(() -> {
+            TreeItem<String> item = findTclItemByName(name);
+            if (item == null) return null;
+            Object version = tclVersion(item);
+            if (version instanceof GerberImage image)
+                return new TclSource(item, name, version, Kind.GERBER, image.units(), image.solidGeometry(), null, tclProjectEpoch);
+            if (version instanceof ExcellonImage image)
+                return new TclSource(item, name, version, Kind.EXCELLON, image.units(), image.solidGeometry(), null, tclProjectEpoch);
+            if (version instanceof GeometryEntry entry)
+                return new TclSource(item, name, version, Kind.GEOMETRY, entry.units(), entry.geometry(), null, tclProjectEpoch);
+            CncJobEntry entry = (CncJobEntry) version;
+            return new TclSource(item, name, version, Kind.CNC_JOB, "MM", entry.cutGeometry(), entry.gcode(), tclProjectEpoch);
+        });
+        if (source == null) throw new TclException("Object not found: " + name);
+        return source;
+    }
+
+    private void checkTclProject(long epoch) {
+        if (epoch != tclProjectEpoch)
+            throw new IllegalStateException("O projeto mudou durante o processamento; resultado descartado.");
+    }
+
+    private void checkTclSource(TclSource source) {
+        checkTclProject(source.epoch());
+        if (tclVersion(source.item()) != source.version() || !source.name().equals(source.item().getValue()))
+            throw new IllegalStateException("O objeto de origem foi alterado ou removido; resultado descartado: " + source.name());
+    }
+
+    private String publishTclGeometry(TclSource source, String outname, Geometry geometry, boolean strokeOnly) {
+        return TclExecution.onFx(() -> {
+            checkTclSource(source);
+            String actual = uniqueDerivedName(outname);
+            addGeometryToProject(actual, source.name(), source.units(), geometry, strokeOnly);
+            return actual;
+        });
     }
 
     /** Python's TclCommandBbox: always buffers the envelope (rounding its corners), then squares that back off unless {@code rounded}. */
     @Override
     public String newBoundingBoxGeometry(String sourceName, String outname, double margin, boolean rounded)
             throws TclException {
-        TreeItem<String> item = findTclItemByName(sourceName);
-        Geometry sourceGeometry;
-        String units;
-        if (item != null && gerberByItem.containsKey(item)) {
-            sourceGeometry = gerberByItem.get(item).solidGeometry();
-            units = gerberByItem.get(item).units();
-        } else if (item != null && geometryByItem.containsKey(item)) {
-            sourceGeometry = geometryByItem.get(item).geometry();
-            units = geometryByItem.get(item).units();
-        } else {
+        TclSource source = tclSource(sourceName);
+        if (source.kind() != Kind.GERBER && source.kind() != Kind.GEOMETRY) {
             throw new TclException("Expected a Gerber or Geometry object, got: " + sourceName);
         }
-        Geometry envelopeGeometry = CNC_GEOMETRY_FACTORY.toGeometry(sourceGeometry.getEnvelopeInternal());
+        TclExecution.phase("Calculando bounding box...");
+        Geometry envelopeGeometry = CNC_GEOMETRY_FACTORY.toGeometry(source.geometry().getEnvelopeInternal());
         Geometry buffered = envelopeGeometry.buffer(margin, 32);
         Geometry result = rounded ? buffered : CNC_GEOMETRY_FACTORY.toGeometry(buffered.getEnvelopeInternal());
-        addGeometryToProject(outname, sourceName, units, result, false);
-        return outname;
+        return publishTclGeometry(source, outname, result, false);
     }
 
     @Override
@@ -7326,121 +7400,130 @@ final class MainWindow implements TclFlatcamHost {
 
     @Override
     public Optional<Geometry> geometryOf(String name) {
-        TreeItem<String> item = findTclItemByName(name);
-        if (item == null) {
+        return TclExecution.onFx(() -> {
+            TreeItem<String> item = findTclItemByName(name);
+            if (item == null) {
+                return Optional.empty();
+            }
+            GerberImage gerber = gerberByItem.get(item);
+            if (gerber != null) {
+                return Optional.of(gerber.solidGeometry());
+            }
+            ExcellonImage excellon = excellonByItem.get(item);
+            if (excellon != null) {
+                return Optional.of(excellon.solidGeometry());
+            }
+            GeometryEntry geometry = geometryByItem.get(item);
+            if (geometry != null) {
+                return Optional.of(geometry.geometry());
+            }
+            CncJobEntry cncJob = cncJobByItem.get(item);
+            if (cncJob != null && cncJob.cutGeometry() != null) {
+                return Optional.of(cncJob.cutGeometry());
+            }
             return Optional.empty();
-        }
-        GerberImage gerber = gerberByItem.get(item);
-        if (gerber != null) {
-            return Optional.of(gerber.solidGeometry());
-        }
-        ExcellonImage excellon = excellonByItem.get(item);
-        if (excellon != null) {
-            return Optional.of(excellon.solidGeometry());
-        }
-        GeometryEntry geometry = geometryByItem.get(item);
-        if (geometry != null) {
-            return Optional.of(geometry.geometry());
-        }
-        CncJobEntry cncJob = cncJobByItem.get(item);
-        if (cncJob != null && cncJob.cutGeometry() != null) {
-            return Optional.of(cncJob.cutGeometry());
-        }
-        return Optional.empty();
+        });
     }
 
     @Override
     public String isolate(String sourceName, String outname, double toolDiameter, int passes,
                           double overlapFraction, IsolationType type) throws TclException {
-        TreeItem<String> item = findTclItemByName(sourceName);
-        if (item == null || !gerberByItem.containsKey(item)) {
+        TclSource source = tclSource(sourceName);
+        if (source.kind() != Kind.GERBER) {
             throw new TclException("Expected a Gerber object, got: " + sourceName);
         }
-        GerberImage image = gerberByItem.get(item);
+        TclExecution.phase("Gerando isolamento...");
         IsolationParameters params = new IsolationParameters(toolDiameter, passes, overlapFraction, type);
-        IsolationResult result = IsolationGenerator.generate(image.units(), image.solidGeometry(), params);
-        addGeometryToProject(outname, sourceName, image.units(), result.geometry(), true);
-        return outname;
+        IsolationResult result = IsolationGenerator.generate(source.units(), source.geometry(), params, TclExecution.cancellation());
+        return publishTclGeometry(source, outname, result.geometry(), true);
     }
 
     @Override
     public String cutoutRectangular(String sourceName, String outname, double toolDiameter, double margin,
                                     double gapSize, GapPattern gaps) throws TclException {
-        Optional<Geometry> source = geometryOf(sourceName);
-        if (source.isEmpty()) {
-            throw new TclException("Could not retrieve object: " + sourceName);
-        }
-        String units = unitsOf(sourceName);
+        TclSource source = tclSource(sourceName);
+        TclExecution.phase("Gerando cutout...");
         CutoutParameters params = new CutoutParameters(toolDiameter, margin, false, CutoutKind.SINGLE,
                 CutoutShape.RECTANGULAR, gapSize, gaps);
-        CutoutResult result = CutoutGenerator.generate(units, source.get(), params);
-        addGeometryToProject(outname, sourceName, units, result.geometry(), true);
-        return outname;
+        CutoutResult result = CutoutGenerator.generate(source.units(), source.geometry(), params, TclExecution.cancellation());
+        return publishTclGeometry(source, outname, result.geometry(), true);
     }
 
     @Override
     public String nccClear(String sourceName, String outname, List<Double> toolDiameters, double overlapFraction,
                            double margin, NccMethod method, boolean connect, boolean contour, boolean rest,
                            NccBoundary boundary) throws TclException {
-        Optional<Geometry> source = geometryOf(sourceName);
-        if (source.isEmpty()) {
-            throw new TclException("Could not retrieve object: " + sourceName);
+        TclSource source = tclSource(sourceName);
+        Geometry reference = boundary instanceof NccBoundary.ReferenceGerber gerber ? gerber.geometry()
+                : boundary instanceof NccBoundary.ReferenceGeometry geometry ? geometry.geometry() : null;
+        TclSource referenceSource = null;
+        if (reference != null) {
+            String referenceName = TclExecution.onFx(() -> objectNames().stream()
+                    .filter(name -> geometryOf(name).orElse(null) == reference).findFirst().orElse(null));
+            if (referenceName == null) throw new TclException("O objeto de referencia NCC foi alterado ou removido.");
+            referenceSource = tclSource(referenceName);
+            if (referenceSource.geometry() != reference)
+                throw new TclException("O objeto de referencia NCC foi alterado.");
         }
-        String units = unitsOf(sourceName);
+        TclSource checkedReference = referenceSource;
+        TclExecution.phase("Gerando NCC...");
         NccParameters params = new NccParameters(toolDiameters, overlapFraction, margin, method, connect, contour,
                 0, rest, NccOrder.NONE, boundary);
-        NccResult result = NccGenerator.generate(units, source.get(), params);
-        addGeometryToProject(outname, sourceName, units, result.geometry(), true);
-        return outname;
+        NccResult result = NccGenerator.generate(source.units(), source.geometry(), params,
+                TclExecution.cancellation(), TclExecution.progress("Gerando NCC..."));
+        return TclExecution.onFx(() -> {
+            if (checkedReference != null) checkTclSource(checkedReference);
+            return publishTclGeometry(source, outname, result.geometry(), true);
+        });
     }
 
     @Override
     public String cncjob(String sourceName, String outname, double toolDiameter, double zCut, double zMove,
                          double feedrate, double feedrateZ, double feedrateRapid) throws TclException {
-        Optional<Geometry> source = geometryOf(sourceName);
-        if (source.isEmpty()) {
-            throw new TclException("Object not found: " + sourceName);
-        }
-        String units = unitsOf(sourceName);
-        GeometryGCodeParameters params = new GeometryGCodeParameters(zMove, zCut, false, 0,
+        TclSource source = tclSource(sourceName);
+        if (source.kind() != Kind.GEOMETRY)
+            throw new TclException("Expected a Geometry object, got: " + sourceName);
+        if (!Double.isFinite(zCut) || zCut >= 0)
+            throw new TclException("z_cut must be finite and negative (for example -1.7).");
+        TclExecution.phase("Gerando CNC Job...");
+        GeometryGCodeParameters params = new GeometryGCodeParameters(zMove, -zCut, false, 0,
                 feedrate, 0, false, feedrateRapid, null, feedrateZ, false, 0, false, 0);
-        CncJobResult job = GCodeGenerator.generateGeometryCncJob(units, source.get(), params, toolDiameter);
-        addCncJobToProject(outname, sourceName, Path.of(outname), job.gcode(), job.travelGeometry(), job.cutGeometry());
-        return outname;
+        CncJobResult job = GCodeGenerator.generateGeometryCncJob(source.units(), source.geometry(), params,
+                toolDiameter, TclExecution.cancellation());
+        return TclExecution.onFx(() -> {
+            checkTclSource(source);
+            String actual = uniqueDerivedName(outname);
+            addCncJobToProject(actual, sourceName, Path.of(actual), job.gcode(), job.travelGeometry(), job.cutGeometry());
+            return actual;
+        });
     }
 
     @Override
     public String exportGcode(String cncJobName, String preamble, String postamble) throws TclException {
-        TreeItem<String> item = findTclItemByName(cncJobName);
-        if (item == null || !cncJobByItem.containsKey(item)) {
+        TclSource source = tclSource(cncJobName);
+        if (source.kind() != Kind.CNC_JOB) {
             throw new TclException("Expected CNCjob, got: " + cncJobName);
         }
-        return preamble + cncJobByItem.get(item).gcode() + postamble;
+        TclExecution.cancellation().throwIfCancellationRequested();
+        return preamble + source.gcode() + postamble;
     }
 
     @Override
     public void writeGcode(String cncJobName, Path outputFile, String preamble, String postamble)
             throws TclException, IOException {
-        TreeItem<String> item = findTclItemByName(cncJobName);
-        if (item == null || !cncJobByItem.containsKey(item)) {
-            throw new TclException("Could not retrieve object: " + cncJobName);
-        }
-        Files.writeString(outputFile, preamble + cncJobByItem.get(item).gcode() + postamble);
-    }
-
-    /** The display units of a Tcl-resolvable object - Gerber/Excellon's own, else the Geometry/CncJob entry's recorded units. */
-    private String unitsOf(String name) {
-        TreeItem<String> item = findTclItemByName(name);
-        if (item == null) {
-            return "MM";
-        }
-        GerberImage gerber = gerberByItem.get(item);
-        if (gerber != null) return gerber.units();
-        ExcellonImage excellon = excellonByItem.get(item);
-        if (excellon != null) return excellon.units();
-        GeometryEntry geometry = geometryByItem.get(item);
-        if (geometry != null) return geometry.units();
-        return "MM";
+        String gcode = exportGcode(cncJobName, preamble, postamble);
+        TclExecution.phase("Salvando G-code...");
+        Path destination = outputFile.toAbsolutePath();
+        Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-", ".tmp");
+        try {
+            Files.writeString(temporary, gcode);
+            TclExecution.cancellation().throwIfCancellationRequested();
+            try {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally { Files.deleteIfExists(temporary); }
     }
 
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */
@@ -7451,17 +7534,22 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
         if (terminalPanel == null) {
-            terminalPanel = new TerminalPanel(new org.flatcam.cam.tcl.TclInterpreter(), "em desenvolvimento");
+            terminalPanel = new TerminalPanel(new org.flatcam.cam.tcl.TclInterpreter(), "em desenvolvimento", jobExecutor);
             new TclFlatcamCommands(this).registerOn(terminalPanel.interpreter());
         }
         Tab tab = new Tab(); tab.setId("terminal-tab"); tab.setText("Terminal"); tab.setContent(terminalPanel);
         tab.setGraphic(legacyIcon("shell32.png", 16));
+        tab.setOnCloseRequest(event -> {
+            if (terminalPanel.isBusy()) { terminalPanel.cancel(); event.consume(); }
+        });
         centerTabs.getTabs().add(tab); centerTabs.getSelectionModel().select(tab);
         terminalPanel.focusInput();
     }
 
     boolean confirmToolsDatabaseClose() {
-        return toolsDatabasePanel == null || toolsDatabasePanel.confirmClose();
+        boolean allowed = toolsDatabasePanel == null || toolsDatabasePanel.confirmClose();
+        if (allowed && terminalPanel != null) terminalPanel.cancel();
+        return allowed;
     }
 
     @FunctionalInterface
@@ -8292,6 +8380,8 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void clearProject() {
+        tclProjectEpoch++;
+        if (terminalPanel != null) terminalPanel.cancel();
         plotAreaView.cancelPlacement();
         plotMoveHistory.clear();
         gerberEditor.cancel();

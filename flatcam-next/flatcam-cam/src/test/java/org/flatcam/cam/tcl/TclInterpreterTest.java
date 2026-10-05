@@ -11,6 +11,36 @@ import org.junit.jupiter.api.Test;
 class TclInterpreterTest {
 
     @Test
+    void cancellationStopsLoopsAndRestoresTheDefaultToken() throws TclException {
+        TclInterpreter interpreter = new TclInterpreter();
+        java.util.concurrent.atomic.AtomicBoolean cancelled = new java.util.concurrent.atomic.AtomicBoolean();
+        interpreter.register("cancel_now", (interp, args) -> { cancelled.set(true); return ""; });
+        assertThrows(java.util.concurrent.CancellationException.class,
+                () -> interpreter.eval("set x 1; while {1} {cancel_now; incr x}", cancelled::get));
+        assertEquals("1", interpreter.eval("set x"));
+        assertEquals("2", interpreter.eval("incr x"));
+    }
+
+    @Test
+    void recursiveSubstitutionInheritsCancellation() {
+        TclInterpreter interpreter = new TclInterpreter();
+        java.util.concurrent.atomic.AtomicBoolean cancelled = new java.util.concurrent.atomic.AtomicBoolean();
+        interpreter.register("cancel_now", (interp, args) -> { cancelled.set(true); return ""; });
+        assertThrows(java.util.concurrent.CancellationException.class,
+                () -> interpreter.eval("set x [cancel_now; set y 1]", cancelled::get));
+        assertThrows(TclException.class, () -> interpreter.eval("set y"));
+    }
+
+    @Test
+    void parsingLargeBracedWordsIsCancellable() {
+        TclInterpreter interpreter = new TclInterpreter();
+        String script = "puts {" + "x".repeat(100_000) + "}";
+        java.util.concurrent.atomic.AtomicInteger checks = new java.util.concurrent.atomic.AtomicInteger();
+        assertThrows(java.util.concurrent.CancellationException.class,
+                () -> interpreter.eval(script, () -> checks.incrementAndGet() > script.length() + 20));
+    }
+
+    @Test
     void setStoresAndReadsAVariable() throws TclException {
         TclInterpreter interpreter = new TclInterpreter();
         assertEquals("5", interpreter.eval("set x 5"));

@@ -90,6 +90,7 @@ interface TclFlatcamHost {
      * Python's {@code cncjob}: converts a Geometry object into a CNC Job. Only the most common
      * flags are covered (tool diameter, Z cut/move, the three feedrates); toolchange, dwell,
      * multidepth, end/park position and preprocessor selection are not yet Tcl-exposed here.
+     * {@code zCut} is a finite negative Z coordinate, not the positive internal cut depth.
      */
     String cncjob(String sourceName, String outname, double toolDiameter, double zCut, double zMove,
                  double feedrate, double feedrateZ, double feedrateRapid) throws TclException;

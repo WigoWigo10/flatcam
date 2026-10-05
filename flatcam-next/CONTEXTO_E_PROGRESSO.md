@@ -5,20 +5,21 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-02**. Desde a última revisão completa deste arquivo (2026-09-27) o projeto
-> migrou para **Java 25 + JavaFX 25.0.4**, portou **todas as 24 ferramentas do menu Ferramentas do Python**
-> (opções ainda parciais), ganhou Conversion/Join Objects parciais,
-> barras de ferramentas com paridade, e um **LOD por densidade assíncrono** no Plot Area para geometrias
-> muito densas. O estado detalhado de cada entrega está em ordem cronológica na seção 9.1; a fila atual,
-> na seção 9.0 e nas entregas de 2026-10-02 ao final do documento. A suíte tem **787 testes**
-> (521 `flatcam-cam`, 114 `flatcam-application`, 152 `flatcam-fx`). A execução funcional mais recente
-> passou com limpeza automática TempDir desativada; o modo normal encontrou erros de limpeza Windows
-> (veja a seção 3 e a última entrega). 11 ficam ignorados
-> porque dependem de fixtures/artefatos opcionais indicados por propriedades ou
-> variável de ambiente (por exemplo `FLATCAM_PARITY_PROJECT`).
-> Antes de trabalhar, confirme o `HEAD`, o `git status` e os testes: este arquivo é um ponto de passagem,
-> não substitui o código como fonte final da verdade. Os trechos mais antigos das seções 4, 5 e 8
-> descrevem fases anteriores e ficam como histórico; onde divergirem das seções 6 e 9, valem as seções 6 e 9.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base `5fa4b871`.
+> Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
+> parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
+> A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
+> a execução/cancelamento do Terminal e a grade inicial não limitada de Seed.
+> `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
+> **939 testes registrados, 928 aprovados, 11 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 114 application, 203 FX e 20 de suporte de testes.
+> Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
+> software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
+> O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
+> diferente do Python; a comparação privada CAM não foi reexecutada nesta sessão.
+> Veja a entrega de 2026-10-05 ao final e `PLANO_PARIDADE.md` para limites e pendências.
+> Antes de continuar, confirme HEAD, status e testes. Trechos antigos ficam como
+> histórico e não substituem o código e as verificações mais recentes.
 
 ## 1. Objetivo do projeto
 
@@ -60,7 +61,7 @@ prefira o estado descrito aqui e confirme no código.
 - Quatro temas próprios sobre JavaFX Modena: original branco/preto e gelo branco/preto; sem AtlantaFX.
 - JTS 1.20.0 para geometria.
 - ZXing `core` 3.5.4 (Apache 2.0) só para gerar a matriz do QRCode Tool.
-- JUnit 5 para testes.
+- JUnit 6.1.3 via BOM e Surefire 3.5.4 para testes.
 - `JAVA_HOME` precisa apontar para um JDK 25 (o `release` do compilador é 25 e o JavaFX 25 exige Java 23+).
   Um terminal/VS Code aberto antes de mudar a variável continua com o valor antigo: reabra-o.
 - Launcher nativo opcional (`native-launcher/FlatCAMFX.cpp`, `run-native.cmd`): cria a JVM dentro de um `.exe`
@@ -68,19 +69,30 @@ prefira o estado descrito aqui e confirme no código.
   MSYS2 UCRT64 (`pacman -S mingw-w64-ucrt-x86_64-gcc`); sem ele, `run.cmd` usa o `javafx:run` do Maven. Ver
   `NATIVE_GPU.md`.
 
-O reactor Maven contém três módulos:
+O reactor Maven contém quatro módulos (três de aplicação e um exclusivo de testes):
 
 | Módulo | Responsabilidade atual | Regra de dependência |
 | --- | --- | --- |
 | `flatcam-application` | modelo leve de projeto, jobs, progresso e cancelamento | não depende de JavaFX; depende de `flatcam-cam` desde a persistência embutida de Gerber/Excellon (seção 9.3) - `ProjectFile` guarda `GerberImage`/`ExcellonImage` de verdade, não paths |
 | `flatcam-cam` | parsing, geometria, operações CAM e geração de G-code | não depende de JavaFX nem de `flatcam-application` |
 | `flatcam-fx` | janela, árvore do projeto, painéis de ferramentas, temas e renderização | depende dos dois módulos anteriores |
+| `flatcam-test-support` | estratégia de limpeza TempDir Windows e seus testes | consumido somente no escopo `test`; não entra no runtime |
 
 Não existem ainda módulos separados de renderer, CLI, scheduler, compat ou
 native. Só devem ser criados quando houver uma fronteira real que justifique a
 separação.
 
 ### Verificação mais recente
+
+Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
+928 aprovados, 11 opcionais ignorados**, zero falhas/erros, com limpeza TempDir
+ativa. Nenhuma propriedade `NEVER` foi usada. Probes do launcher existente com
+`--probe` e `--probe --software` passaram usando as classes recompiladas.
+Os novos testes do Terminal executam os comandos fora da thread FX e verificam
+responsividade, serialização, cancelamento, progresso e o host real/G-code.
+A validação manual do painel e a comparação CAM privada não foram reexecutadas.
+
+### Histórico das verificações anteriores
 
 Na entrega anterior de 2026-10-02, `mvnw.cmd -q install` completo (três módulos com JDK 25.0.4.1 e JavaFX 25.0.4) passou com
 **779 testes registrados**: 514 em `flatcam-cam`, 114 em `flatcam-application` e 151 em `flatcam-fx`;
@@ -2275,3 +2287,41 @@ em target/cam-investigation; não foram incluídos no Git. Próximo passo: buffe
 de compatibilidade isolado para Standard/Paint e validação do custo/da prévia,
 seguido de política explícita para o ponto inicial Seed. Backend nativo não é
 requisito demonstrado para essa correção.
+
+## Revisão das outras sessões e correções — 2026-10-05
+
+Base desta sessão: `flatcam-next`, HEAD `5fa4b871`, inicialmente limpa.
+Revisados os 36 commits desde `87d3b752`: buffer de compatibilidade
+Standard/Paint, Seed deliberadamente distinto, controles CNC/Geometry,
+Terminal reduzido e seus 13 comandos. A revisão isolou defeitos no host real
+que os testes apenas de flags não encontravam.
+
+Corrigidos: profundidade Tcl `cncjob` negativa convertida para a profundidade
+interna positiva; nomes novos globalmente únicos e recusa de nomes ambíguos;
+Terminal em worker com progresso/cancelamento/entrada serializada; publicação
+FX validando origem/projeto e referência NCC. Exportação de arquivo usa
+temporário e substituição após cancelamento verificado. Saída visual do
+Terminal conserva no máximo os últimos 200.000 caracteres.
+
+Seed tinha grade inicial proporcional à razão largura/altura, sem limite ou
+cancelamento. Agora ela tem até 256 células e construção cancelável; mantém
+20.000 células processadas por polígono, retornando o melhor candidato interior
+quando o orçamento se esgota. Índices inteiros evitam incremento flutuante
+sem progresso. Não poligonais não recursam em si mesmos. Precisão finita e
+positiva é obrigatória. A continuidade do ponto escolhido NÃO é garantida;
+a diferença deliberada frente ao Python permanece.
+
+`mvnw.cmd -q install` aprovado: **939 registrados, 928 aprovados,
+11 opcionais ignorados**, zero falhas/erros, TempDir normal ativo.
+602 CAM + 114 application + 203 FX + 20 test-support. Probes do launcher
+existente `--probe` e `--probe --software` aprovados com as classes atuais.
+Os 23 testes líquidos novos cobrem G-code real, colisões entre tipos,
+importações/CAM, origem alterada/removida, troca de projeto, cancelamento
+da fila FX, UI responsiva, loops/parse canceláveis e Seed em geometrias estreitas.
+Não foram alterados preferências, projetos privados nem o oráculo Python;
+a comparação privada não foi reexecutada. Validação manual permanece pendente.
+
+Antes de ampliar o Terminal, testar os fluxos com projetos densos. Próxima
+implementação sugerida: `open_project` e transformações Tcl, preservando
+worker/FX, cancelamento e testes do host real. Os limites do dialeto e das
+flags continuam em `PLANO_PARIDADE.md`; não declarar paridade Tcl completa.

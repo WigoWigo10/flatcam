@@ -8,6 +8,7 @@ import org.flatcam.cam.CancellationToken;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
@@ -31,19 +32,18 @@ import org.locationtech.jts.geom.Polygon;
  * Fixing NCC/Paint Standard and Lines's buffer kernel did not fix this; a different, explicitly
  * stable choice of starting point does.
  *
- * <p>The distance-to-boundary function this searches is continuous in the polygon's vertices,
- * so it has no equivalent discontinuity: a small change to the input moves the found point by
- * a correspondingly small amount, not an unrelated jump. The practical cost is that this does
+ * <p>This avoids the scan-line threshold above, but does not guarantee a continuous choice of
+ * point: equally deep regions can still exchange priority after a small perturbation. It does
  * not reproduce Python/JTS's own point when the two sides' input happens to agree exactly -
  * Seed's path pattern on FX will differ from Python's even on identical input, by design, in
- * exchange for being stable under exactly the kind of independent re-decoding every real
- * comparison across the two toolchains involves.
+ * exchange for avoiding that specific scan-line sensitivity during independent re-decoding.
  */
 final class StableInteriorPoint {
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
     /** Safety net only - precision-based pruning below converges in a few hundred cells. */
     private static final int MAX_CELLS = 20_000;
+    private static final int MAX_INITIAL_CELLS = 256;
 
     private StableInteriorPoint() {
     }
@@ -51,12 +51,15 @@ final class StableInteriorPoint {
     /**
      * The best interior point across every polygonal part of {@code area} (erosion can split
      * one polygon into several), or {@code null} if {@code area} has no polygonal part at all.
-     * {@code precision} bounds how exactly the true deepest point is approximated; pruning stops
-     * refining a region once it provably cannot beat the best point found by more than this.
+     * {@code precision} is the refinement target, not a guarantee if the bounded search budget
+     * is exhausted. In that case the best interior candidate found so far is returned.
      */
     static Coordinate find(Geometry area, double precision, CancellationToken cancellation) {
+        if (!Double.isFinite(precision) || precision <= 0)
+            throw new IllegalArgumentException("Seed precision must be finite and positive.");
+        cancellation.throwIfCancellationRequested();
         List<Polygon> parts = new ArrayList<>();
-        collectPolygons(area, parts);
+        collectPolygons(area, parts, cancellation);
         Coordinate best = null;
         double bestDistance = Double.NEGATIVE_INFINITY;
         for (Polygon polygon : parts) {
@@ -69,7 +72,8 @@ final class StableInteriorPoint {
         return best;
     }
 
-    private static void collectPolygons(Geometry geometry, List<Polygon> target) {
+    private static void collectPolygons(Geometry geometry, List<Polygon> target, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
         if (geometry.isEmpty()) {
             return;
         }
@@ -77,8 +81,10 @@ final class StableInteriorPoint {
             target.add(polygon);
             return;
         }
-        for (int part = 0; part < geometry.getNumGeometries(); part++) {
-            collectPolygons(geometry.getGeometryN(part), target);
+        if (geometry instanceof GeometryCollection) {
+            for (int part = 0; part < geometry.getNumGeometries(); part++) {
+                collectPolygons(geometry.getGeometryN(part), target, cancellation);
+            }
         }
     }
 
@@ -86,11 +92,17 @@ final class StableInteriorPoint {
     }
 
     private static Cell poleOfInaccessibility(Polygon polygon, double precision, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
         Envelope envelope = polygon.getEnvelopeInternal();
         if (envelope.isNull() || envelope.getWidth() <= 0 || envelope.getHeight() <= 0) {
             return null;
         }
-        double cellSize = Math.min(envelope.getWidth(), envelope.getHeight());
+        double width = envelope.getWidth(), height = envelope.getHeight();
+        if (!Double.isFinite(width) || !Double.isFinite(height))
+            throw new IllegalArgumentException("Seed bounds must be finite.");
+        // The former min(width,height) grid allocated unbounded cells for thin polygons.
+        // A coarser square grid still covers the whole envelope; refinement stays best-first.
+        double cellSize = Math.max(Math.min(width, height), Math.max(width, height) / MAX_INITIAL_CELLS);
         double half = cellSize / 2;
         if (half <= 0) {
             return null;
@@ -99,9 +111,14 @@ final class StableInteriorPoint {
         // Best-first: always explore the cell that could possibly contain the deepest point next.
         PriorityQueue<Cell> queue = new PriorityQueue<>(
                 Comparator.comparingDouble(Cell::maxPossibleDistance).reversed());
-        for (double x = envelope.getMinX(); x < envelope.getMaxX(); x += cellSize) {
-            for (double y = envelope.getMinY(); y < envelope.getMaxY(); y += cellSize) {
-                queue.add(cellAt(polygon, x + half, y + half, half));
+        int columns = Math.min(MAX_INITIAL_CELLS, (int) Math.ceil(width / cellSize));
+        int rows = Math.min(MAX_INITIAL_CELLS, (int) Math.ceil(height / cellSize));
+        // Integer indices also avoid x += cellSize stalling at large coordinate offsets.
+        for (int column = 0; column < columns; column++) {
+            for (int row = 0; row < rows; row++) {
+                cancellation.throwIfCancellationRequested();
+                queue.add(cellAt(polygon, envelope.getMinX() + (column + 0.5) * cellSize,
+                        envelope.getMinY() + (row + 0.5) * cellSize, half));
             }
         }
 
@@ -113,6 +130,12 @@ final class StableInteriorPoint {
             if (centroidCell.distance > best.distance) {
                 best = centroidCell;
             }
+        }
+        // Guarantee an interior fallback even if all grid centres and the centroid lie outside.
+        Point interior = polygon.getInteriorPoint();
+        if (!interior.isEmpty()) {
+            Cell fallback = cellAt(polygon, interior.getX(), interior.getY(), 0);
+            if (fallback.distance > best.distance) best = fallback;
         }
 
         int processed = 0;
@@ -128,7 +151,8 @@ final class StableInteriorPoint {
                 continue;
             }
             double childHalf = cell.halfSize / 2;
-            if (childHalf <= 0) {
+            if (childHalf <= 0 || (cell.x - childHalf == cell.x && cell.x + childHalf == cell.x
+                    && cell.y - childHalf == cell.y && cell.y + childHalf == cell.y)) {
                 continue;
             }
             queue.add(cellAt(polygon, cell.x - childHalf, cell.y - childHalf, childHalf));

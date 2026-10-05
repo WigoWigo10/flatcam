@@ -1,6 +1,6 @@
 # Plano de paridade: FlatCAM FX e FlatCAM Python
 
-Atualizado em **2026-10-03**. Base inicial: revisão `91d3ce50` do FX e o checkout
+Atualizado em **2026-10-05**. Base inicial: revisão `91d3ce50` do FX e o checkout
 Python deste repositório. Este documento registra a sequência futura e as
 entregas explicitamente verificadas; não declara todas as etapas concluídas.
 
@@ -299,6 +299,47 @@ sem arriscar esse caminho já ajustado); os demais ~55 comandos do Python
 `align_drill*`, export para DXF/SVG/Excellon/Gerber, etc.); `-combine
 False` (um objeto por passada em `isolate`), `-follow`, `-order` do NCC, e
 os métodos Lines/Combo do NCC.
+
+### Estabilização do Terminal e Seed — 2026-10-05
+
+Revisão sobre `5fa4b871`; correções antes de ampliar os comandos:
+
+- `cncjob` aceita `z_cut` finito e negativo, converte para a profundidade
+  positiva interna e exige origem Geometry. Teste com o host real gera `Z-1.7`.
+  Zero, positivos e não finitos são recusados sem publicar um CNC Job.
+- O Terminal executa um script de cada vez em `JobExecutor`. Parsing e CAM
+  ficam no worker; consultas/publicação de árvore e Plot passam pela thread FX.
+  Entrada bloqueada somente durante o script, botão Cancelar/ESC, progresso
+  percentual real por fase quando o parser/NCC o fornece; indeterminado para
+  fases sem essa informação. Não é porcentagem global de um script arbitrário.
+- Cancelamento percorre parsing, substituições e loops do dialeto Tcl e os
+  tokens dos geradores. É cooperativo: uma chamada JTS indivisível pode demorar
+  a devolver o controle. Comandos já concluídos não são desfeitos. Fechar a aba
+  ocupada solicita cancelamento; ela pode ser fechada após o término.
+- Novos objetos Tcl usam nomes únicos entre os quatro tipos (`nome_2`, etc.).
+  O resultado informa o nome efetivo se houve colisão; nomes já ambíguos num
+  projeto são recusados nas consultas em vez de escolher silenciosamente o primeiro.
+- A publicação valida projeto e identidade/nome da origem (e da referência NCC).
+  Resultados atrasados não entram se essas entradas mudaram. `write_gcode`
+  grava temporário ao lado do destino e o substitui após verificar cancelamento,
+  tentando rename atômico com fallback quando o filesystem não o suporta.
+- Seed limita a grade inicial a 256 células, verifica cancelamento desde a
+  coleta de polígonos e evita loops de incremento flutuante. Mantém orçamento
+  de 20.000 células processadas por polígono, com o melhor candidato interior
+  como fallback; a precisão alvo não é garantida se esse orçamento se esgotar.
+  Partes não poligonais são ignoradas; precisão inválida é recusada.
+
+Verificação: `mvnw.cmd -q install`, **939 registrados, 928 aprovados,
+11 opcionais ignorados**, zero falhas/erros, limpeza normal ativa. Probes nativos
+fora da tela padrão D3D→SW e software forçado passaram. Foram acrescentados
+23 testes líquidos, incluindo host real, fila FX cancelada e responsividade.
+Fluxo visual/manual com placas densas ainda precisa de validação pelo usuário.
+A comparação privada CAM/Python não foi reexecutada; Seed permanece uma
+diferença deliberada e não há promessa de continuidade global do ponto escolhido.
+
+Próximo incremento: `open_project` assíncrono e comandos de transformação,
+com testes do host real e proteção equivalente contra resultados atrasados.
+Os limites Tcl restantes listados acima continuam válidos.
 
 ## Desempenho: trabalho transversal
 

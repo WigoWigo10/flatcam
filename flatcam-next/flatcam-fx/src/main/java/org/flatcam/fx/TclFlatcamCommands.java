@@ -50,6 +50,11 @@ final class TclFlatcamCommands {
         registerWriteGcode(interpreter);
     }
 
+    /** Keep the normal empty result, but disclose a name suffixed to avoid collisions. */
+    private static String creationResult(String requested, String actual) {
+        return requested.equals(actual) ? "" : actual;
+    }
+
     /** Python's TclCommandOpenGerber: {@code open_gerber filename ?-outname name?}. */
     private void registerOpenGerber(TclInterpreter interpreter) {
         interpreter.register("open_gerber", (interp, words) -> {
@@ -58,11 +63,10 @@ final class TclFlatcamCommands {
             args.rejectUnknownOptions(java.util.Set.of("outname"));
             String outname = args.optionOrDefault("outname", baseName(filename));
             try {
-                host.openGerber(Path.of(filename), outname);
+                return creationResult(outname, host.openGerber(Path.of(filename), outname));
             } catch (IOException error) {
                 throw new TclException("Could not open Gerber file: " + error.getMessage());
             }
-            return "";
         });
     }
 
@@ -74,11 +78,10 @@ final class TclFlatcamCommands {
             args.rejectUnknownOptions(java.util.Set.of("outname"));
             String outname = args.optionOrDefault("outname", baseName(filename));
             try {
-                host.openExcellon(Path.of(filename), outname);
+                return creationResult(outname, host.openExcellon(Path.of(filename), outname));
             } catch (IOException error) {
                 throw new TclException("Could not open Excellon file: " + error.getMessage());
             }
-            return "";
         });
     }
 
@@ -86,8 +89,8 @@ final class TclFlatcamCommands {
     private void registerNewGeometry(TclInterpreter interpreter) {
         interpreter.register("new_geometry", (interp, words) -> {
             TclArgs args = TclArgs.parse(words);
-            host.newEmptyGeometry(args.positionalOrDefault(0, "new_geo"));
-            return "";
+            String name = args.positionalOrDefault(0, "new_geo");
+            return creationResult(name, host.newEmptyGeometry(name));
         });
     }
 
@@ -130,8 +133,7 @@ final class TclFlatcamCommands {
             String outname = args.optionOrDefault("outname", name + "_bbox");
             double margin = args.doubleOrDefault("margin", 0.0);
             boolean rounded = args.booleanOrDefault("rounded", false);
-            host.newBoundingBoxGeometry(name, outname, margin, rounded);
-            return "";
+            return creationResult(outname, host.newBoundingBoxGeometry(name, outname, margin, rounded));
         };
         interpreter.register("bbox", bbox);
         interpreter.register("bounding_box", bbox);
@@ -196,8 +198,7 @@ final class TclFlatcamCommands {
                 case 2 -> IsolationType.BOTH;
                 default -> throw new TclException("iso_type must be 0, 1 or 2");
             };
-            host.isolate(name, outname, dia, passes, overlapFraction, type);
-            return "";
+            return creationResult(outname, host.isolate(name, outname, dia, passes, overlapFraction, type));
         });
     }
 
@@ -223,8 +224,7 @@ final class TclFlatcamCommands {
                 default -> throw new TclException("gaps must be 'tb', 'lr' or '4', got: " + gapsText);
             };
             String outname = args.optionOrDefault("outname", name + "_cutout");
-            host.cutoutRectangular(name, outname, dia, margin, gapSize, gaps);
-            return "";
+            return creationResult(outname, host.cutoutRectangular(name, outname, dia, margin, gapSize, gaps));
         });
     }
 
@@ -275,8 +275,7 @@ final class TclFlatcamCommands {
                         : new NccBoundary.ReferenceGeometry(boxGeometry);
             }
             String outname = args.optionOrDefault("outname", name + (rest ? "_ncc" : "_ncc_rm"));
-            host.nccClear(name, outname, tools, overlapFraction, margin, method, connect, contour, rest, boundary);
-            return "";
+            return creationResult(outname, host.nccClear(name, outname, tools, overlapFraction, margin, method, connect, contour, rest, boundary));
         };
         interpreter.register("ncc", ncc);
         interpreter.register("ncc_clear", ncc);
@@ -302,8 +301,7 @@ final class TclFlatcamCommands {
             double feedrateZ = args.doubleOrDefault("feedrate_z", feedrate);
             double feedrateRapid = args.doubleOrDefault("feedrate_rapid", 0.0);
             String outname = args.optionOrDefault("outname", name + "_cnc");
-            host.cncjob(name, outname, dia, zCut, zMove, feedrate, feedrateZ, feedrateRapid);
-            return "";
+            return creationResult(outname, host.cncjob(name, outname, dia, zCut, zMove, feedrate, feedrateZ, feedrateRapid));
         });
     }
 
