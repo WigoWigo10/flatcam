@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `2bc6ffb4`.
+> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `fdc1d200`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 13 comandos FlatCAM reais.
 > A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
@@ -20,9 +20,11 @@ e continuar a migração sem recomeçar a investigação.
 > e conteúdo centralizado; a largura extra fica no diâmetro, como no Python.
 > Alternar Snap atualiza imediatamente coordenadas/prévia/cruz e não é desfeito
 > por texto inválido nos campos de passo X/Y.
+> A árvore só inicia renomeação por F2 ou comando Renomear; repetir um clique
+> numa linha selecionada não abre mais o editor de nome.
 > `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **976 testes registrados, 965 aprovados, 11 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 114 application, 240 FX e 20 de suporte de testes.
+> **984 testes registrados, 972 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 602 CAM, 114 application, 248 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -94,10 +96,10 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições, tabelas e Snap, **976 registrados, 965 aprovados e 11
+Após os ajustes do console, transições, tabelas, Snap e árvore, **984 registrados, 972 aprovados e 12
 opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Trinta e sete novos testes verificam barra compacta, porcentagem, cancelamento,
-transições, Snap e seleção/layout nos quatro temas. Capturas fora da
+normal. Quarenta e quatro novos testes verificam barra compacta, porcentagem, cancelamento,
+transições, Snap, árvore e seleção/layout nos quatro temas. Capturas fora da
 tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
@@ -2477,3 +2479,49 @@ zero falhas/erros, limpeza normal ativa. Reabrir o app e validar o caso exato
 do usuário; a correção imediata não prova a causa de toda captura persistente
 possível. Não houve alteração de geometria CAM, formato de projeto ou prefs
 do usuário durante os testes.
+
+## Renomeação explícita na árvore — 2026-10-05
+
+Snap commitado em `fdc1d200`. O comportamento relatado depois foi confirmado:
+Modena/TreeCellBehavior pede TreeView.edit(item) também com um clique simples
+numa linha já selecionada, não apenas com duplo clique. A proteção anterior
+contra duplo clique não cobria esse caso.
+
+A TreeView da janela agora permite iniciar edit(item) somente durante uma
+solicitação explícita de F2 ou do menu Renomear (`requestTreeRename`). O alvo
+permitido é removido em finally. edit(null) continua permitido para cancelamento
+e término normal. Não se consomem cliques simples, preservando Ctrl/Shift e
+seleção múltipla; duplo clique continua abrindo Propriedades. F2 é consumido
+depois de executar o comando para evitar repetir a ação no comportamento nativo.
+Validação de nome vazio/duplicado e o campo Name nas propriedades não mudaram.
+
+`ProjectTreeRenameTest`: sete casos usando a árvore/células/painéis reais da
+MainWindow fora da tela. Cobrem cliques repetidos, seleção Ctrl/Shift, duplo
+clique para Propriedades, F2 com commit, comando do menu na fila FX, Esc,
+categorias e nomes inválidos. O mesmo clique inicia edição quando a proteção
+é temporariamente liberada no teste, confirmando o gatilho nativo. Os testes
+não gravam projetos ou preferências. Install completo: **983 registrados,
+972 aprovados, 11 opcionais ignorados**, zero falhas/erros, limpeza normal ativa.
+Reabrir o app para validação manual do clique físico e foco do editor.
+
+## Reinvestigação do Snap pelo mouse — 2026-10-05
+
+O usuário informou que alternar pelo botão ainda não funciona, com capturas
+em passo 0,1. A captura desativada tem o mouse fora do Plot, portanto não
+comprova o estado do cursor ao retornar. Não presumir que o relato foi resolvido.
+`PlotSnapMouseTest` adiciona verificação opt-in com Robot numa janela temporária:
+cliques físicos, foco saindo do campo de passo e retorno ao Plot, três ciclos
+por passo (0,1 e 5,0). Os dois casos e os onze testes anteriores passaram;
+o estado, as coordenadas e a cruz acompanharam o botão. Não houve outra
+alteração de execução do Snap nem de preferências reais nesta investigação.
+As linhas da grade são independentes do Snap e usam espaçamento visual adaptativo;
+em 0,1, o arredondamento pode ser menor que um pixel. Ainda esclarecer se o
+relato envolve cruz persistente, movimento/desenho preso ou somente as linhas.
+Comando e limites do teste em `TESTES.md`.
+
+Antes do commit solicitado, `mvnw.cmd -q install` completo passou novamente:
+**984 registrados, 972 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+O teste Robot fica desabilitado por padrão e é registrado como um caso ignorado;
+quando habilitado, executa os dois passos parametrizados. O commit reúne a
+renomeação explícita da árvore, suas regressões e a investigação opcional do
+Snap; não declara resolvido o relato persistente.

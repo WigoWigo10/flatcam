@@ -268,6 +268,13 @@ livre. Install: 976 registrados, 965 aprovados, 11 opcionais ignorados, zero
 falhas/erros. Revalidar manualmente o relato de captura persistente do usuário;
 o teste básico com passos válidos já liberava novos pontos antes da correção.
 
+**Árvore em 2026-10-05:** clique simples repetido num objeto selecionado não
+inicia renomeação. A edição fica restrita a F2/menu Renomear; duplo clique para
+Propriedades, Ctrl/Shift, cancelamento e validação de nomes são preservados.
+Sete regressões exercitam árvore/células reais, com controle positivo do gatilho
+nativo. Install: 983 registrados, 972 aprovados, 11 opcionais ignorados, zero
+falhas/erros. Validar manualmente o clique físico e foco do campo de edição.
+
 ### 7. Completar preferências e automação
 
 Inventariar preferências globais, defaults por ferramenta, persistência e

@@ -127,8 +127,8 @@ pasta vazia e não deixa os temporários da suíte preservados.
 ## Limites da evidência
 
 Verificação de **2026-10-05**: `mvnw.cmd -q install` completo aprovado com
-limpeza normal ativa: 976 registrados, 965 aprovados, 11 opcionais ignorados,
-zero falhas/erros (602 CAM, 114 application, 240 FX, 20 test-support).
+limpeza normal ativa: 984 registrados, 972 aprovados, 12 opcionais ignorados,
+zero falhas/erros (602 CAM, 114 application, 248 FX, 20 test-support).
 Probes nativos `--probe` e `--probe --software` passaram na entrega anterior.
 Contar apenas os XML produzidos pela execução atual: relatórios antigos de
 classes removidas podem permanecer em `target/surefire-reports`.
@@ -185,6 +185,30 @@ sem arredondamento/dobras após desligar Snap. Sete casos iniciais falharam ante
 da correção (seis entradas inválidas e coordenadas desatualizadas); os demais
 protegem comportamento existente. Não escreve preferências reais. Validação
 do relato exato no app completo continua sendo manual.
+
+`PlotSnapMouseTest`: teste opcional de desktop, com JavaFX Robot e uma janela
+temporária própria. Executa cliques físicos no botão, saída/retorno ao Plot e
+transferência de foco do campo de passo, em três ciclos para cada passo (0,1
+e 5,0). Verifica estado efetivo, coordenadas e presença/ausência da cruz.
+Os dois casos passaram em 2026-10-05; os onze de `PlotStatusControlsTest`
+também passaram. A falha persistente relatada pelo usuário não foi reproduzida
+nessa janela; não foi aplicada outra correção de execução nem declarada resolvida.
+Não grava preferências. Move o mouse real e restaura sua posição ao terminar;
+não interagir com o desktop durante o teste. É ignorado na execução padrão.
+Desabilitado, aparece como um caso ignorado no Surefire; habilitado, executa
+os dois passos parametrizados.
+
+```powershell
+.\mvnw.cmd -q -pl flatcam-fx "-Dtest=PlotSnapMouseTest,PlotStatusControlsTest" "-Dflatcam.test.robot=true" test
+```
+
+`ProjectTreeRenameTest`: sete casos exercitam a árvore e células reais da
+MainWindow com eventos MouseEvent/KeyEvent. Cliques repetidos não renomeiam,
+Ctrl/Shift e duplo clique para Propriedades continuam operantes, F2/menu
+iniciam edição explícita, commit/Esc funcionam e nomes inválidos/categorias
+não são renomeados. Um controle positivo libera temporariamente a proteção
+e confirma que o mesmo clique simples acionaria a edição nativa. Não grava
+preferências/projetos; interação física e foco de janela continuam a validar.
 
 A comparação CAM privada e os painéis completos não foram testados manualmente
 nesta sessão. Warnings de erros deliberados nos testes de jobs/Tcl/arquivos

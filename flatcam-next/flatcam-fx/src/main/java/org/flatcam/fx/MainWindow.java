@@ -668,6 +668,7 @@ final class MainWindow implements TclFlatcamHost {
     private AnimatedSplitPanel consoleAnimation;
     private SplitPane.Divider observedConsoleDivider;
     private TreeView<String> projectTree;
+    private TreeItem<String> requestedTreeRename;
     private TabPane leftTabs;
     private Tab projectTab;
     private Tab propertiesTab;
@@ -2209,7 +2210,13 @@ final class MainWindow implements TclFlatcamHost {
                 cncJobsNode
         );
 
-        projectTree = new TreeView<>(root);
+        projectTree = new TreeView<>(root) {
+            @Override public void edit(TreeItem<String> item) {
+                // Modena also requests editing on a single click of an already-selected row.
+                // Only F2/the Rename command may start it; normal edit cancellation stays allowed.
+                if (item == null || item == requestedTreeRename) super.edit(item);
+            }
+        };
         projectTree.setShowRoot(false);
         projectTree.setEditable(true);
         projectTree.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -2266,7 +2273,8 @@ final class MainWindow implements TclFlatcamHost {
                 // which this port already dedicates to "show Properties".
                 case F2 -> {
                     if (selected != null && isProjectObject(selected)) {
-                        projectTree.edit(selected);
+                        requestTreeRename(selected);
+                        event.consume();
                     }
                 }
                 case DELETE -> {
@@ -5140,7 +5148,17 @@ final class MainWindow implements TclFlatcamHost {
         int row = projectTree.getRow(item);
         if (row >= 0) {
             projectTree.getSelectionModel().clearAndSelect(row);
-            Platform.runLater(() -> projectTree.edit(item));
+            Platform.runLater(() -> requestTreeRename(item));
+        }
+    }
+
+    private void requestTreeRename(TreeItem<String> item) {
+        if (item == null || !isProjectObject(item)) return;
+        requestedTreeRename = item;
+        try {
+            projectTree.edit(item);
+        } finally {
+            requestedTreeRename = null;
         }
     }
 
