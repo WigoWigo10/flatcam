@@ -15,6 +15,8 @@ inventário de paridade visual/funcional em [`UI_INVENTORY.md`](UI_INVENTORY.md)
 
 A sequência priorizada para alcançar a paridade, com critérios de conclusão e
 pendências de validação, está em [`PLANO_PARIDADE.md`](PLANO_PARIDADE.md).
+Os critérios e roteiro manual dos fluxos principais estão em
+[`FLUXO_PRINCIPAL.md`](FLUXO_PRINCIPAL.md).
 
 ## Requisitos
 

@@ -6054,6 +6054,71 @@ final class MainWindow implements TclFlatcamHost {
         });
     }
 
+    private record CamInput(TreeItem<String> item, String name, Object version) { }
+    private record CamGenerationState(long epoch, List<CamInput> inputs, Node panel) { }
+    private CamGenerationState activeCamGeneration;
+
+    private org.flatcam.app.job.ProgressListener camProgress(CamGenerationState before) {
+        return (fraction, message) -> Platform.runLater(() -> {
+            if (activeCamGeneration != before || runningJob == null) return;
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        });
+    }
+
+    private boolean camEditorActive() {
+        return gerberEditor.isActive() || geometryEditor.isActive()
+                || excellonEditor.isActive() || gcodeEditor.isActive();
+    }
+
+    private CamInput captureCamInput(TreeItem<String> item, Geometry expected) {
+        Object version = tclVersion(item);
+        Geometry current = version instanceof GerberImage image ? image.solidGeometry()
+                : version instanceof GeometryEntry entry ? entry.geometry() : null;
+        if (version == null || current == null || current != expected)
+            throw new IllegalStateException("Origem ou referencia alterada/removida; reabra a ferramenta antes de gerar.");
+        return new CamInput(item, item.getValue(), version);
+    }
+
+    /** Only computation inputs: changing Plot colors, visibility or unrelated objects is harmless. */
+    private CamGenerationState captureCamGeneration(TreeItem<String> item, Geometry source,
+                                                     TreeItem<String> reference, Geometry referenceGeometry) {
+        if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
+        if (camEditorActive()) throw new IllegalStateException("Aplique/cancele e feche os editores antes de gerar Geometry.");
+        List<CamInput> inputs = new ArrayList<>();
+        inputs.add(captureCamInput(item, source));
+        if (referenceGeometry != null) {
+            if (reference == null) throw new IllegalStateException("Referencia indisponivel; reabra a ferramenta.");
+            inputs.add(captureCamInput(reference, referenceGeometry));
+        }
+        return new CamGenerationState(tclProjectEpoch, List.copyOf(inputs), toolTab.getContent());
+    }
+
+    /** Recheck on FX immediately before publishing; cancellation may arrive after worker completion. */
+    private boolean acceptCamGeneration(CamGenerationState before, JobHandle<?> handle) {
+        if (runningJob != handle) return false;
+        try {
+            if (handle.isCancelled()) throw new CancellationException();
+            if (before.epoch() != tclProjectEpoch || camEditorActive())
+                throw new IllegalStateException("Projeto ou editor mudou; Geometry descartada. Gere novamente.");
+            for (CamInput input : before.inputs())
+                if (tclVersion(input.item()) != input.version() || !input.name().equals(input.item().getValue()))
+                    throw new IllegalStateException("Origem ou referencia alterada/removida; Geometry descartada. Gere novamente.");
+            return true;
+        } catch (IllegalStateException invalid) {
+            reportJobError(invalid, "Resultado CAM descartado: ");
+            onJobFinished();
+            return false;
+        }
+    }
+
+    private void finishCamPanel(CamGenerationState before, TreeItem<String> generated) {
+        if (toolTab.getContent() != before.panel()) return;
+        selectProjectItem(generated);
+        plotAreaView.fitToLayer(generated);
+        closeToolPanel();
+    }
+
     /** Creates editable Geometry first, as the Python Isolation tool does. */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
         List<IsolationToolPanel.SourceCandidate> sources = gerberByItem.entrySet().stream()
@@ -6073,7 +6138,7 @@ final class MainWindow implements TclFlatcamHost {
                         && !entry.getValue().geometry().isEmpty()
                         && entry.getValue().geometry().getDimension() == 2)
                 .map(entry -> new IsolationToolPanel.ExceptionArea(
-                        entry.getKey().getValue(), entry.getValue().geometry()))
+                        entry.getKey().getValue(), entry.getValue().geometry(), entry.getKey()))
                 .toList();
         openToolPanel("Isolation Tool", IsolationToolPanel.build(sources, initialSource, exceptionAreas,
                 (source, polygon, onSelected, onCancelled) -> beginNccAreaSelection(source.image().solidGeometry(),
@@ -6091,12 +6156,16 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void runIsolationGeneration(TreeItem<String> item, GerberImage image, IsolationToolPanel.Result params) {
-        if (runningJob != null) {
-            appendConsole("Ja existe uma operacao em andamento.");
-            return;
-        }
+        CamGenerationState before;
+        try {
+            if (gerberByItem.get(item) != image) throw new IllegalStateException("Gerber alterado; reabra Isolation.");
+            var reference = params.exceptionReference();
+            before = captureCamGeneration(item, image.solidGeometry(), reference == null ? null : reference.item(),
+                    reference == null ? null : reference.geometry());
+        } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
         beginJob("Gerando Geometry de isolamento...");
+        activeCamGeneration = before;
         record IsolationJobOutcome(List<IsolationGenerator.ToolResult> results, OptionalDouble clearance) { }
         JobHandle<IsolationJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de isolamento...");
@@ -6123,14 +6192,12 @@ final class MainWindow implements TclFlatcamHost {
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de isolamento...");
             return new IsolationJobOutcome(results, clearance);
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
+        }, camProgress(before));
         runningJob = handle;
 
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
+                    if (!acceptCamGeneration(before, handle)) return;
                     List<IsolationGenerator.ToolResult> results = outcome.results();
                     outcome.clearance().ifPresent(clearance -> {
                         boolean anySuitable = params.tools().stream()
@@ -6203,10 +6270,8 @@ final class MainWindow implements TclFlatcamHost {
                                     + " regioes de cobre nao foram isoladas por nenhuma ferramenta selecionada.");
                         }
                         if (lastGenerated != null) {
-                            selectProjectItem(lastGenerated);
-                            plotAreaView.fitToLayer(lastGenerated);
+                            finishCamPanel(before, lastGenerated);
                         }
-                        closeToolPanel();
                         setStatus("Geometry de isolamento concluida.", IDLE_COLOR);
                     }
                     updateProgress(1);
@@ -6214,6 +6279,7 @@ final class MainWindow implements TclFlatcamHost {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
+                        if (runningJob != handle) return;
                         reportJobError(error, "Falha ao gerar Geometry de isolamento: ");
                         onJobFinished();
                     });
@@ -6256,12 +6322,14 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runCutoutGeneration(TreeItem<String> item, String units, Geometry source,
                                      BooleanSupplier sourceAvailable, CutoutToolPanel.Result result) {
-        if (runningJob != null) {
-            appendConsole("Ja existe uma operacao em andamento.");
-            return;
-        }
+        CamGenerationState before;
+        try {
+            if (!sourceAvailable.getAsBoolean()) throw new IllegalStateException("Origem alterada; reabra Cutout.");
+            before = captureCamGeneration(item, source, null, null);
+        } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
         beginJob("Gerando Geometry de cutout...");
+        activeCamGeneration = before;
         JobHandle<CutoutJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, "Calculando caminhos de cutout...");
             CutoutResult cutout = CutoutGenerator.generate(
@@ -6275,14 +6343,12 @@ final class MainWindow implements TclFlatcamHost {
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry de cutout...");
             return new CutoutJobOutcome(cutout, mouseBites);
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
+        }, camProgress(before));
         runningJob = handle;
 
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
+                    if (!acceptCamGeneration(before, handle)) return;
                     CutoutResult cutout = outcome.cutout();
                     if (!sourceAvailable.getAsBoolean()) {
                         appendConsole("A origem foi removida ou alterada; Geometry de cutout descartada.");
@@ -6318,9 +6384,7 @@ final class MainWindow implements TclFlatcamHost {
                         }
                         appendConsole("Geometry de cutout criada: " + name
                                 + ". Gere o CNC Job pela Geometry apos revisar os caminhos.");
-                        selectProjectItem(generated);
-                        plotAreaView.fitToLayer(generated);
-                        closeToolPanel();
+                        finishCamPanel(before, generated);
                         setStatus("Geometry de cutout concluida.", IDLE_COLOR);
                     }
                     updateProgress(1);
@@ -6328,6 +6392,7 @@ final class MainWindow implements TclFlatcamHost {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
+                        if (runningJob != handle) return;
                         reportJobError(error, "Falha ao gerar Geometry de cutout: ");
                         onJobFinished();
                     });
@@ -6470,13 +6535,20 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runNccGeneration(TreeItem<String> item, String units, Geometry source, boolean gerberSource,
                                   NccToolPanel.Result panelResult) {
-        if (runningJob != null) {
-            appendConsole("Ja existe uma operacao em andamento.");
-            return;
-        }
+        CamGenerationState before;
+        try {
+            if (gerberSource != gerberByItem.containsKey(item))
+                throw new IllegalStateException("Tipo da origem alterado; reabra NCC.");
+            var reference = panelResult.reference();
+            Geometry referenceGeometry = panelResult.parameters().boundary() instanceof NccBoundary.ReferenceGerber area
+                    ? area.geometry() : panelResult.parameters().boundary() instanceof NccBoundary.ReferenceGeometry area
+                    ? area.geometry() : null;
+            before = captureCamGeneration(item, source, reference == null ? null : reference.item(), referenceGeometry);
+        } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
         NccParameters params = panelResult.parameters();
         beginJob("Gerando Non-Copper Clearing...");
+        activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
             OptionalDouble minClearance = gerberSource && panelResult.checkValidity()
                     ? NccGenerator.minimumCopperClearance(source)
@@ -6484,15 +6556,14 @@ final class MainWindow implements TclFlatcamHost {
             NccResult result = NccGenerator.generate(units, source, params,
                     context::isCancelled,
                     fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing..."));
+            context.checkCancelled();
             return new NccJobOutcome(result, minClearance);
-        }, (fraction, message) -> Platform.runLater(() -> {
-                    updateProgress(fraction);
-                    statusLabel.setText(message);
-                }));
+        }, camProgress(before));
         runningJob = handle;
 
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
+                    if (!acceptCamGeneration(before, handle)) return;
                     if (gerberSource ? !gerberByItem.containsKey(item) : !geometryByItem.containsKey(item)) {
                         appendConsole("A origem do NCC foi removida; resultado descartado.");
                         setStatus("Origem removida.", ERROR_COLOR);
@@ -6536,9 +6607,7 @@ final class MainWindow implements TclFlatcamHost {
                                 "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
                                 result.pathCount(), result.totalLength(), result.toolResults().size(),
                                 result.totalFailedPolygonCount(), Arrays.toString(result.bounds())));
-                        selectProjectItem(generated);
-                        plotAreaView.fitToLayer(generated);
-                        closeToolPanel();
+                        finishCamPanel(before, generated);
                         setStatus("Concluido.", IDLE_COLOR);
                     }
                     updateProgress(1);
@@ -6546,6 +6615,7 @@ final class MainWindow implements TclFlatcamHost {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
+                        if (runningJob != handle) return;
                         reportJobError(error, "Falha ao gerar Non-Copper Clearing: ");
                         onJobFinished();
                     });
@@ -9097,6 +9167,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void onJobFinished() {
+        activeCamGeneration = null;
         runningJob = null;
         runDemoJobButton.setDisable(false);
         cancelJobButton.setDisable(true);

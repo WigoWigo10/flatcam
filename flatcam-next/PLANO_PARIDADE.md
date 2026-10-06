@@ -543,6 +543,24 @@ nenhum novo benchmark ou ensaio físico CNC. Agora há 28 famílias FlatCAM,
 incluindo rotate como extensão FX, não paridade Tcl completa. Próximas fatias:
 subtract/panelize e preferências Tcl; opções CAM avançadas continuam parciais.
 
+## Prioridade dos fluxos principais — 2026-10-06
+
+Após as exportações Tcl (`0a3fb636`), o usuário priorizou completar os fluxos
+principais antes de subtract/panelize/preferências Tcl. Primeiro incremento:
+Isolation/NCC/Cutout com guarda de publicação por origem/referência/projeto,
+cancelamento tardio e preservação de outro painel aberto durante o cálculo.
+Corrigida falha de Isolation com exceções sobre GeometryCollection, recortando
+por parte e preservando passadas. 44 novos cenários FX e 5 CAM; seis cenários
+MM/IN integram CAM UI → CNC pelo host Tcl → exportação → salvar/reabrir nativo.
+
+Validação manual/diferencial com projetos reais continua pendente. O teste
+integrado não exercita geração CNC pelo painel/FileChooser. Próxima fatia:
+gravação/publicação segura de Geometry → CNC pela UI (destino temporário, prévia,
+origem/projeto/defaults e cancelamento), seguida de Drilling avançado/persistência.
+Roteiro e critérios: [FLUXO_PRINCIPAL.md](FLUXO_PRINCIPAL.md). Não é 100% de paridade.
+`mvnw.cmd -q verify`: **1340 registrados, 1328 aprovados, 12 opcionais ignorados**,
+zero falhas/erros, limpeza normal; probes D3D/Intel Arc e software aprovados.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas

@@ -57,13 +57,14 @@ final class IsolationToolPanel {
         @Override public String toString() { return item.getValue(); }
     }
 
-    record ExceptionArea(String name, Geometry geometry) {
+    record ExceptionArea(String name, Geometry geometry, TreeItem<String> item) {
+        ExceptionArea(String name, Geometry geometry) { this(name, geometry, null); }
         @Override public String toString() { return name; }
     }
 
     record Result(SourceCandidate source, List<IsolationParameters> tools, Map<Double, ToolProfile> profiles,
                   boolean restMachining, boolean forcedRest, boolean combinePasses, boolean follow,
-                  boolean checkValidity, Geometry exceptionMask) {
+                  boolean checkValidity, Geometry exceptionMask, ExceptionArea exceptionReference) {
     }
 
     private static final class ToolRow {
@@ -366,6 +367,7 @@ final class IsolationToolPanel {
 
         ExceptionArea none = new ExceptionArea("Nenhuma", null);
         ComboBox<ExceptionArea> exceptionCombo = new ComboBox<>();
+        exceptionCombo.setId("isolation-exception-object");
         exceptionCombo.getItems().add(none);
         exceptionCombo.getItems().addAll(exceptionAreas);
         exceptionCombo.setValue(none);
@@ -423,6 +425,7 @@ final class IsolationToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.managedProperty().bind(errorLabel.textProperty().isNotEmpty());
         Button generate = new Button("Generate Geometry");
+        generate.setId("isolation-generate");
         generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
@@ -448,7 +451,8 @@ final class IsolationToolPanel {
                 onGenerate.accept(new Result(sourceCombo.getValue(), List.copyOf(tools), Map.copyOf(profiles),
                         rest.isSelected(), forcedRest.isSelected(), combine.isSelected(), follow.isSelected(),
                         checkValidity.isSelected(), drawnMask[0] != null ? drawnMask[0]
-                                : exceptionCombo.getValue().geometry()));
+                                : exceptionCombo.getValue().geometry(), drawnMask[0] == null
+                                && exceptionCombo.getValue() != none ? exceptionCombo.getValue() : null));
             } catch (RuntimeException error) { errorLabel.setText(error.getMessage()); }
         });
         Button reset = new Button("Reset Tool");

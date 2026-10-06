@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `ad943c9b`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `0a3fb636`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 28 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
@@ -47,11 +47,14 @@ e continuar a migração sem recomeçar a investigação.
 > exporta Excellon/Gerber/SVG e controla visibilidade/seleção, com validação de snapshots.
 > Gerber/SVG exigem destino explícito e usam worker/temporário; SVG tem fator
 > de traço e CNC é analisado do código atual, independente da visibilidade do Plot.
+> Prioridade atual: completar fluxos principais, não novos comandos Tcl.
+> Isolation/NCC/Cutout revalidam entradas/projeto/cancelamento e preservam outro
+> painel aberto durante o cálculo. Isolation recorta coleções por parte/passada.
 > Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
 > Plot e enumeração lazy de fontes foram movidos para workers.
 > `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
-> **1291 testes registrados, 1279 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 648 CAM, 127 application, 496 FX e 20 de suporte de testes.
+> **1340 testes registrados, 1328 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 653 CAM, 127 application, 540 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -3161,5 +3164,43 @@ Validação manual no Terminal e comparação de arquivos com o Python permanece
 pendentes; nenhum novo benchmark ou teste físico CNC. Roteiro e limites:
 [TERMINAL_TCL.md](TERMINAL_TCL.md).
 
-Próxima fila: subtract/panelize ou preferências Tcl, em incrementos separados;
+Fila Tcl daquela entrega: subtract/panelize ou preferências, em incrementos separados;
 as opções CAM avançadas e compatibilidade de persistência Python continuam parciais.
+
+## Consolidação dos fluxos principais: Gerber → Geometry — 2026-10-06
+
+Exportações Gerber/SVG commitadas em `0a3fb636`. O usuário mudou a prioridade
+para completar fluxos principais antes de ampliar automação/ferramentas secundárias.
+Primeiro incremento: publicação segura das Geometries de Isolation/NCC/Cutout.
+
+NCC antes verificava apenas existência da origem, permitindo resultado de uma
+versão antiga. As três operações agora validam origem e referências da mesma
+versão oferecida no painel antes de iniciar; revalidam identidade/nome/versão,
+projeto, editores e cancelamento antes de publicar. Máscaras desenhadas continuam
+independentes de objetos. Referências/exceções por objeto carregam sua identidade.
+Cancelamento depois do worker, antes da publicação FX, também é respeitado.
+Outro painel não é fechado/selecionado pela conclusão antiga; cores/visibilidade
+e objetos não participantes não invalidam resultados válidos. Callbacks antigos
+não encerram outro job nem sobrescrevem seu progresso.
+
+Os testes revelaram falha de Isolation com exceção em GeometryCollection gerada.
+Corrigido recorte de cada parte com reagrupamento por passada. Máscaras poligonais
+aninhadas são unidas; partes não preenchidas numa máscara mista são recusadas.
+Follow preserva pontos não cobertos. Referência: laço de recorte por anéis/linhas
+de `ToolIsolation.area_subtraction`; não foi executado novo benchmark/oráculo privado.
+
+44 cenários FX novos e 5 CAM; seis caminhos MM/IN seguem CAM da UI → CNC pelo
+host Tcl → G-code → salvar/reabrir nativo. Não exercitam FileChooser/geração CNC
+pela UI nem certificam usinagem física. Fixtures próprios, sem gravar preferências.
+Roteiro e limites: [FLUXO_PRINCIPAL.md](FLUXO_PRINCIPAL.md).
+
+Verificação final `mvnw.cmd -q verify`: **1340 registrados, 1328 aprovados,
+12 opcionais ignorados**, zero falhas/erros, limpeza TempDir normal.
+Probes do launcher existente com build atualizado aprovados em D3D/Intel Arc
+e software forçado; somente renderização offscreen, não benchmark CAM.
+
+Próxima fatia prioritária: Geometry → CNC pela UI com gravação temporária,
+prévia preparada antes da publicação e validação de origem/defaults/projeto;
+hoje essa rota ainda escreve o destino diretamente antes de concluir a prévia.
+Depois, Drilling avançado/Tools Database e persistência dos fluxos principais.
+Não declarar 100% global ou de fluxo antes da validação manual/diferencial.

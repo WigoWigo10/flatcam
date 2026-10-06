@@ -125,7 +125,9 @@ final class NccToolPanel {
     }
 
     record Result(SourceCandidate source, NccParameters parameters, boolean checkValidity,
-                  Map<Double, ToolProfile> toolProfiles) {
+                  Map<Double, ToolProfile> toolProfiles, ReferenceCandidate reference) {
+        Result(SourceCandidate source, NccParameters parameters, boolean checkValidity,
+               Map<Double, ToolProfile> toolProfiles) { this(source, parameters, checkValidity, toolProfiles, null); }
     }
 
     private NccToolPanel() {
@@ -140,6 +142,7 @@ final class NccToolPanel {
         String units = initialSource.units();
         boolean metric = "MM".equalsIgnoreCase(units);
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>();
+        sourceCombo.setId("ncc-source-object");
         sourceCombo.setMinWidth(0);
         sourceCombo.setPrefWidth(180);
         sourceCombo.setMaxWidth(Double.MAX_VALUE);
@@ -418,6 +421,7 @@ final class NccToolPanel {
         conventionalRadio.setTooltip(millingHelp);
 
         ComboBox<String> boundaryKindCombo = new ComboBox<>();
+        boundaryKindCombo.setId("ncc-boundary-kind");
         boundaryKindCombo.getItems().addAll(BOUNDARY_ITSELF, BOUNDARY_AREA);
         if (sourceCandidates.size() > 1) {
             boundaryKindCombo.getItems().add(BOUNDARY_REFERENCE);
@@ -428,6 +432,7 @@ final class NccToolPanel {
                 + "Area Selection: delimita um retangulo ou poligono no desenho.\n"
                 + "Reference Object: usa outro objeto (Gerber ou Geometry) ja carregado como limite."));
         ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
+        referenceCombo.setId("ncc-reference-object");
         referenceCombo.setMinWidth(0);
         referenceCombo.setPrefWidth(180);
         referenceCombo.setMaxWidth(Double.MAX_VALUE);
@@ -727,6 +732,7 @@ final class NccToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
         Button generateButton = new Button("Gerar Geometry");
+        generateButton.setId("ncc-generate");
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
@@ -781,7 +787,8 @@ final class NccToolPanel {
                         conventionalRadio.isSelected() ? NccMillingType.CONVENTIONAL : NccMillingType.CLIMB);
                 errorLabel.setText("");
                 onGenerate.accept(new Result(chosenSource, params, checkValidityCb.isSelected(),
-                        Map.copyOf(selectedProfiles)));
+                        Map.copyOf(selectedProfiles), BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())
+                                ? referenceCombo.getValue() : null));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }

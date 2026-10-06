@@ -126,6 +126,62 @@ class IsolationGeneratorTest {
         assertEquals(16, clipped.totalLength(), 1e-9);
     }
 
+    @Test void exceptionAreaClipsRealGeneratedCollectionsWithoutLosingPasses() throws Exception {
+        var reader = new WKTReader();
+        var copper = reader.read("MULTIPOLYGON (((0 0, 4 0, 4 4, 0 4, 0 0)), ((8 0, 12 0, 12 4, 8 4, 8 0)))");
+        var original = IsolationGenerator.generate("MM", copper, new IsolationParameters(.5, 2, .1, IsolationType.BOTH));
+        var mask = reader.read("POLYGON ((-1 -1, 5 -1, 5 5, -1 5, -1 -1))");
+        var clipped = IsolationGenerator.excludeArea(original, mask, CancellationToken.none());
+        assertEquals(2, clipped.passGeometries().size()); assertFalse(clipped.isEmpty());
+        assertEquals(original.totalLength() / 2, clipped.totalLength(), 1e-9);
+        assertTrue(clipped.geometry().getEnvelopeInternal().getMinX() > 7);
+        assertEquals(original.totalLength(), original.geometry().getLength(), 1e-9);
+    }
+
+    @Test void exceptionsKeepUncoveredFollowPointsAndLinesInsideNestedCollections() throws Exception {
+        var reader = new WKTReader();
+        var follow = reader.read("GEOMETRYCOLLECTION (POINT (1 0), GEOMETRYCOLLECTION (POINT (9 0), LINESTRING (0 0, 10 0)))");
+        var original = IsolationGenerator.generateFollow("MM", follow, CancellationToken.none());
+        var mask = reader.read("POLYGON ((-1 -1, 3 -1, 3 1, -1 1, -1 -1))");
+        var clipped = IsolationGenerator.excludeArea(original, mask, CancellationToken.none());
+        assertEquals(1, clipped.passGeometries().size()); assertEquals(7, clipped.totalLength(), 1e-9);
+        assertEquals(2, clipped.geometry().getNumGeometries());
+        assertEquals("POINT (9 0)", clipped.geometry().getGeometryN(0).toText());
+        assertEquals(follow, original.geometry());
+    }
+
+    @Test void nestedPolygonMasksAreUnitedAndCompleteRemovalKeepsEmptyPassSlots() throws Exception {
+        var reader = new WKTReader();
+        var copper = reader.read("POLYGON ((0 0, 4 0, 4 4, 0 4, 0 0))");
+        var original = IsolationGenerator.generate("MM", copper, new IsolationParameters(.2, 2, 0, IsolationType.BOTH));
+        var mask = reader.read("GEOMETRYCOLLECTION (POLYGON ((-1 -1, 2 -1, 2 5, -1 5, -1 -1)),"
+                + " GEOMETRYCOLLECTION (POLYGON ((1 -1, 5 -1, 5 5, 1 5, 1 -1))))");
+        var clipped = IsolationGenerator.excludeArea(original, mask, CancellationToken.none());
+        assertTrue(clipped.isEmpty()); assertEquals(2, clipped.passGeometries().size());
+        assertTrue(clipped.passGeometries().stream().allMatch(Geometry::isEmpty));
+    }
+
+    @Test void clippingNestedCollectionsHonorsCancellationBetweenParts() throws Exception {
+        var reader = new WKTReader();
+        var follow = reader.read("GEOMETRYCOLLECTION (POINT (1 0), POINT (9 0), LINESTRING (0 0, 10 0))");
+        var mask = reader.read("POLYGON ((4 -1, 6 -1, 6 1, 4 1, 4 -1))");
+        var checks = new AtomicInteger();
+        assertThrows(CancellationException.class, () -> IsolationGenerator.excludeArea(
+                IsolationGenerator.generateFollow("MM", follow, CancellationToken.none()), mask, () -> checks.incrementAndGet() >= 5));
+        assertEquals(10, follow.getLength());
+    }
+
+    @Test void polygonMasksInInchesUseSourceUnitsAndRejectMixedNonFilledMasks() throws Exception {
+        var reader = new WKTReader();
+        var follow = reader.read("GEOMETRYCOLLECTION (LINESTRING (0 0, 1 0))");
+        var mask = reader.read("POLYGON ((0.4 -1, 0.6 -1, 0.6 1, 0.4 1, 0.4 -1))");
+        var original = IsolationGenerator.generateFollow("IN", follow, CancellationToken.none());
+        var clipped = IsolationGenerator.excludeArea(original, mask, CancellationToken.none());
+        assertEquals("IN", clipped.units()); assertEquals(.8, clipped.totalLength(), 1e-9);
+        var mixed = reader.read("GEOMETRYCOLLECTION (POLYGON ((0 -1, 1 -1, 1 1, 0 1, 0 -1)), POINT (5 5))");
+        assertThrows(IllegalArgumentException.class, () -> IsolationGenerator.excludeArea(original, mixed, CancellationToken.none()));
+    }
+
     @Test
     void restMachiningLeavesTightCopperForSmallerTool() throws Exception {
         WKTReader reader = new WKTReader();

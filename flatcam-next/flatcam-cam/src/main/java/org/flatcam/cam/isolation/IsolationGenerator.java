@@ -178,20 +178,43 @@ public final class IsolationGenerator {
         if (mask.getDimension() != 2 || !mask.isValid()) {
             throw new IllegalArgumentException("Exception area must be valid, filled Geometry");
         }
+        cancellationToken.throwIfCancellationRequested();
+        // Generic/nested GeometryCollections cannot be passed to JTS binary overlays.
+        // The Python subtract helper also clips the individual rings/lines against a polygon union.
+        if (!(mask instanceof Polygon) && !(mask instanceof org.locationtech.jts.geom.MultiPolygon)) {
+            List<Geometry> maskParts = new ArrayList<>();
+            flattenParts(mask, maskParts, cancellationToken);
+            if (maskParts.stream().anyMatch(part -> !(part instanceof Polygon)))
+                throw new IllegalArgumentException("Exception area must contain only filled polygons");
+            mask = org.locationtech.jts.operation.union.UnaryUnionOp.union(maskParts);
+        }
         GeometryFactory factory = source.geometry().getFactory();
         List<Geometry> passes = new ArrayList<>();
         List<Geometry> paths = new ArrayList<>();
         for (Geometry pass : source.passGeometries()) {
             cancellationToken.throwIfCancellationRequested();
-            Geometry clipped = pass.difference(mask);
-            passes.add(clipped);
-            for (int i = 0; i < clipped.getNumGeometries(); i++) {
-                paths.add(clipped.getGeometryN(i));
+            List<Geometry> parts = new ArrayList<>();
+            flattenParts(pass, parts, cancellationToken);
+            List<Geometry> clippedParts = new ArrayList<>();
+            for (Geometry part : parts) {
+                cancellationToken.throwIfCancellationRequested();
+                flattenParts(part.difference(mask), clippedParts, cancellationToken);
             }
+            Geometry clipped = factory.buildGeometry(clippedParts);
+            passes.add(clipped);
+            paths.addAll(clippedParts);
         }
         cancellationToken.throwIfCancellationRequested();
         return new IsolationResult(source.units(),
                 paths.isEmpty() ? factory.createGeometryCollection() : factory.buildGeometry(paths), passes);
+    }
+
+    private static void flattenParts(Geometry geometry, List<Geometry> parts, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
+        if (geometry.isEmpty()) return;
+        if (geometry instanceof GeometryCollection) {
+            for (int i = 0; i < geometry.getNumGeometries(); i++) flattenParts(geometry.getGeometryN(i), parts, cancellation);
+        } else parts.add(geometry);
     }
 
     public static IsolationResult generate(String units, Geometry copperGeometry, IsolationParameters params) {
