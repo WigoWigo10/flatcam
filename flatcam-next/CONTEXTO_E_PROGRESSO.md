@@ -2817,3 +2817,48 @@ aprovados, 12 opcionais ignorados**, zero falhas/erros (602 CAM, 115 application
 380 FX, 20 test-support). Fixtures próprios, fontes e G-code intactos; sem
 benchmark, comparação privada Python ou teste físico CNC nesta etapa.
 Próxima fatia: joins Geometry/Excellon pelo Terminal e aliases do Python.
+
+## Terminal: junções Geometry e Excellon — 2026-10-05
+
+Incremento sobre `25ae2abb`: `join_geometry`/`join_geometries` e
+`join_excellon`/`join_excellons`, seguindo sintaxe das classes Python locais.
+**25 famílias FlatCAM**, contando a extensão FX rotate; não Tcl completo.
+Saída primeiro, fontes nomeadas separadamente, pelo menos duas distintas do
+mesmo tipo/unidades. Nome ocupado recebe sufixo retornado pelo comando.
+Resultado oculto como `plot=False` no Python, sem seleção/fit nem remoção de
+fontes; aparência inicial padrão FX. Menus de Join inalterados.
+
+Composição em worker via GeometryJoin (sem fuse_tools, como o comando Tcl
+Python) e ExcellonJoin (fusão a quatro casas já existente). ExcellonJoin agora
+também fornece mapas imutáveis de IDs por fonte, sem alterar a API anterior ou
+o algoritmo geométrico. `TclObjectJoin` preserva/remapeia caminhos, perfis,
+V-Tip, overrides CNC, defaults de furação e seleção Drilling. Valida snapshot
+do projeto/configurações/epoch e cancelamento antes da publicação FX em lote.
+Fechar editores e concluir operação principal antes; sem novo undo Tcl.
+
+Diferenças deliberadas: Geometry single/multi não misturados; single exige
+parâmetros iguais. Multi conserva split que o merge Tcl Python trata de outra
+forma, usa default global da última fonte e remapeia overrides de cada ferramenta.
+Preprocessor/opções comuns conflitantes ou fontes configuradas/não configuradas
+são recusadas. Perfis sem overrides não recebem parâmetros individuais que não
+poderiam gerar. Excellon não funde parâmetros conflitantes nem amplia seleção
+de usinagem ao fundir selecionada/não selecionada. Fontes/arquivos intactos.
+Python copia opções globais da última fonte; FX não promete preservar todos
+os campos legados nem remove os limites dos formatos/writers existentes.
+
+Validação automatizada usa fixtures próprios: aliases/argumentos, conflito de
+nomes/tipos/unidades, worker responsivo, cancelamento/edições concorrentes,
+snapshot/configurações, persistência nativa/Python e script real do Terminal.
+Teste adicional junta configurações, salva/reabre e gera G-code em memória
+verificando profundidades/avanços por ferramenta e seleção Drilling remapeada.
+Sem teste físico CNC, benchmark ou nova comparação dos projetos privados Python.
+Próxima fatia: exportações Gerber/Excellon/SVG pelo Terminal; subtract/panelize
+e preferências Tcl continuam pendentes. Roteiro em [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+22 regressões adicionais (10 metadados, 2 argumentos, 9 host/Terminal, 1 CAM).
+`mvnw.cmd -q install`: **1139 registrados, 1127 aprovados, 12 opcionais
+ignorados**, zero falhas/erros (603 CAM, 115 application, 401 FX, 20 test-support).
+Limpeza normal de fixtures ativa. Validação manual dos projetos reais pendente.
+Executável recompilado; `run-native.cmd --probe` (D3D/GTX 1650) e
+`target/native/FlatCAMFX.exe --probe --software` aprovados. Probes de
+inicialização/renderização offscreen, não benchmark ou migração LWJGL.

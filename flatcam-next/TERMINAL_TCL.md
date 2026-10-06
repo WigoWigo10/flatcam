@@ -1,6 +1,6 @@
 # Terminal Tcl — FlatCAM FX
 
-Atualizado em 2026-10-05, sobre `9c187b27`, branch `flatcam-next`.
+Atualizado em 2026-10-05, sobre `25ae2abb`, branch `flatcam-next`.
 
 Abra **Ferramentas > Linha de Comando Tcl**. `help` lista comandos;
 `help open_project`, `help save_project`, `help plot_all`, `help plot_objects`,
@@ -8,6 +8,9 @@ Abra **Ferramentas > Linha de Comando Tcl**. `help` lista comandos;
 mostram sintaxe e referências. O Terminal executa um script por vez no worker,
 com Cancelar/ESC. Ele não é um interpretador Tcl completo: os limites de
 `TclInterpreter` continuam válidos.
+
+Também há ajuda específica para `join_geometry`/`join_geometries` e
+`join_excellon`/`join_excellons`.
 
 ## Abertura de projeto
 
@@ -133,6 +136,62 @@ com o limite já existente em `GerberImage.transformed`; não houve um novo port
 desses metadados. Esta entrega não acrescenta undo/redo Tcl: transformações
 limpam o histórico de Mover para não restaurar snapshots anteriores incompatíveis.
 
+## Junções pelo Terminal
+
+```tcl
+join_geometry {geometria unida} {rota 1} {rota 2}
+join_excellon {furos unidos} {furos 1} {furos 2}
+plot_objects {geometria unida,furos unidos}
+```
+
+Aliases legados: `join_geometries` e `join_excellons`. A saída vem primeiro;
+as fontes são argumentos separados por espaços, não uma lista com vírgulas.
+Use chaves para cada nome com espaços. Pelo menos dois objetos **distintos**,
+do tipo solicitado e com as mesmas unidades. Não há flags de fusão/conversão
+nestes comandos. Nome de saída ocupado recebe sufixo, que o Terminal retorna.
+
+As fontes permanecem intactas. Os resultados começam **ocultos**, como
+`plot=False` nos comandos Python; use `plot_objects` para exibir. Não mudam
+seleção/câmera nem abrem arquivo externo. Aparência inicial é a padrão FX,
+não uma mistura das cores das fontes. Feche editores e conclua operações
+principais antes de juntar. As junções dos menus continuam com seu comportamento
+de seleção/fit; não foram alteradas nesta entrega.
+
+- Geometry: preserva os caminhos e perfis de cada ferramenta, sem fundir
+  ferramentas de mesmo diâmetro — o comando Python chama `merge` sem
+  `fuse_tools=True`. O core FX conserva o split multi-tool; misturar single e
+  multi é recusado. Valores por ferramenta e V-Tip são remapeados pela ordem
+  de entrada. O default global vem da última fonte; overrides iguais a ele
+  não precisam ser armazenados. Não une topologicamente os caminhos.
+- Single Geometry: como não há split para representar parâmetros distintos,
+  exige configurações CNC idênticas. Converta para multi-tool antes de juntar
+  objetos com configurações diferentes.
+- Multi Geometry: exige mesmo preprocessor e opções comuns de troca/sondagem,
+  avanço rápido, posições/exclusões; não mistura fontes configuradas e não
+  configuradas. Perfis sem suporte a parâmetros individuais são recusados
+  quando a junção exigiria overrides. Não se escolhe silenciosamente um perfil.
+- Excellon: funde diâmetros conforme o core existente, a quatro casas; remapeia
+  IDs de furos/slots/defaults e seleção do último trabalho Drilling. Ferramentas
+  fundidas com parâmetros conhecidos diferentes são recusadas. Perfis,
+  opções comuns e ordenação Drilling precisam ser compatíveis, e não se mistura
+  fonte com e sem perfil Drilling configurado. Se fundir uma ferramenta
+  selecionada com outra não selecionada ampliaria os caminhos a usinar, a
+  junção é recusada; alinhe a seleção antes de juntar.
+
+As recusas são diferenças deliberadas: os merges Python copiam opções globais
+da última fonte e podem aceitar estados que o FX não pode preservar. Referências
+locais: `TclCommandJoinGeometry.py`, `TclCommandJoinExcellon.py`,
+`GeometryObject.merge` e `ExcellonObject.merge`. Isso não declara paridade
+de todos os campos legados. Os serializadores existentes e seus limites
+continuam valendo, especialmente para exportação Python de V-Tip e overrides.
+
+Cálculo/composição no worker, publicação FX em lote após validar o snapshot
+de objetos/configurações/projeto. Cancelamento antes da publicação não cria
+saída; editar/remover/renomear ou trocar configurações/projeto durante o trabalho
+descarta o resultado. A validação conservadora inclui objetos não participantes.
+Uniões JTS individuais não são interrompidas no meio; não há novo undo Tcl nem
+rollback geral para falhas inesperadas durante publicação FX.
+
 ## Diferenças deliberadas frente ao Python
 
 - Este checkout Python não tem `TclCommandRotate.py` nem comando Tcl `rotate`:
@@ -211,8 +270,26 @@ identidades, referência vazia, recusas CNC e cancelamento/alterações concorre
 `mvnw.cmd -q install`: **1117 registrados, 1105 aprovados, 12 opcionais ignorados**,
 zero falhas/erros. Sem novo benchmark nem validação física CNC.
 
-O incremento salvar/plot/seleção acrescentou quatro famílias; com `rotate`,
-há **23 famílias FlatCAM (incluindo a extensão FX de rotação)**, além de aliases
-e comandos internos do dialeto/shell. Faltam preferências Tcl, joins/subtract/panelize,
-exportações e flags CAM avançadas. Próxima fatia sugerida: junções
+### Incremento: junções Geometry/Excellon
+
+22 regressões adicionais: dez regras de metadados, dois testes de argumentos,
+nove do host/Terminal real e um do mapa imutável de IDs Excellon. Cobrem fusão/
+não fusão, ferramentas/V-Tip/parâmetros, conflito de tipos/unidades/nomes,
+fontes intactas, resultados ocultos, cancelamento/edições/configurações durante
+o cálculo, worker responsivo, ajuda, persistência nativa/Python e scripts
+encadeados. O teste de configurações salva/reabre e gera G-code em memória,
+verificando profundidades/avanços distintos e seleção Drilling remapeada.
+
+`mvnw.cmd -q install`: **1139 registrados, 1127 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Fixtures próprios e limpeza normal; sem alteração dos
+projetos privados/preferências, novo benchmark, oráculo privado Python ou teste
+físico CNC. A validação manual com projetos reais permanece pendente.
+Executável recompilado: `run-native.cmd --probe` (D3D/GTX 1650) e
+`target/native/FlatCAMFX.exe --probe --software` aprovados. Esses probes
+verificam inicialização/renderização offscreen, não são benchmark das junções.
+
+O incremento salvar/plot/seleção acrescentou quatro famílias; com `rotate` e
+as duas junções, há **25 famílias FlatCAM (incluindo a extensão FX de rotação)**,
+além de aliases e comandos internos do dialeto/shell. Faltam preferências Tcl,
+subtract/panelize, exportações e flags CAM avançadas. Próxima fatia sugerida: exportações
 pelo Terminal, reutilizando as operações existentes sem ampliar o dialeto Tcl.

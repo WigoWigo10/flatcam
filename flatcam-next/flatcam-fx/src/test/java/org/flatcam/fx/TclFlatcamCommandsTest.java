@@ -60,6 +60,8 @@ class TclFlatcamCommandsTest {
         String activeName;
         final List<TclTransformRequest> transforms = new ArrayList<>();
         String transformedName;
+        record JoinCall(Kind kind, String outname, List<String> names) { }
+        final List<JoinCall> joins = new ArrayList<>();
         final List<String> writtenContents = new ArrayList<>();
         boolean deletedAll;
         boolean failWrite;
@@ -80,6 +82,12 @@ class TclFlatcamCommandsTest {
         }
 
         @Override public void setActive(String name) { activeName = name; }
+
+        @Override public String join(Kind kind, String outname, List<String> names) {
+            joins.add(new JoinCall(kind, outname, names));
+            String actual = order.contains(outname) ? outname + "_2" : outname;
+            order.add(actual); return actual;
+        }
 
         @Override public void transform(String name, TclTransformRequest request) {
             transformedName = name;
@@ -722,6 +730,7 @@ class TclFlatcamCommandsTest {
         for (String value : List.of("True", "TRUE", "1", "yes", "on")) {
             interp.eval("plot_all -plot_status " + value); assertTrue(host.plotVisible);
         }
+
         for (String value : List.of("False", "FALSE", "0", "no", "off")) {
             interp.eval("plot_objects route -plot_status " + value); assertFalse(host.plotVisible);
         }
@@ -739,5 +748,24 @@ class TclFlatcamCommandsTest {
         for (String script : List.of("set_active", "set_active a b", "set_active a -exclusive true"))
             assertThrows(TclException.class, () -> interp.eval(script));
         assertEquals("board name", host.activeName);
+    }
+
+    @Test void joinAliasesPreserveSourceOrderAndSpacedNames() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String alias : List.of("join_geometry", "join_geometries", "join_excellon", "join_excellons")) {
+            assertEquals("", interp.eval(alias + " {" + alias + " output} {first source} second third"));
+            var call = host.joins.getLast();
+            assertEquals(alias.startsWith("join_geo") ? TclFlatcamHost.Kind.GEOMETRY : TclFlatcamHost.Kind.EXCELLON, call.kind());
+            assertEquals(alias + " output", call.outname()); assertEquals(List.of("first source", "second", "third"), call.names());
+        }
+    }
+
+    @Test void joinRejectsMissingSourcesAndUnknownFlagsAndDisclosesNameCollision() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String script : List.of("join_geometry", "join_geometry out", "join_geometry out first",
+                "join_excellon out first", "join_geometry out a b -fuse true", "join_excellon out a b -plot true"))
+            assertThrows(TclException.class, () -> interp.eval(script), script);
+        assertTrue(host.joins.isEmpty()); host.order.add("same");
+        assertEquals("same_2", interp.eval("join_geometry same a b"));
     }
 }

@@ -461,6 +461,24 @@ Próxima fatia: `join_geometry`/`join_excellon` e aliases legados.
 Sete regressões novas; `mvnw.cmd -q install`: **1117 registrados, 1105 aprovados,
 12 opcionais ignorados**, zero falhas/erros. Validação manual continua pendente.
 
+**Incremento junções no Terminal em 2026-10-05, sobre `25ae2abb`:**
+`join_geometry`/`join_geometries` e `join_excellon`/`join_excellons`, com saída
+primeiro, fontes por nome e resultado inicialmente oculto (`plot=False` no
+Python). Cálculo em worker e publicação em lote validando snapshot/epoch.
+Fontes preservadas; conflitos de nome recebem sufixo. Geometry conserva
+ferramentas separadas/perfis/V-Tip e remapeia parâmetros; Excellon funde diâmetros
+a quatro casas e remapeia IDs de furos/slots/defaults/seleção Drilling.
+Recusas explícitas para unidades/tipos/estados incompatíveis, conflitos de
+parâmetros comuns ou seleção que uma fusão ampliaria. Menus de Join inalterados.
+Diferenças frente aos merges Python e roteiro em [TERMINAL_TCL.md](TERMINAL_TCL.md).
+Próxima fatia sugerida: exportações Gerber/Excellon/SVG pelo Terminal, reutilizando
+os writers existentes; subtract/panelize e preferências Tcl continuam pendentes.
+22 regressões adicionais; `mvnw.cmd -q install`: **1139 registrados, 1127
+aprovados, 12 opcionais ignorados**, zero falhas/erros. Inclui persistência e
+geração G-code em memória com os parâmetros remapeados. Validação manual e
+teste físico CNC continuam pendentes; não é benchmark de fluidez.
+Executável recompilado; probes nativos D3D/GTX 1650 e software aprovados.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas

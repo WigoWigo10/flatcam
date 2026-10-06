@@ -584,7 +584,8 @@ class TclLiveHostTest {
         try (Session session = new Session()) {
             TerminalPanel panel = TerminalPanelTest.fx(() -> new TerminalPanel(session.interpreter, "teste", session.jobs));
             for (String command : List.of("open_project", "offset", "scale", "mirror", "skew",
-                    "save_project", "plot_all", "plot_objects", "set_active", "rotate")) {
+                    "save_project", "plot_all", "plot_objects", "set_active", "rotate",
+                    "join_geometry", "join_geometries", "join_excellon", "join_excellons")) {
                 String help = session.eval("help " + command);
                 assertTrue(help.startsWith(command), help);
                 assertFalse(help.contains("sem texto"), help);
@@ -920,6 +921,241 @@ class TclLiveHostTest {
                 var content = ((javafx.scene.control.ScrollPane) panel.getChildren().getFirst()).getContent();
                 assertTrue(((javafx.scene.control.CheckBox) content.lookup("#object-plot")).isSelected()); return null;
             });
+        }
+    }
+
+    private static ProjectFile joinFixture(Path directory) throws Exception {
+        var base = fixture(directory); var route = base.geometries().getFirst(); var drill = base.excellons().getFirst();
+        Geometry second = new org.flatcam.cam.transform.TransformOp.Offset(20, 0).apply(route.geometry());
+        var route2 = new ProjectFile.GeometryEntry("route second", route.sourceName(), route.units(), second, true,
+                List.of(new ToolGeometry(0.8, second)), null, null, true, route.cncDefaults());
+        var drill2 = new ProjectFile.ExcellonEntry("drills second", drill.image(), null, null, true, true, false);
+        return new ProjectFile(base.gerbers(), List.of(drill, drill2), List.of(route, route2), base.cncJobs());
+    }
+
+    @Test void joinsKeepSourcesAndPublishHiddenObjectsWithCollisionSafeNames(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(joinFixture(directory), source);
+        byte[] original = Files.readAllBytes(source);
+        try (Session session = new Session()) {
+            installRealTree(session); session.host.openProject(source); session.eval("set_active route");
+            Object a = version(session, "route"), b = version(session, "route second"), drills = version(session, "drills");
+            assertEquals("copper_2", session.eval("join_geometry copper route {route second}"));
+            assertEquals("", session.eval("join_excellons {combined holes} drills {drills second}"));
+            assertFalse(visible(session, "copper_2")); assertFalse(visible(session, "combined holes"));
+            Object merged = version(session, "copper_2");
+            assertEquals(2, value(merged, "tools", List.class).size());
+            assertEquals(value(a, "cncDefaults", GeometryGCodeParameters.class), value(merged, "cncDefaults", GeometryGCodeParameters.class));
+            var holes = (ExcellonImage) version(session, "combined holes");
+            assertEquals(2, holes.totalDrills()); assertEquals(2, holes.totalSlots()); assertEquals(1, holes.toolDiameters().size());
+            assertSame(a, version(session, "route")); assertSame(b, version(session, "route second"));
+            assertSame(drills, version(session, "drills"));
+            TerminalPanelTest.fx(() -> {
+                var tree = (TreeView<?>) field("projectTree").get(session.host);
+                assertEquals("route", tree.getSelectionModel().getSelectedItem().getValue()); return null;
+            });
+            session.eval("plot_objects {copper_2,combined holes}");
+            assertTrue(visible(session, "copper_2")); assertTrue(visible(session, "combined holes"));
+        }
+        assertArrayEquals(original, Files.readAllBytes(source)); assertFalse(Files.exists(directory.resolve("not-written.nc")));
+    }
+
+    @Test void joinedObjectsAndMachiningRoundTripInBothProjectFormats(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(joinFixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            session.eval("join_geometries joined route {route second}; join_excellon holes drills {drills second}");
+            for (String extension : List.of(".fcnproj", ".FlatPrj")) {
+                Path output = directory.resolve("joined" + extension); session.host.saveProject(output);
+                try (Session restored = new Session()) {
+                    restored.host.openProject(output);
+                    Object joined = version(restored, "joined");
+                    assertEquals(2, value(joined, "tools", List.class).size());
+                    assertEquals(value(version(session, "joined"), "cncDefaults", GeometryGCodeParameters.class),
+                            value(joined, "cncDefaults", GeometryGCodeParameters.class));
+                    assertFalse(visible(restored, "joined")); assertFalse(visible(restored, "holes"));
+                    assertEquals(2, ((ExcellonImage) version(restored, "holes")).totalDrills());
+                    assertEquals(2, ((ExcellonImage) version(restored, "holes")).totalSlots());
+                }
+            }
+        }
+    }
+
+    @Test void invalidJoinSourcesTypesUnitsAndConflictsDoNotPublish(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(joinFixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source); session.geometry("single");
+            List<String> before = session.host.objectNames();
+            for (String script : List.of("join_geometry bad route missing", "join_geometry bad route route",
+                    "join_geometry bad route copper", "join_geometry bad route route_cnc", "join_geometry bad route single",
+                    "join_excellon bad drills copper", "join_excellon {} drills {drills second}"))
+                assertThrows(TclException.class, () -> session.eval(script), script);
+            assertEquals(before, session.host.objectNames());
+        }
+        var base = joinFixture(directory); var second = base.geometries().getLast();
+        var inch = new ProjectFile.GeometryEntry(second.name(), "", "IN", second.geometry(), true, second.tools(), null, null, true);
+        Path mixed = directory.resolve("mixed.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(), List.of(base.geometries().getFirst(), inch), List.of()), mixed);
+        try (Session session = new Session()) {
+            session.host.openProject(mixed);
+            assertThrows(TclException.class, () -> session.eval("join_geometry bad route {route second}"));
+            assertEquals(2, session.host.objectNames().size());
+        }
+    }
+
+    @Test void joinedMachiningSettingsAreRemappedPersistedAndUsableForGcode(@TempDir Path directory) throws Exception {
+        var portable = org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE;
+        var geometrySettings = new org.flatcam.app.project.GeometryCncSettings(portable, null, Map.of());
+        var a = new GeometryGCodeParameters(2, 1, false, 1, 120, 10000, false);
+        var b = new GeometryGCodeParameters(3, 2, false, 1, 250, 9000, false);
+        Geometry first = FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0)});
+        Geometry second = FACTORY.createLineString(new Coordinate[]{new Coordinate(20, 0), new Coordinate(30, 0)});
+        var firstEntry = new ProjectFile.GeometryEntry("first", "", "MM", first, true, List.of(new ToolGeometry(0.8, first)),
+                null, null, false, a, geometrySettings);
+        var secondEntry = new ProjectFile.GeometryEntry("second", "", "MM", second, true, List.of(new ToolGeometry(0.8, second)),
+                null, null, false, b, geometrySettings);
+        var drillParams = new org.flatcam.cam.gcode.DrillGCodeParameters(2, 1.7, 300, 0, false);
+        var options = new org.flatcam.cam.gcode.GCodeGenerator.DrillJobOptions(false, 15, 2, null, null, 0, null);
+        var order = org.flatcam.app.project.DrillCncSettings.ToolOrder.NO;
+        var drill1 = ExcellonImage.of("MM", Map.of(7, 0.8), List.of(new ExcellonImage.Drill(7, 1, 2)), List.of(),
+                FACTORY.createPoint(new Coordinate(1, 2)).buffer(0.4));
+        var drill2 = ExcellonImage.of("MM", Map.of(42, 0.8), List.of(new ExcellonImage.Drill(42, 3, 4)), List.of(),
+                FACTORY.createPoint(new Coordinate(3, 4)).buffer(0.4));
+        var exc1 = new ProjectFile.ExcellonEntry("holes1", drill1, null, null, false, true, false, Map.of(7, drillParams),
+                new org.flatcam.app.project.DrillCncSettings(portable, options, List.of(7), order));
+        var exc2 = new ProjectFile.ExcellonEntry("holes2", drill2, null, null, false, true, false, Map.of(42, drillParams),
+                new org.flatcam.app.project.DrillCncSettings(portable, options, List.of(42), order));
+        Path source = directory.resolve("settings.fcnproj"), output = directory.resolve("joined.fcnproj");
+        ProjectFileIO.save(new ProjectFile(List.of(), List.of(exc1, exc2), List.of(firstEntry, secondEntry), List.of()), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            session.eval("join_geometry geo first second; join_excellon holes holes1 holes2");
+            session.host.saveProject(output); session.host.openProject(output);
+            Path resaved = directory.resolve("roundtrip.fcnproj"); session.host.saveProject(resaved);
+            var saved = ProjectFileIO.load(resaved);
+            var geo = saved.geometries().stream().filter(entry -> entry.name().equals("geo")).findFirst().orElseThrow();
+            assertEquals(2, geo.tools().size()); assertEquals(b, geo.cncDefaults());
+            assertEquals(Map.of(0, a), geo.cncSettings().parametersByTool());
+            var job = org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob(geo.units(), geo.tools(), geo.cncDefaults(),
+                    geo.cncSettings().vTools(), geo.cncSettings().parametersByTool(), org.flatcam.cam.CancellationToken.none(), portable);
+            assertTrue(job.gcode().contains("Z-1"), job.gcode()); assertTrue(job.gcode().contains("Z-2"), job.gcode());
+            assertTrue(job.gcode().contains("F120"), job.gcode()); assertTrue(job.gcode().contains("F250"), job.gcode());
+            var holes = saved.excellons().stream().filter(entry -> entry.name().equals("holes")).findFirst().orElseThrow();
+            assertEquals(Map.of(1, drillParams), holes.drillDefaults()); assertEquals(List.of(1), holes.cncSettings().selectedToolIds());
+            var drilling = org.flatcam.cam.gcode.GCodeGenerator.generateDrillCncJob(holes.image(), holes.drillDefaults(),
+                    holes.cncSettings().selectedToolIds(), holes.cncSettings().options(), portable);
+            assertTrue(drilling.gcode().contains("Z-1.7"), drilling.gcode());
+            assertEquals(2, holes.image().totalDrills());
+        }
+    }
+
+    @Test void joinRejectsAmbiguousNamesWithoutMutatingTheProject() throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("first"); session.geometry("duplicate"); session.geometry("duplicate");
+            assertThrows(TclException.class, () -> session.eval("join_geometry late first duplicate"));
+            assertEquals(3, session.host.objectNames().size());
+        }
+    }
+
+    @Test void joinsCannotPublishAfterEditsSettingsChangesProjectChangesOrCancellation(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(joinFixture(directory), source);
+        for (String command : List.of("join_geometry late route {route second}", "join_excellon late drills {drills second}")) {
+            for (String change : List.of("rename", "remove", "settings", "project", "cancel")) {
+                try (Session session = new Session()) {
+                    session.host.openProject(source); AtomicBoolean cancelled = new AtomicBoolean();
+                    JobContext context = new JobContext() {
+                        public boolean isCancelled() { return cancelled.get(); }
+                        public void reportProgress(double fraction, String message) {
+                            if (!message.equals("Publicando juncao...")) return;
+                            assertFalse(Platform.isFxApplicationThread());
+                            try { TerminalPanelTest.fx(() -> {
+                                if (change.equals("cancel")) cancelled.set(true);
+                                else if (change.equals("project")) field("tclProjectEpoch").setLong(session.host,
+                                        field("tclProjectEpoch").getLong(session.host) + 1);
+                                else if (change.equals("settings")) {
+                                    var settings = (Map<Object, Object>) field("geometryCncSettingsByItem").get(session.host);
+                                    var geometries = (Map<?, ?>) field("geometryByItem").get(session.host);
+                                    settings.put(geometries.keySet().iterator().next(),
+                                            new org.flatcam.app.project.GeometryCncSettings(org.flatcam.cam.gcode.GCodePreprocessor.DEFAULT, null, Map.of()));
+                                } else {
+                                    String name = command.startsWith("join_geometry") ? "route second" : "drills second";
+                                    if (change.equals("remove")) session.host.delete(name);
+                                    else {
+                                        Method find = MainWindow.class.getDeclaredMethod("findTclItemByName", String.class); find.setAccessible(true);
+                                        ((TreeItem<String>) find.invoke(session.host, name)).setValue("renamed");
+                                    }
+                                }
+                                return null;
+                            }); } catch (Exception error) { throw new AssertionError(error); }
+                        }
+                    };
+                    Class<? extends RuntimeException> expected = change.equals("cancel") ? CancellationException.class : IllegalStateException.class;
+                    assertThrows(expected, () -> TclExecution.run(context, () -> session.eval(command)), command + " / " + change);
+                    assertFalse(session.host.objectNames().contains("late"));
+                }
+            }
+        }
+    }
+
+    @Test void joinsRequireClosedEditorsAndNeverRunTheirCalculationOnFx() throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("first"); session.geometry("second"); var editor = installDraftEditor(session);
+            assertThrows(IllegalStateException.class, () -> session.eval("join_geometry late first second"));
+            TerminalPanelTest.fx(() -> { editor.cancel(); return null; });
+            TerminalPanelTest.fx(() -> {
+                assertThrows(IllegalStateException.class, () -> session.host.join(TclFlatcamHost.Kind.GEOMETRY, "late", List.of("first", "second")));
+                return null;
+            });
+            assertEquals(List.of("first", "second"), session.host.objectNames());
+        }
+    }
+
+    @Test void joinWorkerAllowsFxToRemainResponsiveWhileWaitingToCalculate() throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("first"); session.geometry("second");
+            CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+            JobContext context = new JobContext() {
+                public boolean isCancelled() { return false; }
+                public void reportProgress(double fraction, String message) {
+                    assertFalse(Platform.isFxApplicationThread());
+                    if (!message.startsWith("Juntando ")) return;
+                    entered.countDown();
+                    try { assertTrue(release.await(10, TimeUnit.SECONDS)); }
+                    catch (InterruptedException error) { throw new AssertionError(error); }
+                }
+            };
+            var job = session.jobs.submit(ignored -> TclExecution.run(context, () -> session.eval("join_geometry joined first second")), null);
+            try {
+                assertTrue(entered.await(10, TimeUnit.SECONDS));
+                assertTrue(TerminalPanelTest.fx(Platform::isFxApplicationThread)); assertFalse(job.completion().isDone());
+            } finally { release.countDown(); }
+            job.completion().get(25, TimeUnit.SECONDS); assertFalse(visible(session, "joined"));
+        }
+    }
+
+    @Test void terminalCanJoinRotatePlotSaveAndContinue(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("terminal.fcnproj");
+        ProjectFileIO.save(joinFixture(directory), source);
+        try (Session session = new Session()) {
+            installRealTree(session);
+            TerminalPanel panel = TerminalPanelTest.fx(() -> {
+                var created = new TerminalPanel(session.interpreter, "teste", session.jobs);
+                field("terminalPanel").set(session.host, created); new Scene(created); return created;
+            });
+            var idle = TerminalPanelTest.fx(() -> {
+                var input = (TextField) panel.lookup("#terminal-input");
+                input.setText("open_project " + quoted(source) + "; join_geometry joined route {route second}; "
+                        + "join_excellon holes drills {drills second}; rotate joined 90; plot_objects {joined,holes}; "
+                        + "save_project " + quoted(output) + "; get_names");
+                input.getOnAction().handle(new ActionEvent()); return panel.whenIdle();
+            });
+            idle.get(25, TimeUnit.SECONDS);
+            String text = TerminalPanelTest.fx(() -> ((TextArea) panel.lookup("#terminal-output")).getText());
+            assertFalse(text.contains("ERRO:"), text); assertFalse(text.contains("Cancelado."), text);
+            assertTrue(text.contains("joined"), text); assertFalse(TerminalPanelTest.fx(panel::isBusy));
+            var saved = ProjectFileIO.load(output);
+            assertTrue(saved.geometries().stream().filter(entry -> entry.name().equals("joined")).findFirst().orElseThrow().visible());
+            assertTrue(saved.excellons().stream().filter(entry -> entry.name().equals("holes")).findFirst().orElseThrow().visible());
+            assertEquals(8, session.host.objectNames().size());
         }
     }
 

@@ -7346,6 +7346,67 @@ final class MainWindow implements TclFlatcamHost {
 
     private record TclProjectSave(ProjectFile project, TclProjectState before) { }
 
+    private record TclJoinSnapshot(TclProjectState before, List<ProjectFile.GeometryEntry> geometries,
+                                   List<ProjectFile.ExcellonEntry> excellons) { }
+
+    @Override
+    public String join(Kind kind, String outname, List<String> names) throws TclException {
+        requireWorkerCommand();
+        if (kind != Kind.GEOMETRY && kind != Kind.EXCELLON) throw new TclException("Join supports Geometry or Excellon only.");
+        if (outname == null || outname.isBlank()) throw new TclException("Expected a nonempty output name.");
+        List<String> requested = List.copyOf(names);
+        if (requested.size() < 2 || requested.stream().distinct().count() != requested.size())
+            throw new TclException("Join requires at least two distinct source objects.");
+        try {
+            TclJoinSnapshot snapshot = TclExecution.onFx(() -> {
+                requireTclJoinAllowed();
+                for (String name : requested) {
+                    TreeItem<String> item = findTclItemByName(name);
+                    if (item == null) throw new IllegalArgumentException("Object not found: " + name);
+                    if (kind == Kind.GEOMETRY ? !geometryByItem.containsKey(item) : !excellonByItem.containsKey(item))
+                        throw new IllegalArgumentException("Expected " + kind + " object: " + name);
+                }
+                ProjectFile project = snapshotProject();
+                return new TclJoinSnapshot(captureTclProjectState(), kind != Kind.GEOMETRY ? List.of()
+                        : requested.stream().map(name -> project.geometries().stream()
+                        .filter(entry -> entry.name().equals(name)).findFirst().orElseThrow()).toList(),
+                        kind != Kind.EXCELLON ? List.of() : requested.stream().map(name -> project.excellons().stream()
+                        .filter(entry -> entry.name().equals(name)).findFirst().orElseThrow()).toList());
+            });
+            TclExecution.phase("Juntando " + kind + "...");
+            var geometry = kind == Kind.GEOMETRY ? TclObjectJoin.geometry(snapshot.geometries()) : null;
+            var excellon = kind == Kind.EXCELLON ? TclObjectJoin.excellon(snapshot.excellons()) : null;
+            TclExecution.phase("Publicando juncao...");
+            return TclExecution.onFx(() -> {
+                requireTclJoinAllowed(); checkTclProjectState(snapshot.before());
+                String actual = uniqueDerivedName(outname);
+                plotAreaView.beginBatchUpdate();
+                try {
+                    TreeItem<String> created;
+                    if (geometry != null) {
+                        var joined = geometry.joined();
+                        created = addGeometryToProject(actual, String.join(", ", requested), snapshot.geometries().getFirst().units(),
+                                joined.geometry(), joined.strokeOnly(), joined.tools(), geometry.defaults());
+                        if (geometry.settings() != null) geometryCncSettingsByItem.put(created, geometry.settings());
+                    } else {
+                        created = addExcellonToProject(actual, null, excellon.image(), excellon.defaults());
+                        if (excellon.settings() != null) drillCncSettingsByItem.put(created, excellon.settings());
+                    }
+                    // Legacy Tcl joins request plot=False. Keep UI joins' visible/fit behavior unchanged.
+                    applyObjectVisibility(created, false);
+                    refreshObjectVisibilityUi();
+                } finally { plotAreaView.endBatchUpdate(); }
+                return actual;
+            });
+        } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+    }
+
+    private void requireTclJoinAllowed() {
+        if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
+                || excellonEditor.isActive() || gcodeEditor.isActive())
+            throw new IllegalStateException("Conclua a operacao e feche os editores antes de juntar pelo Terminal.");
+    }
+
     private void requireProjectSaveAllowed() {
         if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
         if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())

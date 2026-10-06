@@ -39,6 +39,9 @@ interface TclFlatcamHost {
     /** Updates one Gerber/Excellon/Geometry in place, preserving its name and settings. */
     void transform(String name, TclTransformRequest request) throws TclException;
 
+    /** Creates a joined Geometry/Excellon, retaining source objects and validating publication after worker preparation. */
+    String join(Kind kind, String outname, List<String> names) throws TclException;
+
     enum Kind { GERBER, EXCELLON, GEOMETRY, CNC_JOB }
 
     record ObjectRef(Kind kind, String name) {

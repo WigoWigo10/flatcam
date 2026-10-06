@@ -19,8 +19,9 @@ import org.locationtech.jts.geom.Geometry;
  * Registers the FlatCAM-specific Tcl commands (the ~69 classes under Python's
  * {@code tclCommands/}) on a {@link TclInterpreter}, backed by a {@link TclFlatcamHost} rather
  * than the live FX session directly, so the argument handling and error messages here can be
- * unit-tested with a fake host. Each command mirrors one Python {@code TclCommand*.py}'s
- * {@code arg_names}/{@code option_types}/{@code required} - see each registration's doc comment
+ * unit-tested with a fake host. Ports follow Python {@code TclCommand*.py}'s
+ * {@code arg_names}/{@code option_types}/{@code required}; FX extensions (e.g. rotate) are explicitly documented.
+ * See each registration's doc comment
  * for exactly which flags are covered and which are deliberately not (yet): object creation/
  * lookup/deletion (open_gerber, open_excellon, new_geometry, delete/del, get_names, bbox, bounds),
  * and the CAM operations built on this port's existing generators (isolate, cutout, ncc/ncc_clear,
@@ -40,6 +41,7 @@ final class TclFlatcamCommands {
         registerOpenProject(interpreter);
         registerProjectAndDisplay(interpreter);
         registerTransforms(interpreter);
+        registerJoins(interpreter);
         registerNewGeometry(interpreter);
         registerDelete(interpreter);
         registerGetNames(interpreter);
@@ -85,6 +87,12 @@ final class TclFlatcamCommands {
                     + "Extensao do Terminal FX: este checkout Python tem rotacao na UI, nao um comando Tcl rotate. "
                     + "Graus positivos = horario, como Transformations; negativos = anti-horario. "
                     + "Centro do objeto por padrao; -box prevalece sobre -origin. CNC Jobs recusados.";
+            case "join_geometry", "join_geometries" -> command + " {saida} {geo 1} {geo 2} ...\n"
+                    + "Cria Geometry oculta, sem apagar origens; pelo menos duas Geometry distintas, mesmas unidades e tipo single/multi. "
+                    + "Mantem ferramentas separadas e remapeia parametros; conflitos comuns recusados. Use plot_objects para exibir.";
+            case "join_excellon", "join_excellons" -> command + " {saida} {furos 1} {furos 2} ...\n"
+                    + "Cria Excellon oculto, preservando origens; pelo menos dois Excellon distintos, mesmas unidades. "
+                    + "Funde diametros a quatro casas; remapeia furos/slots/parametros/selecao. Conflitos recusados.";
             default -> null;
         };
     }
@@ -100,6 +108,21 @@ final class TclFlatcamCommands {
             }
             return "";
         });
+    }
+
+    private void registerJoins(TclInterpreter interpreter) {
+        for (String alias : List.of("join_geometry", "join_geometries", "join_excellon", "join_excellons")) {
+            interpreter.register(alias, (interp, words) -> {
+                TclArgs args = TclArgs.parse(words);
+                args.rejectUnknownOptions(java.util.Set.of());
+                requirePositionals(args, 3, Integer.MAX_VALUE);
+                String outname = args.positional(0);
+                List<String> names = new ArrayList<>();
+                for (int i = 1; i < args.positionalCount(); i++) names.add(args.positional(i));
+                TclFlatcamHost.Kind kind = alias.startsWith("join_geo") ? TclFlatcamHost.Kind.GEOMETRY : TclFlatcamHost.Kind.EXCELLON;
+                return creationResult(outname, host.join(kind, outname, names));
+            });
+        }
     }
 
     private void registerProjectAndDisplay(TclInterpreter interpreter) {

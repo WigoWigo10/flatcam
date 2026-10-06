@@ -23,7 +23,16 @@ public final class ExcellonJoin {
     private ExcellonJoin() {
     }
 
+    /** Source tool IDs in input order mapped to the result's IDs, including diameter fusion. */
+    public record Joined(ExcellonImage image, List<Map<Integer, Integer>> sourceToolIds) {
+        public Joined { sourceToolIds = sourceToolIds.stream().map(Map::copyOf).toList(); }
+    }
+
     public static ExcellonImage join(List<ExcellonImage> images, boolean fuseTools) {
+        return joinWithMapping(images, fuseTools).image();
+    }
+
+    public static Joined joinWithMapping(List<ExcellonImage> images, boolean fuseTools) {
         if (images.size() < 2) {
             throw new IllegalArgumentException("At least two Excellon objects are required to join them");
         }
@@ -39,6 +48,7 @@ public final class ExcellonJoin {
         List<ExcellonImage.Drill> drills = new ArrayList<>();
         List<ExcellonImage.Slot> slots = new ArrayList<>();
         List<Geometry> solids = new ArrayList<>();
+        List<Map<Integer, Integer>> mappings = new ArrayList<>();
         for (ExcellonImage image : images) {
             Map<Integer, Integer> ids = new LinkedHashMap<>();
             for (Map.Entry<Integer, Double> tool : new java.util.TreeMap<>(image.toolDiameters()).entrySet()) {
@@ -51,6 +61,7 @@ public final class ExcellonJoin {
                 }
                 ids.put(tool.getKey(), fused);
             }
+            mappings.add(ids);
             for (ExcellonImage.Drill drill : image.drills()) {
                 drills.add(new ExcellonImage.Drill(ids.getOrDefault(drill.toolId(), drill.toolId()), drill.x(), drill.y()));
             }
@@ -65,6 +76,6 @@ public final class ExcellonJoin {
         GeometryFactory factory = images.get(0).solidGeometry().getFactory();
         Geometry solid = solids.isEmpty() ? factory.createGeometryCollection()
                 : solids.size() == 1 ? solids.get(0) : ParallelGeometry.unionGrouped(solids);
-        return ExcellonImage.of(units, tools, drills, slots, solid);
+        return new Joined(ExcellonImage.of(units, tools, drills, slots, solid), mappings);
     }
 }

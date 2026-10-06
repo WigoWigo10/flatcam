@@ -47,6 +47,21 @@ class JoinExcellonGeometryTest {
         assertThrows(IllegalArgumentException.class, () -> ExcellonJoin.join(List.of(mm, in), true));
     }
 
+    @Test
+    void excellonJoinReportsImmutableMappingsIncludingRoundedFusion() {
+        ExcellonImage first = excellon("MM", Map.of(8, 0.80001, 3, 1.0),
+                List.of(new ExcellonImage.Drill(8, 0, 0)));
+        ExcellonImage second = excellon("MM", Map.of(42, 0.80002),
+                List.of(new ExcellonImage.Drill(42, 5, 0)));
+        var joined = ExcellonJoin.joinWithMapping(List.of(first, second), true);
+        assertEquals(Map.of(3, 1, 8, 2), joined.sourceToolIds().getFirst());
+        assertEquals(Map.of(42, 2), joined.sourceToolIds().getLast());
+        assertEquals(List.of(2, 2), joined.image().drills().stream().map(ExcellonImage.Drill::toolId).toList());
+        assertThrows(UnsupportedOperationException.class, () -> joined.sourceToolIds().getFirst().put(8, 99));
+        assertThrows(UnsupportedOperationException.class, () -> joined.sourceToolIds().clear());
+        assertEquals(Map.of(42, 3), ExcellonJoin.joinWithMapping(List.of(first, second), false).sourceToolIds().getLast());
+    }
+
     private static GeometryJoin.Source single(double x) {
         return new GeometryJoin.Source("MM", FACTORY.createLineString(
                 new Coordinate[]{new Coordinate(x, 0), new Coordinate(x + 1, 0)}), true, List.of());
