@@ -5,12 +5,14 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `d5ff39fe`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `fcb5b592`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 26 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
 > A revisão desta sessão impede herança de parâmetros ausentes na fusão Excellon
 > e libera o worker de índices do Plot após Error sem ocultar a falha dos diagnósticos.
+> O Plot preserva prévias durante a atualização de índices/densidade; retornar do
+> zoom vetorial reutiliza o cache e uma visão ampla evita depender só do recorte anterior.
 > O console inferior recolhido agora mantém uma barra curta com porcentagem e
 > Cancelar na barra de status; a versão expandida mantém a barra longa.
 > Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
@@ -37,8 +39,8 @@ e continuar a migração sem recomeçar a investigação.
 > Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
 > Plot e enumeração lazy de fontes foram movidos para workers.
 > `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
-> **1161 testes registrados, 1149 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 603 CAM, 115 application, 423 FX e 20 de suporte de testes.
+> **1169 testes registrados, 1157 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 603 CAM, 115 application, 431 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -110,12 +112,14 @@ separação.
 
 ### Verificação mais recente
 
-Em **2026-10-06**, após a revisão da base `d5ff39fe`, `mvnw.cmd -q verify`
-completo passou: **1161 registrados, 1149 aprovados e 12 opcionais ignorados**,
+Em **2026-10-06**, após o ajuste visual sobre `fcb5b592`, `mvnw.cmd -q verify`
+completo passou: **1169 registrados, 1157 aprovados e 12 opcionais ignorados**,
 zero falhas/erros, com limpeza TempDir normal. São 603 CAM, 115 application,
-423 FX e 20 test-support. Oito regressões adicionais cobrem parâmetros ausentes
-na fusão Excellon e recuperação da fila de índices após `Error`, incluindo worker
-real e handler de erro. Probes offscreen do launcher existente passaram com as
+431 FX e 20 test-support. Oito regressões adicionais cobrem continuidade visual
+ao editar e dar zoom, seleção usando a geometria atual, visões amplas em cache
+e descarte/cancelamento de prévias. Os sete testes visuais de PlotPreparationUiTest
+também passaram com `flatcam.plot.density.pixelBuffer=false`, além do modo padrão.
+Probes offscreen do launcher existente passaram com as
 classes recompiladas em D3D/Intel Arc e software forçado. Sem benchmark de
 fluidez, teste físico CNC ou nova comparação dos projetos privados Python.
 
@@ -2937,3 +2941,34 @@ aprovados. Sem alteração de projetos privados/preferências, benchmark, teste
 físico CNC ou nova comparação Python; validação manual do usuário permanece
 pendente. Próximo incremento de paridade continua sendo exportação Gerber/SVG
 pelo Terminal, antes de subtract/panelize e preferências Tcl.
+
+## Continuidade visual do Plot no zoom e na edição — 2026-10-06
+
+Sobre `fcb5b592`, reproduzidos offscreen o apagão ao alternar densidade/vetor
+e o ciclo visível → vazio → atualizado ao excluir/desfazer Geometry densa.
+
+- `updateLayerGeometry` preserva a prévia e cancela publicações da versão antiga.
+  Durante a preparação do índice, somente o último índice já pronto é usado no
+  desenho; durante a rasterização, a imagem anterior permanece. O indicador de
+  preparação inclui a densidade. Os dados editados/selecionáveis são os atuais.
+- Sair do modo densidade suspende pedidos sem descartar a imagem. Cada binding
+  guarda o quadro mais recente e no máximo uma imagem ampla adicional, útil
+  ao afastar depois de uma vista recortada. Uma câmera exata em cache é reutilizada
+  imediatamente e cancela pedidos intermediários. Não há cache ilimitado de zooms.
+- Imagens publicadas não são sobrescritas, inclusive no override PixelWriter.
+  Prévia sem mudança de câmera não usa smoothing, evitando desbotar os traços.
+  Geometria vazia/remoção/clear/dispose limpam caches; ocultação não mostra prévias.
+
+Oito regressões novas (seis visuais, uma de índice, uma de suspensão), com
+exclusão/desfazer reais no modelo, quatro temas, densidade/vetor, recorte após
+zoom concluído, atualizações rápidas, dados atuais e limpeza de estados antigos.
+`mvnw.cmd -q verify`: **1169 registrados, 1157 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Os sete testes PlotPreparationUiTest passaram também no modo
+PixelWriter. Probes D3D/Intel Arc e software do launcher existente passaram.
+
+Nenhum projeto privado/preferência foi alterado. Sem benchmark ou mudança no
+cálculo CAM/NCC. A imagem ampla custa até um quadro adicional por binding;
+câmeras inéditas ainda são refinadas em fundo, com os 60 ms de settle mantidos.
+O usuário confirmou que o ajuste funcionou no teste manual. Não houve novo
+benchmark controlado de fluidez/FPS.
+Detalhes e limites: [PLOT_PERFORMANCE.md](PLOT_PERFORMANCE.md).

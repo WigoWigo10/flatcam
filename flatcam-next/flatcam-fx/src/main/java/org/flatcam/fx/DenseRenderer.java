@@ -107,11 +107,20 @@ final class DenseRenderer {
 
     /** Forgets a layer (removed or its geometry replaced): pending work is dropped and its frame discarded. */
     synchronized void forget(Object key) {
+        suspend(key);
+        frames.remove(key);
+    }
+
+    /** Stop superseded work, but keep the last image for a later return from vector mode. */
+    synchronized void suspend(Object key) {
         latest.remove(key);
         ScheduledFuture<?> old = scheduled.remove(key);
         if (old != null) old.cancel(false);
         requested.remove(key);
-        frames.remove(key);
+    }
+
+    synchronized boolean preparing() {
+        return !requested.isEmpty();
     }
 
     synchronized void clear() {

@@ -197,6 +197,27 @@ class AsyncPlotIndexCacheTest {
         }
     }
 
+    @Test void previousIndexIsDisplayOnlyAndDoesNotCancelTheRequestedRevision() {
+        var worker = new ArrayDeque<Runnable>();
+        var old = point(1); var replacement = point(2);
+        try (var cache = new AsyncPlotIndexCache(Runnable::run, key -> {}, worker::add, g -> true,
+                PlotDrawableIndex::new)) {
+            assertNull(cache.previous("layer"));
+            cache.getOrRequest("layer", old);
+            worker.remove().run();
+            var previous = cache.previous("layer");
+            cache.invalidate("layer");
+            assertNull(cache.getOrRequest("layer", replacement));
+            assertSame(previous, cache.previous("layer"));
+            assertTrue(cache.preparing());
+            worker.remove().run();
+            assertSame(replacement, cache.previous("layer").geometry());
+            assertFalse(cache.preparing());
+            cache.forget("layer");
+            assertNull(cache.previous("layer"));
+        }
+    }
+
     @Test void queuedErrorNotificationCannotResurrectARemovedOrClosedBinding() {
         for (boolean close : List.of(false, true)) {
             var worker = new ArrayDeque<Runnable>();

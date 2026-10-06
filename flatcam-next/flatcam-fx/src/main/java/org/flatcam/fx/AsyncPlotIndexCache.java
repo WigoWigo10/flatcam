@@ -176,6 +176,11 @@ final class AsyncPlotIndexCache implements AutoCloseable {
         return requests.values().stream().anyMatch(request -> !request.failed);
     }
 
+    /** Display-only fallback; never change the requested version or use it for editing/hit testing. */
+    synchronized PlotDrawableIndex previous(Object key) {
+        return closed ? null : indexes.get(key);
+    }
+
     synchronized boolean failed() {
         return requests.values().stream().anyMatch(request -> request.failed);
     }

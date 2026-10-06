@@ -301,3 +301,40 @@ Regressões incluem `AssertionError` injetado com fila vazia/ocupada e worker
 real, preservando a propagação da falha e a preparação da camada seguinte.
 Isso não garante recuperação da JVM em falta de memória ou outra falha fatal,
 nem mede melhoria de FPS/latência; os limites do renderer acima permanecem.
+
+### Continuidade visual durante zoom e edição — 2026-10-06
+
+O desaparecimento temporário foi reproduzido offscreen: uma edição descartava
+os pixels e deixava a camada sem desenho enquanto preparava o novo índice;
+alternar densidade → vetor → densidade também descartava a imagem anterior.
+
+- Atualização de Geometry mantém o último índice já preparado como **prévia
+  somente visual** enquanto prepara a nova versão. Não percorre a geometria
+  nova sem índice na thread FX. Seleção, hit testing e operações continuam
+  usando a geometria atual, não a prévia. A imagem anterior permanece durante
+  o refinamento de densidade; o indicador também cobre essa etapa assíncrona.
+- Sair de densidade para vetor suspende o pedido, sem eliminar a imagem em
+  cache. Além do último quadro, cada binding guarda no máximo um quadro de
+  visão ampla. Retornar a uma câmera exata em cache é imediato e cancela
+  pedidos intermediários; uma vista ampla evita mostrar só o recorte do zoom
+  anterior enquanto o novo quadro é calculado.
+- Pixels publicados são imutáveis também no override PixelWriter: atualizar
+  uma imagem não sobrescreve a prévia ampla. Sem mudança de câmera, uma prévia
+  de edição é desenhada 1:1 sem smoothing, evitando que os traços desbotem.
+- Geometria vazia, remoção, clear e dispose descartam os caches apropriados;
+  camadas ocultas não exibem prévias. Publicações supersedidas não recuperam
+  uma camada removida nem substituem a edição mais recente.
+
+O cache amplo tem custo de até uma imagem adicional por binding (proporcional
+ao tamanho do viewport); é liberado junto com a camada/projeto/app. Não é um
+cache ilimitado de zooms. Câmeras inéditas e áreas fora das imagens armazenadas
+ainda dependem de cálculo em fundo. Os 60 ms de settle continuam evitando
+rasterizar cada evento intermediário. Isto não acelera o NCC, não altera
+geometria/G-code e não comprova ganho de FPS: validação de fluidez no projeto
+real continua sendo uma etapa separada. O usuário confirmou que o ajuste
+funcionou no teste manual; não houve novo benchmark controlado de FPS/latência.
+
+Oito regressões novas incluem pixels durante excluir/desfazer, troca vetor/
+densidade nos quatro temas, recorte após zoom concluído, edições rápidas,
+geometria vazia, ocultação/remoção/clear e cancelamento com cache preservado.
+O teste visual também é executado com `flatcam.plot.density.pixelBuffer=false`.

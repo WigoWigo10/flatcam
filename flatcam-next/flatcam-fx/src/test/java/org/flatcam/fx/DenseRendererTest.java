@@ -1,6 +1,7 @@
 package org.flatcam.fx;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -210,6 +211,36 @@ class DenseRendererTest {
         ready.run();
         renderer.request("layer", view(geometry, 3), index, null);
         assertEquals(0, renderer.trackedLayerCount());
+        assertNull(renderer.frame("layer"));
+    }
+
+    @Test
+    void vectorModeSuspendsPendingWorkWithoutLosingTheCachedFrame() throws Exception {
+        var callbacks = new java.util.concurrent.LinkedBlockingQueue<Runnable>();
+        var geometry = lines();
+        var index = new PlotDrawableIndex(geometry);
+        renderer = new DenseRenderer(callbacks::add, delivered::add);
+        var first = view(geometry, 1);
+        renderer.request("layer", first, index, null);
+        assertTrue(renderer.preparing());
+        Runnable ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        ready.run();
+        var cached = renderer.frame("layer");
+        assertFalse(renderer.preparing());
+        renderer.request("layer", view(geometry, 2), index, null);
+        ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        renderer.suspend("layer");
+        assertFalse(renderer.preparing());
+        ready.run();
+        assertSame(cached, renderer.frame("layer"));
+        assertEquals(1, delivered.size());
+        assertEquals(0, renderer.queuedRequestCount());
+        renderer.request("layer", first, index, null);
+        assertFalse(renderer.preparing(), "a cached camera return requires no new image");
+        assertSame(cached, renderer.frame("layer"));
+        renderer.forget("layer");
         assertNull(renderer.frame("layer"));
     }
 }

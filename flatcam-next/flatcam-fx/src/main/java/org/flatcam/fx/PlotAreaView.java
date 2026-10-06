@@ -277,6 +277,8 @@ final class PlotAreaView extends StackPane {
     /** Layers currently drawn as a density image (see {@link DensityRaster}); gives the mode its hysteresis. */
     private final java.util.Set<Object> denseLayers = new java.util.HashSet<>();
     private final Map<Object, DenseFrame> denseFrames = new LinkedHashMap<>();
+    /** At most one extra (widest) camera frame per binding, so zooming back out has a full preview. */
+    private final Map<Object, DenseFrame> denseOverviewFrames = new LinkedHashMap<>();
     private short[] denseCover = new short[0];
     private int[] densePixels = new int[0];
     private boolean lastLayerDense;
@@ -714,7 +716,8 @@ final class PlotAreaView extends StackPane {
             lodLayers.remove(key);
             indexCache.invalidate(new IndexKey(key, 0));
             indexCache.forget(new IndexKey(key, 1));
-            forgetDensity(key);
+            if (geometry == null || geometry.isEmpty()) forgetDensity(key);
+            else invalidateDensity(key);
             layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
                     layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
@@ -855,6 +858,7 @@ final class PlotAreaView extends StackPane {
         indexCache.clear();
         denseLayers.clear();
         denseFrames.clear();
+        denseOverviewFrames.clear();
         denseRenderer.clear();
         annotations.clear();
         arrows.clear();
@@ -881,6 +885,7 @@ final class PlotAreaView extends StackPane {
         if (uiFluidityTimer != null) uiFluidityTimer.stop();
         stopWalk();
         denseFrames.clear();
+        denseOverviewFrames.clear();
     }
 
     /** Coalesces the many layer mutations performed while restoring a project into one repaint. */
@@ -1840,6 +1845,12 @@ final class PlotAreaView extends StackPane {
     private void forgetDensity(Object key) {
         denseLayers.remove(key);
         denseFrames.remove(key);
+        denseOverviewFrames.remove(key);
+        denseRenderer.forget(key);
+    }
+
+    /** Keep old display pixels only as a preview; pending worker publications are cancelled. */
+    private void invalidateDensity(Object key) {
         denseRenderer.forget(key);
     }
 
@@ -1855,12 +1866,14 @@ final class PlotAreaView extends StackPane {
         lastLayerStale = false;
         if (index == null || !layer.strokeOnly() || layer.multicolor() || !(lineWidth <= 2.5)) {
             denseLayers.remove(key);
+            denseRenderer.suspend(key);
             return false;
         }
         double[] load = index.visibleLoad(viewBounds);
         boolean wasDense = denseLayers.contains(key);
         if (!DensityRaster.shouldRasterize((long) load[0], load[1], scale, wasDense)) {
-            forgetDensity(key);
+            denseLayers.remove(key);
+            denseRenderer.suspend(key);
             return false;
         }
         denseLayers.add(key);
@@ -1870,12 +1883,8 @@ final class PlotAreaView extends StackPane {
         DenseRenderer.View view = new DenseRenderer.View(index.geometry(), scale, viewCenterX, viewCenterY,
                 contentWidth / 2.0 - viewCenterX * scale, contentHeight / 2.0 + viewCenterY * scale, width, height,
                 color.getRed(), color.getGreen(), color.getBlue(), color.getOpacity(), lineWidth);
-        DenseFrame frame = denseFrames.get(key);
-        if (frame != null && frame.view().geometry() != index.geometry()) {
-            // The geometry behind this key was replaced: the old image shows something else, do not stretch it.
-            denseFrames.remove(key);
-            frame = null;
-        }
+        // Old geometry pixels are a display-only preview during an edit, never the editing/selection model.
+        DenseFrame frame = previewFrame(key, view);
         if (frame == null || !frame.view().sameAs(view)) {
             if (DENSITY_ASYNC) {
                 // Ask the background thread for this view and keep showing the previous image, stretched to fit.
@@ -1899,6 +1908,8 @@ final class PlotAreaView extends StackPane {
             frame = new DenseFrame(view, denseImage(frame, width, height, densePixels));
             denseFrames.put(key, frame);
         }
+        // An external overview cache hit also supersedes any queued intermediate camera frame.
+        if (DENSITY_ASYNC) denseRenderer.suspend(key);
         // The Canvas samples an image bilinearly even when it is drawn 1:1, which blurred the coverage (a fully covered
         // pixel came out at ~82% and the gaps between packed lines filled in). Nearest-neighbour keeps it exact.
         boolean smoothing = gc.isImageSmoothing();
@@ -1929,9 +1940,45 @@ final class PlotAreaView extends StackPane {
         // the graphics pipeline still needs to upload pixels and may perform backend-specific conversions.
         javafx.scene.image.WritableImage image = DENSITY_PIXEL_BUFFER
                 ? DensityFrameImage.create(ready.view().width(), ready.view().height(), ready.pixels())
-                : denseImage(denseFrames.get(key), ready.view().width(), ready.view().height(), ready.pixels());
+                // The overview may still reference the last image; PixelWriter must not overwrite its pixels.
+                : denseImage(null, ready.view().width(), ready.view().height(), ready.pixels());
         denseFrames.put(key, new DenseFrame(ready.view(), image));
+        DenseFrame overview = denseOverviewFrames.get(key);
+        if (overview == null || overview.view().geometry() != ready.view().geometry()
+                || worldFrameArea(ready.view()) >= worldFrameArea(overview.view())) {
+            denseOverviewFrames.put(key, denseFrames.get(key));
+        }
         requestInteractionRedraw();
+    }
+
+    private static double worldFrameArea(DenseRenderer.View view) {
+        return (double) view.width() * view.height() / (view.scale() * view.scale());
+    }
+
+    private static Envelope frameBounds(DenseRenderer.View view) {
+        return new Envelope(-view.offsetX() / view.scale(), (view.width() - view.offsetX()) / view.scale(),
+                (view.offsetY() - view.height()) / view.scale(), view.offsetY() / view.scale());
+    }
+
+    private static boolean sameInk(DenseRenderer.View a, DenseRenderer.View b) {
+        return a.red() == b.red() && a.green() == b.green() && a.blue() == b.blue()
+                && a.opacity() == b.opacity() && a.lineWidth() == b.lineWidth();
+    }
+
+    private DenseFrame previewFrame(Object key, DenseRenderer.View view) {
+        DenseFrame last = denseFrames.get(key);
+        DenseFrame overview = denseOverviewFrames.get(key);
+        if (last != null && !sameInk(last.view(), view)) last = null;
+        if (overview != null && !sameInk(overview.view(), view)) overview = null;
+        if (last != null && last.view().sameAs(view)) return last;
+        if (overview != null && overview.view().sameAs(view)) return overview;
+        // Prefer the latest geometry's preview, then the frame covering more of a zoomed-out viewport.
+        if (last != null && last.view().geometry() == view.geometry()
+                && (overview == null || overview.view().geometry() != view.geometry())) return last;
+        if (overview != null && overview.view().geometry() == view.geometry()
+                && (last == null || last.view().geometry() != view.geometry())) return overview;
+        if (overview != null && (last == null || !frameBounds(last.view()).covers(frameBounds(view)))) return overview;
+        return last;
     }
 
     /**
@@ -1943,13 +1990,16 @@ final class PlotAreaView extends StackPane {
                                      double contentHeight) {
         DenseRenderer.View old = frame.view();
         double k = now.scale() / old.scale();
+        double translateX = now.offsetX() - old.offsetX() * k;
+        double translateY = now.offsetY() - old.offsetY() * k;
         gc.save();
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
-        gc.setImageSmoothing(true);
-        gc.drawImage(frame.image(), RULER_LEFT_WIDTH + now.offsetX() - old.offsetX() * k,
-                RULER_TOP_HEIGHT + now.offsetY() - old.offsetY() * k, old.width() * k, old.height() * k);
+        // An edit at the same camera is still a 1:1 image: smoothing would visibly fade its thin lines.
+        gc.setImageSmoothing(k != 1 || translateX != Math.rint(translateX) || translateY != Math.rint(translateY));
+        gc.drawImage(frame.image(), RULER_LEFT_WIDTH + translateX,
+                RULER_TOP_HEIGHT + translateY, old.width() * k, old.height() * k);
         gc.restore();
     }
 
@@ -1961,7 +2011,10 @@ final class PlotAreaView extends StackPane {
     }
 
     private PlotDrawableIndex drawableIndex(Object key, Geometry geometry, boolean lod) {
-        return indexCache.getOrRequest(new IndexKey(key, lod ? 1 : 0), geometry);
+        IndexKey binding = new IndexKey(key, lod ? 1 : 0);
+        PlotDrawableIndex ready = indexCache.getOrRequest(binding, geometry);
+        // Reuse only an already prepared index; don't traverse the new large geometry on the UI thread.
+        return ready != null ? ready : indexCache.previous(binding);
     }
 
     static boolean shouldUseCenterlineLod(boolean filled, boolean multicolor,
@@ -2026,7 +2079,7 @@ final class PlotAreaView extends StackPane {
         drawSelectionBox(gc);
         preparingLabel.setText(indexCache.failed() ? "Falha ao preparar visualização; consulte os diagnósticos."
                 : "Preparando visualização...");
-        preparingLabel.setVisible(indexCache.preparing() || indexCache.failed());
+        preparingLabel.setVisible(indexCache.preparing() || indexCache.failed() || denseRenderer.preparing());
     }
 
     /**
