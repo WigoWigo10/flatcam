@@ -73,6 +73,25 @@ public final class PythonProjectWriter {
                             .put("tools_drill_spindlespeed",p.spindleSpeedRpm()).put("tools_drill_multidepth",p.multiDepth())
                             .put("tools_drill_depthperpass",p.depthPerPass()).put("tools_drill_dwell",p.dwell())
                             .put("tools_drill_dwelltime",p.dwellSeconds()).put("tools_drill_offset",p.offsetZ());
+                    // Explicit ordinary positions require their common settings in legacy keys too.
+                    // Do not broaden the existing probe/machine-specific exporter here.
+                    if (entry.cncSettings() != null && (entry.cncSettings().options().startZ() != null
+                            || entry.cncSettings().options().toolChangeX() != null)) {
+                        var settings = entry.cncSettings();
+                        var moves = settings.options();
+                        JSONObject data = tool.getJSONObject("data");
+                        data.put("tools_drill_startz", moves.startZ() == null ? JSONObject.NULL : moves.startZ())
+                                .put("tools_drill_toolchangexy", legacyXY(moves.toolChangeX(), moves.toolChangeY()))
+                                .put("tools_drill_toolchange", moves.pauseForToolChange())
+                                .put("tools_drill_toolchangez", moves.toolChangeZ())
+                                .put("tools_drill_endz", moves.endMoveZ())
+                                .put("tools_drill_endxy", legacyXY(moves.endMoveX(), moves.endMoveY()))
+                                .put("tools_drill_feedrate_rapid", moves.rapidFeedRate())
+                                .put("tools_drill_ppname_e", pythonProfile(settings.preprocessor()));
+                        for (String key : List.of("tools_drill_startz", "tools_drill_toolchangexy", "tools_drill_toolchange",
+                                "tools_drill_toolchangez", "tools_drill_endz", "tools_drill_endxy", "tools_drill_feedrate_rapid", "tools_drill_ppname_e"))
+                            options.put(key, data.get(key));
+                    }
                 }
             }
         }

@@ -9,6 +9,11 @@ temporário: uma falha de validação não sobrescreve o destino.
 
 - Gerber: geometria resolvida, aperturas/elementos disponíveis, cores e visibilidade.
 - Excellon: diâmetros, furos, slots, sólidos por ferramenta e parâmetros de furação disponíveis.
+- Drilling com Start Z/posição de troca explícitos (sem exclusões): chaves comuns
+  Python em `options` e `tools.data`, além do snapshot nativo FX. A reabertura
+  direta no FX preserva as posições. A UI Python pode sobrescrever parâmetros
+  com preferências globais, e reimportação após remover metadados FX ainda não
+  recupera todas as posições comuns de Drilling. Não declarar round-trip universal.
 - Geometry: caminhos por ferramenta, perfil, ponta V e parâmetros CNC disponíveis.
 - Geometry/CNC: compensação Path/In/Out/Custom e posições comuns de início,
   fim e troca; campos CAM padrão são recuperados mesmo sem metadados privados FX.

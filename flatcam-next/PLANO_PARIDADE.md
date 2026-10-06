@@ -214,6 +214,19 @@ isso não conclui as demais opções avançadas de Drilling ou toda esta etapa.
 Probes nativos offscreen D3D/Intel Arc e software passaram; não é benchmark
 ou validação física CNC.
 
+**Segundo incremento Drilling em 2026-10-06:** Start Z e Tool change X,Y
+opcionais nos parâmetros comuns. A primeira troca e as seguintes usam a posição
+informada, com clearance, Around/Over e preview correspondentes. Broca instalada
+determina o trajeto de saída; ambas precisam caber na posição de troca. Start Z
+não substitui Travel Z antes dos movimentos XY. MM/IN, troca de fonte, Reset e
+persistência nativa cobertos; Roland/sondagem recusam estes campos opcionais.
+Exportação Python sem áreas escreve chaves legadas comuns, mas não declara
+round-trip universal após o legado remover metadados FX. Validação manual e
+física continuam necessárias; parâmetros adicionais de Drilling ainda parciais.
+47 regressões novas; suíte completa: **1267 registrados, 1255 aprovados,
+12 opcionais ignorados**, zero falhas/erros. Capturas nos quatro temas conferidas
+e probes D3D/Intel Arc e software passaram; isso não certifica usinagem física.
+
 ### 5. Consolidar compatibilidade e persistência de projetos
 
 Ampliar round-trips FX → Python → FX para dados avançados, macros Gerber,

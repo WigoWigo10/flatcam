@@ -266,6 +266,7 @@ public final class ProjectFileIO {
                 .put("pauseForToolChange", options.pauseForToolChange()).put("toolChangeZ", options.toolChangeZ())
                 .put("endMoveZ", options.endMoveZ()).put("endMoveX", options.endMoveX()).put("endMoveY", options.endMoveY())
                 .put("rapidFeedRate", options.rapidFeedRate())
+                .put("startZ", options.startZ()).put("toolChangeX", options.toolChangeX()).put("toolChangeY", options.toolChangeY())
                 .put("exclusionsEnabled", options.exclusionsEnabled())
                 .put("exclusions", new JSONArray(options.exclusions().stream().map(area -> new JSONObject()
                         .put("wkt", area.wkt()).put("strategy", area.strategy().name()).put("overZ", area.overZ())).toList()));
@@ -285,7 +286,8 @@ public final class ProjectFileIO {
                             json.getDouble("endMoveZ"), optionalDouble(json, "endMoveX"), optionalDouble(json, "endMoveY"),
                             json.optDouble("rapidFeedRate", 0), readProbeParameters(json.optJSONObject("probing")),
                             json.has("exclusionsEnabled") && json.getBoolean("exclusionsEnabled"),
-                            readCncExclusions(json.has("exclusions") ? json.getJSONArray("exclusions") : null)),
+                            readCncExclusions(json.has("exclusions") ? json.getJSONArray("exclusions") : null),
+                            optionalDouble(json, "startZ"), optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY")),
                     selected, DrillCncSettings.ToolOrder.valueOf(json.getString("toolOrder")));
         } catch (RuntimeException invalid) {
             throw new IOException("Configuracao CNC de Drilling invalida; nenhum perfil alternativo foi aplicado.", invalid);

@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `f59f849a`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `2577801c`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 26 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
@@ -20,6 +20,8 @@ e continuar a migração sem recomeçar a investigação.
 > Drilling agora tem exclusões Around/Over, editor compartilhado com Geometry,
 > persistência nativa e geração/prévia/gravação em worker cancelável. Furos/slots
 > protegidos recusam o trabalho inteiro; `.FlatPrj` com áreas também é recusado.
+> Drilling ganhou Start Z e posição XY de troca opcionais, com trajetos Around/Over,
+> clearance validado e restauração por objeto. Roland/sondagem recusam estes campos.
 > O console inferior recolhido agora mantém uma barra curta com porcentagem e
 > Cancelar na barra de status; a versão expandida mantém a barra longa.
 > Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
@@ -46,8 +48,8 @@ e continuar a migração sem recomeçar a investigação.
 > Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
 > Plot e enumeração lazy de fontes foram movidos para workers.
 > `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
-> **1220 testes registrados, 1208 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 617 CAM, 120 application, 463 FX e 20 de suporte de testes.
+> **1267 testes registrados, 1255 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 642 CAM, 127 application, 478 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -3075,5 +3077,52 @@ software. Nenhum projeto privado/preferência foi alterado nos testes; sem novo
 benchmark ou comparação diferencial privada Python. Desenhos/cliques físicos
 e teste a seco CNC continuam pendentes. Limites: [CNC_EXCLUSIONS.md](CNC_EXCLUSIONS.md).
 
-Próxima fila, após validar Drilling: exportações Gerber/SVG pelo Terminal ou outro incremento CAM
-escolhido pelo usuário; opções avançadas e paridade global permanecem parciais.
+O usuário priorizou em seguida Start Z e posição XY de troca no Drilling;
+o incremento abaixo substitui a fila anteriormente sugerida. As exportações
+Gerber/SVG pelo Terminal continuam candidatas após a validação de Drilling.
+
+## Start Z e posição XY de troca no Drilling — 2026-10-06
+
+DrillJobOptions ganhou campos opcionais startZ/toolChangeX/toolChangeY, mantendo
+todos os construtores anteriores e preservando posições ao alterar exclusões.
+Common Parameters mostra Start Z e Tool change X,Y, com tooltips, campos compactos
+e rótulos sem truncamento nos quatro temas. None mantém o comportamento anterior;
+X;Y aceita vírgulas decimais e X,Y aceita ponto decimal. Fonte/Reset não herdam
+posições de outro objeto. Valores ficam nas unidades do Excellon.
+
+Start Z é emitido inicialmente, seguido de Travel Z antes do primeiro XY. Troca
+com posição explícita exige Tool change (ou ICP automático) e Tool change Z >=
+maior Travel Z selecionado. Spindle para antes do trajeto; Around/Over considera
+a broca instalada durante a saída e ambas no destino. Isso permite afastar uma
+broca fina de um furo próximo a obstáculo antes de instalar a próxima, mais larga.
+Sem posição explícita, mantém a validação antiga na posição atual. A primeira
+ferramenta portable também pausa quando há XY explícito; G90/Travel Z são retomados
+após a troca. Movimentos internos de macros e dimensões do cabeçote não são modelados.
+
+Roland/Mach3 com sonda recusam Start Z/XY explícitos nesta fatia, sem ignorá-los.
+Os defaults antigos desses perfis continuam funcionando. O Start Z separado de
+sondagem continua pendente. Geração/prévia/gravação permanece no worker cancelável;
+falha de altura/rota não publica um arquivo parcial nem altera o destino existente.
+
+JSON/XZ `.fcnproj` preserva posições da última geração bem-sucedida; projetos
+antigos sem os campos opcionais mantêm o G-code anterior. Campos novos inválidos
+recusam abertura. `.FlatPrj` sem exclusões e com posições explícitas escreve
+chaves comuns Python em options/tools.data, além do snapshot FX. A reabertura
+direta no FX conserva as posições; UI Python pode aplicar preferências globais,
+e reimportação após remover metadados FX ainda não recupera todas as posições
+comuns de Drilling. Não foi declarada equivalência de ordem textual com Python.
+
+47 regressões adicionais: 25 CAM, 7 persistência, 14 painel FX (incluindo quatro
+temas) e 1 publicação de arquivo/prévia. Cobrem perfis comuns, MM/IN, valores
+inválidos, compatibilidade antiga, raio da broca instalada/substituta, Around/Over,
+Reset/restauração e arquivo intacto após falha. A suíte final `mvnw.cmd -q verify`
+passou com **1267 registrados, 1255 aprovados, 12 opcionais ignorados**, sem
+falhas/erros e com limpeza TempDir normal. Capturas nos quatro temas inspecionadas;
+probes do launcher existente passaram com o build atualizado em D3D/Intel Arc e
+software. Nenhum projeto privado/preferência foi alterado; nenhum novo benchmark
+ou ensaio físico/Python GUI foi feito.
+
+Validação manual do novo painel/posições e teste a seco CNC continuam pendentes.
+Detalhes: `CNC_EXCLUSIONS.md`, `PREPROCESSADORES.md` e `COMPATIBILIDADE_FLATPRJ.md`.
+Próxima fila sugerida, após validação: exportações Gerber/SVG pelo Terminal ou
+continuação das opções avançadas de Drilling; não declarar paridade global completa.

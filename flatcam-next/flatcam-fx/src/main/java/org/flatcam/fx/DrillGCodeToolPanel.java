@@ -26,6 +26,8 @@ import javafx.scene.control.ToggleGroup;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.ColumnConstraints;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -349,6 +351,17 @@ final class DrillGCodeToolPanel {
                     .anyMatch(DrillGCodeParameters::pauseForToolChange));
         });
         TextField toolChangeZ = field(metric ? "15.0" : "0.6");
+        TextField startZ = field("None");
+        startZ.setId("drill-start-z");
+        startZ.setPromptText("None ou altura");
+        startZ.setTooltip(new Tooltip("Altura inicial opcional, nas unidades da origem. None = Travel Z. "
+                + "Antes de mover em XY, o gerador retorna ao Travel Z. Roland e sondagem nao suportados neste port."));
+        TextField toolChangeXY = field("None");
+        toolChangeXY.setId("drill-tool-change-xy");
+        toolChangeXY.setPromptText("None ou X;Y");
+        toolChangeXY.setTooltip(new Tooltip("Posicao opcional de troca nas unidades da origem; None = posicao atual. "
+                + "Exige Tool change e Z de troca >= maior Travel Z. O trajeto respeita Around/Over. "
+                + "Use X;Y para coordenadas com virgula decimal. Roland e sondagem nao suportados neste port."));
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not());
         TextField endMoveZ = field(metric ? "0.5" : "0.02");
         TextField endMoveXY = field("None");
@@ -380,7 +393,9 @@ final class DrillGCodeToolPanel {
                 () -> "Unidades atuais: " + sourceCombo.getValue().image().units(), sourceCombo.valueProperty()));
         probe.view().getChildren().addFirst(probeUnits);
         toolChangeZ.disableProperty().unbind();
-        toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not().or(automaticTools));
+        toolChangeZ.disableProperty().bind(Bindings.createBooleanBinding(
+                () -> !toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection()
+                        || preprocessor.getValue().isRoland(), toolChange.selectedProperty(), preprocessor.valueProperty()));
         spindleLabel.textProperty().bind(Bindings.createStringBinding(
                 () -> preprocessor.getValue() == GCodePreprocessor.REPETIER ? "Potencia PWM (0-255):" : "Spindle RPM:",
                 preprocessor.valueProperty()));
@@ -409,13 +424,21 @@ final class DrillGCodeToolPanel {
         GridPane common = new GridPane();
         common.setHgap(8);
         common.setVgap(8);
-        common.addRow(0, toolChange);
+        var captionColumn = new ColumnConstraints();
+        captionColumn.setMinWidth(Region.USE_PREF_SIZE);
+        captionColumn.setMaxWidth(Region.USE_PREF_SIZE);
+        var valueColumn = new ColumnConstraints(0, 160, Double.MAX_VALUE);
+        valueColumn.setHgrow(Priority.ALWAYS);
+        common.getColumnConstraints().setAll(captionColumn, valueColumn);
+        common.add(toolChange, 0, 0, 2, 1);
         common.addRow(1, new Label("Tool change Z:"), toolChangeZ);
-        common.addRow(2, new Label("End move Z:"), endMoveZ);
-        common.addRow(3, new Label("End move X,Y:"), endMoveXY);
-        common.addRow(4, new Label("Preprocessor:"), preprocessor);
-        common.addRow(5, new Label("Feed rapids:"), rapidFeed);
-        common.add(profileHelp, 0, 6, 2, 1);
+        common.addRow(2, new Label("Tool change X,Y:"), toolChangeXY);
+        common.addRow(3, new Label("Start Z:"), startZ);
+        common.addRow(4, new Label("End move Z:"), endMoveZ);
+        common.addRow(5, new Label("End move X,Y:"), endMoveXY);
+        common.addRow(6, new Label("Preprocessor:"), preprocessor);
+        common.addRow(7, new Label("Feed rapids:"), rapidFeed);
+        common.add(profileHelp, 0, 8, 2, 1);
         var savedOptions = initialSource.cncSettings() == null ? null : initialSource.cncSettings().options();
         var exclusions = new CncExclusionEditor(savedOptions != null && savedOptions.exclusionsEnabled(),
                 savedOptions == null ? List.of() : savedOptions.exclusions(), initialSource.image().units(),
@@ -453,24 +476,21 @@ final class DrillGCodeToolPanel {
                     settings.put(row.id, row.parameters(mechanicalChange, roland.get()));
                     orderedIds.add(row.id);
                 }
-                Double endX = null, endY = null;
-                if (!endMoveXY.getText().trim().equalsIgnoreCase("None")
-                        && !endMoveXY.getText().isBlank()) {
-                    String[] xy = endMoveXY.getText().split("[,;]");
-                    if (xy.length != 2)
-                        throw new IllegalArgumentException("End move X,Y: use None ou X,Y.");
-                    endX = parse(xy[0], "End move X");
-                    endY = parse(xy[1], "End move Y");
-                }
+                Double[] end = optionalXY(endMoveXY.getText(), "End move X,Y");
+                Double[] change = optionalXY(toolChangeXY.getText(), "Tool change X,Y");
                 double endZ = parse(endMoveZ.getText(), "End move Z");
-                double changeZ = mechanicalChange ? parse(toolChangeZ.getText(), "Tool change Z")
+                double changeZ = mechanicalChange || change[0] != null && preprocessor.getValue().automaticToolSelection()
+                        ? parse(toolChangeZ.getText(), "Tool change Z")
                         : settings.get(orderedIds.get(0)).safeZ();
                 var options = exclusions.applyTo(new GCodeGenerator.DrillJobOptions(
-                        mechanicalChange, changeZ, endZ, endX, endY,
+                        mechanicalChange, changeZ, endZ, end[0], end[1],
                         preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0,
-                        probing.get() ? probe.parameters() : null));
+                        probing.get() ? probe.parameters() : null).withPositions(
+                                optionalNumber(startZ.getText(), "Start Z"), change[0], change[1]));
                 options.validateExclusions(preprocessor.getValue());
-                if (options.exclusionsEnabled() && (mechanicalChange || preprocessor.getValue().automaticToolSelection())
+                options.validatePositions(preprocessor.getValue());
+                if ((options.exclusionsEnabled() || options.toolChangeX() != null)
+                        && (mechanicalChange || preprocessor.getValue().automaticToolSelection())
                         && changeZ < settings.values().stream().mapToDouble(DrillGCodeParameters::safeZ).max().orElse(0))
                     throw new IllegalArgumentException("Tool change Z deve ser maior ou igual ao maior Travel Z das ferramentas.");
                 for (DrillGCodeParameters values : settings.values()) {
@@ -498,6 +518,8 @@ final class DrillGCodeToolPanel {
             noOrder.setSelected(true);
             toolChange.setSelected(false);
             toolChangeZ.setText(metric ? "15.0" : "0.6");
+            startZ.setText("None");
+            toolChangeXY.setText("None");
             endMoveZ.setText(metric ? "0.5" : "0.02");
             endMoveXY.setText("None");
             rapidFeed.setText("0");
@@ -531,6 +553,9 @@ final class DrillGCodeToolPanel {
             toolChange.setSelected(saved == null ? source.drillDefaults().values().stream()
                     .anyMatch(DrillGCodeParameters::pauseForToolChange) : saved.options().pauseForToolChange());
             toolChangeZ.setText(saved == null ? (sourceMetric ? "15.0" : "0.6") : Double.toString(saved.options().toolChangeZ()));
+            startZ.setText(saved == null || saved.options().startZ() == null ? "None" : saved.options().startZ().toString());
+            toolChangeXY.setText(saved == null || saved.options().toolChangeX() == null ? "None"
+                    : saved.options().toolChangeX() + ";" + saved.options().toolChangeY());
             endMoveZ.setText(saved == null ? (sourceMetric ? "0.5" : "0.02") : Double.toString(saved.options().endMoveZ()));
             endMoveXY.setText(saved == null || saved.options().endMoveX() == null ? "None"
                     : saved.options().endMoveX() + ";" + saved.options().endMoveY());
@@ -589,6 +614,17 @@ final class DrillGCodeToolPanel {
                 List.copyOf(table.getSelectionModel().getSelectedItems())
                         .forEach(row -> update.accept(row, value));
         });
+    }
+
+    private static Double optionalNumber(String text, String label) {
+        return text.isBlank() || text.trim().equalsIgnoreCase("None") ? null : parse(text, label);
+    }
+
+    private static Double[] optionalXY(String text, String label) {
+        if (text.isBlank() || text.trim().equalsIgnoreCase("None")) return new Double[] {null, null};
+        String[] parts = text.split(text.contains(";") ? ";" : ",", -1);
+        if (parts.length != 2) throw new IllegalArgumentException(label + ": use None ou X;Y.");
+        return new Double[] {parse(parts[0], label + " X"), parse(parts[1], label + " Y")};
     }
 
     private static double parse(String text, String label) {

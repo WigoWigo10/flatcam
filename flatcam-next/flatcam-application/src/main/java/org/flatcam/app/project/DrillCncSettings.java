@@ -15,6 +15,7 @@ public record DrillCncSettings(GCodePreprocessor preprocessor, DrillJobOptions o
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(toolOrder, "toolOrder");
         options.validateExclusions(preprocessor);
+        options.validatePositions(preprocessor);
         selectedToolIds = List.copyOf(selectedToolIds);
         if (!GCodePreprocessor.millingProfiles().contains(preprocessor))
             throw new IllegalArgumentException("Perfil laser/plotter nao pode ser restaurado em Drilling.");

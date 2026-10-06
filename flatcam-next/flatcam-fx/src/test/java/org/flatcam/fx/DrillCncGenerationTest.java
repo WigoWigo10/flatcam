@@ -81,6 +81,23 @@ class DrillCncGenerationTest {
         noTemporaries();
     }
 
+    @Test void explicitPositionsReachPublishedFileAndPreviewAndInvalidHeightPreservesDestination() throws Exception {
+        Path output = directory.resolve("positions.nc");
+        var defaults = Map.of(1, new DrillGCodeParameters(3, 1, 100, 0, true));
+        var context = context(new AtomicBoolean(), (fraction, phase) -> {});
+        var positions = new GCodeGenerator.DrillJobOptions(true, 15, .5, null, null)
+                .withPositions(20.0, 0.0, 5.0).withExclusions(true, options().exclusions());
+        var generated = DrillCncGeneration.generate(image(10), defaults, List.of(1), positions,
+                GCodePreprocessor.FX_PORTABLE, output, context, () -> {});
+        assertEquals(generated.job().gcode(), Files.readString(output));
+        assertTrue(generated.preview().travelCenterlines().covers(factory.createPoint(new Coordinate(0, 5))));
+        String original = Files.readString(output);
+        var invalid = new GCodeGenerator.DrillJobOptions(true, 1, .5, null, null).withPositions(null, 0.0, 5.0);
+        assertThrows(IllegalArgumentException.class, () -> DrillCncGeneration.generate(image(10), defaults, List.of(1), invalid,
+                GCodePreprocessor.FX_PORTABLE, output, context, () -> fail("must not publish")));
+        assertEquals(original, Files.readString(output)); noTemporaries();
+    }
+
     @Test void invalidCutAndChangedSourceValidationCannotOverwriteDestination() throws Exception {
         Path output = directory.resolve("drill.nc");
         Files.writeString(output, "original");

@@ -20,9 +20,36 @@ Ao gerar, **Around** desvia os movimentos entre furos/slots em XY; **Over** sobe
 antes de atravessar e só volta a Travel Z no destino. A validação inclui a
 saída inicial, retornos entre passes de slots, mudanças de ferramenta e
 estacionamento final. No estacionamento, não baixa para End move Z abaixo de
-Travel Z antes do deslocamento XY. A troca continua na posição atual: uma
-broca nova mais larga deve caber também na posição final da anterior, e Tool
-change Z não pode ficar abaixo do maior Travel Z quando há troca ativa.
+Travel Z antes do deslocamento XY. Sem Tool change X,Y, a troca continua na
+posição atual: uma broca nova mais larga deve caber também na posição final
+da anterior. Com posição explícita, o trajeto usa a broca instalada e o destino
+precisa acomodar ambas; a prévia inclui esse deslocamento. Tool change Z não
+pode ficar abaixo do maior Travel Z quando há exclusões ou posição de troca.
+
+### Start Z e posição de troca
+
+Em **Common Parameters**, Start Z aceita `None` (comportamento anterior) ou
+uma altura inicial finita >= 0. Antes de qualquer XY, retorna a Travel Z;
+Start Z não substitui a altura de deslocamento nem a altura de todas as trocas.
+Tool change X,Y aceita `None` (posição atual) ou `X;Y`/`X,Y`; use ponto decimal
+com vírgula separadora, ou ponto-e-vírgula quando houver vírgulas decimais.
+Valores estão nas unidades do Excellon (MM/IN), não são convertidos implicitamente.
+
+Posição explícita exige Tool change ativado ou seleção automática de ferramenta
+(ICP); vale também para a primeira ferramenta do perfil portable. Spindle para
+antes de viajar, sobe a Tool change Z, aplica Around/Over, troca/pausa e restaura
+G90/Travel Z. Roland e Mach3 com sonda recusam estes dois campos opcionais;
+limpe-os com `None` ao mudar para esses perfis. Não são ignorados silenciosamente.
+Macros e movimentos internos de troca dependem da máquina e não são simulados.
+
+Os campos são restaurados por objeto após geração bem-sucedida e salvamento
+`.fcnproj` JSON/XZ. Reset os limpa; trocar a fonte não herda as posições anteriores.
+Arquivos nativos antigos continuam com valores ausentes (`None`) e G-code anterior.
+Exportação `.FlatPrj` sem exclusões escreve também as chaves comuns Python em
+`options` e `tools.data`, além do snapshot FX. A reabertura direta no FX preserva
+as posições; regeneração pela UI Python pode aplicar suas preferências globais.
+Depois de o Python salvar novamente/remover os metadados FX, a importação das
+posições comuns de Drilling ainda é parcial. Não é um round-trip universal.
 
 Furos são testados com seu raio; slots com todo o segmento, não só os extremos.
 Qualquer interseção com a área ampliada recusa o trabalho inteiro, inclusive
@@ -58,8 +85,9 @@ igualdade de rotas/ordem com o legado nem validação física.
   nunca baixa Travel Z. Só retorna à altura segura no destino fora da exclusão.
   É mais conservador que o Python, que pode subir somente perto da entrada.
 - As regiões são ampliadas pelo raio da ferramenta + 0,1 mm (ou equivalente em in),
-  como o legado. Troca com posição explícita considera o maior diâmetro das duas
-  ferramentas. Cortes que atinjam essa área ampliada são recusados, não truncados.
+  como o legado. Em Geometry, troca com posição explícita usa o maior diâmetro
+  no trajeto; em Drilling, usa a broca instalada no trajeto e ambas no destino.
+  Cortes que atinjam essa área ampliada são recusados, não truncados.
 - Origem/destino dentro de exclusão são recusados, mesmo em Over. A posição inicial
   XY do gerador continua sendo (0,0); configure a origem física antes de executar.
 

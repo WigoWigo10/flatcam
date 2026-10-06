@@ -230,12 +230,16 @@ não a paridade completa de todos os parâmetros nem a validação física.
   A geração agora atualiza também os parâmetros básicos na origem, o que antes
   só ocorria na importação de projetos. Valores restaurados não são truncados
   a quatro casas no formulário; a precisão textual do programa permanece a do gerador.
-- **Drilling:** recupera perfil, Tool change/Tool change Z, End move Z/XY,
+- **Drilling:** recupera perfil, Start Z, Tool change/Tool change Z/XY, End move Z/XY,
   Feed rapids, parâmetros de sondagem, seleção e ordem das ferramentas, além
   dos parâmetros por ferramenta já persistidos. Trocar a origem carrega os
   dados daquele objeto, sem reutilizar a confirmação ou os globais de outro.
   IDs salvos que não existem mais não selecionam outras ferramentas; o painel
   avisa e, se não sobrou nenhuma, bloqueia a geração até selecionar ferramentas.
+  Start Z e posição XY explícita de troca são opcionais e disponíveis somente
+  em fresagem sem sondagem/Roland neste port. A troca respeita exclusões e
+  exige altura >= maior Travel Z. Detalhes em `CNC_EXCLUSIONS.md`; o Start Z
+  separado de Mach3 com sonda continua pendente, como descrito acima.
 - **Compatibilidade:** novos campos são opcionais no formato nativo v2; projetos
   antigos seguem abrindo com FX portable/defaults anteriores. Configuração nova
   inválida ou perfil desconhecido recusa a abertura, sem substituir silenciosamente
