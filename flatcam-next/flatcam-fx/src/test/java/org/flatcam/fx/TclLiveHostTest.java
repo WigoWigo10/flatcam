@@ -586,7 +586,7 @@ class TclLiveHostTest {
             for (String command : List.of("open_project", "offset", "scale", "mirror", "skew",
                     "save_project", "plot_all", "plot_objects", "set_active", "rotate",
                     "join_geometry", "join_geometries", "join_excellon", "join_excellons",
-                    "export_excellon", "export_exc", "ee")) {
+                    "export_excellon", "export_exc", "ee", "export_gerber", "export_grb", "egr", "export_svg")) {
                 String help = session.eval("help " + command);
                 assertTrue(help.startsWith(command), help);
                 assertFalse(help.contains("sem texto"), help);
@@ -1438,6 +1438,259 @@ class TclLiveHostTest {
             assertTrue(text.contains("after_export"), text); assertFalse(TerminalPanelTest.fx(panel::isBusy));
             assertEquals(2, new org.flatcam.cam.excellon.ExcellonParser().parse(output).totalSlots());
             assertFalse(visible(session, "holes")); assertNoExcellonStages(directory);
+        }
+    }
+
+    private static void assertNoDrawingStages(Path directory) throws Exception {
+        try (var files = Files.list(directory)) {
+            assertTrue(files.noneMatch(path -> path.getFileName().toString().startsWith(".flatcam-tcl-gerber-")
+                    || path.getFileName().toString().startsWith(".flatcam-tcl-svg-")));
+        }
+    }
+
+    private static org.w3c.dom.Document svgDocument(Path file) throws Exception {
+        var factory = javax.xml.parsers.DocumentBuilderFactory.newInstance();
+        factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        return factory.newDocumentBuilder().parse(file.toFile());
+    }
+
+    @Test void gerberAliasesExportCurrentEditedImageUsingTheUiFormatWithoutChangingTheSource(@TempDir Path directory) throws Exception {
+        Path input = gerber(directory); byte[] original = Files.readAllBytes(input);
+        try (Session session = new Session()) {
+            session.host.openGerber(input, "copper object"); session.eval("offset {copper object} -x 25.4 -y -12.7");
+            var image = (org.flatcam.cam.gerber.GerberImage) version(session, "copper object");
+            var format = CamExportDialog.loadGerber(); var expected = new org.flatcam.cam.gerber.GerberExporter().export(image, format);
+            var names = session.host.objectNames(); boolean plotted = visible(session, "copper object");
+            for (String alias : List.of("export_gerber", "export_grb", "egr")) {
+                Path output = directory.resolve(alias + " output.gbr"); Files.writeString(output, "old content");
+                assertEquals("", session.eval(alias + " {copper object} " + quoted(output)));
+                assertEquals(expected, Files.readString(output));
+                var actual = new GerberParser().parse(output, org.flatcam.cam.CancellationToken.none(), ignored -> {});
+                var parsedExpected = new GerberParser().parse(expected.lines().toList());
+                assertEquals(parsedExpected.units(), actual.units());
+                assertTrue(parsedExpected.solidGeometry().equalsExact(actual.solidGeometry(), 1e-9));
+            }
+            assertSame(image, version(session, "copper object")); assertEquals(names, session.host.objectNames());
+            assertEquals(plotted, visible(session, "copper object")); assertEquals(format, CamExportDialog.loadGerber());
+        }
+        assertArrayEquals(original, Files.readAllBytes(input)); assertNoDrawingStages(directory);
+    }
+
+    @Test void gerberInchSourceExportsWithoutChangingItsUnits(@TempDir Path directory) throws Exception {
+        Path input = directory.resolve("inch.gbr"), output = directory.resolve("export.gbr");
+        Files.writeString(input, "%FSLAX24Y24*%\n%MOIN*%\n%ADD10C,0.04*%\nD10*\nX10000Y20000D03*\nM02*\n");
+        try (Session session = new Session()) {
+            session.host.openGerber(input, "inch"); var image = (org.flatcam.cam.gerber.GerberImage) version(session, "inch");
+            session.eval("egr inch " + quoted(output));
+            assertEquals(new org.flatcam.cam.gerber.GerberExporter().export(image, CamExportDialog.loadGerber()), Files.readString(output));
+            assertEquals("IN", image.units()); assertSame(image, version(session, "inch")); assertNoDrawingStages(directory);
+        }
+    }
+
+    @Test void svgExportsEveryObjectKindWithCustomStrokesWithoutChangingVersionsOrVisibility(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            for (String name : session.host.objectNames()) {
+                Object image = version(session, name); boolean plotted = visible(session, name);
+                Path output = directory.resolve(name + ".svg"); Files.writeString(output, "old bytes");
+                assertEquals("", session.eval("export_svg " + name + " " + quoted(output) + " -scale_stroke_factor 0.25"));
+                var document = svgDocument(output); var root = document.getDocumentElement();
+                assertEquals("svg", root.getNodeName()); assertTrue(root.getAttribute("width").endsWith("mm"));
+                assertEquals("scale(1,-1)", ((org.w3c.dom.Element) root.getElementsByTagName("g").item(0)).getAttribute("transform"));
+                var drawing = (org.w3c.dom.Element) root.getElementsByTagName(name.equals("copper") || name.equals("drills") ? "path" : "polyline").item(0);
+                assertNotNull(drawing); assertEquals("0.5", drawing.getAttribute("stroke-width"));
+                if (name.equals("route_cnc")) {
+                    String xml = Files.readString(output);
+                    assertTrue(xml.indexOf("#F0E24D") < xml.indexOf("#5E6CFF"));
+                }
+                assertSame(image, version(session, name)); assertEquals(plotted, visible(session, name));
+            }
+            assertNoDrawingStages(directory);
+        }
+    }
+
+    @Test void svgShapeFactorDefaultsAndPositionalOptionFormsMatch(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("line"); Path output = directory.resolve("line.svg");
+            session.eval("export_svg line " + quoted(output)); String defaults = Files.readString(output);
+            session.eval("export_svg line " + quoted(output) + " -1"); assertEquals(defaults, Files.readString(output));
+            session.eval("export_svg line " + quoted(output) + " 0.2"); String positional = Files.readString(output);
+            session.eval("export_svg line " + quoted(output) + " -scale_stroke_factor 0.2"); assertEquals(positional, Files.readString(output));
+            var line = (org.w3c.dom.Element) svgDocument(output).getElementsByTagName("polyline").item(0);
+            assertEquals("0.4", line.getAttribute("stroke-width")); assertEquals("0,0 10,0", line.getAttribute("points"));
+        }
+    }
+
+    @Test void svgCncUsesCodeUnitsAndAutomaticToolWidthRatherThanItsDisplayedGeometry(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            String code = "G20\nG90\n; FCFX TOOL T1 D0.04\nG0 Z0.1\nG0 X1 Y2\nG1 Z-0.02 F4\nG1 X2 Y2\nG0 Z0.1\n";
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addCncJobToProject", String.class, String.class,
+                        Path.class, String.class, Geometry.class, Geometry.class); add.setAccessible(true);
+                add.invoke(session.host, "inch job", "", Path.of("not-written.nc"), code, null, null); return null;
+            });
+            Path output = directory.resolve("job.svg"); session.eval("export_svg {inch job} " + quoted(output));
+            var root = svgDocument(output).getDocumentElement(); assertTrue(root.getAttribute("width").endsWith("in"));
+            var line = (org.w3c.dom.Element) root.getElementsByTagName("polyline").item(0);
+            assertEquals("0.04", line.getAttribute("stroke-width")); assertFalse(visible(session, "inch job"));
+            assertEquals(code, session.eval("export_gcode {inch job}"));
+        }
+    }
+
+    @Test void svgRefusesProbeProgramsAndEmptyObjectsWithoutReplacingFiles(@TempDir Path directory) throws Exception {
+        Path output = directory.resolve("keep.svg"); Files.writeString(output, "old bytes");
+        try (Session session = new Session()) {
+            session.host.newEmptyGeometry("empty");
+            assertThrows(TclException.class, () -> session.eval("export_svg empty " + quoted(output)));
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addCncJobToProject", String.class, String.class,
+                        Path.class, String.class, Geometry.class, Geometry.class); add.setAccessible(true);
+                add.invoke(session.host, "probe", "", Path.of("probe.nc"), "G21\nG90\nG31 Z-5 F50\nG92 Z0\n", null, null);
+                return null;
+            });
+            assertThrows(TclException.class, () -> session.eval("export_svg probe " + quoted(output)));
+            assertEquals("old bytes", Files.readString(output)); assertNoDrawingStages(directory);
+        }
+    }
+
+    @Test void invalidGerberImageCannotReplaceDestination(@TempDir Path directory) throws Exception {
+        Path input = gerber(directory), output = directory.resolve("keep.gbr"); Files.writeString(output, "old bytes");
+        try (Session session = new Session()) {
+            session.host.openGerber(input, "invalid");
+            TerminalPanelTest.fx(() -> {
+                @SuppressWarnings("unchecked") var map = (Map<TreeItem<String>, org.flatcam.cam.gerber.GerberImage>) field("gerberByItem").get(session.host);
+                var line = FACTORY.createLineString(new Coordinate[] {new Coordinate(0, 0), new Coordinate(1, 1)});
+                map.put(namedItemOnFx(session, "invalid"), org.flatcam.cam.gerber.GerberImage.of("MM", Map.of(), line, FACTORY.createGeometryCollection(), Map.of()));
+                return null;
+            });
+            assertThrows(TclException.class, () -> session.eval("egr invalid " + quoted(output)));
+            assertEquals("old bytes", Files.readString(output)); assertNoDrawingStages(directory);
+        }
+    }
+
+    @Test void cancelledDrawingExportsPreserveDestinationAtEveryPhase(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("keep.out"); ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            for (String type : List.of("Gerber", "SVG")) {
+                List<String> phases = new java.util.ArrayList<>(List.of("Exportando " + type + "...", "Gravando " + type + "...", "Publicando " + type + "..."));
+                if (type.equals("SVG")) phases.add("Preparando SVG...");
+                for (String phase : phases) {
+                    Files.writeString(output, "old bytes"); var cancelled = new AtomicBoolean();
+                    JobContext context = new JobContext() {
+                        public boolean isCancelled() { return cancelled.get(); }
+                        public void reportProgress(double fraction, String message) { if (message.equals(phase)) cancelled.set(true); }
+                    };
+                    String command = type.equals("Gerber") ? "egr copper " : "export_svg route_cnc ";
+                    assertThrows(CancellationException.class, () -> TclExecution.run(context, () -> session.eval(command + quoted(output))), phase);
+                    assertEquals("old bytes", Files.readString(output)); assertNoDrawingStages(directory);
+                }
+            }
+        }
+    }
+
+    @Test void changedDrawingSourceProjectEditorOrOperationDiscardsPreparedExport(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("keep.out"); ProjectFileIO.save(fixture(directory), source);
+        for (String type : List.of("Gerber", "SVG")) for (String change : List.of("rename", "remove", "version", "project", "editor", "operation")) {
+            Files.writeString(output, "old bytes");
+            try (Session session = new Session()) {
+                session.host.openProject(source); String name = type.equals("Gerber") ? "copper" : "route";
+                var editor = new java.util.concurrent.atomic.AtomicReference<GCodeEditorController>();
+                var blocker = session.jobs.submit(ignored -> null, null); blocker.completion().get(10, TimeUnit.SECONDS);
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return false; }
+                    public void reportProgress(double fraction, String message) {
+                        if (!message.equals("Publicando " + type + "...")) return;
+                        try {
+                            if (change.equals("version")) { session.eval("offset " + name + " -x 1"); return; }
+                            if (change.equals("editor")) { editor.set(installDraftEditor(session)); return; }
+                            TerminalPanelTest.fx(() -> {
+                                switch (change) {
+                                    case "project" -> field("tclProjectEpoch").setLong(session.host, field("tclProjectEpoch").getLong(session.host) + 1);
+                                    case "remove" -> session.host.delete(name);
+                                    case "operation" -> field("runningJob").set(session.host, blocker);
+                                    default -> namedItemOnFx(session, name).setValue("renamed");
+                                }
+                                return null;
+                            });
+                        } catch (Exception error) { throw new AssertionError(error); }
+                    }
+                };
+                try {
+                    String command = type.equals("Gerber") ? "egr " : "export_svg ";
+                    assertThrows(IllegalStateException.class, () -> TclExecution.run(context, () -> session.eval(command + name + " " + quoted(output))), type + change);
+                    assertEquals("old bytes", Files.readString(output)); assertNoDrawingStages(directory);
+                } finally {
+                    TerminalPanelTest.fx(() -> { field("runningJob").set(session.host, null); if (editor.get() != null) editor.get().cancel(); return null; });
+                }
+            }
+        }
+    }
+
+    @Test void invalidDrawingNamesTypesDestinationsAndWorkerUsageDoNotWrite(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("keep.out");
+        ProjectFileIO.save(fixture(directory), source); Files.writeString(output, "old bytes");
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            for (String name : List.of("missing", "drills", "route", "route_cnc"))
+                assertThrows(TclException.class, () -> session.eval("egr " + name + " " + quoted(output)));
+            assertThrows(TclException.class, () -> session.eval("export_svg missing " + quoted(output)));
+            for (String command : List.of("egr copper ", "export_svg route ")) {
+                assertThrows(TclException.class, () -> session.eval(command + quoted(directory)));
+                assertThrows(TclException.class, () -> session.eval(command + quoted(directory.resolve("absent/out"))));
+            }
+            TerminalPanelTest.fx(() -> {
+                assertThrows(IllegalStateException.class, () -> session.host.exportGerber("copper", output));
+                assertThrows(IllegalStateException.class, () -> session.host.exportSvg("route", output, 0)); return null;
+            });
+            session.geometry("copper"); assertThrows(TclException.class, () -> session.eval("egr copper " + quoted(output)));
+            assertThrows(TclException.class, () -> session.eval("export_svg copper " + quoted(output)));
+            assertEquals("old bytes", Files.readString(output)); assertNoDrawingStages(directory);
+        }
+    }
+
+    @Test void drawingExportRunsOnWorkerWhileFxRemainsResponsive(@TempDir Path directory) throws Exception {
+        Path input = gerber(directory);
+        try (Session session = new Session()) {
+            session.host.openGerber(input, "copper");
+            for (String type : List.of("Gerber", "SVG")) {
+                Path output = directory.resolve(type + ".out"); var entered = new CountDownLatch(1); var release = new CountDownLatch(1);
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return false; }
+                    public void reportProgress(double fraction, String message) {
+                        assertFalse(Platform.isFxApplicationThread()); if (!message.equals("Exportando " + type + "...")) return;
+                        entered.countDown(); try { assertTrue(release.await(10, TimeUnit.SECONDS)); }
+                        catch (InterruptedException error) { throw new AssertionError(error); }
+                    }
+                };
+                String command = type.equals("Gerber") ? "egr copper " : "export_svg copper ";
+                var job = session.jobs.submit(ignored -> TclExecution.run(context, () -> session.eval(command + quoted(output))), null);
+                try { assertTrue(entered.await(10, TimeUnit.SECONDS)); assertTrue(TerminalPanelTest.fx(Platform::isFxApplicationThread)); assertFalse(job.completion().isDone()); }
+                finally { release.countDown(); }
+                job.completion().get(25, TimeUnit.SECONDS); assertTrue(Files.exists(output)); assertNoDrawingStages(directory);
+            }
+        }
+    }
+
+    @Test void terminalCanTransformExportBothDrawingsAndContinue(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), gerber = directory.resolve("edited copper.gbr"), svg = directory.resolve("edited route.svg");
+        ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            TerminalPanel panel = TerminalPanelTest.fx(() -> {
+                var created = new TerminalPanel(session.interpreter, "teste", session.jobs);
+                field("terminalPanel").set(session.host, created); new Scene(created); return created;
+            });
+            var idle = TerminalPanelTest.fx(() -> {
+                var input = (TextField) panel.lookup("#terminal-input");
+                input.setText("open_project " + quoted(source) + "; offset copper -x 1; export_grb copper " + quoted(gerber)
+                        + "; export_svg route " + quoted(svg) + " 0.25; new_geometry after_drawings; get_names");
+                input.getOnAction().handle(new ActionEvent()); return panel.whenIdle();
+            });
+            idle.get(25, TimeUnit.SECONDS);
+            String text = TerminalPanelTest.fx(() -> ((TextArea) panel.lookup("#terminal-output")).getText());
+            assertFalse(text.contains("ERRO:"), text); assertTrue(text.contains("after_drawings"), text);
+            assertTrue(Files.exists(gerber)); assertNotNull(svgDocument(svg)); assertNoDrawingStages(directory);
         }
     }
 

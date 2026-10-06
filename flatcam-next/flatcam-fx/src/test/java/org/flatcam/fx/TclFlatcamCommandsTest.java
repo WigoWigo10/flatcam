@@ -64,6 +64,9 @@ class TclFlatcamCommandsTest {
         final List<JoinCall> joins = new ArrayList<>();
         record ExcellonExport(String name, Path file) { }
         final List<ExcellonExport> excellonExports = new ArrayList<>();
+        final List<ExcellonExport> gerberExports = new ArrayList<>();
+        record SvgExport(String name, Path file, double factor) { }
+        final List<SvgExport> svgExports = new ArrayList<>();
         final List<String> writtenContents = new ArrayList<>();
         boolean deletedAll;
         boolean failWrite;
@@ -88,6 +91,16 @@ class TclFlatcamCommandsTest {
         @Override public void exportExcellon(String name, Path outputFile) throws IOException {
             if (failWrite) throw new IOException("disk full");
             excellonExports.add(new ExcellonExport(name, outputFile));
+        }
+
+        @Override public void exportGerber(String name, Path outputFile) throws IOException {
+            if (failWrite) throw new IOException("disk full");
+            gerberExports.add(new ExcellonExport(name, outputFile));
+        }
+
+        @Override public void exportSvg(String name, Path outputFile, double factor) throws IOException {
+            if (failWrite) throw new IOException("disk full");
+            svgExports.add(new SvgExport(name, outputFile, factor));
         }
 
         @Override public String join(Kind kind, String outname, List<String> names) {
@@ -795,5 +808,49 @@ class TclFlatcamCommandsTest {
         assertTrue(assertThrows(TclException.class, () -> interp.eval("ee holes output.drl; new_geometry late"))
                 .getMessage().contains("disk full"));
         assertTrue(host.excellonExports.isEmpty()); assertTrue(host.order.isEmpty());
+    }
+
+    @Test void gerberExportAliasesPreserveSpacedNamesAndPaths() throws Exception {
+        var host = new FakeHost(); var interp = withCommands(host);
+        for (String alias : List.of("export_gerber", "export_grb", "egr")) {
+            assertEquals("", interp.eval(alias + " {copper object} {folder with spaces/copper.gbr}"));
+            assertEquals(new FakeHost.ExcellonExport("copper object", Path.of("folder with spaces/copper.gbr")), host.gerberExports.getLast());
+        }
+        assertEquals(3, host.gerberExports.size());
+    }
+
+    @Test void invalidGerberArgumentsAndIoFailureStopScripts() throws Exception {
+        var host = new FakeHost(); var interp = withCommands(host);
+        for (String script : List.of("export_gerber", "egr copper", "export_grb copper a extra", "egr copper {}",
+                "egr copper {   }", "egr copper a -units MM", "egr copper {bad\u0000file}"))
+            assertThrows(TclException.class, () -> interp.eval(script), script);
+        host.failWrite = true;
+        assertTrue(assertThrows(TclException.class, () -> interp.eval("egr copper out.gbr; new_geometry late")).getMessage().contains("disk full"));
+        assertTrue(host.gerberExports.isEmpty()); assertTrue(host.order.isEmpty());
+    }
+
+    @Test void svgAcceptsPositionalOrOptionFactorIncludingAutomaticDefaults() throws Exception {
+        var host = new FakeHost(); var interp = withCommands(host);
+        for (String suffix : List.of("", " 0", " -scale_stroke_factor 0")) {
+            assertEquals("", interp.eval("export_svg {shape object} {folder with spaces/out.svg}" + suffix));
+            assertEquals(new FakeHost.SvgExport("shape object", Path.of("folder with spaces/out.svg"), 0), host.svgExports.getLast());
+        }
+        for (String suffix : List.of(" 0.25", " -scale_stroke_factor 0.25")) {
+            interp.eval("export_svg geo out.svg" + suffix); assertEquals(.25, host.svgExports.getLast().factor());
+        }
+        interp.eval("export_svg geo out.svg -1"); assertEquals(-1, host.svgExports.getLast().factor());
+    }
+
+    @Test void svgRejectsAmbiguousMissingAndNonFiniteArgumentsWithoutDispatching() throws Exception {
+        var host = new FakeHost(); var interp = withCommands(host);
+        for (String script : List.of("export_svg", "export_svg geo", "export_svg geo {}", "export_svg geo {bad\u0000file}",
+                "export_svg geo out.svg 1 2", "export_svg geo out.svg -scale_stroke_factor", "export_svg geo out.svg -other 1",
+                "export_svg geo out.svg NaN", "export_svg geo out.svg Infinity", "export_svg geo out.svg 1e309",
+                "export_svg geo out.svg 1e308", "export_svg geo out.svg -scale_stroke_factor -Infinity",
+                "export_svg geo out.svg 1 -scale_stroke_factor 2", "export_svg geo out.svg -scale_stroke_factor bad"))
+            assertThrows(TclException.class, () -> interp.eval(script), script);
+        host.failWrite = true;
+        assertTrue(assertThrows(TclException.class, () -> interp.eval("export_svg geo out.svg; new_geometry late")).getMessage().contains("disk full"));
+        assertTrue(host.svgExports.isEmpty()); assertTrue(host.order.isEmpty());
     }
 }

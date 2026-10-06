@@ -111,8 +111,12 @@ final class CamExportDialog {
         return result;
     }
 
-    private static GerberExporter.Format loadGerber() {
-        String saved = AppPreferences.loadText(GERBER_KEY);
+    /** Shared UI/Tcl format lookup; never writes preferences. */
+    static GerberExporter.Format loadGerber() {
+        return parseGerberFormat(AppPreferences.loadText(GERBER_KEY));
+    }
+
+    static GerberExporter.Format parseGerberFormat(String saved) {
         try {
             String[] parts = saved.split(";");
             return new GerberExporter.Format(parts[0], Integer.parseInt(parts[1]), Integer.parseInt(parts[2]),

@@ -1,6 +1,6 @@
 # Terminal Tcl — FlatCAM FX
 
-Atualizado em 2026-10-05, sobre `f7295058`, branch `flatcam-next`.
+Atualizado em 2026-10-06, sobre `ad943c9b`, branch `flatcam-next`.
 
 Abra **Ferramentas > Linha de Comando Tcl**. `help` lista comandos;
 `help open_project`, `help save_project`, `help plot_all`, `help plot_objects`,
@@ -10,7 +10,8 @@ com Cancelar/ESC. Ele não é um interpretador Tcl completo: os limites de
 `TclInterpreter` continuam válidos.
 
 Também há ajuda específica para `join_geometry`/`join_geometries`,
-`join_excellon`/`join_excellons` e `export_excellon`/`export_exc`/`ee`.
+`join_excellon`/`join_excellons`, `export_excellon`/`export_exc`/`ee`,
+`export_gerber`/`export_grb`/`egr` e `export_svg`.
 
 ## Abertura de projeto
 
@@ -235,6 +236,64 @@ Referências locais: `TclCommandExportExcellon.py`, `app_Main.export_excellon` e
 FX exige destino explícito como diferença deliberada. Os aliases e finalidade
 coincidem, mas não há promessa de saída byte a byte idêntica ao legado.
 
+## Exportações Gerber e SVG
+
+```tcl
+export_gerber {cobre} {C:/pasta/copia.gbr}
+export_grb {cobre} {C:/pasta/outra-copia.gbr}
+egr {cobre} {C:/pasta/terceira-copia.gbr}
+export_svg {rota} {C:/pasta/rota.svg}
+export_svg {rota} {C:/pasta/rota-grossa.svg} -scale_stroke_factor 0.25
+export_svg {rota} {C:/pasta/rota-posicional.svg} 0.25
+```
+
+Use o nome exato retornado por `get_names`. Gerber aceita somente um objeto
+Gerber; SVG aceita Gerber, Excellon, Geometry ou CNC Job com código compatível
+com a prévia FX. Ambos exigem destino explícito, relativo ou absoluto, numa
+pasta existente, sem seletor ou extensão automática. **Substituem arquivos
+existentes**, inclusive a origem se esse caminho for escolhido; teste com cópias.
+Não geram programas de usinagem nem salvam o projeto.
+
+Gerber reutiliza `GerberExporter` e o formato lembrado por **Arquivo > Exportar >
+Gerber**. Sem configuração válida: IN, precisão 2:4, supressão de zeros L.
+Exporta a geometria atual como regiões resolvidas, com vazios/ilhas; não preserva
+macros, identidades de aperturas ou comandos originais. Conversão de unidades e
+arredondamento seguem o formato; geometrias incompatíveis ou fora da precisão
+representável são recusadas. Não importa preferências globais do Python nem
+grava preferências FX.
+
+SVG usa unidades e geometria atuais do objeto. CNC é analisado no worker a partir
+do código corrente, mesmo se o objeto estiver oculto ou sem cache de Plot.
+Código sem prévia compatível (por exemplo G31/G92) é recusado, não exportado
+parcialmente. Travel é desenhado sob Cut, independentemente do filtro do Plot.
+O SVG usa os estilos do writer, não as cores/visibilidade atuais da janela:
+não é uma captura de tela. O eixo Y fica para cima e o enquadramento considera
+o traço e os marcadores de ponto. Coordenadas seguem a precisão de seis casas
+do writer existente; não se promete saída byte a byte idêntica ao Python.
+
+`scale_stroke_factor` pode ser posicional **ou** opção, nunca ambos. Um valor
+positivo produz largura de traço igual a duas vezes o fator, nas unidades do
+objeto; não escala as coordenadas. Zero, valor negativo ou ausência usa largura
+automática: 0,02 para formas; menor diâmetro de ferramenta conhecido no parser
+CNC, ou 0,02 se indisponível. NaN, infinitos e overflow de largura são recusados.
+Os marcadores CNC continuam com o tamanho de ferramenta do estilo FX existente.
+
+Feche/aplique/cancele editores e conclua a operação principal antes de exportar.
+Serialização e gravação rodam no worker, usando temporário junto ao destino
+(ASCII para Gerber, UTF-8 para SVG). Antes da publicação, revalidam origem,
+nome/versão, projeto, editores/operação e, no Gerber, formato. Erros, cancelamento
+ou alterações detectadas descartam o temporário e preservam o destino existente.
+Não mudam seleção, câmera, visibilidade, dados em memória ou último diretório.
+O próximo comando aguarda a gravação; um erro interrompe o restante do script.
+
+Cancelamento é cooperativo, por fases e durante o parser CNC; uma serialização
+ou escrita individual não é interrompida no meio. A checagem FX e o rename no
+worker não formam transação única. Há tentativa de rename atômico com fallback;
+cancelar depois da publicação não desfaz o arquivo. Sem promessa de tempo máximo
+para objetos arbitrários. Referências locais: `TclCommandExportGerber.py`,
+`TclCommandExportSVG.py`, `app_Main.export_svg` e `camlib.Geometry/CNCJob.export_svg`.
+O destino obrigatório é diferença deliberada frente ao fallback de pasta Python.
+
 ## Diferenças deliberadas frente ao Python
 
 - Este checkout Python não tem `TclCommandRotate.py` nem comando Tcl `rotate`:
@@ -346,7 +405,27 @@ zero falhas/erros. Probes D3D/GTX 1650 e software aprovados, executável recompi
 Fixtures próprios, sem alterar projetos privados/preferências. Comparação manual
 com projetos reais Python/FX continua pendente; sem benchmark ou teste físico CNC.
 
-Com esta exportação, há **26 famílias FlatCAM (incluindo a extensão FX de rotação)**,
+Na entrega Excellon, havia **26 famílias FlatCAM (incluindo a extensão FX de rotação)**,
 além de aliases e comandos internos do dialeto/shell. Faltam preferências Tcl,
 subtract/panelize, exportações Gerber/SVG e flags CAM avançadas. Próxima fatia
 sugerida: Gerber/SVG pelo Terminal, reutilizando os writers existentes.
+
+### Incremento: exportações Gerber/SVG — 2026-10-06
+
+Os dois comandos e aliases acima elevam o Terminal a **28 famílias FlatCAM**,
+incluindo a extensão FX `rotate`, além de aliases e comandos internos do dialeto.
+Não é paridade Tcl completa: preferências, subtract/panelize e flags CAM avançadas
+continuam pendentes.
+
+24 regressões adicionais: argumentos/aliases/ajuda, formato Gerber compartilhado
+e fallback, unidades MM/IN, geometria editada, quatro tipos SVG, traços/holes/
+marcadores, código CNC corrente/oculto, sondagem recusada, destino intacto após
+erros/cancelamento/edições concorrentes, temporários limpos, worker responsivo e
+script encadeado no Terminal real. Fixtures próprios, sem alterar projetos privados
+ou preferências. Comparação manual Python/FX com projetos reais continua pendente;
+não é benchmark de desempenho nem validação física CNC.
+
+`mvnw.cmd -q verify`: **1291 registrados, 1279 aprovados, 12 opcionais ignorados**,
+zero falhas/erros, com limpeza TempDir normal. Probes do launcher existente,
+com o build atualizado, aprovados em D3D/Intel Arc e software forçado; verificam
+renderização offscreen, não a fluidez da exportação de projetos densos.

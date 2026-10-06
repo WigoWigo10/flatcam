@@ -53,6 +53,18 @@ public final class SvgExporter {
         return new Layer(geometry, Kind.SHAPES, SHAPE_FILL, SHAPE_STROKE_WIDTH);
     }
 
+    /** Python/Shapely uses strokes twice scale_stroke_factor; <=0 means the default. */
+    public static Layer shapes(Geometry geometry, double scaleStrokeFactor) {
+        return new Layer(geometry, Kind.SHAPES, SHAPE_FILL, strokeWidth(scaleStrokeFactor, SHAPE_STROKE_WIDTH));
+    }
+
+    public static double strokeWidth(double scaleStrokeFactor, double automaticWidth) {
+        if (!Double.isFinite(scaleStrokeFactor)) throw new IllegalArgumentException("SVG scale_stroke_factor must be finite.");
+        double width = scaleStrokeFactor > 0 ? 2 * scaleStrokeFactor : automaticWidth;
+        if (!Double.isFinite(width) || width <= 0) throw new IllegalArgumentException("SVG stroke width must be finite and positive.");
+        return width;
+    }
+
     /** A CNC Job path at the tool width; plunge points become tool-sized dots. */
     public static Layer toolpath(Geometry centerlines, String color, double toolDiameter) {
         return new Layer(centerlines, Kind.TOOLPATH, color, toolDiameter);
@@ -84,11 +96,7 @@ public final class SvgExporter {
         }
         Envelope bounds = new Envelope();
         for (Layer layer : layers) {
-            if (layer.geometry() != null && !layer.geometry().isEmpty()) {
-                Envelope envelope = new Envelope(layer.geometry().getEnvelopeInternal());
-                envelope.expandBy(layer.strokeWidth() / 2);
-                bounds.expandToInclude(envelope);
-            }
+            if (layer.geometry() != null) includeDrawnBounds(bounds, layer.geometry(), layer);
         }
         if (bounds.isNull()) {
             throw new IllegalArgumentException("Nothing to export: the object has no geometry");
@@ -114,6 +122,17 @@ public final class SvgExporter {
         return svg.toString();
     }
 
+    private static void includeDrawnBounds(Envelope bounds, Geometry geometry, Layer layer) {
+        if (geometry.isEmpty()) return;
+        if (geometry instanceof Point || geometry instanceof LineString || geometry instanceof Polygon) {
+            Envelope envelope = new Envelope(geometry.getEnvelopeInternal());
+            // Shape points have radius 1.5*stroke plus an outer stroke; do not clip them.
+            envelope.expandBy(geometry instanceof Point && layer.kind() == Kind.SHAPES
+                    ? layer.strokeWidth() * 2 : layer.strokeWidth() / 2);
+            bounds.expandToInclude(envelope);
+        } else for (int i = 0; i < geometry.getNumGeometries(); i++) includeDrawnBounds(bounds, geometry.getGeometryN(i), layer);
+    }
+
     private static void appendGeometry(StringBuilder svg, Geometry geometry, Layer layer) {
         if (geometry.isEmpty()) {
             return;
@@ -135,7 +154,7 @@ public final class SvgExporter {
         boolean toolpath = layer.kind() == Kind.TOOLPATH;
         svg.append("<path fill-rule=\"evenodd\" fill=\"").append(layer.color())
                 .append("\" stroke=\"").append(toolpath ? layer.color() : SHAPE_STROKE)
-                .append("\" stroke-width=\"").append(number(toolpath ? SHAPE_STROKE_WIDTH : layer.strokeWidth()))
+                .append("\" stroke-width=\"").append(number(layer.strokeWidth()))
                 .append("\" opacity=\"").append(toolpath ? "1" : "0.6").append("\" d=\"");
         appendRing(svg, polygon.getExteriorRing().getCoordinates());
         for (int hole = 0; hole < polygon.getNumInteriorRing(); hole++) {

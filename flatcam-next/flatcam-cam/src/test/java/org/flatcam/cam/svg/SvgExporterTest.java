@@ -69,6 +69,52 @@ class SvgExporterTest {
                 () -> exporter.export(List.of(SvgExporter.shapes(point)), "CM"));
     }
 
+    @Test void positiveScaleFactorChangesStrokeNotCoordinatesAndKeepsHoles() throws Exception {
+        Geometry square = new WKTReader().read("POLYGON ((0 0, 10 0, 10 10, 0 10, 0 0), (2 2, 3 2, 3 3, 2 3, 2 2))");
+        var root = parse(exporter.export(List.of(SvgExporter.shapes(square, .25)), "MM")).getDocumentElement();
+        var path = (Element) root.getElementsByTagName("path").item(0);
+        assertEquals("0.5", path.getAttribute("stroke-width"));
+        assertEquals("-0.25 -10.25 10.5 10.5", root.getAttribute("viewBox"));
+        assertTrue(path.getAttribute("d").contains("L10,10")); assertTrue(path.getAttribute("d").contains("M2,2"));
+        assertEquals(99, square.getArea());
+    }
+
+    @Test void automaticAndInvalidScaleFactorsAreExplicit() throws Exception {
+        var point = new WKTReader().read("POINT (1 1)");
+        for (double automatic : new double[] {0, -1, -Double.MAX_VALUE})
+            assertEquals(SvgExporter.shapes(point), SvgExporter.shapes(point, automatic));
+        for (double bad : new double[] {Double.NaN, Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.MAX_VALUE})
+            assertThrows(IllegalArgumentException.class, () -> SvgExporter.shapes(point, bad));
+        assertEquals(.8, SvgExporter.strokeWidth(0, .8)); assertEquals(.5, SvgExporter.strokeWidth(.25, .8));
+    }
+
+    @Test void pointMarkersAreFullyFramedIncludingTheirOwnStroke() throws Exception {
+        Geometry point = new WKTReader().read("POINT (2 3)");
+        var root = parse(exporter.export(List.of(SvgExporter.shapes(point, .25)), "IN")).getDocumentElement();
+        assertEquals("1 -4 2 2", root.getAttribute("viewBox")); assertEquals("2in", root.getAttribute("width"));
+        var circle = (Element) root.getElementsByTagName("circle").item(0);
+        assertEquals("0.75", circle.getAttribute("r")); assertEquals("0.5", circle.getAttribute("stroke-width"));
+    }
+
+    @Test void mixedCollectionsFrameEachActualMarkerRatherThanOnlyTheCoordinateEnvelope() throws Exception {
+        var geometry = new WKTReader().read("GEOMETRYCOLLECTION (LINESTRING (0 0, 10 0), POINT (20 1))");
+        var root = parse(exporter.export(List.of(SvgExporter.shapes(geometry, .25)), "MM")).getDocumentElement();
+        assertEquals("-0.25 -2 21.25 2.25", root.getAttribute("viewBox"));
+        assertEquals(1, root.getElementsByTagName("polyline").getLength()); assertEquals(1, root.getElementsByTagName("circle").getLength());
+    }
+
+    @Test void polygonToolpathsHonorTheChosenLayerStrokeWidth() throws Exception {
+        var geometry = new WKTReader().read("POLYGON ((0 0, 1 0, 1 1, 0 0))");
+        var root = parse(exporter.export(List.of(SvgExporter.toolpath(geometry, SvgExporter.CUT_COLOR, .5)), "MM")).getDocumentElement();
+        var path = (Element) root.getElementsByTagName("path").item(0); assertEquals("0.5", path.getAttribute("stroke-width"));
+    }
+
+    @Test void nonFiniteCoordinatesCannotProduceAnSvgDocument() {
+        var geometry = new org.locationtech.jts.geom.GeometryFactory().createLineString(new org.locationtech.jts.geom.Coordinate[] {
+                new org.locationtech.jts.geom.Coordinate(0, 0), new org.locationtech.jts.geom.Coordinate(Double.NaN, 1)});
+        assertThrows(IllegalArgumentException.class, () -> exporter.export(List.of(SvgExporter.shapes(geometry)), "MM"));
+    }
+
     private static Document parse(String svg) throws Exception {
         return DocumentBuilderFactory.newInstance().newDocumentBuilder()
                 .parse(new ByteArrayInputStream(svg.getBytes(StandardCharsets.UTF_8)));

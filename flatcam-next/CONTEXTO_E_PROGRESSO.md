@@ -5,9 +5,9 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `2577801c`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `ad943c9b`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
-> parciais, editores, Tools Database e Terminal com 26 famílias de comandos FlatCAM,
+> parciais, editores, Tools Database e Terminal com 28 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
 > A revisão desta sessão impede herança de parâmetros ausentes na fusão Excellon
 > e libera o worker de índices do Plot após Error sem ocultar a falha dos diagnósticos.
@@ -44,12 +44,14 @@ e continuar a migração sem recomeçar a investigação.
 > sintaxe por tema, linha atual, posição do cursor e busca literal assíncrona.
 > Terminal agora abre projetos nativo/Python e transforma Gerber/Excellon/Geometry
 > por offset/scale/mirror/skew/rotate, salva projetos, junta Geometry/Excellon,
-> exporta Excellon e controla visibilidade/seleção, com validação de snapshots.
+> exporta Excellon/Gerber/SVG e controla visibilidade/seleção, com validação de snapshots.
+> Gerber/SVG exigem destino explícito e usam worker/temporário; SVG tem fator
+> de traço e CNC é analisado do código atual, independente da visibilidade do Plot.
 > Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
 > Plot e enumeração lazy de fontes foram movidos para workers.
 > `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
-> **1267 testes registrados, 1255 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 642 CAM, 127 application, 478 FX e 20 de suporte de testes.
+> **1291 testes registrados, 1279 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 648 CAM, 127 application, 496 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -3126,3 +3128,38 @@ Validação manual do novo painel/posições e teste a seco CNC continuam penden
 Detalhes: `CNC_EXCLUSIONS.md`, `PREPROCESSADORES.md` e `COMPATIBILIDADE_FLATPRJ.md`.
 Próxima fila sugerida, após validação: exportações Gerber/SVG pelo Terminal ou
 continuação das opções avançadas de Drilling; não declarar paridade global completa.
+
+## Exportações Gerber/SVG pelo Terminal — 2026-10-06
+
+Sobre `ad943c9b`, `export_gerber`/`export_grb`/`egr` e `export_svg` completam a
+fatia de exportações de desenho indicada na fila anterior. Terminal chega a 28
+famílias FlatCAM, incluindo rotate como extensão FX, não a paridade Tcl total.
+
+Gerber reutiliza o formato do diálogo (fallback IN 2:4 L) e o writer de regiões
+resolvidas, sem preservar macros/identidades de aperturas/comandos da origem.
+SVG cobre Gerber/Excellon/Geometry/CNC, unidades da origem e fator de traço
+posicional ou opção; não escala coordenadas nem copia a aparência/visibilidade
+do Plot. CNC usa código atual, Travel sob Cut e recusa programas sem prévia
+compatível. Marcadores de ponto agora não ficam cortados ao usar traços largos.
+
+Destino explícito numa pasta existente, substituição do arquivo escolhido,
+serialização/gravação no worker, temporário ASCII/UTF-8 e revalidação de
+origem/nome/versão/projeto/editores/operação/formato Gerber antes de publicar.
+Erros/cancelamento/mudanças detectadas preservam o destino e removem temporários.
+Sem mudanças nas preferências, seleção, câmera ou dados do objeto. Cancelamento
+cooperativo; serialização/escrita individual não interrompida no meio. Checagem FX
+e rename não constituem transação única, e publicação não tem undo de arquivo.
+
+24 regressões novas: 6 CAM e 18 FX, incluindo host/Terminal real, aliases/ajuda,
+fallback de formato, MM/IN, cancelamento por fase, dados/código editados,
+recusas e destino intacto, desenho/traços e worker responsivo. Fixtures próprios,
+sem usar projetos privados ou gravar preferências reais. `mvnw.cmd -q verify`:
+**1291 registrados, 1279 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+Probes do launcher existente, com o build atualizado, passaram em D3D/Intel Arc
+e software forçado, sem abrir janela ou alterar preferências.
+Validação manual no Terminal e comparação de arquivos com o Python permanecem
+pendentes; nenhum novo benchmark ou teste físico CNC. Roteiro e limites:
+[TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+Próxima fila: subtract/panelize ou preferências Tcl, em incrementos separados;
+as opções CAM avançadas e compatibilidade de persistência Python continuam parciais.

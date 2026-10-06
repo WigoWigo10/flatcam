@@ -54,6 +54,7 @@ final class TclFlatcamCommands {
         registerExportGcode(interpreter);
         registerWriteGcode(interpreter);
         registerExportExcellon(interpreter);
+        registerDrawingExports(interpreter);
     }
 
     /** Keep the normal empty result, but disclose a name suffixed to avoid collisions. */
@@ -99,6 +100,16 @@ final class TclFlatcamCommands {
                     + "sem configuracao: IN, decimal 2:4, slots roteados. Conversao/arredondamento podem alterar precisao. "
                     + "FX exige destino explicito (Python permite omitir); substitui arquivo existente. "
                     + "Feche editores. Cancelar antes da publicacao preserva o destino; nao muda preferencias.";
+            case "export_gerber", "export_grb", "egr" -> command + " {cobre} {C:/pasta/saida.gbr}\n"
+                    + "Exporta a imagem Gerber atual como regioes resolvidas no formato escolhido por Arquivo > Exportar > Gerber. "
+                    + "Sem configuracao: IN, 2:4, zeros L. Nao preserva macros/identidades de aperturas/comandos originais. "
+                    + "Destino explicito obrigatorio; substitui arquivo existente apos validacao. Feche editores; nao muda preferencias.";
+            case "export_svg" -> "export_svg {nome} {C:/pasta/saida.svg} ?scale_stroke_factor?\n"
+                    + "export_svg {nome} {C:/pasta/saida.svg} ?-scale_stroke_factor valor?\n"
+                    + "Gerber/Excellon/Geometry e CNC com previa compativel. Fator positivo = metade da largura do traco; "
+                    + "<=0 = automatico (0.02 para formas; diametro da ferramenta ou 0.02 para CNC). "
+                    + "Nao escala coordenadas. Unidades da origem, Y para cima, Travel sob Cut. "
+                    + "Destino explicito obrigatorio; substitui arquivo existente apos validacao. Feche editores.";
             default -> null;
         };
     }
@@ -587,6 +598,42 @@ final class TclFlatcamCommands {
             return "";
         };
         for (String alias : List.of("export_excellon", "export_exc", "ee")) interpreter.register(alias, export);
+    }
+
+    /** Python TclCommandExportGerber/ExportSVG, without their implicit destination fallback. */
+    private void registerDrawingExports(TclInterpreter interpreter) {
+        TclCommand gerber = (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of());
+            requirePositionals(args, 2, 2);
+            try { host.exportGerber(args.positional(0), exportDestination(args.positional(1))); }
+            catch (IOException | java.nio.file.InvalidPathException error) {
+                throw new TclException("Could not export Gerber: " + error.getMessage());
+            }
+            return "";
+        };
+        for (String alias : List.of("export_gerber", "export_grb", "egr")) interpreter.register(alias, gerber);
+        interpreter.register("export_svg", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("scale_stroke_factor"));
+            requirePositionals(args, 2, 3);
+            if (args.positionalCount() == 3 && args.isPresent("scale_stroke_factor"))
+                throw new TclException("Use either positional scale_stroke_factor or -scale_stroke_factor, not both.");
+            double factor = args.positionalCount() == 3 ? number(args.positional(2))
+                    : args.isPresent("scale_stroke_factor") ? args.requireDouble("scale_stroke_factor") : 0;
+            if (!Double.isFinite(factor) || factor > Double.MAX_VALUE / 2)
+                throw new TclException("scale_stroke_factor must be finite and produce a finite stroke width.");
+            try { host.exportSvg(args.positional(0), exportDestination(args.positional(1)), factor); }
+            catch (IOException | java.nio.file.InvalidPathException error) {
+                throw new TclException("Could not export SVG: " + error.getMessage());
+            }
+            return "";
+        });
+    }
+
+    private static Path exportDestination(String filename) throws TclException {
+        if (filename.isBlank()) throw new TclException("Expected an explicit export destination filename.");
+        return Path.of(filename);
     }
 
     private static String baseName(String filename) {

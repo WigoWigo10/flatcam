@@ -526,6 +526,23 @@ aprovados, executável recompilado; validação manual Python/FX continua penden
 26 famílias FlatCAM, contando rotate como extensão FX. Próxima fatia para outra
 sessão: exportações Gerber/SVG; subtract/panelize e preferências Tcl posteriores.
 
+**Incremento exportações Gerber/SVG em 2026-10-06, sobre `ad943c9b`:**
+`export_gerber`/`export_grb`/`egr` e `export_svg` completam esta fatia de desenho
+no Terminal, com destino obrigatório, worker cancelável, temporário e checagem
+de origem/projeto/editores/operação (mais formato Gerber) antes de publicar.
+Gerber usa o formato FX e regiões resolvidas, sem macros/aperturas originais.
+SVG cobre os quatro tipos, preserva unidades e coordenadas, oferece fator de
+traço e analisa o código CNC atual; não copia cores/filtros de visibilidade do Plot.
+Erros/cancelamento antes da publicação preservam o destino; cancelar depois
+não desfaz o arquivo. Roteiro e diferenças: [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+24 regressões adicionais, `mvnw.cmd -q verify`: **1291 registrados, 1279 aprovados,
+12 opcionais ignorados**, zero falhas/erros. Fixtures próprios, sem modificar
+projetos privados/preferências. Comparação manual Python/FX permanece pendente;
+nenhum novo benchmark ou ensaio físico CNC. Agora há 28 famílias FlatCAM,
+incluindo rotate como extensão FX, não paridade Tcl completa. Próximas fatias:
+subtract/panelize e preferências Tcl; opções CAM avançadas continuam parciais.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas

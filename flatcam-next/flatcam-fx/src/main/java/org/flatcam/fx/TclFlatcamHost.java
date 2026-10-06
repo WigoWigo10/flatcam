@@ -121,4 +121,10 @@ interface TclFlatcamHost {
 
     /** Exports current Excellon drills/slots using the UI format, with explicit destination and guarded publication. */
     void exportExcellon(String name, Path outputFile) throws TclException, IOException;
+
+    /** Current resolved Gerber image, using the remembered UI coordinate format. */
+    void exportGerber(String name, Path outputFile) throws TclException, IOException;
+
+    /** Current object drawing in source units; <=0 selects automatic stroke width, as in Python. */
+    void exportSvg(String name, Path outputFile, double scaleStrokeFactor) throws TclException, IOException;
 }

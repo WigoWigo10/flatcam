@@ -8037,6 +8037,75 @@ final class MainWindow implements TclFlatcamHost {
         } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
     }
 
+    @Override
+    public void exportGerber(String name, Path outputFile) throws TclException, IOException {
+        requireWorkerCommand();
+        try {
+            TclExecution.onFx(() -> { requireTclExportAllowed(); return null; });
+            TclSource source = tclSource(name);
+            if (source.kind() != Kind.GERBER) throw new TclException("Expected a Gerber object: " + name);
+            GerberExporter.Format format = TclExecution.onFx(CamExportDialog::loadGerber);
+            TclExecution.phase("Exportando Gerber...");
+            String text = new GerberExporter().export((GerberImage) source.version(), format);
+            publishTclDrawing(source, outputFile, text, java.nio.charset.StandardCharsets.US_ASCII, "Gerber", () -> {
+                if (!format.equals(CamExportDialog.loadGerber()))
+                    throw new IllegalStateException("O formato Gerber mudou durante a exportacao; resultado descartado.");
+            });
+        } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+    }
+
+    @Override
+    public void exportSvg(String name, Path outputFile, double scaleStrokeFactor) throws TclException, IOException {
+        requireWorkerCommand();
+        try {
+            TclExecution.onFx(() -> { requireTclExportAllowed(); return null; });
+            TclSource source = tclSource(name);
+            TclExecution.phase("Preparando SVG...");
+            List<SvgExporter.Layer> layers;
+            String units = source.units();
+            if (source.kind() == Kind.CNC_JOB) {
+                var parsed = GCodeToolpathParser.parse(source.gcode(), TclExecution.cancellation(),
+                        TclExecution.progress("Preparando SVG..."));
+                if (!parsed.plotAvailable()) throw new TclException("SVG indisponivel: " + parsed.warning());
+                // Same automatic width as File > Exportar > SVG, independent of the Plot's visibility filter.
+                double diameter = parsed.stats() == null ? 0 : parsed.stats().tools().stream()
+                        .map(GCodeToolpathParser.ToolUsage::diameter).filter(Objects::nonNull)
+                        .mapToDouble(Double::doubleValue).min().orElse(0);
+                double stroke = SvgExporter.strokeWidth(scaleStrokeFactor, diameter > 0 ? diameter : SvgExporter.SHAPE_STROKE_WIDTH);
+                layers = List.of(SvgExporter.toolpath(parsed.travelCenterlines(), SvgExporter.TRAVEL_COLOR, stroke),
+                        SvgExporter.toolpath(parsed.cutCenterlines(), SvgExporter.CUT_COLOR, stroke));
+                units = parsed.units();
+            } else layers = List.of(SvgExporter.shapes(source.geometry(), scaleStrokeFactor));
+            TclExecution.phase("Exportando SVG...");
+            String text = new SvgExporter().export(layers, units);
+            publishTclDrawing(source, outputFile, text, java.nio.charset.StandardCharsets.UTF_8, "SVG", () -> {});
+        } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+    }
+
+    /** Serialized on the worker; a failed/cancelled/stale drawing never truncates the destination. */
+    private void publishTclDrawing(TclSource source, Path outputFile, String text, java.nio.charset.Charset charset,
+                                   String type, Runnable checkFormat) throws IOException {
+        TclExecution.phase("Gravando " + type + "...");
+        Path destination = outputFile.toAbsolutePath().normalize();
+        if (destination.getFileName() == null || Files.isDirectory(destination))
+            throw new IOException(type + " destination must be a file, not a directory.");
+        Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-" + type.toLowerCase(java.util.Locale.ROOT) + "-", ".tmp");
+        try {
+            Files.writeString(temporary, text, charset);
+            TclExecution.phase("Publicando " + type + "...");
+            TclExecution.onFx(() -> {
+                requireTclExportAllowed(); checkTclSource(source); checkFormat.run(); return null;
+            });
+            TclExecution.cancellation().throwIfCancellationRequested();
+            try {
+                Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            TclExecution.progress(type + " exportado.").report(1);
+        } finally { Files.deleteIfExists(temporary); }
+    }
+
     private void requireTclExportAllowed() {
         if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive() || gcodeEditor.isActive())
