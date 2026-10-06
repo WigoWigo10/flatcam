@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `fcb5b592`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `b9c2f66d`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 26 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
@@ -13,6 +13,8 @@ e continuar a migração sem recomeçar a investigação.
 > e libera o worker de índices do Plot após Error sem ocultar a falha dos diagnósticos.
 > O Plot preserva prévias durante a atualização de índices/densidade; retornar do
 > zoom vetorial reutiliza o cache e uma visão ampla evita depender só do recorte anterior.
+> O menu da árvore mostra somente Ativar/Desativar Plot conforme a visibilidade
+> atual; seleções mistas mostram ambas as ações com seus respectivos totais.
 > O console inferior recolhido agora mantém uma barra curta com porcentagem e
 > Cancelar na barra de status; a versão expandida mantém a barra longa.
 > Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
@@ -39,8 +41,8 @@ e continuar a migração sem recomeçar a investigação.
 > Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
 > Plot e enumeração lazy de fontes foram movidos para workers.
 > `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
-> **1169 testes registrados, 1157 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 603 CAM, 115 application, 431 FX e 20 de suporte de testes.
+> **1175 testes registrados, 1163 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 603 CAM, 115 application, 437 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -112,13 +114,13 @@ separação.
 
 ### Verificação mais recente
 
-Em **2026-10-06**, após o ajuste visual sobre `fcb5b592`, `mvnw.cmd -q verify`
-completo passou: **1169 registrados, 1157 aprovados e 12 opcionais ignorados**,
+Em **2026-10-06**, após o ajuste de ações de Plot sobre `b9c2f66d`, `mvnw.cmd -q verify`
+completo passou: **1175 registrados, 1163 aprovados e 12 opcionais ignorados**,
 zero falhas/erros, com limpeza TempDir normal. São 603 CAM, 115 application,
-431 FX e 20 test-support. Oito regressões adicionais cobrem continuidade visual
-ao editar e dar zoom, seleção usando a geometria atual, visões amplas em cache
-e descarte/cancelamento de prévias. Os sete testes visuais de PlotPreparationUiTest
-também passaram com `flatcam.plot.density.pixelBuffer=false`, além do modo padrão.
+437 FX e 20 test-support. Seis regressões adicionais cobrem menus individuais/
+múltiplos, estados de Plot, cliques, contadores, ícones e subcamadas CNC.
+Na entrega visual anterior, os sete testes PlotPreparationUiTest também passaram
+com `flatcam.plot.density.pixelBuffer=false`, além do modo padrão.
 Probes offscreen do launcher existente passaram com as
 classes recompiladas em D3D/Intel Arc e software forçado. Sem benchmark de
 fluidez, teste físico CNC ou nova comparação dos projetos privados Python.
@@ -2972,3 +2974,30 @@ câmeras inéditas ainda são refinadas em fundo, com os 60 ms de settle mantido
 O usuário confirmou que o ajuste funcionou no teste manual. Não houve novo
 benchmark controlado de fluidez/FPS.
 Detalhes e limites: [PLOT_PERFORMANCE.md](PLOT_PERFORMANCE.md).
+
+## Ações de Plot contextuais na árvore — 2026-10-06
+
+A pedido do usuário, o menu usa a visibilidade real a cada abertura: somente
+`Desativar Plot` quando o objeto está visível, somente `Ativar Plot` quando
+está oculto. Vale para Gerber, Excellon, Geometry e CNC Job, preservando os
+ícones Python e as demais ações. Os menus de objetos do Plot Area compartilham
+essa mesma regra. É uma diferença visual deliberada em relação ao Python,
+que mantém as duas ações no menu, não uma limitação de paridade funcional.
+
+Seleção múltipla mostra uma ação por estado presente, com a quantidade de
+objetos afetados, ignorando CNC Jobs sem prévia e outros nós não plotáveis.
+Em uma seleção mista, ativar altera somente os ocultos e desativar somente os
+visíveis. Mudanças são publicadas em lote, com uma atualização da árvore.
+CNC Job é visível quando pelo menos uma subcamada existente (Cut ou Travel)
+está ativa; subcamadas ausentes não contam. CNC sem prévia não oferece nenhuma
+ação de Plot. Menu sem ações de Plot não ganha separador vazio no início.
+
+Seis regressões em ProjectPlotMenuTest cobrem os quatro tipos, CNC Cut/Travel/
+ambos, estados e cliques, reabertura do menu, seleções uniformes/mistas,
+contadores, ícones, CNC sem prévia e mudança de visibilidade fora do menu.
+
+`mvnw.cmd -q verify`: **1175 registrados, 1163 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Probes do launcher existente em D3D/Intel Arc e software
+passaram com o build atualizado. Sem alteração de projetos privados/preferências
+ou cálculos CAM, benchmark ou nova comparação Python. Validação manual do menu
+pelo usuário permanece pendente.

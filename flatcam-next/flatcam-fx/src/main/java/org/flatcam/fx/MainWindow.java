@@ -4753,20 +4753,6 @@ final class MainWindow implements TclFlatcamHost {
      * object.
      */
     private List<MenuItem> buildBulkContextMenuItems(List<TreeItem<String>> selected) {
-        long plottable = selected.stream().filter(this::isPlottable).count();
-
-        MenuItem enableItem = new MenuItem("Ativar Plot (" + plottable + ")");
-        setLegacyMenuIcon(enableItem, "replot32.png");
-        enableItem.setDisable(plottable == 0);
-        enableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
-                .forEach(i -> setObjectVisible(i, true)));
-
-        MenuItem disableItem = new MenuItem("Desativar Plot (" + plottable + ")");
-        setLegacyMenuIcon(disableItem, "clear_plot32.png");
-        disableItem.setDisable(plottable == 0);
-        disableItem.setOnAction(e -> selected.stream().filter(this::isPlottable)
-                .forEach(i -> setObjectVisible(i, false)));
-
         MenuItem removeItem = new MenuItem("Remover (" + selected.size() + ")");
         setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeSelectionFromProject(selected));
@@ -4775,7 +4761,41 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copySelection(selected));
 
-        return List.of(enableItem, disableItem, new SeparatorMenuItem(), copyItem, removeItem);
+        List<MenuItem> items = new ArrayList<>(plotVisibilityMenuItems(selected));
+        if (!items.isEmpty()) items.add(new SeparatorMenuItem());
+        items.addAll(List.of(copyItem, removeItem));
+        return items;
+    }
+
+    /** Show only useful visibility actions. Mixed selections expose each action with its affected count. */
+    private List<MenuItem> plotVisibilityMenuItems(List<TreeItem<String>> selected) {
+        List<MenuItem> items = new ArrayList<>();
+        for (boolean visible : new boolean[]{true, false}) {
+            List<TreeItem<String>> targets = selected.stream().filter(this::isPlottable)
+                    .filter(item -> isObjectVisible(item) != visible).toList();
+            if (targets.isEmpty()) continue;
+            String text = visible ? "Ativar Plot" : "Desativar Plot";
+            if (selected.size() > 1) text += " (" + targets.size() + ")";
+            MenuItem action = new MenuItem(text);
+            setLegacyMenuIcon(action, visible ? "replot32.png" : "clear_plot32.png");
+            action.setOnAction(event -> {
+                plotAreaView.beginBatchUpdate();
+                try {
+                    targets.stream().filter(this::isPlottable).forEach(item -> applyObjectVisibility(item, visible));
+                    refreshObjectVisibilityUi();
+                } finally { plotAreaView.endBatchUpdate(); }
+            });
+            items.add(action);
+        }
+        return items;
+    }
+
+    private List<MenuItem> objectContextMenuItems(TreeItem<String> item, MenuItem showItem, MenuItem... remaining) {
+        List<MenuItem> items = new ArrayList<>();
+        items.add(showItem);
+        items.addAll(plotVisibilityMenuItems(List.of(item)));
+        items.addAll(List.of(remaining));
+        return items;
     }
 
     /** True for a Gerber/Excellon, or a CNC Job that actually has toolpath geometry to show (see CncJobEntry's doc). */
@@ -4864,22 +4884,13 @@ final class MainWindow implements TclFlatcamHost {
      * Context menu for one Gerber. Its ordering follows MainGUI.py's
      * menuproject, with the Next-only "Exibir" convenience action first and
      * its Isolation/Cutout-to-Geometry workflows grouped together.
-     * Enable/Disable Plot are two separate, always-present items - not one
-     * dynamic toggle - matching appGUI/MainGUI.py's actual menuproject
-     * (menuprojectenable/menuprojectdisable are both always in the menu;
-     * Python doesn't hide/rename one based on current state either). Set
+     * Unlike Python's always-present Enable/Disable items, FX shows only the
+     * action appropriate for the object's current visibility, as requested.
      */
     private List<MenuItem> gerberContextMenuItems(TreeItem<String> item, GerberImage image) {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
-
-        MenuItem enableItem = new MenuItem("Ativar Plot");
-        setLegacyMenuIcon(enableItem, "replot32.png");
-        enableItem.setOnAction(e -> setObjectVisible(item, true));
-        MenuItem disableItem = new MenuItem("Desativar Plot");
-        setLegacyMenuIcon(disableItem, "clear_plot32.png");
-        disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
 
@@ -4923,7 +4934,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
-        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
+        return objectContextMenuItems(item, showItem, new SeparatorMenuItem(), colorMenu,
                 new SeparatorMenuItem(), editItem, createGeometryMenu, viewSourceItem, renameItem, copyItem, removeItem,
                 saveItem, new SeparatorMenuItem(), propertiesItem);
     }
@@ -4933,13 +4944,6 @@ final class MainWindow implements TclFlatcamHost {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
-
-        MenuItem enableItem = new MenuItem("Ativar Plot");
-        setLegacyMenuIcon(enableItem, "replot32.png");
-        enableItem.setOnAction(e -> setObjectVisible(item, true));
-        MenuItem disableItem = new MenuItem("Desativar Plot");
-        setLegacyMenuIcon(disableItem, "clear_plot32.png");
-        disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         Menu colorMenu = buildLayerColorMenu(item, DRILL_FILL, DRILL_STROKE);
 
@@ -4978,7 +4982,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
-        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
+        return objectContextMenuItems(item, showItem, new SeparatorMenuItem(), colorMenu,
                 new SeparatorMenuItem(), editItem, gcodeItem, viewSourceItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
@@ -4989,13 +4993,6 @@ final class MainWindow implements TclFlatcamHost {
         MenuItem showItem = new MenuItem("Exibir no Plot Area");
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
-
-        MenuItem enableItem = new MenuItem("Ativar Plot");
-        setLegacyMenuIcon(enableItem, "replot32.png");
-        enableItem.setOnAction(e -> setObjectVisible(item, true));
-        MenuItem disableItem = new MenuItem("Desativar Plot");
-        setLegacyMenuIcon(disableItem, "clear_plot32.png");
-        disableItem.setOnAction(e -> setObjectVisible(item, false));
 
         Menu colorMenu = buildLayerColorMenu(item, GEOMETRY_FILL, GEOMETRY_STROKE);
 
@@ -5033,7 +5030,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
-        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), colorMenu,
+        return objectContextMenuItems(item, showItem, new SeparatorMenuItem(), colorMenu,
                 new SeparatorMenuItem(), cncItem, nccItem, editItem, viewItem, renameItem, copyItem, removeItem, saveItem,
                 new SeparatorMenuItem(), propertiesItem);
     }
@@ -5149,15 +5146,6 @@ final class MainWindow implements TclFlatcamHost {
         showItem.setDisable(!plottable);
         showItem.setOnAction(e -> focusCncJob(item, entry));
 
-        MenuItem enableItem = new MenuItem("Ativar Plot");
-        setLegacyMenuIcon(enableItem, "replot32.png");
-        enableItem.setDisable(!plottable);
-        enableItem.setOnAction(e -> setObjectVisible(item, true));
-        MenuItem disableItem = new MenuItem("Desativar Plot");
-        setLegacyMenuIcon(disableItem, "clear_plot32.png");
-        disableItem.setDisable(!plottable);
-        disableItem.setOnAction(e -> setObjectVisible(item, false));
-
         MenuItem viewItem = new MenuItem("Ver G-code");
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
@@ -5189,7 +5177,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
-        return List.of(showItem, enableItem, disableItem, new SeparatorMenuItem(), editItem, viewItem, renameItem, copyItem,
+        return objectContextMenuItems(item, showItem, new SeparatorMenuItem(), editItem, viewItem, renameItem, copyItem,
                 removeItem, saveItem, new SeparatorMenuItem(), propertiesItem);
     }
 
