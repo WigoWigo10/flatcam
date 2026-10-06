@@ -287,3 +287,17 @@ uma melhoria geral às correções. O carregamento de fontes não foi acionado
 nesta sessão. A JFR ainda mostra esperas FX pelo renderer de 125–159 ms,
 rasterização Marlin e conversão de imagens; maior pausa GC 19,4 ms.
 Não foi alterado o projeto privado nem reexecutado um benchmark controlado.
+
+### Robustez do worker de índices — 2026-10-06
+
+Uma falha `Error` na preparação marca a versão como falha antes de notificar
+a UI e continua sendo propagada ao executor/handler de diagnóstico. O estado
+de drenagem é liberado em `finally`; pedidos já enfileirados são reagendados,
+e novos pedidos não ficam presos em "Preparando visualização...". A versão
+que falhou não é tentada novamente a cada quadro: é necessário alterar/remover
+seu binding. Notificações antigas respeitam substituição, remoção e fechamento.
+
+Regressões incluem `AssertionError` injetado com fila vazia/ocupada e worker
+real, preservando a propagação da falha e a preparação da camada seguinte.
+Isso não garante recuperação da JVM em falta de memória ou outra falha fatal,
+nem mede melhoria de FPS/latência; os limites do renderer acima permanecem.

@@ -5,11 +5,12 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-05**, sobre a branch `flatcam-next`, base atual `94ad07b1`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `d5ff39fe`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
-> parciais, editores, Tools Database e Terminal com 18 famílias de comandos FlatCAM reais.
-> A revisão desta sessão corrigiu a profundidade Z do `cncjob`, nomes duplicados,
-> a execução/cancelamento do Terminal e a grade inicial não limitada de Seed.
+> parciais, editores, Tools Database e Terminal com 26 famílias de comandos FlatCAM,
+> incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
+> A revisão desta sessão impede herança de parâmetros ausentes na fusão Excellon
+> e libera o worker de índices do Plot após Error sem ocultar a falha dos diagnósticos.
 > O console inferior recolhido agora mantém uma barra curta com porcentagem e
 > Cancelar na barra de status; a versão expandida mantém a barra longa.
 > Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
@@ -31,15 +32,18 @@ e continuar a migração sem recomeçar a investigação.
 > Editor G-code e Ver Fonte agora usam CodeEditor/RichTextFX: linhas numeradas,
 > sintaxe por tema, linha atual, posição do cursor e busca literal assíncrona.
 > Terminal agora abre projetos nativo/Python e transforma Gerber/Excellon/Geometry
-> por offset/scale/mirror/skew, com worker, ajuda e descarte de resultados atrasados.
-> `mvnw.cmd -q install` completo passou com limpeza TempDir normal ativa:
-> **1063 testes registrados, 1051 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 602 CAM, 115 application, 326 FX e 20 de suporte de testes.
+> por offset/scale/mirror/skew/rotate, salva projetos, junta Geometry/Excellon,
+> exporta Excellon e controla visibilidade/seleção, com validação de snapshots.
+> Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
+> Plot e enumeração lazy de fontes foram movidos para workers.
+> `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
+> **1161 testes registrados, 1149 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 603 CAM, 115 application, 423 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
 > diferente do Python; a comparação privada CAM não foi reexecutada nesta sessão.
-> Veja a entrega de 2026-10-05 ao final e `PLANO_PARIDADE.md` para limites e pendências.
+> Veja a revisão de 2026-10-06 ao final e `PLANO_PARIDADE.md` para limites e pendências.
 > Antes de continuar, confirme HEAD, status e testes. Trechos antigos ficam como
 > histórico e não substituem o código e as verificações mais recentes.
 
@@ -106,11 +110,16 @@ separação.
 
 ### Verificação mais recente
 
-Após os ajustes do console, transições, tabelas, Snap, árvore, diagnósticos, Sobre, editores e comandos Tcl, **1063 registrados, 1051 aprovados e 12
-opcionais ignorados**, zero falhas/erros, em `mvnw.cmd -q install` com limpeza
-normal. Cento e vinte e três novos testes verificam barra compacta, porcentagem, cancelamento,
-transições, Snap, árvore, diagnósticos, Sobre, áreas de código, abertura/transformações Tcl e seleção/layout nos quatro temas. Capturas fora da
-tela foram inspecionadas; uso manual no app ainda cabe ao usuário.
+Em **2026-10-06**, após a revisão da base `d5ff39fe`, `mvnw.cmd -q verify`
+completo passou: **1161 registrados, 1149 aprovados e 12 opcionais ignorados**,
+zero falhas/erros, com limpeza TempDir normal. São 603 CAM, 115 application,
+423 FX e 20 test-support. Oito regressões adicionais cobrem parâmetros ausentes
+na fusão Excellon e recuperação da fila de índices após `Error`, incluindo worker
+real e handler de erro. Probes offscreen do launcher existente passaram com as
+classes recompiladas em D3D/Intel Arc e software forçado. Sem benchmark de
+fluidez, teste físico CNC ou nova comparação dos projetos privados Python.
+
+### Histórico das verificações anteriores
 
 Em **2026-10-05**, `mvnw.cmd -q install` completo passou: **939 registrados,
 928 aprovados, 11 opcionais ignorados**, zero falhas/erros, com limpeza TempDir
@@ -119,8 +128,6 @@ ativa. Nenhuma propriedade `NEVER` foi usada. Probes do launcher existente com
 Os novos testes do Terminal executam os comandos fora da thread FX e verificam
 responsividade, serialização, cancelamento, progresso e o host real/G-code.
 A validação manual do painel e a comparação CAM privada não foram reexecutadas.
-
-### Histórico das verificações anteriores
 
 Na entrega anterior de 2026-10-02, `mvnw.cmd -q install` completo (três módulos com JDK 25.0.4.1 e JavaFX 25.0.4) passou com
 **779 testes registrados**: 514 em `flatcam-cam`, 114 em `flatcam-application` e 151 em `flatcam-fx`;
@@ -2902,3 +2909,31 @@ teste físico CNC ou nova comparação dos projetos privados Python.
 Pedido atendido com mais um incremento e commit; encerrar por hoje. Próxima
 sessão sugerida: exportações Gerber/SVG pelo Terminal; subtract/panelize e
 preferências Tcl seguem pendentes. Roteiro: [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+## Revisão e correções de robustez — 2026-10-06
+
+Revisados os sete commits entre `16373f3d` e `d5ff39fe`: seletor piloto de
+fresas, processamento assíncrono do Plot/fontes e comandos Tcl de projeto,
+visibilidade/seleção, rotação, junções e exportação Excellon.
+
+- Junção Excellon: parâmetros ausentes agora participam da validação de cada
+  ferramenta fundida, após o remapeamento/arredondamento de diâmetros. Misturar
+  parâmetros explícitos com ausentes no mesmo diâmetro é recusado em qualquer
+  ordem e também dentro de uma mesma origem. Ambos ausentes continuam ausentes;
+  diâmetros distintos podem manter configurações diferentes/ausentes. Objetos
+  originais não são alterados.
+- Índices do Plot: `Error` marca a versão como falha, é registrado e continua
+  propagando para o executor/handler. `finally` libera o estado de drenagem e
+  reagenda pedidos pendentes; novas versões podem ser preparadas. Não há retry
+  por quadro da versão com falha nem publicação tardia após remoção/fechamento.
+  Isso não promete recuperação da JVM de falhas fatais/falta de memória.
+- Resumo operacional atualizado para 26 famílias Tcl (incluindo rotate FX) e
+  os números atuais da suíte, preservando as entregas antigas como histórico.
+
+Quatro regressões Excellon e quatro de índices: **1161 registrados, 1149
+aprovados, 12 opcionais ignorados**, zero falhas/erros em `mvnw.cmd -q verify`.
+Probes `target/native/FlatCAMFX.exe --probe` (D3D/Intel Arc) e `--probe --software`
+aprovados. Sem alteração de projetos privados/preferências, benchmark, teste
+físico CNC ou nova comparação Python; validação manual do usuário permanece
+pendente. Próximo incremento de paridade continua sendo exportação Gerber/SVG
+pelo Terminal, antes de subtract/panelize e preferências Tcl.

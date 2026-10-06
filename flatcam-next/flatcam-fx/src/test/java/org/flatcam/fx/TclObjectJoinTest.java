@@ -121,6 +121,48 @@ class TclObjectJoinTest {
         assertEquals(DrillCncSettings.ToolOrder.REVERSE, result.settings().toolOrder());
     }
 
+    @Test void fusedExcellonCannotInheritMissingParametersInEitherSourceOrder() {
+        var parameters = new DrillGCodeParameters(3, 5, 500, 0, false);
+        for (boolean withSettings : List.of(false, true)) {
+            var configured = exc("first", 7, 0.80001, parameters, withSettings ? drilling(7) : null);
+            var unconfigured = exc("second", 42, 0.80002, null, withSettings ? drilling(42) : null);
+            for (var sources : List.of(List.of(configured, unconfigured), List.of(unconfigured, configured))) {
+                var error = assertThrows(IllegalArgumentException.class, () -> TclObjectJoin.excellon(sources));
+                assertTrue(error.getMessage().contains("parametros diferentes"));
+            }
+            assertEquals(Map.of(7, parameters), configured.drillDefaults());
+            assertTrue(unconfigured.drillDefaults().isEmpty());
+        }
+    }
+
+    @Test void parametersMissingOnBothFusedExcellonToolsRemainMissing() {
+        var result = TclObjectJoin.excellon(List.of(
+                exc("first", 7, 0.80001, null, null), exc("second", 42, 0.80002, null, null)));
+        assertEquals(Map.of(1, 0.8), result.image().toolDiameters());
+        assertEquals(2, result.image().totalDrills());
+        assertTrue(result.defaults().isEmpty());
+        assertNull(result.settings());
+    }
+
+    @Test void differentExcellonDiametersDoNotRequireMatchingParameterPresence() {
+        var parameters = new DrillGCodeParameters(3, 5, 500, 0, false);
+        var result = TclObjectJoin.excellon(List.of(
+                exc("first", 7, 0.8, parameters, drilling(7)), exc("second", 42, 1, null, drilling(42))));
+        assertEquals(Map.of(1, parameters), result.defaults());
+        assertEquals(Map.of(1, 0.8, 2, 1.0), result.image().toolDiameters());
+        assertEquals(List.of(1, 2), result.settings().selectedToolIds());
+    }
+
+    @Test void parameterPresenceMustMatchWithinOneSourceWhenItsToolsFuse() {
+        var image = ExcellonImage.of("MM", Map.of(7, 0.80001, 42, 0.80002),
+                List.of(new ExcellonImage.Drill(7, 0, 0), new ExcellonImage.Drill(42, 10, 0)), List.of(),
+                FACTORY.createMultiPointFromCoords(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0)}).buffer(0.4));
+        var partial = new ProjectFile.ExcellonEntry("partial", image, null, null, true, true, false,
+                Map.of(7, new DrillGCodeParameters(3, 5, 500, 0, false)), null);
+        assertThrows(IllegalArgumentException.class, () -> TclObjectJoin.excellon(List.of(
+                partial, exc("second", 50, 1, null, null))));
+    }
+
     @Test void excellonRefusesConflictingFusedParametersAndCommonProfiles() {
         var a = new DrillGCodeParameters(2, 1, 100, 0, false);
         var b = new DrillGCodeParameters(3, 2, 250, 0, false);

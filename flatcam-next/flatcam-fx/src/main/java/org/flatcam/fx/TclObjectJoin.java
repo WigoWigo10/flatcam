@@ -87,18 +87,26 @@ final class TclObjectJoin {
         TclExecution.cancellation().throwIfCancellationRequested();
         var joined = ExcellonJoin.joinWithMapping(entries.stream().map(ProjectFile.ExcellonEntry::image).toList(), true);
         Map<Integer, DrillGCodeParameters> defaults = new LinkedHashMap<>();
+        // A missing parameter set is meaningful: it must not inherit another source's depth/feed.
+        Map<Integer, DrillGCodeParameters> parametersByMergedTool = new LinkedHashMap<>();
         Map<Integer, Boolean> selectionByTool = new LinkedHashMap<>();
         DrillCncSettings model = null;
         var selected = new LinkedHashSet<Integer>();
         for (int i = 0; i < entries.size(); i++) {
             TclExecution.cancellation().throwIfCancellationRequested();
             var entry = entries.get(i); var ids = joined.sourceToolIds().get(i);
-            for (var parameter : entry.drillDefaults().entrySet()) {
-                Integer id = ids.get(parameter.getKey());
-                if (id == null) throw new IllegalArgumentException("Parametro de furo sem ferramenta correspondente.");
-                var previous = defaults.putIfAbsent(id, parameter.getValue());
-                if (previous != null && !previous.equals(parameter.getValue()))
+            for (int sourceId : entry.drillDefaults().keySet()) {
+                if (!ids.containsKey(sourceId))
+                    throw new IllegalArgumentException("Parametro de furo sem ferramenta correspondente.");
+            }
+            for (var tool : ids.entrySet()) {
+                int id = tool.getValue();
+                var parameters = entry.drillDefaults().get(tool.getKey());
+                if (parametersByMergedTool.containsKey(id)
+                        && !Objects.equals(parametersByMergedTool.get(id), parameters))
                     throw new IllegalArgumentException("Ferramentas Excellon do mesmo diametro possuem parametros diferentes; alinhe antes de juntar.");
+                parametersByMergedTool.put(id, parameters);
+                if (parameters != null) defaults.put(id, parameters);
             }
             var settings = entry.cncSettings();
             if (settings != null) {

@@ -172,7 +172,9 @@ de seleção/fit; não foram alteradas nesta entrega.
   quando a junção exigiria overrides. Não se escolhe silenciosamente um perfil.
 - Excellon: funde diâmetros conforme o core existente, a quatro casas; remapeia
   IDs de furos/slots/defaults e seleção do último trabalho Drilling. Ferramentas
-  fundidas com parâmetros conhecidos diferentes são recusadas. Perfis,
+  fundidas com parâmetros diferentes são recusadas, inclusive quando uma tem
+  parâmetros explícitos e outra não. Ausência de parâmetros é preservada;
+  ferramentas de diâmetros distintos podem ter configurações ausentes. Perfis,
   opções comuns e ordenação Drilling precisam ser compatíveis, e não se mistura
   fonte com e sem perfil Drilling configurado. Se fundir uma ferramenta
   selecionada com outra não selecionada ampliaria os caminhos a usinar, a

@@ -105,12 +105,26 @@ final class AsyncPlotIndexCache implements AutoCloseable {
     }
 
     private void drain() {
+        try {
+            drainPending();
+        } finally {
+            // An Error must reach the executor/uncaught handler, but must not strand later requests.
+            synchronized (this) {
+                draining = false;
+                if (!closed && !pending.isEmpty()) {
+                    draining = true;
+                    worker.execute(this::drain);
+                }
+            }
+        }
+    }
+
+    private void drainPending() {
         while (true) {
             Request request;
             PlotDrawableIndex previous;
             synchronized (this) {
                 if (closed || pending.isEmpty()) {
-                    draining = false;
                     return;
                 }
                 var entry = pending.entrySet().iterator().next();
@@ -125,17 +139,28 @@ final class AsyncPlotIndexCache implements AutoCloseable {
             } catch (CancellationException cancelled) {
                 // Replacing/removing a geometry version deliberately abandons its display index.
             } catch (RuntimeException failure) {
-                if (!request.cancelled) ui.execute(() -> {
-                    synchronized (this) {
-                        if (closed || requests.get(request.key) != request) return;
-                        request.failed = true;
-                    }
-                    System.getLogger(AsyncPlotIndexCache.class.getName()).log(System.Logger.Level.WARNING,
-                            "Could not prepare plot index", failure);
-                    ready.accept(request.key);
-                });
+                fail(request, failure);
+            } catch (Error failure) {
+                fail(request, failure);
+                throw failure;
             }
         }
+    }
+
+    private void fail(Request request, Throwable failure) {
+        synchronized (this) {
+            if (closed || request.cancelled || requests.get(request.key) != request) return;
+            request.failed = true;
+        }
+        System.getLogger(AsyncPlotIndexCache.class.getName()).log(
+                failure instanceof Error ? System.Logger.Level.ERROR : System.Logger.Level.WARNING,
+                "Could not prepare plot index", failure);
+        ui.execute(() -> {
+            synchronized (this) {
+                if (closed || request.cancelled || requests.get(request.key) != request) return;
+            }
+            ready.accept(request.key);
+        });
     }
 
     private void publish(Request request, PlotDrawableIndex index) {

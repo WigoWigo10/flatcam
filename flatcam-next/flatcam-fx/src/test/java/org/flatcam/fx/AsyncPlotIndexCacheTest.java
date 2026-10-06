@@ -145,4 +145,121 @@ class AsyncPlotIndexCacheTest {
             assertFalse(cache.failed());
         }
     }
+
+    @Test void errorDoesNotStrandQueuedOrLaterRequestsAndStillReachesTheExecutor() {
+        var worker = new ArrayDeque<Runnable>();
+        var ui = new ArrayDeque<Runnable>();
+        var delivered = new ArrayList<Object>();
+        var broken = point(1); var healthy = point(2); var later = point(3);
+        var failure = new AssertionError("intentional index Error");
+        try (var cache = new AsyncPlotIndexCache(ui::add, delivered::add, worker::add, g -> true,
+                (g, previous, token) -> {
+                    if (g == broken) throw failure;
+                    return new PlotDrawableIndex(g, previous, token);
+                })) {
+            cache.getOrRequest("broken", broken);
+            cache.getOrRequest("healthy", healthy);
+            assertSame(failure, assertThrows(AssertionError.class, () -> worker.remove().run()));
+            assertTrue(cache.failed(), "failure state does not depend on an FX callback");
+            assertEquals(1, worker.size(), "restart drain for the remaining queue");
+            cache.getOrRequest("later", later);
+            assertEquals(1, worker.size(), "still only one drain task");
+            worker.remove().run();
+            while (!ui.isEmpty()) ui.remove().run();
+            assertFalse(cache.preparing());
+            assertTrue(cache.failed());
+            assertSame(healthy, cache.getOrRequest("healthy", healthy).geometry());
+            assertSame(later, cache.getOrRequest("later", later).geometry());
+            assertEquals(List.of("broken", "healthy", "later"), delivered);
+            assertNull(cache.getOrRequest("broken", broken));
+            assertTrue(worker.isEmpty(), "do not retry the failed version on every frame");
+        }
+    }
+
+    @Test void errorWithAnEmptyQueueAllowsANewVersionToPrepare() {
+        var worker = new ArrayDeque<Runnable>();
+        var broken = point(1); var replacement = point(2);
+        try (var cache = new AsyncPlotIndexCache(Runnable::run, key -> {}, worker::add, g -> true,
+                (g, previous, token) -> {
+                    if (g == broken) throw new AssertionError("intentional empty-queue Error");
+                    return new PlotDrawableIndex(g, previous, token);
+                })) {
+            cache.getOrRequest("layer", broken);
+            assertThrows(AssertionError.class, () -> worker.remove().run());
+            assertFalse(cache.preparing());
+            assertTrue(cache.failed());
+            cache.getOrRequest("layer", replacement);
+            assertFalse(cache.failed());
+            assertEquals(1, worker.size());
+            worker.remove().run();
+            assertSame(replacement, cache.getOrRequest("layer", replacement).geometry());
+            assertFalse(cache.preparing());
+        }
+    }
+
+    @Test void queuedErrorNotificationCannotResurrectARemovedOrClosedBinding() {
+        for (boolean close : List.of(false, true)) {
+            var worker = new ArrayDeque<Runnable>();
+            var ui = new ArrayDeque<Runnable>();
+            try (var cache = new AsyncPlotIndexCache(ui::add, key -> fail("stale error notification"),
+                    worker::add, g -> true, (g, previous, token) -> {
+                        throw new AssertionError("intentional stale Error");
+                    })) {
+                cache.getOrRequest("layer", point(1));
+                assertThrows(AssertionError.class, () -> worker.remove().run());
+                if (close) cache.close(); else cache.forget("layer");
+                ui.remove().run();
+                assertFalse(cache.preparing());
+                assertFalse(cache.failed());
+            }
+        }
+    }
+
+    @Test void realWorkerReportsTheErrorAndProcessesTheNextBinding() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var uncaught = new CountDownLatch(1);
+        var delivered = new CountDownLatch(1);
+        var reported = new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        var failure = new AssertionError("intentional real-worker Error");
+        var broken = point(1); var healthy = point(2);
+        var worker = Executors.newSingleThreadExecutor(task -> {
+            var thread = new Thread(task, "plot-index-test");
+            thread.setDaemon(true);
+            thread.setUncaughtExceptionHandler((ignored, error) -> {
+                reported.set(error);
+                uncaught.countDown();
+            });
+            return thread;
+        });
+        try (var cache = new AsyncPlotIndexCache(Runnable::run, key -> {
+            if (key.equals("healthy")) delivered.countDown();
+        }, worker, g -> true, (g, previous, token) -> {
+            if (g == broken) {
+                entered.countDown();
+                try {
+                    assertTrue(release.await(5, TimeUnit.SECONDS));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    token.throwIfCancellationRequested();
+                }
+                throw failure;
+            }
+            return new PlotDrawableIndex(g, previous, token);
+        })) {
+            cache.getOrRequest("broken", broken);
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            cache.getOrRequest("healthy", healthy);
+            release.countDown();
+            assertTrue(uncaught.await(5, TimeUnit.SECONDS));
+            assertSame(failure, reported.get());
+            assertTrue(delivered.await(5, TimeUnit.SECONDS));
+            assertSame(healthy, cache.getOrRequest("healthy", healthy).geometry());
+            assertFalse(cache.preparing());
+            assertTrue(cache.failed());
+        } finally {
+            release.countDown();
+            worker.shutdownNow();
+        }
+    }
 }
