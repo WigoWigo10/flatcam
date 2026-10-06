@@ -58,6 +58,12 @@ final class ToolPanelIcons {
             Map.entry("Espelhar horizontal", "flipx.png"),
             Map.entry("Espelhar vertical", "flipy.png"),
             Map.entry("Transformacoes", "transform.png"),
+            // Shared Geometry/Drilling exclusion panel.
+            Map.entry("Desenhar retangulo", "rectangle32.png"),
+            Map.entry("Desenhar poligono", "polygon32.png"),
+            Map.entry("Adicionar retangulo numerico", "rectangle32.png"),
+            Map.entry("Aplicar estrategia a area selecionada", "apply32.png"),
+            Map.entry("Excluir area", "trash32.png"),
             // Gerber/Excellon/Geometry/G-code editors.
             Map.entry("Desfazer", "left_arrow32.png"),
             Map.entry("Refazer", "right_arrow32.png"),
@@ -94,6 +100,7 @@ final class ToolPanelIcons {
 
     private static final Map<String, String> SECTIONS = Map.of(
             "Opcoes avancadas", "settings18.png",
+            "Areas de exclusao CNC", "settings18.png",
             "Transformacoes das selecionadas", "transform.png");
 
     private ToolPanelIcons() {

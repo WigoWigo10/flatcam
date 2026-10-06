@@ -5,15 +5,21 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import javafx.application.Platform;
+import javafx.event.Event;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
+import javafx.scene.control.RadioMenuItem;
 import javafx.scene.control.TreeItem;
 import javafx.scene.control.TreeView;
+import javafx.scene.paint.Color;
+import javafx.scene.shape.Rectangle;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonParser;
@@ -126,6 +132,130 @@ class ProjectPlotMenuTest {
         for (var action : actions) {
             assertFalse(action.isDisable());
             assertNotNull(action.getGraphic(), "retain the Python visibility icons");
+        }
+    }
+
+    private static Menu colorMenu(Session session, TreeItem<String> item) throws Exception {
+        return (Menu) session.menu(item).getItems().stream()
+                .filter(choice -> "Definir Cor".equals(choice.getText())).findFirst().orElseThrow();
+    }
+
+    private static MenuItem choice(Menu menu, String label) {
+        return menu.getItems().stream().filter(item -> label.equals(item.getText())).findFirst().orElseThrow();
+    }
+
+    private static void assertColorSelected(Menu menu, String label) {
+        var selected = menu.getItems().stream().filter(item -> item instanceof RadioMenuItem radio && radio.isSelected()).toList();
+        assertEquals(List.of(label), selected.stream().map(MenuItem::getText).toList(), "exactly one current color, independent of hover");
+        assertNotNull(selected.getFirst().getGraphic(), "preserve the color swatches and legacy icons");
+        assertFalse(choice(menu, "Opacidade...") instanceof RadioMenuItem, "opacity is not a color choice");
+    }
+
+    @Test void yellowIsMarkedForAllColorCapableObjectKindsRegardlessOfVisibilityOrOpacity() throws Exception {
+        try (var session = new Session()) {
+            fx(() -> {
+                for (String kind : List.of("gerber", "excellon", "geometry")) {
+                    var item = session.add(kind, kind);
+                    session.plot.setLayerColors(item, Color.web("#FFDF00", 0.25), Color.BLACK);
+                    session.visible(item, false);
+                    assertColorSelected(colorMenu(session, item), "Amarelo");
+                    session.visible(item, true);
+                    assertColorSelected(colorMenu(session, item), "Amarelo");
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test void allLegacyPresetsAreMarkedAndTheirSwatchesRemainExact() throws Exception {
+        try (var session = new Session()) {
+            fx(() -> {
+                var item = session.add("object", "gerber");
+                var menu = colorMenu(session, item);
+                var presets = Map.of("Vermelho", "#FF0000", "Azul", "#0000FF", "Amarelo", "#FFDF00",
+                        "Verde", "#00FF00", "Roxo", "#FF00FF", "Marrom", "#A52A2A", "Branco", "#FFFFFF", "Preto", "#000000");
+                for (var preset : presets.entrySet()) {
+                    var colorItem = choice(menu, preset.getKey());
+                    colorItem.fire();
+                    assertColorSelected(menu, preset.getKey());
+                    var swatch = (Rectangle) colorItem.getGraphic();
+                    assertEquals(Color.web(preset.getValue()), swatch.getFill());
+                    var fill = session.plot.layerColors(item)[0];
+                    assertEquals(swatch.getFill(), new Color(fill.getRed(), fill.getGreen(), fill.getBlue(), 1));
+                    assertTrue(fill.getOpacity() < 1, "preserve Gerber preset opacity");
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test void openingExistingSubmenuRefreshesExternalColorAndOpacityChanges() throws Exception {
+        try (var session = new Session()) {
+            fx(() -> {
+                var item = session.add("object", "geometry");
+                var menu = colorMenu(session, item);
+                assertColorSelected(menu, "Vermelho");
+                session.plot.setLayerColors(item, Color.web("#0000FF", 0.05), Color.BLACK);
+                menu.getOnShowing().handle(new Event(Menu.ON_SHOWING));
+                assertColorSelected(menu, "Azul");
+                session.plot.setLayerColors(item, Color.web("#0000FF", 0.9), Color.BLACK);
+                menu.getOnShowing().handle(new Event(Menu.ON_SHOWING));
+                assertColorSelected(menu, "Azul");
+                return null;
+            });
+        }
+    }
+
+    @Test void nonPresetColorsAreMarkedCustomButDoNotOpenTheColorDialog() throws Exception {
+        try (var session = new Session()) {
+            fx(() -> {
+                var item = session.add("object", "excellon");
+                session.plot.setLayerColors(item, Color.web("#2468AC", 0.4), Color.WHITE);
+                var menu = colorMenu(session, item);
+                assertColorSelected(menu, "Personalizada...");
+                assertEquals(Color.web("#2468AC", 0.4), session.plot.layerColors(item)[0], "opening must not mutate colors");
+                // Pure yellow differs from the Python yellow preset (#FFDF00).
+                session.plot.setLayerColors(item, Color.YELLOW, Color.BLACK);
+                menu.getOnShowing().handle(new Event(Menu.ON_SHOWING));
+                assertColorSelected(menu, "Personalizada...");
+                return null;
+            });
+        }
+    }
+
+    @Test void defaultRestoresBothColorsAndNamedPresetTakesPriorityWhenTheyCoincide() throws Exception {
+        try (var session = new Session()) {
+            fx(() -> {
+                for (String kind : List.of("gerber", "excellon", "geometry")) {
+                    var item = session.add(kind, kind);
+                    var original = session.plot.layerColors(item);
+                    var menu = colorMenu(session, item);
+                    String expected = kind.equals("geometry") ? "Vermelho" : "Padrao";
+                    assertColorSelected(menu, expected);
+                    choice(menu, "Amarelo").fire();
+                    assertColorSelected(menu, "Amarelo");
+                    choice(menu, "Padrao").fire();
+                    assertArrayEquals(original, session.plot.layerColors(item));
+                    assertColorSelected(menu, expected);
+                }
+                return null;
+            });
+        }
+    }
+
+    @Test void activatingAlreadySelectedColorKeepsOneRealSelection() throws Exception {
+        try (var session = new Session()) {
+            fx(() -> {
+                var item = session.add("object", "gerber");
+                var menu = colorMenu(session, item);
+                choice(menu, "Amarelo").fire();
+                var yellow = (RadioMenuItem) choice(menu, "Amarelo");
+                yellow.setSelected(false); // Simulate a menu skin toggling the selected item off before dispatch.
+                yellow.fire();
+                assertColorSelected(menu, "Amarelo");
+                assertColorSelected(colorMenu(session, item), "Amarelo");
+                return null;
+            });
         }
     }
 

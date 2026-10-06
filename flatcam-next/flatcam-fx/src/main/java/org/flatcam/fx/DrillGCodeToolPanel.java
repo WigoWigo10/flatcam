@@ -36,6 +36,7 @@ import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodePreprocessor;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.DrillCncSettings;
+import org.locationtech.jts.geom.Geometry;
 
 /** Python-style drilling panel. Machining values are stored per Excellon tool. */
 final class DrillGCodeToolPanel {
@@ -120,6 +121,13 @@ final class DrillGCodeToolPanel {
     static Node build(List<SourceCandidate> sources, SourceCandidate initialSource,
                       Supplier<List<LegacyToolsDatabase.DrillTool>> databaseLoader,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        return build(sources, initialSource, databaseLoader, null, shape -> {}, () -> {}, onGenerate, onClose);
+    }
+
+    static Node build(List<SourceCandidate> sources, SourceCandidate initialSource,
+                      Supplier<List<LegacyToolsDatabase.DrillTool>> databaseLoader,
+                      CncExclusionEditor.AreaSelector areaSelector, Consumer<Geometry> exclusionPreview,
+                      Runnable cancelAreaSelection, Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(initialSource.image().units());
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
         sourceCombo.setValue(initialSource);
@@ -408,6 +416,10 @@ final class DrillGCodeToolPanel {
         common.addRow(4, new Label("Preprocessor:"), preprocessor);
         common.addRow(5, new Label("Feed rapids:"), rapidFeed);
         common.add(profileHelp, 0, 6, 2, 1);
+        var savedOptions = initialSource.cncSettings() == null ? null : initialSource.cncSettings().options();
+        var exclusions = new CncExclusionEditor(savedOptions != null && savedOptions.exclusionsEnabled(),
+                savedOptions == null ? List.of() : savedOptions.exclusions(), initialSource.image().units(),
+                areaSelector, exclusionPreview);
 
         Label errorLabel = new Label();
         errorLabel.setId("drill-error");
@@ -453,10 +465,14 @@ final class DrillGCodeToolPanel {
                 double endZ = parse(endMoveZ.getText(), "End move Z");
                 double changeZ = mechanicalChange ? parse(toolChangeZ.getText(), "Tool change Z")
                         : settings.get(orderedIds.get(0)).safeZ();
-                var options = new GCodeGenerator.DrillJobOptions(
+                var options = exclusions.applyTo(new GCodeGenerator.DrillJobOptions(
                         mechanicalChange, changeZ, endZ, endX, endY,
                         preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0,
-                        probing.get() ? probe.parameters() : null);
+                        probing.get() ? probe.parameters() : null));
+                options.validateExclusions(preprocessor.getValue());
+                if (options.exclusionsEnabled() && (mechanicalChange || preprocessor.getValue().automaticToolSelection())
+                        && changeZ < settings.values().stream().mapToDouble(DrillGCodeParameters::safeZ).max().orElse(0))
+                    throw new IllegalArgumentException("Tool change Z deve ser maior ou igual ao maior Travel Z das ferramentas.");
                 for (DrillGCodeParameters values : settings.values()) {
                     preprocessor.getValue().validateFeedRates(values.feedRate(), options.rapidFeedRate());
                     if (probing.get()) options.probing().validateTravelZ(values.safeZ());
@@ -472,8 +488,11 @@ final class DrillGCodeToolPanel {
         reset.setMaxWidth(Double.MAX_VALUE);
         reset.setId("drill-reset");
         reset.setOnAction(event -> {
+            cancelAreaSelection.run();
+            exclusionPreview.accept(null);
             sourceCombo.setValue(initialSource);
             updateRows.run();
+            exclusions.restore(false, List.of());
             preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
             probe.reset(metric);
             noOrder.setSelected(true);
@@ -495,12 +514,16 @@ final class DrillGCodeToolPanel {
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
                 selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
-                heading("Common Parameters"), common, probe.view(), errorLabel, generate, reset, close);
+                heading("Common Parameters"), common, probe.view(), exclusions.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         Runnable restoreCommon = () -> {
             SourceCandidate source = sourceCombo.getValue();
             boolean sourceMetric = "MM".equalsIgnoreCase(source.image().units());
             DrillCncSettings saved = source.cncSettings();
+            cancelAreaSelection.run();
+            exclusionPreview.accept(null);
+            exclusions.restore(saved != null && saved.options().exclusionsEnabled(),
+                    saved == null ? List.of() : saved.options().exclusions());
             // Never leak a previous source's common/probe settings into the new source.
             preprocessor.setValue(saved == null ? GCodePreprocessor.FX_PORTABLE : saved.preprocessor());
             probe.reset(sourceMetric);

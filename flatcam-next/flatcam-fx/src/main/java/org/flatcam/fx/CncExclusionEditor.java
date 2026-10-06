@@ -9,15 +9,18 @@ import javafx.scene.layout.*;
 import org.flatcam.cam.gcode.*;
 import org.locationtech.jts.geom.*;
 
-/** Common Geometry CNC exclusions. Stored drafts remain visible when disabled. */
+/** Common Geometry/Drilling CNC exclusions. Stored drafts remain visible when disabled. */
 final class CncExclusionEditor {
     @FunctionalInterface interface AreaSelector { void select(boolean polygon,Consumer<Geometry> selected,Runnable cancelled); }
     private final CheckBox enabled=new CheckBox("Ativar exclusoes CNC");
     private final TableView<CncExclusionArea> table=new TableView<>();
     private final TitledPane view;
     CncExclusionEditor(GeometryJobOptions saved,String units,AreaSelector selector,Consumer<Geometry> preview) {
-        enabled.setId("cnc-exclusions-enabled"); enabled.setSelected(saved.exclusionsEnabled());
-        table.setId("cnc-exclusions"); table.setItems(FXCollections.observableArrayList(saved.exclusions()));
+        this(saved.exclusionsEnabled(), saved.exclusions(), units, selector, preview);
+    }
+    CncExclusionEditor(boolean active,List<CncExclusionArea> areas,String units,AreaSelector selector,Consumer<Geometry> preview) {
+        enabled.setId("cnc-exclusions-enabled"); enabled.setSelected(active);
+        table.setId("cnc-exclusions"); table.setItems(FXCollections.observableArrayList(areas));
         TableColumn<CncExclusionArea,String> number=new TableColumn<>("#");
         number.setCellValueFactory(c -> new ReadOnlyStringWrapper(Integer.toString(table.getItems().indexOf(c.getValue())+1)));
         TableColumn<CncExclusionArea,String> strategyCol=new TableColumn<>("Strategy");
@@ -28,7 +31,7 @@ final class CncExclusionEditor {
         table.setPrefHeight(130); table.setPlaceholder(new Label("Nenhuma area definida"));
         var strategy=new ComboBox<CncExclusionArea.Strategy>(FXCollections.observableArrayList(CncExclusionArea.Strategy.values()));
         strategy.setId("cnc-exclusion-strategy"); strategy.setValue(CncExclusionArea.Strategy.AROUND);
-        var over=new TextField("20"); over.setId("cnc-exclusion-over-z"); over.setPrefColumnCount(5);
+        var over=new TextField("IN".equalsIgnoreCase(units) ? Double.toString(20 / 25.4) : "20"); over.setId("cnc-exclusion-over-z"); over.setPrefColumnCount(5);
         over.disableProperty().bind(strategy.valueProperty().isNotEqualTo(CncExclusionArea.Strategy.OVER));
         var error=new Label(); error.getStyleClass().add("form-error-label"); error.setWrapText(true);
         Runnable clearError=()->error.setText("");
@@ -72,10 +75,20 @@ final class CncExclusionEditor {
         Label note=new Label("Comum a todas as ferramentas. Cortes na area sao recusados; Over Z e alturas precisam de conferencia fisica. Salve em .fcnproj; exportacao de projeto Python com exclusoes e bloqueada para evitar perda silenciosa."); note.setWrapText(true);
         view=new TitledPane("Areas de exclusao CNC",new VBox(8,enabled,table,new HBox(8,new Label("Strategy:"),strategy,new Label("Over Z:"),over),
                 new FlowPane(8,6,rectangle,polygon),numeric,apply,delete,note,error));
-        view.setExpanded(!saved.exclusions().isEmpty());
+        view.setId("cnc-exclusions-pane");
+        view.setExpanded(!areas.isEmpty());
     }
     TitledPane view() { return view; }
     GeometryJobOptions applyTo(GeometryJobOptions positions) { return positions.withExclusions(enabled.isSelected(),List.copyOf(table.getItems())); }
+    GCodeGenerator.DrillJobOptions applyTo(GCodeGenerator.DrillJobOptions options) {
+        return options.withExclusions(enabled.isSelected(), List.copyOf(table.getItems()));
+    }
+    void restore(boolean active,List<CncExclusionArea> areas) {
+        table.getSelectionModel().clearSelection();
+        table.getItems().setAll(areas);
+        enabled.setSelected(active);
+        view.setExpanded(!areas.isEmpty());
+    }
     private static double parse(TextField field) {
         try { double value=Double.parseDouble(field.getText().trim().replace(',','.')); if(!Double.isFinite(value))throw new NumberFormatException(); return value; }
         catch(NumberFormatException invalid) { throw new IllegalArgumentException("Informe uma coordenada/altura finita."); }

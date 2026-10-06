@@ -20,6 +20,10 @@ public final class PythonProjectWriter {
     public static void save(ProjectFile project, Path path) throws IOException { save(project, path, true); }
 
     public static void save(ProjectFile project, Path path, boolean compressed) throws IOException {
+        for (var entry : project.excellons()) {
+            if (entry.cncSettings() != null && !entry.cncSettings().options().exclusions().isEmpty())
+                throw new IOException("Exclusoes Drilling nao possuem representacao segura no projeto Python. Salve em .fcnproj e exporte o G-code validado. Objeto: " + entry.name());
+        }
         for(var entry:project.geometries()) {
             var common=entry.cncDefaults();
             boolean hasAreas=common!=null && !common.jobOptions().exclusions().isEmpty()

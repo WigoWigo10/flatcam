@@ -10,6 +10,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.cutout.CutoutResult;
 import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.geometry.ParallelGeometry;
@@ -72,7 +73,13 @@ public final class GCodeGenerator {
     /** Common job-level moves; null end X/Y keeps the tool at the final hole. */
     public record DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
                                   double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate,
-                                  ProbeToolChangeParameters probing) {
+                                  ProbeToolChangeParameters probing, boolean exclusionsEnabled,
+                                  List<CncExclusionArea> exclusions) {
+        public DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
+                               double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate,
+                               ProbeToolChangeParameters probing) {
+            this(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY, rapidFeedRate, probing, false, List.of());
+        }
         public DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
                                double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate) {
             this(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY, rapidFeedRate, null);
@@ -83,6 +90,10 @@ public final class GCodeGenerator {
         }
 
         public DrillJobOptions {
+            exclusions = List.copyOf(exclusions);
+            if (exclusions.size() > 100) throw new IllegalArgumentException("Maximo de 100 exclusoes por trabalho.");
+            if (exclusionsEnabled && exclusions.isEmpty())
+                throw new IllegalArgumentException("Exclusoes ativadas: desenhe ao menos uma area ou desmarque a opcao.");
             if (!Double.isFinite(rapidFeedRate) || rapidFeedRate < 0)
                 throw new IllegalArgumentException("Rapid feed must be zero (automatic) or positive");
             if (!Double.isFinite(toolChangeZ) || toolChangeZ <= 0)
@@ -95,6 +106,17 @@ public final class GCodeGenerator {
                 throw new IllegalArgumentException("End move X/Y must be finite");
             if (probing != null && Double.compare(probing.toolChangeZ(), toolChangeZ) != 0)
                 throw new IllegalArgumentException("Tool change Z deve coincidir com a configuracao da sonda.");
+        }
+
+        public DrillJobOptions withExclusions(boolean enabled, List<CncExclusionArea> areas) {
+            return new DrillJobOptions(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY,
+                    rapidFeedRate, probing, enabled, areas);
+        }
+
+        public void validateExclusions(GCodePreprocessor profile) {
+            if (exclusionsEnabled && (profile.isLaser() || profile.isPlotter() || profile.isRoland()
+                    || profile.requiresProbe() || probing != null))
+                throw new IllegalArgumentException("Exclusoes Drilling exigem perfil de fresagem sem sondagem; nao podem ser ignoradas neste perfil.");
         }
     }
 
@@ -111,12 +133,26 @@ public final class GCodeGenerator {
                                                     List<Integer> orderedToolIds,
                                                     DrillJobOptions options,
                                                     GCodePreprocessor preprocessor) {
+        return generateDrillCncJob(image, settingsByTool, orderedToolIds, options, preprocessor,
+                CancellationToken.none(), ProgressCallback.none());
+    }
+
+    /** Cancellation and fractional progress count validated/generated holes and slots, not elapsed time. */
+    public static CncJobResult generateDrillCncJob(ExcellonImage image,
+                                                    Map<Integer, DrillGCodeParameters> settingsByTool,
+                                                    List<Integer> orderedToolIds, DrillJobOptions options,
+                                                    GCodePreprocessor preprocessor,
+                                                    CancellationToken cancellation, ProgressCallback progress) {
         Objects.requireNonNull(image, "image");
         Objects.requireNonNull(settingsByTool, "settingsByTool");
         Objects.requireNonNull(orderedToolIds, "orderedToolIds");
         Objects.requireNonNull(options, "options");
         Objects.requireNonNull(preprocessor, "preprocessor");
+        Objects.requireNonNull(cancellation, "cancellation");
+        Objects.requireNonNull(progress, "progress");
+        cancellation.throwIfCancellationRequested();
         requireMilling(preprocessor);
+        options.validateExclusions(preprocessor);
         Map<Integer, List<ExcellonImage.Drill>> drillsByTool =
                 image.drills().stream().collect(Collectors.groupingBy(ExcellonImage.Drill::toolId));
         Map<Integer, List<ExcellonImage.Slot>> slotsByTool =
@@ -131,12 +167,43 @@ public final class GCodeGenerator {
             throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo e nao suporta troca mecanica.");
         validateProbing(preprocessor, options.pauseForToolChange(), options.probing());
         for (int id : ordered) {
+            cancellation.throwIfCancellationRequested();
             if (!settingsByTool.containsKey(id))
                 throw new IllegalArgumentException("Missing drilling parameters for tool " + id);
             preprocessor.validatePower(settingsByTool.get(id).spindleSpeedRpm());
             if (preprocessor.isRoland() && settingsByTool.get(id).dwell())
                 throw new IllegalArgumentException("Roland nao suporta dwell neste perfil; desative a espera.");
             if (preprocessor.requiresProbe()) options.probing().validateTravelZ(settingsByTool.get(id).safeZ());
+        }
+
+        Map<Integer, CncExclusionPlanner> planners = new java.util.HashMap<>();
+        long featureCount = ordered.stream().mapToLong(id -> drillsByTool.getOrDefault(id, List.of()).size()
+                + slotsByTool.getOrDefault(id, List.of()).size()).sum();
+        long completed = 0;
+        long workCount = Math.max(1, featureCount * (options.exclusionsEnabled() ? 2 : 1));
+        progress.report(0);
+        if (options.exclusionsEnabled()) {
+            double clearance = ordered.stream().map(settingsByTool::get).mapToDouble(DrillGCodeParameters::safeZ).max().orElse(0);
+            if ((options.pauseForToolChange() || preprocessor.automaticToolSelection()) && options.toolChangeZ() < clearance)
+                throw new IllegalArgumentException("Tool change Z deve ser maior ou igual ao maior Travel Z das ferramentas.");
+            for (int id : ordered) {
+                cancellation.throwIfCancellationRequested();
+                Double diameter = image.toolDiameters().get(id);
+                if (diameter == null || !Double.isFinite(diameter) || diameter <= 0)
+                    throw new IllegalArgumentException("Exclusoes exigem diametro real positivo da ferramenta T" + id + ".");
+                var planner = new CncExclusionPlanner(image.units(), options.exclusions(), diameter, cancellation);
+                planners.put(id, planner);
+                // Validate the whole selected cut before generating any code; a slot is not just its endpoints.
+                for (var drill : drillsByTool.getOrDefault(id, List.of())) {
+                    planner.validateCut(GEOMETRY_FACTORY.createPoint(new Coordinate(drill.x(), drill.y())));
+                    progress.report((double) ++completed / workCount);
+                }
+                for (var slot : slotsByTool.getOrDefault(id, List.of())) {
+                    planner.validateCut(GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                            new Coordinate(slot.x1(), slot.y1()), new Coordinate(slot.x2(), slot.y2())}));
+                    progress.report((double) ++completed / workCount);
+                }
+            }
         }
 
         StringBuilder gcode = new StringBuilder();
@@ -161,11 +228,18 @@ public final class GCodeGenerator {
         boolean firstTool = true;
         DrillGCodeParameters previous = null;
         for (int toolId : ordered) {
+            cancellation.throwIfCancellationRequested();
             DrillGCodeParameters params = settingsByTool.get(toolId);
             // Falls back to a thin nominal radius for a tool diameter this Excellon file
             // never declared - only the toolpath preview is affected, not the G-code itself.
             double toolDiameter = image.toolDiameters().getOrDefault(toolId, 0.2);
             double radius = toolDiameter / 2.0;
+            if (options.exclusionsEnabled() && !firstTool) {
+                // The new (possibly wider) drill must also fit at the old tool's final position.
+                var changePlanner = new CncExclusionPlanner(image.units(), options.exclusions(),
+                        Math.max(lastRadius * 2, toolDiameter), cancellation);
+                changePlanner.travel(new Coordinate(lastX, lastY), new Coordinate(lastX, lastY), params.safeZ());
+            }
             lastRadius = radius;
 
             if (!firstTool) {
@@ -218,51 +292,68 @@ public final class GCodeGenerator {
                     params.multiDepth(), params.depthPerPass());
 
             for (ExcellonImage.Drill drill : drillsByTool.getOrDefault(toolId, List.of())) {
+                cancellation.throwIfCancellationRequested();
                 // A drill doesn't move laterally while cutting - camlib.py's own gcode_parse()
                 // fabricates a circle at the hole to represent the "cut" shape too.
                 if (!preprocessor.requiresProbe()) {
-                    addTravel(travelShapes, lastX, lastY, drill.x(), drill.y(), radius);
                     cutShapes.addBuffered(circle(drill.x(), drill.y(), radius));
                 }
+                exclusionTravel(gcode, travelShapes, lastX, lastY, drill.x(), drill.y(), radius,
+                        params.safeZ(), preprocessor, planners.get(toolId));
                 lastX = drill.x();
                 lastY = drill.y();
 
-                line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(drill.x()), fmt(drill.y()));
                 for (double depth : depths) {
+                    cancellation.throwIfCancellationRequested();
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(params.feedRate()));
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
+                progress.report((double) ++completed / workCount);
             }
             for (ExcellonImage.Slot slot : slotsByTool.getOrDefault(toolId, List.of())) {
+                cancellation.throwIfCancellationRequested();
                 if (!preprocessor.requiresProbe()) {
-                    addTravel(travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius);
                     cutShapes.addBuffered(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
                 }
+                exclusionTravel(gcode, travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius,
+                        params.safeZ(), preprocessor, planners.get(toolId));
                 lastX = slot.x2();
                 lastY = slot.y2();
 
-                line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(slot.x1()), fmt(slot.y1()));
                 for (int pass = 0; pass < depths.size(); pass++) {
-                    if (pass > 0) line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(slot.x1()), fmt(slot.y1()));
+                    cancellation.throwIfCancellationRequested();
+                    if (pass > 0) {
+                        if (options.exclusionsEnabled())
+                            exclusionTravel(gcode, travelShapes, slot.x2(), slot.y2(), slot.x1(), slot.y1(), radius,
+                                    params.safeZ(), preprocessor, planners.get(toolId));
+                        else line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(slot.x1()), fmt(slot.y1()));
+                    }
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depths.get(pass)), fmt(params.feedRate()));
                     line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmt(slot.x2()), fmt(slot.y2()), fmt(params.feedRate()));
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
+                progress.report((double) ++completed / workCount);
             }
         }
         if (previous != null && preprocessor.controlsSpindle(previous.spindleSpeedRpm())) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
-        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.endMoveZ()));
+        double parkingZ = options.exclusionsEnabled() && options.endMoveX() != null && previous != null
+                ? Math.max(previous.safeZ(), options.endMoveZ()) : options.endMoveZ();
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(parkingZ));
         if (options.endMoveX() != null) {
-            if (!preprocessor.requiresProbe())
-                addTravel(travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius);
-            line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(options.endMoveX()), fmt(options.endMoveY()));
+            CncExclusionPlanner planner = options.exclusionsEnabled()
+                    ? new CncExclusionPlanner(image.units(), options.exclusions(), lastRadius * 2, cancellation) : null;
+            exclusionTravel(gcode, travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius,
+                    parkingZ, preprocessor, planner);
+            if (parkingZ != options.endMoveZ()) line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.endMoveZ()));
         }
-        String code = preprocessor.finish(gcode, options.rapidFeedRate(), image.units());
+        cancellation.throwIfCancellationRequested();
+        String code = preprocessor.finish(gcode, options.rapidFeedRate(), image.units(), cancellation);
         if (preprocessor.requiresProbe()) return withoutProbePreview(code);
-        return new CncJobResult(code,
-                travelFootprint(travelShapes), cutShapes.result());
+        var job = new CncJobResult(code, travelFootprint(travelShapes), cutShapes.result());
+        cancellation.throwIfCancellationRequested();
+        return job;
     }
 
     public static String generateIsolationGCode(IsolationResult result, IsolationGCodeParameters params) {

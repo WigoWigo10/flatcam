@@ -198,6 +198,22 @@ segurança física; teste a seco na máquina exige validação própria.
 Referências: [Geometry/CNC](GEOMETRY_CNC.md),
 [exclusões CNC](CNC_EXCLUSIONS.md) e [pós-processadores](PREPROCESSADORES.md).
 
+**Incremento Drilling em 2026-10-06:** prioridade solicitada pelo usuário,
+antecipando novas exportações Tcl. Áreas de exclusão com editor compartilhado
+Geometry/Drilling, Around/Over, proteção do raio real de brocas e de slots
+inteiros, retornos, trocas e estacionamento. Persistência nativa e recusa de
+`.FlatPrj` com áreas mesmo inativas, sem perda silenciosa. Geração/prévia/gravação
+em worker cancelável, contagem de trabalho para progresso, publicação por
+temporário e validação de origem/projeto/defaults. Áreas são por objeto, não
+globais como no Python; reabrem após geração/salvamento. Perfis incompatíveis
+recusam áreas ativas. Detalhes e limites em [CNC_EXCLUSIONS.md](CNC_EXCLUSIONS.md).
+Validação manual dos desenhos/cliques e teste físico CNC permanecem necessários;
+isso não conclui as demais opções avançadas de Drilling ou toda esta etapa.
+39 regressões adicionais e capturas nos quatro temas; `mvnw.cmd -q verify`:
+1220 registrados, 1208 aprovados, 12 opcionais ignorados, zero falhas/erros.
+Probes nativos offscreen D3D/Intel Arc e software passaram; não é benchmark
+ou validação física CNC.
+
 ### 5. Consolidar compatibilidade e persistência de projetos
 
 Ampliar round-trips FX → Python → FX para dados avançados, macros Gerber,

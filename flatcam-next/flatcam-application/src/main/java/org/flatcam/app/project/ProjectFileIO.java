@@ -265,7 +265,10 @@ public final class ProjectFileIO {
                 .put("toolOrder", settings.toolOrder().name()).put("selectedToolIds", new JSONArray(settings.selectedToolIds()))
                 .put("pauseForToolChange", options.pauseForToolChange()).put("toolChangeZ", options.toolChangeZ())
                 .put("endMoveZ", options.endMoveZ()).put("endMoveX", options.endMoveX()).put("endMoveY", options.endMoveY())
-                .put("rapidFeedRate", options.rapidFeedRate());
+                .put("rapidFeedRate", options.rapidFeedRate())
+                .put("exclusionsEnabled", options.exclusionsEnabled())
+                .put("exclusions", new JSONArray(options.exclusions().stream().map(area -> new JSONObject()
+                        .put("wkt", area.wkt()).put("strategy", area.strategy().name()).put("overZ", area.overZ())).toList()));
         if (options.probing() != null) json.put("probing", probeToJson(options.probing()));
         return json;
     }
@@ -280,7 +283,9 @@ public final class ProjectFileIO {
             return new DrillCncSettings(GCodePreprocessor.valueOf(json.getString("preprocessor")),
                     new DrillJobOptions(json.getBoolean("pauseForToolChange"), json.getDouble("toolChangeZ"),
                             json.getDouble("endMoveZ"), optionalDouble(json, "endMoveX"), optionalDouble(json, "endMoveY"),
-                            json.optDouble("rapidFeedRate", 0), readProbeParameters(json.optJSONObject("probing"))),
+                            json.optDouble("rapidFeedRate", 0), readProbeParameters(json.optJSONObject("probing")),
+                            json.has("exclusionsEnabled") && json.getBoolean("exclusionsEnabled"),
+                            readCncExclusions(json.has("exclusions") ? json.getJSONArray("exclusions") : null)),
                     selected, DrillCncSettings.ToolOrder.valueOf(json.getString("toolOrder")));
         } catch (RuntimeException invalid) {
             throw new IOException("Configuracao CNC de Drilling invalida; nenhum perfil alternativo foi aplicado.", invalid);

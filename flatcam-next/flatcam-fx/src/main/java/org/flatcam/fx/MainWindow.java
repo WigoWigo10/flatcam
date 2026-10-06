@@ -5056,37 +5056,72 @@ final class MainWindow implements TclFlatcamHost {
     private Menu buildLayerColorMenu(TreeItem<String> item, Color defaultFill, Color defaultStroke) {
         Menu menu = new Menu("Definir Cor");
         setLegacyMenuIcon(menu, "set_color32.png");
+        Map<RadioMenuItem, Color> presets = new LinkedHashMap<>();
         // Exact RGB values from app_Main.py:on_set_color_action_triggered().
-        addColorPreset(menu, item, "Vermelho", Color.web("#FF0000"));
-        addColorPreset(menu, item, "Azul", Color.web("#0000FF"));
-        addColorPreset(menu, item, "Amarelo", Color.web("#FFDF00"));
-        addColorPreset(menu, item, "Verde", Color.web("#00FF00"));
-        addColorPreset(menu, item, "Roxo", Color.web("#FF00FF"));
-        addColorPreset(menu, item, "Marrom", Color.web("#A52A2A"));
-        addColorPreset(menu, item, "Branco", Color.WHITE);
-        addColorPreset(menu, item, "Preto", Color.BLACK);
+        presets.put(addColorPreset(menu, item, "Vermelho", Color.web("#FF0000")), Color.web("#FF0000"));
+        presets.put(addColorPreset(menu, item, "Azul", Color.web("#0000FF")), Color.web("#0000FF"));
+        presets.put(addColorPreset(menu, item, "Amarelo", Color.web("#FFDF00")), Color.web("#FFDF00"));
+        presets.put(addColorPreset(menu, item, "Verde", Color.web("#00FF00")), Color.web("#00FF00"));
+        presets.put(addColorPreset(menu, item, "Roxo", Color.web("#FF00FF")), Color.web("#FF00FF"));
+        presets.put(addColorPreset(menu, item, "Marrom", Color.web("#A52A2A")), Color.web("#A52A2A"));
+        presets.put(addColorPreset(menu, item, "Branco", Color.WHITE), Color.WHITE);
+        presets.put(addColorPreset(menu, item, "Preto", Color.BLACK), Color.BLACK);
 
-        MenuItem customItem = new MenuItem("Personalizada...");
+        RadioMenuItem customItem = new RadioMenuItem("Personalizada...");
         setLegacyMenuIcon(customItem, "set_color32.png");
         customItem.setOnAction(e -> editLayerColor(item));
         MenuItem opacityItem = new MenuItem("Opacidade...");
         setLegacyMenuIcon(opacityItem, "set_color32.png");
         opacityItem.setOnAction(e -> editLayerOpacity(item));
-        MenuItem defaultItem = new MenuItem("Padrao");
+        RadioMenuItem defaultItem = new RadioMenuItem("Padrao");
         defaultItem.setGraphic(colorSwatch(defaultFill));
         defaultItem.setOnAction(e -> plotAreaView.setLayerColors(item, defaultFill, defaultStroke));
         menu.getItems().addAll(new SeparatorMenuItem(), customItem, new SeparatorMenuItem(), opacityItem, defaultItem);
+        ToggleGroup colors = new ToggleGroup();
+        Runnable refreshSelection = () -> {
+            Color[] current = plotAreaView.layerColors(item);
+            Color fill = current != null ? current[0] : defaultFill;
+            // Opacity is independent. Prefer the named color when the default is also a preset.
+            RadioMenuItem selected = presets.entrySet().stream()
+                    .filter(entry -> sameRgb(fill, entry.getValue()))
+                    .map(Map.Entry::getKey).findFirst()
+                    .orElse(sameRgb(fill, defaultFill) ? defaultItem : customItem);
+            colors.selectToggle(selected);
+        };
+        for (MenuItem choice : menu.getItems()) {
+            if (choice instanceof RadioMenuItem radio) {
+                radio.setToggleGroup(colors);
+                var action = radio.getOnAction();
+                radio.setOnAction(event -> {
+                    try {
+                        action.handle(event);
+                    } finally {
+                        // Also restores the real selection if the custom dialog was cancelled.
+                        refreshSelection.run();
+                    }
+                });
+            }
+        }
+        menu.setOnShowing(event -> refreshSelection.run());
+        refreshSelection.run();
         return menu;
     }
 
-    private void addColorPreset(Menu menu, TreeItem<String> item, String label, Color color) {
-        MenuItem colorItem = new MenuItem(label);
+    private RadioMenuItem addColorPreset(Menu menu, TreeItem<String> item, String label, Color color) {
+        RadioMenuItem colorItem = new RadioMenuItem(label);
         colorItem.setGraphic(colorSwatch(color));
         colorItem.setOnAction(e -> {
             Color fill = colorWithOpacity(color, defaultObjectOpacity(item));
             plotAreaView.setLayerColors(item, fill, legacyOutlineColor(color));
         });
         menu.getItems().add(colorItem);
+        return colorItem;
+    }
+
+    private static boolean sameRgb(Color first, Color second) {
+        return Math.abs(first.getRed() - second.getRed()) < 1e-6
+                && Math.abs(first.getGreen() - second.getGreen()) < 1e-6
+                && Math.abs(first.getBlue() - second.getBlue()) < 1e-6;
     }
 
     /** A compact modern preview while keeping the legacy preset itself exact. */
@@ -5852,10 +5887,8 @@ final class MainWindow implements TclFlatcamHost {
      * Loads DrillGCodeToolPanel into the Tool tab (appTools/ToolDrilling.py's
      * run() switches app.ui.tool_tab to its own UI the same way - see
      * {@link #openToolPanel}), and writes plain drill G-code (GCodeGenerator)
-     * to a file the user picks once "Gerar" is clicked. Runs on the FX
-     * thread directly - string-building over a few hundred/thousand points
-     * is not the kind of work secao 4.3 is about; move this to JobExecutor
-     * if a pathological input ever makes it worth it.
+     * to a file the user picks once "Gerar" is clicked. Generation runs in
+     * JobExecutor, including keep-out routing, preview parsing and file writing.
      */
     private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
         List<DrillGCodeToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
@@ -5871,11 +5904,19 @@ final class MainWindow implements TclFlatcamHost {
         }
         openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(sources, initialSource,
                 () -> toolsDatabaseTools(LegacyToolsDatabase::drillTools),
-                result -> runDrillGCodeGeneration(result.source().item(), result.source().image(), result),
-                this::closeToolPanel));
+                (polygon, onSelected, onCancelled) -> beginNccAreaSelection(image.solidGeometry(),
+                        polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE, onSelected, onCancelled),
+                shape -> plotAreaView.setEditorHighlight(shape, false), plotAreaView::cancelPlacement,
+                result -> { clearToolOverlays(); runDrillGCodeGeneration(result.source().item(), result.source().image(), result); },
+                () -> { clearToolOverlays(); closeToolPanel(); }));
+        activeToolCleanup = this::clearToolOverlays;
     }
 
     private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeToolPanel.Result result) {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de furacao");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
@@ -5891,26 +5932,56 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
 
-        try {
-            CncJobResult job = GCodeGenerator.generateDrillCncJob(image, result.settingsByTool(),
-                    result.orderedToolIds(), result.options(), result.preprocessor());
-            Files.writeString(outFile.toPath(), job.gcode());
-            Map<Integer, DrillGCodeParameters> updatedDefaults = new LinkedHashMap<>(
-                    drillDefaultsByItem.getOrDefault(item, Map.of()));
-            updatedDefaults.putAll(result.settingsByTool());
-            drillDefaultsByItem.put(item, Map.copyOf(updatedDefaults));
-            drillCncSettingsByItem.put(item, result.cncSettings());
-            AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-            appendConsole("G-code de furacao salvo em " + outFile + " (" + job.gcode().lines().count() + " linhas).");
-            GCodeToolpathParser.Result preview = previewOf(job.gcode(), CancellationToken.none());
-            if (preview.warning() != null) appendConsole(outFile.getName() + ": " + preview.warning());
-            addCncJobToProject(outFile.getName(), item.getValue(), outFile.toPath(), job.gcode(),
-                    job.travelGeometry(), job.cutGeometry(), null, null, 0,
-                    preview.stats());
-            closeToolPanel();
-        } catch (Exception e) {
-            appendConsole("Falha ao gerar/salvar G-code: " + e.getMessage());
-        }
+        startDrillGCodeGeneration(item, image, result, outFile.toPath());
+    }
+
+    private void startDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image,
+                                           DrillGCodeToolPanel.Result result, Path output) {
+        if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
+        long epoch = tclProjectEpoch;
+        String sourceName = item.getValue();
+        Map<Integer, DrillGCodeParameters> savedDefaults = drillDefaultsByItem.get(item);
+        DrillCncSettings savedSettings = drillCncSettingsByItem.get(item);
+        Node toolContent = toolTab.getContent();
+        Runnable validate = () -> {
+            if (tclProjectEpoch != epoch || excellonByItem.get(item) != image || !sourceName.equals(item.getValue())
+                    || !Objects.equals(savedDefaults, drillDefaultsByItem.get(item))
+                    || !Objects.equals(savedSettings, drillCncSettingsByItem.get(item)))
+                throw new IllegalStateException("A origem/projeto ou parametros Drilling mudaram; resultado descartado.");
+            if (gerberEditor.isActive() || excellonEditor.isActive() || geometryEditor.isActive() || gcodeEditor.isActive())
+                throw new IllegalStateException("Feche os editores antes de gerar Drilling.");
+        };
+        validate.run();
+        beginJob("Gerando CNC Job de furacao...");
+        JobHandle<DrillCncGeneration.Generated> handle = jobExecutor.submit(context -> TclExecution.run(context,
+                () -> DrillCncGeneration.generate(image, result.settingsByTool(), result.orderedToolIds(), result.options(),
+                        result.preprocessor(), output, context, () -> TclExecution.onFx(() -> { validate.run(); return null; }))),
+                (fraction, message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
+        runningJob = handle;
+        handle.completion().thenAccept(generated -> Platform.runLater(() -> {
+            try {
+                validate.run();
+                CncJobResult job = generated.job();
+                Map<Integer, DrillGCodeParameters> updatedDefaults = new LinkedHashMap<>(
+                        drillDefaultsByItem.getOrDefault(item, Map.of()));
+                updatedDefaults.putAll(result.settingsByTool());
+                drillDefaultsByItem.put(item, Map.copyOf(updatedDefaults));
+                drillCncSettingsByItem.put(item, result.cncSettings());
+                AppPreferences.saveLastCamDirectory(output.toAbsolutePath().getParent().toString());
+                appendConsole("G-code de furacao salvo em " + output + " (" + job.gcode().lines().count() + " linhas).");
+                GCodeToolpathParser.Result preview = generated.preview();
+                if (preview != null && preview.warning() != null) appendConsole(output.getFileName() + ": " + preview.warning());
+                addCncJobToProject(output.getFileName().toString(), sourceName, output, job.gcode(),
+                        job.travelGeometry(), job.cutGeometry(), null, null, 0, preview == null ? null : preview.stats());
+                if (toolTab.getContent() == toolContent) closeToolPanel();
+                updateProgress(1);
+                setStatus("Concluido.", IDLE_COLOR);
+            } catch (RuntimeException failure) { reportJobError(failure, "Falha ao publicar Drilling: "); }
+            finally { onJobFinished(); }
+        })).exceptionally(error -> {
+            Platform.runLater(() -> { reportJobError(error, "Falha ao gerar/salvar G-code: "); onJobFinished(); });
+            return null;
+        });
     }
 
     private void generateExcellonMilling(TreeItem<String> item, ExcellonImage image) {

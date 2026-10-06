@@ -5,7 +5,7 @@ escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `b9c2f66d`.
+> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `f59f849a`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 26 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.
@@ -15,6 +15,11 @@ e continuar a migração sem recomeçar a investigação.
 > zoom vetorial reutiliza o cache e uma visão ampla evita depender só do recorte anterior.
 > O menu da árvore mostra somente Ativar/Desativar Plot conforme a visibilidade
 > atual; seleções mistas mostram ambas as ações com seus respectivos totais.
+> Definir Cor marca a cor atual com seleção exclusiva, independente da opacidade,
+> preservando os quadrados e ícones; cores fora da paleta marcam Personalizada.
+> Drilling agora tem exclusões Around/Over, editor compartilhado com Geometry,
+> persistência nativa e geração/prévia/gravação em worker cancelável. Furos/slots
+> protegidos recusam o trabalho inteiro; `.FlatPrj` com áreas também é recusado.
 > O console inferior recolhido agora mantém uma barra curta com porcentagem e
 > Cancelar na barra de status; a versão expandida mantém a barra longa.
 > Console inferior e painel lateral agora abrem/recolhem com transição de 180 ms,
@@ -41,8 +46,8 @@ e continuar a migração sem recomeçar a investigação.
 > Isolation tem seletor piloto de fresas com ícones vetoriais; índices grandes do
 > Plot e enumeração lazy de fontes foram movidos para workers.
 > `mvnw.cmd -q verify` completo passou com limpeza TempDir normal ativa:
-> **1175 testes registrados, 1163 aprovados, 12 opcionais ignorados**, zero falhas/erros.
-> São 603 CAM, 115 application, 437 FX e 20 de suporte de testes.
+> **1220 testes registrados, 1208 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+> São 617 CAM, 120 application, 463 FX e 20 de suporte de testes.
 > Probes nativos de renderização fora da tela passaram no modo padrão D3D→SW e
 > software forçado; isso não comprova fluidez em projetos grandes nem validação manual.
 > O Terminal continua sendo um dialeto Tcl reduzido. Seed continua deliberadamente
@@ -114,11 +119,12 @@ separação.
 
 ### Verificação mais recente
 
-Em **2026-10-06**, após o ajuste de ações de Plot sobre `b9c2f66d`, `mvnw.cmd -q verify`
-completo passou: **1175 registrados, 1163 aprovados e 12 opcionais ignorados**,
-zero falhas/erros, com limpeza TempDir normal. São 603 CAM, 115 application,
-437 FX e 20 test-support. Seis regressões adicionais cobrem menus individuais/
-múltiplos, estados de Plot, cliques, contadores, ícones e subcamadas CNC.
+Em **2026-10-06**, após exclusões Drilling sobre `f59f849a` e o ajuste de cor
+no menu, `mvnw.cmd -q verify` completo passou: **1220 registrados,
+1208 aprovados e 12 opcionais ignorados**, zero falhas/erros, com limpeza TempDir
+normal. São 617 CAM, 120 application, 463 FX e 20 test-support. São 39 regressões
+adicionais de exclusões Drilling (14 CAM, 5 persistência, 9 painel/temas,
+6 worker/arquivo e 5 host real). As regressões anteriores de cor/Plot permanecem.
 Na entrega visual anterior, os sete testes PlotPreparationUiTest também passaram
 com `flatcam.plot.density.pixelBuffer=false`, além do modo padrão.
 Probes offscreen do launcher existente passaram com as
@@ -3001,3 +3007,73 @@ zero falhas/erros. Probes do launcher existente em D3D/Intel Arc e software
 passaram com o build atualizado. Sem alteração de projetos privados/preferências
 ou cálculos CAM, benchmark ou nova comparação Python. Validação manual do menu
 pelo usuário permanece pendente.
+
+## Cor atual no menu de objetos — 2026-10-06
+
+O ajuste anterior de Ativar/Desativar Plot foi commitado em `f59f849a`, na branch
+`flatcam-next`. O submenu Definir Cor de Gerber, Excellon e Geometry agora usa
+RadioMenuItem e ToggleGroup: uma marca persistente indica a cor realmente usada,
+separada do destaque de navegação/hover. Os quadrados arredondados e ícones Python
+foram mantidos. A seleção é lida ao construir/abrir o submenu e após cada ação
+de cor, inclusive quando o diálogo de cor personalizada é cancelado.
+
+A comparação usa RGB com tolerância de 1e-6, sem opacidade. O amarelo Python
+permanece `#FFDF00`, não `#FFFF00`. Uma cor da paleta tem prioridade sobre Padrão
+se ambos coincidem (por exemplo, Geometry padrão marca Vermelho). Cor padrão
+fora da paleta marca Padrão, mesmo com opacidade alterada; as demais marcam
+Personalizada. Opacidade permanece uma ação separada. Nenhuma cor é alterada
+apenas por abrir o menu; restaurar Padrão continua restaurando fill e contorno.
+
+Seis regressões novas em ProjectPlotMenuTest passaram, incluindo todos os oito
+presets, os três tipos e objetos ocultos. `mvnw.cmd -q verify` passou com **1181
+registrados, 1169 aprovados, 12 opcionais ignorados**, zero falhas/erros. Probes
+offscreen do launcher existente passaram com o build atualizado em D3D/Intel Arc
+e software. Nenhum projeto privado/preferência foi alterado. Validação manual
+da marca de cor nos temas pelo usuário permanece pendente.
+
+## Áreas de exclusão no Drilling — 2026-10-06
+
+Prioridade escolhida pelo usuário, antecipando as exportações Gerber/SVG Tcl.
+O painel Drilling passou a usar CncExclusionEditor: desenhar retângulo/polígono,
+retângulo numérico, tabela Strategy/Over Z, seleção com destaque, editar/apagar
+e checkbox de ativação. Ícones originais nos dois temas de assets, aplicados
+também ao editor compartilhado Geometry; capturas nos quatro temas inspecionadas.
+
+DrillJobOptions ganhou áreas/ativação com construtores antigos preservados.
+GCodeGenerator reutiliza CncExclusionPlanner. Around desvia em XY; Over sobe
+antes e restaura Travel Z no destino. Brocas são validadas com raio real + 0,1 mm
+(ou equivalente IN), slots em toda a extensão; interseções recusam o trabalho
+inteiro. Só ferramentas selecionadas participam. Saída inicial, retorno de
+passes de slots e estacionamento são roteados; troca exige altura coerente e
+a posição anterior também deve acomodar a nova broca. Diâmetro desconhecido/
+inválido não recebe fallback fictício para exclusões. Roland e Mach3 com sonda
+recusam áreas ativas. Áreas desativadas não mudam o G-code anterior.
+
+Geração Drilling deixou a thread FX: DrillCncGeneration prepara código/prévia e
+arquivo temporário no JobExecutor, com cancelamento cooperativo, progresso por
+quantidades de trabalho e callbacks limitados a mudanças de percentual. Fases
+sem fração ficam indeterminadas. Antes de publicar, MainWindow revalida projeto,
+origem/nome/defaults e editores. Destino existente permanece intacto até rename
+com tentativa atômica/fallback. Cancelar após publicação não desfaz o arquivo;
+checagem FX e rename não constituem uma transação única. UI só publica defaults
+e CNC Job após sucesso e não fecha outro painel aberto durante a geração.
+
+ProjectFileIO conserva ativação e WKT/Strategy/Over Z em JSON/XZ `.fcnproj`,
+regenera o mesmo código e aceita projetos antigos sem esses campos. Dados novos
+malformados causam erro, sem descartar áreas silenciosamente. PythonProjectWriter
+recusa `.FlatPrj` com áreas Drilling, mesmo desativadas, antes de tocar o destino.
+O Python guarda exclusões globalmente; FX as associa ao objeto. Rascunhos do
+formulário não são salvos ao fechar: a persistência usa a última geração bem-
+sucedida. Trocar fonte cancela desenho e restaura suas áreas; Reset limpa o draft.
+
+39 regressões novas passaram, incluindo host MainWindow real, cancelamento,
+arquivo original preservado, nomes/projeto/defaults alterados, worker responsivo,
+slots/múltiplas brocas, MM/IN e renderização em quatro temas. `mvnw.cmd -q verify`:
+**1220 registrados, 1208 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+Probes do launcher existente passaram com o build atualizado em D3D/Intel Arc e
+software. Nenhum projeto privado/preferência foi alterado nos testes; sem novo
+benchmark ou comparação diferencial privada Python. Desenhos/cliques físicos
+e teste a seco CNC continuam pendentes. Limites: [CNC_EXCLUSIONS.md](CNC_EXCLUSIONS.md).
+
+Próxima fila, após validar Drilling: exportações Gerber/SVG pelo Terminal ou outro incremento CAM
+escolhido pelo usuário; opções avançadas e paridade global permanecem parciais.
