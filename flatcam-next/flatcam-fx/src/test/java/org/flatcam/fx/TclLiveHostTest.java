@@ -585,7 +585,8 @@ class TclLiveHostTest {
             TerminalPanel panel = TerminalPanelTest.fx(() -> new TerminalPanel(session.interpreter, "teste", session.jobs));
             for (String command : List.of("open_project", "offset", "scale", "mirror", "skew",
                     "save_project", "plot_all", "plot_objects", "set_active", "rotate",
-                    "join_geometry", "join_geometries", "join_excellon", "join_excellons")) {
+                    "join_geometry", "join_geometries", "join_excellon", "join_excellons",
+                    "export_excellon", "export_exc", "ee")) {
                 String help = session.eval("help " + command);
                 assertTrue(help.startsWith(command), help);
                 assertFalse(help.contains("sem texto"), help);
@@ -1234,6 +1235,209 @@ class TclLiveHostTest {
             Field redraws = PlotAreaPerformance.class.getDeclaredField("redraws"); redraws.setAccessible(true);
             assertEquals(1, TerminalPanelTest.fx(() -> redraws.getLong(metrics)));
             session.eval("plot_all"); assertEquals(2, TerminalPanelTest.fx(() -> redraws.getLong(metrics)));
+        }
+    }
+
+    private static void assertNoExcellonStages(Path directory) throws Exception {
+        try (var files = Files.list(directory)) {
+            assertTrue(files.noneMatch(path -> path.getFileName().toString().startsWith(".flatcam-tcl-excellon-")));
+        }
+    }
+
+    @Test void excellonExportUsesCurrentEditedDataAndTheRememberedFormatWithoutChangingSources(@TempDir Path directory) throws Exception {
+        Path input = directory.resolve("original.drl");
+        Files.writeString(input, "M48\nMETRIC\nT7C0.8\n%\nT7\nX1.0Y2.0\nX3.0Y4.0G85X7.0Y8.0\nM30\n");
+        byte[] original = Files.readAllBytes(input);
+        try (Session session = new Session()) {
+            session.host.openExcellon(input, "hole object");
+            session.eval("offset {hole object} -x 25.4 -y -12.7");
+            var image = (ExcellonImage) version(session, "hole object");
+            var format = CamExportDialog.loadExcellon();
+            String expected = new org.flatcam.cam.excellon.ExcellonExporter().export(image, format);
+            List<String> names = session.host.objectNames(); boolean plotted = visible(session, "hole object");
+            for (String alias : List.of("export_excellon", "export_exc", "ee")) {
+                Path output = directory.resolve(alias + " output.drl"); Files.writeString(output, "previous content");
+                assertEquals("", session.eval(alias + " {hole object} " + quoted(output)));
+                assertEquals(expected, Files.readString(output));
+                var actual = new org.flatcam.cam.excellon.ExcellonParser().parse(output);
+                var parsedExpected = new org.flatcam.cam.excellon.ExcellonParser().parse(expected.lines().toList());
+                assertEquals(parsedExpected.units(), actual.units()); assertEquals(parsedExpected.toolDiameters(), actual.toolDiameters());
+                assertEquals(parsedExpected.drills(), actual.drills()); assertEquals(parsedExpected.slots(), actual.slots());
+            }
+            assertSame(image, version(session, "hole object")); assertEquals(names, session.host.objectNames());
+            assertEquals(plotted, visible(session, "hole object")); assertEquals(format, CamExportDialog.loadExcellon());
+        }
+        assertArrayEquals(original, Files.readAllBytes(input)); assertNoExcellonStages(directory);
+    }
+
+    @Test void excellonExportSupportsInchImagesWithoutChangingTheirUnits(@TempDir Path directory) throws Exception {
+        Path input = directory.resolve("inch.drl"), output = directory.resolve("export.drl");
+        Files.writeString(input, "M48\nINCH\nT42C0.03125\n%\nT42\nX1.0Y-2.0\nX0.1Y0.2G85X0.4Y0.2\nM30\n");
+        try (Session session = new Session()) {
+            session.host.openExcellon(input, "inch"); var image = (ExcellonImage) version(session, "inch");
+            session.eval("ee inch " + quoted(output));
+            assertEquals(new org.flatcam.cam.excellon.ExcellonExporter().export(image, CamExportDialog.loadExcellon()), Files.readString(output));
+            assertEquals("IN", image.units()); assertSame(image, version(session, "inch"));
+            assertNoExcellonStages(directory);
+        }
+    }
+
+    @Test void cancelledExcellonExportPreservesExistingDestinationAndRemovesStages(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("export.drl");
+        ProjectFileIO.save(fixture(directory), source);
+        for (String phase : List.of("Exportando Excellon...", "Gravando Excellon...", "Publicando Excellon...")) {
+            Files.writeString(output, "keep old bytes");
+            try (Session session = new Session()) {
+                session.host.openProject(source); AtomicBoolean cancelled = new AtomicBoolean();
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return cancelled.get(); }
+                    public void reportProgress(double fraction, String message) { if (message.equals(phase)) cancelled.set(true); }
+                };
+                assertThrows(CancellationException.class, () -> TclExecution.run(context,
+                        () -> session.eval("ee drills " + quoted(output))), phase);
+                assertEquals("keep old bytes", Files.readString(output)); assertNoExcellonStages(directory);
+            }
+        }
+    }
+
+    @Test void changedExportSourceProjectOrEditorCannotReplaceTheDestination(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("export.drl");
+        ProjectFileIO.save(fixture(directory), source);
+        for (String change : List.of("rename", "remove", "version", "project", "editor")) {
+            Files.writeString(output, "keep old bytes");
+            try (Session session = new Session()) {
+                session.host.openProject(source);
+                var editor = new java.util.concurrent.atomic.AtomicReference<GCodeEditorController>();
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return false; }
+                    public void reportProgress(double fraction, String message) {
+                        if (!message.equals("Publicando Excellon...")) return;
+                        try {
+                            if (change.equals("version")) { session.eval("offset drills -x 1"); return; }
+                            if (change.equals("editor")) { editor.set(installDraftEditor(session)); return; }
+                            TerminalPanelTest.fx(() -> {
+                                if (change.equals("project")) field("tclProjectEpoch").setLong(session.host, field("tclProjectEpoch").getLong(session.host) + 1);
+                                else if (change.equals("remove")) session.host.delete("drills");
+                                else namedItemOnFx(session, "drills").setValue("renamed");
+                                return null;
+                            });
+                        } catch (Exception error) { throw new AssertionError(error); }
+                    }
+                };
+                try {
+                    assertThrows(IllegalStateException.class, () -> TclExecution.run(context,
+                            () -> session.eval("export_excellon drills " + quoted(output))), change);
+                    assertEquals("keep old bytes", Files.readString(output)); assertNoExcellonStages(directory);
+                } finally {
+                    if (editor.get() != null) TerminalPanelTest.fx(() -> { editor.get().cancel(); return null; });
+                }
+            }
+        }
+    }
+
+    @Test void invalidExcellonExportTypesNamesAndIoDestinationsNeverReplaceFiles(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("export.drl");
+        ProjectFileIO.save(fixture(directory), source); Files.writeString(output, "keep old bytes");
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            for (String name : List.of("missing", "copper", "route", "route_cnc"))
+                assertThrows(TclException.class, () -> session.eval("ee " + name + " " + quoted(output)), name);
+            assertEquals("keep old bytes", Files.readString(output));
+            Path absent = directory.resolve("missing/dir/file.drl");
+            assertThrows(TclException.class, () -> session.eval("ee drills " + quoted(absent)));
+            Path targetDirectory = directory.resolve("directory.drl"); Files.createDirectory(targetDirectory);
+            Path marker = targetDirectory.resolve("keep.txt"); Files.writeString(marker, "keep");
+            assertThrows(TclException.class, () -> session.eval("ee drills " + quoted(targetDirectory)));
+            assertEquals("keep", Files.readString(marker));
+            session.geometry("drills");
+            assertThrows(TclException.class, () -> session.eval("ee drills " + quoted(output)));
+            assertEquals("keep old bytes", Files.readString(output)); assertNoExcellonStages(directory);
+        }
+    }
+
+    @Test void invalidExcellonImageCannotReplaceAnExistingDestination(@TempDir Path directory) throws Exception {
+        Path output = directory.resolve("export.drl"); Files.writeString(output, "keep old bytes");
+        try (Session session = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addExcellonToProject", String.class, Path.class, ExcellonImage.class);
+                add.setAccessible(true);
+                add.invoke(session.host, "bad", null, ExcellonImage.of("MM", Map.of(1, 0.8),
+                        List.of(new ExcellonImage.Drill(2, 1, 2)), List.of(), FACTORY.createGeometryCollection()));
+                return null;
+            });
+            assertThrows(TclException.class, () -> session.eval("ee bad " + quoted(output)));
+            assertEquals("keep old bytes", Files.readString(output)); assertNoExcellonStages(directory);
+        }
+    }
+
+    @Test void excellonExportRequiresClosedEditorsAndWorkerExecution(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("export.drl");
+        ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source); var editor = installDraftEditor(session);
+            try { assertThrows(IllegalStateException.class, () -> session.eval("ee drills " + quoted(output))); }
+            finally { TerminalPanelTest.fx(() -> { editor.cancel(); return null; }); }
+            TerminalPanelTest.fx(() -> {
+                assertThrows(IllegalStateException.class, () -> session.host.exportExcellon("drills", output)); return null;
+            });
+            CountDownLatch release = new CountDownLatch(1);
+            var blocker = session.jobs.submit(ignored -> { assertTrue(release.await(10, TimeUnit.SECONDS)); return null; }, null);
+            try {
+                TerminalPanelTest.fx(() -> { field("runningJob").set(session.host, blocker); return null; });
+                assertThrows(IllegalStateException.class, () -> session.eval("ee drills " + quoted(output)));
+            } finally {
+                TerminalPanelTest.fx(() -> { field("runningJob").set(session.host, null); return null; }); release.countDown();
+            }
+            blocker.completion().get(15, TimeUnit.SECONDS);
+            assertFalse(Files.exists(output)); assertNoExcellonStages(directory);
+        }
+    }
+
+    @Test void excellonExportRunsOnWorkerWhileFxRemainsResponsive(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("export.drl");
+        ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+            JobContext context = new JobContext() {
+                public boolean isCancelled() { return false; }
+                public void reportProgress(double fraction, String message) {
+                    assertFalse(Platform.isFxApplicationThread());
+                    if (!message.equals("Exportando Excellon...")) return;
+                    entered.countDown();
+                    try { assertTrue(release.await(10, TimeUnit.SECONDS)); }
+                    catch (InterruptedException error) { throw new AssertionError(error); }
+                }
+            };
+            var job = session.jobs.submit(ignored -> TclExecution.run(context, () -> session.eval("ee drills " + quoted(output))), null);
+            try {
+                assertTrue(entered.await(10, TimeUnit.SECONDS));
+                assertTrue(TerminalPanelTest.fx(Platform::isFxApplicationThread)); assertFalse(job.completion().isDone());
+            } finally { release.countDown(); }
+            job.completion().get(25, TimeUnit.SECONDS); assertTrue(Files.exists(output)); assertNoExcellonStages(directory);
+        }
+    }
+
+    @Test void terminalCanJoinRotateExportExcellonAndContinue(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("drills edited.drl");
+        ProjectFileIO.save(joinFixture(directory), source);
+        try (Session session = new Session()) {
+            TerminalPanel panel = TerminalPanelTest.fx(() -> {
+                var created = new TerminalPanel(session.interpreter, "teste", session.jobs);
+                field("terminalPanel").set(session.host, created); new Scene(created); return created;
+            });
+            var idle = TerminalPanelTest.fx(() -> {
+                var input = (TextField) panel.lookup("#terminal-input");
+                input.setText("open_project " + quoted(source) + "; join_excellon holes drills {drills second}; "
+                        + "rotate holes 90 -origin origin; export_exc holes " + quoted(output) + "; new_geometry after_export; get_names");
+                input.getOnAction().handle(new ActionEvent()); return panel.whenIdle();
+            });
+            idle.get(25, TimeUnit.SECONDS);
+            String text = TerminalPanelTest.fx(() -> ((TextArea) panel.lookup("#terminal-output")).getText());
+            assertFalse(text.contains("ERRO:"), text); assertFalse(text.contains("Cancelado."), text);
+            assertTrue(text.contains("after_export"), text); assertFalse(TerminalPanelTest.fx(panel::isBusy));
+            assertEquals(2, new org.flatcam.cam.excellon.ExcellonParser().parse(output).totalSlots());
+            assertFalse(visible(session, "holes")); assertNoExcellonStages(directory);
         }
     }
 

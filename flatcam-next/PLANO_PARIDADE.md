@@ -479,6 +479,24 @@ geração G-code em memória com os parâmetros remapeados. Validação manual e
 teste físico CNC continuam pendentes; não é benchmark de fluidez.
 Executável recompilado; probes nativos D3D/GTX 1650 e software aprovados.
 
+**Incremento exportação Excellon em 2026-10-05, sobre `f7295058`:**
+`export_excellon`/`export_exc`/`ee` exportam o objeto atual pelo writer existente,
+usando o formato lembrado pelo diálogo de exportação FX, sem gravar preferências.
+Destino explícito obrigatório no FX (opcional no Python); arquivo existente é
+substituído, inclusive a origem se esse for o caminho escolhido. Conversão e
+arredondamento seguem a precisão do formato; não é geração de G-code.
+Worker, temporário ASCII, revalidação de origem/projeto/editores/operação/formato
+e cancelamento antes de publicar. Serialização/escrita não interrompidas no meio;
+checagem FX e rename não formam transação única. Menus/writer CAM inalterados.
+Roteiro e diferenças: [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+14 regressões adicionais; `mvnw.cmd -q install`: **1153 registrados, 1141
+aprovados, 12 opcionais ignorados**, zero falhas/erros. Fixtures próprios,
+sem modificar projetos privados/preferências. Probes D3D/GTX 1650 e software
+aprovados, executável recompilado; validação manual Python/FX continua pendente.
+26 famílias FlatCAM, contando rotate como extensão FX. Próxima fatia para outra
+sessão: exportações Gerber/SVG; subtract/panelize e preferências Tcl posteriores.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas

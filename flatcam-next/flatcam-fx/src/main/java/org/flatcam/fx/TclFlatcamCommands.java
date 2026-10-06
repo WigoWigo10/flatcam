@@ -53,6 +53,7 @@ final class TclFlatcamCommands {
         registerCncjob(interpreter);
         registerExportGcode(interpreter);
         registerWriteGcode(interpreter);
+        registerExportExcellon(interpreter);
     }
 
     /** Keep the normal empty result, but disclose a name suffixed to avoid collisions. */
@@ -93,6 +94,11 @@ final class TclFlatcamCommands {
             case "join_excellon", "join_excellons" -> command + " {saida} {furos 1} {furos 2} ...\n"
                     + "Cria Excellon oculto, preservando origens; pelo menos dois Excellon distintos, mesmas unidades. "
                     + "Funde diametros a quatro casas; remapeia furos/slots/parametros/selecao. Conflitos recusados.";
+            case "export_excellon", "export_exc", "ee" -> command + " {furos} {C:/pasta/saida.drl}\n"
+                    + "Exporta os furos/slots atuais no formato salvo por Arquivo > Exportar > Excellon; "
+                    + "sem configuracao: IN, decimal 2:4, slots roteados. Conversao/arredondamento podem alterar precisao. "
+                    + "FX exige destino explicito (Python permite omitir); substitui arquivo existente. "
+                    + "Feche editores. Cancelar antes da publicacao preserva o destino; nao muda preferencias.";
             default -> null;
         };
     }
@@ -564,6 +570,23 @@ final class TclFlatcamCommands {
             }
             return "";
         });
+    }
+
+    /** Python TclCommandExportExcellon aliases; FX requires the otherwise optional filename explicitly. */
+    private void registerExportExcellon(TclInterpreter interpreter) {
+        TclCommand export = (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of());
+            requirePositionals(args, 2, 2);
+            String filename = args.positional(1);
+            if (filename.isBlank()) throw new TclException("Expected an explicit Excellon destination filename.");
+            try { host.exportExcellon(args.positional(0), Path.of(filename)); }
+            catch (IOException | java.nio.file.InvalidPathException error) {
+                throw new TclException("Could not export Excellon: " + error.getMessage());
+            }
+            return "";
+        };
+        for (String alias : List.of("export_excellon", "export_exc", "ee")) interpreter.register(alias, export);
     }
 
     private static String baseName(String filename) {

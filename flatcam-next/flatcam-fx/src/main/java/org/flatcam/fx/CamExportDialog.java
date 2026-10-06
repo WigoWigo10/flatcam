@@ -122,8 +122,12 @@ final class CamExportDialog {
         }
     }
 
-    private static ExcellonExporter.Format loadExcellon() {
-        String saved = AppPreferences.loadText(EXCELLON_KEY);
+    /** Shared by the export dialog and noninteractive Tcl export; does not write preferences. */
+    static ExcellonExporter.Format loadExcellon() {
+        return parseExcellonFormat(AppPreferences.loadText(EXCELLON_KEY));
+    }
+
+    static ExcellonExporter.Format parseExcellonFormat(String saved) {
         try {
             String[] parts = saved.split(";");
             return new ExcellonExporter.Format(parts[0], "dec".equals(parts[1]), Integer.parseInt(parts[2]),

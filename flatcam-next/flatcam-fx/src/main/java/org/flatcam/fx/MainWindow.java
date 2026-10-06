@@ -7943,6 +7943,47 @@ final class MainWindow implements TclFlatcamHost {
         } finally { Files.deleteIfExists(temporary); }
     }
 
+    @Override
+    public void exportExcellon(String name, Path outputFile) throws TclException, IOException {
+        requireWorkerCommand();
+        try {
+            TclExecution.onFx(() -> { requireTclExportAllowed(); return null; });
+            TclSource source = tclSource(name);
+            if (source.kind() != Kind.EXCELLON) throw new TclException("Expected an Excellon object: " + name);
+            ExcellonExporter.Format format = TclExecution.onFx(CamExportDialog::loadExcellon);
+            TclExecution.phase("Exportando Excellon...");
+            String text = new ExcellonExporter().export((ExcellonImage) source.version(), format);
+            TclExecution.phase("Gravando Excellon...");
+            Path destination = outputFile.toAbsolutePath();
+            if (destination.getFileName() == null || Files.isDirectory(destination))
+                throw new IOException("Excellon destination must be a file, not a directory.");
+            Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-excellon-", ".tmp");
+            try {
+                Files.writeString(temporary, text, java.nio.charset.StandardCharsets.US_ASCII);
+                TclExecution.phase("Publicando Excellon...");
+                TclExecution.onFx(() -> {
+                    requireTclExportAllowed(); checkTclSource(source);
+                    if (!format.equals(CamExportDialog.loadExcellon()))
+                        throw new IllegalStateException("O formato Excellon mudou durante a exportacao; resultado descartado.");
+                    return null;
+                });
+                TclExecution.cancellation().throwIfCancellationRequested();
+                try {
+                    Files.move(temporary, destination, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                    Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+                }
+                TclExecution.progress("Excellon exportado.").report(1);
+            } finally { Files.deleteIfExists(temporary); }
+        } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+    }
+
+    private void requireTclExportAllowed() {
+        if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
+                || excellonEditor.isActive() || gcodeEditor.isActive())
+            throw new IllegalStateException("Conclua a operacao e feche os editores antes de exportar pelo Terminal.");
+    }
+
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */
     private void openTerminal() {
         for (Tab tab : centerTabs.getTabs()) if ("terminal-tab".equals(tab.getId())) {

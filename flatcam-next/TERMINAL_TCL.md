@@ -1,6 +1,6 @@
 # Terminal Tcl — FlatCAM FX
 
-Atualizado em 2026-10-05, sobre `25ae2abb`, branch `flatcam-next`.
+Atualizado em 2026-10-05, sobre `f7295058`, branch `flatcam-next`.
 
 Abra **Ferramentas > Linha de Comando Tcl**. `help` lista comandos;
 `help open_project`, `help save_project`, `help plot_all`, `help plot_objects`,
@@ -9,8 +9,8 @@ mostram sintaxe e referências. O Terminal executa um script por vez no worker,
 com Cancelar/ESC. Ele não é um interpretador Tcl completo: os limites de
 `TclInterpreter` continuam válidos.
 
-Também há ajuda específica para `join_geometry`/`join_geometries` e
-`join_excellon`/`join_excellons`.
+Também há ajuda específica para `join_geometry`/`join_geometries`,
+`join_excellon`/`join_excellons` e `export_excellon`/`export_exc`/`ee`.
 
 ## Abertura de projeto
 
@@ -192,6 +192,47 @@ descarta o resultado. A validação conservadora inclui objetos não participant
 Uniões JTS individuais não são interrompidas no meio; não há novo undo Tcl nem
 rollback geral para falhas inesperadas durante publicação FX.
 
+## Exportação Excellon
+
+```tcl
+export_excellon {furos unidos} {C:/pasta/saida.drl}
+export_exc {furos unidos} {C:/pasta/outra-copia.drl}
+```
+
+Aliases Python: `export_exc` e `ee`. Exige exatamente nome e arquivo de destino,
+sem flags, seletor ou extensão acrescentada automaticamente. Caminhos relativos
+ou absolutos são aceitos; a pasta precisa existir. **Substitui arquivo existente**:
+escolher o próprio arquivo de entrada também o substitui. Use outra cópia nos testes.
+Exporta ferramentas, furos e slots atuais do objeto, incluindo edições e junções,
+não os bytes originais nem configurações de usinagem. Não gera G-code de furação
+nem salva o projeto; a saída é um arquivo Excellon.
+
+Reutiliza `ExcellonExporter` e o formato lembrado pelo diálogo **Arquivo > Exportar >
+Excellon** do FX, sem alterar preferências. Configure nesse diálogo unidades,
+precisão, zeros e slots G85/roteados antes de executar o script. Sem configuração
+válida: IN, decimal 2:4, LZ, slots roteados. Converte das unidades do objeto para
+as do formato; conversão/arredondamento podem perder precisão. Não houve alteração
+do algoritmo do writer nem importação das preferências globais do Python.
+
+Feche editores e conclua operações principais antes de exportar. Serialização e
+gravação ASCII ocorrem no worker, para temporário ao lado do destino. Origem,
+nome, versão/projeto, estado dos editores/operação e formato são revalidados antes
+de substituir o destino. Erros, cancelamento ou mudanças detectadas antes da
+publicação preservam o arquivo existente; temporários são removidos. Tenta rename
+atômico, com fallback quando não suportado. Não muda seleção, visibilidade,
+geometria em memória nem preferência de último diretório. O próximo comando
+aguarda a gravação.
+
+Cancelamento é cooperativo: serialização e escrita individual não são abortadas
+no meio. A checagem FX e o rename no worker não formam transação única; cancelar
+depois da publicação não desfaz o arquivo. Não se promete tempo máximo para
+objetos arbitrários.
+
+Referências locais: `TclCommandExportExcellon.py`, `app_Main.export_excellon` e
+`defaults.py`. Python permite omitir filename, usando a pasta de último salvamento;
+FX exige destino explícito como diferença deliberada. Os aliases e finalidade
+coincidem, mas não há promessa de saída byte a byte idêntica ao legado.
+
 ## Diferenças deliberadas frente ao Python
 
 - Este checkout Python não tem `TclCommandRotate.py` nem comando Tcl `rotate`:
@@ -288,8 +329,22 @@ Executável recompilado: `run-native.cmd --probe` (D3D/GTX 1650) e
 `target/native/FlatCAMFX.exe --probe --software` aprovados. Esses probes
 verificam inicialização/renderização offscreen, não são benchmark das junções.
 
-O incremento salvar/plot/seleção acrescentou quatro famílias; com `rotate` e
-as duas junções, há **25 famílias FlatCAM (incluindo a extensão FX de rotação)**,
+### Incremento: exportação Excellon
+
+14 regressões adicionais: aliases/argumentos/ajuda, formato compartilhado e seu
+fallback, objeto editado, unidades IN/MM, slots, substituição completa do destino,
+cancelamento nas fases, alterações da origem/projeto, editores/operação concorrente,
+nomes ausentes/ambíguos e tipos inválidos, pasta ausente/destino diretório,
+geometria inválida, temporários limpos, worker responsivo e script real
+abrir/juntar/rotacionar/exportar/continuar. Parsing de formatos usa strings de teste;
+preferências reais só são lidas, não modificadas para simular mudanças de formato.
+
+`mvnw.cmd -q install`: **1153 registrados, 1141 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Probes D3D/GTX 1650 e software aprovados, executável recompilado.
+Fixtures próprios, sem alterar projetos privados/preferências. Comparação manual
+com projetos reais Python/FX continua pendente; sem benchmark ou teste físico CNC.
+
+Com esta exportação, há **26 famílias FlatCAM (incluindo a extensão FX de rotação)**,
 além de aliases e comandos internos do dialeto/shell. Faltam preferências Tcl,
-subtract/panelize, exportações e flags CAM avançadas. Próxima fatia sugerida: exportações
-pelo Terminal, reutilizando as operações existentes sem ampliar o dialeto Tcl.
+subtract/panelize, exportações Gerber/SVG e flags CAM avançadas. Próxima fatia
+sugerida: Gerber/SVG pelo Terminal, reutilizando os writers existentes.

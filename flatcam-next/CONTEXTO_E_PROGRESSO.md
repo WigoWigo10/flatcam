@@ -2862,3 +2862,43 @@ Limpeza normal de fixtures ativa. Validação manual dos projetos reais pendente
 Executável recompilado; `run-native.cmd --probe` (D3D/GTX 1650) e
 `target/native/FlatCAMFX.exe --probe --software` aprovados. Probes de
 inicialização/renderização offscreen, não benchmark ou migração LWJGL.
+
+## Terminal: exportação Excellon — 2026-10-05
+
+Incremento sobre `f7295058`: `export_excellon {furos} {C:/pasta/saida.drl}`,
+aliases Python `export_exc` e `ee`. **26 famílias FlatCAM**, incluindo rotate
+como extensão FX; não Tcl completo. Reutiliza ExcellonExporter sem modificar
+seu algoritmo: ferramentas/furos/slots atuais, formato lembrado pelo diálogo
+FX compartilhado com o menu (unidades, precisão, zeros, slots G85/roteados).
+Preferências reais apenas lidas. Fallback existente IN decimal 2:4 LZ roteado;
+conversão/arredondamento podem perder precisão. Não exporta parâmetros CNC
+nem gera G-code. Origem em memória, seleção/visibilidade permanecem.
+
+Referência: TclCommandExportExcellon.py, app_Main.export_excellon e defaults.py
+locais, sem mudar o oráculo. Diferença deliberada: filename obrigatório no FX,
+opcional no Python. Destino substituído, inclusive arquivo de entrada caso o
+usuário escolha esse caminho; usar outra cópia para ensaios. Pasta deve existir,
+sem seletor ou extensão automaticamente acrescentada. Não importa preferências
+do Python nem promete bytes idênticos ao legado.
+
+Serialização/gravação ASCII no worker, temporário ao lado do destino e validação
+de origem/nome/versão/epoch, editores/operação e formato antes da substituição.
+Cancelamento/mudanças detectadas antes de publicar preservam destino existente;
+temporários removidos e rename atômico com fallback. Serialização/escrita
+individual não interrompidas no meio; checagem FX/rename não são transação única,
+e cancelar depois de publicar não desfaz arquivo. Menus existentes inalterados.
+
+14 regressões novas (2 argumentos, 3 formatos, 9 host/Terminal real), incluindo
+round-trip com objeto editado, IN/MM/slots, cancelamento/alterações concorrentes,
+editores/operação principal, nomes ambíguos/tipos/arquivos inválidos, origem
+separada intacta, limpeza e script abrir/juntar/rotacionar/exportar/continuar.
+Teste de formato usa parser puro e preferências atuais somente em leitura;
+não simula mudança alterando preferências reais. `mvnw.cmd -q install`:
+**1153 registrados, 1141 aprovados, 12 opcionais ignorados**, zero falhas/erros
+(603 CAM, 115 application, 415 FX, 20 test-support). Executável recompilado;
+probes D3D/GTX 1650 e software aprovados. Sem benchmark, migração LWJGL,
+teste físico CNC ou nova comparação dos projetos privados Python.
+
+Pedido atendido com mais um incremento e commit; encerrar por hoje. Próxima
+sessão sugerida: exportações Gerber/SVG pelo Terminal; subtract/panelize e
+preferências Tcl seguem pendentes. Roteiro: [TERMINAL_TCL.md](TERMINAL_TCL.md).

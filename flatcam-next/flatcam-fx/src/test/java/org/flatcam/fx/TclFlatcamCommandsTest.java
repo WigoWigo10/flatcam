@@ -62,6 +62,8 @@ class TclFlatcamCommandsTest {
         String transformedName;
         record JoinCall(Kind kind, String outname, List<String> names) { }
         final List<JoinCall> joins = new ArrayList<>();
+        record ExcellonExport(String name, Path file) { }
+        final List<ExcellonExport> excellonExports = new ArrayList<>();
         final List<String> writtenContents = new ArrayList<>();
         boolean deletedAll;
         boolean failWrite;
@@ -82,6 +84,11 @@ class TclFlatcamCommandsTest {
         }
 
         @Override public void setActive(String name) { activeName = name; }
+
+        @Override public void exportExcellon(String name, Path outputFile) throws IOException {
+            if (failWrite) throw new IOException("disk full");
+            excellonExports.add(new ExcellonExport(name, outputFile));
+        }
 
         @Override public String join(Kind kind, String outname, List<String> names) {
             joins.add(new JoinCall(kind, outname, names));
@@ -767,5 +774,26 @@ class TclFlatcamCommandsTest {
             assertThrows(TclException.class, () -> interp.eval(script), script);
         assertTrue(host.joins.isEmpty()); host.order.add("same");
         assertEquals("same_2", interp.eval("join_geometry same a b"));
+    }
+
+    @Test void excellonExportAliasesAcceptExplicitSpacedNamesAndPaths() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String alias : List.of("export_excellon", "export_exc", "ee")) {
+            assertEquals("", interp.eval(alias + " {hole object} {folder with spaces/drills.drl}"));
+            assertEquals(new FakeHost.ExcellonExport("hole object", Path.of("folder with spaces/drills.drl")), host.excellonExports.getLast());
+        }
+        assertEquals(3, host.excellonExports.size());
+    }
+
+    @Test void invalidExcellonExportArgumentsNeverWriteOrContinueTheScript() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String script : List.of("export_excellon", "export_excellon holes", "export_exc holes a b", "ee holes {}",
+                "ee holes {   }", "ee holes a -units MM", "export_excellon holes {bad\u0000file.drl}"))
+            assertThrows(TclException.class, () -> interp.eval(script), script);
+        assertTrue(host.excellonExports.isEmpty());
+        host.failWrite = true;
+        assertTrue(assertThrows(TclException.class, () -> interp.eval("ee holes output.drl; new_geometry late"))
+                .getMessage().contains("disk full"));
+        assertTrue(host.excellonExports.isEmpty()); assertTrue(host.order.isEmpty());
     }
 }

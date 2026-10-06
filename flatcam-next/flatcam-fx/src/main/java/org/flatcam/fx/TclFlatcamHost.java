@@ -118,4 +118,7 @@ interface TclFlatcamHost {
 
     /** Python's {@code write_gcode}: saves a CNC Job's G-code (with optional preamble/postamble) to a file. */
     void writeGcode(String cncJobName, Path outputFile, String preamble, String postamble) throws TclException, IOException;
+
+    /** Exports current Excellon drills/slots using the UI format, with explicit destination and guarded publication. */
+    void exportExcellon(String name, Path outputFile) throws TclException, IOException;
 }
