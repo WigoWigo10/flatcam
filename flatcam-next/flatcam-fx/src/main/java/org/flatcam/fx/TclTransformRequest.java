@@ -8,7 +8,7 @@ import org.locationtech.jts.geom.Envelope;
 /** Immutable command parameters; pivots are resolved against the same captured source as the worker. */
 record TclTransformRequest(Operation operation, double x, double y, Reference reference,
                            double pivotX, double pivotY, String box) {
-    enum Operation { OFFSET, SCALE, MIRROR, SKEW }
+    enum Operation { OFFSET, SCALE, MIRROR, SKEW, ROTATE }
     enum Reference { ORIGIN, CENTER, MIN_BOUNDS, POINT, BOX }
 
     TclTransformRequest {
@@ -22,7 +22,7 @@ record TclTransformRequest(Operation operation, double x, double y, Reference re
         if (operation == Operation.MIRROR && x != 0 && x != 1)
             throw new IllegalArgumentException("Mirror axis must be X or Y.");
         if (reference == Reference.BOX && (box == null || box.isBlank()))
-            throw new IllegalArgumentException("Mirror box must name an object.");
+            throw new IllegalArgumentException("Reference box must name an object.");
     }
 
     TransformOp resolve(Envelope source, Envelope boxBounds) throws TclException {
@@ -42,6 +42,8 @@ record TclTransformRequest(Operation operation, double x, double y, Reference re
             // Python's axis is the line of reflection, not the coordinate to negate.
             case MIRROR -> x == 0 ? new TransformOp.MirrorY(pivot) : new TransformOp.MirrorX(pivot);
             case SKEW -> new TransformOp.Skew(x, y, pivot);
+            // Terminal follows the Transformations UI: positive clockwise; raw CAM is counter-clockwise.
+            case ROTATE -> new TransformOp.Rotate(-(x % 360), pivot);
         };
     }
 

@@ -2796,3 +2796,24 @@ Python com projetos privados. Validação manual permanece pendente.
 Roteiro e diferenças deliberadas em [TERMINAL_TCL.md](TERMINAL_TCL.md).
 Próxima fatia recomendada: `rotate` e joins pelo Terminal, reaproveitando as
 operações existentes. Não declarar paridade Tcl completa.
+
+## Terminal: rotação — 2026-10-05
+
+Incremento sobre `9c187b27`: `rotate {nome} angulo -origin center|origin|min_bounds|x,y`,
+com `-box {referencia}` opcional prevalecendo sobre origin. Graus positivos =
+horário; centro do próprio objeto por padrão. Referência é a UI Transformations
+Python (`ToolTransform.on_rotate_action`/tooltip), não uma classe Tcl: este
+checkout não contém `TclCommandRotate.py` nem registro Tcl rotate. Extensão FX
+documentada como tal, não remoção de lacuna de comando Python inexistente.
+
+Reutiliza o caminho seguro de transformações em worker: Gerber completo/follow,
+Excellon drills/slots e Geometry por ferramenta, preservando aparência, parâmetros
+e fontes. Ângulo finito reduzido módulo 360; identidades não trocam versões.
+CNC recusado para não alterar só a prévia. Cancelamento e origem/referência/epoch
+verificados antes de publicar. Sem eval e sem novo undo/redo Tcl.
+
+Sete regressões adicionais. `mvnw.cmd -q install`: **1117 registrados, 1105
+aprovados, 12 opcionais ignorados**, zero falhas/erros (602 CAM, 115 application,
+380 FX, 20 test-support). Fixtures próprios, fontes e G-code intactos; sem
+benchmark, comparação privada Python ou teste físico CNC nesta etapa.
+Próxima fatia: joins Geometry/Excellon pelo Terminal e aliases do Python.

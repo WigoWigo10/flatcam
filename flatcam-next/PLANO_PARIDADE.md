@@ -449,6 +449,18 @@ aprovados, 12 opcionais ignorados**, zero falhas/erros. Probes nativos D3D/GTX
 1650 e software aprovados, com executável recompilado. A validação manual com
 projetos reais permanece pendente; esta entrega não é benchmark de fluidez.
 
+**Incremento rotação no Terminal em 2026-10-05, sobre `9c187b27`:**
+`rotate` reaproveita a transformação em worker de Gerber/Excellon/Geometry,
+preserva parâmetros/aparência e verifica origem/referência/projeto antes de
+publicar. Graus positivos = horário, como Transformations Python; centro do
+objeto, ponto explícito, origem/min bounds e caixa de referência. Múltiplos de
+360 não recalculam. CNC Jobs recusados. Neste checkout não existe comando Tcl
+Python `rotate`: trata-se de extensão FX da operação já presente na UI,
+documentada como tal, não de paridade de uma classe Tcl ausente.
+Próxima fatia: `join_geometry`/`join_excellon` e aliases legados.
+Sete regressões novas; `mvnw.cmd -q install`: **1117 registrados, 1105 aprovados,
+12 opcionais ignorados**, zero falhas/erros. Validação manual continua pendente.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas

@@ -1,10 +1,10 @@
 # Terminal Tcl — FlatCAM FX
 
-Atualizado em 2026-10-05, sobre `1ca038a6`, branch `flatcam-next`.
+Atualizado em 2026-10-05, sobre `9c187b27`, branch `flatcam-next`.
 
 Abra **Ferramentas > Linha de Comando Tcl**. `help` lista comandos;
 `help open_project`, `help save_project`, `help plot_all`, `help plot_objects`,
-`help set_active`, `help offset`, `help scale`, `help mirror` e `help skew`
+`help set_active`, `help offset`, `help scale`, `help mirror`, `help skew` e `help rotate`
 mostram sintaxe e referências. O Terminal executa um script por vez no worker,
 com Cancelar/ESC. Ele não é um interpretador Tcl completo: os limites de
 `TclInterpreter` continuam válidos.
@@ -109,7 +109,7 @@ save_project {C:/pasta/so-as-camadas-escolhidas.fcnproj}
 
 ## Transformações em memória
 
-Os quatro comandos atualizam o objeto existente, sem criar cópia. Use os nomes
+Os cinco comandos atualizam o objeto existente, sem criar cópia. Use os nomes
 exatos retornados por `get_names`; coloque nomes com espaços entre chaves.
 Gerber, Excellon e Geometry são suportados. CNC Jobs são recusados: o G-code
 não é reescrito. Feche editores de objetos antes dessas transformações.
@@ -122,6 +122,8 @@ não é reescrito. Feche editores de objetos antes dessas transformações.
 | `mirror` | `mirror {placa} -axis X -origin 0,0` | Eixo X reflete Y; eixo Y reflete X. Padrão: Y. |
 | `mirror` por caixa | `mirror {placa} -axis Y -box {contorno}` | Usa o centro da caixa da referência; `-box` prevalece sobre `-origin`. |
 | `skew` | `skew {placa} -x 10 -y 0` | Graus; canto inferior esquerdo do objeto. Eixo omitido vale 0. |
+| `rotate` (extensão FX) | `rotate {placa} 90 -origin center` | Graus positivos = horário, negativos = anti-horário, como a UI Transformations Python. Centro do próprio objeto por padrão. |
+| `rotate` com referência | `rotate {placa} -90 -origin {(3,4)}` ou `rotate {placa} 90 -box {contorno}` | `origin`, `center`, `min_bounds` ou x,y; `-box` usa o centro da caixa da referência e prevalece sobre `-origin`. |
 
 Geometria sólida/follow/formas/aberturas do Gerber, posições de furos/slots do
 Excellon e caminhos por ferramenta da Geometry acompanham a transformação.
@@ -133,6 +135,12 @@ limpam o histórico de Mover para não restaurar snapshots anteriores incompatí
 
 ## Diferenças deliberadas frente ao Python
 
+- Este checkout Python não tem `TclCommandRotate.py` nem comando Tcl `rotate`:
+  a referência é `ToolTransform.on_rotate_action`/tooltip da UI, que chama
+  `rotate(-num, point)`. O comando é uma extensão FX, não port de um comando
+  legado. Opera num objeto nomeado, não no centro da seleção múltipla.
+  Ângulos finitos são reduzidos módulo 360 antes do cálculo; múltiplos de 360
+  não recalculam nem trocam a versão. Não há `eval` nas referências.
 - O Python usa `eval` para alguns pontos; FX só aceita dois números finitos,
   com vírgula e parênteses opcionais. Expressões/código Python são recusados.
 - `scale -x`/`-y` não colapsa o eixo omitido a zero. Ele permanece com fator 1;
@@ -194,8 +202,17 @@ Verificação deste incremento: `mvnw.cmd -q install`, **1110 registrados,
 Não houve benchmark de fluidez, teste físico CNC nem nova comparação privada
 Python/FX. Validação manual do roteiro com projetos reais continua pendente.
 
-O incremento salvar/plot/seleção acrescenta quatro famílias, chegando a **22
-famílias de comandos FlatCAM**, além de aliases e comandos internos do dialeto/
-shell. Faltam, entre outros, `rotate`, preferências Tcl, joins/subtract/panelize,
-exportações e flags CAM avançadas. Próxima fatia sugerida: rotação e junções
+### Incremento: rotação no Terminal FX
+
+Sete regressões adicionais: argumentos/sentido/pivôs e ângulos finitos grandes,
+rotação dos dados Gerber completos e de furos/slots/caminhos por ferramenta,
+parâmetros e apresentação preservados, G-code original intacto, persistência,
+identidades, referência vazia, recusas CNC e cancelamento/alterações concorrentes.
+`mvnw.cmd -q install`: **1117 registrados, 1105 aprovados, 12 opcionais ignorados**,
+zero falhas/erros. Sem novo benchmark nem validação física CNC.
+
+O incremento salvar/plot/seleção acrescentou quatro famílias; com `rotate`,
+há **23 famílias FlatCAM (incluindo a extensão FX de rotação)**, além de aliases
+e comandos internos do dialeto/shell. Faltam preferências Tcl, joins/subtract/panelize,
+exportações e flags CAM avançadas. Próxima fatia sugerida: junções
 pelo Terminal, reutilizando as operações existentes sem ampliar o dialeto Tcl.

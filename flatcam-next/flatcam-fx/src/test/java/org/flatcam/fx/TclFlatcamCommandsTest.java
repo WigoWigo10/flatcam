@@ -622,6 +622,50 @@ class TclFlatcamCommandsTest {
         assertEquals(0, host.transforms.getLast().y());
     }
 
+    @Test void rotateUsesClockwiseDegreesAndTheObjectsOwnCenter() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        assertEquals("", interp.eval("rotate {board name} 90"));
+        var request = host.transforms.getLast();
+        assertEquals("board name", host.transformedName);
+        assertEquals(TclTransformRequest.Operation.ROTATE, request.operation());
+        assertEquals(TclTransformRequest.Reference.CENTER, request.reference());
+        var result = request.resolve(new Envelope(10, 20, 30, 50), null)
+                .apply(new org.locationtech.jts.geom.Coordinate(20, 40));
+        assertEquals(15, result.x, 1e-12); assertEquals(35, result.y, 1e-12);
+        interp.eval("rotate board -90 -origin origin");
+        result = host.transforms.getLast().resolve(null, null).apply(new org.locationtech.jts.geom.Coordinate(2, 0));
+        assertEquals(0, result.x, 1e-12); assertEquals(2, result.y, 1e-12);
+    }
+
+    @Test void rotateSupportsPointMinBoundsBoxAndFiniteLargeAngles() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("rotate board 450 -origin {(3,4)}");
+        var result = host.transforms.getLast().resolve(null, null).apply(new org.locationtech.jts.geom.Coordinate(4, 4));
+        assertEquals(3, result.x, 1e-12); assertEquals(3, result.y, 1e-12);
+        interp.eval("rotate board 90 -origin min_bounds");
+        result = host.transforms.getLast().resolve(new Envelope(10, 20, 30, 50), null)
+                .apply(new org.locationtech.jts.geom.Coordinate(20, 30));
+        assertEquals(10, result.x, 1e-12); assertEquals(20, result.y, 1e-12);
+        interp.eval("rotate board 90 -box {other board} -origin ignored");
+        assertEquals("other board", host.transforms.getLast().box());
+        result = host.transforms.getLast().resolve(null, new Envelope(10, 20, 30, 50))
+                .apply(new org.locationtech.jts.geom.Coordinate(20, 40));
+        assertEquals(15, result.x, 1e-12); assertEquals(35, result.y, 1e-12);
+        interp.eval("rotate board 1e308 -origin origin");
+        result = host.transforms.getLast().resolve(null, null).apply(new org.locationtech.jts.geom.Coordinate(1, 0));
+        assertTrue(Double.isFinite(result.x)); assertTrue(Double.isFinite(result.y));
+    }
+
+    @Test void invalidRotateArgumentsAndUnsafeCoordinatesNeverReachTheHost() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String script : List.of("rotate", "rotate board", "rotate board 90 extra", "rotate board NaN",
+                "rotate board Infinity", "rotate board -Infinity", "rotate board 90 -origin", "rotate board 90 -box",
+                "rotate board 90 -box {}", "rotate board 90 -origin 1,2,3", "rotate board 90 -origin NaN,0",
+                "rotate board 90 -origin {__import__('os')}", "rotate board 90 -angle 20"))
+            assertThrows(TclException.class, () -> interp.eval(script), script);
+        assertTrue(host.transforms.isEmpty());
+    }
+
     @Test void invalidTransformArgumentsNeverReachTheHost() throws Exception {
         FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
         for (String script : List.of("scale board", "scale board 0", "scale board NaN", "scale board Infinity",

@@ -81,6 +81,10 @@ final class TclFlatcamCommands {
             case "mirror" -> "mirror {nome} -axis X -origin 0,0\nmirror {nome} -axis Y -box {referencia}\n"
                     + "X reflete Y; Y reflete X (padrao). -box usa o centro da referencia e prevalece sobre -origin. Sem referencia: (0,0).";
             case "skew" -> "skew {nome} -x 10 -y 0\nAngulos em graus, entre -90 e 90; referencia: canto inferior esquerdo. Eixos omitidos: 0.";
+            case "rotate" -> "rotate {nome} 90 ?-origin center|origin|min_bounds|x,y? ?-box {referencia}?\n"
+                    + "Extensao do Terminal FX: este checkout Python tem rotacao na UI, nao um comando Tcl rotate. "
+                    + "Graus positivos = horario, como Transformations; negativos = anti-horario. "
+                    + "Centro do objeto por padrao; -box prevalece sobre -origin. CNC Jobs recusados.";
             default -> null;
         };
     }
@@ -148,6 +152,22 @@ final class TclFlatcamCommands {
     }
 
     private void registerTransforms(TclInterpreter interpreter) {
+        interpreter.register("rotate", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("origin", "box"));
+            requirePositionals(args, 2, 2);
+            double angle = number(args.positional(1));
+            String box = args.isPresent("box") ? args.requireOption("box") : null;
+            String origin = box == null && args.isPresent("origin") ? args.requireOption("origin") : "center";
+            TclTransformRequest.Reference ref = box != null ? TclTransformRequest.Reference.BOX : switch (origin) {
+                case "origin" -> TclTransformRequest.Reference.ORIGIN;
+                case "center" -> TclTransformRequest.Reference.CENTER;
+                case "min_bounds" -> TclTransformRequest.Reference.MIN_BOUNDS;
+                default -> TclTransformRequest.Reference.POINT;
+            };
+            double[] point = ref == TclTransformRequest.Reference.POINT ? point(origin) : new double[]{0, 0};
+            return transform(args, TclTransformRequest.Operation.ROTATE, angle, 0, ref, point[0], point[1], box);
+        });
         interpreter.register("offset", (interp, words) -> {
             TclArgs args = TclArgs.parse(words);
             args.rejectUnknownOptions(java.util.Set.of("x", "y"));

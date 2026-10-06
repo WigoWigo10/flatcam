@@ -405,6 +405,100 @@ class TclLiveHostTest {
         }
     }
 
+    @Test void rotateUpdatesAllSupportedDataAndPreservesPresentationAndMachining(@TempDir Path directory) throws Exception {
+        Path file = directory.resolve("rotation.fcnproj"); ProjectFileIO.save(fixture(directory), file);
+        byte[] original = Files.readAllBytes(file);
+        try (Session session = new Session()) {
+            session.host.openProject(file);
+            var copper = (org.flatcam.cam.gerber.GerberImage) version(session, "copper");
+            var route = version(session, "route");
+            var op = new org.flatcam.cam.transform.TransformOp.Rotate(-90, new Coordinate(0, 0));
+            session.eval("rotate copper 90 -origin origin; rotate drills 90 -origin origin; rotate route 90 -origin origin");
+            var rotated = (org.flatcam.cam.gerber.GerberImage) version(session, "copper");
+            assertTrue(op.apply(copper.solidGeometry()).equalsExact(rotated.solidGeometry(), 1e-10));
+            assertTrue(op.apply(copper.followGeometry()).equalsExact(rotated.followGeometry(), 1e-10));
+            for (int i = 0; i < copper.shapes().size(); i++) {
+                assertTrue(op.apply(copper.shapes().get(i).geometry()).equalsExact(rotated.shapes().get(i).geometry(), 1e-10));
+                assertTrue(op.apply(copper.shapes().get(i).followGeometry()).equalsExact(rotated.shapes().get(i).followGeometry(), 1e-10));
+            }
+            for (var aperture : copper.apertureGeometry().entrySet())
+                assertTrue(op.apply(aperture.getValue()).equalsExact(rotated.apertureGeometry().get(aperture.getKey()), 1e-10));
+            var drills = (ExcellonImage) version(session, "drills");
+            assertEquals(4, drills.drills().getFirst().x(), 1e-10); assertEquals(-3, drills.drills().getFirst().y(), 1e-10);
+            var slot = drills.slots().getFirst();
+            assertEquals(6, slot.x1(), 1e-10); assertEquals(-5, slot.y1(), 1e-10);
+            assertEquals(8, slot.x2(), 1e-10); assertEquals(-7, slot.y2(), 1e-10);
+            assertEquals(Map.of(1, 0.8), drills.toolDiameters());
+            Object after = version(session, "route");
+            Geometry expected = op.apply(value(route, "geometry", Geometry.class));
+            assertTrue(expected.equalsExact(value(after, "geometry", Geometry.class), 1e-10));
+            var tool = (ToolGeometry) value(after, "tools", List.class).getFirst();
+            assertTrue(expected.equalsExact(tool.geometry(), 1e-10)); assertEquals(0.8, tool.toolDiameter());
+            assertEquals(value(route, "cncDefaults", GeometryGCodeParameters.class), value(after, "cncDefaults", GeometryGCodeParameters.class));
+            assertEquals("copper", value(after, "sourceName", String.class));
+            Path saved = directory.resolve("rotated.fcnproj"); session.host.saveProject(saved);
+            var snapshot = ProjectFileIO.load(saved);
+            assertFalse(snapshot.gerbers().getFirst().visible()); assertTrue(snapshot.gerbers().getFirst().followMode());
+            assertFalse(snapshot.geometries().getFirst().visible());
+            assertEquals(fixture(directory).cncJobs().getFirst().gcode(), snapshot.cncJobs().getFirst().gcode());
+        }
+        assertArrayEquals(original, Files.readAllBytes(file));
+        assertFalse(Files.exists(directory.resolve("not-written.nc")));
+    }
+
+    @Test void rotateBoundsAndExplicitBoxAreResolvedFromCapturedSources() throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path"); session.geometry("box"); session.eval("offset box -x 20");
+            session.eval("rotate path 90 -box box");
+            var coordinates = session.host.geometryOf("path").orElseThrow().getCoordinates();
+            assertEquals(25, coordinates[0].x, 1e-10); assertEquals(25, coordinates[0].y, 1e-10);
+            assertEquals(25, coordinates[1].x, 1e-10); assertEquals(15, coordinates[1].y, 1e-10);
+        }
+    }
+
+    @Test void rotateCannotPublishAfterSourceReferenceProjectChangesOrCancellation() throws Exception {
+        for (String changed : List.of("source", "reference", "project", "cancel")) {
+            try (Session session = new Session()) {
+                TreeItem<String> source = session.geometry("path"), box = session.geometry("box");
+                Object before = version(session, "path"); AtomicBoolean cancelled = new AtomicBoolean();
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return cancelled.get(); }
+                    public void reportProgress(double fraction, String message) {
+                        assertFalse(Platform.isFxApplicationThread());
+                        try { TerminalPanelTest.fx(() -> {
+                            switch (changed) {
+                                case "source" -> source.setValue("renamed");
+                                case "reference" -> box.setValue("renamed");
+                                case "project" -> field("tclProjectEpoch").setLong(session.host, 1);
+                                case "cancel" -> cancelled.set(true);
+                            }
+                            return null;
+                        }); } catch (Exception error) { throw new AssertionError(error); }
+                    }
+                };
+                Class<? extends RuntimeException> expected = changed.equals("cancel") ? CancellationException.class : IllegalStateException.class;
+                assertThrows(expected,
+                        () -> TclExecution.run(context, () -> session.eval("rotate path 90 -box box")));
+                assertSame(before, version(session, changed.equals("source") ? "renamed" : "path"));
+            }
+        }
+    }
+
+    @Test void rotateRefusesCncAndEmptyBoundsAndNoOpDoesNotReplaceVersions() throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path"); Object before = version(session, "path");
+            session.eval("rotate path 0; rotate path 360; rotate path -720"); assertSame(before, version(session, "path"));
+            session.eval("new_geometry empty; rotate empty 360");
+            assertThrows(TclException.class, () -> session.eval("rotate empty 90"));
+            session.eval("rotate empty 90 -origin origin");
+            session.eval("cncjob path -dia 0.8 -z_cut -1 -z_move 2 -feedrate 120");
+            Object cnc = version(session, "path_cnc");
+            for (String script : List.of("rotate path_cnc 90", "rotate path_cnc 0", "rotate missing 90", "rotate path 90 -box missing"))
+                assertThrows(TclException.class, () -> session.eval(script), script);
+            assertSame(cnc, version(session, "path_cnc")); assertSame(before, version(session, "path"));
+        }
+    }
+
     @Test void transformRejectsCncJobsMissingObjectsAndCoordinateOverflow() throws Exception {
         try (Session session = new Session()) {
             session.geometry("path"); session.eval("cncjob path -dia 0.8 -z_cut -1 -z_move 2 -feedrate 120");
@@ -490,7 +584,7 @@ class TclLiveHostTest {
         try (Session session = new Session()) {
             TerminalPanel panel = TerminalPanelTest.fx(() -> new TerminalPanel(session.interpreter, "teste", session.jobs));
             for (String command : List.of("open_project", "offset", "scale", "mirror", "skew",
-                    "save_project", "plot_all", "plot_objects", "set_active")) {
+                    "save_project", "plot_all", "plot_objects", "set_active", "rotate")) {
                 String help = session.eval("help " + command);
                 assertTrue(help.startsWith(command), help);
                 assertFalse(help.contains("sem texto"), help);

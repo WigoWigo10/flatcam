@@ -7483,6 +7483,7 @@ final class MainWindow implements TclFlatcamHost {
             throw new TclException("Only Gerber, Excellon and Geometry objects can be transformed; CNC G-code is not rewritten.");
         if (request.operation() == TclTransformRequest.Operation.OFFSET && request.x() == 0 && request.y() == 0
                 || request.operation() == TclTransformRequest.Operation.SKEW && request.x() == 0 && request.y() == 0
+                || request.operation() == TclTransformRequest.Operation.ROTATE && request.x() % 360 == 0
                 || request.operation() == TclTransformRequest.Operation.SCALE && request.x() == 1 && request.y() == 1) {
             TclExecution.cancellation().throwIfCancellationRequested();
             return;
