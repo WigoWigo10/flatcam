@@ -223,3 +223,67 @@ zoom, resolução e sequência de movimentos iguais. Compare as linhas
 `[UI-FLUIDITY]` e `[PLOT-PROFILE]`. O índice espacial do Plot Area reduz o
 trabalho de CPU em zoom próximo, mas a GPU dedicada só ajuda na parte gráfica;
 uma pausa longa de processamento de geometria pode persistir nas duas GPUs.
+
+## Correções guiadas pela sessão GTX 1650 / i5-10300H
+
+Na sessão `session-20261006-004149-898-17920-948750` (140 s), os 13 relatórios
+de fluidez registraram 75 intervalos >= 50 ms, dos quais 20 >= 100 ms e três
+>= 250 ms; o máximo foi 1.071 ms. O pipeline ativo era D3D/NVIDIA. A JFR mostrou
+esperas da UI pelo renderer, rasterização Marlin e conversão/upload de pixels.
+A maior pausa de GC foi 22,6 ms, portanto não explica sozinha o pico de um segundo.
+A enumeração de fontes ao abrir Geometry apareceu na thread FX entre
+00:43:34 e 00:43:35 UTC, forte candidata para esse pico. Esses dados são o
+baseline anterior às correções abaixo, não um benchmark do código novo.
+
+- Fontes do Editor Geometry: enumeração apenas ao expandir Texto vetorial,
+  em worker, compartilhada entre editores. Fontes lógicas ficam disponíveis
+  imediatamente; uma conclusão antiga não altera um editor reaberto nem cancela
+  sua prévia de posicionamento.
+- Índices grandes (>= 128 geometrias ou >= 4.096 pontos): construção em um
+  worker, com um pedido pendente por binding e cancelamento de versões antigas.
+  A UI mostra "Preparando visualização..." em vez de percorrer a geometria inteira
+  sem índice. Partes imutáveis inalteradas reutilizam suas métricas após edição;
+  o toolpath e o G-code não são simplificados nem modificados.
+- Densidade: pedidos agendados supersedidos são removidos da fila. Remover uma
+  camada/fechar projeto libera suas chaves, e fechar o app encerra os workers.
+  Voltar a uma vista já em cache também cancela o pedido intermediário, inclusive
+  quando sua publicação já foi enfileirada na UI; ele não substitui a vista atual.
+  Os arrays prontos e imutáveis usam `PixelBuffer` para evitar a conversão/cópia
+  pixel a pixel na thread FX. Isso **não** elimina uploads à GPU nem garante
+  zero-copy em todo o pipeline, e cria uma imagem por quadro publicado.
+- Ícones: dados de imagem reutilizados, com um `ImageView` independente em cada
+  controle, evitando reabrir/decodificar o mesmo recurso a cada painel.
+
+Para comparação controlada, existem overrides por processo:
+`-Dflatcam.plot.index.async=false` (índices síncronos) e
+`-Dflatcam.plot.density.pixelBuffer=false` (publicação anterior por PixelWriter).
+`-Dflatcam.plot.density.async=false` também mantém índices síncronos para os
+harnesses de captura que exigem uma imagem exata imediatamente. Nenhum override
+altera preferências persistentes. Repetir `profile-plot.cmd` com o mesmo projeto,
+camadas, resolução e ações antes de afirmar melhoria de latência/FPS.
+
+Com profiling ligado, `index prepare (plot-index)` mede a preparação em fundo;
+índices pequenos identificam a thread chamadora. `font enumeration (worker)`
+mede a enumeração lazy de fontes. Ambos são tempos de parede dessas etapas,
+não tempos da GPU ou FPS apresentado.
+
+O desenho vetorial de Gerbers preenchidos e traços largos continua no Canvas.
+Estas correções não entregam o backend OpenGL proposto e não removem todas as
+esperas de renderização observadas; esse passo precisa de medição própria.
+
+### Verificação posterior — 2026-10-05 (horário local)
+
+Suíte normal: 1.087 registrados, 1.075 aprovados, 12 opcionais ignorados,
+zero falhas/erros. Probes nativos offscreen D3D/GTX 1650 e software passaram,
+incluindo os pixels do novo PixelBuffer. Executável recompilado.
+
+A sessão `session-20261006-011706-269-24196-3065109` do usuário confirmou os
+índices grandes no worker (máximo 35,7 ms). Em 80 segundos monitorados houve
+62 intervalos >= 50 ms, 16 >= 100 ms e um >= 250 ms; máximo 306,8 ms antes de
+carregar o projeto e 181,8 ms depois. A anterior tinha 130 segundos monitorados:
+75/20/3 intervalos nesses limiares, máximo 1.071 ms. Os intervalos >= 50 ms por
+minuto foram 34,6 antes e 46,5 agora; duração/ações diferentes impedem atribuir
+uma melhoria geral às correções. O carregamento de fontes não foi acionado
+nesta sessão. A JFR ainda mostra esperas FX pelo renderer de 125–159 ms,
+rasterização Marlin e conversão de imagens; maior pausa GC 19,4 ms.
+Não foi alterado o projeto privado nem reexecutado um benchmark controlado.

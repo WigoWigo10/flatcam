@@ -2,6 +2,7 @@ package org.flatcam.fx;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -46,5 +47,25 @@ class PlotDrawableIndexTest {
 
     private Point point(double x) {
         return factory.createPoint(new Coordinate(x, 0));
+    }
+
+    @Test
+    void editingReusesMetricsOfUnchangedPartsButRenumbersTheirDrawOrder() {
+        Geometry first = factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(3, 4)});
+        Geometry second = factory.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(10, 9)});
+        var before = new PlotDrawableIndex(factory.createGeometryCollection(new Geometry[]{first, second}));
+        var after = new PlotDrawableIndex(factory.createGeometryCollection(new Geometry[]{second}), before,
+                org.flatcam.cam.CancellationToken.NONE);
+        assertEquals(0, after.visibleParts(null).getFirst().index());
+        assertSame(before.visibleParts(null).get(1).bounds(), after.visibleParts(null).getFirst().bounds());
+        assertEquals(9, after.visibleLoad(null)[1]);
+        assertEquals(14, before.visibleLoad(null)[1]);
+        assertEquals(second.getLength(), after.visibleLoad(null)[1]);
+    }
+
+    @Test
+    void preparationCanBeCancelledBeforePublishingAnIndex() {
+        assertThrows(java.util.concurrent.CancellationException.class,
+                () -> new PlotDrawableIndex(point(0), null, () -> true));
     }
 }

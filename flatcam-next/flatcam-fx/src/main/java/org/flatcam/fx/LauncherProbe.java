@@ -20,6 +20,20 @@ public final class LauncherProbe {
             if (image.getPixelReader().getArgb(8, 8) != 0xff6495ed) {
                 throw new IllegalStateException("JavaFX launcher probe did not render the expected pixel");
             }
+            int[] densityPixels = new int[16];
+            java.util.Arrays.fill(densityPixels, 0xffff0000);
+            densityPixels[5] = 0xff00ff00;
+            // Match the viewport's exact-size density rendering; filtering blends adjacent pixels.
+            canvas.getGraphicsContext2D().setImageSmoothing(false);
+            canvas.getGraphicsContext2D().drawImage(DensityFrameImage.create(4, 4, densityPixels), 0, 0);
+            var densitySnapshot = canvas.snapshot(null, null);
+            if (densitySnapshot.getPixelReader().getArgb(1, 1) != 0xff00ff00
+                    || densitySnapshot.getPixelReader().getArgb(2, 2) != 0xffff0000) {
+                throw new IllegalStateException(String.format(
+                        "PixelBuffer density frame probe did not render expected pixels: %08x, %08x",
+                        densitySnapshot.getPixelReader().getArgb(1, 1),
+                        densitySnapshot.getPixelReader().getArgb(2, 2)));
+            }
             try (CodeEditor editor = new CodeEditor("(probe)\nG21\nG1 X1 F100\n", CodeSyntax.Language.MACHINE, false)) {
                 var scene = new javafx.scene.Scene(editor, 600, 220); ThemeOption.CLASSIC_DARK.applyTo(scene);
                 editor.resize(600, 220); editor.applyCss(); editor.layout(); editor.snapshot(null, null);

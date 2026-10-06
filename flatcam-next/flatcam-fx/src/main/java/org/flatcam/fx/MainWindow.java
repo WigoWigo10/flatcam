@@ -293,6 +293,10 @@ final class MainWindow implements TclFlatcamHost {
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
+    void disposeViewport() {
+        plotAreaView.dispose();
+    }
+
     private final GerberEditorController gerberEditor = new GerberEditorController(plotAreaView,
             new GerberEditorController.Host() {
                 @Override

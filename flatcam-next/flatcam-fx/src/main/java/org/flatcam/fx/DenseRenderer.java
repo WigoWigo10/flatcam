@@ -4,8 +4,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import org.locationtech.jts.geom.Envelope;
@@ -47,7 +47,7 @@ final class DenseRenderer {
 
     private final Executor ui;
     private final Consumer<Object> onFrame;
-    private final ScheduledExecutorService worker = Executors.newSingleThreadScheduledExecutor(task -> {
+    private final ScheduledThreadPoolExecutor worker = new ScheduledThreadPoolExecutor(1, task -> {
         Thread thread = new Thread(task, "plot-density");
         thread.setDaemon(true);
         return thread;
@@ -56,6 +56,8 @@ final class DenseRenderer {
     private final Map<Object, Long> latest = new HashMap<>();
     private final Map<Object, View> requested = new HashMap<>();
     private final Map<Object, Frame> frames = new HashMap<>();
+    private final Map<Object, ScheduledFuture<?>> scheduled = new HashMap<>();
+    private boolean stopped;
     private long nextId;
     private short[] cover = new short[0];
 
@@ -66,6 +68,7 @@ final class DenseRenderer {
     DenseRenderer(Executor ui, Consumer<Object> onFrame) {
         this.ui = ui;
         this.onFrame = onFrame;
+        worker.setRemoveOnCancelPolicy(true);
     }
 
     /** The newest finished frame of a layer, or null. Call from the {@code ui} thread. */
@@ -78,8 +81,14 @@ final class DenseRenderer {
      * done. {@code index} and {@code bounds} choose the parts to draw; the work happens on the background thread.
      */
     synchronized void request(Object key, View view, PlotDrawableIndex index, Envelope bounds) {
+        if (stopped) return;
         Frame done = frames.get(key);
         if (done != null && done.view().sameAs(view)) {
+            // Returning to a cached view supersedes a different request, including a queued UI publication.
+            latest.remove(key);
+            requested.remove(key);
+            ScheduledFuture<?> old = scheduled.remove(key);
+            if (old != null) old.cancel(false);
             return;
         }
         View waiting = requested.get(key);
@@ -89,30 +98,48 @@ final class DenseRenderer {
         long id = ++nextId;
         latest.put(key, id);
         requested.put(key, view);
-        worker.schedule(() -> render(key, id, view, index, bounds), SETTLE_MILLIS, TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> old = scheduled.remove(key);
+        if (old != null) old.cancel(false);
+        Envelope snapshot = bounds == null ? null : new Envelope(bounds);
+        scheduled.put(key, worker.schedule(() -> render(key, id, view, index, snapshot),
+                SETTLE_MILLIS, TimeUnit.MILLISECONDS));
     }
 
     /** Forgets a layer (removed or its geometry replaced): pending work is dropped and its frame discarded. */
     synchronized void forget(Object key) {
-        latest.put(key, ++nextId);
+        latest.remove(key);
+        ScheduledFuture<?> old = scheduled.remove(key);
+        if (old != null) old.cancel(false);
         requested.remove(key);
         frames.remove(key);
     }
 
     synchronized void clear() {
-        latest.replaceAll((key, id) -> ++nextId);
+        latest.clear();
+        scheduled.values().forEach(task -> task.cancel(false));
+        scheduled.clear();
         requested.clear();
         frames.clear();
     }
 
     /** Stops the worker (the view is going away). */
-    void shutdown() {
+    synchronized void shutdown() {
+        stopped = true;
+        clear();
         worker.shutdownNow();
+    }
+
+    synchronized int trackedLayerCount() {
+        return latest.size();
+    }
+
+    int queuedRequestCount() {
+        return worker.getQueue().size();
     }
 
     private synchronized boolean isStale(Object key, long id) {
         Long newest = latest.get(key);
-        return newest == null || newest != id;
+        return stopped || newest == null || newest != id;
     }
 
     private void render(Object key, long id, View view, PlotDrawableIndex index, Envelope bounds) {
@@ -139,6 +166,7 @@ final class DenseRenderer {
                 }
                 frames.put(key, frame);
                 requested.remove(key);
+                scheduled.remove(key);
             }
             onFrame.accept(key);
         });

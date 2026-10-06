@@ -30,7 +30,7 @@ class GeometryTextEraserPanelTest {
     }
     private static class Harness implements GeometryEditorController.Host {
         final PlotAreaView plot = new PlotAreaView();
-        final GeometryEditorController controller = new GeometryEditorController(plot,this);
+        final GeometryEditorController controller;
         final VBox chrome = new VBox();
         Node panel;
         Node toolbar;
@@ -39,6 +39,10 @@ class GeometryTextEraserPanelTest {
         Consumer<GeometryEditSession.OperationResult> completed;
         Consumer<String> failed;
         Harness(Geometry source, List<ToolGeometry> tools) {
+            this(source, tools, AsyncFontCatalog.SYSTEM);
+        }
+        Harness(Geometry source, List<ToolGeometry> tools, AsyncFontCatalog fonts) {
+            controller = new GeometryEditorController(plot,this,fonts);
             new Scene(chrome,500,800);
             plot.resize(800,600); plot.setGridSnap(false,1,1);
             var item = new TreeItem<>("board");
@@ -74,6 +78,44 @@ class GeometryTextEraserPanelTest {
                 plot.fireEvent(new MouseEvent(type,sx,sy,sx,sy,MouseButton.PRIMARY,1,
                         false,false,false,false,type==MouseEvent.MOUSE_PRESSED,false,false,false,false,true,null));
         }
+    }
+    @Test void fontsAreNotEnumeratedUntilTextOpensAndClosedEditorsIgnoreCompletions() throws Exception {
+        var tasks = new java.util.concurrent.LinkedBlockingQueue<Runnable>();
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var fonts = new AsyncFontCatalog(() -> {
+            assertFalse(Platform.isFxApplicationThread());
+            calls.incrementAndGet();
+            return List.of("SansSerif", "Test font marker");
+        }, tasks::add);
+        var source = new GeometryFactory().createGeometryCollection();
+        var h = fx(() -> new Harness(source, List.of(), fonts));
+        try {
+            fx(() -> {
+                assertEquals(0, calls.get());
+                assertTrue(tasks.isEmpty());
+                h.controller.startText();
+                assertEquals(1, tasks.size());
+                h.controller.cancel();
+                h.controller.start(new TreeItem<>("new editor"), source, List.of(), false, "MM");
+                h.chrome.applyCss(); h.chrome.layout();
+                return null;
+            });
+            tasks.remove().run();
+            fx(() -> {
+                var picker = (ComboBox<String>) h.panel.lookup("#geometry-text-font");
+                assertFalse(picker.getItems().contains("Test font marker"));
+                h.controller.startText();
+                return null;
+            });
+            fx(() -> {
+                var picker = (ComboBox<String>) h.panel.lookup("#geometry-text-font");
+                assertTrue(picker.getItems().contains("Test font marker"));
+                assertEquals("SansSerif", picker.getValue());
+                assertFalse(picker.isDisabled());
+                assertEquals(1, calls.get());
+                return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); h.plot.dispose(); return null; }); }
     }
     @Test void editorControlsExposeSpecificHelpWithoutNativeTooltipDuplication() throws Exception {
         var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));

@@ -31,6 +31,7 @@ public class MainApp extends Application {
     private static final Duration ARM_DELAY = Duration.millis(1000);
 
     private JobExecutor jobExecutor;
+    private MainWindow mainWindow;
     private Stage currentStage;
     private boolean recreatingStage;
     private boolean armed;
@@ -55,7 +56,7 @@ public class MainApp extends Application {
         // onCloseRequest.
         Platform.setImplicitExit(false);
 
-        MainWindow mainWindow = new MainWindow(jobExecutor);
+        mainWindow = new MainWindow(jobExecutor);
         StartupTarget startup = startupTarget();
         Rectangle2D startupBounds = startup.screen().getBounds();
         primaryStage.setTitle("FlatCAM FX");
@@ -334,6 +335,7 @@ public class MainApp extends Application {
     @Override
     public void stop() {
         FlatCamLauncher.stopUiMonitor();
+        if (mainWindow != null) mainWindow.disposeViewport();
         if (jobExecutor != null) jobExecutor.shutdown();
         LOG.log(Level.INFO, "MainApp stopped");
     }

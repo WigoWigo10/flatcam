@@ -2739,3 +2739,20 @@ O percentual da abertura é por fase, não medição byte a byte do decode. Coma
 já publicados não são desfeitos por cancelar um script. Próxima fatia recomendada:
 `save_project` e controle de plot/seleção pelo Terminal, sem ampliar o dialeto
 silenciosamente nem declarar paridade de automação completa.
+
+## Correções de fluidez após diagnóstico na GTX 1650 — 2026-10-05
+
+Fontes do editor Geometry carregadas lazy/worker; índices de display grandes
+em worker com cancelamento/reuso de partes imutáveis; fila de densidade limitada
+por camada, descarte de publicações antigas, PixelBuffer para arrays imutáveis
+e cache compartilhado de ícones. Fechamento do viewport encerra seus workers.
+Não há alteração dos cálculos CAM/G-code nem implementação LWJGL nesta entrega.
+
+Suíte normal: 1.087 registrados, 1.075 aprovados, 12 opcionais ignorados, zero
+falhas/erros. Probes nativos D3D/GTX 1650 e software passaram; artefato atualizado.
+Nova sessão do usuário confirma os índices no worker, mas ainda registra esperas
+FX pelo renderer. Picos menores não comprovam melhora global: ações e duração
+diferem e a taxa de intervalos >= 50 ms aumentou. Números, limites e overrides
+em [PLOT_PERFORMANCE.md](PLOT_PERFORMANCE.md). Commit autorizado pelo usuário.
+Próxima fatia de paridade segue sendo salvar/plot/seleção pelo Terminal; a
+proposta de renderização OpenGL continua uma trilha separada, a medir.

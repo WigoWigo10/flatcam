@@ -70,6 +70,7 @@ final class GeometryEditorController {
 
     private final PlotAreaView plotArea;
     private final Host host;
+    private final AsyncFontCatalog fontCatalog;
     private TreeItem<String> item;
     private GeometryEditSession session;
     private Label status;
@@ -116,8 +117,13 @@ final class GeometryEditorController {
     private boolean strokeOnly;
 
     GeometryEditorController(PlotAreaView plotArea, Host host) {
+        this(plotArea, host, AsyncFontCatalog.SYSTEM);
+    }
+
+    GeometryEditorController(PlotAreaView plotArea, Host host, AsyncFontCatalog fontCatalog) {
         this.plotArea = plotArea;
         this.host = host;
+        this.fontCatalog = fontCatalog;
     }
 
     boolean isActive() {
@@ -315,9 +321,10 @@ final class GeometryEditorController {
         textContent.setWrapText(true);
         ToolDescriptions.apply(textContent, "Conteúdo do texto",
                 "Texto simples, com até 512 caracteres; Enter acrescenta outra linha abaixo da primeira. O estilo vale para todo o conteúdo.\n\nAo inserir, as letras viram áreas editáveis: não será possível reabrir o resultado como texto. Editar este campo cancela uma prévia anterior, sem apagar formas já inseridas.");
-        textFont = new ComboBox<>(FXCollections.observableArrayList(TextGeometry.fontFamilies()));
+        // Logical fonts work before enumeration; opening the editor must not scan the font directory.
+        textFont = new ComboBox<>(FXCollections.observableArrayList("SansSerif", "Serif", "Monospaced"));
         textFont.setId("geometry-text-font"); textFont.setMaxWidth(Double.MAX_VALUE);
-        textFont.setValue(textFont.getItems().contains("Arial") ? "Arial" : "SansSerif");
+        textFont.setValue("SansSerif");
         ToolDescriptions.apply(textFont, "Fonte dos contornos",
                 "Escolha uma fonte instalada. Fontes ausentes ou sem os caracteres necessários são recusadas.\n\nA Geometry salva contém os contornos vetoriais e não depende mais da fonte; métricas e curvas podem diferir das geradas pelo Python.");
         textSize = new TextField("10"); textSize.setId("geometry-text-size"); textSize.setPrefColumnCount(5);
@@ -325,7 +332,10 @@ final class GeometryEditorController {
                 "Escala de tamanho do ParseFont Python, de 0.1 a 1000; não é a altura exata da letra.\n\nUnidades: os contornos são gerados em " + units + ". Confira as dimensões na prévia antes de usinar.");
         textBold = new CheckBox("Negrito"); textItalic = new CheckBox("Italico");
         for (var property : List.of(textContent.textProperty(), textSize.textProperty(), textFont.valueProperty()))
-            property.addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
+            property.addListener((obs, old, value) -> {
+                if (!busy && !Boolean.TRUE.equals(textFont.getProperties().get("fonts-updating")))
+                    plotArea.cancelPlacement();
+            });
         textBold.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
         textItalic.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
         Button placeText = new Button("Gerar e posicionar texto"); placeText.setId("geometry-text-place");
@@ -340,6 +350,37 @@ final class GeometryEditorController {
                 new HBox(8, new Label("Tamanho:"), textSize), new HBox(8, textBold, textItalic),
                 textContent, textHelp, placeText));
         textPane.setExpanded(false); panel.getChildren().add(textPane);
+        GeometryEditSession fontSession = session;
+        ComboBox<String> fontPicker = textFont;
+        textPane.expandedProperty().addListener((obs, was, expanded) -> {
+            if (!expanded || Boolean.TRUE.equals(fontPicker.getProperties().get("fonts-loaded"))
+                    || Boolean.TRUE.equals(fontPicker.getProperties().get("fonts-loading"))) return;
+            fontPicker.getProperties().put("fonts-loading", true);
+            fontPicker.setDisable(true);
+            fontPicker.setPromptText("Carregando fontes...");
+            fontCatalog.load().whenComplete((fonts, failure) -> javafx.application.Platform.runLater(() -> {
+                // Closing/reopening an editor must not let an old completion update its new controls.
+                if (session != fontSession || textFont != fontPicker) return;
+                fontPicker.getProperties().remove("fonts-loading");
+                fontPicker.setDisable(false);
+                if (failure != null) {
+                    fontPicker.setPromptText("Reabra esta seção para tentar novamente");
+                    host.log("Não foi possível listar as fontes. As fontes lógicas continuam disponíveis.");
+                    return;
+                }
+                String selected = fontPicker.getValue();
+                fontPicker.getProperties().put("fonts-updating", true);
+                try {
+                    fontPicker.getItems().setAll(fonts);
+                    fontPicker.setValue(fonts.contains(selected) ? selected
+                            : fonts.contains("Arial") ? "Arial" : "SansSerif");
+                } finally {
+                    fontPicker.getProperties().remove("fonts-updating");
+                }
+                fontPicker.setPromptText(null);
+                fontPicker.getProperties().put("fonts-loaded", true);
+            }));
+        });
         paintDiameter = new TextField("0.3"); paintDiameter.setId("geometry-paint-diameter");
         paintOverlap = new TextField("40"); paintOverlap.setId("geometry-paint-overlap");
         paintMargin = new TextField("0"); paintMargin.setId("geometry-paint-margin");

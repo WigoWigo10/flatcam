@@ -131,4 +131,85 @@ class DenseRendererTest {
         assertEquals(1, delivered.size());
         assertEquals(300, renderer.frame("layer").view().width());
     }
+
+    @Test
+    void repeatedPanRequestsKeepQueueBoundedAndForgetDoesNotRetainLayerKeys() throws Exception {
+        var renderer = renderer(1);
+        var geometry = lines();
+        var index = new PlotDrawableIndex(geometry);
+        DenseRenderer.View newest = null;
+        for (int i = 0; i < 2000; i++) {
+            newest = view(geometry, 1 + i * 0.001);
+            renderer.request("layer", newest, index, null);
+            assertTrue(renderer.queuedRequestCount() <= 1);
+        }
+        assertEquals(1, renderer.trackedLayerCount());
+        // Wait until the final request has actually been published, not an earlier frame.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline && (renderer.frame("layer") == null
+                || renderer.frame("layer").view() != newest)) Thread.sleep(10);
+        assertNotNull(renderer.frame("layer"));
+        assertSame(newest, renderer.frame("layer").view());
+        renderer.forget("layer");
+        assertEquals(0, renderer.trackedLayerCount());
+        assertEquals(0, renderer.queuedRequestCount());
+        assertNull(renderer.frame("layer"));
+        renderer.request("layer", view(geometry, 2), index, null);
+        renderer.clear();
+        assertEquals(0, renderer.trackedLayerCount());
+        assertEquals(0, renderer.queuedRequestCount());
+    }
+
+    @Test
+    void returningToTheCachedViewDropsAnAlreadyQueuedDifferentView() throws Exception {
+        var callbacks = new java.util.concurrent.LinkedBlockingQueue<Runnable>();
+        var geometry = lines();
+        var index = new PlotDrawableIndex(geometry);
+        renderer = new DenseRenderer(callbacks::add, delivered::add);
+        var first = view(geometry, 1);
+        renderer.request("layer", first, index, null);
+        Runnable ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        ready.run();
+        var cached = renderer.frame("layer");
+        renderer.request("layer", view(geometry, 2), index, null);
+        ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        renderer.request("layer", first, index, null);
+        ready.run();
+        assertSame(cached, renderer.frame("layer"));
+        assertEquals(1, delivered.size());
+        assertEquals(0, renderer.trackedLayerCount());
+        assertEquals(0, renderer.queuedRequestCount());
+        // A subsequent new camera view is still served normally.
+        var third = view(geometry, 3);
+        renderer.request("layer", third, index, null);
+        ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        ready.run();
+        assertSame(third, renderer.frame("layer").view());
+        assertEquals(2, delivered.size());
+    }
+
+    @Test
+    void clearingOrClosingDropsAlreadyQueuedUiPublications() throws Exception {
+        var callbacks = new java.util.concurrent.LinkedBlockingQueue<Runnable>();
+        var geometry = lines();
+        var index = new PlotDrawableIndex(geometry);
+        renderer = new DenseRenderer(callbacks::add, key -> org.junit.jupiter.api.Assertions.fail("stale publication"));
+        renderer.request("layer", view(geometry, 1), index, null);
+        Runnable ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        renderer.clear();
+        ready.run();
+        assertNull(renderer.frame("layer"));
+        renderer.request("layer", view(geometry, 2), index, null);
+        ready = callbacks.poll(5, TimeUnit.SECONDS);
+        assertNotNull(ready);
+        renderer.shutdown();
+        ready.run();
+        renderer.request("layer", view(geometry, 3), index, null);
+        assertEquals(0, renderer.trackedLayerCount());
+        assertNull(renderer.frame("layer"));
+    }
 }

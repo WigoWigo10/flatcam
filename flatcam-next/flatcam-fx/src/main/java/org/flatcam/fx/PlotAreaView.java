@@ -267,8 +267,13 @@ final class PlotAreaView extends StackPane {
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
     private final Map<Object, LodGeometry> lodLayers = new LinkedHashMap<>();
-    private final Map<Object, PlotDrawableIndex> drawableIndexes = new LinkedHashMap<>();
-    private final Map<Object, PlotDrawableIndex> lodDrawableIndexes = new LinkedHashMap<>();
+    private static final boolean DENSITY_ASYNC = !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.async"));
+    private record IndexKey(Object layer, int kind) { }
+    private final AsyncPlotIndexCache indexCache = new AsyncPlotIndexCache(javafx.application.Platform::runLater,
+            ignored -> requestInteractionRedraw(), DENSITY_ASYNC
+                    && !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.index.async")));
+    private final Label preparingLabel = new Label("Preparando visualização...");
+    private boolean disposed;
     /** Layers currently drawn as a density image (see {@link DensityRaster}); gives the mode its hysteresis. */
     private final java.util.Set<Object> denseLayers = new java.util.HashSet<>();
     private final Map<Object, DenseFrame> denseFrames = new LinkedHashMap<>();
@@ -280,7 +285,8 @@ final class PlotAreaView extends StackPane {
      * view is ready the previous one is drawn moved and scaled to fit. {@code -Dflatcam.plot.density.async=false}
      * rasterizes on the JavaFX thread instead (what the screenshot harnesses use).
      */
-    private static final boolean DENSITY_ASYNC = !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.async"));
+    private static final boolean DENSITY_PIXEL_BUFFER = !"false".equalsIgnoreCase(
+            System.getProperty("flatcam.plot.density.pixelBuffer"));
     private final DenseRenderer denseRenderer = new DenseRenderer(javafx.application.Platform::runLater, this::denseFrameReady);
     private boolean lastLayerStale;
     private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
@@ -321,7 +327,9 @@ final class PlotAreaView extends StackPane {
     /** Density-mode keys of the editor overlays (they are not entries of {@link #layers}). */
     private static final Object HIGHLIGHT_KEY = "editor-highlight";
     private static final Object REFERENCE_KEY = "editor-reference";
-    private final Map<Object, PlotDrawableIndex> overlayIndexes = new LinkedHashMap<>();
+    private static final Object FILL_KEY = new Object();
+    private static final Object REFERENCE_FILL_KEY = new Object();
+    private static final Object CONTENT_KEY = new Object();
 
     private double scale = 3.0;
     private double viewCenterX = 50;
@@ -386,6 +394,13 @@ final class PlotAreaView extends StackPane {
         coordLabel.getStyleClass().add("plot-coord-label");
         coordLabel.setMouseTransparent(true);
         getChildren().add(coordLabel);
+        preparingLabel.setId("plot-preparing");
+        preparingLabel.getStyleClass().add("plot-coord-label");
+        preparingLabel.setMouseTransparent(true);
+        preparingLabel.setVisible(false);
+        StackPane.setAlignment(preparingLabel, Pos.TOP_RIGHT);
+        StackPane.setMargin(preparingLabel, new javafx.geometry.Insets(24, 12, 0, 0));
+        getChildren().add(preparingLabel);
 
         canvas.widthProperty().bind(widthProperty());
         canvas.heightProperty().bind(heightProperty());
@@ -658,8 +673,9 @@ final class PlotAreaView extends StackPane {
         boolean multicolor = existing != null && existing.multicolor();
         layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category, filled, multicolor));
         lodLayers.remove(key);
-        drawableIndexes.remove(key);
-        lodDrawableIndexes.remove(key);
+        // Keep the previous normal index only for reusing unchanged immutable part metrics.
+        indexCache.invalidate(new IndexKey(key, 0));
+        indexCache.forget(new IndexKey(key, 1));
         forgetDensity(key);
         redraw();
     }
@@ -683,7 +699,7 @@ final class PlotAreaView extends StackPane {
         } else {
             lodLayers.put(key, new LodGeometry(centerlines, strokeWidthWorld, stroked));
         }
-        lodDrawableIndexes.remove(key);
+        indexCache.forget(new IndexKey(key, 1));
         forgetDensity(key);
         redraw();
     }
@@ -696,9 +712,9 @@ final class PlotAreaView extends StackPane {
         RenderLayer layer = layers.get(key);
         if (layer != null) {
             lodLayers.remove(key);
-            drawableIndexes.remove(key);
-            lodDrawableIndexes.remove(key);
-        forgetDensity(key);
+            indexCache.invalidate(new IndexKey(key, 0));
+            indexCache.forget(new IndexKey(key, 1));
+            forgetDensity(key);
             layers.put(key, new RenderLayer(geometry, layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
                     layer.visible(), layer.category(), layer.filled(), layer.multicolor()));
             redraw();
@@ -712,14 +728,23 @@ final class PlotAreaView extends StackPane {
     }
 
     void setEditorContent(Geometry content) {
+        invalidateEditorIndex(CONTENT_KEY, editorContentGeometry, content);
         editorContentGeometry = content;
         drawEditorHighlight();
     }
 
     void setEditorFills(Geometry fill, Geometry referenceFill) {
+        invalidateEditorIndex(FILL_KEY, editorFillGeometry, fill);
+        invalidateEditorIndex(REFERENCE_FILL_KEY, editorReferenceFillGeometry, referenceFill);
         editorFillGeometry = fill;
         editorReferenceFillGeometry = referenceFill;
         drawEditorHighlight();
+    }
+
+    private void invalidateEditorIndex(Object key, Geometry before, Geometry after) {
+        if (before == after) return;
+        if (after == null) indexCache.forget(new IndexKey(key, 2));
+        else indexCache.invalidate(new IndexKey(key, 2));
     }
 
     void setEditorReference(Geometry geometry) {
@@ -741,17 +766,12 @@ final class PlotAreaView extends StackPane {
 
     private void forgetOverlay(Object key) {
         forgetDensity(key);
-        overlayIndexes.remove(key);
+        indexCache.forget(new IndexKey(key, 2));
     }
 
     /** The display index of an overlay geometry, rebuilt only when the geometry object changes. */
     private PlotDrawableIndex overlayIndex(Object key, Geometry geometry) {
-        PlotDrawableIndex index = overlayIndexes.get(key);
-        if (index == null || index.geometry() != geometry) {
-            index = new PlotDrawableIndex(geometry);
-            overlayIndexes.put(key, index);
-        }
-        return index;
+        return indexCache.getOrRequest(new IndexKey(key, 2), geometry);
     }
 
     void removeLayer(Object key) {
@@ -760,8 +780,8 @@ final class PlotAreaView extends StackPane {
         }
         layers.remove(key);
         lodLayers.remove(key);
-        drawableIndexes.remove(key);
-        lodDrawableIndexes.remove(key);
+        indexCache.forget(new IndexKey(key, 0));
+        indexCache.forget(new IndexKey(key, 1));
         forgetDensity(key);
         redraw();
     }
@@ -832,8 +852,7 @@ final class PlotAreaView extends StackPane {
         cancelPlacement();
         layers.clear();
         lodLayers.clear();
-        drawableIndexes.clear();
-        lodDrawableIndexes.clear();
+        indexCache.clear();
         denseLayers.clear();
         denseFrames.clear();
         denseRenderer.clear();
@@ -850,6 +869,18 @@ final class PlotAreaView extends StackPane {
         editorContentGeometry = null;
         selectedObjectBounds = List.of();
         redraw();
+    }
+
+    /** Stop viewport workers/timers and reject queued completions when the application closes. */
+    void dispose() {
+        if (disposed) return;
+        disposed = true;
+        indexCache.close();
+        denseRenderer.shutdown();
+        interactionRedrawTimer.stop();
+        if (uiFluidityTimer != null) uiFluidityTimer.stop();
+        stopWalk();
+        denseFrames.clear();
     }
 
     /** Coalesces the many layer mutations performed while restoring a project into one repaint. */
@@ -1663,6 +1694,7 @@ final class PlotAreaView extends StackPane {
 
     /** Pan and zoom may produce several input events per pulse; paint only their latest state. */
     private void requestInteractionRedraw() {
+        if (disposed) return;
         if (!interactionRedrawPending) {
             interactionRedrawPending = true;
             interactionRedrawTimer.start();
@@ -1670,6 +1702,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void redraw() {
+        if (disposed) return;
         if (interactionRedrawPending) {
             interactionRedrawTimer.stop();
             interactionRedrawPending = false;
@@ -1709,10 +1742,11 @@ final class PlotAreaView extends StackPane {
                 LodGeometry lod = lodLayers.get(entry.getKey());
                 boolean lodActive = useCenterlineLod(layer, lod, scale);
                 Geometry drawnGeometry = lodActive ? lod.centerlines() : layer.geometry();
-                if (layer.category() == category && layer.visible() && drawnGeometry != null
-                        && !drawnGeometry.isEmpty() && intersectsViewport(drawnGeometry, viewBounds)) {
+                if (layer.category() == category && layer.visible() && drawnGeometry != null) {
                     long layerStart = profiling ? System.nanoTime() : 0;
                     PlotDrawableIndex index = drawableIndex(entry.getKey(), drawnGeometry, lodActive);
+                    // Never fall back to a massive unindexed traversal while preparation is pending.
+                    if (index == null || !index.intersects(viewBounds)) continue;
                     if (lodActive) {
                         gc.save();
                         gc.setLineCap(StrokeLineCap.ROUND);
@@ -1886,12 +1920,17 @@ final class PlotAreaView extends StackPane {
 
     /** Called on the JavaFX thread when the background thread has finished the image of a layer's current view. */
     private void denseFrameReady(Object key) {
+        if (disposed) return;
         DenseRenderer.Frame ready = denseRenderer.frame(key);
         if (ready == null || !(layers.containsKey(key) || key == HIGHLIGHT_KEY || key == REFERENCE_KEY)) {
             return;
         }
-        denseFrames.put(key, new DenseFrame(ready.view(), denseImage(denseFrames.get(key), ready.view().width(),
-                ready.view().height(), ready.pixels())));
+        // A completed worker array is never reused or mutated. PixelBuffer only wraps it;
+        // the graphics pipeline still needs to upload pixels and may perform backend-specific conversions.
+        javafx.scene.image.WritableImage image = DENSITY_PIXEL_BUFFER
+                ? DensityFrameImage.create(ready.view().width(), ready.view().height(), ready.pixels())
+                : denseImage(denseFrames.get(key), ready.view().width(), ready.view().height(), ready.pixels());
+        denseFrames.put(key, new DenseFrame(ready.view(), image));
         requestInteractionRedraw();
     }
 
@@ -1922,13 +1961,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private PlotDrawableIndex drawableIndex(Object key, Geometry geometry, boolean lod) {
-        Map<Object, PlotDrawableIndex> indexes = lod ? lodDrawableIndexes : drawableIndexes;
-        PlotDrawableIndex index = indexes.get(key);
-        if (index == null || index.geometry() != geometry) {
-            index = new PlotDrawableIndex(geometry);
-            indexes.put(key, index);
-        }
-        return index;
+        return indexCache.getOrRequest(new IndexKey(key, lod ? 1 : 0), geometry);
     }
 
     static boolean shouldUseCenterlineLod(boolean filled, boolean multicolor,
@@ -1944,6 +1977,7 @@ final class PlotAreaView extends StackPane {
         gc.clearRect(0, 0, width, height);
         double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
         double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+        Envelope viewBounds = visibleWorldBounds(viewCenterX, viewCenterY, scale, contentWidth, contentHeight);
         for (Geometry[] fill : new Geometry[][]{{editorReferenceFillGeometry, null}, {editorFillGeometry, null}}) {
             if (fill[0] != null && !fill[0].isEmpty()) {
                 Color color = fill[0] == editorFillGeometry ? EDITOR_FILL_COLOR : EDITOR_REFERENCE_FILL_COLOR;
@@ -1951,8 +1985,9 @@ final class PlotAreaView extends StackPane {
                 gc.beginPath();
                 gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
                 gc.clip();
-                drawLayer(gc, new RenderLayer(fill[0], false, color, Color.TRANSPARENT, true, LayerCategory.OVERLAY,
-                        true, false), contentWidth, contentHeight);
+                drawOverlay(gc, fill[0] == editorFillGeometry ? FILL_KEY : REFERENCE_FILL_KEY,
+                        new RenderLayer(fill[0], false, color, Color.TRANSPARENT, true, LayerCategory.OVERLAY,
+                                true, false), viewBounds, contentWidth, contentHeight);
                 gc.restore();
             }
         }
@@ -1961,11 +1996,11 @@ final class PlotAreaView extends StackPane {
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
             gc.clip();
-            drawLayer(gc, new RenderLayer(editorContentGeometry, false, EDITOR_CONTENT_FILL_COLOR,
-                    EDITOR_CONTENT_STROKE_COLOR, true, LayerCategory.OVERLAY, true, false), contentWidth, contentHeight);
+            drawOverlay(gc, CONTENT_KEY, new RenderLayer(editorContentGeometry, false, EDITOR_CONTENT_FILL_COLOR,
+                    EDITOR_CONTENT_STROKE_COLOR, true, LayerCategory.OVERLAY, true, false),
+                    viewBounds, contentWidth, contentHeight);
             gc.restore();
         }
-        Envelope viewBounds = visibleWorldBounds(viewCenterX, viewCenterY, scale, contentWidth, contentHeight);
         if (editorReferenceGeometry != null && !editorReferenceGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
@@ -1989,6 +2024,9 @@ final class PlotAreaView extends StackPane {
         }
         drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
+        preparingLabel.setText(indexCache.failed() ? "Falha ao preparar visualização; consulte os diagnósticos."
+                : "Preparando visualização...");
+        preparingLabel.setVisible(indexCache.preparing() || indexCache.failed());
     }
 
     /**
@@ -1999,6 +2037,7 @@ final class PlotAreaView extends StackPane {
     private void drawOverlay(GraphicsContext gc, Object key, RenderLayer layer, Envelope viewBounds,
                              double contentWidth, double contentHeight) {
         PlotDrawableIndex index = overlayIndex(key, layer.geometry());
+        if (index == null) return;
         if (!drawDensityLayer(gc, key, layer, index, viewBounds, contentWidth, contentHeight,
                 layer.strokeOnly() ? 1.5 : 1)) {
             drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);

@@ -23,6 +23,7 @@ import javafx.scene.transform.Scale;
 final class Icons {
 
     private static final double NATIVE_SIZE = 24.0;
+    private static final java.util.Map<String, Image> RESOURCE_IMAGES = new java.util.concurrent.ConcurrentHashMap<>();
 
     private Icons() {
     }
@@ -79,7 +80,15 @@ final class Icons {
      * lookalike. See flatcam-fx/src/main/resources/org/flatcam/fx/icons/.
      */
     static Node fromResource(String fileName, double size) {
-        Image image = new Image(Icons.class.getResourceAsStream("icons/" + fileName));
+        // Share immutable image data, never Nodes: an ImageView can belong to only one parent.
+        Image image = RESOURCE_IMAGES.computeIfAbsent(fileName, name -> {
+            try (var input = Icons.class.getResourceAsStream("icons/" + name)) {
+                if (input == null) throw new IllegalArgumentException("Missing icon: " + name);
+                return new Image(input);
+            } catch (java.io.IOException failure) {
+                throw new java.io.UncheckedIOException(failure);
+            }
+        });
         ImageView view = new ImageView(image);
         view.setFitWidth(size);
         view.setFitHeight(size);

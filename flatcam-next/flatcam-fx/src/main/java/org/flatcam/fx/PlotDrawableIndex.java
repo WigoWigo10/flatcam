@@ -3,6 +3,10 @@ package org.flatcam.fx;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import org.flatcam.cam.CancellationToken;
+import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryCollection;
@@ -26,14 +30,29 @@ final class PlotDrawableIndex {
     private final STRtree tree;
 
     PlotDrawableIndex(Geometry geometry) {
+        this(geometry, null, CancellationToken.NONE);
+    }
+
+    /** Unchanged immutable parts retain their bounds/length after an editor deletion or addition. */
+    PlotDrawableIndex(Geometry geometry, PlotDrawableIndex previous, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
         this.geometry = geometry;
+        Map<Geometry, Part> reusable = new IdentityHashMap<>();
+        if (previous != null) {
+            for (Part part : previous.parts) {
+                cancellation.throwIfCancellationRequested();
+                reusable.put(part.geometry(), part);
+            }
+        }
         List<Part> flattened = new ArrayList<>();
-        collect(geometry, flattened);
+        collect(geometry, flattened, reusable, cancellation);
         parts = List.copyOf(flattened);
-        bounds = geometry == null ? new Envelope() : geometry.getEnvelopeInternal();
+        bounds = new Envelope();
+        for (Part part : parts) bounds.expandToInclude(part.bounds());
         if (parts.size() >= TREE_THRESHOLD) {
             STRtree built = new STRtree();
             for (Part part : parts) {
+                cancellation.throwIfCancellationRequested();
                 built.insert(part.bounds(), part);
             }
             built.build();
@@ -41,10 +60,15 @@ final class PlotDrawableIndex {
         } else {
             tree = null;
         }
+        cancellation.throwIfCancellationRequested();
     }
 
     Geometry geometry() {
         return geometry;
+    }
+
+    boolean intersects(Envelope viewport) {
+        return bounds.intersects(viewport);
     }
 
     List<Part> visibleParts(Envelope viewport) {
@@ -81,17 +105,21 @@ final class PlotDrawableIndex {
         return visible;
     }
 
-    private static void collect(Geometry geometry, List<Part> parts) {
-        if (geometry == null || geometry.isEmpty()) {
+    private static void collect(Geometry geometry, List<Part> parts, Map<Geometry, Part> reusable,
+                                CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
+        if (geometry == null) {
             return;
         }
         if (geometry instanceof GeometryCollection collection) {
             for (int i = 0; i < collection.getNumGeometries(); i++) {
-                collect(collection.getGeometryN(i), parts);
+                collect(collection.getGeometryN(i), parts, reusable, cancellation);
             }
-        } else {
-            parts.add(new Part(parts.size(), geometry, geometry.getEnvelopeInternal(), segmentsOf(geometry),
-                    lengthOf(geometry)));
+        } else if (!geometry.isEmpty()) {
+            Part old = reusable.get(geometry);
+            double length = old == null ? lengthOf(geometry, cancellation) : old.length();
+            parts.add(new Part(parts.size(), geometry, old == null ? geometry.getEnvelopeInternal() : old.bounds(),
+                    old == null ? segmentsOf(geometry) : old.segments(), length));
         }
     }
 
@@ -106,11 +134,20 @@ final class PlotDrawableIndex {
         return 1;
     }
 
-    private static double lengthOf(Geometry geometry) {
-        if (geometry instanceof org.locationtech.jts.geom.Polygon polygon) {
-            return polygon.getExteriorRing().getLength();
+    private static double lengthOf(Geometry geometry, CancellationToken cancellation) {
+        CoordinateSequence sequence = switch (geometry) {
+            case org.locationtech.jts.geom.Polygon polygon -> polygon.getExteriorRing().getCoordinateSequence();
+            case org.locationtech.jts.geom.LineString line -> line.getCoordinateSequence();
+            default -> null;
+        };
+        if (sequence == null) return geometry.getLength();
+        double length = 0;
+        for (int i = 1; i < sequence.size(); i++) {
+            if ((i & 1023) == 0) cancellation.throwIfCancellationRequested();
+            length += Math.hypot(sequence.getX(i) - sequence.getX(i - 1),
+                    sequence.getY(i) - sequence.getY(i - 1));
         }
-        return geometry.getLength();
+        return length;
     }
 
     /** Segment count and total length of the parts that intersect {@code viewport} ({@code null} = all). */
