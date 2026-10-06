@@ -24,7 +24,7 @@ import org.locationtech.jts.geom.Geometry;
  * for exactly which flags are covered and which are deliberately not (yet): object creation/
  * lookup/deletion (open_gerber, open_excellon, new_geometry, delete/del, get_names, bbox, bounds),
  * and the CAM operations built on this port's existing generators (isolate, cutout, ncc/ncc_clear,
- * cncjob, export_gcode, write_gcode), project loading and affine transformations.
+ * cncjob, export_gcode, write_gcode), project loading/saving, display/selection and affine transformations.
  */
 final class TclFlatcamCommands {
 
@@ -38,6 +38,7 @@ final class TclFlatcamCommands {
         registerOpenGerber(interpreter);
         registerOpenExcellon(interpreter);
         registerOpenProject(interpreter);
+        registerProjectAndDisplay(interpreter);
         registerTransforms(interpreter);
         registerNewGeometry(interpreter);
         registerDelete(interpreter);
@@ -62,6 +63,18 @@ final class TclFlatcamCommands {
             case "open_project" -> "open_project {C:/pasta/projeto.fcnproj}\n"
                     + "Aceita .fcnproj e .FlatPrj. Substitui o projeto atual apos carregar; nao salva alteracoes. "
                     + "Aplique/cancele rascunhos antes. Use / e chaves em caminhos Windows.";
+            case "save_project" -> "save_project {C:/pasta/projeto.fcnproj}\nsave_project {C:/pasta/projeto.FlatPrj}\n"
+                    + "Formato pela extensao obrigatoria; substitui o destino depois de serializar. Feche os editores antes. "
+                    + ".FlatPrj preserva apenas recursos representaveis no Python; mantenha tambem .fcnproj. "
+                    + "Cancelar antes da publicacao preserva o destino; nao interrompe a compressao no meio.";
+            case "plot_all" -> "plot_all ?-plot_status True|False? ?-use_thread True|False?\n"
+                    + "Exibe todos por padrao; False oculta. -use_thread e validado, mas o FX mantem sua politica de workers. "
+                    + "CNC Job sem previa compativel e recusado. Nao aguarda todos os quadros da GPU.";
+            case "plot_objects" -> "plot_objects {placa,furos,rota} ?-plot_status True|False?\n"
+                    + "Lista separada por virgulas; chaves preservam espacos. Valida todos os nomes antes de alterar o Plot. "
+                    + "CNC Job sem previa compativel e recusado.";
+            case "set_active" -> "set_active {nome}\nAdiciona o objeto a selecao atual, como no Python; "
+                    + "nao exibe camadas ocultas nem rouba o foco do Terminal. Feche editores de objetos antes.";
             case "offset" -> "offset {nome} -x 1.2 -y -0.3\nTambem aceita offset {nome} 1.2 -0.3. Eixos omitidos: 0.";
             case "scale" -> "scale {nome} 2 -origin center\nscale {nome} -x 2 -y 1 -origin {(3,4)}\n"
                     + "Referencia: center (padrao), origin, min_bounds ou x,y. Eixo omitido: 1; fator zero recusado.";
@@ -83,6 +96,55 @@ final class TclFlatcamCommands {
             }
             return "";
         });
+    }
+
+    private void registerProjectAndDisplay(TclInterpreter interpreter) {
+        interpreter.register("save_project", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of());
+            requirePositionals(args, 1, 1);
+            try { host.saveProject(Path.of(args.positional(0))); }
+            catch (IOException | java.nio.file.InvalidPathException error) {
+                throw new TclException("Could not save project: " + error.getMessage());
+            }
+            return "";
+        });
+        interpreter.register("plot_all", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("plot_status", "use_thread"));
+            requirePositionals(args, 0, 0);
+            boolean visible = displayBoolean(args, "plot_status", true);
+            displayBoolean(args, "use_thread", false); // Compatibility hint, never overrides FX scheduling.
+            host.plotObjects(null, visible);
+            return "";
+        });
+        interpreter.register("plot_objects", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("plot_status"));
+            requirePositionals(args, 1, 1);
+            List<String> names = java.util.Arrays.stream(args.positional(0).split(",", -1))
+                    .map(String::trim).filter(name -> !name.isEmpty()).distinct().toList();
+            if (names.isEmpty()) throw new TclException("Expected at least one object name.");
+            host.plotObjects(names, displayBoolean(args, "plot_status", true));
+            return "";
+        });
+        interpreter.register("set_active", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of());
+            requirePositionals(args, 1, 1);
+            host.setActive(args.positional(0));
+            return "";
+        });
+    }
+
+    /** No eval and no silently treating a misspelled boolean as False. */
+    private static boolean displayBoolean(TclArgs args, String option, boolean fallback) throws TclException {
+        if (!args.has(option)) return fallback;
+        return switch (args.requireOption(option).trim().toLowerCase(java.util.Locale.ROOT)) {
+            case "true", "1", "yes", "on" -> true;
+            case "false", "0", "no", "off" -> false;
+            default -> throw new TclException("Option -" + option + " expects True/False or 1/0.");
+        };
     }
 
     private void registerTransforms(TclInterpreter interpreter) {

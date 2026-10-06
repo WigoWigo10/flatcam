@@ -53,6 +53,11 @@ class TclFlatcamCommandsTest {
         final List<CncjobCall> cncjobCalls = new ArrayList<>();
         final List<Path> writtenFiles = new ArrayList<>();
         final List<Path> openedProjects = new ArrayList<>();
+        final List<Path> savedProjects = new ArrayList<>();
+        List<String> plottedNames;
+        boolean plotVisible;
+        int plotCalls;
+        String activeName;
         final List<TclTransformRequest> transforms = new ArrayList<>();
         String transformedName;
         final List<String> writtenContents = new ArrayList<>();
@@ -64,6 +69,17 @@ class TclFlatcamCommandsTest {
             if (file.toString().equals(nextOpenFails)) throw new IOException("boom");
             openedProjects.add(file);
         }
+
+        @Override public void saveProject(Path file) throws IOException {
+            if (failWrite) throw new IOException("disk full");
+            savedProjects.add(file);
+        }
+
+        @Override public void plotObjects(List<String> names, boolean visible) {
+            plottedNames = names; plotVisible = visible; plotCalls++;
+        }
+
+        @Override public void setActive(String name) { activeName = name; }
 
         @Override public void transform(String name, TclTransformRequest request) {
             transformedName = name;
@@ -623,5 +639,61 @@ class TclFlatcamCommandsTest {
         var request = new TclTransformRequest(TclTransformRequest.Operation.SCALE, 2, 2,
                 TclTransformRequest.Reference.CENTER, 0, 0, null);
         assertThrows(TclException.class, () -> request.resolve(new Envelope(), null));
+    }
+
+    @Test void saveProjectAcceptsSpacedPathsAndBothFormats() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        assertEquals("", interp.eval("save_project {folder with spaces/board.fcnproj}"));
+        interp.eval("save_project {folder with spaces/board.FlatPrj}");
+        assertEquals(List.of(Path.of("folder with spaces/board.fcnproj"), Path.of("folder with spaces/board.FlatPrj")), host.savedProjects);
+    }
+
+    @Test void invalidSaveArgumentsAndIoFailuresStopTheScript() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String script : List.of("save_project", "save_project a b", "save_project a -force true",
+                "save_project {bad\u0000path.fcnproj}")) assertThrows(TclException.class, () -> interp.eval(script));
+        host.failWrite = true;
+        assertTrue(assertThrows(TclException.class, () -> interp.eval("save_project a.fcnproj; new_geometry late"))
+                .getMessage().contains("disk full"));
+        assertTrue(host.savedProjects.isEmpty()); assertTrue(host.order.isEmpty());
+    }
+
+    @Test void plotAllDefaultsToVisibleAndValidatesTheSchedulingHint() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("plot_all"); assertEquals(null, host.plottedNames); assertTrue(host.plotVisible);
+        interp.eval("plot_all -plot_status False -use_thread True"); assertFalse(host.plotVisible);
+        interp.eval("plot_all -plot_status"); assertTrue(host.plotVisible);
+        interp.eval("plot_all -use_thread false"); assertTrue(host.plotVisible);
+    }
+
+    @Test void plotObjectsSplitsCommaSeparatedNamesAndPreservesSpaces() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        interp.eval("plot_objects { board name , holes,,board name, route } -plot_status 0");
+        assertEquals(List.of("board name", "holes", "route"), host.plottedNames); assertFalse(host.plotVisible);
+        interp.eval("plot_objects route"); assertTrue(host.plotVisible);
+    }
+
+    @Test void displayCommandsAcceptLiteralBooleansAndRejectExpressions() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        for (String value : List.of("True", "TRUE", "1", "yes", "on")) {
+            interp.eval("plot_all -plot_status " + value); assertTrue(host.plotVisible);
+        }
+        for (String value : List.of("False", "FALSE", "0", "no", "off")) {
+            interp.eval("plot_objects route -plot_status " + value); assertFalse(host.plotVisible);
+        }
+        int before = host.plotCalls;
+        for (String script : List.of("plot_all unexpected", "plot_all -plot_status typo", "plot_all -use_thread maybe",
+                "plot_all -unknown 1", "plot_objects", "plot_objects {,,}", "plot_objects a b",
+                "plot_objects a -plot_status 2", "plot_objects a -plot_status {True or False}",
+                "plot_objects a -use_thread true")) assertThrows(TclException.class, () -> interp.eval(script), script);
+        assertEquals(before, host.plotCalls);
+    }
+
+    @Test void setActiveAcceptsAnExactSpacedNameAndRejectsExtraArguments() throws Exception {
+        FakeHost host = new FakeHost(); TclInterpreter interp = withCommands(host);
+        assertEquals("", interp.eval("set_active {board name}")); assertEquals("board name", host.activeName);
+        for (String script : List.of("set_active", "set_active a b", "set_active a -exclusive true"))
+            assertThrows(TclException.class, () -> interp.eval(script));
+        assertEquals("board name", host.activeName);
     }
 }

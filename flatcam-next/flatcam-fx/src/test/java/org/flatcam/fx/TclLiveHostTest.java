@@ -74,7 +74,10 @@ class TclLiveHostTest {
             });
         }
         String eval(String script) throws Exception { return interpreter.eval(script); }
-        @Override public void close() { jobs.shutdown(); }
+        @Override public void close() throws Exception {
+            jobs.shutdown();
+            TerminalPanelTest.fx(() -> { host.disposeViewport(); return null; });
+        }
     }
 
     private static Field field(String name) throws NoSuchFieldException {
@@ -486,7 +489,8 @@ class TclLiveHostTest {
     @Test void newCommandsHaveUsefulHelpInTheTerminal() throws Exception {
         try (Session session = new Session()) {
             TerminalPanel panel = TerminalPanelTest.fx(() -> new TerminalPanel(session.interpreter, "teste", session.jobs));
-            for (String command : List.of("open_project", "offset", "scale", "mirror", "skew")) {
+            for (String command : List.of("open_project", "offset", "scale", "mirror", "skew",
+                    "save_project", "plot_all", "plot_objects", "set_active")) {
                 String help = session.eval("help " + command);
                 assertTrue(help.startsWith(command), help);
                 assertFalse(help.contains("sem texto"), help);
@@ -546,6 +550,387 @@ class TclLiveHostTest {
             assertThrows(IllegalStateException.class, () -> session.eval("offset path -x 2"));
             assertSame(before, version(session, "path"));
             TerminalPanelTest.fx(() -> { field("runningJob").set(session.host, null); return null; });
+        }
+    }
+
+    private static String quoted(Path file) { return "{" + file.toString().replace('\\', '/') + "}"; }
+
+    private static void assertNoSaveStages(Path directory) throws Exception {
+        try (var files = Files.list(directory)) {
+            assertTrue(files.noneMatch(file -> file.getFileName().toString().endsWith(".tmp")), "save stages leaked");
+        }
+    }
+
+    private static TreeItem<String> namedItem(Session session, String name) throws Exception {
+        return TerminalPanelTest.fx(() -> {
+            Method find = MainWindow.class.getDeclaredMethod("findTclItemByName", String.class); find.setAccessible(true);
+            @SuppressWarnings("unchecked") TreeItem<String> item = (TreeItem<String>) find.invoke(session.host, name);
+            return item;
+        });
+    }
+
+    private static boolean visible(Session session, String name) throws Exception {
+        TreeItem<String> item = namedItem(session, name);
+        return TerminalPanelTest.fx(() -> {
+            Method read = MainWindow.class.getDeclaredMethod("isObjectVisible", TreeItem.class); read.setAccessible(true);
+            return (boolean) read.invoke(session.host, item);
+        });
+    }
+
+    private static void installRealTree(Session session) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            Method build = MainWindow.class.getDeclaredMethod("buildProjectTree"); build.setAccessible(true);
+            build.invoke(session.host);
+            return null;
+        });
+    }
+
+    @Test void saveProjectRoundTripsAllKindsInNativeAndPythonFormats(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(fixture(directory), source);
+        byte[] original = Files.readAllBytes(source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            for (String extension : List.of("fcnproj", "FlatPrj")) {
+                Path output = directory.resolve("saved with spaces." + extension);
+                session.eval("save_project " + quoted(output) + "; new_geometry after_save");
+                assertTrue(session.host.objectNames().contains("after_save"));
+                session.host.openProject(output);
+                assertEquals(List.of("copper", "drills", "route", "route_cnc"), session.host.objectNames());
+                assertFalse(visible(session, "copper")); assertFalse(visible(session, "route"));
+                assertTrue(visible(session, "drills")); assertTrue(visible(session, "route_cnc"));
+                var drill = (ExcellonImage) version(session, "drills");
+                assertEquals(1, drill.drills().size()); assertEquals(1, drill.slots().size());
+                assertEquals(1, value(version(session, "route"), "tools", List.class).size());
+                assertEquals(120, value(version(session, "route"), "cncDefaults", GeometryGCodeParameters.class).feedRate());
+                assertTrue(session.eval("export_gcode route_cnc").contains("G1 X20 Y40"));
+                TerminalPanelTest.fx(() -> {
+                    var plot = (PlotAreaView) field("plotAreaView").get(session.host);
+                    assertEquals(javafx.scene.paint.Color.web("#44cc22"), plot.layerColors(namedItemOnFx(session, "copper"))[0]);
+                    return null;
+                });
+                assertNoSaveStages(directory);
+            }
+        }
+        assertArrayEquals(original, Files.readAllBytes(source));
+        assertFalse(Files.exists(directory.resolve("not-written.nc")), "saving must not overwrite/export CNC source files");
+    }
+
+    private static TreeItem<String> namedItemOnFx(Session session, String name) throws Exception {
+        Method find = MainWindow.class.getDeclaredMethod("findTclItemByName", String.class); find.setAccessible(true);
+        @SuppressWarnings("unchecked") TreeItem<String> item = (TreeItem<String>) find.invoke(session.host, name);
+        return item;
+    }
+
+    @Test void nativeSavePreservesDrillingDefaultsAndImportWarnings(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            var parameters = new org.flatcam.cam.gcode.DrillGCodeParameters(3, 1.7, 200, 12000, false,
+                    true, 0.5, true, 1.2, 0.1);
+            TreeItem<String> drills = namedItem(session, "drills");
+            TerminalPanelTest.fx(() -> {
+                @SuppressWarnings("unchecked") var defaults = (Map<TreeItem<String>, Map<Integer, org.flatcam.cam.gcode.DrillGCodeParameters>>)
+                        field("drillDefaultsByItem").get(session.host);
+                defaults.put(drills, Map.of(1, parameters));
+                field("currentProjectImportWarnings").set(session.host, List.of("fixture compatibility warning"));
+                return null;
+            });
+            Path output = directory.resolve("settings.fcnproj"); session.host.saveProject(output);
+            var loaded = ProjectFileIO.load(output);
+            assertEquals(parameters, loaded.excellons().getFirst().drillDefaults().get(1));
+            assertEquals(List.of("fixture compatibility warning"), loaded.importWarnings());
+        }
+    }
+
+    @Test void cancellingBeforeOrAfterSerializationPreservesTheDestination(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path");
+            Path output = directory.resolve("keep.fcnproj"); Files.writeString(output, "original bytes");
+            for (String phase : List.of("Serializando projeto...", "Publicando projeto...")) {
+                AtomicBoolean cancelled = new AtomicBoolean();
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return cancelled.get(); }
+                    public void reportProgress(double fraction, String message) { if (message.equals(phase)) cancelled.set(true); }
+                };
+                assertThrows(CancellationException.class, () -> TclExecution.run(context, () -> {
+                    session.host.saveProject(output); return null;
+                }), phase);
+                assertEquals("original bytes", Files.readString(output)); assertNoSaveStages(directory);
+            }
+            session.host.saveProject(output); assertEquals("path", ProjectFileIO.load(output).geometries().getFirst().name());
+        }
+    }
+
+    @Test void changedProjectDuringSavingDoesNotOverwriteTheDestination(@TempDir Path directory) throws Exception {
+        for (String mutation : List.of("rename", "visibility", "settings", "epoch", "editor")) {
+            try (Session session = new Session()) {
+                TreeItem<String> item = session.geometry("path");
+                Path output = directory.resolve("keep-" + mutation + ".fcnproj"); Files.writeString(output, "original bytes");
+                AtomicBoolean changed = new AtomicBoolean();
+                java.util.concurrent.atomic.AtomicReference<GCodeEditorController> draft = new java.util.concurrent.atomic.AtomicReference<>();
+                JobContext context = new JobContext() {
+                    public boolean isCancelled() { return false; }
+                    public void reportProgress(double fraction, String message) {
+                        if (!message.equals("Publicando projeto...") || !changed.compareAndSet(false, true)) return;
+                        try {
+                            if (mutation.equals("editor")) { draft.set(installDraftEditor(session)); return; }
+                            TerminalPanelTest.fx(() -> {
+                                switch (mutation) {
+                                    case "rename" -> item.setValue("renamed");
+                                    case "visibility" -> session.host.plotObjects(List.of("path"), false);
+                                    case "epoch" -> field("tclProjectEpoch").setLong(session.host, 1);
+                                    case "settings" -> {
+                                        @SuppressWarnings("unchecked") var defaults = (Map<TreeItem<String>, Map<Integer, org.flatcam.cam.gcode.DrillGCodeParameters>>)
+                                                field("drillDefaultsByItem").get(session.host);
+                                        defaults.put(item, Map.of(1, new org.flatcam.cam.gcode.DrillGCodeParameters(2, 1, 100, 0, false)));
+                                    }
+                                }
+                                return null;
+                            });
+                        } catch (Exception error) { throw new AssertionError(error); }
+                    }
+                };
+                try {
+                    assertThrows(IllegalStateException.class, () -> TclExecution.run(context, () -> { session.host.saveProject(output); return null; }), mutation);
+                    assertTrue(changed.get()); assertEquals("original bytes", Files.readString(output)); assertNoSaveStages(directory);
+                } finally { if (draft.get() != null) TerminalPanelTest.fx(() -> { draft.get().cancel(); return null; }); }
+            }
+        }
+    }
+
+    @Test void saveRejectsOpenEditorsMainJobsAndFxThreadInvocation(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path"); Path output = directory.resolve("not-saved.fcnproj");
+            var editor = installDraftEditor(session);
+            try { assertThrows(IllegalStateException.class, () -> session.host.saveProject(output)); }
+            finally { TerminalPanelTest.fx(() -> { editor.cancel(); return null; }); }
+            var handle = session.jobs.submit(context -> "done", null); handle.completion().get(10, TimeUnit.SECONDS);
+            TerminalPanelTest.fx(() -> { field("runningJob").set(session.host, handle); return null; });
+            try { assertThrows(IllegalStateException.class, () -> session.host.saveProject(output)); }
+            finally { TerminalPanelTest.fx(() -> { field("runningJob").set(session.host, null); return null; }); }
+            TerminalPanelTest.fx(() -> { assertThrows(IllegalStateException.class, () -> session.host.saveProject(output)); return null; });
+            assertFalse(Files.exists(output)); assertNoSaveStages(directory);
+        }
+    }
+
+    @Test void unsupportedPythonExportKeepsExistingFileAndNativeSaveStillWorks(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("mm");
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addGeometryToProject", String.class, String.class, String.class, Geometry.class, boolean.class);
+                add.setAccessible(true); add.invoke(session.host, "inch", "", "IN", FACTORY.createPoint(new Coordinate(1, 2)), true);
+                return null;
+            });
+            Path output = directory.resolve("keep.FlatPrj"); Files.writeString(output, "original bytes");
+            assertTrue(assertThrows(java.io.IOException.class, () -> session.host.saveProject(output)).getMessage().contains("unidades mistas"));
+            assertEquals("original bytes", Files.readString(output)); assertNoSaveStages(directory);
+            Path nativeFile = directory.resolve("mixed.fcnproj"); session.host.saveProject(nativeFile);
+            assertEquals(List.of("MM", "IN"), ProjectFileIO.load(nativeFile).geometries().stream().map(ProjectFile.GeometryEntry::units).toList());
+        }
+    }
+
+    @Test void invalidDestinationsPreserveExistingFilesAndCleanStages(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path"); Path text = directory.resolve("do-not-change.txt"); Files.writeString(text, "keep");
+            assertThrows(TclException.class, () -> session.host.saveProject(text)); assertEquals("keep", Files.readString(text));
+            assertThrows(java.io.IOException.class, () -> session.host.saveProject(directory.resolve("missing/out.fcnproj")));
+            Path nonempty = Files.createDirectory(directory.resolve("directory.fcnproj"));
+            Path marker = nonempty.resolve("keep.txt"); Files.writeString(marker, "keep");
+            assertThrows(java.io.IOException.class, () -> session.host.saveProject(nonempty));
+            assertEquals("keep", Files.readString(marker)); assertNoSaveStages(directory);
+        }
+    }
+
+    @Test void savingAnEmptyProjectAndContinuingTheScriptWorks(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            Path output = directory.resolve("empty.fcnproj"); session.eval("save_project " + quoted(output) + "; new_geometry after");
+            assertTrue(ProjectFileIO.load(output).geometries().isEmpty()); assertEquals(List.of("after"), session.host.objectNames());
+        }
+    }
+
+    @Test void saveRunsOutsideFxAndDoesNotBlockFxWhileSerializing(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path"); Path output = directory.resolve("background.fcnproj");
+            CountDownLatch entered = new CountDownLatch(1), release = new CountDownLatch(1);
+            JobContext context = new JobContext() {
+                public boolean isCancelled() { return false; }
+                public void reportProgress(double fraction, String message) {
+                    assertFalse(Platform.isFxApplicationThread());
+                    if (!message.equals("Serializando projeto...")) return;
+                    entered.countDown();
+                    try { assertTrue(release.await(10, TimeUnit.SECONDS)); }
+                    catch (InterruptedException error) { throw new AssertionError(error); }
+                }
+            };
+            var handle = session.jobs.submit(ignored -> TclExecution.run(context, () -> { session.host.saveProject(output); return null; }), null);
+            try {
+                assertTrue(entered.await(10, TimeUnit.SECONDS));
+                assertTrue(TerminalPanelTest.fx(Platform::isFxApplicationThread)); assertFalse(handle.completion().isDone());
+            } finally { release.countDown(); }
+            handle.completion().get(25, TimeUnit.SECONDS); assertEquals("path", ProjectFileIO.load(output).geometries().getFirst().name());
+        }
+    }
+
+    @Test void plotCommandsUpdateEveryKindAndValidateTheWholeBatch(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"); ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            session.host.openProject(source); session.eval("plot_all -plot_status False");
+            for (String name : session.host.objectNames()) assertFalse(visible(session, name), name);
+            session.eval("plot_objects {copper,route_cnc} -plot_status True");
+            assertTrue(visible(session, "copper")); assertTrue(visible(session, "route_cnc"));
+            assertFalse(visible(session, "drills")); assertFalse(visible(session, "route"));
+            assertThrows(TclException.class, () -> session.eval("plot_objects {copper,missing} -plot_status False"));
+            assertTrue(visible(session, "copper"));
+            Path output = directory.resolve("plot-state.fcnproj"); session.host.saveProject(output); session.host.openProject(output);
+            assertTrue(visible(session, "copper")); assertTrue(visible(session, "route_cnc")); assertFalse(visible(session, "drills"));
+            session.eval("plot_all"); for (String name : session.host.objectNames()) assertTrue(visible(session, name), name);
+        }
+    }
+
+    @Test void selectionIsAdditiveExpandsCategoriesAndDoesNotShowHiddenObjects() throws Exception {
+        try (Session session = new Session()) {
+            installRealTree(session); session.geometry("first"); TreeItem<String> second = session.geometry("second");
+            session.eval("plot_all -plot_status False");
+            TerminalPanelTest.fx(() -> { second.getParent().setExpanded(false); return null; });
+            session.eval("set_active first; set_active second");
+            TerminalPanelTest.fx(() -> {
+                var tree = (TreeView<?>) field("projectTree").get(session.host);
+                assertEquals(2, tree.getSelectionModel().getSelectedItems().size());
+                assertSame(second, tree.getSelectionModel().getSelectedItem()); assertTrue(second.getParent().isExpanded());
+                return null;
+            });
+            assertFalse(visible(session, "first")); assertFalse(visible(session, "second"));
+            assertThrows(TclException.class, () -> session.eval("set_active missing"));
+            assertThrows(TclException.class, () -> session.eval("plot_objects {first,missing}"));
+            assertFalse(visible(session, "first"));
+            session.geometry("duplicate"); session.geometry("duplicate");
+            assertThrows(TclException.class, () -> session.eval("set_active duplicate"));
+            assertThrows(TclException.class, () -> session.eval("plot_objects {first,duplicate}"));
+            assertFalse(visible(session, "first"));
+        }
+    }
+
+    @Test void plotCommandsSynchronizeTheVisiblePropertiesCheckbox() throws Exception {
+        try (Session session = new Session()) {
+            installRealTree(session); session.geometry("path"); session.eval("set_active path");
+            session.eval("plot_objects path -plot_status False");
+            TerminalPanelTest.fx(() -> {
+                var panel = (javafx.scene.layout.StackPane) field("propertiesContainer").get(session.host);
+                var content = ((javafx.scene.control.ScrollPane) panel.getChildren().getFirst()).getContent();
+                var checkbox = (javafx.scene.control.CheckBox) content.lookup("#object-plot");
+                assertNotNull(checkbox); assertFalse(checkbox.isSelected()); return null;
+            });
+            session.eval("plot_all");
+            TerminalPanelTest.fx(() -> {
+                var panel = (javafx.scene.layout.StackPane) field("propertiesContainer").get(session.host);
+                var content = ((javafx.scene.control.ScrollPane) panel.getChildren().getFirst()).getContent();
+                assertTrue(((javafx.scene.control.CheckBox) content.lookup("#object-plot")).isSelected()); return null;
+            });
+        }
+    }
+
+    @Test void terminalCanOpenSelectPlotSaveAndContinueWithoutCancellingItself(@TempDir Path directory) throws Exception {
+        Path source = directory.resolve("source.fcnproj"), output = directory.resolve("terminal.fcnproj");
+        ProjectFileIO.save(fixture(directory), source);
+        try (Session session = new Session()) {
+            installRealTree(session);
+            TerminalPanel panel = TerminalPanelTest.fx(() -> {
+                var created = new TerminalPanel(session.interpreter, "teste", session.jobs);
+                field("terminalPanel").set(session.host, created); new Scene(created); return created;
+            });
+            var idle = TerminalPanelTest.fx(() -> {
+                var input = (TextField) panel.lookup("#terminal-input");
+                input.setText("open_project " + quoted(source) + "; plot_all -plot_status False; plot_objects route; "
+                        + "set_active route; save_project " + quoted(output) + "; get_names");
+                input.getOnAction().handle(new ActionEvent()); return panel.whenIdle();
+            });
+            idle.get(25, TimeUnit.SECONDS);
+            String text = TerminalPanelTest.fx(() -> ((TextArea) panel.lookup("#terminal-output")).getText());
+            assertFalse(text.contains("ERRO:"), text); assertFalse(text.contains("Cancelado."), text);
+            assertTrue(text.contains("route_cnc"), text); assertFalse(TerminalPanelTest.fx(panel::isBusy));
+            ProjectFile saved = ProjectFileIO.load(output);
+            assertTrue(saved.geometries().getFirst().visible()); assertFalse(saved.gerbers().getFirst().visible());
+            assertFalse(saved.cncJobs().getFirst().visible()); assertNoSaveStages(directory);
+        }
+    }
+
+    @Test void cncVisibilityCountsOnlyExistingNonemptySublayers(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            Geometry line = FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0)});
+            Geometry empty = FACTORY.createGeometryCollection();
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addCncJobToProject", String.class, String.class,
+                        Path.class, String.class, Geometry.class, Geometry.class); add.setAccessible(true);
+                add.invoke(session.host, "cut-only", "", Path.of("cut.nc"), "G21\n", null, line);
+                add.invoke(session.host, "travel-only", "", Path.of("travel.nc"), "G21\n", line, empty);
+                return null;
+            });
+            for (String name : List.of("cut-only", "travel-only")) {
+                assertTrue(visible(session, name)); session.eval("plot_objects " + name + " -plot_status False");
+                assertFalse(visible(session, name));
+            }
+            Path output = directory.resolve("hidden.fcnproj"); session.host.saveProject(output);
+            assertTrue(ProjectFileIO.load(output).cncJobs().stream().noneMatch(ProjectFile.CncJobRecord::visible));
+            session.eval("plot_all"); assertTrue(visible(session, "cut-only")); assertTrue(visible(session, "travel-only"));
+        }
+    }
+
+    @Test void unplottableCncJobIsExplicitlyRejectedWithoutChangingOtherObjects() throws Exception {
+        try (Session session = new Session()) {
+            session.geometry("path");
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addCncJobToProject", String.class, String.class,
+                        Path.class, String.class, Geometry.class, Geometry.class); add.setAccessible(true);
+                add.invoke(session.host, "no-preview", "", Path.of("unsupported.nc"), "G21\n", null, null);
+                return null;
+            });
+            assertFalse(visible(session, "no-preview"));
+            assertThrows(TclException.class, () -> session.eval("plot_objects {path,no-preview} -plot_status False"));
+            assertTrue(visible(session, "path"));
+            assertThrows(TclException.class, () -> session.eval("plot_all -plot_status False"));
+            assertTrue(visible(session, "path"));
+        }
+    }
+
+    @Test void changingVisibilityOfManyLayersProducesOnlyOneRedraw() throws Exception {
+        try (Session session = new Session()) {
+            for (int i = 0; i < 25; i++) session.geometry("path" + i);
+            var metrics = new PlotAreaPerformance(true, 1000);
+            TerminalPanelTest.fx(() -> {
+                Field performance = PlotAreaView.class.getDeclaredField("performance"); performance.setAccessible(true);
+                performance.set(field("plotAreaView").get(session.host), metrics); return null;
+            });
+            session.eval("plot_all -plot_status False");
+            Field redraws = PlotAreaPerformance.class.getDeclaredField("redraws"); redraws.setAccessible(true);
+            assertEquals(1, TerminalPanelTest.fx(() -> redraws.getLong(metrics)));
+            session.eval("plot_all"); assertEquals(2, TerminalPanelTest.fx(() -> redraws.getLong(metrics)));
+        }
+    }
+
+    @Test void plottingBothCncSublayersSynchronizesPlotKindWithoutUndoingTheCommand() throws Exception {
+        try (Session session = new Session()) {
+            installRealTree(session);
+            Geometry line = FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0)});
+            TerminalPanelTest.fx(() -> {
+                Method add = MainWindow.class.getDeclaredMethod("addCncJobToProject", String.class, String.class,
+                        Path.class, String.class, Geometry.class, Geometry.class); add.setAccessible(true);
+                add.invoke(session.host, "job", "", Path.of("job.nc"), "G21\n", line, line); return null;
+            });
+            session.eval("set_active job");
+            var picker = TerminalPanelTest.fx(() -> {
+                var panel = (javafx.scene.layout.StackPane) field("propertiesContainer").get(session.host);
+                var content = ((javafx.scene.control.ScrollPane) panel.getChildren().getFirst()).getContent();
+                @SuppressWarnings("unchecked") var combo = (javafx.scene.control.ComboBox<String>) content.lookup("#object-plot-kind");
+                assertNotNull(combo); combo.setValue("Cut"); combo.getOnAction().handle(new ActionEvent()); return combo;
+            });
+            session.eval("plot_objects job");
+            TerminalPanelTest.fx(() -> {
+                assertEquals("All", picker.getValue());
+                Method layer = MainWindow.class.getDeclaredMethod("cncLayerVisible", TreeItem.class, boolean.class);
+                layer.setAccessible(true); var item = namedItemOnFx(session, "job");
+                assertEquals(true, layer.invoke(session.host, item, true)); assertEquals(true, layer.invoke(session.host, item, false));
+                return null;
+            });
         }
     }
 }

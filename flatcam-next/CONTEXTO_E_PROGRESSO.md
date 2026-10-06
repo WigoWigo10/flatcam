@@ -2756,3 +2756,43 @@ diferem e a taxa de intervalos >= 50 ms aumentou. Números, limites e overrides
 em [PLOT_PERFORMANCE.md](PLOT_PERFORMANCE.md). Commit autorizado pelo usuário.
 Próxima fatia de paridade segue sendo salvar/plot/seleção pelo Terminal; a
 proposta de renderização OpenGL continua uma trilha separada, a medir.
+
+## Terminal: salvar projeto, plot e seleção — 2026-10-05
+
+Incremento sobre `1ca038a6`, após o commit das correções de fluidez. Acrescenta
+`save_project`, `plot_all`, `plot_objects` e `set_active`: **22 famílias de
+comandos FlatCAM**, além dos comandos internos/aliases do dialeto reduzido.
+Referência: os quatro comandos correspondentes em `tclCommands/` e seleção
+aditiva de `ObjectCollection.set_active` do Python local. Sem `eval`, nova
+paridade de algoritmos CAM ou implementação LWJGL.
+
+Salvar reutiliza o snapshot do menu e os serializadores existentes `.fcnproj`
+e `.FlatPrj`. Serialização/compressão em worker; temporário ao lado do destino,
+checagem de cancelamento/estado antes de substituir. Erros, cancelamento e
+edições detectadas antes da publicação preservam o destino. Não altera arquivos
+de origem/G-code nem preferências. Extensão explícita e diretório existente
+obrigatórios; destino existente é substituído. Exportação Python conserva as
+limitações do writer e avisa para manter também uma cópia nativa. Compressão
+não é interrompida no meio; checagem FX e rename não formam uma transação única.
+
+Plot valida o lote completo antes de alterar camadas, agrupa redesenho e
+sincroniza checkbox Plot/seletor All/Travel/Cut. Corrigido um bug existente:
+CNC com apenas Cut ou Travel não conta uma subcamada ausente como visível.
+CNC sem prévia compatível é recusado explicitamente, inclusive em `plot_all`.
+`-use_thread` é validado, sem substituir a política de workers FX. `set_active`
+adiciona à seleção, expande a categoria e não exibe camadas ocultas nem rouba
+foco do Terminal. Fechar editores de objetos antes de selecionar pelo comando.
+
+23 regressões adicionais nos testes de argumentos e MainWindow real, incluindo
+round-trip dos dois formatos, continuidade do script pelo Terminal, publicação
+em lote, estados inválidos, cancelamento/edição concorrente e destino intacto.
+`mvnw.cmd -q install`: **1110 registrados, 1098 aprovados, 12 opcionais
+ignorados**, zero falhas/erros (602 CAM, 115 application, 373 FX, 20 test-support).
+Probes nativos D3D/GTX 1650 e software aprovados; executável recompilado.
+Fixtures próprios; sem modificar projetos privados/preferências do usuário.
+Não houve benchmark de fluidez, teste físico CNC nem nova execução do oráculo
+Python com projetos privados. Validação manual permanece pendente.
+
+Roteiro e diferenças deliberadas em [TERMINAL_TCL.md](TERMINAL_TCL.md).
+Próxima fatia recomendada: `rotate` e joins pelo Terminal, reaproveitando as
+operações existentes. Não declarar paridade Tcl completa.

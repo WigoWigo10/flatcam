@@ -1,9 +1,10 @@
 # Terminal Tcl — FlatCAM FX
 
-Atualizado em 2026-10-05, sobre `94ad07b1`, branch `flatcam-next`.
+Atualizado em 2026-10-05, sobre `1ca038a6`, branch `flatcam-next`.
 
 Abra **Ferramentas > Linha de Comando Tcl**. `help` lista comandos;
-`help open_project`, `help offset`, `help scale`, `help mirror` e `help skew`
+`help open_project`, `help save_project`, `help plot_all`, `help plot_objects`,
+`help set_active`, `help offset`, `help scale`, `help mirror` e `help skew`
 mostram sintaxe e referências. O Terminal executa um script por vez no worker,
 com Cancelar/ESC. Ele não é um interpretador Tcl completo: os limites de
 `TclInterpreter` continuam válidos.
@@ -36,6 +37,75 @@ O carregamento pelo próprio Terminal não cancela o script: é possível usar
 `open_project {...}; offset {objeto} -x 2; get_names` na mesma entrada.
 Aberturas pelo menu continuam cancelando um script que esteja trabalhando no
 projeto anterior. Avisos e limites da importação Python não foram removidos.
+
+## Salvar projeto
+
+```tcl
+save_project {C:/pasta com espacos/projeto.fcnproj}
+save_project {C:/pasta com espacos/projeto.FlatPrj}
+```
+
+O formato é determinado pela extensão explícita, sem seletor de arquivo:
+`.fcnproj` = nativo FX, `.FlatPrj` = exportação Python 8.994. Outras extensões
+são recusadas para não gravar silenciosamente o formato errado. O destino pode
+ser relativo ou absoluto; sua pasta precisa existir. O comando **substitui um
+arquivo existente**, assim como o comando Python; use outra cópia para ensaios.
+
+Usa o snapshot/serializadores do menu, incluindo geometria editada, ferramentas,
+parâmetros representáveis, cores, follow, visibilidade, G-code e avisos de
+importação. Os arquivos Gerber/Excellon e CNC originais não são regravados.
+Os limites de persistência de cada formato continuam válidos; preferências
+globais, seleção e câmera não passam a ser persistidas por esse comando.
+A exportação Python avisa no console inferior sobre compatibilidade limitada;
+recusas existentes para unidades mistas/exclusões/sondagem não foram removidas.
+Mantenha também uma cópia nativa quando houver recursos exclusivos FX.
+
+Feche/aplique/cancele os editores antes de salvar. Uma operação principal
+concorrente também bloqueia a gravação. A serialização/compressão é feita no
+worker, para um temporário ao lado do destino. Cancelamento ou mudança dos
+objetos/configurações detectada antes da publicação descarta o temporário e
+preserva o destino. A verificação de estado ocorre na FX; a substituição do
+arquivo ocorre no worker. Não existe transação única entre o estado da UI e
+o filesystem nem promessa de abortar uma compressão em curso imediatamente.
+Há tentativa de rename atômico, com fallback se não suportado pelo filesystem.
+
+O próximo comando aguarda a gravação. Cancelar um script **depois** da publicação
+não desfaz arquivos já salvos. O Terminal não muda a preferência de último
+diretório nem marca uma versão posterior da UI como salva.
+
+## Plot e seleção
+
+```tcl
+plot_all -plot_status False
+plot_objects {copper,holes,route} -plot_status True
+set_active route
+set_active holes
+save_project {C:/pasta/so-as-camadas-escolhidas.fcnproj}
+```
+
+- `plot_all` habilita todos por padrão; `-plot_status False` oculta. Aceita
+  `-use_thread True|False` como dica de compatibilidade, mas não modifica a
+  política de workers/renderização FX. Não força desenho pesado na thread FX.
+- `plot_objects` recebe nomes exatos separados por vírgulas; nomes com espaços
+  ficam dentro de chaves/aspas. Campos vazios são ignorados e nomes repetidos
+  são deduplicados; uma lista sem nomes é recusada. Um nome contendo vírgula
+  não pode ser representado nessa sintaxe, como no comando legado.
+- Booleans são literais (`True/False`, `1/0`, `yes/no`, `on/off`), sem `eval`.
+  Valores desconhecidos são recusados. `-plot_status` sem valor usa True.
+- Todos os nomes são validados antes de alterar a visibilidade; nomes ausentes
+  ou ambíguos não produzem alteração parcial. CNC Jobs sem prévia compatível
+  são recusados explicitamente (inclusive no lote `plot_all`), uma limitação FX.
+- CNC Jobs com apenas Cut ou Travel contam somente as subcamadas existentes;
+  o checkbox Plot e a visibilidade salva não ficam ativos por uma camada ausente.
+  O seletor All/Travel/Cut acompanha comandos de visibilidade sem reaplicar
+  o filtro anterior sobre o resultado do comando.
+- Camadas e overlays são atualizados em lote; árvore/seleção são atualizadas uma
+  vez. O próximo comando espera a atualização do modelo/FX, não todos os quadros
+  apresentados na GPU ou a preparação assíncrona do display.
+- `set_active` **adiciona** o objeto à seleção, como `ObjectCollection.set_active`
+  do Python; não é seleção exclusiva. Expande a categoria recolhida e não torna
+  uma camada oculta visível, não muda a câmera e não pede foco para a árvore.
+  Feche editores de objetos antes de mudar a seleção pelo Terminal.
 
 ## Transformações em memória
 
@@ -92,6 +162,8 @@ comandos já publicados nem restaura o projeto anterior após uma abertura concl
 
 ## Cobertura e próximos incrementos
 
+### Histórico: abertura e transformações
+
 22 regressões novas em `TclFlatcamCommandsTest` e `TclLiveHostTest`: argumentos,
 referências, ajuda, transformação de dados reais de todos os tipos suportados,
 configurações/cores, projetos nativo e Python comprimido, script após abrir,
@@ -104,8 +176,26 @@ Verificação: `mvnw.cmd -q install`, 1063 registrados, 1051 aprovados,
 12 opcionais ignorados, zero falhas/erros, limpeza normal ativa. Probes nativos
 `--probe` e `--probe --software` aprovados com as classes recompiladas.
 
-Agora são 18 famílias de comandos FlatCAM, além de aliases e comandos internos
-do dialeto/shell. Faltam, entre outros, `save_project`, `rotate`, `plot_all`/
-`plot_objects`, preferências Tcl, joins/subtract/panelize, exportações e flags
-CAM avançadas. Próximo incremento recomendado: salvar projeto pelo Terminal e
-controle de plot/seleção, mantendo execução serial, gravação segura e erros claros.
+### Incremento: salvar, plot e seleção
+
+23 regressões adicionais: os quatro comandos e ajuda, argumentos/booleans,
+round-trip dos dois formatos com os quatro tipos de objetos, continuidade do
+script pelo Terminal real, seleção aditiva, nomes ambíguos/ausentes, checkbox
+Plot e seletor All/Travel/Cut, CNC com apenas uma subcamada, publicação em lote
+com um redesenho, cancelamento e alterações concorrentes antes da publicação,
+preservação do destino, limpeza de temporários, formatos/estados inválidos e
+worker/FX responsiva. Fixtures próprios, sem alterar projetos privados nem
+preferências do usuário.
+
+Verificação deste incremento: `mvnw.cmd -q install`, **1110 registrados,
+1098 aprovados, 12 opcionais ignorados**, zero falhas/erros. Probes nativos
+`run-native.cmd --probe` (D3D/GTX 1650) e
+`target/native/FlatCAMFX.exe --probe --software` aprovados; executável atualizado.
+Não houve benchmark de fluidez, teste físico CNC nem nova comparação privada
+Python/FX. Validação manual do roteiro com projetos reais continua pendente.
+
+O incremento salvar/plot/seleção acrescenta quatro famílias, chegando a **22
+famílias de comandos FlatCAM**, além de aliases e comandos internos do dialeto/
+shell. Faltam, entre outros, `rotate`, preferências Tcl, joins/subtract/panelize,
+exportações e flags CAM avançadas. Próxima fatia sugerida: rotação e junções
+pelo Terminal, reutilizando as operações existentes sem ampliar o dialeto Tcl.

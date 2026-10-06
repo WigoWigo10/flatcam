@@ -4784,7 +4784,8 @@ final class MainWindow implements TclFlatcamHost {
             return true;
         }
         CncJobEntry entry = cncJobByItem.get(item);
-        return entry != null && (entry.travelGeometry() != null || entry.cutGeometry() != null);
+        return entry != null && (entry.travelGeometry() != null && !entry.travelGeometry().isEmpty()
+                || entry.cutGeometry() != null && !entry.cutGeometry().isEmpty());
     }
 
     /**
@@ -4794,12 +4795,26 @@ final class MainWindow implements TclFlatcamHost {
      */
     private boolean isObjectVisible(TreeItem<String> item) {
         if (cncJobByItem.containsKey(item)) {
-            return plotAreaView.isLayerVisible(new CncTravelLayerKey(item)) || plotAreaView.isLayerVisible(new CncCutLayerKey(item));
+            return cncLayerVisible(item, true) || cncLayerVisible(item, false);
         }
         return plotAreaView.isLayerVisible(item);
     }
 
+    private boolean cncLayerVisible(TreeItem<String> item, boolean travel) {
+        CncJobEntry entry = cncJobByItem.get(item);
+        if (entry == null) return false;
+        Geometry geometry = travel ? entry.travelGeometry() : entry.cutGeometry();
+        return geometry != null && !geometry.isEmpty()
+                && plotAreaView.isLayerVisible(travel ? new CncTravelLayerKey(item) : new CncCutLayerKey(item));
+    }
+
     private void setObjectVisible(TreeItem<String> item, boolean visible) {
+        applyObjectVisibility(item, visible);
+        refreshObjectVisibilityUi();
+    }
+
+    /** Mutation only: callers changing several objects refresh the tree/selection once, inside a Plot batch. */
+    private void applyObjectVisibility(TreeItem<String> item, boolean visible) {
         if (cncJobByItem.containsKey(item)) {
             plotAreaView.setLayerVisible(new CncTravelLayerKey(item), visible);
             plotAreaView.setLayerVisible(new CncCutLayerKey(item), visible);
@@ -4807,11 +4822,28 @@ final class MainWindow implements TclFlatcamHost {
         } else {
             plotAreaView.setLayerVisible(item, visible);
         }
+    }
+
+    private void refreshObjectVisibilityUi() {
         // The tree doesn't otherwise know PlotAreaView's layer visibility changed - see
         // refreshDisplay()'s dimming of disabled rows (ObjectCollection.py's own
         // data()/Qt.ForegroundRole, which reads obj.options['plot'] the same way).
         projectTree.refresh();
         refreshPlotSelectionOutline();
+        TreeItem<String> selected = projectTree.getSelectionModel().getSelectedItem();
+        Node content = propertiesContainer.getChildren().isEmpty() ? null : propertiesContainer.getChildren().getFirst();
+        // ScrollPane content may not be in its skin's children yet (e.g. a still-hidden Properties tab).
+        if (content instanceof ScrollPane scroll) content = scroll.getContent();
+        if (selected != null && content != null && content.lookup("#object-plot") instanceof CheckBox checkbox)
+            checkbox.setSelected(isObjectVisible(selected));
+        if (selected != null && cncJobByItem.containsKey(selected) && isObjectVisible(selected)
+                && content != null && content.lookup("#object-plot-kind") instanceof ComboBox<?> kind) {
+            @SuppressWarnings("unchecked") ComboBox<String> picker = (ComboBox<String>) kind;
+            boolean travel = cncLayerVisible(selected, true), cut = cncLayerVisible(selected, false);
+            picker.getProperties().put("syncing-plot-kind", true);
+            try { picker.setValue(travel == cut ? "All" : cut ? "Cut" : "Travel"); }
+            finally { picker.getProperties().remove("syncing-plot-kind"); }
+        }
     }
 
     private void removeSelectionFromProject(List<TreeItem<String>> items) {
@@ -6650,6 +6682,7 @@ final class MainWindow implements TclFlatcamHost {
         box.getChildren().add(nameRow(item));
 
         CheckBox plotCb = new CheckBox();
+        plotCb.setId("object-plot");
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         CheckBox followCb = new CheckBox("Follow");
@@ -6848,6 +6881,7 @@ final class MainWindow implements TclFlatcamHost {
         )));
 
         CheckBox plotCb = new CheckBox("Plot");
+        plotCb.setId("object-plot");
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
         plotCb.setTooltip(new Tooltip("Exibe ou oculta este objeto Excellon no desenho."));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
@@ -6900,6 +6934,7 @@ final class MainWindow implements TclFlatcamHost {
         box.getChildren().add(nameRow(item));
 
         CheckBox plotCb = new CheckBox();
+        plotCb.setId("object-plot");
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         box.getChildren().add(labeledRow("Plot:", plotCb));
@@ -6959,22 +6994,25 @@ final class MainWindow implements TclFlatcamHost {
         VBox box = objectPropertiesHeader("CNC Job Object", ISOLATION_COLOR, "cnc32.png");
         box.getChildren().add(nameRow(item));
 
-        boolean hasGeometry = entry.travelGeometry() != null || entry.cutGeometry() != null;
+        boolean hasGeometry = isPlottable(item);
         CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
         CncCutLayerKey cutKey = new CncCutLayerKey(item);
-        boolean travelVisible = hasGeometry && plotAreaView.isLayerVisible(travelKey);
-        boolean cutVisible = hasGeometry && plotAreaView.isLayerVisible(cutKey);
+        boolean travelVisible = cncLayerVisible(item, true);
+        boolean cutVisible = cncLayerVisible(item, false);
 
         ComboBox<String> kindCombo = new ComboBox<>();
+        kindCombo.setId("object-plot-kind");
         kindCombo.getItems().addAll("All", "Travel", "Cut");
-        kindCombo.setValue(!cutVisible ? "Travel" : !travelVisible ? "Cut" : "All");
+        kindCombo.setValue(travelVisible == cutVisible ? "All" : cutVisible ? "Cut" : "Travel");
         kindCombo.setDisable(!hasGeometry);
 
         CheckBox plotCb = new CheckBox();
+        plotCb.setId("object-plot");
         plotCb.setSelected(travelVisible || cutVisible);
         plotCb.setDisable(!hasGeometry);
 
         Runnable applyVisibility = () -> {
+            if (Boolean.TRUE.equals(kindCombo.getProperties().get("syncing-plot-kind"))) return;
             boolean visible = plotCb.isSelected();
             String kind = kindCombo.getValue();
             plotAreaView.setLayerVisible(travelKey, visible && !"Cut".equals(kind));
@@ -7269,6 +7307,87 @@ final class MainWindow implements TclFlatcamHost {
     // ---- TclFlatcamHost: what the Tcl Terminal's FlatCAM commands see of this live session ----
 
     @Override
+    public void saveProject(Path file) throws IOException, TclException {
+        requireWorkerCommand();
+        String filename = file.getFileName() == null ? "" : file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        boolean pythonFormat = filename.endsWith(".flatprj");
+        if (!pythonFormat && !filename.endsWith(".fcnproj"))
+            throw new TclException("Use an explicit .fcnproj (FX) or .FlatPrj (Python) extension.");
+        TclProjectSave snapshot = TclExecution.onFx(() -> {
+            requireProjectSaveAllowed();
+            if (pythonFormat) appendConsole("Exportacao Python 8.994 pelo Terminal: compatibilidade limitada. "
+                    + "Mantenha tambem uma copia .fcnproj; preferencias globais e recursos exclusivos FX nao tem equivalencia completa.");
+            return new TclProjectSave(snapshotProject(), captureTclProjectState());
+        });
+        TclExecution.phase("Serializando projeto...");
+        Path destination = file.toAbsolutePath();
+        // Existing serializers stage/rename internally. Stage their complete output again so a
+        // Terminal cancellation or concurrent edit can be checked before touching the user's destination.
+        Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-project-", ".tmp");
+        try {
+            if (pythonFormat) PythonProjectWriter.save(snapshot.project(), temporary);
+            else ProjectFileIO.save(snapshot.project(), temporary);
+            TclExecution.phase("Publicando projeto...");
+            TclExecution.onFx(() -> {
+                requireProjectSaveAllowed();
+                checkTclProjectState(snapshot.before());
+                return null;
+            });
+            TclExecution.cancellation().throwIfCancellationRequested();
+            try {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+            } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
+            }
+            TclExecution.progress("Projeto salvo.").report(1);
+        } finally { Files.deleteIfExists(temporary); }
+        // Saving from Tcl deliberately does not change last-directory preferences or mark a later UI state as saved.
+    }
+
+    private record TclProjectSave(ProjectFile project, TclProjectState before) { }
+
+    private void requireProjectSaveAllowed() {
+        if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
+        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())
+            throw new IllegalStateException("Aplique ou cancele o editor antes de salvar o projeto.");
+    }
+
+    @Override
+    public void plotObjects(List<String> names, boolean visible) throws TclException {
+        List<String> requested = names == null ? null : List.copyOf(names);
+        try { TclExecution.onFx(() -> {
+            List<TreeItem<String>> targets = requested == null ? allTclItems() : requested.stream().map(name -> {
+                TreeItem<String> item = findTclItemByName(name);
+                if (item == null) throw new IllegalArgumentException("Object not found: " + name);
+                return item;
+            }).distinct().toList();
+            for (TreeItem<String> item : targets)
+                if (!isPlottable(item)) throw new IllegalArgumentException("CNC Job sem previa compativel: " + item.getValue());
+            plotAreaView.beginBatchUpdate();
+            try {
+                for (TreeItem<String> item : targets) applyObjectVisibility(item, visible);
+                refreshObjectVisibilityUi();
+            } finally { plotAreaView.endBatchUpdate(); }
+            return null;
+        }); } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+    }
+
+    @Override
+    public void setActive(String name) throws TclException {
+        try { TclExecution.onFx(() -> {
+            if (gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())
+                throw new IllegalStateException("Feche o editor de objetos antes de selecionar pelo Terminal.");
+            TreeItem<String> item = findTclItemByName(name);
+            if (item == null) throw new IllegalArgumentException("Object not found: " + name);
+            int row = rowForPlotObject(item);
+            // Python collection.set_active is additive, not set_exclusive_active.
+            projectTree.getSelectionModel().select(row);
+            projectTree.scrollTo(row);
+            return null;
+        }); } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
+    }
+
+    @Override
     public void openProject(Path file) throws IOException, TclException {
         requireWorkerCommand();
         TclProjectState before = TclExecution.onFx(() -> {
@@ -7343,11 +7462,11 @@ final class MainWindow implements TclFlatcamHost {
     private void checkTclProjectState(TclProjectState before) {
         checkTclProject(before.epoch());
         if (allTclItems().size() != before.items().size() || !before.settings().equals(tclProjectSettings()))
-            throw new IllegalStateException("Os objetos do projeto mudaram durante o carregamento; resultado descartado.");
+            throw new IllegalStateException("Os objetos do projeto mudaram durante a operacao; resultado descartado.");
         for (TclItemState state : before.items())
             if (tclVersion(state.item()) != state.version() || !Objects.equals(state.name(), state.item().getValue())
                     || !state.appearance().equals(tclAppearance(state.item())))
-                throw new IllegalStateException("O projeto foi editado durante o carregamento; resultado descartado.");
+                throw new IllegalStateException("O projeto foi editado durante a operacao; resultado descartado.");
     }
 
     private void requireTclTransformAllowed() {
@@ -8336,6 +8455,56 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
             return;
         }
+        ProjectFile project = snapshotProject();
+
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Salvar Projeto");
+        chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
+                new FileChooser.ExtensionFilter("Projeto FlatCAM Python 8.994 (compatibilidade)", "*.FlatPrj"));
+        String fallbackDir = Path.of("").toAbsolutePath().toString();
+        Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
+        if (Files.isDirectory(lastDir)) {
+            chooser.setInitialDirectory(lastDir.toFile());
+        }
+        File file = chooser.showSaveDialog(scene.getWindow());
+        if (file == null) {
+            return;
+        }
+        boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
+        if (pythonFormat) appendConsole("Exportacao Python 8.994: preserva geometria e G-code suportado. "
+                + "Preferencias globais e recursos exclusivos FX nao tem equivalencia completa no Python; mantenha tambem uma copia .fcnproj.");
+
+        beginJob("Salvando projeto " + file.getName() + "...");
+        // Menu save publishes via the serializers directly; compression has no cooperative cancellation point.
+        cancelJobButton.setDisable(true);
+        JobHandle<Path> handle = jobExecutor.submit(context -> {
+            context.reportProgress(Double.NaN, "Serializando projeto...");
+            if (pythonFormat) PythonProjectWriter.save(project, file.toPath());
+            else ProjectFileIO.save(project, file.toPath());
+            context.reportProgress(1, "Projeto salvo.");
+            return file.toPath();
+        }, (fraction, message) -> Platform.runLater(() -> {
+            updateProgress(fraction);
+            statusLabel.setText(message);
+        }));
+        runningJob = handle;
+        handle.completion().thenAccept(saved -> Platform.runLater(() -> {
+            AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+            appendConsole("Projeto salvo em " + saved);
+            updateProgress(1);
+            setStatus("Projeto salvo.", IDLE_COLOR);
+            onJobFinished();
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                reportJobError(error, "Falha ao salvar projeto: ");
+                onJobFinished();
+            });
+            return null;
+        });
+    }
+
+    /** Menu and Terminal snapshot only immutable session versions; serialization stays on the worker. */
+    private ProjectFile snapshotProject() {
         List<ProjectFile.GerberEntry> gerbers = new ArrayList<>();
         for (Map.Entry<TreeItem<String>, GerberImage> entry : gerberByItem.entrySet()) {
             TreeItem<String> item = entry.getKey();
@@ -8371,56 +8540,8 @@ final class MainWindow implements TclFlatcamHost {
                     colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item),
                     geometry.cncDefaults(), geometryCncSettingsByItem.get(item)));
         }
-        ProjectFile project = new ProjectFile(gerbers, excellons, geometries, jobs,
+        return new ProjectFile(gerbers, excellons, geometries, jobs,
                 currentProjectImportWarnings);
-
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar Projeto");
-        chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
-                new FileChooser.ExtensionFilter("Projeto FlatCAM Python 8.994 (compatibilidade)", "*.FlatPrj"));
-        String fallbackDir = Path.of("").toAbsolutePath().toString();
-        Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
-        if (Files.isDirectory(lastDir)) {
-            chooser.setInitialDirectory(lastDir.toFile());
-        }
-        File file = chooser.showSaveDialog(scene.getWindow());
-        if (file == null) {
-            return;
-        }
-        boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
-        if (pythonFormat) appendConsole("Exportacao Python 8.994: preserva geometria e G-code suportado. "
-                + "Preferencias globais e recursos exclusivos FX nao tem equivalencia completa no Python; mantenha tambem uma copia .fcnproj.");
-
-        beginJob("Salvando projeto " + file.getName() + "...");
-        // Serialization and XZ compression can take time now that Gerber
-        // projects retain every individual flash/stroke for editing.
-        // The writer publishes atomically; there is no cooperative cancel
-        // point inside compression, so do not offer a misleading Cancel button.
-        cancelJobButton.setDisable(true);
-        JobHandle<Path> handle = jobExecutor.submit(context -> {
-            context.reportProgress(Double.NaN, "Serializando projeto...");
-            if (pythonFormat) PythonProjectWriter.save(project, file.toPath());
-            else ProjectFileIO.save(project, file.toPath());
-            context.reportProgress(1, "Projeto salvo.");
-            return file.toPath();
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
-        runningJob = handle;
-        handle.completion().thenAccept(saved -> Platform.runLater(() -> {
-            AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
-            appendConsole("Projeto salvo em " + saved);
-            updateProgress(1);
-            setStatus("Projeto salvo.", IDLE_COLOR);
-            onJobFinished();
-        })).exceptionally(error -> {
-            Platform.runLater(() -> {
-                reportJobError(error, "Falha ao salvar projeto: ");
-                onJobFinished();
-            });
-            return null;
-        });
     }
 
     /**

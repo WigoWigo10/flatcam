@@ -433,6 +433,22 @@ Limites, roteiros e pendências: [TERMINAL_TCL.md](TERMINAL_TCL.md).
 Próximo incremento: `save_project`, controle de plot/seleção e outros comandos
 Tcl restantes. O dialeto continua reduzido; não declarar paridade Tcl completa.
 
+**Incremento salvar/plot/seleção em 2026-10-05, sobre `1ca038a6`:**
+`save_project` usa snapshot compartilhado com o menu e os serializadores nativo/
+Python existentes, em worker, com arquivo temporário e validação antes de
+substituir o destino. Não altera preferências nem os arquivos de origem.
+`plot_all`/`plot_objects` validam nomes/booleans e atualizam o display em lote;
+`set_active` preserva a seleção aditiva do Python. Corrigida a visibilidade
+incorreta de CNC Jobs com uma subcamada ausente e sincronizado o checkbox Plot.
+Limites, proteção de arquivos, referências Python e roteiro em
+[TERMINAL_TCL.md](TERMINAL_TCL.md). Continua sem Tcl completo nem nova paridade
+dos algoritmos CAM. Próxima fatia sugerida: `rotate` e joins pelo Terminal.
+
+23 regressões adicionais; `mvnw.cmd -q install`: **1110 registrados, 1098
+aprovados, 12 opcionais ignorados**, zero falhas/erros. Probes nativos D3D/GTX
+1650 e software aprovados, com executável recompilado. A validação manual com
+projetos reais permanece pendente; esta entrega não é benchmark de fluidez.
+
 ## Desempenho: trabalho transversal
 
 Medir tempo CAM, memória, carregamento, latência de seleção e navegação nas

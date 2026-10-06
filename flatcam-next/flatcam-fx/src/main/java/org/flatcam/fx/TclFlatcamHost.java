@@ -13,7 +13,7 @@ import org.locationtech.jts.geom.Geometry;
 
 /**
  * What {@link TclFlatcamCommands} needs from the live FX session - object creation, lookup by
- * name, and deletion - kept as a narrow interface so the commands' own argument handling and
+ * name, deletion, persistence and display - kept as a narrow interface so the commands' own argument handling and
  * error messages can be unit-tested with a fake implementation, without a JavaFX {@code Scene}.
  * {@link MainWindow} is the real implementation, backed by its per-type {@code TreeItem} maps.
  *
@@ -26,6 +26,15 @@ interface TclFlatcamHost {
 
     /** Replaces the project only after complete worker preparation and validation. */
     void openProject(Path file) throws IOException, TclException;
+
+    /** Writes a consistent snapshot using the menu's formats; checks cancellation before replacing the destination. */
+    void saveProject(Path file) throws IOException, TclException;
+
+    /** Sets visibility for all objects (null names), or a fully validated named batch. */
+    void plotObjects(List<String> names, boolean visible) throws TclException;
+
+    /** Adds an object to the current selection, like Python collection.set_active; does not enable its plot. */
+    void setActive(String name) throws TclException;
 
     /** Updates one Gerber/Excellon/Geometry in place, preserving its name and settings. */
     void transform(String name, TclTransformRequest request) throws TclException;
