@@ -75,3 +75,13 @@ Testes: `GeometryAdvancedCncTest`, `GeometryAdvancedPanelTest`,
 `GeometryPerToolProjectTest` e `PythonProjectWriterTest`. Controles são exercitados
 na thread JavaFX sem janela visível. Validação visual no aplicativo e teste a
 seco na máquina continuam necessários.
+
+## Publicação pela UI (2026-10-07)
+
+O worker prepara G-code e prévia antes de substituir o destino. Arquivo temporário
+no mesmo diretório, revalidação da origem/projeto/configurações/editor e checkpoints
+de cancelamento evitam truncar o destino em falhas anteriores à publicação.
+Defaults só são atualizados na conclusão válida, e outro painel aberto é preservado.
+`GeometryCncGenerationTest` cobre 11 cenários, incluindo MM/IN e origem alterada.
+Não há rollback conjunto entre a substituição do arquivo e a publicação do CNC Job
+na UI; cancelar depois da substituição não recupera o arquivo anterior.

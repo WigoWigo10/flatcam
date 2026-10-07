@@ -1,5 +1,17 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-07: cinco fluxos principais
+
+Usuário autorizou implementação individual, commits por incremento e push para
+`fork/flatcam-next`, sem force-push. Base inicial `eeeef1ff`.
+Primeiro incremento: Geometry → CNC pela UI usa worker para geração/prévia,
+temporário e revalidação antes de substituir arquivo. Onze testes novos passam,
+assim como `mvnw.cmd -q verify`; consultar `FLUXO_PRINCIPAL.md` para limites.
+Seguem Drilling/Milling, importação/preparação, Isolation e NCC. Não declarar
+paridade total: validação manual com projetos reais e ensaio físico são separados.
+Diagnóstico paralelo de Panelize Python não modificou o legado. FX já multiplica
+furos/rasgos e exporta corretamente no ensaio sintético; comando Tcl ainda ausente.
+
 Este é o documento operacional de continuidade do **FlatCAM FX**. Ele foi
 escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas

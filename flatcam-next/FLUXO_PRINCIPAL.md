@@ -1,6 +1,6 @@
 # Fluxos principais — critérios e validação
 
-Atualizado em 2026-10-06, sobre `0a3fb636`, branch `flatcam-next`.
+Atualizado em 2026-10-07, branch `flatcam-next` (incremento anterior: `eeeef1ff`).
 Prioridade solicitada: consolidar os fluxos de produção antes de ampliar
 ferramentas secundárias/automação. Não declarar 100% apenas pela presença dos painéis.
 
@@ -84,14 +84,25 @@ Gerbers/Excellons originais nos ensaios.
 
 ## Próximos incrementos
 
-1. **Geometry → CNC pela UI:** substituir escrita direta por temporário/publicação
-   validada, preparar prévia antes de publicar arquivo, impedir CNC obsoleto após
-   alteração/remoção da origem e preservar painel/defaults em falha/cancelamento.
-   Drilling já tem infraestrutura equivalente; reutilizar padrões existentes.
+1. **Geometry → CNC pela UI: incremento implementado em 2026-10-07.** Geração,
+   prévia e gravação usam worker; o arquivo é preparado em temporário no mesmo
+   diretório, validado e só depois substitui o destino. Projeto, identidade/nome
+   da origem, configurações salvas e editores são revalidados. Falha/cancelamento
+   antes da publicação preserva o arquivo e os defaults. Outro painel aberto não
+   é fechado pela conclusão. `GeometryCncGenerationTest`: 11 cenários (MM/IN,
+   cancelamento por fase, falha de validação e alterações reais no MainWindow).
+   `mvnw.cmd -q verify` passou; FileChooser e ensaio físico não foram automatizados.
+   A substituição usa movimento atômico quando suportado; arquivo e objeto da UI
+   não constituem uma transação única. Cancelamento após substituir o arquivo não
+   desfaz essa publicação. Operações geométricas individuais continuam cooperativas.
 2. Completar consumo avançado de parâmetros Drilling/Tools Database e seus
    roteiros CNC/persistência; seguir `CNC_EXCLUSIONS.md` e `PREPROCESSADORES.md`.
 3. Ampliar validação do salvar → Python → FX para dados dos fluxos principais,
    sem remover avisos/recusas de perda de dados.
+4. Consolidar transferência de parâmetros de usinagem da Tools Database na
+   geração Isolation → Geometry → CNC, além dos parâmetros de isolamento.
+5. Consolidar essa transferência para NCC e testar CLEAR/ISO, Rest e limites;
+   conservar a diferença documentada do algoritmo Seed.
 
 Referências: [plano de paridade](PLANO_PARIDADE.md), [Cutout](CUTOUT.md),
 [Geometry/CNC](GEOMETRY_CNC.md) e [compatibilidade](COMPATIBILIDADE_FLATPRJ.md).

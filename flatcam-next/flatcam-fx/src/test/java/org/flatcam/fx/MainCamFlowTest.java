@@ -57,7 +57,7 @@ class MainCamFlowTest {
         return null;
     }
 
-    private static final class Session implements AutoCloseable {
+    static final class Session implements AutoCloseable {
         final JobExecutor jobs = new JobExecutor(1);
         final CountDownLatch release = new CountDownLatch(1);
         final MainWindow window;

@@ -6656,56 +6656,69 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
 
+        startGeometryCncGeneration(item, entry, result, outFile.toPath());
+    }
+
+    private void startGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
+                                            GeometryCncToolPanel.Result result, Path output) {
+        CamGenerationState before = captureCamGeneration(item, entry.geometry(), null, null);
+        if (geometryByItem.get(item) != entry) throw new IllegalStateException("Geometry alterada; reabra a ferramenta.");
+        GeometryCncSettings savedSettings = geometryCncSettingsByItem.get(item);
+        Runnable validate = () -> {
+            if (tclProjectEpoch != before.epoch() || geometryByItem.get(item) != entry
+                    || !before.inputs().getFirst().name().equals(item.getValue())
+                    || !Objects.equals(savedSettings, geometryCncSettingsByItem.get(item)) || camEditorActive())
+                throw new IllegalStateException("Geometry/projeto/parametros/editor mudou; resultado descartado.");
+        };
+        validate.run();
+        String sourceName = item.getValue();
         beginJob("Gerando CNC Job de Geometry...");
-        JobHandle<GeneratedCncJob> handle = jobExecutor.submit(context -> {
-            context.reportProgress(0.05, "Ordenando caminhos de Geometry...");
-            CncJobResult job = GCodeGenerator.generateGeometryCncJob(entry.units(), result.tools(),
-                    result.parameters(), result.vTools(), result.parametersByTool(), context::isCancelled, result.preprocessor());
-            context.checkCancelled();
-            context.reportProgress(0.85, "Salvando G-code de Geometry...");
-            Files.writeString(outFile.toPath(), job.gcode());
-            context.reportProgress(0.92, "Calculando distancia e tempo estimado...");
-            return new GeneratedCncJob(job, previewOf(job.gcode(), context::isCancelled));
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
+        activeCamGeneration = before;
+        JobHandle<GeometryCncGeneration.Generated> handle = jobExecutor.submit(context -> TclExecution.run(context,
+                () -> GeometryCncGeneration.generate(entry.units(), result.tools(), result.parameters(), result.vTools(),
+                        result.parametersByTool(), result.preprocessor(), output, context,
+                        () -> TclExecution.onFx(() -> { validate.run(); return null; }))), camProgress(before));
         runningJob = handle;
 
         handle.completion()
                 .thenAccept(generated -> Platform.runLater(() -> {
-                    CncJobResult job = generated.job();
-                    if (geometryByItem.get(item) == entry) {
+                    if (runningJob != handle) return;
+                    try {
+                        validate.run();
+                        CncJobResult job = generated.job();
                         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
                                 entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters()));
                         geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
                                 entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
                                 result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
-                    }
-                    AppPreferences.saveLastCamDirectory(outFile.getParentFile().getAbsolutePath());
-                    appendConsole("G-code de Geometry salvo em " + outFile
-                            + " (" + job.gcode().lines().count() + " linhas).");
-                    GCodeToolpathParser.Result preview = generated.preview();
-                    if (preview != null && preview.warning() != null)
-                        appendConsole(outFile.getName() + ": " + preview.warning());
-                    boolean centerlines = preview != null && preview.plotAvailable() && preview.stats() != null
-                            && preview.stats().cutterDiameter() != null;
-                    // Programs that state their cutter width get the fast stroked preview, like imported ones.
-                    TreeItem<String> cncItem = addCncJobToProject(outFile.getName(), item.getValue(),
-                            outFile.toPath(), job.gcode(), job.travelGeometry(), job.cutGeometry(),
-                            centerlines ? preview.travelCenterlines() : null,
-                            centerlines ? preview.cutCenterlines() : null,
-                            centerlines ? previewWidthFor(preview) : 0,
-                            preview == null ? null : preview.stats());
-                    selectProjectItem(cncItem);
-                    focusCncJob(cncItem, cncJobByItem.get(cncItem));
-                    closeToolPanel();
-                    updateProgress(1);
-                    setStatus("Concluido.", IDLE_COLOR);
-                    onJobFinished();
+                        AppPreferences.saveLastCamDirectory(output.toAbsolutePath().getParent().toString());
+                        appendConsole("G-code de Geometry salvo em " + output
+                                + " (" + job.gcode().lines().count() + " linhas).");
+                        GCodeToolpathParser.Result preview = generated.preview();
+                        if (preview != null && preview.warning() != null)
+                            appendConsole(output.getFileName() + ": " + preview.warning());
+                        boolean centerlines = preview != null && preview.plotAvailable() && preview.stats() != null
+                                && preview.stats().cutterDiameter() != null;
+                        // Programs that state their cutter width get the fast stroked preview, like imported ones.
+                        TreeItem<String> cncItem = addCncJobToProject(output.getFileName().toString(), sourceName,
+                                output, job.gcode(), job.travelGeometry(), job.cutGeometry(),
+                                centerlines ? preview.travelCenterlines() : null,
+                                centerlines ? preview.cutCenterlines() : null,
+                                centerlines ? previewWidthFor(preview) : 0,
+                                preview == null ? null : preview.stats());
+                        if (toolTab.getContent() == before.panel()) {
+                            selectProjectItem(cncItem);
+                            focusCncJob(cncItem, cncJobByItem.get(cncItem));
+                            closeToolPanel();
+                        }
+                        updateProgress(1);
+                        setStatus("Concluido.", IDLE_COLOR);
+                    } catch (RuntimeException failure) { reportJobError(failure, "Falha ao publicar Geometry CNC: "); }
+                    finally { onJobFinished(); }
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
+                        if (runningJob != handle) return;
                         reportJobError(error, "Falha ao gerar/salvar CNC Job de Geometry: ");
                         onJobFinished();
                     });
