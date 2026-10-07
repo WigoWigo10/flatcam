@@ -591,3 +591,13 @@ Manter projetos privados, relatórios, WKT/SVG e G-code de comparação fora do
 Git, em `target/`. Não alterar o oráculo Python para obter aprovação.
 Este plano não estabelece prazo nem porcentagem global de paridade: acompanhar
 cenários cobertos e pendências demonstráveis por etapa.
+# Consolidação de fluxos principais — 2026-10-07
+
+Cinco incrementos: publicação validada Geometry/CNC; Milling Excellon e
+Drilling com guards; unidades/profundidades legadas; transferência de corte
+Tools Database em Isolation; mesma transferência NCC/CLEAR/ISO/V-Tip.
+Detalhes e limites em `FLUXO_PRINCIPAL.md`. Verify completo: 1387 registrados,
+1375 aprovados, 12 opcionais ignorados, zero falhas/erros. Probes D3D/SW passam.
+Comparação sintética: Isolation 1/3 e NCC Standard `MATCH_SAMPLED`; Seed/Lines
+`ORACLE_ERROR` no legado/Shapely 2. Não declarar paridade total ou segurança
+física: validação manual/real e opções globais da DB permanecem pendentes.

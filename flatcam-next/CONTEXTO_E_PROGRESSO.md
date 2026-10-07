@@ -29,12 +29,27 @@ por ferramentas efetivamente publicadas; não herda valores a ferramentas manuai
 não duplica offset CAM e não transporta parâmetros comuns de máquina/perfil.
 Seis novos casos em `MainIsolationMachiningTest`; detalhes em `FLUXO_PRINCIPAL.md`.
 
+Quarto commit publicado: `8e67b337`. Quinto incremento aplica a mesma transferência
+à DB NCC/CLEAR/ISO. `MainNccMachiningTest`: nove casos de limites/Rest/MM/IN,
+ISO V, persistência, painel CNC e geração/prévia, além do transporte pelas forms.
+Os cinco incrementos técnicos não provam 100% dos fluxos: comparação diferencial
+real, testes manuais de todos os controles e validação física permanecem pendentes.
+
+Verificação final desta sequência: `mvnw.cmd -q verify` aprovado, **1387
+registrados, 1375 aprovados, 12 opcionais ignorados**, zero falhas/erros.
+Probes offscreen do launcher passam em D3D/Intel Arc e software forçado.
+Comparação sintética via harness, Python 8.994/Shapely 2.1.2: Isolation 1/3
+passadas e NCC Standard = 3 `MATCH_SAMPLED`, modo estrito aprovado. NCC Seed/Lines
+= 2 `ORACLE_ERROR` por incompatibilidade multipart do legado com Shapely 2;
+não contam como aprovação nem demonstram defeito FX. Artefatos locais em
+`target/five-flows-cam-comparison/`, sem alterar Python ou preferências.
+
 Este é o documento operacional de continuidade do **FlatCAM FX**. Ele foi
 escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
 e continuar a migração sem recomeçar a investigação.
 
-> Atualizado em **2026-10-06**, sobre a branch `flatcam-next`, revisão da base `0a3fb636`.
+> Histórico anterior (**2026-10-06**), branch `flatcam-next`, revisão da base `0a3fb636`.
 > Java 25 + JavaFX 25.0.4, 24 ferramentas de menu implementadas com opções ainda
 > parciais, editores, Tools Database e Terminal com 28 famílias de comandos FlatCAM,
 > incluindo a extensão FX de rotação; isso não declara paridade Tcl completa.

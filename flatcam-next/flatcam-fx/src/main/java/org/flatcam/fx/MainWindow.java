@@ -6637,6 +6637,7 @@ final class MainWindow implements TclFlatcamHost {
                                 .toList();
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 result.geometry(), true, tools);
+                        applyCamMachining(generated, panelResult.machining());
                         appendConsole(String.format(
                                 "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
                                 result.pathCount(), result.totalLength(), result.toolResults().size(),

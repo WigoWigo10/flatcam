@@ -70,6 +70,7 @@ final class NccToolPanel {
         boolean contour = true;
         boolean offsetEnabled;
         String offset = "0.0";
+        LegacyToolsDatabase.MillingTool machining;
 
         ToolRow(double diameter) {
             this.diameter = diameter;
@@ -125,9 +126,15 @@ final class NccToolPanel {
     }
 
     record Result(SourceCandidate source, NccParameters parameters, boolean checkValidity,
-                  Map<Double, ToolProfile> toolProfiles, ReferenceCandidate reference) {
+                  Map<Double, ToolProfile> toolProfiles, ReferenceCandidate reference,
+                  Map<Double, LegacyToolsDatabase.MillingTool> machining) {
+        Result(SourceCandidate source, NccParameters parameters, boolean checkValidity,
+               Map<Double, ToolProfile> toolProfiles, ReferenceCandidate reference) {
+            this(source, parameters, checkValidity, toolProfiles, reference, Map.of());
+        }
         Result(SourceCandidate source, NccParameters parameters, boolean checkValidity,
                Map<Double, ToolProfile> toolProfiles) { this(source, parameters, checkValidity, toolProfiles, null); }
+        Result { machining = Map.copyOf(machining); }
     }
 
     private NccToolPanel() {
@@ -335,6 +342,7 @@ final class NccToolPanel {
                     ToolRow row = new ToolRow(selected.diameter());
                     row.operation = selected.operation();
                     row.toolProfile = selected.toolProfile();
+                    row.machining = selected.machining();
                     NccToolSettings settings = selected.settings();
                     row.overlapPercent = format(settings.overlapFraction() * 100);
                     row.method = settings.method();
@@ -759,10 +767,16 @@ final class NccToolPanel {
                 List<Double> isoDiameters = new java.util.ArrayList<>();
                 Map<Double, NccToolSettings> individualSettings = new LinkedHashMap<>();
                 Map<Double, ToolProfile> selectedProfiles = new LinkedHashMap<>();
+                Map<Double, LegacyToolsDatabase.MillingTool> machining = new LinkedHashMap<>();
                 for (int i = 0; i < tools.size(); i++) {
                     if (toolTable.getSelectionModel().isSelected(i)) {
                         ToolRow row = tools.get(i);
                         selectedProfiles.put(row.diameter, row.toolProfile);
+                        if (row.machining != null) {
+                            if (row.machining.profile() != row.toolProfile)
+                                throw new IllegalArgumentException("TT mudou apos importar a DB; remova/reimporte a ferramenta.");
+                            machining.put(row.diameter, row.machining);
+                        }
                         if (row.operation == NccOperation.ISO) {
                             isoDiameters.add(row.diameter);
                         } else {
@@ -788,7 +802,7 @@ final class NccToolPanel {
                 errorLabel.setText("");
                 onGenerate.accept(new Result(chosenSource, params, checkValidityCb.isSelected(),
                         Map.copyOf(selectedProfiles), BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())
-                                ? referenceCombo.getValue() : null));
+                                ? referenceCombo.getValue() : null, Map.copyOf(machining)));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }

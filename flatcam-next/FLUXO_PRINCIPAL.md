@@ -129,6 +129,29 @@ Gerbers/Excellons originais nos ensaios.
    existente; comparação diferencial/manual de todas as opções ainda pendente.
 5. Consolidar essa transferência para NCC e testar CLEAR/ISO, Rest e limites;
    conservar a diferença documentada do algoritmo Seed.
+   Incremento 2026-10-07: parâmetros de corte/V-Tip explícitos da DB seguem
+   ferramentas CLEAR/ISO e índices efetivos na Geometry; não herdam valores para
+   outras ferramentas. `MainNccMachiningTest`: 9 casos, MM/IN, Rest, Itself,
+   Area/Reference, settings individuais CLEAR, ISO V, salvar/reabrir, painel CNC,
+   geração/prévia e transporte pelas duas forms CAM. Offset Path e opções comuns
+   têm os mesmos limites do incremento Isolation. Nenhum algoritmo NCC foi
+   alterado; Seed permanece diferente do legado.
+   Um programa sintético denso excede o limite existente de 50 mil segmentos
+   da prévia detalhada: o aviso é validado, sem remover o limite ou invalidar
+   o G-code/geometry produzidos. A UI dispõe também da geometria do gerador.
+
+Os cinco incrementos de consolidação acima foram implementados separadamente.
+Isso não encerra todos os critérios de paridade: permanecem a comparação CAM
+com projetos reais, todos os controles manuais, opções globais da DB/preferências
+não transferidas e os ensaios a seco/físicos. Os testes são verificações de
+regressão e integração sintéticas, não uma certificação de segurança CNC.
+
+Verificação final em 2026-10-07: **1387 registrados, 1375 aprovados, 12 opcionais
+ignorados**, zero falhas/erros no `mvnw.cmd -q verify`. Probes D3D/software passam.
+Harness sintético contra Python 8.994/Shapely 2.1.2: Isolation 1/3 e NCC Standard
+atendem aos critérios amostrados (`MATCH_SAMPLED`, 3 casos, `--strict` aprovado).
+Seed/Lines retornam `ORACLE_ERROR` por incompatibilidade multipart no legado;
+não são equivalência aprovada. Relatórios em `target/five-flows-cam-comparison/`.
 
 Referências: [plano de paridade](PLANO_PARIDADE.md), [Cutout](CUTOUT.md),
 [Geometry/CNC](GEOMETRY_CNC.md) e [compatibilidade](COMPATIBILIDADE_FLATPRJ.md).

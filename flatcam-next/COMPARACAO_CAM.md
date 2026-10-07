@@ -1,5 +1,16 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Nova execução sintética (2026-10-07)
+
+Na consolidação dos cinco fluxos, Isolation 1/3 passadas e NCC Standard foram
+reexecutados com Python 8.994 e Shapely 2.1.2: três `MATCH_SAMPLED`, modo estrito
+aprovado. NCC Seed/Lines resultaram em dois `ORACLE_ERROR` pela incompatibilidade
+multipart do legado com Shapely 2, não aprovações de equivalência. Não se alterou
+o algoritmo Python nem suas dependências. Relatórios locais ignorados em
+`target/five-flows-cam-comparison/report` e `report-seed-lines`. Não foi usada
+placa real nesta execução; seguem pendentes Rest/exceções e combinações avançadas
+na comparação diferencial. Os testes FX cobrem integração desses parâmetros.
+
 O harness exporta caminhos e G-code do FX e executa rotinas reais do checkout
 Python sobre as mesmas entradas, sem iniciar interfaces ou mudar preferências.
 Projetos, WKT, G-code e imagens privados ficam em `target/`, ignorado pelo Git.

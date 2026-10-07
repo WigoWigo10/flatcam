@@ -25,7 +25,11 @@ import org.json.JSONObject;
 public final class LegacyToolsDatabase {
 
     public record NccTool(String name, double diameter, NccOperation operation,
-                          NccToolSettings settings, ToolProfile toolProfile) {
+                          NccToolSettings settings, ToolProfile toolProfile, MillingTool machining) {
+        public NccTool(String name, double diameter, NccOperation operation,
+                       NccToolSettings settings, ToolProfile toolProfile) {
+            this(name, diameter, operation, settings, toolProfile, null);
+        }
         @Override
         public String toString() {
             return name + " - Ø " + diameter + " (" + operation + ")";
@@ -249,7 +253,7 @@ public final class LegacyToolsDatabase {
                 ToolProfile profile = ToolProfile.fromLegacy(entry.optString("tool_type", "C1"));
                 if (profile == ToolProfile.V) operation = NccOperation.ISO;
                 tools.add(new NccTool(entry.optString("name", "Tool " + id), diameter, operation,
-                        settings, profile));
+                        settings, profile, camMachining(entry)));
             } catch (RuntimeException error) {
                 throw new IOException("Invalid NCC tool " + id + " in Tools Database", error);
             }
