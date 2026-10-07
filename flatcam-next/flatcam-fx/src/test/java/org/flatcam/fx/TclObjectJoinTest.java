@@ -121,6 +121,18 @@ class TclObjectJoinTest {
         assertEquals(DrillCncSettings.ToolOrder.REVERSE, result.settings().toolOrder());
     }
 
+    @Test void geometryRemapsPendingCommonSuggestionsWithoutResolvingConflicts() {
+        var a = org.flatcam.app.project.CncJobDefaults.fromLegacy(new org.json.JSONObject().put("ppname_g", "Marlin"), false);
+        var b = org.flatcam.app.project.CncJobDefaults.fromLegacy(new org.json.JSONObject().put("ppname_g", "default"), false);
+        var first = geo("first", FIRST, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null,
+                Map.of(), Map.of(), ToolProfile.C1, Map.of(0,a)), true);
+        var second = geo("second", FIRST, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null,
+                Map.of(), Map.of(), ToolProfile.C1, Map.of(0,b)), true);
+        var joined = TclObjectJoin.geometry(List.of(first, second));
+        assertEquals(Map.of(0,a,1,b), joined.settings().jobDefaultsByTool());
+        assertFalse(org.flatcam.app.project.CncJobDefaults.resolve(joined.settings().jobDefaultsByTool()).conflicts().isEmpty());
+    }
+
     @Test void fusedExcellonCannotInheritMissingParametersInEitherSourceOrder() {
         var parameters = new DrillGCodeParameters(3, 5, 500, 0, false);
         for (boolean withSettings : List.of(false, true)) {

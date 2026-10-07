@@ -40,6 +40,7 @@ final class TclObjectJoin {
         GeometryCncSettings model = null;
         Map<Integer, GeometryGCodeParameters> parameters = new LinkedHashMap<>();
         Map<Integer, VTipSettings> vTools = new LinkedHashMap<>();
+        var jobDefaults = new LinkedHashMap<Integer, org.flatcam.app.project.CncJobDefaults>();
         int base = 0;
         for (var entry : entries) {
             TclExecution.cancellation().throwIfCancellationRequested();
@@ -59,6 +60,7 @@ final class TclObjectJoin {
                         : settings.parametersByTool().getOrDefault(id, entry.cncDefaults());
                 if (value != null) parameters.put(base + id, value);
                 if (settings != null && settings.vTools().containsKey(id)) vTools.put(base + id, settings.vTools().get(id));
+                if (settings != null && settings.jobDefaultsByTool().containsKey(id)) jobDefaults.put(base + id, settings.jobDefaultsByTool().get(id));
             }
             base += entry.tools().size();
         }
@@ -74,7 +76,7 @@ final class TclObjectJoin {
             throw new IllegalArgumentException("Este perfil nao suporta parametros individuais; alinhe os parametros antes de juntar.");
         GeometryCncSettings settings = model == null && parameters.isEmpty() ? null
                 : new GeometryCncSettings(model == null ? org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE
-                        : model.preprocessor(), null, vTools, parameters);
+                        : model.preprocessor(), null, vTools, parameters, org.flatcam.cam.geometry.ToolProfile.C1, jobDefaults);
         return new GeometryResult(joined, defaults, settings);
     }
 

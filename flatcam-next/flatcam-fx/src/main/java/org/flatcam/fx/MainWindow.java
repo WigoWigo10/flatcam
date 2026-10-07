@@ -6180,7 +6180,8 @@ final class MainWindow implements TclFlatcamHost {
                     geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), geometry,
                             true, List.of(new ToolGeometry(db.diameter(), geometry, db.profile())), db.parameters()));
                     geometryCncSettingsByItem.put(generated, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE,
-                            null, db.tip() == null ? Map.of() : Map.of(0, db.tip())));
+                            null, db.tip() == null ? Map.of() : Map.of(0, db.tip()), Map.of(), db.profile(),
+                            db.jobDefaults().isEmpty() ? Map.of() : Map.of(0, db.jobDefaults())));
                 }
                 appendConsole("Geometry de fresagem criada: " + name + ". Revise os caminhos antes de gerar CNC Job.");
                 finishCamPanel(before, generated);
@@ -6441,14 +6442,16 @@ final class MainWindow implements TclFlatcamHost {
         GeometryEntry entry = geometryByItem.get(item);
         var parameters = new LinkedHashMap<Integer, GeometryGCodeParameters>();
         var tips = new LinkedHashMap<Integer, VTipSettings>();
+        var jobDefaults = new LinkedHashMap<Integer, org.flatcam.app.project.CncJobDefaults>();
         for (int i = 0; i < entry.tools().size(); i++) {
             ToolGeometry tool = entry.tools().get(i);
             var db = imported.get(tool.toolDiameter());
             if (db == null) continue;
-            parameters.put(i, db.parameters().withCompensation(org.flatcam.cam.gcode.ToolPathOffset.PATH, 0));
+            if (db.parameters() != null) parameters.put(i, db.parameters().withCompensation(org.flatcam.cam.gcode.ToolPathOffset.PATH, 0));
             if (db.tip() != null) tips.put(i, db.tip());
+            if (!db.jobDefaults().isEmpty()) jobDefaults.put(i, db.jobDefaults());
         }
-        if (parameters.isEmpty()) return;
+        if (parameters.isEmpty() && jobDefaults.isEmpty()) return;
         boolean metric = "MM".equalsIgnoreCase(entry.units());
         // Keep the ordinary panel defaults for tools added manually. Explicit imported
         // settings are overrides, not implicit defaults for every other tool.
@@ -6456,8 +6459,9 @@ final class MainWindow implements TclFlatcamHost {
                 false, metric ? .05 : .002, metric ? 300 : 12, 10000, entry.tools().size() > 1);
         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
                 entry.strokeOnly(), entry.tools(), defaults));
-        geometryCncSettingsByItem.put(item, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null, tips, parameters));
-        appendConsole("Parametros de corte/V-Tip da DB preservados por ferramenta. Confira unidades e parametros comuns no CNC; offset Path evita compensacao dupla.");
+        geometryCncSettingsByItem.put(item, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null, tips, parameters,
+                org.flatcam.cam.geometry.ToolProfile.C1, jobDefaults));
+        appendConsole("Parametros de corte/V-Tip e configuracoes comuns explicitas da DB preservados. Confira unidades e resolva conflitos no CNC; offset Path evita compensacao dupla.");
     }
 
     private void generateCutout(TreeItem<String> item, GerberImage image) {
@@ -6535,15 +6539,17 @@ final class MainWindow implements TclFlatcamHost {
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 cutout.geometry(), true,
                                 List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry(), result.profile())), result.machining());
+                        preserveSingleJobDefaults(generated, result.jobDefaults());
                         if (result.gapType() == CutoutToolPanel.GapType.THIN) {
                             if (cutout.gapGeometry().isEmpty()) {
                                 appendConsole("Thin: nenhuma ponte restante para usinagem rasa.");
                             } else {
                                 String thinName = uniqueDerivedName(item.getValue() + "_cutout_thin");
-                                addGeometryToProject(thinName, item.getValue(), units,
+                                TreeItem<String> thinItem = addGeometryToProject(thinName, item.getValue(), units,
                                         cutout.gapGeometry(), true,
                                         List.of(new ToolGeometry(result.cutoutParams().toolDiameter(),
                                                 cutout.gapGeometry(), result.profile())), result.thinMachining());
+                                preserveSingleJobDefaults(thinItem, result.jobDefaults());
                                 appendConsole("Thin criou Geometry para as pontes: " + thinName
                                         + ". Thin Depth preservado; revise e gere seu CNC Job separado.");
                             }
@@ -6830,6 +6836,12 @@ final class MainWindow implements TclFlatcamHost {
         }
 
         startGeometryCncGeneration(item, entry, result, outFile.toPath());
+    }
+
+    private void preserveSingleJobDefaults(TreeItem<String> item, org.flatcam.app.project.CncJobDefaults defaults) {
+        if (defaults.isEmpty()) return;
+        geometryCncSettingsByItem.put(item, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null,
+                Map.of(), Map.of(), geometryByItem.get(item).tools().getFirst().toolProfile(), Map.of(0, defaults)));
     }
 
     private void startGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,

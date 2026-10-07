@@ -4,6 +4,20 @@ Atualizado em 2026-10-07, branch `flatcam-next` (incremento anterior: `eeeef1ff`
 Prioridade solicitada: consolidar os fluxos de produção antes de ampliar
 ferramentas secundárias/automação. Não declarar 100% apenas pela presença dos painéis.
 
+## Configurações comuns da Tools Database — 2026-10-07
+
+Transferência de preprocessor, rapid feed, troca, Start/End Z/XY e Tool change
+Z/XY implementada para Geometry CNC e Drilling. Isolation/NCC/Milling/Cutout
+preservam sugestões explícitas por índice de ferramenta na Geometry e no
+`.fcnproj`; o CNC recupera campos concordantes e bloqueia conflitos até revisão
+explícita. Drilling resolve só ferramentas selecionadas. Ausência não limpa
+rascunhos; None explícito preserva automático. Unidades não são convertidas.
+
+Esta seção supera as limitações históricas abaixo para esses campos, não para
+todas as opções globais da DB. `.FlatPrj` recusa sugestões pendentes antes de
+gerar/revisar CNC para evitar perda; projetos nativos antigos continuam abrindo.
+Contrato e roteiro manual em [CNC_DATABASE_COMMON.md](CNC_DATABASE_COMMON.md).
+
 ## Panelize: prévia e registro entre camadas — 2026-10-07
 
 Implementada prévia de conteúdo/contorno/cortes como no 2-Sided Tool e criação

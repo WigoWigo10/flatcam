@@ -132,6 +132,9 @@ public final class ProjectFileIO {
                 settings.parametersByTool().forEach((id, p) -> byTool.put(id.toString(), geometryParametersToJson(p)));
                 geometryJson.getJSONObject("cncSettings").put("parametersByTool", byTool);
                 geometryJson.getJSONObject("cncSettings").put("singleToolProfile", settings.singleToolProfile().name());
+                JSONObject jobDefaults = new JSONObject();
+                settings.jobDefaultsByTool().forEach((id, p) -> jobDefaults.put(id.toString(), p.toJson()));
+                geometryJson.getJSONObject("cncSettings").put("jobDefaultsByTool", jobDefaults);
             }
             if (entry.fillColorWeb() != null) {
                 geometryJson.put("fillColor", entry.fillColorWeb());
@@ -312,7 +315,14 @@ public final class ProjectFileIO {
         }
         return new GeometryCncSettings(GCodePreprocessor.valueOf(json.getString("preprocessor")),
                 optionalDouble(json, "singleToolDiameter"), tips, readGeometryToolParameters(json.optJSONObject("parametersByTool")),
-                ToolProfile.fromLegacy(json.optString("singleToolProfile","C1")));
+                ToolProfile.fromLegacy(json.optString("singleToolProfile","C1")), readJobDefaults(json.optJSONObject("jobDefaultsByTool")));
+    }
+
+    private static Map<Integer, CncJobDefaults> readJobDefaults(JSONObject values) {
+        var result = new LinkedHashMap<Integer, CncJobDefaults>();
+        if (values != null) for (String id : values.keySet())
+            result.put(Integer.parseInt(id), CncJobDefaults.fromJson(values.getJSONObject(id)));
+        return Map.copyOf(result);
     }
 
     private static Map<Integer, GeometryGCodeParameters> readGeometryToolParameters(JSONObject values) {

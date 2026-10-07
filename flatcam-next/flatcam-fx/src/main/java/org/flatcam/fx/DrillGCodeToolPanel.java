@@ -192,6 +192,7 @@ final class DrillGCodeToolPanel {
         HBox orderRow = new HBox(8, new Label("Tool order:"), noOrder, forwardOrder, reverseOrder);
         orderRow.setAlignment(Pos.CENTER_LEFT);
         Button searchDb = new Button("Search DB");
+        searchDb.setId("drill-db-search");
         searchDb.setMaxWidth(Double.MAX_VALUE);
         searchDb.setTooltip(new Tooltip("Carrega parametros das ferramentas de furacao da Tools Database do Python."));
 
@@ -291,6 +292,7 @@ final class DrillGCodeToolPanel {
             if (value != null) feedback.setText(value.drillDefaults().isEmpty() ? ""
                     : "Parametros de furacao recuperados do projeto; confira-os antes de gerar G-code.");
         });
+        var commonDatabaseImport = new java.util.concurrent.atomic.AtomicReference<Consumer<Map<ToolRow, LegacyToolsDatabase.DrillTool>>>(ignored -> {});
         searchDb.setOnAction(event -> {
             try {
                 List<LegacyToolsDatabase.DrillTool> database = databaseLoader.get();
@@ -315,6 +317,7 @@ final class DrillGCodeToolPanel {
                 }
                 matches.forEach(ToolRow::applyDatabaseTool);
                 loadSelection.run();
+                commonDatabaseImport.get().accept(matches);
                 feedback.setText(matches.size() + " ferramenta(s) atualizada(s) pela base; "
                         + (table.getItems().size() - matches.size()) + " sem correspondencia. "
                         + "Diametros do Excellon preservados.");
@@ -417,6 +420,24 @@ final class DrillGCodeToolPanel {
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         rapidFeed.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> !preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty()));
+        var commonDb = new CncJobDefaultsReview("drill", suggestion -> {
+            if (suggestion.preprocessor() != null) preprocessor.setValue(suggestion.preprocessor());
+            if (suggestion.has(org.flatcam.app.project.CncJobDefaults.Field.TOOL_CHANGE))
+                toolChange.setSelected(Boolean.parseBoolean(suggestion.value(org.flatcam.app.project.CncJobDefaults.Field.TOOL_CHANGE)));
+            for (var entry : Map.of(org.flatcam.app.project.CncJobDefaults.Field.RAPID_FEED, rapidFeed,
+                    org.flatcam.app.project.CncJobDefaults.Field.START_Z, startZ, org.flatcam.app.project.CncJobDefaults.Field.END_Z, endMoveZ,
+                    org.flatcam.app.project.CncJobDefaults.Field.END_XY, endMoveXY, org.flatcam.app.project.CncJobDefaults.Field.CHANGE_Z, toolChangeZ,
+                    org.flatcam.app.project.CncJobDefaults.Field.CHANGE_XY, toolChangeXY).entrySet())
+                if (suggestion.has(entry.getKey())) entry.getValue().setText(suggestion.value(entry.getKey()));
+        });
+        commonDatabaseImport.set(matches -> {
+            var values = new LinkedHashMap<Integer, org.flatcam.app.project.CncJobDefaults>();
+            matches.forEach((row, tool) -> { if (!tool.jobDefaults().isEmpty()) values.put(row.id, tool.jobDefaults()); });
+            commonDb.replaceAll(values);
+        });
+        table.getSelectionModel().getSelectedItems().addListener((javafx.collections.ListChangeListener<ToolRow>) change ->
+                commonDb.setActiveIds(table.getSelectionModel().getSelectedItems().stream().map(row -> row.id).collect(java.util.stream.Collectors.toSet())));
+        commonDb.setActiveIds(table.getSelectionModel().getSelectedItems().stream().map(row -> row.id).collect(java.util.stream.Collectors.toSet()));
         Label profileHelp = new Label();
         profileHelp.setWrapText(true);
         profileHelp.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
@@ -455,6 +476,7 @@ final class DrillGCodeToolPanel {
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
             try {
+                commonDb.assertResolved();
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
                 preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
                 if (selected.isEmpty()) throw new IllegalArgumentException("Selecione ferramentas para furar.");
@@ -478,13 +500,16 @@ final class DrillGCodeToolPanel {
                 }
                 Double[] end = optionalXY(endMoveXY.getText(), "End move X,Y");
                 Double[] change = optionalXY(toolChangeXY.getText(), "Tool change X,Y");
-                double endZ = parse(endMoveZ.getText(), "End move Z");
-                double changeZ = mechanicalChange || change[0] != null && preprocessor.getValue().automaticToolSelection()
-                        ? parse(toolChangeZ.getText(), "Tool change Z")
+                double clearance = settings.values().stream().mapToDouble(DrillGCodeParameters::safeZ).max().orElseThrow();
+                Double requestedEndZ = optionalNumber(endMoveZ.getText(), "End move Z");
+                double endZ = requestedEndZ == null ? clearance : requestedEndZ;
+                boolean usesChangeHeight = mechanicalChange || change[0] != null && preprocessor.getValue().automaticToolSelection();
+                Double requestedChangeZ = usesChangeHeight ? optionalNumber(toolChangeZ.getText(), "Tool change Z") : null;
+                double changeZ = usesChangeHeight ? requestedChangeZ == null ? clearance : requestedChangeZ
                         : settings.get(orderedIds.get(0)).safeZ();
                 var options = exclusions.applyTo(new GCodeGenerator.DrillJobOptions(
                         mechanicalChange, changeZ, endZ, end[0], end[1],
-                        preprocessor.getValue().usesRapidFeed() ? parse(rapidFeed.getText(), "Feed rapids") : 0,
+                        parse(rapidFeed.getText(), "Feed rapids"),
                         probing.get() ? probe.parameters() : null).withPositions(
                                 optionalNumber(startZ.getText(), "Start Z"), change[0], change[1]));
                 options.validateExclusions(preprocessor.getValue());
@@ -508,6 +533,7 @@ final class DrillGCodeToolPanel {
         reset.setMaxWidth(Double.MAX_VALUE);
         reset.setId("drill-reset");
         reset.setOnAction(event -> {
+            commonDb.clear();
             cancelAreaSelection.run();
             exclusionPreview.accept(null);
             sourceCombo.setValue(initialSource);
@@ -536,9 +562,10 @@ final class DrillGCodeToolPanel {
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
                 selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
-                heading("Common Parameters"), common, probe.view(), exclusions.view(), errorLabel, generate, reset, close);
+                heading("Common Parameters"), common, commonDb.view(), probe.view(), exclusions.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         Runnable restoreCommon = () -> {
+            commonDb.clear();
             SourceCandidate source = sourceCombo.getValue();
             boolean sourceMetric = "MM".equalsIgnoreCase(source.image().units());
             DrillCncSettings saved = source.cncSettings();

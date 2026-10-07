@@ -77,7 +77,9 @@ class MainExcellonFlowTest {
             var image = image(units); var item = add(s, image);
             var params = new GeometryGCodeParameters(2, .2, true, .1, 80, 12345, false, 0, null,
                     40, true, .25, true, .05);
-            var db = new LegacyToolsDatabase.MillingTool("cutter", .3, ToolProfile.C2, params, null);
+            var common = org.flatcam.app.project.CncJobDefaults.fromLegacy(new org.json.JSONObject()
+                    .put("ppname_g", "Marlin").put("feedrate_rapid", 800), false);
+            var db = new LegacyToolsDatabase.MillingTool("cutter", .3, ToolProfile.C2, params, null, common);
             var h = mill(s, item, image, ExcellonMillingGenerator.Kind.valueOf(kind), db);
             var other = new VBox(new Label("other panel"));
             TerminalPanelTest.fx(() -> { ((Tab) field("toolTab").get(s.window)).setContent(other); return null; });
@@ -88,6 +90,7 @@ class MainExcellonFlowTest {
             });
             var geometry = snapshot.geometries().stream().filter(g -> !g.name().equals("boundary")).findFirst().orElseThrow();
             assertEquals(params, geometry.cncDefaults()); assertEquals(ToolProfile.C2, geometry.tools().getFirst().toolProfile());
+            assertEquals(Map.of(0, common), geometry.cncSettings().jobDefaultsByTool());
             assertFalse(geometry.geometry().isEmpty()); assertEquals(units, geometry.units());
             var generated = GeometryCncGeneration.generate(units, geometry.tools(), geometry.cncDefaults(), Map.of(), Map.of(),
                     GCodePreprocessor.FX_PORTABLE, directory.resolve("mill.nc"), new org.flatcam.app.job.JobContext() {
@@ -99,6 +102,8 @@ class MainExcellonFlowTest {
             var reopened = TerminalPanelTest.fx(() -> (ProjectFile) call(s.window, "snapshotProject", new Class<?>[]{}));
             var restored = reopened.geometries().stream().filter(g -> g.name().equals(geometry.name())).findFirst().orElseThrow();
             assertEquals(params, restored.cncDefaults()); assertEquals(geometry.tools(), restored.tools());
+            assertEquals(Map.of(0, common), restored.cncSettings().jobDefaultsByTool());
+            assertEquals(GCodePreprocessor.MARLIN, MainIsolationMachiningTest.cnc(restored).preprocessor());
             assertEquals(2, image.totalDrills()); assertEquals(1, image.totalSlots());
         }
     }

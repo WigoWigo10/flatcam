@@ -65,7 +65,8 @@ class DatabaseTransferTest {
             var db = LegacyToolsDatabase.cutoutTools(new org.json.JSONObject("""
                     {"1":{"tooldia":1.2,"data":{"tool_target":6,"tools_cutout_margin":0.4,
                     "cutz":-2,"multidepth":true,"depthperpass":0.4,"feedrate":210,
-                    "tools_cutout_gaps_ff":"8","tools_cutout_gap_type":"bt","tools_cutout_gap_depth":-0.3,"tools_cutout_mb_dia":0.9}}}
+                    "tools_cutout_gaps_ff":"8","tools_cutout_gap_type":"bt","tools_cutout_gap_depth":-0.3,"tools_cutout_mb_dia":0.9,
+                    "ppname_g":"Marlin","feedrate_rapid":850,"endxy":[2,3]}}}
                     """));
             var result = new java.util.concurrent.atomic.AtomicReference<CutoutToolPanel.Result>();
             var root = CutoutToolPanel.build("MM", (p, done, cancelled) -> false, () -> {}, () -> db, result::set, () -> {});
@@ -83,6 +84,8 @@ class DatabaseTransferTest {
             assertEquals(2, result.get().machining().cutDepth());
             assertEquals(0.4, result.get().machining().depthPerPass());
             assertEquals(210, result.get().machining().feedRate());
+            assertEquals(db.getFirst().jobDefaults(), result.get().jobDefaults());
+            assertEquals(GCodePreprocessor.MARLIN, result.get().jobDefaults().preprocessor());
             assertEquals(0.3, result.get().thinMachining().cutDepth());
             assertEquals(org.flatcam.cam.gcode.ToolPathOffset.PATH, result.get().machining().offset());
             ((ComboBox<CutoutToolPanel.GapType>) root.lookup("#cutout-gap-type")).setValue(CutoutToolPanel.GapType.M_BITES);

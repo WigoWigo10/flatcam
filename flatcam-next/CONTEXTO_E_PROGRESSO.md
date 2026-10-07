@@ -1,5 +1,30 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-07: configurações comuns da Tools Database
+
+Após Panelize (`1a281641`, commit local), implementada transferência explícita
+de preprocessor, rapid feed, troca e Start/End/Tool change Z/XY. Isolation/NCC,
+Milling e Cutout preservam sugestões por ferramenta na Geometry; o painel CNC
+recupera e exige revisão explícita para campos conflitantes. Drilling importa
+pela DB, considerando só brocas selecionadas e limpando sugestões ao trocar
+origem/resetar. Campos ausentes não apagam rascunhos; None é automático.
+
+Sugestões pendentes de Geometry persistem no `.fcnproj`, inclusive conflitos;
+Join reindexa e geração CNC bem-sucedida guarda os valores efetivos revisados.
+Exportar `.FlatPrj` com sugestões pendentes é recusado para não perder dados.
+Drilling conserva o contrato anterior de salvar comuns após geração, não um
+rascunho não submetido. Perfis desconhecidos/incompatíveis não têm fallback.
+Não houve conversão implícita de unidades ou alteração de algoritmos CAM/GPU.
+
+Detalhes, testes e roteiro manual em `CNC_DATABASE_COMMON.md`. Esta seção
+substitui a limitação histórica dos cinco incrementos quanto a esses oito
+campos comuns; outras opções globais, consumo Tcl e validação real permanecem
+pendentes. Próximo: testar estes fluxos com a DB/projeto do usuário e ampliar
+o corpus diferencial CAM. Não declarar 100% ou segurança CNC por teste sintético.
+
+Verify completo: 1455 registrados, 1443 aprovados, 12 opcionais ignorados,
+zero falhas/erros. Probes offscreen Direct3D/Intel Arc e software passam.
+
 ## Continuidade em 2026-10-07: prévia e conjunto Panelize
 
 Panelize ganhou prévia no estilo 2-Sided: conteúdo real replicado, borda/cortes

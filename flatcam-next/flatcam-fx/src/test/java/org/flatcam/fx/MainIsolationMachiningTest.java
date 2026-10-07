@@ -41,7 +41,12 @@ class MainIsolationMachiningTest {
     void dbCuttingSettingsFollowToolIndicesAcrossCombinedAndSeparatePasses(String units, boolean combined) throws Exception {
         try (var s = new MainCamFlowTest.Session(units)) {
             double a = .5 * s.unit, b = .25 * s.unit;
-            var tool = db(a, ToolProfile.C2, 105 * s.unit);
+            var cutting = db(a, ToolProfile.C2, 105 * s.unit);
+            var common = CncJobDefaults.fromLegacy(new JSONObject().put("ppname_g", "Marlin")
+                    .put("feedrate_rapid", 800 * s.unit).put("startz", 20 * s.unit)
+                    .put("endxy", List.of(2 * s.unit, 3 * s.unit)), false);
+            var tool = new LegacyToolsDatabase.MillingTool(cutting.name(), cutting.diameter(), cutting.profile(),
+                    cutting.parameters(), cutting.tip(), common);
             var result = new IsolationToolPanel.Result(new IsolationToolPanel.SourceCandidate(s.item, s.image),
                     List.of(new IsolationParameters(a, 2, .1, IsolationType.BOTH), new IsolationParameters(b, 1, .1, IsolationType.BOTH)),
                     Map.of(a, ToolProfile.C2, b, ToolProfile.C4), false, true, combined, false, false, null, null, Map.of(a, tool));
@@ -59,8 +64,12 @@ class MainIsolationMachiningTest {
                 for (var indexed : settings.parametersByTool().entrySet()) {
                     assertEquals(a, entry.tools().get(indexed.getKey()).toolDiameter());
                     assertEquals(tool.parameters(), indexed.getValue());
+                    assertEquals(common, settings.jobDefaultsByTool().get(indexed.getKey()));
                 }
                 var form = cnc(entry);
+                assertEquals(GCodePreprocessor.MARLIN, form.preprocessor());
+                assertEquals(800 * s.unit, form.parameters().rapidFeedRate());
+                assertEquals(20 * s.unit, form.parameters().jobOptions().startZ());
                 for (int i = 0; i < form.tools().size(); i++) {
                     var p = form.parametersByTool().getOrDefault(i, form.parameters());
                     if (form.tools().get(i).toolDiameter() == a) assertEquals(105 * s.unit, p.feedRate());
@@ -69,6 +78,17 @@ class MainIsolationMachiningTest {
                 var job = GCodeGenerator.generateGeometryCncJob(units, form.tools(), form.parameters(), form.vTools(), form.parametersByTool(),
                         org.flatcam.cam.CancellationToken.none(), form.preprocessor());
                 assertTrue(job.gcode().contains("S12000")); assertFalse(job.cutGeometry().isEmpty());
+                var reviewed = new ProjectFile.GeometryEntry(entry.name(), "", units, entry.geometry(), true, form.tools(),
+                        null, null, true, form.parameters(), new GeometryCncSettings(form.preprocessor(), null, form.vTools(), form.parametersByTool()));
+                var persisted = new ProjectFile(List.of(), List.of(), List.of(reviewed), List.of());
+                Path reviewedFile = directory.resolve("reviewed.fcnproj"); ProjectFileIO.save(persisted, reviewedFile);
+                var reopened = ProjectFileIO.load(reviewedFile).geometries().getFirst();
+                assertTrue(reopened.cncSettings().jobDefaultsByTool().isEmpty());
+                var reopenedForm = cnc(reopened);
+                assertEquals(form.parameters(), reopenedForm.parameters()); assertEquals(form.preprocessor(), reopenedForm.preprocessor());
+                var repeat = GCodeGenerator.generateGeometryCncJob(units, reopenedForm.tools(), reopenedForm.parameters(), reopenedForm.vTools(),
+                        reopenedForm.parametersByTool(), org.flatcam.cam.CancellationToken.none(), reopenedForm.preprocessor());
+                assertEquals(job.gcode(), repeat.gcode());
             }
             assertEquals(combined ? 1 : 2, imported);
         }
@@ -87,5 +107,22 @@ class MainIsolationMachiningTest {
         assertEquals(v, tool.machining().tip() != null);
         var broken = new JSONObject(root.toString()); broken.getJSONObject("1").getJSONObject("data").remove("travelz");
         assertThrows(java.io.IOException.class, () -> LegacyToolsDatabase.isolationTools(broken));
+    }
+
+    @org.junit.jupiter.api.Test void commonOnlyCamEntrySurvivesPublicationWithoutInventingCutOverrides() throws Exception {
+        try (var s = new MainCamFlowTest.Session("MM")) {
+            var common = CncJobDefaults.fromLegacy(new JSONObject().put("ppname_g", "Marlin").put("feedrate_rapid", 800), false);
+            var db = new LegacyToolsDatabase.MillingTool("common-only", .5, ToolProfile.C1, null, null, common);
+            var result = new IsolationToolPanel.Result(new IsolationToolPanel.SourceCandidate(s.item,s.image),
+                    List.of(new IsolationParameters(.5,1,.1,IsolationType.BOTH)), Map.of(.5,ToolProfile.C1),
+                    false,true,true,false,false,null,null,Map.of(.5,db));
+            var h = TerminalPanelTest.fx(() -> s.startFx("Isolation",result)); s.release.countDown();
+            h.completion().get(10,TimeUnit.SECONDS); s.awaitUi();
+            var entry = snapshot(s.window).geometries().stream().filter(g -> !g.name().equals("boundary")).findFirst().orElseThrow();
+            assertTrue(entry.cncSettings().parametersByTool().isEmpty());
+            assertFalse(entry.cncSettings().jobDefaultsByTool().isEmpty());
+            var form = cnc(entry); assertEquals(GCodePreprocessor.MARLIN,form.preprocessor());
+            assertEquals(300,form.parameters().feedRate()); assertEquals(800,form.parameters().rapidFeedRate());
+        }
     }
 }

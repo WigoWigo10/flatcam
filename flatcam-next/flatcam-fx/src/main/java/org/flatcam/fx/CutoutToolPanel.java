@@ -47,7 +47,13 @@ final class CutoutToolPanel {
 
     record Result(CutoutParameters cutoutParams, GapType gapType,
                   double biteDiameter, double biteSpacing, List<Geometry> manualGapAreas,
-                  GeometryGCodeParameters machining, GeometryGCodeParameters thinMachining, ToolProfile profile) {
+                  GeometryGCodeParameters machining, GeometryGCodeParameters thinMachining, ToolProfile profile,
+                  org.flatcam.app.project.CncJobDefaults jobDefaults) {
+        Result(CutoutParameters cutoutParams, GapType gapType, double biteDiameter, double biteSpacing, List<Geometry> manualGapAreas,
+               GeometryGCodeParameters machining, GeometryGCodeParameters thinMachining, ToolProfile profile) {
+            this(cutoutParams, gapType, biteDiameter, biteSpacing, manualGapAreas, machining, thinMachining, profile,
+                    org.flatcam.app.project.CncJobDefaults.EMPTY);
+        }
     }
 
     private CutoutToolPanel() {
@@ -86,6 +92,7 @@ final class CutoutToolPanel {
         var seed = new java.util.concurrent.atomic.AtomicReference<>(new GeometryGCodeParameters(
                 metric ? 3 : 0.12, metric ? 1.7 : 0.067, true, metric ? 0.5 : 0.02, metric ? 120 : 5, 0, false));
         var profile = new java.util.concurrent.atomic.AtomicReference<>(ToolProfile.C1);
+        var commonDefaults = new java.util.concurrent.atomic.AtomicReference<>(org.flatcam.app.project.CncJobDefaults.EMPTY);
         cutZ.setTooltip(new Tooltip("Cut Z negativo e finito, salvo na Geometry do recorte. Exemplo: -1,7.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: confira a espessura da placa e quanto a ferramenta entrará no material de sacrifício antes de gerar CNC."));
         thinZ.setTooltip(new Tooltip("Thin Depth é Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e pontes -0,5. Só é usado no tipo Thin.\n\nO valor vai para a Geometry separada das pontes; o recorte principal conserva Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: unidade do objeto (mm ou in)."));
         TextField gapSizeField = new TextField(metric ? "4" : "0.16");
@@ -161,6 +168,7 @@ final class CutoutToolPanel {
             biteDiameterField.setText(Double.toString(selected.biteDiameter()));
             biteSpacingField.setText(Double.toString(selected.biteSpacing()));
             seed.set(selected.machining()); profile.set(selected.profile());
+            commonDefaults.set(selected.jobDefaults());
             cutZ.setText(Double.toString(-selected.machining().cutDepth()));
             multiDepth.setSelected(selected.machining().multiDepth());
             perPass.setText(Double.toString(selected.machining().depthPerPass()));
@@ -201,10 +209,10 @@ final class CutoutToolPanel {
 
         freeformButton.setOnAction(e -> tryGenerate(CutoutShape.FREEFORM, singleRadio, convexShapeCb, toolDiaField,
                 marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
-                biteSpacingField, manualAreas, cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), errorLabel, onGenerate));
+                biteSpacingField, manualAreas, cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), commonDefaults.get(), errorLabel, onGenerate));
         rectangularButton.setOnAction(e -> tryGenerate(CutoutShape.RECTANGULAR, singleRadio, convexShapeCb, toolDiaField,
                 marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
-                biteSpacingField, manualAreas, cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), errorLabel, onGenerate));
+                biteSpacingField, manualAreas, cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), commonDefaults.get(), errorLabel, onGenerate));
         closeButton.setOnAction(e -> onClose.run());
 
         Label workflowNote = new Label("O Cutout cria Geometry. Em Thin, cria outra Geometry "
@@ -228,7 +236,7 @@ final class CutoutToolPanel {
             ComboBox<GapPattern> gapPatternCombo, ComboBox<GapType> gapTypeCombo,
             TextField biteDiameterField, TextField biteSpacingField,
             List<Geometry> manualAreas, TextField cutZ, CheckBox multiDepth, TextField perPass, TextField thinZ,
-            GeometryGCodeParameters seed, ToolProfile profile, Label errorLabel,
+            GeometryGCodeParameters seed, ToolProfile profile, org.flatcam.app.project.CncJobDefaults jobDefaults, Label errorLabel,
             Consumer<Result> onGenerate) {
         try {
             double toolDia = parseDouble(toolDiaField.getText(), "Tool Dia");
@@ -258,7 +266,7 @@ final class CutoutToolPanel {
                 thin = machining.withCutting(-thinCut, machining.multiDepth(), machining.depthPerPass());
             }
             onGenerate.accept(new Result(cutoutParams, gapTypeCombo.getValue(), biteDiameter,
-                    biteSpacing, List.copyOf(manualAreas), machining, thin, profile));
+                    biteSpacing, List.copyOf(manualAreas), machining, thin, profile, jobDefaults));
         } catch (RuntimeException ex) {
             errorLabel.setText(ex.getMessage());
         }

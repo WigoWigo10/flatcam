@@ -23,9 +23,9 @@ class ToolsDatabaseDescriptionsTest {
         assertTrue(ToolsDatabaseDescriptions.actionText("Save DB").contains("Ctrl+S"));
     }
     @Test void unsupportedFieldsAreNotPresentedAsWorkingCamParameters() {
-        for (String key : List.of("tools_iso_follow", "tools_ncc_margin", "tools_drill_feedrate_rapid", "tools_drill_drill_slots"))
+        for (String key : List.of("tools_iso_follow", "tools_ncc_margin", "tools_drill_drill_slots"))
             assertTrue(help(key).contains("transferência para o CAM ainda não está implementada"), key);
-        for (String key : List.of("tooldia", "tools_iso_passes", "tools_ncc_overlap", "tools_drill_feedrate_z", "cutz", "tools_paint_method", "tools_cutout_gapsize", "offset", "offset_value", "tools_cutout_gap_depth"))
+        for (String key : List.of("tooldia", "tools_iso_passes", "tools_ncc_overlap", "tools_drill_feedrate_z", "tools_drill_feedrate_rapid", "cutz", "tools_paint_method", "tools_cutout_gapsize", "offset", "offset_value", "tools_cutout_gap_depth"))
             assertFalse(help(key).contains("ainda não está implementada"), key);
     }
     @Test void updatedTransferHelpExplainsPerToolPaintCutoutDepthAndOffsetScope() {

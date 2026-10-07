@@ -25,6 +25,9 @@ public final class PythonProjectWriter {
                 throw new IOException("Exclusoes Drilling nao possuem representacao segura no projeto Python. Salve em .fcnproj e exporte o G-code validado. Objeto: " + entry.name());
         }
         for(var entry:project.geometries()) {
+            if (entry.cncSettings() != null && !entry.cncSettings().jobDefaultsByTool().isEmpty())
+                throw new IOException("Configuracoes comuns da DB ainda pendentes de revisao CNC: " + entry.name()
+                        + ". Revise/gere CNC ou salve em .fcnproj; o Python nao representa esses conflitos.");
             var common=entry.cncDefaults();
             boolean hasAreas=common!=null && !common.jobOptions().exclusions().isEmpty()
                     || entry.cncSettings()!=null && entry.cncSettings().parametersByTool().values().stream().anyMatch(p -> !p.jobOptions().exclusions().isEmpty());

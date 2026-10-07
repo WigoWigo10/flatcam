@@ -11,7 +11,11 @@ import org.flatcam.cam.geometry.ToolProfile;
 public record GeometryCncSettings(GCodePreprocessor preprocessor, Double singleToolDiameter,
                                   Map<Integer, VTipSettings> vTools,
                                   Map<Integer, GeometryGCodeParameters> parametersByTool,
-                                  ToolProfile singleToolProfile) {
+                                  ToolProfile singleToolProfile, Map<Integer, CncJobDefaults> jobDefaultsByTool) {
+    public GeometryCncSettings(GCodePreprocessor preprocessor, Double singleToolDiameter, Map<Integer, VTipSettings> vTools,
+                               Map<Integer, GeometryGCodeParameters> parametersByTool, ToolProfile singleToolProfile) {
+        this(preprocessor, singleToolDiameter, vTools, parametersByTool, singleToolProfile, Map.of());
+    }
     public GeometryCncSettings(GCodePreprocessor preprocessor, Double singleToolDiameter,
                               Map<Integer, VTipSettings> vTools, Map<Integer, GeometryGCodeParameters> parametersByTool) {
         this(preprocessor, singleToolDiameter, vTools, parametersByTool, ToolProfile.C1);
@@ -25,6 +29,9 @@ public record GeometryCncSettings(GCodePreprocessor preprocessor, Double singleT
         Objects.requireNonNull(singleToolProfile, "singleToolProfile");
         vTools = Map.copyOf(vTools);
         parametersByTool = Map.copyOf(parametersByTool);
+        jobDefaultsByTool = Map.copyOf(jobDefaultsByTool);
+        if (jobDefaultsByTool.keySet().stream().anyMatch(id -> id < 0))
+            throw new IllegalArgumentException("Indice de configuracao comum CNC invalido.");
         if (parametersByTool.keySet().stream().anyMatch(id -> id < 0))
             throw new IllegalArgumentException("Indice CNC invalido.");
         if (singleToolDiameter != null && (!Double.isFinite(singleToolDiameter) || singleToolDiameter <= 0))

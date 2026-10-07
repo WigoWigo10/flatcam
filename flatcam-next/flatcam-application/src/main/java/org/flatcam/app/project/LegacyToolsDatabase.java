@@ -47,7 +47,10 @@ public final class LegacyToolsDatabase {
     }
 
     public record DrillTool(String name, double diameter, double toleranceMin,
-                            double toleranceMax, DrillGCodeParameters parameters) {
+                            double toleranceMax, DrillGCodeParameters parameters, CncJobDefaults jobDefaults) {
+        public DrillTool(String name, double diameter, double toleranceMin, double toleranceMax, DrillGCodeParameters parameters) {
+            this(name, diameter, toleranceMin, toleranceMax, parameters, CncJobDefaults.EMPTY);
+        }
         public boolean matchesDiameter(double sourceDiameter) {
             return Math.abs(sourceDiameter - diameter) <= 1e-6
                     || (toleranceMax > toleranceMin && sourceDiameter >= toleranceMin
@@ -71,7 +74,10 @@ public final class LegacyToolsDatabase {
     }
 
     public record MillingTool(String name, double diameter, ToolProfile profile,
-                              GeometryGCodeParameters parameters, VTipSettings tip) {
+                              GeometryGCodeParameters parameters, VTipSettings tip, CncJobDefaults jobDefaults) {
+        public MillingTool(String name, double diameter, ToolProfile profile, GeometryGCodeParameters parameters, VTipSettings tip) {
+            this(name, diameter, profile, parameters, tip, CncJobDefaults.EMPTY);
+        }
         @Override public String toString() { return name + " - " + diameter + " (" + profile + ")"; }
     }
 
@@ -79,7 +85,11 @@ public final class LegacyToolsDatabase {
      * Isolation/NCC already compute cutter centerlines, so never compensate twice. */
     private static MillingTool camMachining(JSONObject entry) throws IOException {
         JSONObject data = entry.getJSONObject("data");
-        if (!data.has("cutz") && !data.has("travelz") && !data.has("feedrate")) return null;
+        if (!data.has("cutz") && !data.has("travelz") && !data.has("feedrate")) {
+            var job = CncJobDefaults.fromLegacy(data, false);
+            return job.isEmpty() ? null : new MillingTool(entry.optString("name", "CAM"), entry.getDouble("tooldia"),
+                    ToolProfile.fromLegacy(entry.optString("tool_type", "C1")), null, null, job);
+        }
         if (!data.has("cutz") || !data.has("travelz") || !data.has("feedrate"))
             throw new IOException("Parametros Milling incompletos: Cut Z, Travel Z e Feedrate sao obrigatorios.");
         JSONObject copied = new JSONObject(entry.toString());
@@ -119,7 +129,8 @@ public final class LegacyToolsDatabase {
                         data.optBoolean("extracut", false), data.optDouble("extracut_length", 0.1))
                         .withCompensation(org.flatcam.cam.gcode.ToolPathOffset.fromLegacy(entry.optString("offset", "Path")),
                                 entry.optDouble("offset_value", 0));
-                tools.add(new MillingTool(entry.optString("name", "Tool " + id), diameter, profile, parameters, tip));
+                tools.add(new MillingTool(entry.optString("name", "Tool " + id), diameter, profile, parameters, tip,
+                        CncJobDefaults.fromLegacy(data, false)));
             } catch (RuntimeException invalid) {
                 throw new IOException("Invalid Milling tool " + id + ": " + invalid.getMessage(), invalid);
             }
@@ -133,7 +144,11 @@ public final class LegacyToolsDatabase {
 
     public record CutoutTool(String name, CutoutParameters parameters, String gapType,
                              double biteDiameter, double biteSpacing, GeometryGCodeParameters machining,
-                             double thinDepth, ToolProfile profile) {
+                             double thinDepth, ToolProfile profile, CncJobDefaults jobDefaults) {
+        public CutoutTool(String name, CutoutParameters parameters, String gapType, double biteDiameter, double biteSpacing,
+                           GeometryGCodeParameters machining, double thinDepth, ToolProfile profile) {
+            this(name, parameters, gapType, biteDiameter, biteSpacing, machining, thinDepth, profile, CncJobDefaults.EMPTY);
+        }
         @Override public String toString() { return name + " - " + parameters.toolDiameter(); }
     }
 
@@ -203,7 +218,7 @@ public final class LegacyToolsDatabase {
                     throw new IllegalArgumentException("Thin Depth deve ser negativo e mais raso que Cut Z.");
                 tools.add(new CutoutTool(entry.optString("name", "Tool " + id), parameters, type, dia, spacing,
                         machining, Double.isFinite(thinZ) && thinZ < 0 ? -thinZ : 0.5,
-                        ToolProfile.fromLegacy(entry.optString("tool_type", "C1"))));
+                        ToolProfile.fromLegacy(entry.optString("tool_type", "C1")), CncJobDefaults.fromLegacy(data, false)));
             } catch (RuntimeException invalid) { throw new IOException("Invalid Cutout tool " + id + ": " + invalid.getMessage(), invalid); }
         }
         return List.copyOf(tools);
@@ -345,7 +360,7 @@ public final class LegacyToolsDatabase {
                         data.optDouble("tools_drill_dwelltime", 1.0),
                         data.optDouble("tools_drill_offset", 0));
                 tools.add(new DrillTool(entry.optString("name", "Tool " + id), diameter,
-                        toleranceMin, toleranceMax, parameters));
+                        toleranceMin, toleranceMax, parameters, CncJobDefaults.fromLegacy(data, true)));
             } catch (RuntimeException error) {
                 throw new IOException("Invalid Drilling tool " + id + " in Tools Database", error);
             }

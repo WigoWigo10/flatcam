@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.flatcam.app.project.LegacyToolsDatabase;
+import org.flatcam.app.project.CncJobDefaults;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -277,6 +278,16 @@ final class GeometryCncToolPanel {
                 "Start Z, End Z/XY e Tool change Z/XY valem para todas as ferramentas. Vazio/None mantém os valores automáticos.\n\nSomente para fresagem sem sonda; laser, HPGL, Roland e sondagem usam seus próprios ajustes. Campos desabilitados conservam os valores: configurações incompatíveis ativas são recusadas, não ignoradas. Volte à fresagem para limpá-las.\n\nTroca Z/XY só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente.");
         positionsPane.setExpanded(!savedPositions.isAutomatic());
         var exclusions=new CncExclusionEditor(savedPositions,units,areaSelector,exclusionPreview);
+        var commonDb = new CncJobDefaultsReview("cnc", suggestion -> {
+            if (suggestion.preprocessor() != null) preprocessor.setValue(suggestion.preprocessor());
+            if (suggestion.has(CncJobDefaults.Field.RAPID_FEED)) rapidFeedField.setText(suggestion.value(CncJobDefaults.Field.RAPID_FEED));
+            if (suggestion.has(CncJobDefaults.Field.TOOL_CHANGE)) pauseCheck.setSelected(Boolean.parseBoolean(suggestion.value(CncJobDefaults.Field.TOOL_CHANGE)));
+            for (var entry : Map.of(CncJobDefaults.Field.START_Z, startZ, CncJobDefaults.Field.END_Z, endZ,
+                    CncJobDefaults.Field.END_XY, endXY, CncJobDefaults.Field.CHANGE_Z, changeZ, CncJobDefaults.Field.CHANGE_XY, changeXY).entrySet())
+                if (suggestion.has(entry.getKey())) entry.getValue().setText(suggestion.value(entry.getKey()));
+            if (suggestion.values().keySet().stream().anyMatch(field -> field.ordinal() >= CncJobDefaults.Field.START_Z.ordinal()))
+                positionsPane.setExpanded(true);
+        });
 
         Label errorLabel = new Label();
         errorLabel.setId("cnc-error");
@@ -369,6 +380,7 @@ final class GeometryCncToolPanel {
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
+                commonDb.assertResolved();
                 double safeZ = plotter.get() ? 1 : parse(safeZField, "Travel Z");
                 double cutDepth = noCutZ.get() ? 1 : parse(cutDepthField, "Cut Z");
                 boolean multiDepth = !noCutZ.get() && multiDepthCb.isSelected();
@@ -387,7 +399,7 @@ final class GeometryCncToolPanel {
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
-                        rapidFeed.get() ? parse(rapidFeedField, "Feed rapids") : 0,
+                        parse(rapidFeedField, "Feed rapids"),
                         preprocessor.getValue().requiresProbe() ? probe.parameters() : null,
                         noCutZ.get() ? feed : parse(feedZField, "Feedrate Z"),
                         !noCutZ.get() && !roland.get() && dwellCb.isSelected(),
@@ -478,12 +490,12 @@ final class GeometryCncToolPanel {
             feedZField.setText(Double.toString(p.feedRateZ())); dwellCb.setSelected(p.dwell());
             dwellField.setText(Double.toString(p.dwellSeconds())); extraCb.setSelected(p.extraCut());
             extraField.setText(Double.toString(p.extraCutLength()));
-            rapidFeedField.setText(Double.toString(p.rapidFeedRate()));
             offset.setValue(p.offset()); customOffset.setText(Double.toString(p.customOffset()));
             if (selected.tip() != null) {
                 vFields.get(index)[0].setText(Double.toString(selected.tip().tipDiameter()));
                 vFields.get(index)[1].setText(Double.toString(selected.tip().angleDegrees()));
             }
+            commonDb.replace(index + 1, selected.jobDefaults());
         }, errorLabel));
         box.getChildren().add(grid);
         if (multiTool) {
@@ -497,9 +509,14 @@ final class GeometryCncToolPanel {
             box.getChildren().addAll(modeHelp, applyAll);
         }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
-        box.getChildren().addAll(positionsPane,exclusions.view(), probe.view(), profileHelp, errorLabel, generateButton, closeButton);
+        box.getChildren().addAll(commonDb.view(), positionsPane,exclusions.view(), probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         if (settings != null) preprocessor.setValue(settings.preprocessor());
+        if (settings != null && !settings.jobDefaultsByTool().isEmpty()) {
+            var imported = new LinkedHashMap<Integer, CncJobDefaults>();
+            settings.jobDefaultsByTool().forEach((id, suggestion) -> imported.put(id + 1, suggestion));
+            commonDb.replaceAll(imported);
+        }
         return box;
     }
 

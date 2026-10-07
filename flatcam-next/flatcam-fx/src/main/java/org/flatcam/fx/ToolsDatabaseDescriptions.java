@@ -16,7 +16,7 @@ final class ToolsDatabaseDescriptions {
             "tools_ncc_operation", "tools_ncc_overlap", "tools_ncc_method", "tools_ncc_connect", "tools_ncc_contour",
             "tools_ncc_offset_choice", "tools_ncc_offset_value", "tools_drill_cutz", "tools_drill_multidepth",
             "tools_drill_depthperpass", "tools_drill_travelz", "tools_drill_feedrate_z", "tools_drill_spindlespeed",
-            "tools_drill_dwell", "tools_drill_dwelltime", "tools_drill_offset");
+            "tools_drill_dwell", "tools_drill_dwelltime", "tools_drill_offset", "tools_drill_feedrate_rapid");
     private static final Set<String> LINEAR = Set.of("tooldia", "tol_min", "tol_max", "vtipdia", "offset_value", "cutz",
             "depthperpass", "travelz", "extracut_length", "tools_drill_cutz", "tools_drill_depthperpass", "tools_drill_travelz",
             "tools_drill_offset", "tools_paint_offset", "tools_ncc_margin", "tools_ncc_offset_value", "tools_cutout_margin",

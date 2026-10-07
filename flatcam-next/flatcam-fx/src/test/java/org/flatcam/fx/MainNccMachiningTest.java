@@ -23,10 +23,14 @@ class MainNccMachiningTest {
     void clearIsoAndVTipKeepTheirCuttingSettingsAcrossBoundariesRestAndNativePersistence(String units, String kind, boolean rest) throws Exception {
         try (var s = new MainCamFlowTest.Session(units)) {
             double clear = .5 * s.unit, manual = .25 * s.unit, iso = .2 * s.unit;
-            var clearDb = MainIsolationMachiningTest.db(clear, ToolProfile.C2, 95 * s.unit);
+            var common = CncJobDefaults.fromLegacy(new JSONObject().put("ppname_g", "Marlin")
+                    .put("feedrate_rapid", 800 * s.unit).put("endxy", List.of(2 * s.unit, 3 * s.unit)), false);
+            var original = MainIsolationMachiningTest.db(clear, ToolProfile.C2, 95 * s.unit);
+            var clearDb = new LegacyToolsDatabase.MillingTool(original.name(), original.diameter(), original.profile(),
+                    original.parameters(), original.tip(), common);
             var isoDb = new LegacyToolsDatabase.MillingTool("V ISO", iso, ToolProfile.V,
                     new GeometryGCodeParameters(3 * s.unit, .15 * s.unit, true, .05 * s.unit, 75 * s.unit,
-                            13579, false), new VTipSettings(.05 * s.unit, 60));
+                            13579, false), new VTipSettings(.05 * s.unit, 60), common);
             NccBoundary boundary = switch(kind) {
                 case "area" -> new NccBoundary.Area(s.referenceGeometry);
                 case "reference" -> new NccBoundary.ReferenceGeometry(s.referenceGeometry);
@@ -47,6 +51,10 @@ class MainNccMachiningTest {
             assertFalse(entry.geometry().isEmpty()); assertEquals(units, entry.units());
             assertTrue(entry.tools().stream().anyMatch(t -> t.toolProfile() == ToolProfile.V));
             var form = MainIsolationMachiningTest.cnc(entry);
+            assertEquals(GCodePreprocessor.MARLIN, form.preprocessor());
+            assertEquals(800 * s.unit, form.parameters().rapidFeedRate());
+            assertEquals(2 * s.unit, form.parameters().jobOptions().endX());
+            assertTrue(entry.cncSettings().jobDefaultsByTool().values().stream().allMatch(common::equals));
             int imported = 0;
             for (int i = 0; i < form.tools().size(); i++) {
                 var tool = form.tools().get(i); var p = form.parametersByTool().getOrDefault(i, form.parameters());
