@@ -134,7 +134,7 @@ public final class PythonProjectIO {
             geometry = FACTORY.buildGeometry(tools.stream().map(ToolGeometry::geometry).toList());
         }
         if (geometry == null) geometry = FACTORY.createGeometryCollection();
-        return new ProjectFile.GeometryEntry(name, "", object.optString("units", "MM"),
+        return new ProjectFile.GeometryEntry(name, "", org.flatcam.app.project.flatprj.LegacyUnits.normalize(object.optString("units", "MM")),
                 geometry, geometry.getDimension() < 2, List.copyOf(tools),
                 object.optString("fill_color", null), object.optString("outline_color", null), plot(object),
                 readGeometryCncDefaults(toolJson, object.optJSONObject("options")), readGeometrySettings(toolJson, object.optJSONObject("options")));
@@ -191,8 +191,10 @@ public final class PythonProjectIO {
 
     private static GeometryGCodeParameters readMachiningData(JSONObject data) {
         try {
+            double cutZ = data.getDouble("cutz");
+            if (!Double.isFinite(cutZ) || cutZ >= 0) return null;
             return new GeometryGCodeParameters(data.getDouble("travelz"),
-                    Math.abs(data.getDouble("cutz")), data.optBoolean("multidepth", false),
+                    -cutZ, data.optBoolean("multidepth", false),
                     data.optDouble("depthperpass", 0), data.getDouble("feedrate"),
                     data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false),
                     data.optDouble("feedrate_rapid", 0), null, data.optDouble("feedrate_z",data.getDouble("feedrate")),
@@ -235,9 +237,11 @@ public final class PythonProjectIO {
             JSONObject data = tool == null ? null : tool.optJSONObject("data");
             if (data == null) continue;
             try {
+                double cutZ = data.getDouble("tools_drill_cutz");
+                if (!Double.isFinite(cutZ) || cutZ >= 0) continue;
                 defaults.put(Integer.parseInt(id), new DrillGCodeParameters(
                         data.getDouble("tools_drill_travelz"),
-                        Math.abs(data.getDouble("tools_drill_cutz")),
+                        -cutZ,
                         data.getDouble("tools_drill_feedrate_z"),
                         data.optInt("tools_drill_spindlespeed", 0),
                         data.optBoolean("tools_drill_toolchange", false),

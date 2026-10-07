@@ -78,3 +78,11 @@ Com o ambiente Python legado, na raiz de `flatcam-next`:
 `--resaved <arquivo>` grava um artefato reserializado pelo Python. O teste
 `optionalPythonResavedArtifactRestoresPerToolCncAndAllObjects` verifica o exemplo
 de quatro objetos com `-Dflatcam.compat.resaved=<artefato>`.
+# Consolidação dos fluxos (2026-10-07)
+
+Gerber e Geometry também normalizam os rótulos MM/METRIC e IN/INCH, sem
+reescalar coordenadas já gravadas na unidade atual do objeto. Unidades
+desconhecidas são recusadas, não assumidas como mm. Cut Z positivo opcional
+em Geometry/Drilling não é invertido: geometria permanece, defaults inválidos
+são ignorados e o aviso de restauração parcial de dados CAM continua presente.
+`PythonMainFlowImportTest` cobre oito regressões e persistência nativa/legada.

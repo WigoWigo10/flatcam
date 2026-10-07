@@ -127,7 +127,7 @@ public final class GerberFlatPrjCodec {
     }
 
     public static Decoded fromJson(JSONObject json) {
-        String units = json.optString("units", "MM");
+        String units = LegacyUnits.normalize(json.optString("units", "MM"));
         Geometry solidGeometry = WktJson.unwrap(json.opt("solid_geometry"));
         Geometry followGeometry = WktJson.unwrap(json.opt("follow_geometry"));
 

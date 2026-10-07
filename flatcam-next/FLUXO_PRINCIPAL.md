@@ -108,6 +108,13 @@ Gerbers/Excellons originais nos ensaios.
    não há aplicação integral automática de todos os campos globais da DB.
 3. Ampliar validação do salvar → Python → FX para dados dos fluxos principais,
    sem remover avisos/recusas de perda de dados.
+   Incremento 2026-10-07: Gerber/Geometry importados normalizam MM/METRIC e
+   IN/INCH sem reescalar coordenadas (Excellon já fazia isso). Unidade desconhecida
+   é recusada. Cut Z positivo opcional não vira corte negativo: os caminhos/furos
+   são mantidos, os defaults inválidos são descartados e permanecem os avisos de
+   dados CAM parcialmente restaurados. `PythonMainFlowImportTest`: 8 casos,
+   incluindo cores, aberturas, visibilidade e salvar/reabrir nativo/Python.
+   Não houve migração automática de preferências globais ou remoção dos avisos.
 4. Consolidar transferência de parâmetros de usinagem da Tools Database na
    geração Isolation → Geometry → CNC, além dos parâmetros de isolamento.
 5. Consolidar essa transferência para NCC e testar CLEAR/ISO, Rest e limites;

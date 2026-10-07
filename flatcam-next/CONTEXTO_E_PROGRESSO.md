@@ -18,6 +18,11 @@ callbacks tardios e valida cancelamento na UI. Tools Database recusa Cut Z
 positivo em Drilling. `MainExcellonFlowTest` cobre 12 cenários, com persistência
 e CNC Drills/Slots em MM/IN; opções comuns da DB permanecem parcialmente aplicadas.
 
+Segundo commit publicado: `8dc3a89f`. Terceiro incremento normaliza unidades
+de Gerber/Geometry legados, recusa rótulos desconhecidos e não converte Cut Z
+positivo opcional em profundidade de usinagem. Mantém geometria e avisos de
+parâmetros incompletos. Oito testes novos em `PythonMainFlowImportTest`.
+
 Este é o documento operacional de continuidade do **FlatCAM FX**. Ele foi
 escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
