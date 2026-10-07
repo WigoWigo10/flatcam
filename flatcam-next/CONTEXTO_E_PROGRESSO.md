@@ -1,5 +1,31 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-07: prévia e conjunto Panelize
+
+Panelize ganhou prévia no estilo 2-Sided: conteúdo real replicado, borda/cortes
+internos e preenchimento translúcido opcional, com enquadramento. Worker
+independente com debounce e invalidação evita publicar overlays antigos.
+Panelizar conjunto aplica uma grade/referência comum a Gerber/Excellon/Geometry;
+caixas individuais não alteram os deslocamentos. Contorno identificado ao abrir
+é referência inicial, mas a escolha deve ser conferida. Unidades divergentes
+são recusadas, sem conversão ou recentramento implícito.
+
+Criação tem progresso, cancelamento cooperativo e guards antes de publicar todo
+o lote. Excellon preserva IDs/diâmetros exatos; Geometry mantém índices de tools,
+substituindo a fusão histórica da panelização. Trinta e dois cenários novos,
+incluindo cenas reais offscreen nos temas claro/escuro. Uso, limites e roteiro
+manual em `PANELIZE.md`. Validação com o projeto privado e `panelize` Tcl
+permanecem pendentes; não declarar paridade total nem ganho de FPS.
+
+As categorias da prévia têm cores distintas e legenda: Gerber azul, Excellon
+laranja/âmbar, Geometry violeta. Tons se ajustam ao tema e furos/slots são
+desenhados por cima das demais categorias. Paleta é só dos overlays, não muda
+cores do projeto; caches separados por categoria/estilo são limpos ao fechar.
+
+Verify completo com diferenciação de cores: 1436 registrados, 1424 aprovados, 12 opcionais
+ignorados, zero falhas/erros. Probes D3D/Intel Arc e software forçado passam.
+Snapshots offscreen claro/escuro conferidos, sem ensaio de FPS/projeto privado.
+
 ## Continuidade em 2026-10-07: prévia de CNC denso
 
 Depois dos cinco incrementos publicados (último `8b2c9429`), implementado o
@@ -1120,6 +1146,9 @@ oráculo do Python para comparar caminhos; verificado por propriedades (cobertur
 do projeto real em Standard, Seed e Lines, em menos de 1 s) e testes.
 
 **Panelize Tool (2026-09-30).** Ferramentas > Panelize Tool (`PanelizeToolPanel`, `Panelize`):
+Registro histórico: prévia/conjunto e preservação de IDs/índices foram ampliados
+em 2026-10-07; consultar `PANELIZE.md`. A fusão Excellon descrita abaixo não é
+mais usada na panelização atual (Join Objects continua independente).
 repete um Gerber, Excellon ou Geometry em colunas x linhas, as cópias afastadas pela caixa de
 referência (a do próprio objeto ou a de outro, como o contorno) mais o espaçamento; "limitar o
 tamanho" reduz a grade até caber, como o Python; um Gerber também pode virar painel Geometry. O painel

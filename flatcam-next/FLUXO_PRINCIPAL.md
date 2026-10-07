@@ -4,6 +4,19 @@ Atualizado em 2026-10-07, branch `flatcam-next` (incremento anterior: `eeeef1ff`
 Prioridade solicitada: consolidar os fluxos de produção antes de ampliar
 ferramentas secundárias/automação. Não declarar 100% apenas pela presença dos painéis.
 
+## Panelize: prévia e registro entre camadas — 2026-10-07
+
+Implementada prévia de conteúdo/contorno/cortes como no 2-Sided Tool e criação
+de conjunto com um layout comum. Excellon mantém IDs/diâmetros e Geometry
+índices de ferramentas; geração valida entradas, projeto e cancelamento antes
+do lote FX. Trinta e dois cenários novos, incluindo MM/IN, persistência, criação
+separada equivalente, callbacks tardios e temas offscreen. Detalhes, limites
+de memória/cancelamento e roteiro manual pendente em [PANELIZE.md](PANELIZE.md).
+As origens precisam estar previamente alinhadas; compartilhar a referência
+não corrige desalinhamento original. Nenhum novo oráculo Python/FPS real.
+Prévia diferencia Gerber/Excellon/Geometry por azul/laranja/violeta, com legenda,
+tons por tema e furos por cima. Não altera a paleta persistida dos objetos.
+
 ## Primeiro incremento: Gerber → Geometry
 
 Isolation, NCC e Cutout agora validam os dados usados no cálculo antes de

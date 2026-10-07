@@ -295,6 +295,7 @@ final class MainWindow implements TclFlatcamHost {
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
     void disposeViewport() {
+        releaseActiveTool();
         plotAreaView.dispose();
     }
 
@@ -4154,6 +4155,12 @@ final class MainWindow implements TclFlatcamHost {
         }
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
         releaseActiveTool();
+        PanelizePreviewController preview = new PanelizePreviewController(jobExecutor, shown -> {
+            plotAreaView.setToolPreviewContent(shown == null ? null : shown.content(), shown == null ? List.of() : shown.contents());
+            plotAreaView.setEditorFills(shown == null ? null : shown.interior(), null);
+            plotAreaView.setEditorReference(shown == null ? null : shown.boxes());
+            plotAreaView.setEditorHighlight(shown == null ? null : shown.outline(), true);
+        });
         openToolPanel("Panelize Tool", PanelizeToolPanel.build(new PanelizeToolPanel.Host() {
             @Override
             public List<TreeItem<String>> sources() {
@@ -4163,6 +4170,16 @@ final class MainWindow implements TclFlatcamHost {
             @Override
             public TreeItem<String> initialSource() {
                 return initial;
+            }
+
+            @Override public List<TreeItem<String>> selectedSources() {
+                return selectedObjects().stream().filter(sources::contains).toList();
+            }
+
+            @Override public String units(TreeItem<String> item) { return panelizeUnits(item); }
+
+            @Override public boolean canBeContour(TreeItem<String> item) {
+                return gerberByItem.containsKey(item) || geometryByItem.containsKey(item);
             }
 
             @Override
@@ -4176,19 +4193,92 @@ final class MainWindow implements TclFlatcamHost {
             }
 
             @Override
-            public void preview(Geometry outlines) {
-                plotAreaView.setEditorHighlight(outlines, true);
+            public void preview(PanelizeToolPanel.Request request, PanelizeToolPanel.PreviewOptions options,
+                                Consumer<String> state) {
+                if (request == null) { preview.request(null, () -> true, state); return; }
+                try {
+                    TreeItem<String> contour = options.showOutline() ? options.contour() : null;
+                    CamGenerationState before = capturePanelizeState(request, contour, false);
+                    Geometry outline = contour == null ? null : panelizeOutline(contour);
+                    double[] box = request.referenceBox();
+                    Geometry referenceBox = new GeometryFactory().toGeometry(new Envelope(box[0], box[2], box[1], box[3]));
+                    preview.request(new PanelizePreview.Input(request.sources().stream().map(MainWindow.this::panelizePreviewLayer).toList(),
+                            outline, referenceBox, request.layout(), options.showContent(), options.showOutline(), options.fillInterior()),
+                            () -> panelizeStateValid(before), state);
+                } catch (IllegalArgumentException | IllegalStateException invalid) {
+                    preview.request(null, () -> true, state); state.accept(invalid.getMessage());
+                }
             }
 
             @Override
             public void panelize(PanelizeToolPanel.Request request) {
                 runPanelize(request);
             }
+
+            @Override public void fitPreview() {
+                if (preview.current() != null) plotAreaView.fitToBounds(preview.current().bounds());
+            }
         }, () -> {
-            plotAreaView.setEditorHighlight(null, false);
             closeToolPanel();
         }));
-        activeToolCleanup = this::clearToolOverlays;
+        activeToolCleanup = () -> { preview.close(); clearToolOverlays(); };
+    }
+
+    private String panelizeUnits(TreeItem<String> item) {
+        Object version = tclVersion(item);
+        return version instanceof GerberImage image ? image.units()
+                : version instanceof ExcellonImage image ? image.units()
+                : version instanceof GeometryEntry entry ? entry.units() : null;
+    }
+
+    private Geometry panelizeContent(TreeItem<String> item) {
+        Object version = tclVersion(item);
+        return version instanceof GerberImage image ? image.solidGeometry()
+                : version instanceof ExcellonImage image ? image.solidGeometry()
+                : version instanceof GeometryEntry entry ? entry.geometry() : null;
+    }
+
+    private Geometry panelizeOutline(TreeItem<String> item) {
+        GerberImage gerber = gerberByItem.get(item);
+        return gerber != null && gerber.followGeometry() != null && !gerber.followGeometry().isEmpty()
+                ? gerber.followGeometry() : panelizeContent(item);
+    }
+
+    private PlotAreaView.PreviewLayer panelizePreviewLayer(TreeItem<String> item) {
+        Object version = tclVersion(item);
+        var category = version instanceof GerberImage ? PlotAreaView.LayerCategory.GERBER
+                : version instanceof ExcellonImage ? PlotAreaView.LayerCategory.EXCELLON : PlotAreaView.LayerCategory.GEOMETRY;
+        return new PlotAreaView.PreviewLayer(panelizeContent(item), category,
+                version instanceof GeometryEntry entry && entry.strokeOnly());
+    }
+
+    private CamGenerationState capturePanelizeState(PanelizeToolPanel.Request request, TreeItem<String> contour, boolean generation) {
+        if (generation && runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
+        if (generation && camEditorActive()) throw new IllegalStateException("Feche/aplique os editores antes de panelizar.");
+        var items = new LinkedHashSet<>(request.sources());
+        if (request.reference() != null) items.add(request.reference());
+        if (contour != null) items.add(contour);
+        String units = panelizeUnits(request.source());
+        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException("Unidades nao reconhecidas.");
+        List<CamInput> inputs = new ArrayList<>();
+        for (TreeItem<String> item : items) {
+            if (!units.equals(panelizeUnits(item))) throw new IllegalArgumentException("Panelizacao exige as mesmas unidades em objetos/referencia/contorno.");
+            inputs.add(captureCamInput(item, panelizeContent(item)));
+        }
+        Envelope actual = new Envelope();
+        for (TreeItem<String> item : request.reference() == null ? request.sources() : List.of(request.reference())) {
+            double[] box = boundsOf(item);
+            if (box == null) throw new IllegalStateException("Objeto/referencia sem geometria.");
+            actual.expandToInclude(new Envelope(box[0], box[2], box[1], box[3]));
+        }
+        if (!Arrays.equals(request.referenceBox(), new double[]{actual.getMinX(), actual.getMinY(), actual.getMaxX(), actual.getMaxY()}))
+            throw new IllegalStateException("Caixa de referencia alterada; atualize a configuracao.");
+        return new CamGenerationState(tclProjectEpoch, List.copyOf(inputs), toolTab.getContent());
+    }
+
+    private boolean panelizeStateValid(CamGenerationState before) {
+        return tclProjectEpoch == before.epoch() && before.inputs().stream().allMatch(input ->
+                tclVersion(input.item()) == input.version() && input.name().equals(input.item().getValue()));
     }
 
     private void runPanelize(PanelizeToolPanel.Request request) {
@@ -4196,60 +4286,85 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-        TreeItem<String> item = request.source();
-        GerberImage gerber = gerberByItem.get(item);
-        ExcellonImage excellon = excellonByItem.get(item);
-        GeometryEntry geometry = geometryByItem.get(item);
+        CamGenerationState before = capturePanelizeState(request, null, true);
+        List<CamInput> sources = before.inputs().stream().filter(input -> request.sources().contains(input.item())).toList();
+        JobHandle<?>[] owner = {null};
         beginJob("Criando painel...");
-        JobHandle<PanelizeOutcome> handle = jobExecutor.submit(context -> {
-            context.reportProgress(0.1, "Copiando " + item.getValue() + "...");
-            if (gerber != null) {
-                GerberImage panel = Panelize.gerber(gerber, request.layout());
-                return new PanelizeOutcome(request.gerberAsGeometry() ? null : panel, null,
-                        request.gerberAsGeometry() ? new GeometryJoin.Joined(panel.solidGeometry(), false, List.of())
-                                : null, gerber.units());
+        activeCamGeneration = before;
+        JobHandle<List<PanelizeOutcome>> handle = jobExecutor.submit(context -> {
+            List<PanelizeOutcome> outcomes = new ArrayList<>();
+            for (int index = 0; index < sources.size(); index++) {
+                context.checkCancelled();
+                CamInput input = sources.get(index);
+                int position = index;
+                org.flatcam.cam.ProgressCallback progress = fraction -> context.reportProgress(
+                        (position + fraction) / sources.size(), "Panelizando " + input.name() + "...");
+                if (input.version() instanceof GerberImage gerber) {
+                    GerberImage panel = Panelize.gerber(gerber, request.layout(), context::isCancelled, progress);
+                    outcomes.add(new PanelizeOutcome(request.gerberAsGeometry() ? null : panel, null,
+                            request.gerberAsGeometry() ? new GeometryJoin.Joined(panel.solidGeometry(), false, List.of()) : null, gerber.units()));
+                } else if (input.version() instanceof ExcellonImage excellon) {
+                    outcomes.add(new PanelizeOutcome(null, Panelize.excellon(excellon, request.layout(), context::isCancelled, progress), null, excellon.units()));
+                } else {
+                    GeometryEntry geometry = (GeometryEntry) input.version();
+                    outcomes.add(new PanelizeOutcome(null, null, Panelize.geometry(geometry.units(), geometry.geometry(),
+                            geometry.strokeOnly(), geometry.tools(), request.layout(), context::isCancelled, progress), geometry.units()));
+                }
             }
-            if (excellon != null) {
-                return new PanelizeOutcome(null, Panelize.excellon(excellon, request.layout()), null, excellon.units());
-            }
-            return new PanelizeOutcome(null, null, Panelize.geometry(geometry.units(), geometry.geometry(),
-                    geometry.strokeOnly(), geometry.tools(), request.layout()), geometry.units());
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
+            context.checkCancelled(); return List.copyOf(outcomes);
+        }, cncPreviewProgress(owner));
         runningJob = handle;
+        owner[0] = handle;
         handle.completion()
-                .thenAccept(outcome -> Platform.runLater(() -> {
-                    String name = uniqueDerivedName(item.getValue() + "_panelized");
-                    TreeItem<String> created;
-                    if (outcome.gerber() != null) {
-                        created = addGerberToProject(name, null, outcome.gerber());
-                    } else if (outcome.excellon() != null) {
-                        created = addExcellonToProject(name, null, outcome.excellon());
-                    } else {
-                        GeometryJoin.Joined joined = outcome.geometry();
-                        created = addGeometryToProject(name, item.getValue(), outcome.units(), joined.geometry(),
-                                joined.strokeOnly(), joined.tools());
+                .thenAccept(outcomes -> Platform.runLater(() -> {
+                    if (!acceptCamGeneration(before, handle)) return;
+                    TreeItem<String> first = null;
+                    plotAreaView.beginBatchUpdate();
+                    try {
+                        for (int index = 0; index < sources.size(); index++) {
+                            TreeItem<String> created = publishPanelized(sources.get(index), outcomes.get(index));
+                            if (first == null) first = created;
+                            Panelize.Layout layout = request.layout();
+                            appendConsole("Painel criado: " + created.getValue() + " (" + layout.columns() + " x "
+                                    + layout.rows() + " copias" + (layout.constrained() ? ", reduzido pelo limite" : "") + ").");
+                        }
+                    } finally { plotAreaView.endBatchUpdate(); }
+                    if (toolTab.getContent() == before.panel()) {
+                        selectProjectItem(first); plotAreaView.fitToLayer(first); closeToolPanel();
                     }
-                    Panelize.Layout layout = request.layout();
-                    appendConsole("Painel criado: " + created.getValue() + " (" + layout.columns() + " x "
-                            + layout.rows() + " copias" + (layout.constrained() ? ", reduzido pelo limite" : "") + ").");
-                    selectProjectItem(created);
-                    plotAreaView.fitToLayer(created);
-                    plotAreaView.setEditorHighlight(null, false);
-                    closeToolPanel();
                     setStatus("Concluido.", IDLE_COLOR);
                     updateProgress(1);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
+                        if (runningJob != handle) return;
                         reportJobError(error, "Falha ao criar o painel: ");
                         onJobFinished();
                     });
                     return null;
                 });
+    }
+
+    private TreeItem<String> publishPanelized(CamInput input, PanelizeOutcome outcome) {
+        String name = uniqueDerivedName(input.name() + "_panelized");
+        TreeItem<String> created;
+        if (outcome.gerber() != null) {
+            created = addGerberToProject(name, null, outcome.gerber());
+        } else if (outcome.excellon() != null) {
+            created = addExcellonToProject(name, null, outcome.excellon(),
+                    drillDefaultsByItem.getOrDefault(input.item(), Map.of()));
+        } else {
+            GeometryJoin.Joined joined = outcome.geometry();
+            created = addGeometryToProject(name, input.name(), outcome.units(), joined.geometry(),
+                    joined.strokeOnly(), joined.tools(), input.version() instanceof GeometryEntry entry ? entry.cncDefaults() : null);
+            if (input.version() instanceof GeometryEntry && geometryCncSettingsByItem.containsKey(input.item()))
+                geometryCncSettingsByItem.put(created, geometryCncSettingsByItem.get(input.item()));
+        }
+        // Preserve colors/Solid, but new results are plotted even if the source was hidden.
+        copyLayerAppearance(input.item(), created);
+        plotAreaView.setLayerVisible(created, true);
+        return created;
     }
 
     /** Tools > Paint Tool: fills Gerber or Geometry polygons with toolpaths (appTools/ToolPaint.py). */

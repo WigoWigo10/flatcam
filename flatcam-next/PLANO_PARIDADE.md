@@ -6,6 +6,12 @@ entregas explicitamente verificadas; não declara todas as etapas concluídas.
 
 ## Objetivo e escopo
 
+Incremento 2026-10-07: Panelize recebeu prévia no estilo 2-Sided e conjunto
+multicamadas com referência/layout comum, preservando furos, slots, IDs e tools.
+São 32 regressões novas, incluindo cores por categoria/tema, sem declarar paridade total. Uso, guards, diferenças
+deliberadas e roteiro manual pendente estão em [PANELIZE.md](PANELIZE.md).
+Não implementa `panelize` Tcl nem corrige origens originalmente desalinhadas.
+
 Consolidar primeiro o fluxo normal **Gerber/Excellon → Geometry → CNC Job →
 salvar/reabrir**, com resultados comparáveis, interação previsível e limitações
 explícitas. Depois, completar opções avançadas, preferências e automação.

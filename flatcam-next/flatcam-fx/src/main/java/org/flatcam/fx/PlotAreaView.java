@@ -86,6 +86,29 @@ final class PlotAreaView extends StackPane {
         GERBER, EXCELLON, GEOMETRY, OVERLAY, CNCJOB
     }
 
+    /** Display-only tool content. Categories retain distinct inks without creating project layers. */
+    record PreviewLayer(Geometry geometry, LayerCategory category, boolean strokeOnly) {
+        PreviewLayer {
+            java.util.Objects.requireNonNull(geometry);
+            if (category != LayerCategory.GERBER && category != LayerCategory.EXCELLON && category != LayerCategory.GEOMETRY)
+                throw new IllegalArgumentException("Unsupported tool preview category: " + category);
+        }
+    }
+    private record PreviewOverlayKey(LayerCategory category, boolean strokeOnly) { }
+    record PreviewColors(Color fill, Color stroke) { }
+
+    static PreviewColors toolPreviewColors(LayerCategory category, boolean dark) {
+        return switch (category) {
+            case GERBER -> new PreviewColors(Color.web(dark ? "#40BFF68C" : "#007EAD73"),
+                    Color.web(dark ? "#8ADAFF" : "#005778"));
+            case EXCELLON -> new PreviewColors(Color.web(dark ? "#FFBC57D9" : "#C66A00BF"),
+                    Color.web(dark ? "#FFDA91" : "#813B00"));
+            case GEOMETRY -> new PreviewColors(Color.web(dark ? "#C694FF47" : "#8751B638"),
+                    Color.web(dark ? "#CE9FFF" : "#602D91"));
+            default -> throw new IllegalArgumentException("Unsupported tool preview category: " + category);
+        };
+    }
+
     /** A text label pinned to a world position - e.g. one drill's place in the machining order. */
     record Arrow(double x, double y, double dx, double dy, double length) {
     }
@@ -323,6 +346,7 @@ final class PlotAreaView extends StackPane {
     private Geometry editorReferenceFillGeometry;
     /** The mirrored content itself (copper, drills, paths), filled, over the board interior. */
     private Geometry editorContentGeometry;
+    private List<PreviewLayer> toolPreviewContents = List.of();
     private static final Color EDITOR_CONTENT_FILL_COLOR = Color.web("#00B4FF99");
     private static final Color EDITOR_CONTENT_STROKE_COLOR = Color.web("#0078B4");
     private boolean editorHighlightStrokeOnly;
@@ -731,9 +755,41 @@ final class PlotAreaView extends StackPane {
     }
 
     void setEditorContent(Geometry content) {
+        clearToolPreviewContents();
         invalidateEditorIndex(CONTENT_KEY, editorContentGeometry, content);
         editorContentGeometry = content;
         drawEditorHighlight();
+    }
+
+    /** Content is grouped by category/stroke style by the worker, not unioned on the FX thread. */
+    void setToolPreviewContent(Geometry content, List<PreviewLayer> contents) {
+        List<PreviewLayer> next = List.copyOf(contents);
+        var styles = new java.util.HashSet<PreviewOverlayKey>();
+        for (PreviewLayer layer : next)
+            if (!styles.add(new PreviewOverlayKey(layer.category(), layer.strokeOnly())))
+                throw new IllegalArgumentException("Duplicate category/style in tool preview.");
+        for (PreviewLayer previous : toolPreviewContents) {
+            if (next.stream().noneMatch(layer -> layer.category() == previous.category()
+                    && layer.strokeOnly() == previous.strokeOnly()))
+                forgetOverlay(new PreviewOverlayKey(previous.category(), previous.strokeOnly()));
+        }
+        for (PreviewLayer layer : next) {
+            PreviewLayer previous = toolPreviewContents.stream().filter(before -> before.category() == layer.category()
+                    && before.strokeOnly() == layer.strokeOnly()).findFirst().orElse(null);
+            Object key = new PreviewOverlayKey(layer.category(), layer.strokeOnly());
+            invalidateEditorIndex(key, previous == null ? null : previous.geometry(), layer.geometry());
+            if (previous == null || previous.geometry() != layer.geometry()) invalidateDensity(key);
+        }
+        invalidateEditorIndex(CONTENT_KEY, editorContentGeometry, content);
+        editorContentGeometry = content;
+        toolPreviewContents = next;
+        drawEditorHighlight();
+    }
+
+    private void clearToolPreviewContents() {
+        for (PreviewLayer layer : toolPreviewContents)
+            forgetOverlay(new PreviewOverlayKey(layer.category(), layer.strokeOnly()));
+        toolPreviewContents = List.of();
     }
 
     void setEditorFills(Geometry fill, Geometry referenceFill) {
@@ -853,6 +909,7 @@ final class PlotAreaView extends StackPane {
 
     void clearLayers() {
         cancelPlacement();
+        clearToolPreviewContents();
         layers.clear();
         lodLayers.clear();
         indexCache.clear();
@@ -1039,6 +1096,13 @@ final class PlotAreaView extends StackPane {
             fitToEnvelope(layer.geometry().getEnvelopeInternal());
             redraw();
         }
+    }
+
+    /** Fits display-only tool previews without adding selectable project layers. */
+    void fitToBounds(Envelope envelope) {
+        if (envelope == null || envelope.isNull()) return;
+        fitToEnvelope(envelope);
+        redraw();
     }
 
     private void fitToEnvelope(Envelope envelope) {
@@ -2044,7 +2108,7 @@ final class PlotAreaView extends StackPane {
                 gc.restore();
             }
         }
-        if (editorContentGeometry != null && !editorContentGeometry.isEmpty()) {
+        if (toolPreviewContents.isEmpty() && editorContentGeometry != null && !editorContentGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
@@ -2073,6 +2137,20 @@ final class PlotAreaView extends StackPane {
             drawOverlay(gc, HIGHLIGHT_KEY, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
                     EDITOR_HIGHLIGHT_COLOR, EDITOR_HIGHLIGHT_COLOR, true, LayerCategory.OVERLAY, true, false),
                     viewBounds, contentWidth, contentHeight);
+            gc.restore();
+        }
+        if (!toolPreviewContents.isEmpty()) {
+            gc.save();
+            gc.beginPath();
+            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.clip();
+            for (PreviewLayer layer : toolPreviewContents) {
+                if (layer.geometry().isEmpty()) continue;
+                PreviewColors ink = toolPreviewColors(layer.category(), palette.background().getBrightness() < .5);
+                drawOverlay(gc, new PreviewOverlayKey(layer.category(), layer.strokeOnly()),
+                        new RenderLayer(layer.geometry(), layer.strokeOnly(), ink.fill(), ink.stroke(),
+                                true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth, contentHeight);
+            }
             gc.restore();
         }
         drawPlacementPreview(gc, contentWidth, contentHeight);
