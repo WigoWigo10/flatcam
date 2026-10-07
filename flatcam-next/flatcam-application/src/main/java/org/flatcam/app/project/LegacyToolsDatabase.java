@@ -311,8 +311,8 @@ public final class LegacyToolsDatabase {
                         || toleranceMin < 0 || toleranceMax < toleranceMin)
                     throw new IllegalArgumentException("invalid tool diameter tolerance");
                 double cutZ = data.optDouble("tools_drill_cutz", -1.7);
-                if (!Double.isFinite(cutZ) || cutZ == 0)
-                    throw new IllegalArgumentException("invalid drill Cut Z");
+                if (!Double.isFinite(cutZ) || cutZ >= 0)
+                    throw new IllegalArgumentException("Drilling Cut Z must be below the surface");
                 DrillGCodeParameters parameters = new DrillGCodeParameters(
                         data.optDouble("tools_drill_travelz", 2.0), Math.abs(cutZ),
                         data.optDouble("tools_drill_feedrate_z", 300),

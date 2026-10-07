@@ -97,6 +97,15 @@ Gerbers/Excellons originais nos ensaios.
    desfaz essa publicação. Operações geométricas individuais continuam cooperativas.
 2. Completar consumo avançado de parâmetros Drilling/Tools Database e seus
    roteiros CNC/persistência; seguir `CNC_EXCLUSIONS.md` e `PREPROCESSADORES.md`.
+   Incremento 2026-10-07: Milling valida identidade/nome/projeto/editor e
+   cancelamento antes de criar Geometry; preserva outro painel. Drilling ignora
+   callbacks antigos e revalida cancelamento tardio. Cut Z positivo na Tools
+   Database é recusado, não convertido silenciosamente em profundidade negativa.
+   `MainExcellonFlowTest`: 12 cenários, incluindo Drills/Slots em MM/IN,
+   parâmetros de DB → Geometry → G-code → projeto nativo e fontes intactas.
+   O perfil e parâmetros de corte já suportados são conservados; posições,
+   exclusões, ordem e rapid feed continuam opções comuns do painel Drilling,
+   não há aplicação integral automática de todos os campos globais da DB.
 3. Ampliar validação do salvar → Python → FX para dados dos fluxos principais,
    sem remover avisos/recusas de perda de dados.
 4. Consolidar transferência de parâmetros de usinagem da Tools Database na

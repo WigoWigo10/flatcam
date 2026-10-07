@@ -5938,6 +5938,7 @@ final class MainWindow implements TclFlatcamHost {
     private void startDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image,
                                            DrillGCodeToolPanel.Result result, Path output) {
         if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
+        CamGenerationState before = captureCamGeneration(item, image.solidGeometry(), null, null);
         long epoch = tclProjectEpoch;
         String sourceName = item.getValue();
         Map<Integer, DrillGCodeParameters> savedDefaults = drillDefaultsByItem.get(item);
@@ -5953,13 +5954,16 @@ final class MainWindow implements TclFlatcamHost {
         };
         validate.run();
         beginJob("Gerando CNC Job de furacao...");
+        activeCamGeneration = before;
         JobHandle<DrillCncGeneration.Generated> handle = jobExecutor.submit(context -> TclExecution.run(context,
                 () -> DrillCncGeneration.generate(image, result.settingsByTool(), result.orderedToolIds(), result.options(),
                         result.preprocessor(), output, context, () -> TclExecution.onFx(() -> { validate.run(); return null; }))),
-                (fraction, message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
+                camProgress(before));
         runningJob = handle;
         handle.completion().thenAccept(generated -> Platform.runLater(() -> {
+            if (runningJob != handle) return;
             try {
+                if (handle.isCancelled()) throw new CancellationException();
                 validate.run();
                 CncJobResult job = generated.job();
                 Map<Integer, DrillGCodeParameters> updatedDefaults = new LinkedHashMap<>(
@@ -5979,7 +5983,10 @@ final class MainWindow implements TclFlatcamHost {
             } catch (RuntimeException failure) { reportJobError(failure, "Falha ao publicar Drilling: "); }
             finally { onJobFinished(); }
         })).exceptionally(error -> {
-            Platform.runLater(() -> { reportJobError(error, "Falha ao gerar/salvar G-code: "); onJobFinished(); });
+            Platform.runLater(() -> {
+                if (runningJob != handle) return;
+                reportJobError(error, "Falha ao gerar/salvar G-code: "); onJobFinished();
+            });
             return null;
         });
     }
@@ -6004,7 +6011,11 @@ final class MainWindow implements TclFlatcamHost {
         }
         TreeItem<String> item = result.source().item();
         ExcellonImage image = result.source().image();
+        CamGenerationState before;
+        try { before = captureCamGeneration(item, image.solidGeometry(), null, null); }
+        catch (IllegalStateException invalid) { reportJobError(invalid, "Milling: "); return; }
         beginJob("Gerando Geometry de fresagem Excellon...");
+        activeCamGeneration = before;
         JobHandle<Geometry> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.1, "Calculando caminhos de fresagem...");
             Geometry geometry = ExcellonMillingGenerator.generate(image, result.toolIds(),
@@ -6012,16 +6023,11 @@ final class MainWindow implements TclFlatcamHost {
             context.checkCancelled();
             context.reportProgress(0.95, "Preparando Geometry...");
             return geometry;
-        }, (fraction, message) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(message);
-        }));
+        }, camProgress(before));
         runningJob = handle;
         handle.completion().thenAccept(geometry -> Platform.runLater(() -> {
-            if (excellonByItem.get(item) != image) {
-                appendConsole("O Excellon de origem foi removido; Geometry de fresagem descartada.");
-                setStatus("Origem removida.", ERROR_COLOR);
-            } else if (geometry.isEmpty()) {
+            if (!acceptCamGeneration(before, handle)) return;
+            if (geometry.isEmpty()) {
                 appendConsole("Nenhum caminho foi gerado para as ferramentas selecionadas.");
                 setStatus("Sem caminhos.", ERROR_COLOR);
             } else {
@@ -6038,15 +6044,14 @@ final class MainWindow implements TclFlatcamHost {
                             null, db.tip() == null ? Map.of() : Map.of(0, db.tip())));
                 }
                 appendConsole("Geometry de fresagem criada: " + name + ". Revise os caminhos antes de gerar CNC Job.");
-                selectProjectItem(generated);
-                plotAreaView.fitToLayer(generated);
-                closeToolPanel();
+                finishCamPanel(before, generated);
                 setStatus("Geometry de fresagem concluida.", IDLE_COLOR);
             }
             updateProgress(1);
             onJobFinished();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
+                if (runningJob != handle) return;
                 reportJobError(error, "Falha ao gerar Geometry de fresagem: ");
                 onJobFinished();
             });
@@ -6074,6 +6079,7 @@ final class MainWindow implements TclFlatcamHost {
     private CamInput captureCamInput(TreeItem<String> item, Geometry expected) {
         Object version = tclVersion(item);
         Geometry current = version instanceof GerberImage image ? image.solidGeometry()
+                : version instanceof ExcellonImage image ? image.solidGeometry()
                 : version instanceof GeometryEntry entry ? entry.geometry() : null;
         if (version == null || current == null || current != expected)
             throw new IllegalStateException("Origem ou referencia alterada/removida; reabra a ferramenta antes de gerar.");
@@ -6684,6 +6690,7 @@ final class MainWindow implements TclFlatcamHost {
                 .thenAccept(generated -> Platform.runLater(() -> {
                     if (runningJob != handle) return;
                     try {
+                        if (handle.isCancelled()) throw new CancellationException();
                         validate.run();
                         CncJobResult job = generated.job();
                         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),

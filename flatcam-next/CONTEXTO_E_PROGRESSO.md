@@ -12,6 +12,12 @@ paridade total: validação manual com projetos reais e ensaio físico são sepa
 Diagnóstico paralelo de Panelize Python não modificou o legado. FX já multiplica
 furos/rasgos e exporta corretamente no ensaio sintético; comando Tcl ainda ausente.
 
+Primeiro commit publicado: `98d29d35`. Segundo incremento: Milling revalida
+entradas/epoch/editores/cancelamento e preserva outro painel. Drilling protege
+callbacks tardios e valida cancelamento na UI. Tools Database recusa Cut Z
+positivo em Drilling. `MainExcellonFlowTest` cobre 12 cenários, com persistência
+e CNC Drills/Slots em MM/IN; opções comuns da DB permanecem parcialmente aplicadas.
+
 Este é o documento operacional de continuidade do **FlatCAM FX**. Ele foi
 escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas
