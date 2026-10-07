@@ -112,7 +112,7 @@ class DrillingPositionsTest {
         String code = GCodeGenerator.generateDrillCncJob(image, Map.of(1, params), List.of(1), options).gcode();
         assertTrue(code.contains("G20\n"), code);
         assertTrue(code.contains("G94\nG0 Z0.8000\nG0 Z0.1200"), code);
-        assertTrue(code.contains("G0 Z0.6000\nG0 X0.0000 Y0.2000"), code);
-        assertTrue(code.contains("G0 Z1.0000\nG0 X1.0000 Y0.0000\nG0 Z0.1200"), code);
+        assertTrue(code.contains("G0 Z0.6000\nG0 X0.000000 Y0.200000"), code);
+        assertTrue(code.contains("G0 Z1.0000\nG0 X1.000000 Y0.000000\nG0 Z0.1200"), code);
     }
 }

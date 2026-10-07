@@ -12,6 +12,7 @@ import java.util.OptionalDouble;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.gcode.CncJobResult;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
@@ -449,6 +450,31 @@ class NccGeneratorTest {
                 FACTORY, CancellationToken.none());
 
         assertEquals(1, result.size(), "3mm of travel is within max_walk and the area is safe: must join");
+    }
+
+    @Test void connectStartsAtNearestEndpointToOriginButDoesNotReverseFirstPath() {
+        var far = FACTORY.createLineString(new Coordinate[]{new Coordinate(20,2),new Coordinate(21,2)});
+        var near = FACTORY.createLineString(new Coordinate[]{new Coordinate(3,2),new Coordinate(1,2)});
+        var safe = FACTORY.toGeometry(new Envelope(0,30,0,4));
+        var result = NccGenerator.connectSafePaths(List.of(far,near),safe,.5,FACTORY,CancellationToken.none());
+        assertTrue(result.getFirst().getCoordinateN(0).equals2D(new Coordinate(3,2)),
+                "paint_connect selects the near path but preserves its original direction");
+        assertEquals(2,result.size());
+    }
+
+    @Test void nccConnectTestsSweptToolAgainstOriginalAreaNotAnAlreadyErodedArea() {
+        Geometry area = FACTORY.toGeometry(new Envelope(0,10,0,6));
+        var params = new PaintParameters(List.of(.5),.4,0,NccMethod.STANDARD,true,true,NccOrder.NONE,false);
+        var result = NccGenerator.paint("MM",area,params,CancellationToken.none(),ProgressCallback.none());
+        assertEquals(1,result.geometry().getNumGeometries(),"nested Standard rings should connect without double erosion");
+        assertTrue(area.covers(result.geometry().buffer(.25,64)),"the physical swept cutter stays inside the original polygon");
+    }
+
+    @Test void connectorCannotUseTheOldOutsideToleranceBuffer() {
+        Geometry safe = FACTORY.toGeometry(new Envelope(0,10,0,2));
+        var a = FACTORY.createLineString(new Coordinate[]{new Coordinate(1,.25 - 5e-11),new Coordinate(2,.25 - 5e-11)});
+        var b = FACTORY.createLineString(new Coordinate[]{new Coordinate(3,.25 - 5e-11),new Coordinate(4,.25 - 5e-11)});
+        assertEquals(2,NccGenerator.connectSafePaths(List.of(a,b),safe,.5,FACTORY,CancellationToken.none()).size());
     }
 
     @Test

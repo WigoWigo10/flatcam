@@ -119,6 +119,72 @@ def compile_rectangular_handler(root):
     return namespace
 
 
+def compile_plugin_methods(root, filename, class_name, names):
+    """Compile original method bodies with explicit headless bindings, never patch algorithms."""
+    from shapely.geometry import Polygon, MultiPolygon, LineString, LinearRing, MultiLineString, base
+    from shapely.ops import unary_union
+    source = root / "appTools" / filename
+    tree = ast.parse(source.read_text(encoding="utf-8-sig"))
+    cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == class_name)
+    methods = [node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name in names]
+    if {node.name for node in methods} != set(names):
+        raise ValueError("Legacy method layout changed: " + filename)
+    for node in methods:
+        node.decorator_list = []  # Bodies remain unchanged; static helpers are bound below.
+    namespace = dict(Polygon=Polygon, MultiPolygon=MultiPolygon, LineString=LineString,
+                     LinearRing=LinearRing, MultiLineString=MultiLineString, base=base,
+                     unary_union=unary_union, log=logging.getLogger("flatcam.comparison"),
+                     _=lambda text: text)
+    exec(compile(ast.Module(body=methods, type_ignores=[]), str(source), "exec"), namespace)
+    return namespace
+
+
+def isolation_exception_paths(paths, mask, root, cache):
+    if "isolation" not in cache:
+        cache["isolation"] = compile_plugin_methods(root, "ToolIsolation.py", "ToolIsolation",
+                                                    {"area_subtraction", "poly2rings"})
+    namespace = cache["isolation"]
+    binding = SimpleNamespace(poly2rings=namespace["poly2rings"])
+    # The plugin receives a list of pass paths and polygon exception shapes.
+    return namespace["area_subtraction"](binding, paths, subtraction_geo=leaves(mask))
+
+
+def ncc_boundary(case, copper, engine, root, cache):
+    from shapely import wkt
+    if "ncc" not in cache:
+        cache["ncc"] = compile_plugin_methods(root, "ToolNCC.py", "NonCopperClear",
+                                             {"calculate_bounding_box", "apply_margin_to_bounding_box"})
+    params = case["parameters"]
+    variant = params.get("boundary", "itself")
+    selection = {"itself": 0, "connect": 0, "no-contour": 0, "area": 1,
+                 "reference-gerber": 2, "reference-geometry": 2}[variant]
+    reference = wkt.loads(params["referenceWkt"]) if selection else None
+    binding = SimpleNamespace(app=engine.app, sel_rect=leaves(reference))
+    box = SimpleNamespace(kind="gerber" if variant == "reference-gerber" else "geometry",
+                          solid_geometry=reference) if selection == 2 else None
+    namespace = cache["ncc"]
+    calculated = namespace["calculate_bounding_box"](binding, SimpleNamespace(solid_geometry=engine.solid_geometry), selection, box)
+    if not isinstance(calculated, tuple) or calculated[0] is None:
+        raise ValueError("Legacy NCC boundary unavailable")
+    result = namespace["apply_margin_to_bounding_box"](binding, calculated[0], calculated[1], selection, params["margin"])
+    if isinstance(result, str) or result is None or result.is_empty:
+        raise ValueError("Legacy NCC margin failed")
+    return result
+
+
+def classify_result(result, fx_failed_polygons=0):
+    """Keep CAM path differences distinct from interpreted G-code differences."""
+    result["camMatchesSampledCriteria"] = result["matchesSampledCriteria"] and result.get("clearingAreaMatches", True)
+    result["gcodeMatchesSampledCriteria"] = result["pythonParsedFxCutComparison"]["matchesSampledCriteria"]
+    result["matchesSampledCriteria"] = result["camMatchesSampledCriteria"] and result["gcodeMatchesSampledCriteria"]
+    if result.get("pythonFailedPolygons", 0) != fx_failed_polygons:
+        result["matchesSampledCriteria"] = False
+        return "PARTIAL_DIFFERENCE"
+    if not result["camMatchesSampledCriteria"]:
+        return "DIFFERENT"
+    return "MATCH_SAMPLED" if result["gcodeMatchesSampledCriteria"] else "GCODE_DIFFERENT"
+
+
 def legacy_paths(case, copper, engine, root, handler_cache):
     from shapely import wkt
     from shapely.geometry import box
@@ -128,11 +194,15 @@ def legacy_paths(case, copper, engine, root, handler_cache):
     operation = case["operation"]
     if operation == "isolation":
         results = []
-        for i in range(params["passes"]):
+        if params.get("follow"):
+            results.extend(lines(engine.isolation_geometry(0, geometry=wkt.loads(case["inputWkt"]), follow=True)))
+        for i in range(0 if params.get("follow") else params["passes"]):
             # ToolIsolation.py's normal (non-Rest) UI branch, including its epsilon.
             offset = diameter * ((2 * i + 1) / 2.0000001) - i * params["overlap"] * diameter
-            results.extend(lines(engine.isolation_geometry(offset, geometry=copper, iso_type=2)))
-        return unary_union(results), {}
+            results.extend(lines(engine.isolation_geometry(offset, geometry=copper, iso_type=params.get("isoType", 2))))
+        if "exceptionWkt" in params:
+            results = isolation_exception_paths(results, wkt.loads(params["exceptionWkt"]), root, handler_cache)
+        return unary_union(results), {"oracle": "Geometry.isolation_geometry; original ToolIsolation.area_subtraction when requested"}
     if operation == "cutout":
         if "namespace" not in handler_cache:
             handler_cache["namespace"] = compile_rectangular_handler(root)
@@ -144,10 +214,12 @@ def legacy_paths(case, copper, engine, root, handler_cache):
             outline, params["gapSize"] / 2 + diameter / 2, xmin, ymin, xmax, ymax)
         return unary_union(lines(result)), {"oracle": "actual nested rectangular handler and CutOut helpers"}
     if operation == "ncc":
-        # ToolNCC Itself + apply_margin_to_bounding_box, no ISO or copper offset.
-        area = copper.convex_hull.buffer(params["margin"], join_style=2).difference(copper).buffer(0)
+        # Actual ToolNCC selection/margin methods; no ISO, Rest or copper offset in these cases.
+        area = ncc_boundary(case, copper, engine, root, handler_cache).difference(copper).buffer(0)
         fx_area = wkt.loads(params["fxClearingAreaWkt"])
-        extra = {"clearingAreaSymmetricDifference": area.symmetric_difference(fx_area).area}
+        extra = {"clearingAreaSymmetricDifference": area.symmetric_difference(fx_area).area,
+                 "clearingAreaMatches": area.symmetric_difference(fx_area).area <= max(area.area, fx_area.area) * 1e-8,
+                 "oracle": "original NCC boundary/margin methods and clearing routine"}
     elif operation == "paint":
         area = wkt.loads(case["inputWkt"])
         extra = {"oracle": "actual clearing routine on the same explicitly selected area"}
@@ -227,6 +299,7 @@ def run(args):
         cases = [case for case in cases if case["id"] in requested]
     fx_copper = wkt.loads(export["sourceWkt"])
     copper = fx_copper
+    legacy_source = fx_copper
     source_delta = 0
     if args.project:
         raw = args.project.read_bytes()
@@ -238,15 +311,20 @@ def run(args):
         if entry["units"] != export["units"]:
             raise ValueError("Source units differ")
         copper = unary_union(leaves(entry["solid_geometry"]))
+        legacy_source = entry["solid_geometry"]
         source_delta = copper.symmetric_difference(fx_copper).area
         if source_delta > max(copper.area, 1) * 1e-8:
             raise ValueError(f"Imported source differs before CAM: area delta {source_delta}")
-    engine.solid_geometry = copper
+    # Keep the actual object-layer container: Python's Itself branch behaves
+    # differently for Polygon vs a one-item list of Polygon. Flattening here
+    # would change the oracle instead of comparing the original operation.
+    engine.solid_geometry = legacy_source
     tolerance = .003 / 25.4 if export["units"] in ("IN", "INCH") else .003
     args.output.mkdir(parents=True, exist_ok=True)
     report = {"schema": 1, **dependency_metadata(),
               "source": export["sourceName"], "units": export["units"],
               "sourceAreaDelta": source_delta, "independentProjectDecode": bool(args.project),
+              "legacySourceRepresentation": type(legacy_source).__name__,
               "legacySourceSha256": {str(path): hashlib.sha256((root / path).read_bytes()).hexdigest()
                                      for path in (Path("camlib.py"), Path("appTools/ToolCutOut.py"),
                                                   Path("appTools/ToolIsolation.py"), Path("appTools/ToolNCC.py"))},
@@ -281,10 +359,8 @@ def run(args):
             (args.output / (case["id"] + ".python.wkt")).write_text(python.wkt, encoding="utf-8")
             (args.output / (case["id"] + ".fx.wkt")).write_text(fx.wkt, encoding="utf-8")
             result.update(metrics(fx, python, tolerance, case["diameter"]))
-            result["status"] = "MATCH_SAMPLED" if result["matchesSampledCriteria"] else "DIFFERENT"
-            # A partial legacy result is not a parity success, even when the surviving lines agree.
-            if result.get("pythonFailedPolygons", 0) != case["parameters"].get("fxFailedPolygons", 0):
-                result["status"] = "PARTIAL_DIFFERENCE"
+            result["pythonParsedFxCutComparison"] = metrics(fx, cut, tolerance)
+            result["status"] = classify_result(result, case["parameters"].get("fxFailedPolygons", 0))
             filename = case["id"] + ".svg"
             (args.output / filename).write_text(overlay(fx, python), encoding="utf-8")
             result["overlay"] = filename
@@ -298,7 +374,7 @@ def run(args):
         report["cases"].append(result)
         print(json.dumps(result), flush=True)
     counts = {status: sum(c["status"] == status for c in report["cases"])
-              for status in ("MATCH_SAMPLED", "DIFFERENT", "PARTIAL_DIFFERENCE", "ORACLE_ERROR")}
+              for status in ("MATCH_SAMPLED", "DIFFERENT", "GCODE_DIFFERENT", "PARTIAL_DIFFERENCE", "ORACLE_ERROR")}
     report["counts"] = counts
     (args.output / "report.json").write_text(json.dumps(report, indent=2, allow_nan=False), encoding="utf-8")
     document = ('<!doctype html><html lang="pt-BR"><meta charset="utf-8">'

@@ -120,7 +120,7 @@ class GCodeGeneratorTest {
         assertTrue(gcode.startsWith("; Gerado por FlatCAM FX"));
         assertTrue(gcode.contains("G20"), "inch file should select G20");
         assertTrue(gcode.contains("G90"));
-        assertTrue(gcode.contains("G0 X0.1000 Y0.2000"));
+        assertTrue(gcode.contains("G0 X0.100000 Y0.200000"));
         assertTrue(gcode.contains("G1 Z-1.7000 F300.0000"));
         assertTrue(gcode.contains("G0 Z3.0000"));
         assertTrue(gcode.trim().endsWith("M30"));

@@ -1,5 +1,52 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-07: precisão IN e lógica Connect
+
+Corrigida serialização XY: seis casas em IN/INCH, quatro em MM. Z/feeds e
+dialetos específicos mantêm políticas anteriores; programas salvos não mudam.
+O G-code interpretado Reference Geometry IN agora atende aos critérios originais.
+Connect usa pegada contra área original (sem dupla erosão), primeira linha mais
+próxima de (0,0), orientação inicial preservada e within estrito sem ampliar área.
+Comprimento Connect sintético concorda, mas distância ainda reprova por pontos
+iniciais diferentes dos anéis após booleanas JTS/GEOS. Não forçar um canto só
+para aprovar um teste. Resultado atual 28/38 critérios atendidos; dois Connect
+DIFFERENT e oito ORACLE_ERROR Shapely 2. Detalhes em `COMPARACAO_CAM.md`.
+
+Próximo: investigar preparação/pontos iniciais em corpus maior e repetir os
+casos com uma referência Python compatível; não relaxar critérios nem declarar
+paridade física. Corpus/runner e estas correções são registrados juntos no
+incremento atual, na branch `flatcam-next`; o commit anterior das opções comuns
+é `e6ac239b`.
+
+Verify: 1463 registrados, 1451 aprovados, 12 opcionais ignorados, zero
+falhas/erros. Probes D3D/software e strict focado Reference Geometry MM/IN
+passam; strict completo ainda reprova, conforme relatório.
+
+## Continuidade em 2026-10-07: corpus diferencial dos fluxos principais
+
+Configurações comuns da DB commitadas em `e6ac239b`, branch `flatcam-next`.
+Próximo incremento amplia o harness para 19 casos sintéticos MM e 19 IN:
+Isolation Exterior/Interior/Follow/exceções, NCC Connect/sem Contour e três
+limites explícitos. Usa métodos originais dos plugins por AST sem patches e
+conserva o contêiner original da fonte ao decodificar projetos. Compara também
+cortes XY do G-code interpretado, distinguindo `GCODE_DIFFERENT` de CAM.
+Runner `compare-main-flows.ps1` gera relatórios numa pasta nova em target,
+aceita projeto/Python/bibliotecas isoladas/casos e não abre UI/instala dependências.
+
+Execução Shapely 2.1.2/GEOS 3.13.1: 14 casos MM e 13 IN atendem aos critérios;
+Connect difere em ambos; G-code interpretado Reference Geometry IN difere em
+comprimento apesar de CAM concordante. Quatro erros do oráculo por conjunto
+(Seed/Lines e Cutout com quatro gaps). Strict reprova; não houve relaxamento
+dos critérios nem mudança de algoritmo/precisão CAM. Treze testes Python passam.
+Detalhes em `COMPARACAO_CAM.md`. Próximo: investigar Connect e G-code IN,
+ampliar Rest/múltiplas ferramentas e executar com projetos reais. Nenhuma
+declaração de paridade total, FPS real ou segurança física.
+
+Verify completo deste incremento: 1456 registrados, 1444 aprovados, 12 opcionais
+ignorados, zero falhas/erros. Runner strict focado em Exceptions/Area/Reference
+Gerber passa em MM/IN, inclusive com espaços no destino. Suíte completa continua
+strict reprovada pelos casos documentados; não contar seleção focada como 100%.
+
 ## Continuidade em 2026-10-07: configurações comuns da Tools Database
 
 Após Panelize (`1a281641`, commit local), implementada transferência explícita

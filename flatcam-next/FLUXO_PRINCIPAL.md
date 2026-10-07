@@ -4,6 +4,16 @@ Atualizado em 2026-10-07, branch `flatcam-next` (incremento anterior: `eeeef1ff`
 Prioridade solicitada: consolidar os fluxos de produção antes de ampliar
 ferramentas secundárias/automação. Não declarar 100% apenas pela presença dos painéis.
 
+## Corpus diferencial ampliado — 2026-10-07
+
+Comparação headless agora cobre 19 casos MM e 19 IN, incluindo Follow/exceções,
+tipos de isolamento, Connect/Contour e limites NCC. Métodos de seleção/margem
+do Python são compilados do fonte original; cortes do G-code interpretado são
+comparados separadamente. Runner e resultados em [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
+Connect e o comprimento dos cortes interpretados de Reference Geometry IN
+ainda divergem; falhas do legado Shapely 2 não contam como equivalência.
+Rest/múltiplas ferramentas, projetos reais e interação manual seguem pendentes.
+
 ## Configurações comuns da Tools Database — 2026-10-07
 
 Transferência de preprocessor, rapid feed, troca, Start/End Z/XY e Tool change

@@ -1,5 +1,16 @@
 # Geometry → CNC: compensação e posições
 
+## Precisão XY em polegadas — 2026-10-07
+
+Novos programas G-code comuns usam seis casas em XY para IN/INCH, mantendo
+quatro em MM. Também cobre travel, troca/parking e exclusões; laser e Drilling
+compartilham essa política. Z, feeds, metadados e dialetos específicos não
+mudaram. Não altera unidades, geometria CAM ou arquivos já salvos. Evita o
+acúmulo de comprimento por arredondamento no NCC denso em polegadas; caso
+Reference Geometry passa na comparação numérica e no parser real Python.
+Detalhes, regressões e limites em [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
+Não constitui validação física da máquina/controlador.
+
 Atualizado em 2026-10-02. Este incremento cobre fresagem sem sondagem;
 não certifica o funcionamento físico dos controladores.
 

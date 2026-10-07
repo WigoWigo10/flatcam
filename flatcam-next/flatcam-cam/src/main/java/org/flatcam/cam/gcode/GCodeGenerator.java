@@ -286,7 +286,7 @@ public final class GCodeGenerator {
                                 new Coordinate(options.toolChangeX(), options.toolChangeY()), options.toolChangeZ());
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                 exclusionTravel(gcode, travelShapes, lastX, lastY, options.toolChangeX(), options.toolChangeY(),
-                        installedRadius, options.toolChangeZ(), preprocessor, installed);
+                        installedRadius, options.toolChangeZ(), preprocessor, installed, image.units());
                 lastX = options.toolChangeX(); lastY = options.toolChangeY();
             }
             lastRadius = radius;
@@ -355,7 +355,7 @@ public final class GCodeGenerator {
                     cutShapes.addBuffered(circle(drill.x(), drill.y(), radius));
                 }
                 exclusionTravel(gcode, travelShapes, lastX, lastY, drill.x(), drill.y(), radius,
-                        params.safeZ(), preprocessor, planners.get(toolId));
+                        params.safeZ(), preprocessor, planners.get(toolId), image.units());
                 lastX = drill.x();
                 lastY = drill.y();
 
@@ -372,7 +372,7 @@ public final class GCodeGenerator {
                     cutShapes.addBuffered(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
                 }
                 exclusionTravel(gcode, travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius,
-                        params.safeZ(), preprocessor, planners.get(toolId));
+                        params.safeZ(), preprocessor, planners.get(toolId), image.units());
                 lastX = slot.x2();
                 lastY = slot.y2();
 
@@ -381,11 +381,11 @@ public final class GCodeGenerator {
                     if (pass > 0) {
                         if (options.exclusionsEnabled())
                             exclusionTravel(gcode, travelShapes, slot.x2(), slot.y2(), slot.x1(), slot.y1(), radius,
-                                    params.safeZ(), preprocessor, planners.get(toolId));
-                        else line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmt(slot.x1()), fmt(slot.y1()));
+                                    params.safeZ(), preprocessor, planners.get(toolId), image.units());
+                        else line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmtCoordinate(slot.x1(), image.units()), fmtCoordinate(slot.y1(), image.units()));
                     }
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depths.get(pass)), fmt(params.feedRate()));
-                    line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmt(slot.x2()), fmt(slot.y2()), fmt(params.feedRate()));
+                    line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(slot.x2(), image.units()), fmtCoordinate(slot.y2(), image.units()), fmt(params.feedRate()));
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
                 progress.report((double) ++completed / workCount);
@@ -401,7 +401,7 @@ public final class GCodeGenerator {
             CncExclusionPlanner planner = options.exclusionsEnabled()
                     ? new CncExclusionPlanner(image.units(), options.exclusions(), lastRadius * 2, cancellation) : null;
             exclusionTravel(gcode, travelShapes, lastX, lastY, options.endMoveX(), options.endMoveY(), lastRadius,
-                    parkingZ, preprocessor, planner);
+                    parkingZ, preprocessor, planner, image.units());
             if (parkingZ != options.endMoveZ()) line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.endMoveZ()));
         }
         cancellation.throwIfCancellationRequested();
@@ -760,7 +760,7 @@ public final class GCodeGenerator {
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
                 if (positions.toolChangeX() != null) {
                     exclusionTravel(gcode,travelShapes,lastX,lastY,positions.toolChangeX(),positions.toolChangeY(),
-                            Math.max(lastToolRadius,tool.toolDiameter()/2),changeZ,preprocessor,plannerFor.apply(Math.max(lastToolRadius*2,tool.toolDiameter())));
+                            Math.max(lastToolRadius,tool.toolDiameter()/2),changeZ,preprocessor,plannerFor.apply(Math.max(lastToolRadius*2,tool.toolDiameter())), units);
                     lastX = positions.toolChangeX(); lastY = positions.toolChangeY();
                 }
             }
@@ -824,7 +824,7 @@ public final class GCodeGenerator {
                 }
                 Coordinate last = coordinates[coordinates.length - 1];
                 exclusionTravel(gcode,travelShapes,lastX,lastY,coordinates[0].x,coordinates[0].y,radius,
-                        clearance,preprocessor,plannerFor.apply(tool.toolDiameter()));
+                        clearance,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                 lastX = last.x;
                 lastY = last.y;
 
@@ -833,13 +833,13 @@ public final class GCodeGenerator {
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(machining.feedRateZ()));
                     for (int p = 1; p < coordinates.length; p++) {
                         cancellationToken.throwIfCancellationRequested();
-                        line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmt(coordinates[p].x),
-                                fmt(coordinates[p].y), fmt(machining.feedRate()));
+                        line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(coordinates[p].x, units),
+                                fmtCoordinate(coordinates[p].y, units), fmt(machining.feedRate()));
                     }
                     if (depth != depths.get(depths.size() - 1)) {
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
                         exclusionTravel(gcode,travelShapes,last.x,last.y,coordinates[0].x,coordinates[0].y,radius,
-                                clearance,preprocessor,plannerFor.apply(tool.toolDiameter()));
+                                clearance,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                     }
                 }
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
@@ -854,7 +854,7 @@ public final class GCodeGenerator {
             // Never lower to a small End Z before a lateral parking move.
             line(gcode, "%s Z%s", preprocessor.rapid(), fmt(Math.max(clearance, positions.endZ() == null ? clearance : positions.endZ())));
             exclusionTravel(gcode,travelShapes,lastX,lastY,positions.endX(),positions.endY(),lastToolRadius,
-                    Math.max(clearance,positions.endZ()==null?clearance:positions.endZ()),preprocessor,plannerFor.apply(lastToolRadius*2));
+                    Math.max(clearance,positions.endZ()==null?clearance:positions.endZ()),preprocessor,plannerFor.apply(lastToolRadius*2), units);
         }
         if (positions.endZ() != null) line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.endZ()));
         cancellationToken.throwIfCancellationRequested();
@@ -866,17 +866,17 @@ public final class GCodeGenerator {
 
     /** Append up to one additional circuit to a closed path; never extend open paths. */
     private static void exclusionTravel(StringBuilder code,List<Geometry> preview,double sx,double sy,double ex,double ey,
-            double radius,double safeZ,GCodePreprocessor profile,CncExclusionPlanner planner) {
+            double radius,double safeZ,GCodePreprocessor profile,CncExclusionPlanner planner,String units) {
         if(planner==null) {
             if(!profile.requiresProbe()) addTravel(preview,sx,sy,ex,ey,radius);
-            line(code,"%s X%s Y%s",profile.rapid(),fmt(ex),fmt(ey)); return;
+            line(code,"%s X%s Y%s",profile.rapid(),fmtCoordinate(ex, units),fmtCoordinate(ey, units)); return;
         }
         var travel=planner.travel(new Coordinate(sx,sy),new Coordinate(ex,ey),safeZ);
         line(code,"%s Z%s",profile.rapid(),fmt(travel.z()));
         for(int i=1;i<travel.points().size();i++) {
             var from=travel.points().get(i-1); var to=travel.points().get(i);
             addTravel(preview,from.x,from.y,to.x,to.y,radius);
-            line(code,"%s X%s Y%s",profile.rapid(),fmt(to.x),fmt(to.y));
+            line(code,"%s X%s Y%s",profile.rapid(),fmtCoordinate(to.x, units),fmtCoordinate(to.y, units));
         }
         if(travel.z()!=safeZ) line(code,"%s Z%s",profile.rapid(),fmt(safeZ));
     }
@@ -1012,11 +1012,11 @@ public final class GCodeGenerator {
                 if (path.length < 2) throw new IllegalArgumentException(
                         "Laser requer caminhos XY; pontos isolados exigem tempo de exposicao ainda nao suportado.");
                 addTravel(travels, lastX, lastY, path[0].x, path[0].y, tool.toolDiameter() / 2);
-                line(gcode, "%s X%s Y%s", profile.rapid(), fmt(path[0].x), fmt(path[0].y));
+                line(gcode, "%s X%s Y%s", profile.rapid(), fmtCoordinate(path[0].x, units), fmtCoordinate(path[0].y, units));
                 line(gcode, "%s S%d", profile.spindleOn(), params.spindleSpeedRpm());
                 for (int p = 1; p < path.length; p++) {
                     cancellation.throwIfCancellationRequested();
-                    line(gcode, "%s X%s Y%s F%s", profile.linear(), fmt(path[p].x), fmt(path[p].y),
+                    line(gcode, "%s X%s Y%s F%s", profile.linear(), fmtCoordinate(path[p].x, units), fmtCoordinate(path[p].y, units),
                             fmt(params.feedRate()));
                 }
                 line(gcode, "%s", profile.spindleOff());
@@ -1244,10 +1244,20 @@ public final class GCodeGenerator {
 
     /** Same text as {@code String.format(Locale.ROOT, "%.4f", value)}, without the Formatter's per-call cost. */
     static String fmt(double value) {
+        return fmt(value, 4);
+    }
+
+    /** XY positions retain comparable physical resolution in mm and inches.
+     * Other numeric fields and controller-specific dialects keep their own formatting. */
+    static String fmtCoordinate(double value, String units) {
+        return fmt(value, "IN".equalsIgnoreCase(units) || "INCH".equalsIgnoreCase(units) ? 6 : 4);
+    }
+
+    private static String fmt(double value, int scale) {
         if (!Double.isFinite(value)) {
-            return String.format(Locale.ROOT, "%.4f", value);
+            return String.format(Locale.ROOT, scale == 6 ? "%.6f" : "%.4f", value);
         }
-        String text = java.math.BigDecimal.valueOf(value).setScale(4, java.math.RoundingMode.HALF_UP).toPlainString();
+        String text = java.math.BigDecimal.valueOf(value).setScale(scale, java.math.RoundingMode.HALF_UP).toPlainString();
         // BigDecimal has no negative zero; Formatter prints "-0.0000" for values that round to zero from below.
         if (Double.doubleToRawLongBits(value) < 0 && text.charAt(0) != '-') {
             return "-" + text;

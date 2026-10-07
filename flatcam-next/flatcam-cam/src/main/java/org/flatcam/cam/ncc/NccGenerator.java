@@ -296,8 +296,9 @@ public final class NccGenerator {
                 failures++;
             } else {
                 if (settings.connect()) {
-                    Geometry safeCenterArea = preciseRoundBuffer(polygon, -toolDiameter / 2.0);
-                    paths = connectSafePaths(paths, safeCenterArea, toolDiameter, factory, cancellation);
+                    // paint_connect tests the swept tool against the ORIGINAL polygon.
+                    // Eroding here as well would subtract the radius twice.
+                    paths = connectSafePaths(paths, polygon, toolDiameter, factory, cancellation);
                 }
                 allPaths.addAll(paths);
                 for (LineString path : paths) {
@@ -507,8 +508,18 @@ public final class NccGenerator {
         List<LineString> remaining = new ArrayList<>(source);
         List<LineString> connected = new ArrayList<>();
         List<Coordinate> current = new ArrayList<>();
-        Geometry relaxedSafeArea = safeArea.buffer(1e-10);
-        LineString first = remaining.remove(0);
+        // Legacy paint_connect starts at the path nearest (0,0), preserving its
+        // direction even when its last endpoint was nearest.
+        int firstIndex = 0;
+        double firstDistance = Double.POSITIVE_INFINITY;
+        Coordinate origin = new Coordinate(0, 0);
+        for (int i = 0; i < remaining.size(); i++) {
+            cancellation.throwIfCancellationRequested();
+            Coordinate[] points = remaining.get(i).getCoordinates();
+            double distance = Math.min(points[0].distance(origin), points[points.length - 1].distance(origin));
+            if (distance < firstDistance) { firstIndex = i; firstDistance = distance; }
+        }
+        LineString first = remaining.remove(firstIndex);
         addCoordinates(current, first.getCoordinates(), false);
 
         while (!remaining.isEmpty()) {
@@ -537,9 +548,9 @@ public final class NccGenerator {
             if (reverse) {
                 coordinates = reversed(coordinates);
             }
-            boolean walkable = bestDistance < 1e-12 || (bestDistance < maxWalk
-                    && relaxedSafeArea.covers(factory.createLineString(new Coordinate[]{end, coordinates[0]})
-                            .buffer(toolDiameter / 2.0, QUADRANT_SEGMENTS)));
+            boolean walkable = bestDistance < maxWalk
+                    && factory.createLineString(new Coordinate[]{end, coordinates[0]})
+                            .buffer(toolDiameter / 2.0, QUADRANT_SEGMENTS).within(safeArea);
             if (walkable) {
                 addCoordinates(current, coordinates, true);
             } else {

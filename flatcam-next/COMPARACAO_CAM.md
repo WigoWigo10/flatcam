@@ -1,5 +1,130 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Correções decorrentes do corpus — 2026-10-07
+
+XY nos programas G-code comuns agora usa seis casas decimais em IN/INCH,
+mantendo quatro em MM. Abrange corte/travel Geometry, laser, furos/rasgos,
+parking, troca e desvios de exclusão. Feeds, Z, diâmetros/metadados e formatos
+específicos HPGL/Roland/ISEL conservam suas políticas anteriores. Nenhum
+programa já salvo é reescrito; a mudança vale ao gerar novos programas.
+
+Causa reproduzida para Reference Geometry IN: arredondar as 27 linhas de CAM
+a quatro casas, antes mesmo de usar o parser, aumenta o comprimento de
+45,76279217 in para 45,88207167 in. Com seis casas resulta em 45,76281894 in.
+A comparação original com o parser Python, inclusive o critério de comprimento
+de 0,1%, agora passa. Não foi relaxado nenhum critério ou removido o cenário.
+
+Connect agora testa a pegada da fresa contra o polígono original, como
+`paint_connect`; antes erodia o polígono e depois testava um buffer do raio,
+descontando o raio duas vezes. Começa pela linha com endpoint mais próximo de
+(0,0), preservando sua orientação inicial, e exige `within` sem ampliar a área
+com a antiga tolerância de 1e-10. Mantém max_walk = 10 × diâmetro e validação
+da ferramenta inteira, não apenas do segmento central.
+
+Isso corrige a lógica de conexão e iguala o comprimento no caso sintético,
+mas **Connect ainda é DIFFERENT**: os polígonos numericamente equivalentes
+das operações booleanas começam os anéis em cantos diferentes no JTS/GEOS;
+conectores terminam em posições diferentes. MM: distância amostrada ~0,14217 mm,
+comprimento relativo ~2,1e-16 e IoU ~99,99993%. Não foi aplicada uma troca de
+canto arbitrária só para aprovar este fixture. Padronização dos pontos iniciais
+ou port mais amplo da preparação GEOS exige corpus adicional.
+
+Nova execução completa com Shapely 2.1.2: **14 MATCH_SAMPLED, 1 DIFFERENT,
+4 ORACLE_ERROR por conjunto MM/IN** (28/38 atendem aos critérios). Não resta
+`GCODE_DIFFERENT` nestes casos. Strict completo ainda reprova por Connect e
+pelas oito falhas do legado; não representa paridade total ou ensaio de máquina.
+Regressões novas cobrem formatação, CAM denso serializado/interpretado em MM/IN,
+laser/Drilling/parking IN, origem Connect, conexão end-to-end sem dupla erosão
+e recusa de pegada que sai da área mesmo por menos que a tolerância antiga.
+
+Verificação: `mvnw.cmd -q verify`, 1463 registrados, 1451 aprovados,
+12 opcionais ignorados, zero falhas/erros. Probes nativos Direct3D/Intel Arc
+e software passam. Strict focado Reference Geometry passa em MM e IN;
+strict completo continua reprovado pelos casos explicitados acima.
+
+## Ampliação dos fluxos principais — 2026-10-07
+
+O exportador agora fornece 19 casos por conjunto sintético, em MM e IN:
+os dez históricos mais Isolation Exterior/Interior/Follow/exceções e NCC
+Connect/sem Contour/Area/Reference Gerber/Reference Geometry. Referências
+extrapolam o cobre; as duas referências de objetos são côncavas para exercitar
+a diferença entre convex hull Gerber e forma Geometry. Uma placa real sem
+anéis internos omite somente o caso Interior vazio, sem contá-lo como aprovação.
+`fx-cam.json` mantém o contrato anterior; `fx-cam-in.json` é o segundo conjunto
+sintético, mesmo quando o primeiro usa um projeto real.
+
+Follow usa uma entrada de linhas explicitamente compartilhada, não a validação
+de toda a reconstrução de follow_geometry de um Gerber. NCC ainda não compara
+Rest, ISO combinado ou múltiplas ferramentas neste harness.
+
+Além dos métodos CAM, são compilados da AST original `area_subtraction` e
+`poly2rings` de ToolIsolation, e `calculate_bounding_box`/
+`apply_margin_to_bounding_box` de ToolNCC. Corpos não são alterados; bindings
+headless substituem apenas o contexto UI. O relatório registra o contêiner
+original da fonte: Python trata Polygon e lista de um Polygon de modo diferente
+no ramo Itself. Decodificação de projeto conserva esse contêiner; não o achata
+para fabricar concordância com o FX. O limite/área NCC é comparado separadamente.
+
+O parser Python também compara os cortes XY interpretados do G-code FX com os
+caminhos exportados. `camMatchesSampledCriteria` e `gcodeMatchesSampledCriteria`
+separam as verificações. `GCODE_DIFFERENT` identifica CAM concordante, mas
+programa interpretado fora dos critérios; também reprova strict. Não se trata
+de comparação de todas as alturas/feeds/macros de controlador nem segurança CNC.
+
+### Executar com um comando
+
+Na pasta `flatcam-next`:
+
+```powershell
+.\compare-main-flows.ps1 -Strict
+.\compare-main-flows.ps1 -Project 'CAMINHO_COMPLETO_DO_PROJETO.FlatPrj' -Strict
+# Seleção focada, sem contar os casos omitidos como aprovados:
+.\compare-main-flows.ps1 -Cases 'isolation-exceptions,ncc-area,ncc-reference-gerber' -Strict
+```
+
+O runner encontra o Python como o launcher de profiling; aceita `-Python`
+explícito ou `FLATCAM_PROFILE_PYTHON`, e `-DependencyPath` para bibliotecas
+isoladas já instaladas. Não instala dependências nem inicia interfaces.
+Constrói apenas os módulos necessários com `-am`, exporta ambos os conjuntos
+e produz HTML/JSON/SVG/WKT/NC e logs numa pasta nova ignorada em `target/`.
+`-OutputDirectory` deve ficar dentro desse target e não existir previamente;
+relatórios antigos não são sobrescritos. Avisos em stderr não são tratados
+como falha por si só; usa o código de saída nativo.
+
+Saída 0: relatório normal concluído (ou strict aprovado); 1: strict reprovado;
+2: falha de infraestrutura/entrada. Sem strict, um relatório de divergências
+termina normalmente, mas as divergências permanecem explícitas. Para política
+PowerShell restrita, é possível executar em processo local com
+`powershell -NoProfile -ExecutionPolicy Bypass -File .\compare-main-flows.ps1 -Strict`,
+sem mudar a política global.
+
+### Resultado desta execução sintética
+
+Python 3.12.0, Shapely 2.1.2, GEOS 3.13.1: MM teve **14 MATCH_SAMPLED,
+1 DIFFERENT, 4 ORACLE_ERROR**; IN teve **13 MATCH_SAMPLED, 1 DIFFERENT,
+1 GCODE_DIFFERENT, 4 ORACLE_ERROR**. Strict reprova corretamente ambos.
+Todos os 38 G-codes FX foram interpretados com cortes pelo parser Python;
+isso não garante concordância numérica de todos os cortes.
+
+Connect diverge nos conectores, apesar de IoU próxima de 100%; no MM,
+distância amostrada ~0,13937 mm e comprimento relativo ~0,12249%.
+Reference Geometry IN tem caminhos CAM concordantes; os cortes do G-code
+interpretado diferem ~0,25953% em comprimento, embora bounds/distância estejam
+dentro da tolerância. Investigar discretização/arredondamento e sobreposições
+antes de atribuir causa ou alterar precisão de produção.
+Seed/Lines e Cutout com quatro pontes falham no oráculo Shapely 2; falhas
+não são paridade aprovada. Sem projeto privado ou teste de FPS nesta execução.
+
+Treze testes Python do harness aprovados, incluindo oráculos AST, seleção,
+semântica do contêiner e classificação separada CAM/G-code. Os cenários Java
+exigem prévia disponível para cada caso MM/IN. `mvnw.cmd -q verify` aprovado:
+1456 registrados, 1444 aprovados, 12 opcionais ignorados, zero falhas/erros.
+Runner verificado também com pasta contendo espaços e strict focado aprovado
+em Exceptions/Area/Reference Gerber (seis comparações, MM/IN); a suíte completa
+continua reprovando. Próximo: investigar Connect e
+G-code IN, repetir com bibliotecas legadas isoladas/projetos reais, depois Rest
+e múltiplas ferramentas. Critérios não foram relaxados para obter aprovação.
+
 ## Nova execução sintética (2026-10-07)
 
 Na consolidação dos cinco fluxos, Isolation 1/3 passadas e NCC Standard foram

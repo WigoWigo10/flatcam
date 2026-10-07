@@ -22,6 +22,7 @@ import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
 import org.flatcam.cam.ncc.NccGenerator;
+import org.flatcam.cam.ncc.NccBoundary;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
@@ -31,6 +32,8 @@ import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
 
@@ -40,11 +43,20 @@ class PythonCamComparisonExportTest {
 
     @Test
     void exportsCamCasesAndChecksTheirGcodePreview() throws Exception {
+        export(false);
+    }
+
+    @Test
+    void exportsSyntheticInchCasesAndChecksTheirGcodePreview() throws Exception {
+        export(true);
+    }
+
+    private void export(boolean syntheticInch) throws Exception {
         String fixture = System.getProperty("flatcam.python.project.fixture");
         Geometry copper;
         String units = "MM";
         String name = "synthetic";
-        if (fixture != null && !fixture.isBlank()) {
+        if (!syntheticInch && fixture != null && !fixture.isBlank()) {
             ProjectFile project = PythonProjectIO.load(Path.of(fixture));
             var entry = project.gerbers().stream()
                     .filter(g -> g.name().toLowerCase(java.util.Locale.ROOT).contains("b_cu"))
@@ -55,6 +67,10 @@ class PythonCamComparisonExportTest {
         } else {
             copper = new WKTReader().read("POLYGON ((0 0, 30 0, 30 20, 0 20, 0 0), "
                     + "(4 4, 4 16, 26 16, 26 4, 4 4))");
+            if (syntheticInch) {
+                copper = AffineTransformation.scaleInstance(1 / 25.4, 1 / 25.4).transform(copper);
+                units = "IN"; name = "synthetic-in";
+            }
         }
         double mm = "IN".equals(units) || "INCH".equals(units) ? 1 / 25.4 : 1;
         JSONArray cases = new JSONArray();
@@ -64,6 +80,26 @@ class PythonCamComparisonExportTest {
             add(cases, "isolation-" + passes, "isolation", copper, paths, units, params.toolDiameter(),
                     new JSONObject().put("passes", passes).put("overlap", params.overlapFraction()));
         }
+        for (IsolationType type : List.of(IsolationType.EXTERIOR, IsolationType.INTERIOR)) {
+            var params = new IsolationParameters(.1 * mm, 1, .15, type);
+            var paths = IsolationGenerator.generate(units, copper, params).geometry();
+            // Real boards may have no internal rings; do not claim a comparison for an empty output.
+            if (!paths.isEmpty()) add(cases,"isolation-" + type.name().toLowerCase(java.util.Locale.ROOT),"isolation",
+                    copper,paths,units,params.toolDiameter(),new JSONObject().put("passes",1).put("overlap",.15).put("isoType",type.ordinal()));
+        }
+        var bounds = copper.getEnvelopeInternal();
+        var factory = copper.getFactory();
+        Geometry mask = factory.toGeometry(new Envelope(bounds.getMinX() + bounds.getWidth() * .4,
+                bounds.getMinX() + bounds.getWidth() * .6, bounds.getMinY() - mm, bounds.getMaxY() + mm));
+        var isolation = IsolationGenerator.generate(units,copper,new IsolationParameters(.1 * mm,3,.15,IsolationType.BOTH));
+        var clipped = IsolationGenerator.excludeArea(isolation,mask,CancellationToken.none());
+        add(cases,"isolation-exceptions","isolation",copper,clipped.geometry(),units,.1 * mm,
+                new JSONObject().put("passes",3).put("overlap",.15).put("exceptionWkt",new WKTWriter().write(mask)));
+        // Explicit line input shared by both engines, not a substitute for parsing Gerber follow data.
+        var follow = copper.getBoundary();
+        var followed = IsolationGenerator.generateFollow(units,follow,CancellationToken.none());
+        add(cases,"isolation-follow","isolation",follow,followed.geometry(),units,.1 * mm,
+                new JSONObject().put("follow",true).put("passes",1).put("overlap",.15));
         Geometry paintArea = null;
         for (NccMethod method : List.of(NccMethod.STANDARD, NccMethod.SEED, NccMethod.LINES)) {
             var params = new NccParameters(0.5 * mm, 0.4, mm, method, false, true, 0);
@@ -75,6 +111,28 @@ class PythonCamComparisonExportTest {
                             .put("fxClearingAreaWkt", new WKTWriter().write(result.clearingArea()))
                             .put("fxFailedPolygons", result.totalFailedPolygonCount()));
             paintArea = result.clearingArea();
+        }
+        Geometry reference = factory.toGeometry(new Envelope(bounds.getMinX() - 2 * mm,bounds.getMaxX() + 2 * mm,
+                bounds.getMinY() + bounds.getHeight() * .35,bounds.getMaxY() + 2 * mm));
+        Geometry concaveReference = reference.difference(factory.toGeometry(new Envelope(
+                bounds.getMinX() + bounds.getWidth() * .7, bounds.getMaxX() + 3 * mm,
+                bounds.getMinY() + bounds.getHeight() * .7, bounds.getMaxY() + 3 * mm)));
+        for (String variant : List.of("connect","no-contour","area","reference-gerber","reference-geometry")) {
+            NccBoundary boundary = switch(variant) {
+                case "area" -> new NccBoundary.Area(reference);
+                case "reference-gerber" -> new NccBoundary.ReferenceGerber(concaveReference);
+                case "reference-geometry" -> new NccBoundary.ReferenceGeometry(concaveReference);
+                default -> new NccBoundary.Itself();
+            };
+            var params = new NccParameters(List.of(.5 * mm),.4,mm,NccMethod.STANDARD,variant.equals("connect"),
+                    !variant.equals("no-contour"),0,false,NccOrder.NONE,boundary,List.of());
+            var result = NccGenerator.generate(units,copper,params);
+            var json = new JSONObject().put("method","STANDARD").put("margin",mm).put("overlap",.4)
+                    .put("connect",params.connect()).put("contour",params.contour()).put("boundary",variant)
+                    .put("fxClearingAreaWkt",new WKTWriter().write(result.clearingArea())).put("fxFailedPolygons",result.totalFailedPolygonCount());
+            if (!(boundary instanceof NccBoundary.Itself)) json.put("referenceWkt",new WKTWriter().write(
+                    variant.equals("area") ? reference : concaveReference));
+            add(cases,"ncc-" + variant,"ncc",copper,result.geometry(),units,.5 * mm,json);
         }
         // Same explicit selected area on both sides: this isolates Paint from NCC boundary creation.
         var paintParams = new PaintParameters(List.of(0.5 * mm), 0.4, 0, NccMethod.STANDARD,
@@ -101,8 +159,9 @@ class PythonCamComparisonExportTest {
         String output = System.getProperty("flatcam.cam.comparison.output");
         Path directory = output == null || output.isBlank() ? temporary : Path.of(output);
         Files.createDirectories(directory);
-        Files.writeString(directory.resolve("fx-cam.json"), export.toString(2), StandardCharsets.UTF_8);
-        assertEquals(10, cases.length());
+        Files.writeString(directory.resolve(syntheticInch ? "fx-cam-in.json" : "fx-cam.json"), export.toString(2), StandardCharsets.UTF_8);
+        assertTrue(cases.length() >= 18);
+        if (fixture == null || fixture.isBlank() || syntheticInch) assertEquals(19,cases.length());
     }
 
     private static void add(JSONArray cases, String id, String operation, Geometry input, Geometry paths,
