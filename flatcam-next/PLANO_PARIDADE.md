@@ -601,3 +601,17 @@ Detalhes e limites em `FLUXO_PRINCIPAL.md`. Verify completo: 1387 registrados,
 Comparação sintética: Isolation 1/3 e NCC Standard `MATCH_SAMPLED`; Seed/Lines
 `ORACLE_ERROR` no legado/Shapely 2. Não declarar paridade total ou segurança
 física: validação manual/real e opções globais da DB permanecem pendentes.
+
+## Prévia de CNC denso — 2026-10-07
+
+Implementado o próximo incremento: substituído o descarte em 50 mil segmentos
+por buffers em blocos, simplificação colinear somente de display e navegação
+completa em arrays primitivos. Importação/edição têm progresso limitado por
+porcentagem e guards de cancelamento/projeto/objeto na aplicação do resultado.
+Não altera o código, o CAM ou a precisão de discretização dos arcos.
+Dezessete regressões novas. Verify: 1404 registrados, 1392 aprovados,
+12 opcionais ignorados, zero falhas/erros; probes D3D/SW aprovados.
+Dez fixtures do exportador Java do harness têm prévia disponível. Não houve
+novo ensaio diferencial Python/FPS real. Próximo passo: validar o projeto
+denso real e ampliar o corpus de cenários principais; limites e roteiro em
+`FLUXO_PRINCIPAL.md`.

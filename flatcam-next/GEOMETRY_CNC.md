@@ -85,3 +85,13 @@ Defaults só são atualizados na conclusão válida, e outro painel aberto é pr
 `GeometryCncGenerationTest` cobre 11 cenários, incluindo MM/IN e origem alterada.
 Não há rollback conjunto entre a substituição do arquivo e a publicação do CNC Job
 na UI; cancelar depois da substituição não recupera o arquivo anterior.
+
+## Prévia densa (2026-10-07)
+
+Prévia reimportada/editada não é mais recusada em 50 mil segmentos. Acima de
+50 mil linhas, buffers são agrupados em blocos limitados e só pontos colineares
+redundantes são omitidos no display. Diâmetros/furos/deslocamentos e a rota
+completa de navegação são preservados; o código não é reescrito. Importação e
+edição trabalham fora da thread FX, com cancelamento inclusive antes de aplicar
+um resultado já calculado. As setas decorativas ainda têm orçamento de 50 mil.
+Limites e roteiro de teste real: `FLUXO_PRINCIPAL.md`, seção de CNC denso.

@@ -136,9 +136,8 @@ Gerbers/Excellons originais nos ensaios.
    geração/prévia e transporte pelas duas forms CAM. Offset Path e opções comuns
    têm os mesmos limites do incremento Isolation. Nenhum algoritmo NCC foi
    alterado; Seed permanece diferente do legado.
-   Um programa sintético denso excede o limite existente de 50 mil segmentos
-   da prévia detalhada: o aviso é validado, sem remover o limite ou invalidar
-   o G-code/geometry produzidos. A UI dispõe também da geometria do gerador.
+   A prévia do programa sintético denso agora também deve estar disponível;
+   o incremento de CNC denso abaixo substitui o antigo corte em 50 mil segmentos.
 
 Os cinco incrementos de consolidação acima foram implementados separadamente.
 Isso não encerra todos os critérios de paridade: permanecem a comparação CAM
@@ -155,3 +154,49 @@ não são equivalência aprovada. Relatórios em `target/five-flows-cam-comparis
 
 Referências: [plano de paridade](PLANO_PARIDADE.md), [Cutout](CUTOUT.md),
 [Geometry/CNC](GEOMETRY_CNC.md) e [compatibilidade](COMPATIBILIDADE_FLATPRJ.md).
+
+## Incremento seguinte: prévia de CNC denso (2026-10-07)
+
+O parser não descarta mais a prévia depois de 50 mil segmentos. Acima de
+50 mil linhas, buffers são montados em blocos de até 128 pontos de entrada,
+separados por deslocamento/corte, diâmetro, ferramenta e descontinuidade.
+Otimização só da representação da prévia: centros colineares redundantes são
+removidos com orientação robusta; curvas, reversões e bends são preservados.
+G-code e geometria CAM original não são alterados. Arcos mantêm a discretização
+já existente; não se trata de simulação exata de controlador.
+
+Navegação conserva todos os pontos e comprimentos, inclusive além do limite
+antigo, com arrays primitivos para evitar o boxing de coordenadas. Distância,
+tempo estimado e dados de furos/rasgos/ferramentas cobrem o programa completo.
+Somente as setas decorativas continuam limitadas às primeiras 50 mil; não é
+um limite de desenho, de etapas de navegação ou de movimentos gerados.
+
+Importação/edição continuam usando workers. Progresso de leitura ocupa 0–95%,
+buffer final/estatísticas ocupam o restante; 100% só após montar a prévia.
+Importação e edição limitam atualizações FX a uma por porcentagem. Resultado
+cancelado, projeto alterado ou CNC substituído/removido não é aplicado, mesmo
+quando o cancelamento chega depois do worker e antes do callback FX.
+Edição reutiliza o desenho por centros com largura real quando há diâmetro único.
+
+`DenseGCodeToolpathParserTest`: nove testes, incluindo 60 mil movimentos reais,
+fim da rota, estatísticas, diâmetros distintos, furos/slots, curvas, reversões,
+IN, 51 mil bends, progresso em comentários, código não suportado no fim e
+cancelamento durante/final do processamento.
+`MainDenseCncPreviewTest`: oito cenários offscreen de importação/edição,
+cancelamento tardio/troca de projeto/remoção e callbacks de job antigo.
+NCC também exige prévia disponível.
+
+Cancelamento continua cooperativo: um buffer JTS individual não é interrompido
+por dentro; seu tamanho de entrada é limitado. Memória ainda cresce com o
+programa e seus pontos de navegação, não há garantia de arquivos arbitrariamente
+grandes. Validar com Cobre_Morto_Bottom_cnc: abrir/editar, cancelar, navegar até
+o último caminho, zoom/pan e comparar G-code salvo. Testes sintéticos não
+comprovam fluidez do projeto privado nem segurança da máquina.
+
+Verificação deste incremento: `mvnw.cmd -q verify`, 1404 registrados,
+1392 aprovados, 12 opcionais ignorados, zero falhas/erros. Probes do launcher
+em Direct3D e software passaram sem janela. Dez fixtures da exportação Java
+do harness CAM exigem e obtêm prévia disponível; dados locais em
+`target/dense-cnc-cam-comparison/fx-cam.json`. Não foi reexecutado o oráculo
+Python nesta etapa. Os resultados diferenciais históricos continuam distintos
+desta regressão de disponibilidade da prévia.

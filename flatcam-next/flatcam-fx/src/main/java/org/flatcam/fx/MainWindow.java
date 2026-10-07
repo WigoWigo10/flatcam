@@ -517,6 +517,21 @@ final class MainWindow implements TclFlatcamHost {
         return true;
     }
 
+    /** One UI update per percentage, owned by this job even if callbacks are queued late. */
+    private org.flatcam.app.job.ProgressListener cncPreviewProgress(JobHandle<?>[] owner) {
+        int[] lastPercent = {-1};
+        return (fraction, message) -> {
+            int percent = (int) Math.floor(fraction * 100);
+            if (percent == lastPercent[0]) return;
+            lastPercent[0] = percent;
+            Platform.runLater(() -> {
+                if (owner[0] == null || runningJob != owner[0] || owner[0].isCancelled()) return;
+                updateProgress(fraction);
+                statusLabel.setText(message);
+            });
+        };
+    }
+
     private boolean applyGCodeEdit(TreeItem<String> item, String text, Runnable onSuccess,
                                    Consumer<String> onFailure) {
         CncJobEntry original = cncJobByItem.get(item);
@@ -525,19 +540,26 @@ final class MainWindow implements TclFlatcamHost {
                     : "O CNC Job nao esta mais no projeto.");
             return false;
         }
+        long epoch = tclProjectEpoch;
+        JobHandle<?>[] progressOwner = {null};
         beginJob("Analisando G-code editado...");
         JobHandle<GCodeToolpathParser.Result> handle = jobExecutor.submit(context ->
                 GCodeToolpathParser.parse(text, context::isCancelled,
                         fraction -> context.reportProgress(fraction, "Analisando G-code editado...")),
-                (fraction, message) -> Platform.runLater(() -> {
-                    updateProgress(fraction);
-                    statusLabel.setText(message);
-                }));
+                cncPreviewProgress(progressOwner));
         runningJob = handle;
+        progressOwner[0] = handle;
         handle.completion().thenAccept(parsed -> Platform.runLater(() -> {
+            if (runningJob != handle) return;
             onJobFinished();
-            if (!cncJobByItem.containsKey(item)) {
-                onFailure.accept("O CNC Job foi removido durante a edicao.");
+            if (handle.isCancelled()) {
+                setStatus("Analise cancelada.", IDLE_COLOR);
+                onFailure.accept("Analise cancelada; nenhuma alteracao aplicada.");
+                return;
+            }
+            if (tclProjectEpoch != epoch || cncJobByItem.get(item) != original) {
+                setStatus("Resultado G-code descartado: origem/projeto alterado.", IDLE_COLOR);
+                onFailure.accept("O CNC Job/projeto foi removido ou alterado durante a edicao.");
                 return;
             }
             updateCncJob(item, original, text, parsed);
@@ -548,6 +570,7 @@ final class MainWindow implements TclFlatcamHost {
             onSuccess.run();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
+                if (runningJob != handle) return;
                 reportJobError(error, "Falha ao aplicar G-code: ");
                 onJobFinished();
                 onFailure.accept(isCancellation(error) ? "Analise cancelada; nenhuma alteracao aplicada."
@@ -581,13 +604,13 @@ final class MainWindow implements TclFlatcamHost {
             if (parsed.cutGeometry() != null && !parsed.cutGeometry().isEmpty()) {
                 plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
                         parsed.cutGeometry(), CNC_CUT_FILL, CNC_CUT_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(cutKey, parsed.cutCenterlines(), previewWidth);
+                plotAreaView.setLayerCenterlineLod(cutKey, parsed.cutCenterlines(), previewWidth, strokedPreview(parsed.stats()));
                 plotAreaView.setLayerVisible(cutKey, visible);
             }
             if (parsed.travelGeometry() != null && !parsed.travelGeometry().isEmpty()) {
                 plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
                         parsed.travelGeometry(), CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(travelKey, parsed.travelCenterlines(), previewWidth);
+                plotAreaView.setLayerCenterlineLod(travelKey, parsed.travelCenterlines(), previewWidth, strokedPreview(parsed.stats()));
                 plotAreaView.setLayerVisible(travelKey, visible);
             }
         } finally {
@@ -8372,6 +8395,10 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openGCodeQueue(List<File> files, int index) {
+        if (index == 0 && runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return;
+        }
         if (index >= files.size()) {
             updateProgress(1);
             setStatus("Concluido.", IDLE_COLOR);
@@ -8379,6 +8406,8 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
         File file = files.get(index);
+        long epoch = tclProjectEpoch;
+        JobHandle<?>[] progressOwner = {null};
         String message = "Lendo G-code " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
         if (index == 0) {
             beginJob(message);
@@ -8403,12 +8432,18 @@ final class MainWindow implements TclFlatcamHost {
                         (int) text.lines().count(), "MM");
             }
             return new ImportedGCode(text, preview);
-        }, (fraction, progressMessage) -> Platform.runLater(() -> {
-            updateProgress(fraction);
-            statusLabel.setText(progressMessage);
-        }));
+        }, cncPreviewProgress(progressOwner));
         runningJob = handle;
+        progressOwner[0] = handle;
         handle.completion().thenAccept(imported -> Platform.runLater(() -> {
+            if (runningJob != handle) return;
+            if (handle.isCancelled() || epoch != tclProjectEpoch) {
+                reportJobError(handle.isCancelled() ? new CancellationException()
+                        : new IllegalStateException("Projeto mudou; importacao G-code descartada."),
+                        "Importacao G-code: ");
+                onJobFinished();
+                return;
+            }
             GCodeToolpathParser.Result preview = imported.preview();
             String name = uniqueDerivedName(file.getName());
             TreeItem<String> item = addCncJobToProject(name, file.getName(), file.toPath(),
@@ -8426,8 +8461,9 @@ final class MainWindow implements TclFlatcamHost {
             openGCodeQueue(files, index + 1);
         })).exceptionally(error -> {
             Platform.runLater(() -> {
+                if (runningJob != handle) return;
                 reportJobError(error, "Falha ao abrir G-code " + file.getName() + ": ");
-                if (isCancellation(error)) {
+                if (isCancellation(error) || epoch != tclProjectEpoch) {
                     onJobFinished();
                 } else {
                     openGCodeQueue(files, index + 1);

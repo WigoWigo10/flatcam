@@ -61,12 +61,9 @@ class MainNccMachiningTest {
                     org.flatcam.cam.CancellationToken.none(), form.preprocessor());
             assertTrue(generated.gcode().contains("S13579")); assertFalse(generated.cutGeometry().isEmpty());
             var preview = GCodeToolpathParser.parse(generated.gcode(), () -> false, fraction -> {});
-            if (!preview.plotAvailable()) {
-                // Dense valid programs deliberately disclose the detailed-preview cap;
-                // the generated job still supplies its own cut/travel geometry to FX.
-                assertEquals("Programa muito grande para pre-visualizacao detalhada.", preview.warning());
-                assertTrue(preview.lineCount() > 50_000);
-            } else assertNotNull(preview.cutGeometry());
+            assertTrue(preview.plotAvailable(), preview.warning());
+            assertNotNull(preview.cutGeometry());
+            assertFalse(preview.cutGeometry().isEmpty());
         }
     }
     @Test void nccDatabaseProjectionCarriesMachiningAndStillMapsVToIso() throws Exception {

@@ -1,5 +1,32 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-07: prévia de CNC denso
+
+Depois dos cinco incrementos publicados (último `8b2c9429`), implementado o
+próximo passo autorizado: parser de prévia sem descarte em 50 mil segmentos.
+Programas acima de 50 mil linhas agrupam buffers em blocos de 128 pontos,
+mantendo ferramenta/diâmetro, corte/travel, descontinuidades e furos. Centros
+colineares redundantes são omitidos só no display; navegação retém todos os
+pontos em arrays primitivos, com distância/tempo completos. Não há mudança
+no G-code, nas geometrias CAM ou no algoritmo NCC. Setas decorativas continuam
+limitadas a 50 mil; arcos usam a aproximação já existente.
+
+Importação/edição usam workers com progresso percentual limitado a 101 updates
+por arquivo/análise. Cancelamento e validade de projeto/CNC são rechecados na
+UI antes de aplicar. Edição preserva o modo de centros com largura real.
+Dezessete testes novos (parser + MainWindow offscreen); NCC e harness passam
+a exigir prévia válida também para programas densos. Detalhes e limites em
+`FLUXO_PRINCIPAL.md`. Próximo: validar fluidez/importação/edição/cancelamento
+com o projeto denso real, depois ampliar o corpus diferencial de produção.
+Não declarar paridade total ou desempenho real com base em testes sintéticos.
+
+Verificação deste incremento: `mvnw.cmd -q verify` passou com 1404 registrados,
+1392 aprovados, 12 opcionais ignorados e zero falhas/erros. Os probes offscreen
+passam em D3D/Intel Arc e software forçado. A exportação Java do harness CAM
+também foi reexecutada: os dez fixtures agora fornecem prévia disponível,
+inclusive Isolation 3 e NCC Seed, em `target/dense-cnc-cam-comparison/fx-cam.json`.
+Não foi repetido o oráculo Python nem um ensaio de FPS com o projeto privado.
+
 ## Continuidade em 2026-10-07: cinco fluxos principais
 
 Usuário autorizou implementação individual, commits por incremento e push para

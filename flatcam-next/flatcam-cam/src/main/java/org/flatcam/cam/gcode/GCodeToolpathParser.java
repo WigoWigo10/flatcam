@@ -1,6 +1,7 @@
 package org.flatcam.cam.gcode;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ProgressCallback;
+import org.locationtech.jts.algorithm.Orientation;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -54,7 +56,9 @@ public final class GCodeToolpathParser {
             Pattern.CASE_INSENSITIVE);
     private static final Pattern ISEL_PROFILE = Pattern.compile(
             "\\bPreprocessor(?:\\s+(?:Geometry|Excellon))?\\s*:\\s*ISEL_CNC\\b", Pattern.CASE_INSENSITIVE);
-    private static final int MAX_PREVIEW_SEGMENTS = 50_000;
+    private static final int DENSE_PROGRAM_LINES = 50_000;
+    /** Decorative arrows are bounded; geometry, navigation and totals are not truncated. */
+    private static final int MAX_CUT_ARROWS = 50_000;
     /**
      * G0 rate assumed for the time estimate - Python's {@code tools_drill_feedrate_rapid}
      * default, since a program never states how fast its controller rapids.
@@ -132,23 +136,23 @@ public final class GCodeToolpathParser {
         private final List<Double> finishedMinutes = new ArrayList<>();
         /** Program time so far, kept current by the parser so a step records when it ended. */
         private double clock;
-        private final List<Double> points = new ArrayList<>();
+        private double[] points = new double[256];
+        private int pointSize;
         private boolean travel;
         private double length;
-        private int coordinates;
 
         void segment(boolean isTravel, Coordinate[] path) {
-            if (path.length < 2 || coordinates >= MAX_PREVIEW_SEGMENTS) {
+            if (path.length < 2) {
                 return;
             }
-            if (!points.isEmpty() && travel != isTravel) {
+            if (pointSize > 0 && travel != isTravel) {
                 flush();
             }
             travel = isTravel;
             int from = 0;
-            if (!points.isEmpty()) {
-                int last = points.size();
-                if (points.get(last - 2) == path[0].x && points.get(last - 1) == path[0].y) {
+            if (pointSize > 0) {
+                int last = pointSize;
+                if (points[last - 2] == path[0].x && points[last - 1] == path[0].y) {
                     from = 1;
                 } else {
                     flush();
@@ -156,13 +160,13 @@ public final class GCodeToolpathParser {
                 }
             }
             for (int i = from; i < path.length; i++) {
-                int size = points.size();
+                int size = pointSize;
                 if (size >= 2) {
-                    length += Math.hypot(path[i].x - points.get(size - 2), path[i].y - points.get(size - 1));
+                    length += Math.hypot(path[i].x - points[size - 2], path[i].y - points[size - 1]);
                 }
-                points.add(path[i].x);
-                points.add(path[i].y);
-                coordinates++;
+                if (pointSize + 2 > points.length) points = Arrays.copyOf(points, points.length * 2);
+                points[pointSize++] = path[i].x;
+                points[pointSize++] = path[i].y;
             }
         }
 
@@ -175,18 +179,15 @@ public final class GCodeToolpathParser {
         }
 
         void flush() {
-            if (points.isEmpty()) {
+            if (pointSize == 0) {
                 return;
             }
-            double[] xy = new double[points.size()];
-            for (int i = 0; i < xy.length; i++) {
-                xy[i] = points.get(i);
-            }
+            double[] xy = Arrays.copyOf(points, pointSize);
             finished.add(xy);
             finishedTravel.add(travel);
             finishedLength.add(length);
             finishedMinutes.add(clock);
-            points.clear();
+            pointSize = 0;
             length = 0;
         }
 
@@ -269,13 +270,98 @@ public final class GCodeToolpathParser {
         }
     }
 
-    /** Display-only paths; the buffered toolpath geometries above remain unchanged. */
+    /** Buffers bounded continuous runs, never joining a rapid, tool change or discontinuity. */
+    private static final class BufferedPreview {
+        private static final int MAX_INPUT_POINTS = 128;
+        private final boolean dense;
+        private final List<Geometry> travel;
+        private final List<Geometry> cut;
+        private final CancellationToken cancellation;
+        private final List<Coordinate> active = new ArrayList<>();
+        private boolean activeTravel;
+        private ToolTally activeTool;
+        private double activeRadius;
+        private int activeQuadrants;
+        private int inputPoints;
+
+        BufferedPreview(boolean dense, List<Geometry> travel, List<Geometry> cut, CancellationToken cancellation) {
+            this.dense = dense;
+            this.travel = travel;
+            this.cut = cut;
+            this.cancellation = cancellation;
+        }
+
+        void path(boolean isTravel, Geometry path, double radius, int quadrants, ToolTally tool) {
+            if (!dense) {
+                addShape(isTravel, path.buffer(radius, quadrants), travel, cut, tool);
+                return;
+            }
+            Coordinate[] coordinates = path.getCoordinates();
+            if (!active.isEmpty() && (isTravel != activeTravel || tool != activeTool
+                    || radius != activeRadius || quadrants != activeQuadrants
+                    || !active.getLast().equals2D(coordinates[0]))) flush();
+            activeTravel = isTravel;
+            activeTool = tool;
+            activeRadius = radius;
+            activeQuadrants = quadrants;
+            for (Coordinate coordinate : coordinates) {
+                if (!active.isEmpty() && active.getLast().equals2D(coordinate)) continue;
+                appendCollinear(active, coordinate);
+                if (++inputPoints >= MAX_INPUT_POINTS) {
+                    Coordinate end = active.getLast();
+                    flush();
+                    active.add(end);
+                }
+            }
+        }
+
+        void point(Coordinate point, double radius, int quadrants, ToolTally tool) {
+            flush();
+            cancellation.throwIfCancellationRequested();
+            addShape(false, FACTORY.createPoint(point).buffer(radius, quadrants), travel, cut, tool);
+        }
+
+        void flush() {
+            cancellation.throwIfCancellationRequested();
+            if (active.size() >= 2) {
+                Geometry shape = FACTORY.createLineString(active.toArray(Coordinate[]::new))
+                        .buffer(activeRadius, activeQuadrants);
+                cancellation.throwIfCancellationRequested();
+                addShape(activeTravel, shape, travel, cut, activeTool);
+            }
+            active.clear();
+            inputPoints = 0;
+        }
+    }
+
+    /** Removes only a point lying exactly on the segment between its neighbours.
+     * Robust orientation retains shallow bends; backtracking is retained as well. */
+    private static void appendCollinear(List<Coordinate> points, Coordinate next) {
+        if (points.size() >= 2) {
+            Coordinate first = points.get(points.size() - 2);
+            Coordinate middle = points.getLast();
+            if (middle.x >= Math.min(first.x, next.x) && middle.x <= Math.max(first.x, next.x)
+                    && middle.y >= Math.min(first.y, next.y) && middle.y <= Math.max(first.y, next.y)
+                    && Orientation.index(first, middle, next) == 0) {
+                points.set(points.size() - 1, next);
+                return;
+            }
+        }
+        points.add(next);
+    }
+
+    /** Display-only paths; dense paths omit only redundant collinear vertices. */
     private static final class CenterlinePreview {
         private static final int MAX_POINTS_PER_PATH = 2_000;
         private final List<Geometry> travel = new ArrayList<>();
         private final List<Geometry> cut = new ArrayList<>();
         private List<Coordinate> active = new ArrayList<>();
         private Boolean activeTravel;
+        private final boolean dense;
+
+        CenterlinePreview(boolean dense) {
+            this.dense = dense;
+        }
 
         void addPath(boolean isTravel, Geometry path) {
             Coordinate[] points = path.getCoordinates();
@@ -295,7 +381,8 @@ public final class GCodeToolpathParser {
                     activeTravel = isTravel;
                     active.add(new Coordinate(last));
                 }
-                active.add(new Coordinate(points[i]));
+                if (dense) appendCollinear(active, new Coordinate(points[i]));
+                else active.add(new Coordinate(points[i]));
             }
         }
 
@@ -349,7 +436,9 @@ public final class GCodeToolpathParser {
         Double laserPower = null;
         List<Geometry> travel = new ArrayList<>();
         List<Geometry> cut = new ArrayList<>();
-        CenterlinePreview centerlines = new CenterlinePreview();
+        boolean dense = lines.size() > DENSE_PROGRAM_LINES;
+        BufferedPreview buffered = new BufferedPreview(dense, travel, cut, cancellation);
+        CenterlinePreview centerlines = new CenterlinePreview(dense);
         boolean absolute = true;
         boolean absoluteArcCenter = false;
         boolean metric = true;
@@ -382,6 +471,8 @@ public final class GCodeToolpathParser {
         progress.report(0);
         for (int index = 0; index < lines.size(); index++) {
             cancellation.throwIfCancellationRequested();
+            // Count all consumed lines, including comments and blank lines that continue below.
+            if (index > 0 && index % 256 == 0) progress.report(0.95 * index / lines.size());
             String raw = lines.get(index);
             Matcher marker = TOOL_MARKER.matcher(raw);
             if (marker.find()) {
@@ -538,12 +629,6 @@ public final class GCodeToolpathParser {
             double radius = knownWidth ? width / 2 : metric ? 0.01 : 0.0004;
             int quadrantSegments = knownWidth ? 8 : 4;
             double xyLength = 0;
-            if (warning == null && (lateral || plunge || arcMove)
-                    && travel.size() + cut.size() >= MAX_PREVIEW_SEGMENTS) {
-                warning = "Programa muito grande para pre-visualizacao detalhada.";
-                travel.clear();
-                cut.clear();
-            }
             if (warning == null && arcMove) {
                 if (!laserProfile && (z >= 0) != (nextZ >= 0)) {
                     warning = "Arco cruzando Z=0: pre-visualizacao indisponivel.";
@@ -552,7 +637,7 @@ public final class GCodeToolpathParser {
                         Geometry centerline = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
                                 absoluteArcCenter, motion == 2);
                         boolean isTravel = laserProfile ? !laserActive : nextZ >= 0;
-                        addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
+                        buffered.path(isTravel, centerline, radius, quadrantSegments, tool);
                         centerlines.addPath(isTravel, centerline);
                         stepBuilder.segment(isTravel, centerline.getCoordinates());
                         xyLength = centerline.getLength();
@@ -572,7 +657,7 @@ public final class GCodeToolpathParser {
                 Geometry centerline = FACTORY.createLineString(new Coordinate[]{
                         new Coordinate(x, y), new Coordinate(nextX, nextY)});
                 boolean isTravel = motion == 0 || (laserProfile ? !laserActive : nextZ >= 0);
-                addShape(isTravel, centerline.buffer(radius, quadrantSegments), travel, cut, tool);
+                buffered.path(isTravel, centerline, radius, quadrantSegments, tool);
                 centerlines.addPath(isTravel, centerline);
                 stepBuilder.segment(isTravel, centerline.getCoordinates());
                 xyLength = centerline.getLength();
@@ -591,8 +676,7 @@ public final class GCodeToolpathParser {
                     pendingHit = false;
                 }
             } else if (warning == null && plunge) {
-                addShape(false, FACTORY.createPoint(new Coordinate(x, y)).buffer(radius, quadrantSegments),
-                        travel, cut, tool);
+                buffered.point(new Coordinate(x, y), radius, quadrantSegments, tool);
                 centerlines.addPoint(false, new Coordinate(x, y));
                 // Multi-depth passes re-plunge at the same spot; they are one hole, not several.
                 if (tool != null && !(lastHitTool == tool && lastHitX == x && lastHitY == y)) {
@@ -635,25 +719,31 @@ public final class GCodeToolpathParser {
             y = nextY;
             z = nextZ;
             havePosition |= movesXY;
-            if (index % 256 == 0 || index == lines.size() - 1) {
-                progress.report((index + 1.0) / lines.size());
-            }
         }
         cancellation.throwIfCancellationRequested();
-        progress.report(1);
+        progress.report(0.95);
         if (warning != null) {
+            progress.report(1);
+            cancellation.throwIfCancellationRequested();
             return new Result(null, null, warning, lines.size(), metric ? "MM" : "IN");
         }
+        buffered.flush();
+        progress.report(0.97);
+        cancellation.throwIfCancellationRequested();
         if (pendingHit && tool != null) {
             tool.drills++;
         }
         ToolpathStats stats = new ToolpathStats(tools.values().stream().map(ToolTally::freeze).toList(),
                 hits, pathMarks, hits.isEmpty() ? cutArrows : List.of(), stepBuilder.build(markPositions(pathMarks), timeKnown),
                 hits.isEmpty() && millingWidths.size() == 1 ? millingDiameter : null, xyDistance, timeKnown ? minutes : Double.NaN, metric ? "MM" : "IN");
-        return new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
+        Result result = new Result(FACTORY.createGeometryCollection(travel.toArray(Geometry[]::new)),
                 FACTORY.createGeometryCollection(cut.toArray(Geometry[]::new)), null,
                 lines.size(), metric ? "MM" : "IN",
                 centerlines.travelGeometry(), centerlines.cutGeometry(), stats);
+        cancellation.throwIfCancellationRequested();
+        progress.report(1);
+        cancellation.throwIfCancellationRequested();
+        return result;
     }
 
     private static Map<List<Double>, Integer> markPositions(List<PathMark> marks) {
@@ -672,7 +762,7 @@ public final class GCodeToolpathParser {
     private static void addCutArrow(List<CutArrow> arrows, double fromX, double fromY, double toX, double toY,
                                     double length) {
         double segment = Math.hypot(toX - fromX, toY - fromY);
-        if (segment <= 0 || arrows.size() >= MAX_PREVIEW_SEGMENTS) {
+        if (segment <= 0 || arrows.size() >= MAX_CUT_ARROWS) {
             return;
         }
         arrows.add(new CutArrow((fromX + toX) / 2, (fromY + toY) / 2,

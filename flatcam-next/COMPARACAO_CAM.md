@@ -141,6 +141,9 @@ do legado; isso fica registrado separadamente, sem mascarar com patches.
 Isolation 3 passes e Seed atingiram o limite protetor do parser de prévia detalhada
 do FX; os caminhos CAM e a geração de G-code foram produzidos, mas o parser não
 disponibilizou essa prévia. Não é afirmação sobre a visibilidade do plot original.
+Esse é o resultado histórico daquela execução: em 2026-10-07 o descarte por
+50 mil segmentos foi substituído por montagem da prévia em blocos. O harness
+Java agora exige prévia disponível; isso não muda os resultados CAM históricos.
 
 Regressão Java: 779 registrados, 768 aprovados, 11 opcionais ignorados, zero
 falhas/erros. Seis testes Python do harness aprovados; cinco smoke tests CAM com
@@ -148,8 +151,8 @@ o projeto real aprovados separadamente. Testes headless, não conferência da CN
 
 Próximos casos do corpus: Rest/múltiplas ferramentas, Connect, referências/áreas,
 Follow/exceções, free-form/Thin/M-Bites e IN real; comparar movimentos/alturas CNC
-e validar a interação dos painéis no aplicativo. Prévia detalhada editada mantém
-o limite protetor de tamanho; o relatório registra quando ele é atingido.
+e validar a interação dos painéis no aplicativo. A limitação de tamanho da
+prévia registrada nesta execução foi substituída no incremento de 2026-10-07.
 
 ## Continuação: término dos anéis Seed e diagnóstico — 2026-10-02
 

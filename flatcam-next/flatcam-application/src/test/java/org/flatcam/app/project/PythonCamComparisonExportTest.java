@@ -117,12 +117,8 @@ class PythonCamComparisonExportTest {
         var preview = GCodeToolpathParser.parse(job.gcode(), CancellationToken.none(), ProgressCallback.none());
         assertFalse(job.cutGeometry().isEmpty(), id);
         assertTrue(job.gcode().contains("M30"), id);
-        if (preview.plotAvailable()) {
-            assertFalse(preview.cutGeometry().isEmpty(), id);
-        } else {
-            // Do not remove the editor's protective size limit to make the comparison pass.
-            assertEquals("Programa muito grande para pre-visualizacao detalhada.", preview.warning(), id);
-        }
+        assertTrue(preview.plotAvailable(), id + ": " + preview.warning());
+        assertFalse(preview.cutGeometry().isEmpty(), id);
         cases.put(new JSONObject().put("id", id).put("operation", operation).put("diameter", diameter)
                 .put("inputWkt", new WKTWriter().write(input)).put("fxWkt", new WKTWriter().write(paths))
                 .put("parameters", params).put("gcode", job.gcode())
