@@ -49,6 +49,7 @@ final class SolderPasteToolPanel {
         nozzles.getItems().setAll(1.0, 0.3);
         nozzles.setPrefHeight(90);
         TextField newNozzle = field("0.3");
+        ToolDescriptions.apply(newNozzle,"Diâmetro do bico", "Diâmetro positivo do bico a adicionar à lista de dispensa.\n\nUnidades: unidade do objeto (mm ou in).");
         Button addNozzle = new Button("Adicionar bico");
         Button removeNozzle = new Button("Remover");
 

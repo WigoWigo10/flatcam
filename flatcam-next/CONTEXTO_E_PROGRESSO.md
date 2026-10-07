@@ -1,5 +1,25 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-07: revisão dos tooltips
+
+A pedido do usuário, prioridade temporária na ajuda visual antes das divergências
+CAM. Completados campos/ações secundários, editores Gerber/Excellon/Geometry,
+menus, terminal, código, status e Sobre, reutilizando TooltipContent/FluidTooltips.
+Quebras de linha, negrito e destaques de unidades/atalhos/atenção nos quatro temas;
+células da árvore preservam atualização nativa. Adicionar/Copiar/Excluir da DB
+passam a ter ajuda contextual (substitui a omissão histórica dessas três ações).
+Copiar código/DB/objetos não compartilha uma descrição equivocada.
+
+Auditoria reproduzível de 745 ocorrências de controles em 26 painéis, três
+editores e duas barras sem lacunas no cenário de teste; não confundir esse
+inventário com todos os estados possíveis da UI. Capturas offscreen inspecionadas
+nos quatro temas e contraste de spans >= 4,5:1. Detalhes e roteiro em `TOOLTIPS.md`.
+Incremento autorizado para commit na branch `flatcam-next`. Fluxos CAM/critério
+strict permanecem inalterados.
+Verify completo: 1467 registrados, 1455 aprovados, 12 opcionais ignorados, zero
+falhas/erros. Auditoria ampliada repetida passa; probes D3D/Intel Arc e software
+passam. Hover/cliques em todos os estados reais ainda requerem validação manual.
+
 ## Continuidade em 2026-10-07: precisão IN e lógica Connect
 
 Corrigida serialização XY: seis casas em IN/INCH, quatro em MM. Z/feeds e

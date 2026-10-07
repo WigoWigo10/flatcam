@@ -441,6 +441,7 @@ final class NccToolPanel {
                 + "Reference Object: usa outro objeto (Gerber ou Geometry) ja carregado como limite."));
         ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
         referenceCombo.setId("ncc-reference-object");
+        ToolDescriptions.apply(referenceCombo,"Limite de referência", "Gerber ou Geometry alinhado que limita a região de limpeza. Usado no modo Reference Object; não substitui o cobre de origem.");
         referenceCombo.setMinWidth(0);
         referenceCombo.setPrefWidth(180);
         referenceCombo.setMaxWidth(Double.MAX_VALUE);

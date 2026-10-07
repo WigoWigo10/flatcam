@@ -109,10 +109,6 @@ final class ToolsDatabaseDescriptions {
         };
     }
 
-    static boolean hasActionHelp(String label) {
-        return !Set.of("Adicionar ferramenta", "Copiar", "Excluir").contains(label);
-    }
-
     static TooltipContent content(String text) {
         return TooltipContent.describe(text);
     }

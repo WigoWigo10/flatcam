@@ -131,6 +131,7 @@ final class CopperThievingToolPanel {
         RadioButton box = radio("Objeto de referência", reference, Reference.BOX);
         itself.setSelected(true);
         ComboBox<TreeItem<String>> referenceObject = chooser(host.references());
+        ToolDescriptions.apply(referenceObject,"Limite de referência", "Gerber ou Geometry alinhado que fornece a caixa limite do Copper Thieving. Usado somente no modo objeto de referência.");
         referenceObject.getSelectionModel().selectFirst();
         referenceObject.disableProperty().bind(box.selectedProperty().not());
         ToggleGroup boxType = new ToggleGroup();

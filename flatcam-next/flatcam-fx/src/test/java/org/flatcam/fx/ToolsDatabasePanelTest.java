@@ -96,7 +96,7 @@ class ToolsDatabasePanelTest {
             return null;
         });
     }
-    @Test void usefulCommandsHaveRichHelpAndObviousActionsStayQuiet() throws Exception {
+    @Test void allCommandsHaveRichHelpIncludingMemoryOnlyActions() throws Exception {
         onFx(() -> {
             var panel = panel();
             for (String id : List.of("apply", "new", "import", "export", "save", "search", "filter", "table", "scope", "location")) {
@@ -113,10 +113,10 @@ class ToolsDatabasePanelTest {
             for (String id : List.of("add", "copy", "delete")) {
                 var control = (Control) panel.lookup("#db-" + id);
                 assertNull(control.getTooltip(), id);
-                assertFalse(control.getProperties().containsKey(FluidTooltips.TEXT_KEY), id);
+                assertInstanceOf(TooltipContent.class,control.getProperties().get(FluidTooltips.CONTENT_KEY), id);
             }
             for (var item : panel.contextMenuForTooltips().getItems())
-                assertFalse(item.getProperties().containsKey(FluidTooltips.TEXT_KEY), item.getText());
+                assertInstanceOf(TooltipContent.class,item.getProperties().get(FluidTooltips.CONTENT_KEY), item.getText());
             return null;
         });
     }

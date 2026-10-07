@@ -71,6 +71,10 @@ final class TerminalPanel extends BorderPane {
         input.setId("terminal-input");
         input.setStyle("-fx-font-family: 'Consolas', 'Monospaced';");
         input.setPromptText("Digite um comando (help para comecar)...");
+        ToolDescriptions.apply(input, "Terminal Tcl", "Digite help para consultar os comandos disponíveis. O FX usa um dialeto reduzido, não o Tcl completo do Python.\n\nAtalhos: Enter executa; setas para cima/baixo percorrem o histórico; Esc solicita cancelamento durante uma execução.");
+        ToolDescriptions.apply(output, "Saída do terminal", "Mensagens, resultados e erros dos comandos. Área somente de leitura; comandos são escritos no campo inferior.");
+        ToolDescriptions.apply(cancel, "Cancelar comando", "Solicita cancelamento cooperativo do comando em andamento. Pode aguardar uma etapa do cálculo terminar; resultados já criados não são apagados automaticamente.");
+        ToolDescriptions.apply(progress, "Progresso do comando", "Andamento informado pelo trabalho em execução. Etapas sem uma medida de progresso usam indicação indeterminada.");
         input.setOnKeyPressed(this::onKeyPressed);
         input.setOnAction(event -> submit());
         input.disableProperty().bind(busy);

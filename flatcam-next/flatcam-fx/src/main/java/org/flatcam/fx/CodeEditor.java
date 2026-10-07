@@ -76,6 +76,7 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         HBox header = new HBox(10, type, spacer, mode, button("Buscar", "Buscar texto literal (Ctrl+F)", this::openSearch));
         header.getStyleClass().add("code-toolbar");
         search.setId("code-search"); search.setPromptText("Buscar texto literal (diferencia maiúsculas)");
+        ToolDescriptions.apply(search, "Busca literal", "Procura o texto exatamente como digitado, diferenciando maiúsculas e minúsculas. Não interpreta expressões regulares.\n\nAtalhos: Enter / F3 avança; Shift+Enter / Shift+F3 volta; Esc fecha a busca.");
         search.setMinWidth(60); HBox.setHgrow(search, Priority.ALWAYS);
         search.textProperty().addListener((observable, oldText, newText) -> { searchVersion++; searchState.setText(""); });
         search.setOnKeyPressed(event -> {
@@ -86,6 +87,7 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         searchBar.getStyleClass().add("code-search-bar"); searchBar.setVisible(false); searchBar.setManaged(false);
         setTop(new javafx.scene.layout.VBox(header, searchBar));
         position.setId("code-position"); position.getStyleClass().add("code-status"); setBottom(position);
+        ToolDescriptions.apply(position, "Posição no código", "Linha e coluna do cursor no documento. Não são coordenadas da máquina CNC.");
         area.caretPositionProperty().addListener((observable, oldValue, value) -> updatePosition());
         changes = area.plainTextChanges().subscribe(change -> {
             version++; searchVersion++; coloured.clear(); updatePosition(); scheduleSyntax();
@@ -94,7 +96,7 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         area.getVisibleParagraphs().addListener((javafx.beans.InvalidationListener) observable -> scheduleSyntax());
         sceneProperty().addListener((observable, oldScene, scene) -> {
             if (scene == null) { syntaxVersion++; debounce.stop(); if (syntaxTask != null) syntaxTask.cancel(true); }
-            else scheduleSyntax();
+            else { scheduleSyntax(); FluidTooltips.installContextMenu(scene, area.getContextMenu()); }
         });
         debounce.setOnFinished(event -> colourViewport());
         addEventFilter(KeyEvent.KEY_PRESSED, event -> {
@@ -226,7 +228,18 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         area.setContextMenu(menu);
     }
     private static javafx.scene.control.MenuItem menuItem(String text, Runnable action) {
-        var item = new javafx.scene.control.MenuItem(text); item.setOnAction(event -> action.run()); return item;
+        var item = new javafx.scene.control.MenuItem(text); item.setOnAction(event -> action.run());
+        String help = switch(text) {
+            case "Desfazer" -> "Desfaz a última edição do texto, sem alterar o objeto aplicado.\n\nAtalho: Ctrl+Z.";
+            case "Refazer" -> "Reaplica a última edição desfeita do texto.\n\nAtalho: Ctrl+Y.";
+            case "Recortar" -> "Copia o texto selecionado para a área de transferência e o remove do rascunho.\n\nAtalho: Ctrl+X.";
+            case "Copiar" -> "Copia o texto selecionado para a área de transferência. Não copia objetos do projeto.\n\nAtalho: Ctrl+C.";
+            case "Colar" -> "Insere o texto da área de transferência no rascunho, substituindo a seleção.\n\nAtalho: Ctrl+V.";
+            case "Selecionar tudo" -> "Seleciona todo o texto do documento. Não seleciona geometrias no plot.\n\nAtalho: Ctrl+A.";
+            default -> "Abre a busca literal no documento, diferenciando maiúsculas e minúsculas.\n\nAtalho: Ctrl+F.";
+        };
+        ToolDescriptions.apply(item.getProperties(),text,help);
+        return item;
     }
     private static ThreadPoolExecutor worker(String name) {
         return new ThreadPoolExecutor(0, 1, 10, TimeUnit.SECONDS, new ArrayBlockingQueue<>(1), runnable -> {

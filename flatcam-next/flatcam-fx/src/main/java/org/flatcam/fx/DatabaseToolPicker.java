@@ -16,6 +16,7 @@ final class DatabaseToolPicker {
         ComboBox<T> choices = new ComboBox<>();
         choices.setId(id + "-choices");
         choices.setMaxWidth(Double.MAX_VALUE);
+        ToolDescriptions.apply(choices,"Ferramenta da base", "Escolha a ferramenta a transferir. Selecionar não muda os parâmetros CAM; use Aplicar ferramenta da base e confira os campos suportados.\n\nAtenção: a base não converte mm/in automaticamente.");
         Button load = new Button("Pick from DB");
         load.setId(id + "-load");
         load.setMaxWidth(Double.MAX_VALUE);

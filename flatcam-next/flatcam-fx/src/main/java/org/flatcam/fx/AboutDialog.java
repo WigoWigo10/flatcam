@@ -105,6 +105,8 @@ final class AboutDialog extends Dialog<Void> {
         VBox.setVgrow(tabs, Priority.ALWAYS); pane.setContent(content);
         pane.getButtonTypes().addAll(COPY, new ButtonType("Fechar", ButtonBar.ButtonData.CANCEL_CLOSE));
         Button copyButton = (Button) pane.lookupButton(COPY);
+        ToolDescriptions.apply(copyButton,"Copiar diagnóstico", "Copia as informações da aba Sistema para compartilhar em um relato de erro.\n\nAtenção: confira caminhos e detalhes do computador antes de compartilhar.");
+        ToolDescriptions.apply(system,"Diagnóstico do sistema", "Resumo técnico do ambiente e do renderizador gráfico. A detecção pode indicar GPU ou renderização por software; não é um teste de desempenho.");
         copyButton.setGraphic(Icons.fromResource(theme.isDark() ? "dark/copy32.png" : "copy32.png", 16));
         copyButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             event.consume();
@@ -122,6 +124,7 @@ final class AboutDialog extends Dialog<Void> {
         setOnHidden(event -> systemGeneration++);
         // The dialog owns a scene even before showing; use it for correct initial styles and tests.
         if (pane.getScene() != null) theme.applyTo(pane.getScene());
+        FluidTooltips.install(this, "Sobre");
     }
 
     private void loadSystemInfo(TextArea system, Window owner) {

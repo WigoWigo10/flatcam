@@ -70,6 +70,9 @@ final class PlotStatusControls {
         });
         gridX.setTooltip(new Tooltip("Distancia do snap em X"));
         gridY.setTooltip(new Tooltip("Distancia do snap em Y"));
+        ToolDescriptions.apply(gridSnap,"Snap na grade", "Ajusta cliques e desenhos aos pontos da grade. A grade visual pode estar oculta com o snap ativo; desativar libera as coordenadas do cursor.");
+        ToolDescriptions.apply(gridX,"Passo X do snap", "Distância positiva entre pontos de ajuste em X. Com os eixos vinculados, também define o passo Y.\n\nUnidades: unidade do projeto (mm ou in).");
+        ToolDescriptions.apply(gridY,"Passo Y do snap", "Distância positiva entre pontos de ajuste em Y. Fica desabilitada quando os eixos estão vinculados ao passo X.\n\nUnidades: unidade do projeto (mm ou in).");
         gridX.getStyleClass().add("status-grid-step");
         gridY.getStyleClass().add("status-grid-step");
         gridX.setPrefColumnCount(4);

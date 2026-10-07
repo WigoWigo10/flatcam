@@ -134,6 +134,7 @@ final class DrillGCodeToolPanel {
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
         sourceCombo.setValue(initialSource);
         sourceCombo.setId("drill-source");
+        ToolDescriptions.apply(sourceCombo,"Excellon de origem", "Arquivo cujas brocas e slots serão usados na furação. Trocar a origem recarrega ferramentas e ajustes salvos; confira a seleção antes de gerar.");
         sourceCombo.setMinWidth(0);
         sourceCombo.setPrefWidth(180);
         sourceCombo.setMaxWidth(Double.MAX_VALUE);

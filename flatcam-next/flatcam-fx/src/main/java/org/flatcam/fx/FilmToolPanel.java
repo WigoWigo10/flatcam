@@ -56,11 +56,13 @@ final class FilmToolPanel {
 
     static Node build(Host host, Runnable onClose) {
         ComboBox<TreeItem<String>> film = combo(host.filmObjects());
+        ToolDescriptions.apply(film,"Origem do filme", "Gerber ou Geometry cujo desenho será exportado como filme; o objeto de origem não é modificado.");
         film.getSelectionModel().select(host.initialFilm());
         if (film.getValue() == null) {
             film.getSelectionModel().selectFirst();
         }
         ComboBox<TreeItem<String>> box = combo(host.boxObjects());
+        ToolDescriptions.apply(box,"Moldura do filme", "Objeto alinhado que define a caixa externa do filme. Confira as unidades e os limites escolhidos.");
         box.getSelectionModel().select(film.getValue());
         film.valueProperty().addListener((o, a, b) -> {
             if (b != null && host.boxObjects().contains(b)) {
@@ -89,6 +91,7 @@ final class FilmToolPanel {
         fromPads.setToggleGroup(punchSource);
         fromExcellon.setSelected(true);
         ComboBox<TreeItem<String>> excellon = combo(host.excellons());
+        ToolDescriptions.apply(excellon,"Furos do filme", "Excellon alinhado usado para abrir furos no filme positivo. Só atua com a opção Furar e origem Excellon.");
         excellon.getSelectionModel().selectFirst();
         TextField padSize = field("1.0");
         HBox sources = new HBox(10, fromExcellon, fromPads);

@@ -221,6 +221,8 @@ final class DoubleSidedToolPanel {
 
         TextField pointX = new TextField("0.0");
         TextField pointY = new TextField("0.0");
+        ToolDescriptions.apply(pointX,"Referência X", "Coordenada X do ponto por onde passa o eixo de espelhamento.\n\nUnidades: unidade dos objetos (mm ou in).");
+        ToolDescriptions.apply(pointY,"Referência Y", "Coordenada Y do ponto por onde passa o eixo de espelhamento.\n\nUnidades: unidade dos objetos (mm ou in).");
         pointX.setPrefColumnCount(7);
         pointY.setPrefColumnCount(7);
         CheckBox snapToDrills = new CheckBox("Prender ao centro de furos existentes");
@@ -268,6 +270,7 @@ final class DoubleSidedToolPanel {
         TextField diameter = new TextField("3.125"); // Python's tools_2sided_drilldia default
         diameter.setPrefColumnCount(6);
         TextArea holesText = new TextArea();
+        ToolDescriptions.apply(holesText,"Pontos de alinhamento", "Um ponto por linha: X, Y; ou uma lista no formato (X, Y), (X, Y). Cada ponto gera também um furo espelhado pelo eixo escolhido.\n\nUnidades: unidade dos objetos (mm ou in).");
         // The prompt text of a TextArea is too dim in some themes; a normal label is always readable.
         Label holesHint = new Label("Um furo por linha (X, Y) ou no formato do Python: (X, Y), (X, Y)");
         holesHint.setWrapText(true);

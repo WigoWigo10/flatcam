@@ -33,6 +33,7 @@ final class Mach3ProbeFields {
         xy.setPromptText("None ou X;Y (tambem aceita X,Y)");
         confirmation.setId("probe-confirm");
         confirmation.setWrapText(true);
+        ToolDescriptions.apply(confirmation,"Confirmação de sondagem", "Confirma a revisão dos cuidados de sondagem para permitir a geração. Não valida sensor, macro M6, origem ou limites da máquina.\n\nAtenção: faça a validação física e interrompa imediatamente se não houver contato esperado. A confirmação é reiniciada ao trocar o perfil ou a origem.");
         Label warning = new Label("Sondagem Z Mach3: teste sensor, curso, origem e macro M6. "
                 + "Confirme contato nas duas pausas; sem contato, ABORTE. Retire placa/clips antes do corte. "
                 + "G92 permanece ativo; nao combine com G52. Sem previa no Plot Area. "

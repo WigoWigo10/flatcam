@@ -357,6 +357,7 @@ final class GerberEditToolPanel {
         bufferDistanceField.setPrefColumnCount(5);
         bufferJoinBox.getItems().setAll("Arredondado", "Quadrado", "Chanfrado");
         bufferJoinBox.getSelectionModel().selectFirst();
+        ToolDescriptions.apply(bufferJoinBox,"Junção do buffer", "Arredondado suaviza cantos; Quadrado usa junção angular; Chanfrado corta as quinas. O resultado também depende da distância de buffer.");
         scaleActionButton.setOnAction(event -> {
             try {
                 onScale.accept(parseDimension(scaleFactorField.getText()));

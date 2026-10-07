@@ -114,6 +114,11 @@ final class FluidTooltips {
                 enter(ownerOf(node), false);
             }
         });
+        // Disabled controls do not emit their usual enter events. Scene picking still identifies them.
+        scene.addEventFilter(MouseEvent.MOUSE_MOVED, event -> {
+            Node picked = event.getPickResult() == null ? null : event.getPickResult().getIntersectedNode();
+            enter(ownerOf(picked), false);
+        });
         scene.addEventFilter(MouseEvent.MOUSE_EXITED, event -> enter(null, false));
         scene.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> enter(null, false));
         scene.addEventFilter(ScrollEvent.SCROLL, event -> enter(null, false));
@@ -143,19 +148,25 @@ final class FluidTooltips {
 
     /** Context menus have a separate popup scene too; install after their item nodes exist. */
     void attachContextMenu(ContextMenu menu) {
+        if (menu.getProperties().putIfAbsent("fx.tip.context-handler", this) != null) return;
         menu.addEventHandler(WindowEvent.WINDOW_SHOWN, event -> menu.getItems().forEach(this::install));
         menu.addEventHandler(WindowEvent.WINDOW_HIDDEN, event -> closeNow());
     }
 
     private void install(MenuItem item) {
-        if (!item.getProperties().containsKey(TEXT_KEY) || item.getProperties().containsKey(INSTALLED_KEY)) {
+        if (item instanceof Menu submenu) {
+            submenu.getItems().forEach(this::install);
+        }
+        if (!item.getProperties().containsKey(TEXT_KEY)) CommandHelpCatalog.apply(item);
+        if (!item.getProperties().containsKey(TEXT_KEY)) {
             return;
         }
         Node node = item.getStyleableNode();
         if (node == null) {
             return;
         }
-        item.getProperties().put(INSTALLED_KEY, Boolean.TRUE);
+        if (item.getProperties().get(INSTALLED_KEY) == node) return;
+        item.getProperties().put(INSTALLED_KEY, node);
         node.getProperties().put(TITLE_KEY, item.getProperties().get(TITLE_KEY));
         node.getProperties().put(TEXT_KEY, item.getProperties().get(TEXT_KEY));
         Object content = item.getProperties().get(CONTENT_KEY);
@@ -219,6 +230,12 @@ final class FluidTooltips {
         });
     }
 
+    /** Attach to a popup without creating a second handler for its scene. */
+    static void installContextMenu(Scene scene, ContextMenu menu) {
+        if (scene != null && scene.getProperties().get(SCENE_KEY) instanceof FluidTooltips handler)
+            handler.attachContextMenu(menu);
+    }
+
     private void enter(Node node, boolean beside) {
         if (node == owner) {
             return;
@@ -258,13 +275,15 @@ final class FluidTooltips {
         title.setStyle("-fx-font-weight: bold;");
         body.setText(tipText == null ? "" : tipText.toString());
         body.setTextFill(title.isVisible() ? text.deriveColor(0, 1, 1, 0.9) : text);
-        boolean rich = node.getProperties().get(CONTENT_KEY) instanceof TooltipContent;
+        TooltipContent content = node.getProperties().get(CONTENT_KEY) instanceof TooltipContent authored ? authored
+                : tipText instanceof String textValue ? TooltipContent.describe(textValue) : null;
+        boolean rich = content != null;
         body.setVisible(!rich);
         body.setManaged(!rich);
         richBody.setVisible(rich);
         richBody.setManaged(rich);
         richBody.getChildren().clear();
-        if (rich) ((TooltipContent) node.getProperties().get(CONTENT_KEY)).renderInto(richBody, current);
+        if (rich) content.renderInto(richBody, current);
     }
 
     /** Where the tip's top-left corner goes: under the node (or above when there is no room), or beside it. */

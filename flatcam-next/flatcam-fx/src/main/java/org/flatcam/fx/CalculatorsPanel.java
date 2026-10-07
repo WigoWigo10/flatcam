@@ -45,6 +45,8 @@ final class CalculatorsPanel {
     private static Node buildUnitsSection() {
         TextField mmField = new TextField("0");
         TextField inchField = new TextField("0");
+        ToolDescriptions.apply(mmField,"Milímetros", "Valor em MM a converter para polegadas. Enter ou sair do campo atualiza o resultado. Não converte objetos do projeto.");
+        ToolDescriptions.apply(inchField,"Polegadas", "Valor em IN a converter para milímetros. Enter ou sair do campo atualiza o resultado. Não converte objetos do projeto.");
         compactFields(mmField, inchField);
 
         mmField.setOnAction(e -> inchField.setText(format(parse(mmField.getText()) / 25.4)));
@@ -105,6 +107,8 @@ final class CalculatorsPanel {
     private static Node buildElectroplatingSection() {
         RadioButton dimensionsRadio = new RadioButton("Dimensions");
         RadioButton areaRadio = new RadioButton("Area");
+        ToolDescriptions.apply(dimensionsRadio,"Área por dimensões", "Calcula a área a partir de comprimento e largura, ambos em centímetros. Não usa as dimensões atuais do projeto.");
+        ToolDescriptions.apply(areaRadio,"Área informada", "Usa diretamente a área digitada em cm² para estimar corrente e tempo de galvanoplastia.");
         ToggleGroup areaModeGroup = new ToggleGroup();
         dimensionsRadio.setToggleGroup(areaModeGroup);
         areaRadio.setToggleGroup(areaModeGroup);

@@ -114,6 +114,7 @@ final class CalibrationToolPanel {
         fromObject.setSelected(true);
         ComboBox<TreeItem<String>> sourceObject = chooser(host.gerbersAndDrills());
         sourceObject.disableProperty().bind(fromObject.selectedProperty().not());
+        ToolDescriptions.apply(sourceObject,"Origem dos pontos", "Gerber ou Excellon cujos pads ou furos serão usados para localizar os centros dos pontos de calibração.");
 
         String[] names = {"Inferior esquerdo", "Inferior direito", "Superior esquerdo", "Superior direito"};
         TextField[][] targets = new TextField[4][2];
@@ -134,6 +135,11 @@ final class CalibrationToolPanel {
                 found[i][axis] = field(i == 0 ? "Origem" : "", i != 0);
                 found[i][axis].setDisable(i == 0);
                 found[i][axis].setPromptText("0");
+                ToolDescriptions.apply(targets[i][axis], names[i] + " — " + (axis == 0 ? "X alvo" : "Y alvo"),
+                        "Coordenada obtida no plot; somente leitura. Não é o desvio medido na máquina.\n\nUnidades: unidade do objeto (mm ou in).");
+                ToolDescriptions.apply(found[i][axis], names[i] + " — Delta " + (axis == 0 ? "X" : "Y"),
+                        i == 1 || i == 2 ? "Desvio medido neste eixo para calcular os fatores de calibração. Vazio ou zero não aplica correção.\n\nUnidades: unidade do objeto (mm ou in)."
+                                : "A origem e o quarto ponto não recebem deltas neste cálculo. Informe os desvios medidos nos pontos 2 e 3.");
                 table.add(found[i][axis], 3 + axis, i + 1);
             }
         }
@@ -150,6 +156,7 @@ final class CalibrationToolPanel {
 
         Button start = new Button("Obter pontos");
         Button cancel = new Button("Cancelar");
+        ToolDescriptions.apply(cancel,"Cancelar coleta", "Cancela a coleta de pontos no plot, sem calibrar nem apagar objetos do projeto.");
         String[] prompts = {"Clique no 1º ponto: inferior esquerdo (origem).",
                 "Clique no 2º ponto: inferior direito (ou superior esquerdo).",
                 "Clique no 3º ponto: superior esquerdo (ou inferior direito).", "Clique no 4º ponto: superior direito."};

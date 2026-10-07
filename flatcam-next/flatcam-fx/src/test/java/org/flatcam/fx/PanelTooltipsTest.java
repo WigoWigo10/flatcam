@@ -84,8 +84,8 @@ class PanelTooltipsTest {
             assertInstanceOf(TooltipContent.class, properties.get(FluidTooltips.CONTENT_KEY), id);
             assertEquals(TooltipContent.describe(ToolDescriptions.of(id).text()), properties.get(FluidTooltips.CONTENT_KEY));
         }
-        assertNull(PanelTooltips.help("NCC Tool", "Delete"));
-        assertNull(PanelTooltips.help("Geometry CNC Job", "Fechar"));
+        assertTrue(PanelTooltips.help("NCC Tool", "Delete").contains("sem excluir objetos"));
+        assertTrue(PanelTooltips.help("Geometry CNC Job", "Fechar").contains("permanecem"));
     }
 
     @Test @EnabledOnOs(OS.WINDOWS)
@@ -100,7 +100,7 @@ class PanelTooltipsTest {
             assertInstanceOf(TooltipContent.class, input.getProperties().get(FluidTooltips.CONTENT_KEY));
             assertEquals(label.getAccessibleHelp(), input.getAccessibleHelp());
             assertSame(input, label.getLabelFor()); assertTrue(input.isDisabled());
-            assertFalse(delete.getProperties().containsKey(FluidTooltips.TEXT_KEY));
+            assertTrue(delete.getProperties().containsKey(FluidTooltips.TEXT_KEY));
             assertNull(delete.getTooltip());
         });
     }

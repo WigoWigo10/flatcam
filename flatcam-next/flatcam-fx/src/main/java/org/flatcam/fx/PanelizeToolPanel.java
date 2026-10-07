@@ -107,6 +107,7 @@ final class PanelizeToolPanel {
         for (TreeItem<String> item : host.sources()) chosen.put(item, new SimpleBooleanProperty(
                 host.selectedSources().contains(item) || item == source.getValue()));
         ListView<TreeItem<String>> objects = new ListView<>();
+        ToolDescriptions.apply(objects,"Camadas do conjunto", "Marque as camadas alinhadas a panelizar juntas. Todas usam os mesmos passos da grade, referência e espaçamentos.\n\nAtenção: unidades divergentes são recusadas; a ferramenta não recentra camadas desalinhadas automaticamente.");
         objects.setId("panelize-sources"); objects.getItems().setAll(host.sources());
         objects.setCellFactory(CheckBoxListCell.forListView(chosen::get, names));
         objects.setPrefHeight(150); objects.setMaxWidth(Double.MAX_VALUE);

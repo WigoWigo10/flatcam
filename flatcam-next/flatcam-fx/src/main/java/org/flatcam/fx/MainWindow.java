@@ -356,6 +356,7 @@ final class MainWindow implements TclFlatcamHost {
 
                 @Override
                 public void showEditorToolbar(Node toolbar) {
+                    PanelTooltips.install(toolbar, "Editor Geometry");
                     MainWindow.this.showGeometryEditorToolbar(toolbar);
                 }
 
@@ -405,6 +406,7 @@ final class MainWindow implements TclFlatcamHost {
                 }
                 @Override public void closeToolPanel() { MainWindow.this.closeToolPanel(); }
                 @Override public void showToolbar(Node toolbar) {
+                    PanelTooltips.install(toolbar, "Editor Excellon");
                     topBars.getChildren().set(2, toolbar);
                     excellonEditorMenu.setVisible(true);
                 }
@@ -991,6 +993,7 @@ final class MainWindow implements TclFlatcamHost {
         if (action != null) {
             item.setOnAction(event -> action.run());
         }
+        CommandHelpCatalog.apply(item);
         return item;
     }
 
@@ -1033,6 +1036,9 @@ final class MainWindow implements TclFlatcamHost {
     private Button chromeButton(String label, String icon, Runnable action) {
         Button button = new Button(null, legacyIcon(icon, 18));
         button.setTooltip(new Tooltip(label + (action == null ? " — em desenvolvimento" : "")));
+        String commandHelp = CommandHelpCatalog.help(label);
+        if (action == null) commandHelp = "Esta função ainda não está implementada no FX. O botão não executa uma operação.";
+        if (commandHelp != null) ToolDescriptions.apply(button, label, commandHelp);
         button.setDisable(action == null);
         if (action == null) {
             button.getStyleClass().add("planned-command");
@@ -2421,9 +2427,9 @@ final class MainWindow implements TclFlatcamHost {
                         CncJobEntry cncJob = cncJobByItem.get(item);
                         String pathText = sourcePath != null ? sourcePath.toString()
                                 : cncJob != null ? cncJob.outputFile().toString() : value;
-                        objectTooltip.setText(pathText + System.lineSeparator()
-                                + (isObjectVisible(item) ? "Plot ativo" : "Plot desativado"));
-                        objectTooltip.setStyle(currentTheme.objectTooltipStyle());
+                        new TooltipContent(List.of(new TooltipContent.Span(pathText + "\n", TooltipContent.Style.NORMAL),
+                                new TooltipContent.Span(isObjectVisible(item) ? "Plot ativo" : "Plot desativado", TooltipContent.Style.ACCENT)))
+                                .installNative(objectTooltip, currentTheme);
                         setTooltip(objectTooltip);
                     }
                     Node icon = iconShapeFor(item);
@@ -2487,6 +2493,7 @@ final class MainWindow implements TclFlatcamHost {
                     // override. event.getScreenX()/getScreenY() already give the popup's
                     // exact position, so the anchor node only affects this CSS inheritance
                     // context, not where it appears.
+                    fluidTooltips.attachContextMenu(menu);
                     menu.show(projectTree, event.getScreenX(), event.getScreenY());
                 }
                 event.consume();
@@ -2649,6 +2656,7 @@ final class MainWindow implements TclFlatcamHost {
         if (!plotContextMenu.getItems().isEmpty()) {
             plotContextMenu.getStyleClass().add("plot-context-menu");
             plotContextMenu.setAutoHide(true);
+            fluidTooltips.attachContextMenu(plotContextMenu);
             plotContextMenu.show(plotAreaView, screenX, screenY);
         }
     }

@@ -144,8 +144,7 @@ final class ToolsDatabasePanel extends BorderPane {
 
     private Button button(String label, String icon, String id, Runnable action) {
         Button button = new Button(label, icons.apply(icon)); button.setId(id);
-        if (ToolsDatabaseDescriptions.hasActionHelp(label))
-            ToolsDatabaseDescriptions.apply(button, label, ToolsDatabaseDescriptions.actionText(label));
+        ToolsDatabaseDescriptions.apply(button, label, ToolsDatabaseDescriptions.actionText(label));
         button.setOnAction(e -> { if (!busy.get()) action.run(); }); return button;
     }
     private ContextMenu contextMenu() {
@@ -153,6 +152,7 @@ final class ToolsDatabasePanel extends BorderPane {
         for (var action : List.of(button("Adicionar ferramenta", "plus16.png", "", this::add),
                 button("Copiar", "copy32.png", "", this::duplicate), button("Excluir", "trash16.png", "", this::delete))) {
             MenuItem item = new MenuItem(action.getText(), action.getGraphic());
+            ToolsDatabaseDescriptions.apply(item.getProperties(), action.getText(), ToolsDatabaseDescriptions.actionText(action.getText()));
             item.setOnAction(e -> action.fire()); menu.getItems().add(item);
         }
         menu.setAutoHide(true); return menu;

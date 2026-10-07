@@ -26,6 +26,11 @@ final class PanelTooltips {
 
     static void install(Node root, String context) {
         if (root == null || root.getProperties().putIfAbsent(INSTALLED, context) != null) return;
+        if (root instanceof javafx.scene.control.TableView<?> table && table.getTooltip() == null
+                && !table.getProperties().containsKey(FluidTooltips.TEXT_KEY)) {
+            String tableHelp = tableHelp(context);
+            if (tableHelp != null) ToolDescriptions.apply(table, "Tabela — " + context, tableHelp);
+        }
         if (root instanceof Labeled labeled) {
             update(labeled, context, null);
             labeled.textProperty().addListener((obs, oldValue, text) -> update(labeled, context, null));
@@ -36,6 +41,22 @@ final class PanelTooltips {
         } else if (root instanceof ScrollPane pane) {
             install(pane.getContent(), context);
             pane.contentProperty().addListener((obs, was, content) -> install(content, context));
+        } else if (root instanceof javafx.scene.control.TabPane tabs) {
+            List.copyOf(tabs.getTabs()).forEach(tab -> {
+                install(tab.getContent(), context);
+                tab.contentProperty().addListener((obs,was,content) -> install(content,context));
+            });
+            tabs.getTabs().addListener((ListChangeListener<javafx.scene.control.Tab>) change -> {
+                while(change.next()) if(change.wasAdded()) List.copyOf(change.getAddedSubList()).forEach(tab -> {
+                    install(tab.getContent(),context);
+                    tab.contentProperty().addListener((obs,was,content) -> install(content,context));
+                });
+            });
+        } else if (root instanceof javafx.scene.control.ToolBar toolbar) {
+            List.copyOf(toolbar.getItems()).forEach(child -> install(child, context));
+            toolbar.getItems().addListener((ListChangeListener<Node>) change -> {
+                while(change.next()) if(change.wasAdded()) List.copyOf(change.getAddedSubList()).forEach(child -> install(child,context));
+            });
         } else if (root instanceof Pane pane) {
             List.copyOf(pane.getChildren()).forEach(child -> install(child, context));
             rows(pane, context);
@@ -68,6 +89,19 @@ final class PanelTooltips {
             Object previous = label.getProperties().put(ROW_VALUE, field);
             if (previous instanceof Node oldField && oldField != field) clearOwn(oldField);
             update(label, context, field);
+            // A caption can precede multiple inputs (columns/rows, X/Y, etc.) in the same grid row.
+            // Stop at the next caption; never attach row help to action buttons or unrelated rows.
+            if (label instanceof Label && pane instanceof GridPane) {
+                int row = index(GridPane.getRowIndex(label)), col = index(GridPane.getColumnIndex(field));
+                for (int next = col + 1; ; next++) {
+                    int column = next;
+                    Node companion = children.stream().filter(n -> index(GridPane.getRowIndex(n)) == row
+                            && index(GridPane.getColumnIndex(n)) == column).findFirst().orElse(null);
+                    if (!(companion instanceof javafx.scene.control.TextInputControl || companion instanceof javafx.scene.control.Spinner<?>)) break;
+                    String help = field.getAccessibleHelp();
+                    if (help != null) applyUnlessAuthored(companion, label.getText(), help);
+                }
+            }
             String bindingKey = "fx.tip.row-bound";
             if (label.getProperties().putIfAbsent(bindingKey, Boolean.TRUE) == null)
                 label.textProperty().addListener((obs, was, text) ->
@@ -76,6 +110,16 @@ final class PanelTooltips {
     }
 
     private static int index(Integer value) { return value == null ? 0 : value; }
+
+    private static String tableHelp(String context) {
+        if (context.startsWith("Editor ")) return "Selecione as formas, aberturas ou ferramentas a editar. A seleção no desenho e na tabela é sincronizada.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.\n\nAs alterações do editor ficam em rascunho até aplicar ao objeto.";
+        if (List.of("Isolation Tool", "NCC Tool", "Paint Tool", "Geometry CNC Job", "Drilling Tool", "Milling Tool").contains(context))
+            return "Ferramentas desta operação. Selecione uma linha para revisar seus parâmetros; algumas operações usam somente as linhas selecionadas.\n\nDiâmetro: largura da ferramenta, na unidade do objeto.\nTT: perfil C1–C4 (fresa plana), B (esférica) ou V (ponta em V), quando disponível.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.";
+        if (context.equals("Gerber Object")) return "Aberturas Gerber: Code identifica o D-code; Type é o formato; Size / Dim são dimensões; M marca a abertura no plot.\n\nUnidades: unidade do Gerber (mm ou in).";
+        if (context.equals("Excellon Object")) return "Ferramentas Excellon e seus diâmetros, quantidades de furos e slots. Marcar Plot controla apenas a visualização.\n\nUnidades: unidade do Excellon (mm ou in).";
+        if (context.equals("CNC Job Object")) return "Ferramentas e estatísticas do programa. Tempos são estimativas, não medições físicas da máquina.";
+        return null;
+    }
 
     private static boolean isValue(Node node) {
         return node instanceof Pane || node instanceof Control && !(node instanceof Labeled)
@@ -105,6 +149,10 @@ final class PanelTooltips {
 
     private static void applyUnlessAuthored(Node node, String title, String text) {
         if (node instanceof Control control && control.getTooltip() != null) {
+            if (node instanceof Labeled label && control.getTooltip().getText().equals(label.getText()) && !text.equals(label.getText())) {
+                ToolDescriptions.apply(node, title, text);
+                return;
+            }
             // Keep the native description intact until FluidTooltips adopts it on hover.
             node.getProperties().putIfAbsent(FluidTooltips.TITLE_KEY, title == null ? "" : title.replaceFirst(":$", ""));
             if (node.getAccessibleHelp() == null) node.setAccessibleHelp(control.getTooltip().getText());
@@ -149,7 +197,7 @@ final class PanelTooltips {
             case "spot dia" -> "Diâmetro do ponto do laser usado para calcular a largura dos caminhos." + LINEAR;
             case "passes" -> "Quantidade inteira de passes de Isolation. Mais passes aumentam a largura isolada em conjunto com o diâmetro e Overlap.";
             case "overlap (%)", "sobreposicao (%)" -> "Sobreposição entre caminhos em porcentagem do diâmetro da ferramenta, de 0 a menos de 100%. Valores maiores criam mais trajetos e aumentam o tempo de cálculo e usinagem.";
-            case "method", "metodo" -> null; // These labels have different meanings in different tools.
+            case "method", "metodo" -> PanelHelpCatalog.help(context, name);
             case "connect", "conectar caminhos" -> "Liga segmentos para reduzir levantamentos da ferramenta, mantendo a ligação dentro da área permitida.";
             case "contour", "contorno" -> "Adiciona um caminho ao redor do perímetro para completar o acabamento das bordas.";
             case "rest", "rest machining" -> "Cada ferramenta menor trabalha apenas onde as maiores não alcançaram. As ferramentas são usadas da maior para a menor.";
@@ -188,7 +236,7 @@ final class PanelTooltips {
             case "boundary margin" -> "Margem acrescentada à caixa ao redor do objeto para gerar a área auxiliar." + LINEAR;
             case "scale" -> "Multiplica todas as coordenadas e dimensões pelo fator informado. 1 mantém o tamanho; 2 dobra o tamanho.";
             case "offset x" -> "Translada o objeto pelo deslocamento X informado; não é compensação do raio da ferramenta." + LINEAR;
-            default -> null;
+            default -> PanelHelpCatalog.help(context, name);
         };
     }
 

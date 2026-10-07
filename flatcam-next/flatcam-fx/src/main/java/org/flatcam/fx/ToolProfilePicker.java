@@ -70,8 +70,7 @@ final class ToolProfilePicker {
                         + "Desenho esquematico, sem escala; o perfil nao altera o calculo de isolamento.";
         // The window's FluidTooltips consumes these properties; avoid a second native popup.
         choice.setTooltip(null);
-        choice.getProperties().put(FluidTooltips.TITLE_KEY, title);
-        choice.getProperties().put(FluidTooltips.TEXT_KEY, text);
+        ToolDescriptions.apply(choice.getProperties(), title, text);
         choice.setAccessibleHelp(title + ". " + text);
     }
 

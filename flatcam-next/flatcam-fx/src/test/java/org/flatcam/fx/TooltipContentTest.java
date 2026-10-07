@@ -31,14 +31,14 @@ class TooltipContentTest {
 
     @EnabledOnOs(OS.WINDOWS)
     @ParameterizedTest @EnumSource(ThemeOption.class)
-    void richHelpWrapsWithReadableColorsAndPlainHelpDoesNotInheritFormatting(ThemeOption theme) throws Exception {
+    void richHelpWrapsWithReadableColorsAndPlainPropertiesReceiveFreshFormatting(ThemeOption theme) throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException alreadyStarted) { }
         FutureTask<Void> task = new FutureTask<>(() -> {
             Label owner = new Label("Cut Z");
             Scene scene = new Scene(new VBox(owner));
             FluidTooltips tooltips = new FluidTooltips(scene, () -> theme);
             String explanation = "Cut Z define a profundidade de corte. Normalmente negativa para entrar no material.\n\n"
-                    + "Unidades: mm ou in.\n\nIntegração FX: salvo na base; transferência ainda pendente.";
+                    + "Unidades: mm ou in.\nAtalhos: Ctrl+Z / Ctrl+Y.\n\nAtenção: confira as alturas.\n\nIntegração FX: salvo na base; transferência ainda pendente.";
             ToolsDatabaseDescriptions.apply(owner, "Profundidade", explanation);
             tooltips.fill(owner);
             VBox box = (VBox) tooltips.popup().getContent().getFirst();
@@ -53,14 +53,22 @@ class TooltipContentTest {
             }
             box.resize(300, box.prefHeight(300)); box.applyCss(); box.layout();
             assertTrue(rich.getHeight() > 80, "paragraphs must occupy multiple wrapped lines");
+            if (Boolean.getBoolean("flatcam.tests.snapshots")) {
+                var snapshot = box.snapshot(null, null);
+                var picture = new java.awt.image.BufferedImage((int)snapshot.getWidth(), (int)snapshot.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                for(int y=0;y<picture.getHeight();y++) for(int x=0;x<picture.getWidth();x++) picture.setRGB(x,y,snapshot.getPixelReader().getArgb(x,y));
+                javax.imageio.ImageIO.write(picture,"png",java.nio.file.Path.of("target","tooltip-"+theme+".png").toFile());
+            }
             Label plain = new Label();
             plain.getProperties().put(FluidTooltips.TITLE_KEY, "Outra ferramenta");
             plain.getProperties().put(FluidTooltips.TEXT_KEY, "Descrição simples.");
             tooltips.fill(plain);
-            assertFalse(rich.isVisible()); assertFalse(rich.isManaged());
-            assertTrue(rich.getChildren().isEmpty());
+            assertTrue(rich.isVisible()); assertTrue(rich.isManaged());
+            assertEquals("Descrição simples.", rich.getAccessibleText());
+            assertEquals(1, rich.getChildren().size());
+            assertEquals(TooltipContent.Style.NORMAL, TooltipContent.describe("Descrição simples.").spans().getFirst().style());
             Label body = (Label) box.getChildren().get(1);
-            assertTrue(body.isVisible()); assertTrue(body.isManaged());
+            assertFalse(body.isVisible()); assertFalse(body.isManaged());
             assertEquals("Descrição simples.", body.getText());
             tooltips.closeNow();
             return null;

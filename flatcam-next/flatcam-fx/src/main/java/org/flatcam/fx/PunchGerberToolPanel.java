@@ -56,6 +56,7 @@ final class PunchGerberToolPanel {
         excellon.getSelectionModel().selectFirst();
 
         ListView<String> apertureList = new ListView<>();
+        ToolDescriptions.apply(apertureList,"Aberturas a furar", "Selecione as aberturas cujos pads serão processados.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.");
         apertureList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         apertureList.setPrefHeight(110);
         Map<String, String> described = new LinkedHashMap<>();
