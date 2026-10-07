@@ -125,6 +125,7 @@ import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.gcode.VTipSettings;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.cam.geometry.GeometryEditSession;
@@ -6244,6 +6245,7 @@ final class MainWindow implements TclFlatcamHost {
                                     + (params.restMachining() ? "_iso_rest" : suffix));
                             lastGenerated = addGeometryToProject(name, item.getValue(), image.units(), combined,
                                     true, tools);
+                            applyCamMachining(lastGenerated, params.machining());
                             created++;
                         } else {
                             for (IsolationGenerator.ToolResult result : results) {
@@ -6260,6 +6262,7 @@ final class MainWindow implements TclFlatcamHost {
                                             true, List.of(new ToolGeometry(result.parameters().toolDiameter(), path,
                                                     params.profiles().getOrDefault(
                                                             result.parameters().toolDiameter(), ToolProfile.C1))));
+                                    applyCamMachining(lastGenerated, params.machining());
                                     created++;
                                 }
                             }
@@ -6294,6 +6297,31 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     /** Creates an editable cutout Geometry, as appTools/ToolCutOut.py does. */
+    /** Transfer only explicitly imported per-tool cutting settings; no inheritance to manual tools. */
+    private void applyCamMachining(TreeItem<String> item, Map<Double, LegacyToolsDatabase.MillingTool> imported) {
+        if (imported.isEmpty()) return;
+        GeometryEntry entry = geometryByItem.get(item);
+        var parameters = new LinkedHashMap<Integer, GeometryGCodeParameters>();
+        var tips = new LinkedHashMap<Integer, VTipSettings>();
+        for (int i = 0; i < entry.tools().size(); i++) {
+            ToolGeometry tool = entry.tools().get(i);
+            var db = imported.get(tool.toolDiameter());
+            if (db == null) continue;
+            parameters.put(i, db.parameters().withCompensation(org.flatcam.cam.gcode.ToolPathOffset.PATH, 0));
+            if (db.tip() != null) tips.put(i, db.tip());
+        }
+        if (parameters.isEmpty()) return;
+        boolean metric = "MM".equalsIgnoreCase(entry.units());
+        // Keep the ordinary panel defaults for tools added manually. Explicit imported
+        // settings are overrides, not implicit defaults for every other tool.
+        var defaults = new GeometryGCodeParameters(metric ? 3 : .1, metric ? .1 : .004,
+                false, metric ? .05 : .002, metric ? 300 : 12, 10000, entry.tools().size() > 1);
+        geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
+                entry.strokeOnly(), entry.tools(), defaults));
+        geometryCncSettingsByItem.put(item, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null, tips, parameters));
+        appendConsole("Parametros de corte/V-Tip da DB preservados por ferramenta. Confira unidades e parametros comuns no CNC; offset Path evita compensacao dupla.");
+    }
+
     private void generateCutout(TreeItem<String> item, GerberImage image) {
         openCutoutTool(item, image.units(), image.solidGeometry(), () -> gerberByItem.get(item) == image);
     }

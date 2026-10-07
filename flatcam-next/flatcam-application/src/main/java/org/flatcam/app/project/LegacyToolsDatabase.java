@@ -32,7 +32,11 @@ public final class LegacyToolsDatabase {
         }
     }
 
-    public record IsolationTool(String name, IsolationParameters parameters, ToolProfile toolProfile) {
+    public record IsolationTool(String name, IsolationParameters parameters, ToolProfile toolProfile,
+                                MillingTool machining) {
+        public IsolationTool(String name, IsolationParameters parameters, ToolProfile toolProfile) {
+            this(name, parameters, toolProfile, null);
+        }
         @Override public String toString() {
             return name + " - dia " + parameters.toolDiameter() + " (" + toolProfile + ")";
         }
@@ -65,6 +69,19 @@ public final class LegacyToolsDatabase {
     public record MillingTool(String name, double diameter, ToolProfile profile,
                               GeometryGCodeParameters parameters, VTipSettings tip) {
         @Override public String toString() { return name + " - " + diameter + " (" + profile + ")"; }
+    }
+
+    /** Optional common milling fields carried by Python CAM database entries.
+     * Isolation/NCC already compute cutter centerlines, so never compensate twice. */
+    private static MillingTool camMachining(JSONObject entry) throws IOException {
+        JSONObject data = entry.getJSONObject("data");
+        if (!data.has("cutz") && !data.has("travelz") && !data.has("feedrate")) return null;
+        if (!data.has("cutz") || !data.has("travelz") || !data.has("feedrate"))
+            throw new IOException("Parametros Milling incompletos: Cut Z, Travel Z e Feedrate sao obrigatorios.");
+        JSONObject copied = new JSONObject(entry.toString());
+        copied.getJSONObject("data").put("tool_target", 1);
+        copied.put("offset", "Path").put("offset_value", 0);
+        return millingTools(new JSONObject().put("CAM", copied)).getFirst();
     }
 
     private static boolean accepts(JSONObject data, int index, String name) {
@@ -273,7 +290,8 @@ public final class LegacyToolsDatabase {
                 };
                 IsolationParameters parameters = new IsolationParameters(diameter, passes, overlap, type);
                 ToolProfile profile = ToolProfile.fromLegacy(entry.optString("tool_type", "C1"));
-                tools.add(new IsolationTool(entry.optString("name", "Tool " + id), parameters, profile));
+                tools.add(new IsolationTool(entry.optString("name", "Tool " + id), parameters, profile,
+                        camMachining(entry)));
             } catch (RuntimeException error) {
                 throw new IOException("Invalid Isolation tool " + id + " in Tools Database", error);
             }

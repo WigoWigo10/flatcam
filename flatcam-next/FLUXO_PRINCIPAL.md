@@ -117,6 +117,16 @@ Gerbers/Excellons originais nos ensaios.
    Não houve migração automática de preferências globais ou remoção dos avisos.
 4. Consolidar transferência de parâmetros de usinagem da Tools Database na
    geração Isolation → Geometry → CNC, além dos parâmetros de isolamento.
+   Incremento 2026-10-07: dados Milling opcionais explícitos seguem a ferramenta
+   por diâmetro e são reindexados após filtrar saídas vazias/separar passadas.
+   Preserva Travel/Cut Z, passes Z, feeds XY/Z, spindle, dwell, extra cut e V-Tip.
+   Campos obrigatórios incompletos são recusados, não preenchidos silenciosamente.
+   Offset fica Path: o isolamento já gerou centros compensados. Ferramentas
+   manuais não herdam a configuração importada. Rapid feed, preprocessor,
+   posições e troca continuam comuns/revisados no CNC, não transferidos da DB.
+   `MainIsolationMachiningTest`: 6 casos, Combine on/off e MM/IN, painel CNC,
+   persistência nativa, V-Tip e compensação. Rest/Follow/exceções mantêm a cobertura
+   existente; comparação diferencial/manual de todas as opções ainda pendente.
 5. Consolidar essa transferência para NCC e testar CLEAR/ISO, Rest e limites;
    conservar a diferença documentada do algoritmo Seed.
 

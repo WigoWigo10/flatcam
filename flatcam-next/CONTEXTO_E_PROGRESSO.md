@@ -23,6 +23,12 @@ de Gerber/Geometry legados, recusa rótulos desconhecidos e não converte Cut Z
 positivo opcional em profundidade de usinagem. Mantém geometria e avisos de
 parâmetros incompletos. Oito testes novos em `PythonMainFlowImportTest`.
 
+Terceiro commit publicado: `41fc71b5`. Quarto incremento transporta dados de corte
+Milling explícitos da DB Isolation até Geometry/CNC, incluindo V-Tip. Reindexa
+por ferramentas efetivamente publicadas; não herda valores a ferramentas manuais,
+não duplica offset CAM e não transporta parâmetros comuns de máquina/perfil.
+Seis novos casos em `MainIsolationMachiningTest`; detalhes em `FLUXO_PRINCIPAL.md`.
+
 Este é o documento operacional de continuidade do **FlatCAM FX**. Ele foi
 escrito para que uma nova sessão de IA (Codex, Claude ou equivalente) consiga
 entender o estado real do projeto, tomar decisões compatíveis com as já feitas

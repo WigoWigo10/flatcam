@@ -64,7 +64,15 @@ final class IsolationToolPanel {
 
     record Result(SourceCandidate source, List<IsolationParameters> tools, Map<Double, ToolProfile> profiles,
                   boolean restMachining, boolean forcedRest, boolean combinePasses, boolean follow,
-                  boolean checkValidity, Geometry exceptionMask, ExceptionArea exceptionReference) {
+                  boolean checkValidity, Geometry exceptionMask, ExceptionArea exceptionReference,
+                  Map<Double, LegacyToolsDatabase.MillingTool> machining) {
+        Result(SourceCandidate source, List<IsolationParameters> tools, Map<Double, ToolProfile> profiles,
+               boolean restMachining, boolean forcedRest, boolean combinePasses, boolean follow,
+               boolean checkValidity, Geometry exceptionMask, ExceptionArea exceptionReference) {
+            this(source, tools, profiles, restMachining, forcedRest, combinePasses, follow,
+                    checkValidity, exceptionMask, exceptionReference, Map.of());
+        }
+        Result { machining = Map.copyOf(machining); }
     }
 
     private static final class ToolRow {
@@ -73,6 +81,7 @@ final class IsolationToolPanel {
         String passes;
         String overlap;
         IsolationType type;
+        LegacyToolsDatabase.MillingTool machining;
 
         ToolRow(double diameter, ToolProfile profile, int passes, double overlap, IsolationType type) {
             this.diameter = diameter;
@@ -235,10 +244,14 @@ final class IsolationToolPanel {
                         toolMessage.setText("Esta ferramenta ja existe na tabela.");
                         return;
                     }
-                    rows.add(new ToolRow(parameters.toolDiameter(), chosen.toolProfile(),
-                            parameters.passes(), parameters.overlapFraction(), parameters.type()));
+                    ToolRow imported = new ToolRow(parameters.toolDiameter(), chosen.toolProfile(),
+                            parameters.passes(), parameters.overlapFraction(), parameters.type());
+                    imported.machining = chosen.machining();
+                    rows.add(imported);
                     table.getSelectionModel().clearAndSelect(rows.size() - 1);
-                    toolMessage.setText(chosen.toolProfile() == ToolProfile.V
+                    toolMessage.setText(chosen.machining() != null
+                            ? "Parametros de corte da DB serao preservados. Confira unidades e campos comuns ao criar CNC."
+                            : chosen.toolProfile() == ToolProfile.V
                             ? "TT V: configure V-Tip Dia e Angle ao criar o CNC Job da Geometry." : "");
                 });
             } catch (RuntimeException error) { toolMessage.setText(error.getMessage()); }
@@ -443,16 +456,23 @@ final class IsolationToolPanel {
                             .reversed()).toList();
                 List<IsolationParameters> tools = new ArrayList<>();
                 Map<Double, ToolProfile> profiles = new LinkedHashMap<>();
+                Map<Double, LegacyToolsDatabase.MillingTool> machining = new LinkedHashMap<>();
                 for (ToolRow row : selected) {
                     tools.add(row.parameters());
                     profiles.put(row.diameter, row.profile);
+                    if (row.machining != null) {
+                        if (row.machining.profile() != row.profile)
+                            throw new IllegalArgumentException("TT mudou apos importar a DB; remova/reimporte a ferramenta.");
+                        machining.put(row.diameter, row.machining);
+                    }
                 }
                 errorLabel.setText("");
                 onGenerate.accept(new Result(sourceCombo.getValue(), List.copyOf(tools), Map.copyOf(profiles),
                         rest.isSelected(), forcedRest.isSelected(), combine.isSelected(), follow.isSelected(),
                         checkValidity.isSelected(), drawnMask[0] != null ? drawnMask[0]
                                 : exceptionCombo.getValue().geometry(), drawnMask[0] == null
-                                && exceptionCombo.getValue() != none ? exceptionCombo.getValue() : null));
+                                && exceptionCombo.getValue() != none ? exceptionCombo.getValue() : null,
+                        Map.copyOf(machining)));
             } catch (RuntimeException error) { errorLabel.setText(error.getMessage()); }
         });
         Button reset = new Button("Reset Tool");
