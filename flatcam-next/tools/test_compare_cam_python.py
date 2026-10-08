@@ -5,11 +5,55 @@ from types import SimpleNamespace
 
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, Polygon, box
 from compare_cam_python import (classify_result, compile_rectangular_handler, compile_plugin_methods, dependency_metadata,
+                               compile_ncc_gui, compare_tool_outputs,
                                isolation_exception_paths, ncc_boundary, leaves, lines, metrics, overlay,
                                sampled_distance, sampled_witness)
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_per_tool_comparison_rejects_swapped_assignment_even_when_union_matches(self):
+        lower = LineString([(0,0),(10,0)])
+        upper = LineString([(0,2),(10,2)])
+        tools = [{"diameter":1,"fxWkt":lower.wkt,"gcode":"lower"},
+                 {"diameter":.5,"fxWkt":upper.wkt,"gcode":"upper"}]
+        parse = lambda code: {"lower":lower,"upper":upper}[code]
+        report = compare_tool_outputs(tools,{1:upper,.5:lower},[1,.5],.003,parse)
+        self.assertFalse(report["toolPathsMatch"])
+        self.assertTrue(report["toolGcodeMatches"])
+        self.assertTrue(report["toolOrderMatches"])
+
+    def test_per_tool_comparison_preserves_empty_tools_and_rejects_extra_output_or_bad_order(self):
+        path = LineString([(0,0),(10,0)])
+        tools = [{"diameter":1,"fxWkt":GeometryCollection().wkt,"gcode":""},
+                 {"diameter":.5,"fxWkt":path.wkt,"gcode":"cut"}]
+        report = compare_tool_outputs(tools,{.5:path},[.5],.003,lambda _:path)
+        self.assertTrue(report["toolPathsMatch"])
+        self.assertTrue(report["tools"][0]["cam"]["fxEmpty"])
+        report = compare_tool_outputs(tools,{.5:path,.25:path},[.25,.5],.003,lambda _:path)
+        self.assertFalse(report["toolPathsMatch"])
+        self.assertFalse(report["toolOrderMatches"])
+        self.assertEqual([.25],report["extraPythonTools"])
+
+    def test_original_gui_initializers_are_selected_instead_of_tcl_namesakes(self):
+        import ast
+        root = self.legacy_root()
+        tree = ast.parse((root / "appTools/ToolNCC.py").read_text(encoding="utf-8-sig"))
+        cls = next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name == "NonCopperClear")
+        outer = next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name == "clear_copper")
+        expected = {n.name:n.lineno for n in outer.body if isinstance(n,ast.FunctionDef)}
+        namespace = compile_ncc_gui(root)
+        for name in ("gen_clear_area","gen_clear_area_rest"):
+            self.assertEqual(expected[name],namespace[name].__code__.co_firstlineno)
+
+    def test_tool_mismatch_fails_cam_and_bad_order_is_partial(self):
+        for extra,status in [(dict(toolPathsMatch=False),"DIFFERENT"),
+                             (dict(toolGcodeMatches=False),"GCODE_DIFFERENT"),
+                             (dict(toolOrderMatches=False),"PARTIAL_DIFFERENCE")]:
+            result = dict(matchesSampledCriteria=True,
+                          pythonParsedFxCutComparison={"matchesSampledCriteria":True},**extra)
+            self.assertEqual(status,classify_result(result))
+            self.assertFalse(result["matchesSampledCriteria"])
+
     def legacy_root(self):
         root = Path(__file__).resolve().parents[2]
         if not (root / "appTools" / "ToolNCC.py").is_file():

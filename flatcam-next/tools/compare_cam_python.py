@@ -15,7 +15,7 @@ import math
 import re
 import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 
 
 def dependency_metadata():
@@ -139,6 +139,139 @@ def compile_plugin_methods(root, filename, class_name, names):
     return namespace
 
 
+def compile_ncc_gui(root):
+    """Original GUI initializers, not the different clear_copper_tcl Rest loop."""
+    from copy import deepcopy
+    from collections.abc import Iterable
+    import numpy as np
+    from PyQt5 import QtWidgets
+    if str(root.resolve()) not in sys.path:
+        sys.path.insert(0,str(root.resolve()))
+    from appCommon.Common import GracefulException
+    source = root / "appTools/ToolNCC.py"
+    tree = ast.parse(source.read_text(encoding="utf-8-sig"))
+    cls = next(n for n in tree.body if isinstance(n,ast.ClassDef) and n.name == "NonCopperClear")
+    outer = next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name == "clear_copper")
+    initializers = [n for n in outer.body if isinstance(n,ast.FunctionDef)
+                    and n.name in ("gen_clear_area","gen_clear_area_rest")]
+    if len(initializers) != 2:
+        raise ValueError("Legacy GUI NCC initializer layout changed")
+    namespace = compile_plugin_methods(root,"ToolNCC.py","NonCopperClear",
+            {"calculate_bounding_box","apply_margin_to_bounding_box","get_tool_empty_area",
+             "get_ncc_empty_area","clear_polygon_worker","geometry_parts","poly2rings"})
+    namespace.update(deepcopy=deepcopy,Iterable=Iterable,np=np,QtWidgets=QtWidgets,
+                     grace=GracefulException,BaseGeometry=namespace["base"].BaseGeometry)
+    exec(compile(ast.Module(body=initializers,type_ignores=[]),str(source),"exec"),namespace)
+    return namespace
+
+
+def legacy_ncc_tools(case, engine, root, cache):
+    """Run original GUI multi-tool/Rest bodies with only headless UI bindings."""
+    from copy import deepcopy
+    from shapely import wkt
+    from shapely.ops import unary_union
+    if "ncc_gui" not in cache:
+        cache["ncc_gui"] = compile_ncc_gui(root)
+    # Nested functions have mutable globals; use a fresh namespace per execution.
+    template = cache["ncc_gui"]
+    namespace = template.copy()
+    from types import FunctionType
+    for name, value in template.items():
+        if isinstance(value,FunctionType) and value.__globals__ is template:
+            namespace[name] = FunctionType(value.__code__,namespace,name,value.__defaults__,value.__closure__)
+    params = case["parameters"]
+    rest = params["restMachining"]
+    tools = params["tools"]
+    settings = {i + 1:{"tooldia":tool["diameter"],"solid_geometry":[],"data":{
+        "tools_ncc_overlap":tool["overlap"] * 100,
+        "tools_ncc_method":["STANDARD","SEED","LINES","COMBO"].index(tool["method"]),
+        "tools_ncc_connect":tool["connect"],"tools_ncc_contour":tool["contour"],
+        "tools_ncc_offset_choice":tool["copperOffset"] != 0,"tools_ncc_offset_value":tool["copperOffset"]}}
+        for i,tool in enumerate(tools)}
+    field = lambda value: SimpleNamespace(get_value=lambda:value)
+    binding = SimpleNamespace(app=engine.app,circle_steps=64,decimals=engine.app.decimals,
+        ncc_tools=deepcopy(settings),sel_rect=[],
+        ui=SimpleNamespace(ncc_margin_entry=field(params["margin"]),
+            rest_ncc_connect_cb=field(params["connect"]),rest_ncc_contour_cb=field(params["contour"]),
+            rest_ncc_choice_offset_cb=field(params["copperOffset"] != 0),
+            rest_ncc_offset_spinner=field(params["copperOffset"])))
+    for name in ("calculate_bounding_box","apply_margin_to_bounding_box","get_tool_empty_area",
+                 "get_ncc_empty_area","clear_polygon_worker"):
+        setattr(binding,name,MethodType(namespace[name],binding))
+    binding.geometry_parts = namespace["geometry_parts"]
+    binding.poly2rings = namespace["poly2rings"]
+    failures = 0
+    attempted_order = []
+    worker_active = False
+    # Observers keep actual clearing functions unchanged and count their None outputs.
+    def observed(method):
+        def call(*args,**kwargs):
+            nonlocal failures
+            diameter = args[1] if len(args) > 1 else kwargs["tooldia"]
+            if diameter not in attempted_order:
+                attempted_order.append(diameter)
+            result = method(*args,**kwargs)
+            if result is None and not worker_active:
+                failures += 1
+            return result
+        return call
+    for name in ("clear_polygon","clear_polygon2","clear_polygon3"):
+        setattr(binding,name,observed(getattr(engine,name)))
+    original_worker = binding.clear_polygon_worker
+    def capture_worker(*args,**kwargs):
+        nonlocal worker_active, failures
+        worker_active = True
+        try:
+            result = original_worker(*args,**kwargs)
+        finally:
+            worker_active = False
+        # Combo's failed preliminary attempts are not failed polygons when
+        # a later fallback succeeds. Count the original worker's final result.
+        if result is None:
+            failures += 1
+        return result
+    binding.clear_polygon_worker = capture_worker
+    areas = []
+    original_area = binding.get_tool_empty_area
+    def capture_area(*args,**kwargs):
+        result = original_area(*args,**kwargs)
+        if isinstance(result,tuple):
+            areas.append(result[0])
+        return result
+    binding.get_tool_empty_area = capture_area
+    variant = params.get("boundary","itself")
+    selection = {"itself":0,"area":1,"reference-gerber":2,"reference-geometry":2}[variant]
+    reference = wkt.loads(params["referenceWkt"]) if selection else None
+    if selection == 1:
+        binding.sel_rect = leaves(reference)
+    reference_obj = SimpleNamespace(kind="gerber" if variant == "reference-gerber" else "geometry",
+                                   solid_geometry=reference) if selection == 2 else None
+    app = engine.app
+    # Runtime/UI state only; no user preferences or project files are modified.
+    app.defaults = dict(app.defaults,gerber_buffering="full",tools_ncc_plotting="normal")
+    app.dec_format = lambda value,decimals: round(value,decimals)
+    app.inform_shell = app.inform
+    obj = SimpleNamespace(kind="geometry",tools={},options={},solid_geometry=[])
+    namespace.update(self=binding,run_threaded=True,order={"NONE":"no","FORWARD":"fwd","REVERSE":"rev"}[params["order"]],
+        sorted_clear_tools=[tool["diameter"] for tool in tools],ncc_select=selection,
+        ncc_obj=SimpleNamespace(kind="gerber",solid_geometry=engine.solid_geometry),sel_obj=reference_obj,
+        isotooldia=[],name="headless-ncc",units=case["units"],prog_plot=False,tools_storage=deepcopy(settings))
+    outcome = namespace["gen_clear_area_rest" if rest else "gen_clear_area"](obj,app)
+    if outcome == "fail" or not obj.solid_geometry or not areas:
+        raise ValueError("Original GUI NCC produced no output")
+    tool_paths = {entry["tooldia"]:unary_union(lines(entry["solid_geometry"])) for entry in obj.tools.values()}
+    return unary_union(lines(obj.solid_geometry)), {
+        "oracle":"original ToolNCC.clear_copper GUI initializer and helpers (not Tcl)",
+        "pythonFailedPolygons":failures,"_toolPaths":tool_paths,
+        # Normal GUI output dict keeps insertion order even when processing
+        # was reversed. Observe actual clearing calls, not that storage order.
+        "pythonNonemptyToolOrder":[diameter for diameter in attempted_order
+                                    if diameter in tool_paths and not tool_paths[diameter].is_empty],
+        "clearingAreaSymmetricDifference":unary_union(areas).symmetric_difference(wkt.loads(params["fxClearingAreaWkt"])).area,
+        "clearingAreaMatches":unary_union(areas).symmetric_difference(wkt.loads(params["fxClearingAreaWkt"])).area
+            <= max(unary_union(areas).area,1e-20) * 1e-8}
+
+
 def isolation_exception_paths(paths, mask, root, cache):
     if "isolation" not in cache:
         cache["isolation"] = compile_plugin_methods(root, "ToolIsolation.py", "ToolIsolation",
@@ -174,15 +307,43 @@ def ncc_boundary(case, copper, engine, root, cache):
 
 def classify_result(result, fx_failed_polygons=0):
     """Keep CAM path differences distinct from interpreted G-code differences."""
-    result["camMatchesSampledCriteria"] = result["matchesSampledCriteria"] and result.get("clearingAreaMatches", True)
-    result["gcodeMatchesSampledCriteria"] = result["pythonParsedFxCutComparison"]["matchesSampledCriteria"]
+    result["camMatchesSampledCriteria"] = result["matchesSampledCriteria"] and result.get("clearingAreaMatches", True) and result.get("toolPathsMatch",True)
+    result["gcodeMatchesSampledCriteria"] = result["pythonParsedFxCutComparison"]["matchesSampledCriteria"] and result.get("toolGcodeMatches",True)
     result["matchesSampledCriteria"] = result["camMatchesSampledCriteria"] and result["gcodeMatchesSampledCriteria"]
-    if result.get("pythonFailedPolygons", 0) != fx_failed_polygons:
+    if result.get("pythonFailedPolygons", 0) != fx_failed_polygons or not result.get("toolOrderMatches",True):
         result["matchesSampledCriteria"] = False
         return "PARTIAL_DIFFERENCE"
     if not result["camMatchesSampledCriteria"]:
         return "DIFFERENT"
     return "MATCH_SAMPLED" if result["gcodeMatchesSampledCriteria"] else "GCODE_DIFFERENT"
+
+
+def compare_tool_outputs(fx_tools, python_tools, python_order, tolerance, parse_cut):
+    """Check assignments individually: combined union must not hide a missing/swapped tool."""
+    from shapely import wkt
+    from shapely.geometry import GeometryCollection
+    from shapely.ops import unary_union
+    details = []
+    for tool in fx_tools:
+        fx = unary_union(lines(wkt.loads(tool["fxWkt"])))
+        python = python_tools.get(tool["diameter"],GeometryCollection())
+        if fx.is_empty or python.is_empty:
+            cam = {"fxEmpty":fx.is_empty,"pythonEmpty":python.is_empty,
+                   "matchesSampledCriteria":fx.is_empty and python.is_empty}
+        else:
+            cam = metrics(fx,python,tolerance,tool["diameter"])
+        gcode = ({"matchesSampledCriteria":True,"emptyTool":True} if fx.is_empty
+                 else metrics(fx,parse_cut(tool["gcode"]),tolerance))
+        details.append({"diameter":tool["diameter"],"cam":cam,"gcode":gcode})
+    fx_order = [tool["diameter"] for tool in fx_tools if not wkt.loads(tool["fxWkt"]).is_empty]
+    # Extra Python output not assigned to an FX tool also fails.
+    extra = [diameter for diameter,paths in python_tools.items()
+             if not paths.is_empty and diameter not in {tool["diameter"] for tool in fx_tools}]
+    return {"tools":details,"fxNonemptyToolOrder":fx_order,"pythonNonemptyToolOrder":python_order,
+            "toolOrderMatches":fx_order == python_order,
+            "toolPathsMatch":not extra and all(tool["cam"]["matchesSampledCriteria"] for tool in details),
+            "toolGcodeMatches":all(tool["gcode"]["matchesSampledCriteria"] for tool in details),
+            "extraPythonTools":extra}
 
 
 def legacy_paths(case, copper, engine, root, handler_cache):
@@ -192,6 +353,8 @@ def legacy_paths(case, copper, engine, root, handler_cache):
     params = case["parameters"]
     diameter = case["diameter"]
     operation = case["operation"]
+    if operation == "ncc" and "tools" in params:
+        return legacy_ncc_tools(case,engine,root,handler_cache)
     if operation == "isolation":
         results = []
         if params.get("follow"):
@@ -339,19 +502,26 @@ def run(args):
                   "fxPreviewWarning": case["fxPreviewWarning"]}
         (args.output / (case["id"] + ".nc")).write_text(case["gcode"], encoding="utf-8")
         try:
-            cnc = camlib.CNCjob()
-            # Object-layer metadata normally set by FlatCAMCNCJob, not by the CAM base constructor.
-            cnc.origin_kind = "geometry"
-            cnc.gcode = case["gcode"]
-            parsed = cnc.gcode_parse()
-            if parsed == "fail" or not parsed:
-                raise ValueError("Legacy CNC parser rejected FX G-code")
-            cut = unary_union([step["geom"] for step in parsed if step["kind"][0] == "C"])
-            if cut.is_empty or cut.length <= 0:
-                raise ValueError("Legacy CNC parser found no cutting motion")
+            def parse_cut(program):
+                cnc = camlib.CNCjob()
+                # Metadata normally set by FlatCAMCNCJob, not the CAM base constructor.
+                cnc.origin_kind = "geometry"
+                cnc.gcode = program
+                parsed = cnc.gcode_parse()
+                if parsed == "fail" or not parsed:
+                    raise ValueError("Legacy CNC parser rejected FX G-code")
+                cut = unary_union([step["geom"] for step in parsed if step["kind"][0] == "C"])
+                if cut.is_empty or cut.length <= 0:
+                    raise ValueError("Legacy CNC parser found no cutting motion")
+                return cut
+            cut = parse_cut(case["gcode"])
             result["pythonParsedFxGcode"] = True
             result["pythonParsedCutLength"] = cut.length
             python, extra = legacy_paths(case, copper, engine, root, handler_cache)
+            python_tools = extra.pop("_toolPaths",None)
+            if python_tools is not None:
+                extra.update(compare_tool_outputs(case["parameters"]["fxToolResults"],python_tools,
+                    extra["pythonNonemptyToolOrder"],tolerance,parse_cut))
             fx = unary_union(lines(wkt.loads(case["fxWkt"])))
             if not python.is_valid or not fx.is_valid:
                 raise ValueError("Invalid output")

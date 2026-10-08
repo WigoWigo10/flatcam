@@ -4,6 +4,7 @@ param(
     [string]$DependencyPath,
     [string[]]$Cases,
     [string]$OutputDirectory,
+    [switch]$LegacyCompatible,
     [switch]$Strict
 )
 
@@ -25,6 +26,12 @@ function Invoke-ComparisonNative([string]$Executable, [string[]]$Arguments, [str
 }
 
 try {
+    if ($LegacyCompatible -and -not $Python) {
+        $Python = Join-Path $comparisonRoot 'target/oracle-py311/Scripts/python.exe'
+        if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
+            throw 'Prepare target/oracle-py311 conforme COMPARACAO_CAM.md, ou informe -Python compativel. O runner nao instala dependencias.'
+        }
+    }
     if (-not $Python) { $Python = $env:FLATCAM_PROFILE_PYTHON }
     if (-not $Python) {
         foreach ($candidate in @((Join-Path $legacyRoot '.venv312/Scripts/python.exe'),
@@ -46,6 +53,14 @@ try {
     }
     if (Test-Path -LiteralPath $OutputDirectory) { throw 'Escolha uma pasta nova de resultados; relatorios existentes nao serao sobrescritos.' }
     New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
+    if ($LegacyCompatible) {
+        $validationCode = "import sys; sys.path.insert(0,sys.argv[1]) if sys.argv[1] else None; import shapely; from shapely.geos import geos_version_string; print(sys.version.split()[0],shapely.__version__,geos_version_string); sys.exit(0 if sys.version_info[:2]==(3,11) and shapely.__version__=='1.8.5.post1' and geos_version_string.startswith('3.10.3') else 2)"
+        # An empty dependency argument is dropped by Windows PowerShell native
+        # invocation; use a harmless existing directory when no override was set.
+        $validationPath = if ($DependencyPath) { $DependencyPath } else { $comparisonRoot }
+        $validationExit = Invoke-ComparisonNative $Python @('-c',$validationCode,$validationPath) (Join-Path $OutputDirectory 'oracle-environment.log')
+        if ($validationExit -ne 0) { throw 'Referencia incompativel: esperado Python 3.11 / Shapely 1.8.5.post1 / GEOS 3.10.3.' }
+    }
     Push-Location $comparisonRoot
     try {
         $buildArgs = @('-q','-pl','flatcam-application','-am','-Dtest=PythonCamComparisonExportTest',

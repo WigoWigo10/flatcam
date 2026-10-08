@@ -225,6 +225,56 @@ class NccGeneratorTest {
     }
 
     @Test
+    void connectPreservesModernOverlaySeamsAcrossUnitsAndTranslation() throws Exception {
+        Geometry source = new org.locationtech.jts.io.WKTReader().read(
+                "POLYGON ((0 0,30 0,30 20,0 20,0 0),(4 4,4 16,26 16,26 4,4 4))");
+        for (double scale : List.of(1.,1 / 25.4)) {
+            for (double shift : List.of(0.,-40.)) {
+                Geometry copper = org.locationtech.jts.geom.util.AffineTransformation.translationInstance(shift,shift / 2).transform(source);
+                copper = org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(scale,scale).transform(copper);
+                var result = NccGenerator.generate(scale == 1 ? "MM" : "IN",copper,
+                        new NccParameters(.5 * scale,.4,scale,NccMethod.STANDARD,true,true,0));
+                // GEOS reference connects the upper-left interior ring endpoints.
+                // Classic JTS subtraction started these rings at the lower-left.
+                double inset = .5 / 1.999999;
+                Coordinate midpoint = new Coordinate((4 + inset + .15 + shift) * scale,
+                        (16 - inset - .15 + shift / 2) * scale);
+                assertEquals(0,result.geometry().distance(FACTORY.createPoint(midpoint)),1e-12,
+                        "Connect's endpoint must follow modern overlay, not an arbitrary ring rotation");
+            }
+        }
+    }
+
+    @Test
+    void restLeavesUnreachablePolygonsForSmallerToolWithoutReportingAnAlgorithmFailure() {
+        Geometry copper = FACTORY.toGeometry(new Envelope(0,10,0,10));
+        Geometry strip = FACTORY.toGeometry(new Envelope(0,10,10.2,11));
+        var boundary = new NccBoundary.Area(strip);
+        var rest = NccGenerator.generate("MM",copper,new NccParameters(List.of(3.,.2),.4,0,
+                NccMethod.STANDARD,false,true,0,true,NccOrder.NONE,boundary));
+        assertTrue(rest.toolResults().getFirst().isEmpty());
+        assertEquals(0,rest.totalFailedPolygonCount());
+        assertFalse(rest.toolResults().getLast().isEmpty());
+        var normal = NccGenerator.generate("MM",copper,new NccParameters(List.of(3.,.2),.4,0,
+                NccMethod.STANDARD,false,true,0,false,NccOrder.NONE,boundary));
+        assertEquals(1,normal.toolResults().getFirst().failedPolygonCount(),
+                "Only Rest has the GUI unreachable-polygon skip policy");
+    }
+
+    @Test
+    void restFootprintMatchesGuiDefaultResolutionAndRepairPolicy() throws Exception {
+        Geometry copper = new org.locationtech.jts.io.WKTReader().read(
+                "POLYGON ((0 0,30 0,30 20,0 20,0 0),(4 4,4 16,26 16,26 4,4 4))");
+        var result = NccGenerator.generate("MM",copper,new NccParameters(List.of(.2,1.),.4,1,
+                NccMethod.STANDARD,false,true,0,true,NccOrder.NONE));
+        // Captured independently from the unchanged GUI initializer under
+        // Shapely 1.8.5.post1 / GEOS 3.10.3 on this public polygon.
+        assertEquals(431.1408414811011,result.toolResults().getFirst().geometry().getLength(),1e-7);
+        assertEquals(768.5374933916033,result.toolResults().getLast().geometry().getLength(),1e-7);
+        assertEquals(0,result.totalFailedPolygonCount());
+    }
+
+    @Test
     void restMachiningLimitsASmallerToolToWhatALargerToolLeftBehind() {
         Geometry copper = FACTORY.toGeometry(new Envelope(4, 6, 4, 6));
         NccResult smallAlone = NccGenerator.generate("MM", copper,

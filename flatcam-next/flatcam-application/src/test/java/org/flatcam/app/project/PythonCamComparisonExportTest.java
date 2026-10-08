@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.cutout.CutoutGenerator;
@@ -18,6 +19,7 @@ import org.flatcam.cam.cutout.GapPattern;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
+import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.isolation.IsolationGenerator;
 import org.flatcam.cam.isolation.IsolationParameters;
 import org.flatcam.cam.isolation.IsolationType;
@@ -26,6 +28,7 @@ import org.flatcam.cam.ncc.NccBoundary;
 import org.flatcam.cam.ncc.NccMethod;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
+import org.flatcam.cam.ncc.NccToolSettings;
 import org.flatcam.cam.ncc.PaintParameters;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -96,7 +99,10 @@ class PythonCamComparisonExportTest {
         add(cases,"isolation-exceptions","isolation",copper,clipped.geometry(),units,.1 * mm,
                 new JSONObject().put("passes",3).put("overlap",.15).put("exceptionWkt",new WKTWriter().write(mask)));
         // Explicit line input shared by both engines, not a substitute for parsing Gerber follow data.
-        var follow = copper.getBoundary();
+        // Imported projects can preserve nested polygon collections. JTS cannot
+        // getBoundary directly on generic collections; this is an explicitly
+        // shared line fixture, not a claim about reconstructed Gerber follow data.
+        var follow = copper.buffer(0).getBoundary();
         var followed = IsolationGenerator.generateFollow(units,follow,CancellationToken.none());
         add(cases,"isolation-follow","isolation",follow,followed.geometry(),units,.1 * mm,
                 new JSONObject().put("follow",true).put("passes",1).put("overlap",.15));
@@ -134,6 +140,44 @@ class PythonCamComparisonExportTest {
                     variant.equals("area") ? reference : concaveReference));
             add(cases,"ncc-" + variant,"ncc",copper,result.geometry(),units,.5 * mm,json);
         }
+        for (String variant : List.of("multi-none","multi-forward","multi-reverse","multi-settings",
+                "rest","rest-area","rest-reference-geometry","rest-connect")) {
+            boolean rest = variant.startsWith("rest");
+            var boundary = variant.equals("rest-area") ? new NccBoundary.Area(reference)
+                    : variant.equals("rest-reference-geometry") ? new NccBoundary.ReferenceGeometry(concaveReference)
+                    : new NccBoundary.Itself();
+            NccOrder order = variant.equals("multi-forward") ? NccOrder.FORWARD
+                    : variant.equals("multi-reverse") ? NccOrder.REVERSE : NccOrder.NONE;
+            Map<Double,NccToolSettings> settings = variant.equals("multi-settings")
+                    ? Map.of(.2 * mm,new NccToolSettings(.25,NccMethod.STANDARD,false,true,.1 * mm)) : Map.of();
+            var params = new NccParameters(List.of(.2 * mm,mm),.4,mm,NccMethod.STANDARD,
+                    variant.equals("rest-connect"),true,0,rest,order,boundary,List.of(),settings);
+            var result = NccGenerator.generate(units,copper,params);
+            var toolInputs = new JSONArray();
+            for (double diameter : params.toolDiameters()) {
+                var resolved = params.settingsFor(diameter);
+                toolInputs.put(new JSONObject().put("diameter",diameter).put("method",resolved.method().name())
+                        .put("overlap",resolved.overlapFraction()).put("connect",resolved.connect())
+                        .put("contour",resolved.contour()).put("copperOffset",resolved.copperOffset()));
+            }
+            var toolOutputs = new JSONArray();
+            for (var tool : result.toolResults()) {
+                toolOutputs.put(new JSONObject().put("diameter",tool.toolDiameter())
+                        .put("fxWkt",new WKTWriter().write(tool.geometry()))
+                        .put("fxFailedPolygons",tool.failedPolygonCount())
+                        .put("gcode",tool.isEmpty() ? "" : generateProgram(units,tool.geometry(),tool.toolDiameter())));
+            }
+            var json = new JSONObject().put("method","STANDARD").put("margin",mm).put("overlap",.4)
+                    .put("connect",params.connect()).put("contour",true).put("copperOffset",0)
+                    .put("order",order.name()).put("restMachining",rest).put("tools",toolInputs)
+                    .put("fxToolResults",toolOutputs).put("fxFailedPolygons",result.totalFailedPolygonCount())
+                    .put("fxClearingAreaWkt",new WKTWriter().write(result.clearingArea()))
+                    .put("boundary",variant.equals("rest-area") ? "area"
+                            : variant.equals("rest-reference-geometry") ? "reference-geometry" : "itself");
+            if (!(boundary instanceof NccBoundary.Itself)) json.put("referenceWkt",new WKTWriter().write(
+                    variant.equals("rest-area") ? reference : concaveReference));
+            add(cases,"ncc-" + variant,"ncc",copper,result.geometry(),units,.2 * mm,json);
+        }
         // Same explicit selected area on both sides: this isolates Paint from NCC boundary creation.
         var paintParams = new PaintParameters(List.of(0.5 * mm), 0.4, 0, NccMethod.STANDARD,
                 false, true, NccOrder.NONE, false);
@@ -160,28 +204,49 @@ class PythonCamComparisonExportTest {
         Path directory = output == null || output.isBlank() ? temporary : Path.of(output);
         Files.createDirectories(directory);
         Files.writeString(directory.resolve(syntheticInch ? "fx-cam-in.json" : "fx-cam.json"), export.toString(2), StandardCharsets.UTF_8);
-        assertTrue(cases.length() >= 18);
-        if (fixture == null || fixture.isBlank() || syntheticInch) assertEquals(19,cases.length());
+        assertTrue(cases.length() >= 26);
+        if (fixture == null || fixture.isBlank() || syntheticInch) assertEquals(27,cases.length());
     }
 
     private static void add(JSONArray cases, String id, String operation, Geometry input, Geometry paths,
-                            String units, double diameter, JSONObject params) {
+                            String units, double diameter, JSONObject params) throws org.locationtech.jts.io.ParseException {
         assertFalse(paths.isEmpty(), id);
         assertTrue(paths.isValid(), id);
         assertTrue(paths.getLength() > 0, id);
         boolean inch = "IN".equals(units) || "INCH".equals(units);
-        var job = GCodeGenerator.generateGeometryCncJob(units, paths,
-                new GeometryGCodeParameters(inch ? 3 / 25.4 : 3, inch ? .1 / 25.4 : .1,
-                        false, 0, inch ? 300 / 25.4 : 300, 0, false), diameter);
+        var cncParams = new GeometryGCodeParameters(inch ? 3 / 25.4 : 3, inch ? .1 / 25.4 : .1,
+                false, 0, inch ? 300 / 25.4 : 300, 0, params.has("fxToolResults"));
+        List<ToolGeometry> tools = new java.util.ArrayList<>();
+        if (params.has("fxToolResults")) {
+            var outputs = params.getJSONArray("fxToolResults");
+            for (int i = 0; i < outputs.length(); i++) {
+                var output = outputs.getJSONObject(i);
+                tools.add(new ToolGeometry(output.getDouble("diameter"),new WKTReader().read(output.getString("fxWkt"))));
+            }
+        } else tools.add(new ToolGeometry(diameter,paths));
+        // Multi-tool cases use the real multi-tool generator and tool-change
+        // metadata, not a combined drawing masquerading as a single cutter.
+        var job = GCodeGenerator.generateGeometryCncJob(units,tools,cncParams);
         var preview = GCodeToolpathParser.parse(job.gcode(), CancellationToken.none(), ProgressCallback.none());
         assertFalse(job.cutGeometry().isEmpty(), id);
         assertTrue(job.gcode().contains("M30"), id);
         assertTrue(preview.plotAvailable(), id + ": " + preview.warning());
         assertFalse(preview.cutGeometry().isEmpty(), id);
-        cases.put(new JSONObject().put("id", id).put("operation", operation).put("diameter", diameter)
+        cases.put(new JSONObject().put("id", id).put("operation", operation).put("diameter", diameter).put("units",units)
                 .put("inputWkt", new WKTWriter().write(input)).put("fxWkt", new WKTWriter().write(paths))
                 .put("parameters", params).put("gcode", job.gcode())
                 .put("fxDetailedPreviewAvailable", preview.plotAvailable())
                 .put("fxPreviewWarning", preview.warning() == null ? "" : preview.warning()));
+    }
+
+    private static String generateProgram(String units,Geometry paths,double diameter) {
+        boolean inch = "IN".equals(units) || "INCH".equals(units);
+        var job = GCodeGenerator.generateGeometryCncJob(units,paths,
+                new GeometryGCodeParameters(inch ? 3 / 25.4 : 3,inch ? .1 / 25.4 : .1,
+                        false,0,inch ? 300 / 25.4 : 300,0,false),diameter);
+        var preview = GCodeToolpathParser.parse(job.gcode(),CancellationToken.none(),ProgressCallback.none());
+        assertTrue(preview.plotAvailable(),preview.warning());
+        assertFalse(preview.cutGeometry().isEmpty());
+        return job.gcode();
     }
 }

@@ -22,6 +22,7 @@ import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
+import org.locationtech.jts.operation.overlayng.OverlayNG;
 
 /**
  * Ports the geometry-producing portion of {@code ToolNCC.py} and
@@ -48,11 +49,9 @@ public final class NccGenerator {
     private static final int QUADRANT_SEGMENTS = 64;
 
     /**
-     * Rest Machining's swept-footprint buffer is shrunk very slightly below
-     * the true tool radius (Python's {@code tool_used = tool - 1e-12} /
-     * {@code tool / 1.9999999}) so floating-point noise in the buffer never
-     * lets the footprint claim a hair more area than the tool actually swept -
-     * which would wrongly steal reachable material from the next, smaller tool.
+     * Paint's independent conservative footprint is shrunk below the true
+     * radius. GUI NCC Rest instead uses its original expansion/repair policy;
+     * that is not the legacy Tcl {@code tool_used = tool - 1e-12} policy.
      */
     private static final double FOOTPRINT_SHRINK = 1e-6;
 
@@ -150,7 +149,7 @@ public final class NccGenerator {
             }
             int toolIndex = t;
             int toolCount = orderedTools.size();
-            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, settings, cancellation,
+            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, settings, params.restMachining(), cancellation,
                     fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
             toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures(),
                     NccOperation.CLEAR));
@@ -158,7 +157,7 @@ public final class NccGenerator {
                 combinedPaths.add(toolClear.geometry());
             }
             if (params.restMachining() && !toolClear.footprint().isEmpty()) {
-                remainingArea = remainingArea.difference(toolClear.footprint()).buffer(0);
+                remainingArea = OverlayNGRobust.overlay(remainingArea,toolClear.footprint(),OverlayNG.DIFFERENCE);
             }
             cancellation.throwIfCancellationRequested();
         }
@@ -210,7 +209,7 @@ public final class NccGenerator {
             int index = t;
             ToolClearResult result = areaForTool.isEmpty()
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
-                    : clearArea(areaForTool, diameter, settings, cancellation,
+                    : clearArea(areaForTool, diameter, settings, false, cancellation,
                             fraction -> progress.report((index + fraction) / tools.size()));
             toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR));
             if (!result.geometry().isEmpty()) {
@@ -229,7 +228,11 @@ public final class NccGenerator {
     private static Geometry clearingArea(Geometry boundary, Geometry copper, double keepOutOffset) {
         Geometry keepOut = keepOutOffset == 0 ? copper
                 : copper.buffer(keepOutOffset, QUADRANT_SEGMENTS);
-        return boundary.difference(keepOut).buffer(0);
+        // GEOS 3.10 uses OverlayNG for polygon subtraction. JTS's default
+        // classic overlay represents the same area but starts rings on different
+        // vertices, changing paint_connect's endpoints and thus cutting moves.
+        // Use the robust modern operation, not a fixture-specific ring rotation.
+        return OverlayNGRobust.overlay(boundary, keepOut, OverlayNG.DIFFERENCE).buffer(0);
     }
 
     /**
@@ -280,6 +283,7 @@ public final class NccGenerator {
 
     /** Clears every polygon in {@code area} with one tool, and reports the actual swept footprint (for Rest Machining). */
     private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccToolSettings settings,
+                                             boolean nccRest,
                                              CancellationToken cancellation, DoubleConsumer progressWithinTool) {
         GeometryFactory factory = area.getFactory();
         List<Polygon> polygons = new ArrayList<>();
@@ -287,10 +291,20 @@ public final class NccGenerator {
         List<LineString> allPaths = new ArrayList<>();
         List<Geometry> footprints = new ArrayList<>();
         int failures = 0;
-        double footprintRadius = toolDiameter / 2.0 * (1 - FOOTPRINT_SHRINK);
+        // GUI NCC Rest differs from the Tcl implementation: Shapely's default
+        // resolution (16), tool/1.9999999 and a final +1e-7 repair buffer.
+        // Preserve Paint's independent conservative footprint policy.
+        double footprintRadius = nccRest ? toolDiameter / 1.9999999 : toolDiameter / 2.0 * (1 - FOOTPRINT_SHRINK);
         for (int i = 0; i < polygons.size(); i++) {
             cancellation.throwIfCancellationRequested();
             Polygon polygon = polygons.get(i);
+            // The GUI Rest loop deliberately leaves polygons that cannot admit
+            // this cutter for the next smaller tool. They are not algorithm
+            // failures and must not make an otherwise completed Rest job partial.
+            if (nccRest && preciseRoundBuffer(polygon, -toolDiameter / 2.0).isEmpty()) {
+                progressWithinTool.accept((i + 1.0) / Math.max(1, polygons.size()));
+                continue;
+            }
             List<LineString> paths = clearPolygon(polygon, toolDiameter, settings, cancellation);
             if (paths.isEmpty()) {
                 failures++;
@@ -302,7 +316,9 @@ public final class NccGenerator {
                 }
                 allPaths.addAll(paths);
                 for (LineString path : paths) {
-                    footprints.add(path.buffer(footprintRadius, QUADRANT_SEGMENTS));
+                    footprints.add(nccRest
+                            ? GeosBufferOp.bufferOp(path,footprintRadius,new BufferParameters(16))
+                            : path.buffer(footprintRadius, QUADRANT_SEGMENTS));
                 }
             }
             progressWithinTool.accept((i + 1.0) / Math.max(1, polygons.size()));
@@ -310,6 +326,9 @@ public final class NccGenerator {
         Geometry geometry = allPaths.isEmpty()
                 ? factory.createGeometryCollection() : factory.buildGeometry(new ArrayList<>(allPaths));
         Geometry footprint = footprints.isEmpty() ? factory.createGeometryCollection() : OverlayNGRobust.union(footprints);
+        if (nccRest && !footprint.isEmpty()) {
+            footprint = GeosBufferOp.bufferOp(footprint,1e-7,new BufferParameters(16));
+        }
         return new ToolClearResult(geometry, footprint, failures);
     }
 
@@ -363,8 +382,9 @@ public final class NccGenerator {
      * smaller tools ran; on the public synthetic fixtures this port's own output matches a real GEOS
      * 3.10.3/3.13.1 oracle to within floating-point noise (~1e-14 mm), at every resolution and pass
      * tested. It is not a general buffer replacement: only Standard's repeated erosion and the Seed/
-     * Lines/Rest-Machining safe-area erosion in {@link #preciseRoundBuffer} switch to it; every other
-     * buffer call in this file (margins, mitred boundaries, footprint unions) is unaffected.
+     * Lines/Rest-Machining safe-area erosion in {@link #preciseRoundBuffer} switch to it.
+     * GUI NCC Rest footprints also use it with the legacy default resolution 16;
+     * margins, mitred boundaries and Paint footprints retain their own policies.
      */
     private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                    CancellationToken cancellation) {

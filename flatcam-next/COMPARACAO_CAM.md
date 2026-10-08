@@ -1,5 +1,125 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Connect, referência compatível e Rest/múltiplas ferramentas — 2026-10-08
+
+Referência isolada: Python 3.11.1, Shapely 1.8.5.post1 e GEOS 3.10.3.
+Nenhum algoritmo Python foi alterado; o ambiente habitual 3.12/Shapely 2
+continua intacto. As oito falhas multipart desaparecem nessa referência,
+mas diferenças reais continuam reprovando strict. Dependências capturadas em
+`tools/requirements-cam-oracle.txt`; são apenas do ambiente de teste Windows.
+Shapely 1.8 fornece wheels até Python 3.11, conforme a
+[distribuição oficial](https://pypi.org/project/shapely/1.8.5.post1/).
+
+### Reproduzir sem modificar o ambiente principal
+
+O ambiente local já preparado fica em `target/oracle-py311`, ignorado no Git.
+O runner não instala dependências: `-LegacyCompatible` seleciona esse ambiente
+ou valida o `-Python` explícito, exigindo Python 3.11/Shapely 1.8.5.post1/GEOS
+3.10.3 antes de construir/exportar. Uma referência incompatível é recusada.
+
+```powershell
+# Dentro de flatcam-next; o ambiente isolado já preparado nesta máquina:
+.\compare-main-flows.ps1 -LegacyCompatible -Strict
+.\compare-main-flows.ps1 -LegacyCompatible -Strict -Cases ncc-connect,ncc-rest,ncc-rest-connect,ncc-multi-reverse
+# Projeto somente lido; resultados privados continuam em target:
+.\compare-main-flows.ps1 -LegacyCompatible -Strict -Project 'CAMINHO_DO_PROJETO.FlatPrj'
+
+# Se o target tiver sido removido, preparar explicitamente com Python 3.11:
+$camOraclePython = 'CAMINHO_DO_PYTHON_3_11\python.exe'
+& $camOraclePython -m venv target/oracle-py311
+.\target\oracle-py311\Scripts\python.exe -m pip install -r tools/requirements-cam-oracle.txt
+```
+
+Se um pip antigo não reconhecer o certificado corporativo, usar o pip moderno
+já disponível com `--python target/oracle-py311/Scripts/python.exe` para instalar
+nesse ambiente, ou configurar a CA correta. Não desativar a verificação TLS.
+
+### Correções comprovadas e escopo
+
+Connect: a subtração inicial usava o overlay clássico padrão do JTS. A área era
+igual, mas os anéis começavam em vértices diferentes, alterando os conectores.
+Agora essa subtração usa `OverlayNGRobust`, correspondente à preparação moderna
+do GEOS. Sem rotação arbitrária de anéis, arredondamento da entrada ou alteração
+da referência. O teste `NccConnectProbe.java` cobre três formas (vazio interno,
+concavidade e cobre desconexo), MM/IN e coordenadas positivas/negativas: **12/12
+Connect independentes passam**. O controle com a área FX fornecida ao Python
+passa, mas é explicitamente diagnóstico, não aprovação independente.
+
+```powershell
+.\mvnw.cmd -q -pl flatcam-application dependency:build-classpath '-Dmdep.includeScope=test' '-Dmdep.outputFile=../target/ncc-connect-classpath.txt'
+$connectProbeClasspath = 'flatcam-cam/target/classes;' + (Get-Content target/ncc-connect-classpath.txt -Raw).Trim()
+java --class-path $connectProbeClasspath tools/NccConnectProbe.java target/ncc-connect-stages.json
+.\target\oracle-py311\Scripts\python.exe tools/compare_ncc_connect_probe.py --legacy-root .. --trace target/ncc-connect-stages.json --output target/ncc-connect-stages-geos.json
+```
+
+Rest: o harness compila os corpos originais de `clear_copper`/`gen_clear_area`
+e `gen_clear_area_rest` e seus helpers por AST. Não usa as funções homônimas de
+`clear_copper_tcl`, cujo Rest é diferente. Bindings representam apenas campos,
+signals, defaults de runtime e objeto de saída headless. Comparações observam
+também a ordem real de processamento, não a ordem de inserção do dict Python.
+
+O FX alinha o footprint restante ao painel: resolução 16, raio `tool/1.9999999`,
+reparo `+1e-7` nas unidades atuais e subtração robusta moderna. Polígonos onde
+a fresa não cabe ficam para a menor sem contar como falha do algoritmo. Paint
+mantém sua política conservadora anterior. A margem minúscula de reparo é uma
+convenção numérica do legado, não uma comprovação da remoção física do material.
+
+O corpus ganha oito casos por unidade: múltiplas ferramentas em ordem
+None/Forward/Reverse, configurações próprias por ferramenta, Rest Itself/Area/
+Reference Geometry e Rest com Connect. **27 casos MM e 27 IN**. Cada fresa tem
+seu CAM, G-code interpretado, estado vazio e atribuição conferidos separadamente;
+a união não pode esconder uma ferramenta ausente/trocada. O programa conjunto
+usa o gerador multi-tool real, com trocas e metadados, não uma união emitida
+como se houvesse uma única fresa. ISO combinado,
+Rest Seed/Lines/Combo e matrizes maiores de parâmetros ainda não estão cobertos.
+
+Resultados sintéticos completos: **MM 24 MATCH_SAMPLED, 1 DIFFERENT (Seed),
+2 GCODE_DIFFERENT (Lines e multi-settings); IN 25 MATCH_SAMPLED, 1 DIFFERENT
+(Seed), 1 GCODE_DIFFERENT (multi-settings)**. Zero ORACLE_ERROR e
+PARTIAL_DIFFERENCE. Não transformar 49/54 em porcentagem geral de paridade.
+Strict completo continua reprovado. Seleção de Connect, três ordens multi-tool
+e quatro variantes Rest: **16/16 MM+IN passam strict**.
+
+Seed conserva a política estável documentada em `INVESTIGACAO_CAM.md`; não foi
+alterado para perseguir o ponto instável do Python. Diferenças de G-code têm
+distância pequena mas comprimento da união distinto após quantização/coincidência
+de segmentos. Essa é uma hipótese a investigar com rastreamento de movimentos;
+os critérios originais não foram relaxados nem tais saídas declaradas aprovadas.
+
+### Projeto real: ainda não estabelece paridade
+
+Executados nove casos NCC no projeto denso do usuário, somente lido, sem
+modificar o `.FlatPrj`: **2 MATCH_SAMPLED, 7 DIFFERENT, zero ORACLE_ERROR**.
+Rest Area e Rest Reference Geometry passam; Standard/Connect, três ordens
+multi-tool e Rest Itself/Connect reprovam. A fonte decodificada independentemente
+tem delta de área zero, mas isso não garante preparo/limite equivalente.
+
+Nos casos Itself, a área inicial apresenta diferença simétrica de cerca de
+0,00035018 mm²; Standard tem distância amostrada pequena (0,00064324 mm),
+mas o critério de área reprova. Connect chega a 0,15306 mm, Rest a 0,08801 mm
+e Rest Connect a 0,20477 mm. Preparação/reparo/contêiner do cobre e limite
+Itself são a próxima investigação, não uma causa já demonstrada. O Java
+preserva coleção genérica com MultiPolygon; o Python mantém seu contêiner
+original de lista. Não normalizar o oráculo para encobrir essa divergência.
+
+Esta execução privada antecedeu a última melhoria do exportador para o
+programa conjunto multi-tool; os CAMs e programas individuais foram conferidos,
+mas o programa conjunto mais recente foi repetido somente no corpus sintético.
+Nenhuma validação manual de UI ou máquina CNC realizada. Strict real reprova;
+o êxito sintético não deve ser anunciado como paridade dessa placa.
+
+Relatórios locais: comparação sintética completa mais recente em
+`target/main-flow-comparison-20261008-093616-558`; probe independente em
+`target/ncc-connect-stages-complete-geos.json`; execução focada sintética em
+`target/main-flow-comparison-20261008-092350-048`; projeto privado em
+`target/main-flow-comparison-20261008-092705-701`. Resultados privados não são
+versionados e os arquivos de origem não foram alterados.
+
+Verificação: `mvnw.cmd -q verify` passou, 1473 testes registrados, 1461 aprovados,
+12 opcionais ignorados e zero falhas/erros. Os 25 testes auxiliares Python passam
+com Shapely 1.8 e 2. Probes nativos Direct3D/Intel Arc e software passam; a
+referência incompatível é recusada antes da exportação.
+
 ## Correções decorrentes do corpus — 2026-10-07
 
 XY nos programas G-code comuns agora usa seis casas decimais em IN/INCH,

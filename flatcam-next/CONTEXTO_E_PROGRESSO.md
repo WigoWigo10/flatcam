@@ -1,5 +1,41 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-08: referência compatível, Connect e NCC Rest
+
+Três passos executados após os tooltips: preparar referência Python isolada,
+investigar/corrigir Connect e ampliar o corpus Rest/múltiplas ferramentas.
+Ambiente `target/oracle-py311` (ignorado): Python 3.11.1, Shapely 1.8.5.post1,
+GEOS 3.10.3; ambiente habitual preservado. Runner `-LegacyCompatible` valida
+versões e não instala dependências. Lock e instruções em `COMPARACAO_CAM.md`.
+
+NCC usa overlay robusto moderno na subtração inicial, preservando os pontos
+iniciais dos anéis usados por Connect: 12/12 fixtures independentes passam.
+Rest segue a pegada do painel Python (resolução 16, raio tool/1.9999999,
+reparo +1e-7 nas unidades atuais), sem alterar a política conservadora de Paint.
+Polígonos onde a fresa Rest não cabe permanecem para a menor sem contar falha.
+O oráculo executa os corpos originais do painel GUI, não os homônimos Tcl.
+
+Corpus agora tem 27 casos MM + 27 IN e compara atribuição/ordem/CAM/G-code de
+cada ferramenta, além do programa conjunto gerado com trocas de ferramenta.
+Completo: 49/54 MATCH_SAMPLED, dois DIFFERENT (Seed), três GCODE_DIFFERENT
+(Lines MM e multi-settings MM/IN), zero ORACLE_ERROR/PARTIAL_DIFFERENCE.
+Strict completo reprova; os 16 casos focados Connect/multi-order/Rest passam.
+Não relaxar critérios nem converter esses números em paridade geral.
+
+Projeto real do usuário, somente lido: 2/9 casos NCC passam, 7 DIFFERENT e zero
+erros do oráculo. Rest Area/Reference Geometry passam; Itself apresenta pequena
+diferença na área inicial, e Connect/Rest acumulam diferenças nos caminhos.
+Próxima investigação: preparo/contêiner/reparo do cobre e limite Itself no
+projeto denso, depois movimentos/quantização G-code remanescentes. Não achatar
+o contêiner Python nem modificar sua lógica para fazer o teste passar.
+Relatórios privados continuam apenas em target. Detalhes e caminhos locais em
+`COMPARACAO_CAM.md`; nenhuma validação manual de UI ou máquina CNC realizada.
+
+Verify completo repetido: 1473 registrados, 1461 aprovados, 12 opcionais
+ignorados, zero falhas/erros; 25 testes Python passam com Shapely 1.8 e 2.
+Probes Direct3D/Intel Arc e software passam. Incremento autorizado para commit;
+último commit anterior `8d5c4b85`, branch `flatcam-next`.
+
 ## Continuidade em 2026-10-07: revisão dos tooltips
 
 A pedido do usuário, prioridade temporária na ajuda visual antes das divergências
