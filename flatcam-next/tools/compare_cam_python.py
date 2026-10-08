@@ -494,6 +494,9 @@ def run(args):
               "scope": "Headless numerical sampling, not full UI/physical validation; no oracle patches",
               "selectedCases": [case["id"] for case in cases],
               "cases": []}
+    if export.get("diagnosticControl"):
+        report["diagnosticControl"] = export["diagnosticControl"]
+        report["scope"] += "; DIAGNOSTIC CANDIDATE ONLY: production behavior is unchanged"
     cards = []
     handler_cache = {}
     for case in cases:
@@ -555,6 +558,9 @@ def run(args):
                 '<h1>Comparação CAM: FX × Python</h1><p>Azul: FX. Laranja: Python. '
                 'Rotinas reais do legado, sem patches. Métricas por amostragem, não prova de paridade total '
                 'ou segurança física. SVG simplificado apenas para exibição.</p>'
+                + (f'<p><strong>CONTROLE DIAGNÓSTICO — não é resultado da implementação em produção:</strong> '
+                   f'{html.escape(str(export["diagnosticControl"]))}</p>' if export.get("diagnosticControl") else '')
+                +
                 f'<p>{html.escape(json.dumps(counts))}</p>' + "".join(cards) + '</html>')
     (args.output / "index.html").write_text(document, encoding="utf-8")
     print(json.dumps({"counts": counts, "report": str(args.output / "index.html")}))

@@ -1,5 +1,44 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-08: diagnóstico do NCC no projeto real
+
+Incremento anterior commitado em `be6b6127`, branch `flatcam-next`. Nesta etapa
+o pedido é investigação; nenhum algoritmo de produção foi alterado. Novos
+probes, teste do kernel candidato e documentação autorizados para commit.
+
+Duas diferenças de preparo demonstradas:
+
+1. Margem Itself: cobre e convex hull concordam, mas BufferOp/JTS difere em
+   0,000350179467 mm² / Hausdorff 0,000643486557 mm. GeosBufferOp já existente
+   aplicado como controle elimina o delta da margem e da área de clearing.
+   Fixture pública independente com canto convexo raso reproduz a diferença;
+   nova regressão do kernel cobre MM/IN e translação, sem mudar produção.
+2. Representação: FX preserva os anéis originais do projeto; o Python executa
+   unary_union da lista [MultiPolygon] em get_ncc_empty_area, mudando o início
+   de 111 anéis sem mudar área, número de vértices ou orientação. Após a
+   subtração, 111/112 anéis começam em pontos distintos. Mesmas entradas nos
+   dois motores produzem os mesmos inícios; remover o reparo final ou o reparo
+   inicial do FX não resolve. Não atribuir isso a corrupção do importador.
+
+Controle só de margem aprova Standard, três ordens multi-tool e Rest Itself;
+os dois Rest com limites explícitos continuam aprovados. Connect e Rest Connect
+ainda reprovam. Connect com exatamente a área FX fornecida ao Python concorda
+até ~2e-14 mm; esse controle localiza a diferença e NÃO estabelece paridade.
+União moderna JTS aproxima a representação do alvo Python, mas ainda diverge
+no início de 18/111 anéis; união clássica mantém 111/111 divergentes.
+
+Próxima implementação proposta: alinhar a margem com o kernel GEOS validado,
+investigar a preparação/união do contêiner antes de subtrair e preservar seus
+inícios sem rotação arbitrária. Não aplicar a regra de lista indiscriminadamente:
+lista com um Polygon tem outra semântica Itself no legado. Repetir corpus e
+strict real antes de declarar correção. Critérios/oráculo permanecem intactos.
+
+45 testes Java focados (GeosBufferOpTest/NccGeneratorTest) e 29 auxiliares
+Python passam; compileall passa. Verify completo anterior pertence ao commit
+be6b6127 (1461 aprovados), não foi repetido nesta etapa diagnóstica.
+Comandos e relatórios privados em `COMPARACAO_CAM.md`; fontes só lidas, sem UI
+ou usinagem física. A produção continua com 2/9 casos reais aprovados.
+
 ## Continuidade em 2026-10-08: referência compatível, Connect e NCC Rest
 
 Três passos executados após os tooltips: preparar referência Python isolada,

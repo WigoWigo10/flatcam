@@ -1,5 +1,82 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Investigação do projeto real: margem e representação — 2026-10-08
+
+Base commitada `be6b6127`, branch `flatcam-next`. **Diagnóstico, não correção
+de produção.** O projeto original foi somente lido; critérios e corpos Python
+permanecem inalterados. A produção ainda aprova 2/9 casos reais.
+
+`NccPreparationProbe.java` exporta cobre, reparo, hull, margem, subtração e
+variantes de união. `investigate_ncc_preparation.py` usa helpers originais GUI
+e distingue geometria topológica de representação dos anéis. Campos de
+pareamento arredondam somente bounds para localizar anéis, sem normalizar
+entrada nem aprovar paridade; controles de mesma área também não são aprovações.
+
+### Primeira divergência: margem
+
+Cobre bruto/reparado e hull coincidem com Python. O buffer mitre padrão JTS
+da margem Itself produz diferença de 0,000350179467 mm² e Hausdorff de
+0,000643486557 mm. Aplicar o GeosBufferOp existente elimina a diferença de
+margem e clearing nessa placa. A fixture pública independente
+`POLYGON ((0 0,30 0,30 20,15 20.15,0 20,0 0))` reproduz o problema de canto
+convexo raso: delta JTS 0,001599920006 mm²; candidato GEOS ~1e-15 mm².
+Nova regressão ancora o kernel candidato em MM/IN e duas posições, não a
+integração na produção. Não se trata de alterar a resolução ou tolerância.
+
+No controle de CAM que substitui apenas a margem, passam Standard, três ordens
+multi-tool e Rest Itself; Rest Area/Reference Geometry já passavam. Connect
+e Rest Connect ainda reprovam. A execução completa do primeiro controle está
+em `target/ncc-margin-control-python-20261008` (7 MATCH_SAMPLED, 2 DIFFERENT).
+Nesse primeiro export, o alias `boundary=connect` ainda mantinha a margem
+original; o probe foi corrigido e Connect repetido com a margem candidata em
+`target/ncc-margin-control-connect-python-20261008`: área delta zero, mas
+distância 0,15302112 mm / comprimento relativo 0,00262922, ainda DIFFERENT.
+Rest Connect com margem candidata tem distância 0,04647088 mm, também DIFFERENT.
+Os programas conjuntos dos controles usam o gerador multi-tool real.
+
+### Segunda divergência: união da lista e início dos anéis
+
+A lista Python contém um MultiPolygon. O FX mantém os mesmos inícios da fonte
+bruta (111 anéis pareados sem diferença), mas o helper Python chama
+`unary_union(target)` antes da diferença. Essa união desloca os inícios dos
+111 anéis sem alterar área, número de vértices ou orientação. Depois da
+subtração, 111 dos 112 anéis pareados começam em pontos distintos.
+
+Controles eliminam hipóteses: GEOS com a exata boundary/copper FX produz os
+mesmos inícios da subtração JTS. Remover buffer(0) final ou usar cobre bruto no
+overlay não resolve. Com a própria área FX fornecida ao Python, Standard e
+Connect concordam até ~2e-14 mm; isso localiza a divergência antes do clearing,
+não comprova paridade independente. A união moderna JTS aproxima o alvo, mas
+ainda deixa 18/111 inícios distintos; a clássica deixa 111/111. Não substituir
+por rotação arbitrária nem achatar o oráculo. Também não transportar a regra
+de lista sem considerar o caso especial de lista com um único Polygon.
+
+Relatório detalhado: `target/ncc-preparation-complete-python-20261008.json`;
+controles Java em `target/ncc-preparation-union-control-20261008.json` e
+`target/ncc-margin-control-cam-v2-20261008.json`. Nenhum arquivo privado é
+versionado. JSON/HTML novos identificam explicitamente exports candidatos
+como controles diagnósticos, não resultados da implementação em produção.
+
+### Reproduzir e próxima ação
+
+```powershell
+# Dentro de flatcam-next, com o classpath de testes já preparado:
+$prepClasspath = 'flatcam-cam/target/classes;' + (Get-Content target/ncc-connect-classpath.txt -Raw).Trim()
+# Fixture pública, sem ler projeto privado; escolher arquivos novos:
+java --class-path $prepClasspath tools/NccPreparationProbe.java --synthetic target/prep-public.json
+.\target\oracle-py311\Scripts\python.exe tools/investigate_ncc_preparation.py --legacy-root .. --trace target/prep-public.json --output target/prep-public-python.json
+# Export existente do projeto, somente lido; terceiro argumento cria controle CAM:
+java --class-path $prepClasspath tools/NccPreparationProbe.java CAM_EXPORT.json target/prep-private.json target/prep-private-control.json
+.\target\oracle-py311\Scripts\python.exe tools/investigate_ncc_preparation.py --legacy-root .. --trace target/prep-private.json --project PROJETO.FlatPrj --connect-control target/prep-private-control.json --output target/prep-private-python.json
+.\target\oracle-py311\Scripts\python.exe tools/compare_cam_python.py --legacy-root .. --fx-export target/prep-private-control.json --project PROJETO.FlatPrj --output target/prep-control-comparison --strict
+```
+
+Próximo ajuste proposto: integrar margem compatível e investigar a união/preparo
+da fonte para os conectores, com regressões públicas e repetição strict real.
+45 testes Java focados e 29 auxiliares Python passam; compileall passa.
+Verify completo anterior é o do commit base, não repetido para este diagnóstico.
+Sem validação manual de UI ou máquina CNC.
+
 ## Connect, referência compatível e Rest/múltiplas ferramentas — 2026-10-08
 
 Referência isolada: Python 3.11.1, Shapely 1.8.5.post1 e GEOS 3.10.3.
