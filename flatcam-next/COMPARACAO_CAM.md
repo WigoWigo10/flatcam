@@ -1,5 +1,61 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Preparação NCC integrada — 2026-10-08
+
+Base diagnóstica commitada `fcf93ea8`, branch `flatcam-next`. A implementação
+agora aplica o kernel GeosBufferOp existente à margem mitre e faz união robusta
+moderna do cobre reparado para fontes GeometryCollection genéricas. Isso
+reproduz a etapa de união da lista [MultiPolygon] importada, não uma rotação
+arbitrária de anéis. Polygon/MultiPolygon ordinários mantêm o preparo anterior;
+Paint não foi alterado. Nenhum objeto/projeto de origem é reordenado em memória
+ou sobrescrito, e o código Python/critério de comparação permanece intacto.
+
+### Resultados da implementação, não dos controles
+
+Mesmo projeto real e nove casos: **8 MATCH_SAMPLED, 1 DIFFERENT, zero
+ORACLE_ERROR/GCODE_DIFFERENT/PARTIAL_DIFFERENCE**. Todos os Standard/multi-order
+e Rest Itself/Area/Reference Geometry/Connect passam. Connect simples ainda
+reprova por distância 0,020312630895 mm, acima de 0,003 mm. Seu comprimento
+relativo difere só 0,000011966129, mas isso não anula o critério de distância.
+Antes era ~0,15305533 mm. Clearing area delta é zero nos nove casos.
+**Strict real continua reprovado**; não declarar equivalência completa.
+
+Relatório privado atual: `target/main-flow-comparison-20261008-104915-841/source`;
+os nove controles sintéticos IN da mesma execução passam. A execução usa o
+gerador multi-tool real, verificando o programa conjunto e cada fresa.
+
+Corpus sintético completo repetido: **49/54**, mesmas pendências anteriores:
+MM 24 MATCH_SAMPLED, Seed DIFFERENT, Lines e multi-settings GCODE_DIFFERENT;
+IN 25 MATCH_SAMPLED, Seed DIFFERENT e multi-settings GCODE_DIFFERENT. Zero
+erros/partial; strict completo reprova. Relatórios atuais:
+`target/main-flow-comparison-20261008-105800-862/source` e `synthetic-in`.
+
+Probe Connect ampliado para formas diretas e listas [MultiPolygon], nos mesmos
+três desenhos públicos, unidades e posições: **24/24 aprovados**. A referência
+passa a invocar os helpers GUI originais para limite/margem/subtração, sem
+adicionar buffer(0) ao resultado da referência. Aprovação independente exige
+área, caminhos Plain e Connect; controles de mesma área são apenas diagnósticos.
+Resultados: `target/ncc-prepared-connect-public-python-final-20261008.json`.
+
+Regressões Java conferem a margem rasa nas quatro modalidades de limite em
+MM/IN e duas posições, e a preparação da coleção sem mutar a origem. Verify
+completo passa: **1476 registrados, 1464 aprovados, 12 opcionais ignorados,
+zero falhas/erros**. 29 testes Python e compileall passam; launcher offscreen
+Direct3D/Intel Arc e software passam. Sem testes manuais de UI ou máquina CNC.
+
+### Pendências deste ajuste
+
+Investigar os inícios/ordem residuais do Connect simples com fixture pública e
+entradas controladas. A união moderna melhora a representação, mas não garante
+inícios idênticos em todos os anéis do projeto. Não aplicar rotação arbitrária,
+arredondamento da entrada nem relaxar o limite para passar o teste.
+
+A peculiaridade Itself de lista com um único Polygon (conserva concavidades/
+vazios, enquanto Polygon direto usa hull) não é coberta por esta integração.
+WktJson.buildGeometry pode colapsar essa lista em Polygon e perder a distinção;
+esse caso exige metadados/semântica explícitos, não inferir lista de toda
+geometria poligonal. O projeto real testado contém lista [MultiPolygon].
+
 ## Investigação do projeto real: margem e representação — 2026-10-08
 
 Base commitada `be6b6127`, branch `flatcam-next`. **Diagnóstico, não correção

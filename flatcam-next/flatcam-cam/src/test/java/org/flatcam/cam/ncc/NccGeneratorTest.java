@@ -31,6 +31,46 @@ class NccGeneratorTest {
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     @Test
+    void shallowConvexMarginMatchesGeosAcrossBoundaryKindsUnitsAndTranslation() throws Exception {
+        var reader = new org.locationtech.jts.io.WKTReader();
+        Geometry source = reader.read("POLYGON ((0 0,30 0,30 20,15 20.15,0 20,0 0))");
+        // Actual GEOS 3.10.3 result from the independent preparation probe.
+        Geometry expectedBoundary = reader.read("POLYGON ((-1 -1,-0.9999999999999999 20.990049998750063,"
+                + "15 21.150049998750063,31 20.990049998750063,31 -1,-1 -1))");
+        for (double scale : new double[]{1,1 / 25.4}) {
+            for (double shift : new double[]{0,-40}) {
+                var transform = org.locationtech.jts.geom.util.AffineTransformation.translationInstance(shift,shift / 2);
+                transform.scale(scale,scale);
+                Geometry input = transform.transform(source);
+                Geometry expected = transform.transform(expectedBoundary).difference(input);
+                for (NccBoundary boundary : List.of(new NccBoundary.Itself(),new NccBoundary.Area(input),
+                        new NccBoundary.ReferenceGerber(input),new NccBoundary.ReferenceGeometry(input))) {
+                    var params = new NccParameters(List.of(.5 * scale),.4,scale,NccMethod.STANDARD,
+                            true,true,0,false,NccOrder.NONE,boundary,List.of());
+                    var result = NccGenerator.generate(scale == 1 ? "MM" : "IN",input,params);
+                    assertEquals(0,result.clearingArea().symDifference(expected).getArea(),1e-9 * scale * scale);
+                    assertFalse(result.isEmpty());
+                }
+            }
+        }
+    }
+
+    @Test
+    void importedMultipartCollectionIsPreparedWithoutMutatingItsSource() throws Exception {
+        var reader = new org.locationtech.jts.io.WKTReader();
+        Geometry multipart = reader.read("MULTIPOLYGON (((0 0,6 0,6 8,0 8,0 0)),((8 0,14 0,14 8,8 8,8 0)))");
+        Geometry input = FACTORY.createGeometryCollection(new Geometry[]{multipart});
+        String original = input.toText();
+        Geometry prepared = org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(input.buffer(0));
+        var params = new NccParameters(.5,.4,1,NccMethod.STANDARD,true,true,0);
+        var listedResult = NccGenerator.generate("MM",input,params);
+        var preparedResult = NccGenerator.generate("MM",prepared,params);
+        assertEquals(preparedResult.geometry().toText(),listedResult.geometry().toText());
+        assertEquals(0,listedResult.clearingArea().symDifference(preparedResult.clearingArea()).getArea(),1e-10);
+        assertEquals(original,input.toText(),"NCC must not reorder the imported project in place");
+    }
+
+    @Test
     void seedStopsAtTheFirstEmptyAnnulusLikePython() {
         Geometry left = FACTORY.toGeometry(new Envelope(0, 4, 0, 4));
         Geometry right = FACTORY.toGeometry(new Envelope(20, 22, 1, 3));

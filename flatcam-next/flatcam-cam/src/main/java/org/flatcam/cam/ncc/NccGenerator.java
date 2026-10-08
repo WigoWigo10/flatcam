@@ -19,7 +19,6 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
-import org.locationtech.jts.operation.buffer.BufferOp;
 import org.locationtech.jts.operation.buffer.BufferParameters;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 import org.locationtech.jts.operation.overlayng.OverlayNG;
@@ -81,7 +80,14 @@ public final class NccGenerator {
         progress.report(0.02);
         // Python rejects outline-only sources: lines cannot represent copper
         // to subtract. Repair the filled part before the Boolean operations.
-        Geometry cleanCopper = copper.buffer(0);
+        Geometry repairedCopper = copper.buffer(0);
+        // Imported Python lists of multipart polygons are represented by a
+        // generic GeometryCollection. The GUI unions that list before
+        // subtraction; buffer(0) alone preserves different ring starts and
+        // changes Connect's endpoints despite an identical copper area.
+        // Do not apply list semantics to an ordinary Polygon/MultiPolygon.
+        Geometry cleanCopper = copper.getGeometryType().equals("GeometryCollection")
+                ? OverlayNGRobust.union(repairedCopper) : repairedCopper;
         cancellation.throwIfCancellationRequested();
         Geometry rawBoundary = switch (params.boundary()) {
             case NccBoundary.Itself ignored -> cleanCopper.convexHull();
@@ -338,7 +344,9 @@ public final class NccGenerator {
         }
         BufferParameters parameters = new BufferParameters(
                 QUADRANT_SEGMENTS, BufferParameters.CAP_ROUND, BufferParameters.JOIN_MITRE, 5.0);
-        return BufferOp.bufferOp(geometry, distance, parameters);
+        // NCC's margin has the same GEOS near-parallel corner rules as its
+        // erosion. Stock JTS collapses shallow convex corners differently.
+        return GeosBufferOp.bufferOp(geometry, distance, parameters);
     }
 
     /**
@@ -383,8 +391,9 @@ public final class NccGenerator {
      * 3.10.3/3.13.1 oracle to within floating-point noise (~1e-14 mm), at every resolution and pass
      * tested. It is not a general buffer replacement: only Standard's repeated erosion and the Seed/
      * Lines/Rest-Machining safe-area erosion in {@link #preciseRoundBuffer} switch to it.
-     * GUI NCC Rest footprints also use it with the legacy default resolution 16;
-     * margins, mitred boundaries and Paint footprints retain their own policies.
+     * GUI NCC Rest footprints also use it with the legacy default resolution 16,
+     * as do NCC's mitred margins. Copper offsets and Paint footprints retain
+     * their own policies.
      */
     private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                    CancellationToken cancellation) {

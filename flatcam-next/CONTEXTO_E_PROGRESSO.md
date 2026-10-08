@@ -1,5 +1,41 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-08: preparação NCC integrada, 8/9 no projeto real
+
+Diagnósticos commitados em `fcf93ea8`, branch `flatcam-next`. Novo incremento
+integra GeosBufferOp na margem mitre do NCC e união robusta moderna do cobre
+quando a fonte é uma GeometryCollection genérica (caso da lista importada
+[MultiPolygon]). Polygon/MultiPolygon ordinários não recebem semântica de
+lista; Paint mantém seus buffers anteriores. A origem não é modificada.
+
+Comparação independente do mesmo projeto real: 8/9 MATCH_SAMPLED, 1 DIFFERENT,
+zero erros do oráculo/GCODE_DIFFERENT/PARTIAL_DIFFERENCE. Standard, três ordens
+multi-tool e quatro Rest, incluindo Rest Connect, passam. Connect simples
+ainda tem distância 0,02031263 mm (antes ~0,15305533); limite permanece 0,003 mm,
+logo strict real REPROVA. Clearing area delta agora é zero em todos os nove.
+Não declarar correção completa nem usar porcentagem desses casos como paridade.
+
+Sintéticos completos preservam o resultado: MM 24 MATCH_SAMPLED, Seed DIFFERENT,
+Lines/multi-settings GCODE_DIFFERENT; IN 25 MATCH_SAMPLED, Seed DIFFERENT e
+multi-settings GCODE_DIFFERENT. Total 49/54, strict completo ainda reprovado.
+Probe público ampliado: 24/24 aprovados, formas diretas e listas [MultiPolygon],
+MM/IN e translações. Python usa helpers GUI originais de preparo, sem buffer(0)
+extra do harness; aprovação independente exige área e caminhos Plain/Connect.
+Controles de mesma área continuam explicitamente só diagnósticos.
+
+Regressões novas: margem rasa nas quatro modalidades de limite, MM/IN e
+translação; preparação da coleção sem mutar a origem. Verify completo passa:
+1476 registrados, 1464 aprovados, 12 opcionais ignorados, zero falhas/erros.
+29 testes auxiliares Python e compileall passam; probes D3D/Intel Arc e software
+passam. Sem cliques/validação física. Incremento autorizado para commit pelo usuário.
+
+Próximo: localizar a representação residual de Connect simples no projeto
+denso; união moderna ainda não garante os mesmos inícios de todos os anéis.
+Investigar com entradas/ordens controladas e fixture pública, sem rotação
+arbitrária ou relaxamento de critérios. Semântica especial de lista com um
+único Polygon não foi portada neste incremento: a representação atual pode
+perder a distinção dessa lista na importação. Mais detalhes em COMPARACAO_CAM.md.
+
 ## Continuidade em 2026-10-08: diagnóstico do NCC no projeto real
 
 Incremento anterior commitado em `be6b6127`, branch `flatcam-next`. Nesta etapa

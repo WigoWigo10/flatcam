@@ -30,8 +30,8 @@ class GeosBufferOpTest {
     void mitreMarginPreservesShallowConvexCornerLikeGeos() throws Exception {
         // Public independent fixture, captured from Shapely 1.8.5.post1 /
         // GEOS 3.10.3 with tools/NccPreparationProbe.java --synthetic and
-        // tools/investigate_ncc_preparation.py. This anchors the candidate
-        // kernel, not a claim that production NCC margin already uses it.
+        // tools/investigate_ncc_preparation.py. This anchors the kernel itself;
+        // NccGeneratorTest separately covers its production margin integration.
         var reader = new org.locationtech.jts.io.WKTReader();
         Geometry source = reader.read("POLYGON ((0 0,30 0,30 20,15 20.15,0 20,0 0))").convexHull();
         Geometry expected = reader.read("POLYGON ((-1 -1,-0.9999999999999999 20.990049998750063,"

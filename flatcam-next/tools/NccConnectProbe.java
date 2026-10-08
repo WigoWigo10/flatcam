@@ -26,23 +26,31 @@ public class NccConnectProbe {
                 for (double shift : List.of(0., -40.)) {
                     Geometry copper = AffineTransformation.translationInstance(shift,shift / 2).transform(reader.read(fixtures.get(i)));
                     copper = AffineTransformation.scaleInstance(scale,scale).transform(copper);
-                    Geometry boundary = BufferOp.bufferOp(copper.convexHull(),scale,
-                            new BufferParameters(64,BufferParameters.CAP_ROUND,BufferParameters.JOIN_MITRE,5));
-                    Geometry defaultOverlay = boundary.difference(copper).buffer(0);
-                    Geometry classic = OverlayOp.overlayOp(boundary,copper,OverlayOp.DIFFERENCE).buffer(0);
-                    Geometry ng = OverlayNGRobust.overlay(boundary,copper,OverlayOp.DIFFERENCE).buffer(0);
-                    Geometry ngClean = OverlayNGRobust.overlay(boundary,copper.buffer(0),OverlayOp.DIFFERENCE).buffer(0);
-                    var params = new NccParameters(.5 * scale,.4,scale,NccMethod.STANDARD,true,true,0);
-                    var result = NccGenerator.generate(scale == 1 ? "MM" : "IN",copper,params);
-                    var plain = NccGenerator.generate(scale == 1 ? "MM" : "IN",copper,
-                            new NccParameters(.5 * scale,.4,scale,NccMethod.STANDARD,false,true,0));
-                    output.put(new JSONObject().put("id",i + ":" + scale + ":" + shift)
-                            .put("diameter",.5 * scale).put("margin",scale)
-                            .put("inputWkt",writer.write(copper)).put("clearingWkt",writer.write(result.clearingArea()))
-                            .put("defaultOverlayWkt",writer.write(defaultOverlay)).put("classicWkt",writer.write(classic))
-                            .put("ngWkt",writer.write(ng))
-                            .put("ngCleanWkt",writer.write(ngClean))
-                            .put("plainWkt",writer.write(plain.geometry())).put("connectedWkt",writer.write(result.geometry())));
+                    for (boolean listed : List.of(false,true)) {
+                        Geometry multipart = copper instanceof MultiPolygon ? copper
+                                : copper.getFactory().createMultiPolygon(new Polygon[]{(Polygon)copper});
+                        Geometry input = listed ? copper.getFactory().createGeometryCollection(new Geometry[]{multipart}) : copper;
+                        // These classic/NG diagnostic stages deliberately keep
+                        // the direct input; only production paths use the list.
+                        Geometry boundary = BufferOp.bufferOp(copper.convexHull(),scale,
+                                new BufferParameters(64,BufferParameters.CAP_ROUND,BufferParameters.JOIN_MITRE,5));
+                        Geometry defaultOverlay = boundary.difference(copper).buffer(0);
+                        Geometry classic = OverlayOp.overlayOp(boundary,copper,OverlayOp.DIFFERENCE).buffer(0);
+                        Geometry ng = OverlayNGRobust.overlay(boundary,copper,OverlayOp.DIFFERENCE).buffer(0);
+                        Geometry ngClean = OverlayNGRobust.overlay(boundary,copper.buffer(0),OverlayOp.DIFFERENCE).buffer(0);
+                        var params = new NccParameters(.5 * scale,.4,scale,NccMethod.STANDARD,true,true,0);
+                        var result = NccGenerator.generate(scale == 1 ? "MM" : "IN",input,params);
+                        var plain = NccGenerator.generate(scale == 1 ? "MM" : "IN",input,
+                                new NccParameters(.5 * scale,.4,scale,NccMethod.STANDARD,false,true,0));
+                        output.put(new JSONObject().put("id",i + ":" + scale + ":" + shift + ":" + listed)
+                                .put("sourceContainer",listed ? "list-multipart" : "direct")
+                                .put("diameter",.5 * scale).put("margin",scale)
+                                .put("inputWkt",writer.write(copper)).put("clearingWkt",writer.write(result.clearingArea()))
+                                .put("defaultOverlayWkt",writer.write(defaultOverlay)).put("classicWkt",writer.write(classic))
+                                .put("ngWkt",writer.write(ng))
+                                .put("ngCleanWkt",writer.write(ngClean))
+                                .put("plainWkt",writer.write(plain.geometry())).put("connectedWkt",writer.write(result.geometry())));
+                    }
                 }
             }
         }
