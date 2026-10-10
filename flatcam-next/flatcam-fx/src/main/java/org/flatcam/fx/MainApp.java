@@ -56,6 +56,8 @@ public class MainApp extends Application {
         // onCloseRequest.
         Platform.setImplicitExit(false);
 
+        // Only the real application remembers the tool defaults; tests and harnesses keep the factory values.
+        ToolDefaults.useStore(AppPreferences.toolDefaultsStore());
         mainWindow = new MainWindow(jobExecutor);
         StartupTarget startup = startupTarget();
         Rectangle2D startupBounds = startup.screen().getBounds();

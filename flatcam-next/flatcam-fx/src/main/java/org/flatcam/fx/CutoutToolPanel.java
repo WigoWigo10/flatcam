@@ -81,6 +81,7 @@ final class CutoutToolPanel {
         singleRadio.setSelected(true);
 
         CheckBox convexShapeCb = new CheckBox("Convex Shape");
+        convexShapeCb.setSelected(ToolDefaults.flag("cutout.convex"));
         CheckBox internalCuts = new CheckBox("Incluir recortes internos");
         internalCuts.setId("cutout-internal-cuts");
         internalCuts.selectedProperty().addListener((obs, old, selected) -> {
@@ -96,35 +97,35 @@ final class CutoutToolPanel {
                 + "Recortes internos são fechados, sem pontes, Thin ou M-Bites, mesmo com gaps manuais. "
                 + "Não é desbaste de bolso: revise os cantos, a fixação e as peças soltas antes de gerar CNC.");
 
-        TextField toolDiaField = new TextField(metric ? "2.4" : "0.094");
-        TextField marginField = new TextField(metric ? "0.1" : "0.004");
+        TextField toolDiaField = new TextField(ToolDefaults.text("cutout.tooldia", metric));
+        TextField marginField = new TextField(ToolDefaults.text("cutout.margin", metric));
         marginField.setId("cutout-margin");
-        TextField cutZ = new TextField(metric ? "-1.7" : "-0.067"); cutZ.setId("cutout-cut-z");
-        CheckBox multiDepth = new CheckBox("Multi-Depth"); multiDepth.setId("cutout-multi-depth"); multiDepth.setSelected(true);
-        TextField perPass = new TextField(metric ? "0.5" : "0.02"); perPass.setId("cutout-depth-per-pass");
+        TextField cutZ = new TextField(ToolDefaults.text("cutout.cutz", metric)); cutZ.setId("cutout-cut-z");
+        CheckBox multiDepth = new CheckBox("Multi-Depth"); multiDepth.setId("cutout-multi-depth"); multiDepth.setSelected(ToolDefaults.flag("cutout.multidepth"));
+        TextField perPass = new TextField(ToolDefaults.text("cutout.depthperpass", metric)); perPass.setId("cutout-depth-per-pass");
         perPass.disableProperty().bind(multiDepth.selectedProperty().not());
-        TextField thinZ = new TextField(metric ? "-0.5" : "-0.02"); thinZ.setId("cutout-thin-z");
+        TextField thinZ = new TextField(ToolDefaults.text("cutout.thinz", metric)); thinZ.setId("cutout-thin-z");
         var seed = new java.util.concurrent.atomic.AtomicReference<>(new GeometryGCodeParameters(
                 metric ? 3 : 0.12, metric ? 1.7 : 0.067, true, metric ? 0.5 : 0.02, metric ? 120 : 5, 0, false));
         var profile = new java.util.concurrent.atomic.AtomicReference<>(ToolProfile.C1);
         var commonDefaults = new java.util.concurrent.atomic.AtomicReference<>(org.flatcam.app.project.CncJobDefaults.EMPTY);
         cutZ.setTooltip(new Tooltip("Cut Z negativo e finito, salvo na Geometry do recorte. Exemplo: -1,7.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: confira a espessura da placa e quanto a ferramenta entrará no material de sacrifício antes de gerar CNC."));
         thinZ.setTooltip(new Tooltip("Thin Depth é Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e pontes -0,5. Só é usado no tipo Thin.\n\nO valor vai para a Geometry separada das pontes; o recorte principal conserva Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: unidade do objeto (mm ou in)."));
-        TextField gapSizeField = new TextField(metric ? "4" : "0.16");
+        TextField gapSizeField = new TextField(ToolDefaults.text("cutout.gapsize", metric));
         gapSizeField.setId("cutout-gap-size");
         ComboBox<GapType> gapTypeCombo = new ComboBox<>();
         gapTypeCombo.getItems().addAll(GapType.values());
-        gapTypeCombo.setValue(GapType.BRIDGE);
+        gapTypeCombo.setValue(ToolDefaults.choice("cutout.gaptype", GapType.class));
         gapTypeCombo.setId("cutout-gap-type");
         thinZ.disableProperty().bind(gapTypeCombo.valueProperty().isNotEqualTo(GapType.THIN));
-        TextField biteDiameterField = new TextField(metric ? "0.8" : "0.031");
-        TextField biteSpacingField = new TextField(metric ? "0.4" : "0.016");
+        TextField biteDiameterField = new TextField(ToolDefaults.text("cutout.bitediameter", metric));
+        TextField biteSpacingField = new TextField(ToolDefaults.text("cutout.bitespacing", metric));
         biteDiameterField.disableProperty().bind(gapTypeCombo.valueProperty().isNotEqualTo(GapType.M_BITES));
         biteSpacingField.disableProperty().bind(gapTypeCombo.valueProperty().isNotEqualTo(GapType.M_BITES));
 
         ComboBox<GapPattern> gapPatternCombo = new ComboBox<>();
         gapPatternCombo.getItems().addAll(GapPattern.values());
-        gapPatternCombo.setValue(GapPattern.FOUR);
+        gapPatternCombo.setValue(ToolDefaults.choice("cutout.gaps", GapPattern.class));
         gapPatternCombo.setId("cutout-gap-pattern");
         ToolDescriptions.apply(gapPatternCombo, "Posição dos gaps",
                 "LR/TB criam duas pontes; FOUR cria quatro; TWO_LR/TWO_TB criam quatro; EIGHT cria oito.\n\n"

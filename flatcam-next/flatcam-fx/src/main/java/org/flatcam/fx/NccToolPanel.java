@@ -63,13 +63,13 @@ final class NccToolPanel {
 
     private static final class ToolRow {
         final double diameter;
-        ToolProfile toolProfile = ToolProfile.C1;
+        ToolProfile toolProfile = ToolDefaults.choice("ncc.tooltype", ToolProfile.class);
         NccOperation operation;
-        String overlapPercent = "40";
-        NccMethod method = NccMethod.SEED;
-        NccSeedPolicy seedPolicy = NccSeedPolicy.STABLE;
-        boolean connect = true;
-        boolean contour = true;
+        String overlapPercent = ToolDefaults.text("ncc.overlap", true);
+        NccMethod method = ToolDefaults.choice("ncc.method", NccMethod.class);
+        NccSeedPolicy seedPolicy = ToolDefaults.choice("ncc.seedpolicy", NccSeedPolicy.class);
+        boolean connect = ToolDefaults.flag("ncc.connect");
+        boolean contour = ToolDefaults.flag("ncc.contour");
         boolean offsetEnabled;
         String offset = "0.0";
         LegacyToolsDatabase.MillingTool machining;
@@ -179,8 +179,7 @@ final class NccToolPanel {
         sourceGrid.addRow(0, new Label("Obj Type:"), new HBox(10, geometrySourceRadio, gerberSourceRadio));
         sourceGrid.addRow(1, new Label("Object:"), sourceCombo);
         GridPane.setHgrow(sourceCombo, Priority.ALWAYS);
-        ObservableList<ToolRow> tools = FXCollections.observableArrayList(
-                new ToolRow(metric ? 1.0 : 0.040), new ToolRow(metric ? 0.5 : 0.020));
+        ObservableList<ToolRow> tools = FXCollections.observableArrayList(defaultTools(metric));
         Label toolError = new Label();
         toolError.getStyleClass().add("form-error-label");
         toolError.setWrapText(true);
@@ -266,7 +265,7 @@ final class NccToolPanel {
         updateTableHeight.run();
         toolTable.getSelectionModel().selectFirst();
 
-        Spinner<Double> newDiaSpinner = spinner(0.0001, 10_000, metric ? 0.1 : 0.004,
+        Spinner<Double> newDiaSpinner = spinner(0.0001, 10_000, ToolDefaults.number("ncc.newdia", metric),
                 metric ? 0.1 : 0.001);
         TextField newDiaField = newDiaSpinner.getEditor();
         newDiaSpinner.setMaxWidth(Double.MAX_VALUE);
@@ -424,7 +423,7 @@ final class NccToolPanel {
         ToggleGroup millingGroup = new ToggleGroup();
         RadioButton climbRadio = radio("Climb", millingGroup);
         RadioButton conventionalRadio = radio("Conventional", millingGroup);
-        climbRadio.setSelected(true);
+        ("CONVENTIONAL".equals(ToolDefaults.choice("ncc.milling")) ? conventionalRadio : climbRadio).setSelected(true);
         HBox millingRow = new HBox(10, new Label("Milling Type:"), climbRadio, conventionalRadio);
         millingRow.setAlignment(Pos.CENTER_LEFT);
         Tooltip millingHelp = tooltip("Sentido de fresagem dos contornos ISO; e comum a todas as ferramentas ISO.");
@@ -528,15 +527,15 @@ final class NccToolPanel {
                 + "cobre do Gerber e avisa se alguma ferramenta e grande demais para fazer um\n"
                 + "isolamento completo. Apenas informativo - nao impede a geracao."));
 
-        Spinner<Double> overlapSpinner = spinner(0, 99.9999, 40, 0.1);
+        Spinner<Double> overlapSpinner = spinner(0, 99.9999, ToolDefaults.number("ncc.overlap", true), 0.1);
         TextField overlapField = overlapSpinner.getEditor();
-        Spinner<Double> marginSpinner = spinner(0, 10_000, metric ? 1.0 : 0.040,
+        Spinner<Double> marginSpinner = spinner(0, 10_000, ToolDefaults.number("ncc.margin", metric),
                 metric ? 0.1 : 0.01);
         TextField marginField = marginSpinner.getEditor();
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
         methodCombo.setId("ncc-method");
         methodCombo.getItems().addAll(NccMethod.values());
-        methodCombo.setValue(NccMethod.SEED);
+        methodCombo.setValue(ToolDefaults.choice("ncc.method", NccMethod.class));
         methodCombo.setTooltip(tooltip(
                 "Standard: passes concentricas para dentro.\n"
                 + "Seed: aneis crescentes a partir de um ponto central.\n"
@@ -545,7 +544,7 @@ final class NccToolPanel {
         ComboBox<NccSeedPolicy> seedPolicyCombo = new ComboBox<>();
         seedPolicyCombo.setId("ncc-seed-policy");
         seedPolicyCombo.getItems().addAll(NccSeedPolicy.values());
-        seedPolicyCombo.setValue(NccSeedPolicy.STABLE);
+        seedPolicyCombo.setValue(ToolDefaults.choice("ncc.seedpolicy", NccSeedPolicy.class));
         seedPolicyCombo.setMinWidth(0);
         seedPolicyCombo.setPrefWidth(180);
         seedPolicyCombo.setMaxWidth(Double.MAX_VALUE);
@@ -555,10 +554,10 @@ final class NccToolPanel {
                 + "Pequenas diferencas numericas na entrada ainda podem mudar o ponto e os trajetos.\n\n"
                 + "Esta escolha pertence a cada ferramenta; Standard e Lines nao a utilizam."));
         CheckBox connectCb = new CheckBox("Connect");
-        connectCb.setSelected(true);
+        connectCb.setSelected(ToolDefaults.flag("ncc.connect"));
         connectCb.setTooltip(tooltip("Une trajetos proximos quando o percurso de ligacao continua dentro da area segura da ferramenta."));
         CheckBox contourCb = new CheckBox("Contour");
-        contourCb.setSelected(true);
+        contourCb.setSelected(ToolDefaults.flag("ncc.contour"));
         contourCb.setTooltip(tooltip("Adiciona um passe final contornando a borda interna da area limpa."));
         CheckBox offsetCb = new CheckBox("Copper offset");
         offsetCb.setTooltip(tooltip("Ativa uma distância adicional de proteção ao redor das trilhas e pads. Habilita o valor de Offset.\n\nNão é a margem: Margin define o limite externo da área de limpeza; Offset protege o cobre dentro dessa área."));
@@ -566,6 +565,7 @@ final class NccToolPanel {
         TextField offsetField = offsetSpinner.getEditor();
         CheckBox restCb = new CheckBox("Rest Machining");
         restCb.setStyle("-fx-font-weight: bold;");
+        restCb.setSelected(ToolDefaults.flag("ncc.rest"));
         restCb.setTooltip(tooltip(
                 "Quando ativado, as ferramentas sao processadas da maior para a menor e cada uma\n"
                 + "so limpa o que a anterior, maior, nao conseguiu alcancar. Forca a ordem Reverse\n"
@@ -574,7 +574,12 @@ final class NccToolPanel {
         RadioButton noOrderRadio = radio("No", orderGroup);
         RadioButton forwardOrderRadio = radio("Forward", orderGroup);
         RadioButton reverseOrderRadio = radio("Reverse", orderGroup);
-        reverseOrderRadio.setSelected(true);
+        Runnable defaultOrder = () -> (switch (ToolDefaults.choice("ncc.order")) {
+            case "NONE" -> noOrderRadio;
+            case "FORWARD" -> forwardOrderRadio;
+            default -> reverseOrderRadio;
+        }).setSelected(true);
+        defaultOrder.run();
         Tooltip orderHelp = tooltip(
                 "No: usa a ordem da tabela acima.\n"
                 + "Forward: da menor para a maior ferramenta.\n"
@@ -857,13 +862,13 @@ final class NccToolPanel {
             cancelArea.run();
             (initialSource.gerber() ? gerberSourceRadio : geometrySourceRadio).setSelected(true);
             sourceCombo.setValue(initialSource);
-            tools.setAll(new ToolRow(metric ? 1.0 : 0.040), new ToolRow(metric ? 0.5 : 0.020));
+            tools.setAll(defaultTools(metric));
             toolTable.getSelectionModel().clearAndSelect(0);
-            newDiaSpinner.getValueFactory().setValue(metric ? 0.1 : 0.004);
-            marginSpinner.getValueFactory().setValue(metric ? 1.0 : 0.040);
-            reverseOrderRadio.setSelected(true);
-            climbRadio.setSelected(true);
-            restCb.setSelected(false);
+            newDiaSpinner.getValueFactory().setValue(ToolDefaults.number("ncc.newdia", metric));
+            marginSpinner.getValueFactory().setValue(ToolDefaults.number("ncc.margin", metric));
+            restCb.setSelected(ToolDefaults.flag("ncc.rest"));
+            defaultOrder.run();
+            ("CONVENTIONAL".equals(ToolDefaults.choice("ncc.milling")) ? conventionalRadio : climbRadio).setSelected(true);
             restConnectCb.setSelected(true);
             restContourCb.setSelected(true);
             restOffsetCb.setSelected(false);
@@ -904,6 +909,13 @@ final class NccToolPanel {
         RadioButton button = new RadioButton(text);
         button.setToggleGroup(group);
         return button;
+    }
+
+    /** The tools the panel opens with: the diameters of the "ncc.tooldia" default, each with the default settings. */
+    private static List<ToolRow> defaultTools(boolean metric) {
+        List<ToolRow> rows = new java.util.ArrayList<>();
+        for (double diameter : ToolDefaults.numbers("ncc.tooldia", metric)) rows.add(new ToolRow(diameter));
+        return rows;
     }
 
     private static Spinner<Double> spinner(double min, double max, double initial, double step) {

@@ -236,24 +236,26 @@ final class PaintToolPanel {
         showSelection.run();
 
         // --- parameters (Python's defaults) ---
-        TextField diameters = new TextField("0.3");
+        // The defaults of the units of the object the panel opens with (millimetres when there is none).
+        boolean metric = host.initialSource() == null || !"IN".equalsIgnoreCase(host.units(host.initialSource()));
+        TextField diameters = new TextField(ToolDefaults.text("paint.tooldia", metric));
         diameters.setMinWidth(0);
         HBox.setHgrow(diameters, javafx.scene.layout.Priority.ALWAYS);
         diameters.setTooltip(tooltip("Diâmetros positivos separados por vírgula, ponto e vírgula ou espaço, sem repetir. Use ponto decimal: 0.3; 1.0.\n\nAtualizar lista preserva os parâmetros dos diâmetros que continuam na lista; novos diâmetros recebem os parâmetros exibidos. Pintar também sincroniza a lista.\n\nUnidades: unidade da origem (mm ou in); vírgula é separador de ferramentas, não separador decimal neste campo."));
-        TextField overlap = new TextField("20");
-        TextField margin = new TextField("0.0");
+        TextField overlap = new TextField(ToolDefaults.text("paint.overlap", metric));
+        TextField margin = new TextField(ToolDefaults.text("paint.margin", metric));
         overlap.setPrefColumnCount(5);
         margin.setPrefColumnCount(5);
         ComboBox<NccMethod> method = new ComboBox<>();
         method.getItems().addAll(NccMethod.STANDARD, NccMethod.SEED, NccMethod.LINES, NccMethod.COMBO);
-        method.getSelectionModel().selectFirst();
+        method.setValue(ToolDefaults.choice("paint.method", NccMethod.class));
         CheckBox connect = new CheckBox("Conectar caminhos");
-        connect.setSelected(true);
+        connect.setSelected(ToolDefaults.flag("paint.connect"));
         CheckBox contour = new CheckBox("Contorno");
-        contour.setSelected(true);
+        contour.setSelected(ToolDefaults.flag("paint.contour"));
         ComboBox<NccOrder> order = new ComboBox<>();
         order.getItems().addAll(NccOrder.values());
-        order.getSelectionModel().select(NccOrder.REVERSE);
+        order.setValue(ToolDefaults.choice("paint.order", NccOrder.class));
         CheckBox rest = new CheckBox("Rest machining");
         rest.setTooltip(tooltip("Cada ferramenta menor preenche somente o que as maiores não alcançaram, usando a margem individual de sua linha.\n\nRest usa a ordem do maior para o menor e desabilita a ordem manual; não copia parâmetros entre ferramentas."));
         order.disableProperty().bind(rest.selectedProperty());

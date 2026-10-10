@@ -109,7 +109,10 @@ final class IsolationToolPanel {
                       Runnable cancelArea, Supplier<List<LegacyToolsDatabase.IsolationTool>> databaseLoader,
                       Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(initialSource.image().units());
-        double initialDiameter = metric ? 0.1 : 0.004;
+        double initialDiameter = ToolDefaults.number("iso.tooldia", metric);
+        java.util.function.Supplier<ToolRow> defaultRow = () -> new ToolRow(initialDiameter,
+                ToolDefaults.choice("iso.tooltype", ToolProfile.class), ToolDefaults.integer("iso.passes"),
+                ToolDefaults.number("iso.overlap", metric) / 100, ToolDefaults.choice("iso.type", IsolationType.class));
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
         sourceCombo.setValue(initialSource);
         sourceCombo.setMinWidth(0);
@@ -117,7 +120,7 @@ final class IsolationToolPanel {
         sourceCombo.setMaxWidth(Double.MAX_VALUE);
 
         ObservableList<ToolRow> rows = FXCollections.observableArrayList(
-                new ToolRow(initialDiameter, ToolProfile.C1, 1, 0.10, IsolationType.BOTH));
+                defaultRow.get());
         Label toolMessage = new Label();
         toolMessage.setWrapText(true);
         toolMessage.getStyleClass().add("form-error-label");
@@ -188,7 +191,12 @@ final class IsolationToolPanel {
         RadioButton noOrder = radio("No", orderGroup);
         RadioButton forwardOrder = radio("Forward", orderGroup);
         RadioButton reverseOrder = radio("Reverse", orderGroup);
-        reverseOrder.setSelected(true);
+        Runnable defaultOrder = () -> (switch (ToolDefaults.choice("iso.order")) {
+            case "NONE" -> noOrder;
+            case "FORWARD" -> forwardOrder;
+            default -> reverseOrder;
+        }).setSelected(true);
+        defaultOrder.run();
         HBox orderRow = new HBox(8, new Label("Tool order:"), noOrder, forwardOrder, reverseOrder);
         orderRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -267,11 +275,11 @@ final class IsolationToolPanel {
             toolMessage.setText("");
         });
 
-        Spinner<Integer> passesSpinner = new Spinner<>(1, 999, 1);
+        Spinner<Integer> passesSpinner = new Spinner<>(1, 999, ToolDefaults.integer("iso.passes"));
         passesSpinner.setEditable(true);
         passesSpinner.setMinWidth(0);
         passesSpinner.setPrefWidth(125);
-        Spinner<Double> overlapSpinner = spinner(0, 99.9999, 10, 0.1);
+        Spinner<Double> overlapSpinner = spinner(0, 99.9999, ToolDefaults.number("iso.overlap", metric), 0.1);
         ComboBox<IsolationType> typeCombo = new ComboBox<>(FXCollections.observableArrayList(IsolationType.values()));
         typeCombo.setConverter(new StringConverter<>() {
             @Override public String toString(IsolationType value) {
@@ -291,7 +299,7 @@ final class IsolationToolPanel {
                 };
             }
         });
-        typeCombo.setValue(IsolationType.BOTH);
+        typeCombo.setValue(ToolDefaults.choice("iso.type", IsolationType.class));
         Label parameterTitle = heading("Parameters for: Tool 1");
         boolean[] loading = {false};
         Runnable loadSelected = () -> {
@@ -349,15 +357,16 @@ final class IsolationToolPanel {
         });
 
         CheckBox combine = new CheckBox("Combine");
-        combine.setSelected(true);
+        combine.setSelected(ToolDefaults.flag("iso.combine"));
         CheckBox checkValidity = new CheckBox("Check validity");
+        checkValidity.setSelected(ToolDefaults.flag("iso.checkvalidity"));
         CheckBox rest = new CheckBox("Rest Machining");
         rest.selectedProperty().addListener((observable, oldValue, selected) -> {
             for (RadioButton radio : List.of(noOrder, forwardOrder, reverseOrder)) radio.setDisable(selected);
             if (selected) reverseOrder.setSelected(true);
         });
         CheckBox forcedRest = new CheckBox("Forced Rest");
-        forcedRest.setSelected(true);
+        forcedRest.setSelected(ToolDefaults.flag("iso.forcedrest"));
         forcedRest.setTooltip(new javafx.scene.control.Tooltip(
                 "Com Rest Machining: se a ferramenta atual nao conseguir isolar todos os furos de um "
                         + "poligono logo na primeira passada, o poligono inteiro e descartado para essa "
@@ -371,6 +380,8 @@ final class IsolationToolPanel {
             if (selected) rest.setSelected(false);
         });
         rest.disableProperty().bind(follow.selectedProperty());
+        rest.setSelected(ToolDefaults.flag("iso.rest"));
+        follow.setSelected(ToolDefaults.flag("iso.follow"));
         passesSpinner.disableProperty().unbind();
         passesSpinner.disableProperty().bind(notOne.or(follow.selectedProperty()));
         overlapSpinner.disableProperty().unbind();
@@ -480,16 +491,16 @@ final class IsolationToolPanel {
         reset.setOnAction(event -> {
             cancelArea.run();
             sourceCombo.setValue(initialSource);
-            rows.setAll(new ToolRow(initialDiameter, ToolProfile.C1, 1, 0.10, IsolationType.BOTH));
+            rows.setAll(defaultRow.get());
             table.getSelectionModel().clearAndSelect(0);
             diameterSpinner.getValueFactory().setValue(initialDiameter);
-            reverseOrder.setSelected(true);
-            combine.setSelected(true);
-            checkValidity.setSelected(false);
-            rest.setSelected(false);
-            forcedRest.setSelected(true);
-            follow.setSelected(false);
-            typeCombo.setValue(IsolationType.BOTH);
+            rest.setSelected(ToolDefaults.flag("iso.rest"));
+            defaultOrder.run();
+            combine.setSelected(ToolDefaults.flag("iso.combine"));
+            checkValidity.setSelected(ToolDefaults.flag("iso.checkvalidity"));
+            forcedRest.setSelected(ToolDefaults.flag("iso.forcedrest"));
+            follow.setSelected(ToolDefaults.flag("iso.follow"));
+            typeCombo.setValue(ToolDefaults.choice("iso.type", IsolationType.class));
             exceptionCombo.setValue(none);
             drawnMask[0] = null;
             areaStatus.setText("Nenhuma area desenhada.");

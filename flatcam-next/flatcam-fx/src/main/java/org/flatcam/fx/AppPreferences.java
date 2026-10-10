@@ -227,6 +227,29 @@ final class AppPreferences {
         flush();
     }
 
+    /** Where {@link ToolDefaults} keeps the values the user changed (its own node, one key per setting). */
+    static ToolDefaults.Store toolDefaultsStore() {
+        Preferences node = PREFS.node("toolDefaults");
+        return new ToolDefaults.Store() {
+            @Override
+            public String get(String key) {
+                return node.get(key, null);
+            }
+
+            @Override
+            public void put(String key, String value) {
+                node.put(key, value);
+                flush();
+            }
+
+            @Override
+            public void remove(String key) {
+                node.remove(key);
+                flush();
+            }
+        };
+    }
+
     /** Raw text setting (e.g. an export format encoded by its dialog); null when never saved. */
     static String loadText(String key) {
         return PREFS.get(key, null);

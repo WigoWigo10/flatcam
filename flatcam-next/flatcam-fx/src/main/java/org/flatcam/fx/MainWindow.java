@@ -1693,8 +1693,8 @@ final class MainWindow implements TclFlatcamHost {
         Menu backupMenu = new Menu("Backup");
         setLegacyMenuIcon(backupMenu, "backup24.png");
         backupMenu.getItems().addAll(
-                plannedItem("Importar preferencias", "backup_import24.png"),
-                plannedItem("Exportar preferencias", "backup_export24.png"));
+                chromeItem("Importar preferencias", "backup_import24.png", this::importToolDefaults),
+                chromeItem("Exportar preferencias", "backup_export24.png", this::exportToolDefaults));
         fileMenu.getItems().addAll(newMenu, openMenu, plannedItem("Recentes", "recent_files.png"),
                 new SeparatorMenuItem(), chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject),
                 plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
@@ -7658,13 +7658,53 @@ final class MainWindow implements TclFlatcamHost {
         VBox panel = new VBox(12, title,
                 new Label("Aparencia"), grid,
                 new Separator(), new Label("Plot Area"), snap, showGrid, linked, axis, hud, workspace,
-                feedback, apply);
+                feedback, apply,
+                new Separator(), new Label("Padroes das ferramentas"), ToolDefaultsPane.build());
         panel.setPadding(new Insets(18));
         panel.setMaxWidth(460);
         PanelTooltips.install(panel, "Preferencias");
         ScrollPane scroll = new ScrollPane(panel);
         scroll.setFitToWidth(true);
         return scroll;
+    }
+
+    /** File > Backup > Exportar preferencias: the tool defaults as an editable .properties file. */
+    private void exportToolDefaults() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Exportar preferencias das ferramentas");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Preferencias", "*.properties"));
+        chooser.setInitialFileName("flatcam-fx-ferramentas.properties");
+        File file = chooser.showSaveDialog(scene.getWindow());
+        if (file == null) {
+            return;
+        }
+        try (var writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
+            ToolDefaults.export().store(writer, "FlatCAM FX - padroes das ferramentas (@mm / @in = unidades)");
+            appendConsole("Preferencias das ferramentas exportadas para " + file.getName() + ".");
+        } catch (IOException failed) {
+            appendConsole("Falha ao exportar preferencias: " + failed.getMessage());
+        }
+    }
+
+    /** File > Backup > Importar preferencias: applies an exported file; invalid or unknown entries are skipped. */
+    private void importToolDefaults() {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle("Importar preferencias das ferramentas");
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Preferencias", "*.properties"));
+        File file = chooser.showOpenDialog(scene.getWindow());
+        if (file == null) {
+            return;
+        }
+        java.util.Properties properties = new java.util.Properties();
+        try (var reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+            properties.load(reader);
+        } catch (IOException | IllegalArgumentException failed) {
+            appendConsole("Falha ao importar preferencias: " + failed.getMessage());
+            return;
+        }
+        int[] counts = ToolDefaults.importFrom(properties);
+        appendConsole("Preferencias importadas de " + file.getName() + ": " + counts[0] + " aplicadas, " + counts[1]
+                + " ignoradas. Valem para os paineis abertos a partir de agora.");
     }
 
     private static double preferenceStep(String text, String label) {
