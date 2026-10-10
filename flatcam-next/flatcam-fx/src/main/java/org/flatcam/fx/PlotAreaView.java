@@ -62,10 +62,6 @@ final class PlotAreaView extends StackPane {
                         boolean visible, LayerCategory category, boolean filled, boolean multicolor) {
     }
 
-    /** The last density image of a layer and the view it was made for: identical views reuse it, others stretch it. */
-    private record DenseFrame(DenseRenderer.View view, javafx.scene.image.WritableImage image) {
-    }
-
     /** A cheaper visual-only CNC path used while the precise buffered stroke is subpixel. */
     private record LodGeometry(Geometry centerlines, double strokeWidthWorld, boolean stroked) {
     }
@@ -276,11 +272,28 @@ final class PlotAreaView extends StackPane {
     /** Opt-in diagnostics: completion means commands issued, not a GPU-presented frame. */
     record RenderSample(long commandsNanos, boolean ready, boolean failed) { }
     private Consumer<RenderSample> renderObserver;
+    private PlotCncProbe cncProbe;
+
+    /** Diagnostic omissions cannot be installed by normal startup/preferences. FX-owned, borrowed observer. */
+    void setCncBenchmarkProbe(PlotCncProbe probe) {
+        if (!javafx.application.Platform.isFxApplicationThread()) throw new IllegalStateException("Plot probe belongs to FX");
+        if (disposed && probe != null) throw new IllegalStateException("Plot probe cannot outlive viewport disposal");
+        if (probe != null && !Boolean.getBoolean("flatcam.plot.benchmark"))
+            throw new IllegalStateException("CNC ablation requires the opt-in Plot benchmark");
+        cncProbe = probe;
+        requestInteractionRedraw();
+    }
+
+    private boolean includesCncPass(PlotCncProbe.Pass pass) { return cncProbe == null || cncProbe.includes(pass); }
+    private boolean includesCncBody(double lineWidth) { return cncProbe == null || cncProbe.includesBody(lineWidth); }
+    private void recordCncPass(PlotCncProbe.Pass pass, boolean raster, double width) {
+        if (cncProbe != null) cncProbe.record(pass, raster, width);
+    }
 
     void setRenderObserver(Consumer<RenderSample> observer) { renderObserver = observer; }
     boolean renderReady() {
         return !disposed && !interactionRedrawPending && !indexCache.preparing()
-                && !indexCache.failed() && !denseRenderer.preparing();
+                && !indexCache.failed() && !densityRenderer.preparing();
     }
     boolean renderFailed() { return indexCache.failed(); }
     PlotCamera cameraSnapshot() {
@@ -319,22 +332,10 @@ final class PlotAreaView extends StackPane {
                     && !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.index.async")));
     private final Label preparingLabel = new Label("Preparando visualização...");
     private boolean disposed;
-    /** Layers currently drawn as a density image (see {@link DensityRaster}); gives the mode its hysteresis. */
-    private final java.util.Set<Object> denseLayers = new java.util.HashSet<>();
-    private final Map<Object, DenseFrame> denseFrames = new LinkedHashMap<>();
-    /** At most one extra (widest) camera frame per binding, so zooming back out has a full preview. */
-    private final Map<Object, DenseFrame> denseOverviewFrames = new LinkedHashMap<>();
-    private short[] denseCover = new short[0];
-    private int[] densePixels = new int[0];
     private boolean lastLayerDense;
-    /**
-     * Density images are rasterized on a background thread (see {@link DenseRenderer}); until the one for the current
-     * view is ready the previous one is drawn moved and scaled to fit. {@code -Dflatcam.plot.density.async=false}
-     * rasterizes on the JavaFX thread instead (what the screenshot harnesses use).
-     */
-    private static final boolean DENSITY_PIXEL_BUFFER = !"false".equalsIgnoreCase(
-            System.getProperty("flatcam.plot.density.pixelBuffer"));
-    private final DenseRenderer denseRenderer = new DenseRenderer(javafx.application.Platform::runLater, this::denseFrameReady);
+    private final PlotDensityRenderer densityRenderer = new PlotDensityRenderer(DENSITY_ASYNC,
+            !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.pixelBuffer")),
+            this::acceptDensityFrame, this::requestInteractionRedraw);
     private boolean lastLayerStale;
     private final PlotAreaPerformance performance = PlotAreaPerformance.fromSystemProperties();
     private final UiFluidityMetrics uiFluidity = new UiFluidityMetrics("fx");
@@ -935,10 +936,7 @@ final class PlotAreaView extends StackPane {
         layers.clear();
         lodLayers.clear();
         indexCache.clear();
-        denseLayers.clear();
-        denseFrames.clear();
-        denseOverviewFrames.clear();
-        denseRenderer.clear();
+        densityRenderer.clear();
         annotations.clear();
         arrows.clear();
         stopWalk();
@@ -959,13 +957,12 @@ final class PlotAreaView extends StackPane {
         if (disposed) return;
         disposed = true;
         indexCache.close();
-        denseRenderer.shutdown();
+        densityRenderer.close();
         interactionRedrawTimer.stop();
         if (uiFluidityTimer != null) uiFluidityTimer.stop();
         renderObserver = null;
+        cncProbe = null;
         stopWalk();
-        denseFrames.clear();
-        denseOverviewFrames.clear();
     }
 
     /** Coalesces the many layer mutations performed while restoring a project into one repaint. */
@@ -1852,27 +1849,37 @@ final class PlotAreaView extends StackPane {
                         try {
                             RenderLayer lodLayer = new RenderLayer(drawnGeometry, true, lodColor, lodColor,
                                     true, category, true, false);
-                            if (drawDensityLayer(gc, entry.getKey(), lodLayer, index, viewBounds, contentWidth,
-                                    contentHeight, lodLineWidth)) {
-                                // Packed segments already read as one colour: the image stands in for the strokes.
-                            } else {
-                                drawLayer(gc, lodLayer, contentWidth, contentHeight, viewBounds, index);
+                            lastLayerDense = lastLayerStale = false;
+                            if (includesCncBody(lodLineWidth)) {
+                                // Packed segments use an image; wide strokes remain vector.
+                                if (!drawDensityLayer(gc, entry.getKey(), lodLayer, index, viewBounds, contentWidth,
+                                        contentHeight, lodLineWidth))
+                                    drawLayer(gc, lodLayer, contentWidth, contentHeight, viewBounds, index);
+                                recordCncPass(PlotCncProbe.Pass.BODY, lastLayerDense, lodLineWidth);
                             }
-                            if (!lastLayerDense && lod.stroked() && wideStroke >= PASS_LINES_MIN_WIDTH) {
+                            if (lod.stroked() && wideStroke >= PASS_LINES_MIN_WIDTH
+                                    && includesCncPass(PlotCncProbe.Pass.PASS_LINES)) {
                                 // Zoomed in on a wide cutter: show each pass as a thin line over the body.
                                 Color passColor = lodColor.deriveColor(0, 1, 0.45, 0.9);
                                 gc.setLineDashes();
                                 lodLineWidth = 1.25;
                                 drawLayer(gc, new RenderLayer(drawnGeometry, true, passColor, passColor,
                                         true, category, true, false), contentWidth, contentHeight, viewBounds, index);
+                                recordCncPass(PlotCncProbe.Pass.PASS_LINES, false, lodLineWidth);
                             }
                         } finally {
                             lodLineWidth = Double.NaN;
                         }
                         gc.restore();
-                    } else if (!drawDensityLayer(gc, entry.getKey(), layer, index, viewBounds, contentWidth,
-                            contentHeight, layer.strokeOnly() ? 1.5 : 1)) {
-                        drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
+                    } else {
+                        lastLayerDense = lastLayerStale = false;
+                        if (category != LayerCategory.CNCJOB || includesCncBody(layer.strokeOnly() ? 1.5 : 1)) {
+                            if (!drawDensityLayer(gc, entry.getKey(), layer, index, viewBounds, contentWidth,
+                                    contentHeight, layer.strokeOnly() ? 1.5 : 1))
+                                drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
+                            if (category == LayerCategory.CNCJOB)
+                                recordCncPass(PlotCncProbe.Pass.BODY, lastLayerDense, layer.strokeOnly() ? 1.5 : 1);
+                        }
                     }
                     if (profiling) {
                         long elapsed = System.nanoTime() - layerStart;
@@ -1900,10 +1907,14 @@ final class PlotAreaView extends StackPane {
             gc.clip();
             stepView.drawLegs(gc, stepViewTransform(contentWidth, contentHeight), background);
             gc.restore();
-        } else {
+        } else if (includesCncPass(PlotCncProbe.Pass.DECORATIONS)) {
             drawArrows(gc, contentWidth, contentHeight, viewBounds);
         }
-        drawAnnotations(gc, contentWidth, contentHeight, viewBounds);
+        if (includesCncPass(PlotCncProbe.Pass.DECORATIONS)) {
+            drawAnnotations(gc, contentWidth, contentHeight, viewBounds);
+            if (!arrows.isEmpty() || !annotations.isEmpty())
+                recordCncPass(PlotCncProbe.Pass.DECORATIONS, false, 0);
+        }
         if (stepView.hasSelection()) {
             stepView.drawHud(gc, stepViewTransform(contentWidth, contentHeight), palette.background(), annotationColor);
         }
@@ -1927,165 +1938,24 @@ final class PlotAreaView extends StackPane {
         performance.logPhase(phase, startNanos);
     }
 
-    private void forgetDensity(Object key) {
-        denseLayers.remove(key);
-        denseFrames.remove(key);
-        denseOverviewFrames.remove(key);
-        denseRenderer.forget(key);
+    private void forgetDensity(Object key) { densityRenderer.forget(key); }
+
+    /** Retain pixels only as a display preview; editing/selection keep the current geometry. */
+    private void invalidateDensity(Object key) { densityRenderer.invalidate(key); }
+
+    private boolean acceptDensityFrame(Object key) {
+        return !disposed && (layers.containsKey(key) || key == HIGHLIGHT_KEY || key == REFERENCE_KEY);
     }
 
-    /** Keep old display pixels only as a preview; pending worker publications are cancelled. */
-    private void invalidateDensity(Object key) {
-        denseRenderer.forget(key);
-    }
+    PlotDensityRenderer.Stats rasterStats() { return densityRenderer.stats(); }
 
-    /**
-     * Density level of detail: a stroke-only layer with thousands of packed segments in view is drawn as one image of
-     * per-pixel line counts instead of thousands of Canvas strokes (see {@link DensityRaster}). Returns whether it was
-     * drawn that way; sets {@link #lastLayerDense} either way. Wide strokes and multicolor layers stay vector.
-     */
     private boolean drawDensityLayer(GraphicsContext gc, Object key, RenderLayer layer, PlotDrawableIndex index,
-                                     Envelope viewBounds, double contentWidth, double contentHeight,
-                                     double lineWidth) {
-        lastLayerDense = false;
-        lastLayerStale = false;
-        if (index == null || !layer.strokeOnly() || layer.multicolor() || !(lineWidth <= 2.5)) {
-            denseLayers.remove(key);
-            denseRenderer.suspend(key);
-            return false;
-        }
-        double[] load = index.visibleLoad(viewBounds);
-        boolean wasDense = denseLayers.contains(key);
-        if (!DensityRaster.shouldRasterize((long) load[0], load[1], scale, wasDense)) {
-            denseLayers.remove(key);
-            denseRenderer.suspend(key);
-            return false;
-        }
-        denseLayers.add(key);
-        int width = Math.max(1, (int) Math.ceil(contentWidth));
-        int height = Math.max(1, (int) Math.ceil(contentHeight));
-        Color color = layer.strokeColor();
-        DenseRenderer.View view = new DenseRenderer.View(index.geometry(), scale, viewCenterX, viewCenterY,
-                contentWidth / 2.0 - viewCenterX * scale, contentHeight / 2.0 + viewCenterY * scale, width, height,
-                color.getRed(), color.getGreen(), color.getBlue(), color.getOpacity(), lineWidth);
-        // Old geometry pixels are a display-only preview during an edit, never the editing/selection model.
-        DenseFrame frame = previewFrame(key, view);
-        if (frame == null || !frame.view().sameAs(view)) {
-            if (DENSITY_ASYNC) {
-                // Ask the background thread for this view and keep showing the previous image, stretched to fit.
-                denseRenderer.request(key, view, index, viewBounds);
-                lastLayerDense = true;
-                if (frame != null) {
-                    drawStaleDenseFrame(gc, frame, view, contentWidth, contentHeight);
-                    lastLayerStale = true;
-                }
-                return true;
-            }
-            int pixels = width * height;
-            if (denseCover.length < pixels) {
-                denseCover = new short[pixels];
-                densePixels = new int[pixels];
-            }
-            DensityRaster.rasterize(index.visibleParts(viewBounds), scale, view.offsetX(), view.offsetY(), width, height,
-                    denseCover, lineWidth);
-            DensityRaster.toPremultipliedArgb(denseCover, pixels, color.getRed(), color.getGreen(), color.getBlue(),
-                    color.getOpacity(), densePixels);
-            frame = new DenseFrame(view, denseImage(frame, width, height, densePixels));
-            denseFrames.put(key, frame);
-        }
-        // An external overview cache hit also supersedes any queued intermediate camera frame.
-        if (DENSITY_ASYNC) denseRenderer.suspend(key);
-        // The Canvas samples an image bilinearly even when it is drawn 1:1, which blurred the coverage (a fully covered
-        // pixel came out at ~82% and the gaps between packed lines filled in). Nearest-neighbour keeps it exact.
-        boolean smoothing = gc.isImageSmoothing();
-        gc.setImageSmoothing(false);
-        gc.drawImage(frame.image(), RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
-        gc.setImageSmoothing(smoothing);
-        lastLayerDense = true;
-        return true;
-    }
-
-    /** A new image of {@code pixels}, reusing the previous frame's when it has the right size. */
-    private static javafx.scene.image.WritableImage denseImage(DenseFrame previous, int width, int height, int[] pixels) {
-        javafx.scene.image.WritableImage image = previous != null && previous.view().width() == width
-                && previous.view().height() == height ? previous.image() : new javafx.scene.image.WritableImage(width, height);
-        image.getPixelWriter().setPixels(0, 0, width, height, javafx.scene.image.PixelFormat.getIntArgbPreInstance(),
-                pixels, 0, width);
-        return image;
-    }
-
-    /** Called on the JavaFX thread when the background thread has finished the image of a layer's current view. */
-    private void denseFrameReady(Object key) {
-        if (disposed) return;
-        DenseRenderer.Frame ready = denseRenderer.frame(key);
-        if (ready == null || !(layers.containsKey(key) || key == HIGHLIGHT_KEY || key == REFERENCE_KEY)) {
-            return;
-        }
-        // A completed worker array is never reused or mutated. PixelBuffer only wraps it;
-        // the graphics pipeline still needs to upload pixels and may perform backend-specific conversions.
-        javafx.scene.image.WritableImage image = DENSITY_PIXEL_BUFFER
-                ? DensityFrameImage.create(ready.view().width(), ready.view().height(), ready.pixels())
-                // The overview may still reference the last image; PixelWriter must not overwrite its pixels.
-                : denseImage(null, ready.view().width(), ready.view().height(), ready.pixels());
-        denseFrames.put(key, new DenseFrame(ready.view(), image));
-        DenseFrame overview = denseOverviewFrames.get(key);
-        if (overview == null || overview.view().geometry() != ready.view().geometry()
-                || worldFrameArea(ready.view()) >= worldFrameArea(overview.view())) {
-            denseOverviewFrames.put(key, denseFrames.get(key));
-        }
-        requestInteractionRedraw();
-    }
-
-    private static double worldFrameArea(DenseRenderer.View view) {
-        return (double) view.width() * view.height() / (view.scale() * view.scale());
-    }
-
-    private static Envelope frameBounds(DenseRenderer.View view) {
-        return new Envelope(-view.offsetX() / view.scale(), (view.width() - view.offsetX()) / view.scale(),
-                (view.offsetY() - view.height()) / view.scale(), view.offsetY() / view.scale());
-    }
-
-    private static boolean sameInk(DenseRenderer.View a, DenseRenderer.View b) {
-        return a.red() == b.red() && a.green() == b.green() && a.blue() == b.blue()
-                && a.opacity() == b.opacity() && a.lineWidth() == b.lineWidth();
-    }
-
-    private DenseFrame previewFrame(Object key, DenseRenderer.View view) {
-        DenseFrame last = denseFrames.get(key);
-        DenseFrame overview = denseOverviewFrames.get(key);
-        if (last != null && !sameInk(last.view(), view)) last = null;
-        if (overview != null && !sameInk(overview.view(), view)) overview = null;
-        if (last != null && last.view().sameAs(view)) return last;
-        if (overview != null && overview.view().sameAs(view)) return overview;
-        // Prefer the latest geometry's preview, then the frame covering more of a zoomed-out viewport.
-        if (last != null && last.view().geometry() == view.geometry()
-                && (overview == null || overview.view().geometry() != view.geometry())) return last;
-        if (overview != null && overview.view().geometry() == view.geometry()
-                && (last == null || last.view().geometry() != view.geometry())) return overview;
-        if (overview != null && (last == null || !frameBounds(last.view()).covers(frameBounds(view)))) return overview;
-        return last;
-    }
-
-    /**
-     * Draws an image made for an earlier view as it would look in {@code now}: a world point sits at pixel
-     * {@code offset + p * scale} in each, so the image is scaled by {@code now.scale / old.scale} and moved to
-     * {@code now.offset - old.offset * k}. Clipped to the plot area; bilinear, since it is only a stand-in.
-     */
-    private void drawStaleDenseFrame(GraphicsContext gc, DenseFrame frame, DenseRenderer.View now, double contentWidth,
-                                     double contentHeight) {
-        DenseRenderer.View old = frame.view();
-        double k = now.scale() / old.scale();
-        double translateX = now.offsetX() - old.offsetX() * k;
-        double translateY = now.offsetY() - old.offsetY() * k;
-        gc.save();
-        gc.beginPath();
-        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
-        gc.clip();
-        // An edit at the same camera is still a 1:1 image: smoothing would visibly fade its thin lines.
-        gc.setImageSmoothing(k != 1 || translateX != Math.rint(translateX) || translateY != Math.rint(translateY));
-        gc.drawImage(frame.image(), RULER_LEFT_WIDTH + translateX,
-                RULER_TOP_HEIGHT + translateY, old.width() * k, old.height() * k);
-        gc.restore();
+                                     Envelope viewBounds, double contentWidth, double contentHeight, double lineWidth) {
+        var result = densityRenderer.draw(gc, key, index, layer.strokeOnly(), layer.multicolor(), layer.strokeColor(),
+                lineWidth, camera(contentWidth, contentHeight), viewBounds);
+        lastLayerDense = result != PlotDensityRenderer.DrawResult.VECTOR;
+        lastLayerStale = result == PlotDensityRenderer.DrawResult.PREVIEW;
+        return lastLayerDense;
     }
 
     private static boolean useCenterlineLod(RenderLayer layer, LodGeometry lod, double scale) {
@@ -2178,7 +2048,7 @@ final class PlotAreaView extends StackPane {
         drawSelectionBox(gc);
         preparingLabel.setText(indexCache.failed() ? "Falha ao preparar visualização; consulte os diagnósticos."
                 : "Preparando visualização...");
-        preparingLabel.setVisible(indexCache.preparing() || indexCache.failed() || denseRenderer.preparing());
+        preparingLabel.setVisible(indexCache.preparing() || indexCache.failed() || densityRenderer.preparing());
     }
 
     /**

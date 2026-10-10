@@ -28,7 +28,11 @@ final class PlotBenchmarkMetrics {
     }
 
     void pulse(long now) {
-        if (lastPulse != 0) pulses.add(Math.max(0, now - lastPulse));
+        if (lastPulse != 0) {
+            long interval = Math.max(0, now - lastPulse);
+            pulses.add(interval);
+            if (interval >= 50_000_000) PlotBenchmarkJfr.pulseGap(interval);
+        }
         lastPulse = now;
     }
 

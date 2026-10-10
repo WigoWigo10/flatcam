@@ -41,7 +41,7 @@ final class DenseRenderer {
         }
     }
 
-    /** A finished image: premultiplied ARGB pixels ({@code view.width() * view.height()}) of {@code view}. */
+    /** Completed ARGB_PRE array, transferred read-only to UI consumers. Never recycle/mutate after publication. */
     record Frame(View view, int[] pixels) {
     }
 
@@ -59,7 +59,10 @@ final class DenseRenderer {
     private final Map<Object, ScheduledFuture<?>> scheduled = new HashMap<>();
     private boolean stopped;
     private long nextId;
-    private short[] cover = new short[0];
+    private volatile short[] cover = new short[0];
+    /** Guarded by this: UI clear/close must not release a scratch array still used by the worker. */
+    private boolean rendering;
+    private boolean releaseScratch;
 
     /**
      * @param ui      runs a task on the thread that owns the displayed images
@@ -129,6 +132,11 @@ final class DenseRenderer {
         scheduled.clear();
         requested.clear();
         frames.clear();
+        releaseScratch = true;
+        if (!rendering) {
+            cover = new short[0];
+            releaseScratch = false;
+        }
     }
 
     /** Stops the worker (the view is going away). */
@@ -146,16 +154,36 @@ final class DenseRenderer {
         return worker.getQueue().size();
     }
 
+    long scratchBytes() { return (long) cover.length * 2; }
+
     private synchronized boolean isStale(Object key, long id) {
         Long newest = latest.get(key);
         return stopped || newest == null || newest != id;
     }
 
     private void render(Object key, long id, View view, PlotDrawableIndex index, Envelope bounds) {
+        synchronized (this) {
+            if (stopped) return;
+            rendering = true;
+        }
+        try {
+            renderFrame(key, id, view, index, bounds);
+        } finally {
+            synchronized (this) {
+                rendering = false;
+                if (releaseScratch || stopped) {
+                    cover = new short[0];
+                    releaseScratch = false;
+                }
+            }
+        }
+    }
+
+    private void renderFrame(Object key, long id, View view, PlotDrawableIndex index, Envelope bounds) {
         if (isStale(key, id)) {
             return;
         }
-        int pixels = view.width() * view.height();
+        int pixels = Math.multiplyExact(view.width(), view.height());
         if (cover.length < pixels) {
             cover = new short[pixels];
         }

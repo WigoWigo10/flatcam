@@ -3,6 +3,38 @@
 2026-10-10, branch `flatcam-next`, base `780728b5`. Consultar `git log` para o
 commit desta entrega; sem push.
 
+## Segundo incremento: rasters — 2026-10-10
+
+Após o commit da primeira fronteira (`a8116d0f`), mapas/overviews, pedidos e
+preparo/publicação foram extraídos para PlotDensityRenderer/CanvasRasterPresenter.
+O benchmark acrescenta `rasterBefore`/`rasterAfter`: estimativas de imagens,
+scratch CPU, filas/publicações e tempos CPU de preparar imagem/emitir desenho.
+Não são medidas de upload GPU ou VRAM. Escopo, lifecycle, testes e nova baseline
+em [PLOT_RASTER_BOUNDARY.md](PLOT_RASTER_BOUNDARY.md). Canvas permanece único.
+As seções abaixo descrevem o primeiro incremento e sua baseline histórica.
+
+## Continuação dos testes: comparação e JFR por fase
+
+O benchmark acrescenta `-PixelWriter` para o controle de transferência das
+imagens. Com `-Jfr`, também gera `phase-profile.jfr` e `jfr-summary.json`, com
+amostras CPU atribuídas aos intervalos de abertura/warm-up/interação/edição.
+O JSON principal agora usa schema 3 (a bateria de transferência usava 2) e
+explicita densityEnabled/pixelBuffer/jfrRequested/cncProbe/visualValidation.
+Resultados, limites e comandos em [PLOT_RENDER_TEST_RESULTS.md](PLOT_RENDER_TEST_RESULTS.md).
+Não alterou o backend nem demonstrou aceleração: as pausas do zoom continuam.
+
+`-CncProbe` isola corpos, corpos largos, linhas finas e decorações por omissão
+diagnóstica, nunca como preferência/otimização. Requer projeto/objeto explícitos
+e CNC visível; modos OMIT não certificam paridade mesmo quando COMPLETED.
+Contadores, contrato e ensaios em [PLOT_CNC_ABLATION.md](PLOT_CNC_ABLATION.md).
+
+## Corpos largos CNC em imagem — 2026-10-10
+
+Os corpos largos das passadas CNC passaram a usar a imagem de densidade (pontas e juntas
+redondas, equivalência com o Canvas medida por teste de pixels). No projeto de referência o
+intervalo máximo de pulso do zoom caiu de ~48 ms para ~17 ms sem omitir pixels. Medições,
+chaves de comparação e limites em [PLOT_WIDE_STROKE_DENSITY.md](PLOT_WIDE_STROKE_DENSITY.md).
+
 ## Escopo entregue
 
 O Canvas continua sendo o único backend. Não foram alterados JTS, cálculo CAM,
@@ -56,7 +88,7 @@ driver, tema, layers e corpus iguais. Faça ao menos três repetições.
 Não execute benchmark junto do build completo ou de oráculos CAM.
 
 Parâmetros: `-Steps` (240 padrão), `-Repeats` (3), `-Width` (1280), `-Height`
-(800), `-TimeoutSeconds` (60), `-Theme`, `-Software` e `-Jfr` opcional.
+(800), `-TimeoutSeconds` (60), `-Theme`, `-Software`, `-PixelWriter` e `-Jfr` opcional.
 Largura/altura são da Scene em pixels lógicos, não do framebuffer físico.
 
 O script compila o reactor e executa somente `MainPlotRenderBenchmarkTest`.

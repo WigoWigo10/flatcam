@@ -45,6 +45,21 @@ final class DensityRaster {
     /** Hysteresis: a layer already in density mode stays there until clearly out of the thresholds. */
     static final double LEAVE_FACTOR = 0.6;
 
+    /**
+     * Strokes wider than this many pixels get round caps and joins, as the Canvas draws them: the area under each
+     * segment alone would leave a notch at every bend and a flat end at every open path.
+     */
+    static final double ROUND_FROM_WIDTH = 2.5;
+
+    /** {@code -Dflatcam.plot.density.wide=false} keeps wide strokes (CNC cutter paths) on the vector Canvas. */
+    private static final boolean WIDE_ENABLED = !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.wide"));
+
+    /** Visible segments from which a wide stroke is drawn as an image. */
+    static final int WIDE_MIN_SEGMENTS = Integer.getInteger("flatcam.plot.density.wideMin", 300);
+
+    /** Widest stroke the density image takes over from the Canvas (a wider one is a handful of huge strokes). */
+    static final double MAX_WIDTH = 96;
+
     private DensityRaster() {
     }
 
@@ -53,8 +68,22 @@ final class DensityRaster {
      * as a density image at {@code scale} pixels per unit.
      */
     static boolean shouldRasterize(long segments, double worldLength, double scale, boolean alreadyDense) {
+        return shouldRasterize(segments, worldLength, scale, alreadyDense, 1);
+    }
+
+    /**
+     * As above for a stroke of {@code lineWidth} pixels. A wide stroke costs the Canvas far more per segment than a
+     * thin one (the rasterizer fills the stroke's area, not just its centre line), so it switches to the image with
+     * fewer segments.
+     */
+    static boolean shouldRasterize(long segments, double worldLength, double scale, boolean alreadyDense,
+                                   double lineWidth) {
         if (!ENABLED) {
             return false;
+        }
+        if (lineWidth > ROUND_FROM_WIDTH) {
+            return WIDE_ENABLED && lineWidth <= MAX_WIDTH
+                    && segments >= WIDE_MIN_SEGMENTS * (alreadyDense ? LEAVE_FACTOR : 1.0);
         }
         if (segments < MIN_SEGMENTS * (alreadyDense ? LEAVE_FACTOR : 1.0)) {
             return false;
@@ -149,17 +178,80 @@ final class DensityRaster {
             dot(previousX, previousY, width, rowStart, rowEnd, cover, lineWidth);
             return;
         }
+        boolean round = lineWidth > ROUND_FROM_WIDTH;
+        double radius = lineWidth / 2;
+        if (round) {
+            disc(previousX, previousY, radius, width, rowStart, rowEnd, cover);
+        }
+        double directionX = 0;
+        double directionY = 0;
+        boolean hasDirection = false;
         for (int i = 1; i < size; i++) {
             double x = sequence.getX(i) * scale + offsetX;
             double y = offsetY - sequence.getY(i) * scale;
             drawSegment(previousX, previousY, x, y, width, height, rowStart, rowEnd, cover, lineWidth);
+            if (round) {
+                double dx = x - previousX;
+                double dy = y - previousY;
+                double length = Math.hypot(dx, dy);
+                if (length > 1e-9) {
+                    dx /= length;
+                    dy /= length;
+                    // A join only shows when the path turns enough for the wedge to reach a visible width.
+                    if (hasDirection) {
+                        double cosine = directionX * dx + directionY * dy;
+                        if (radius * Math.sqrt(Math.max(0, (1 - cosine) / 2)) > 0.12) {
+                            disc(previousX, previousY, radius, width, rowStart, rowEnd, cover);
+                        }
+                    }
+                    directionX = dx;
+                    directionY = dy;
+                    hasDirection = true;
+                }
+                if (i == size - 1) {
+                    disc(x, y, radius, width, rowStart, rowEnd, cover);
+                }
+            }
             previousX = x;
             previousY = y;
         }
     }
 
+    /**
+     * A round cap or join: the disc of {@code radius} around the point, with the coverage a pixel gets from a disc
+     * (the distance to its edge, clamped to a pixel). It is merged with {@code max}, not added: the body of the stroke
+     * already covers most of the disc and adding would thicken its edges there.
+     */
+    private static void disc(double cx, double cy, double radius, int width, int rowStart, int rowEnd, short[] cover) {
+        if (!Double.isFinite(cx) || !Double.isFinite(cy)) {
+            return;
+        }
+        int firstRow = (int) Math.max(rowStart, Math.floor(cy - radius - 1));
+        int lastRow = (int) Math.min(rowEnd - 1, Math.ceil(cy + radius + 1));
+        int firstColumn = (int) Math.max(0, Math.floor(cx - radius - 1));
+        int lastColumn = (int) Math.min(width - 1, Math.ceil(cx + radius + 1));
+        for (int row = firstRow; row <= lastRow; row++) {
+            double dy = row + 0.5 - cy;
+            for (int column = firstColumn; column <= lastColumn; column++) {
+                double dx = column + 0.5 - cx;
+                double edge = radius + 0.5 - Math.sqrt(dx * dx + dy * dy);
+                if (edge > 0) {
+                    short units = (short) Math.round(Math.min(1, edge) * UNITS);
+                    int index = row * width + column;
+                    if (cover[index] < units) {
+                        cover[index] = units;
+                    }
+                }
+            }
+        }
+    }
+
     /** A single point: a small square of the stroke width, put in the pixel it falls in. */
     private static void dot(double x, double y, int width, int rowStart, int rowEnd, short[] cover, double lineWidth) {
+        if (lineWidth > ROUND_FROM_WIDTH) {
+            disc(x, y, lineWidth / 2, width, rowStart, rowEnd, cover);
+            return;
+        }
         int column = (int) Math.floor(x);
         int row = (int) Math.floor(y);
         if (column >= 0 && column < width && row >= rowStart && row < rowEnd) {

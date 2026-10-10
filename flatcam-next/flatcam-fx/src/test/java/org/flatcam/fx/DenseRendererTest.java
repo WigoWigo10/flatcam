@@ -43,12 +43,59 @@ class DenseRendererTest {
         }
     }
 
+    @Test
+    void clearAndShutdownReleaseScratchWithoutReusingPublishedPixels() throws Exception {
+        var renderer = renderer(1);
+        var geometry = lines();
+        var index = new PlotDrawableIndex(geometry);
+        renderer.request("layer", view(geometry, 1), index, null);
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        var completed = renderer.frame("layer");
+        int[] owned = completed.pixels().clone();
+        assertTrue(renderer.scratchBytes() > 0);
+        renderer.clear();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (renderer.scratchBytes() != 0 && System.nanoTime() < deadline) Thread.sleep(10);
+        assertEquals(0, renderer.scratchBytes());
+        org.junit.jupiter.api.Assertions.assertArrayEquals(owned, completed.pixels());
+        renderer.request("new", view(geometry, 2), index, null);
+        renderer.shutdown();
+        Thread.sleep(DenseRenderer.SETTLE_MILLIS * 2);
+        assertEquals(0, renderer.scratchBytes());
+        assertNull(renderer.frame("new"));
+        org.junit.jupiter.api.Assertions.assertArrayEquals(owned, completed.pixels());
+    }
+
     private static Geometry lines() {
         List<Geometry> list = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             list.add(FACTORY.createLineString(new Coordinate[] {new Coordinate(0, i), new Coordinate(19, i)}));
         }
         return FACTORY.buildGeometry(list);
+    }
+
+    @Test
+    void clearDefersScratchReleaseUntilTheActiveWorkerHasReturned() throws Exception {
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        renderer = new DenseRenderer(Runnable::run, key -> {
+            entered.countDown();
+            try { assertTrue(release.await(5, TimeUnit.SECONDS)); }
+            catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
+        });
+        try {
+            var geometry = lines();
+            renderer.request("key", view(geometry, 1), new PlotDrawableIndex(geometry), null);
+            assertTrue(entered.await(5, TimeUnit.SECONDS));
+            long bytes = renderer.scratchBytes();
+            assertTrue(bytes > 0);
+            renderer.clear(); // The inline publication is deliberately holding the worker's render scope.
+            assertEquals(bytes, renderer.scratchBytes(), "must not replace a scratch array while its owner is active");
+            release.countDown();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (renderer.scratchBytes() != 0 && System.nanoTime() < deadline) Thread.sleep(10);
+            assertEquals(0, renderer.scratchBytes());
+        } finally { release.countDown(); }
     }
 
     private static DenseRenderer.View view(Geometry geometry, double scale) {

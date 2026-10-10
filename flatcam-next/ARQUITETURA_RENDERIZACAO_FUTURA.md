@@ -2,6 +2,24 @@
 
 ## Incremento em 2026-10-10
 
+Diagnóstico posterior isolou os corpos largos vetoriais CNC como primeiro alvo
+do spike. No mesmo corpus/zoom, FULL e recontrole têm intervalo máximo de pulso
+aquecido ~48 ms. Omitir apenas corpos > 2,5 px, conservando raster estreito e
+linhas de detalhe, ficou em 16,72 / 17,31 ms. Omitir detalhes ou decorações
+não resolveu. Isso é ablação (pixels ausentes), não ganho com imagem equivalente
+ou FPS GPU. Contratos, controles frios/quentes e limites em
+[PLOT_CNC_ABLATION.md](PLOT_CNC_ABLATION.md).
+Priorizar um protótipo opcional para esses corpos, com alpha/caps/joins/cores
+equivalentes, buffers persistentes e fallback Canvas. Não há biblioteca/backend
+novo adotado, nem justificativa para remover detalhes ou desligar D3D no app.
+
+Segundo incremento: raster/caches e apresentação agora também saíram do
+viewport para PlotDensityRenderer e CanvasRasterPresenter. Ownership/cancelamento
+ficam explícitos; buffers temporários são liberados de forma segura em clear/close.
+Reensaios reais CNC/Geometry e SW passaram; não houve aceleração comprovada.
+Detalhes em [PLOT_RASTER_BOUNDARY.md](PLOT_RASTER_BOUNDARY.md). Próximo é o spike
+GPU integrado opcional, não uma troca automática do renderer em produção.
+
 A proposta histórica abaixo continua sem backend GPU próprio. A primeira
 fronteira foi implementada: PlotCamera + PlotRenderSnapshot + CanvasPlotRenderer,
 preservando o Canvas, LOD/densidade, picking e CAM. Benchmark visível reproduzível
@@ -12,8 +30,8 @@ controle software e JFR. Escopo, métricas, resultados e limitações em
 As observações antigas sobre retenção de `DenseRenderer.latest` abaixo são
 históricas: o código atual remove chaves em suspend/forget, limpa mapas em clear
 e remove tarefas canceladas da fila. Não reaplicar a correção como se ainda
-estivesse pendente. A camada de raster/apresentação ainda fica em PlotAreaView;
-extraí-la com ownership explícito é o próximo incremento antes do spike GPU.
+estivesse pendente. Raster/apresentação foram extraídos no segundo incremento
+descrito acima; não tratar a etapa de extração como pendente novamente.
 
 No baseline CNC, comandos Canvas rápidos coexistem com pausas na UI e amostras
 JFR no rasterizador Marlin da QuantumRenderer. Medir a apresentação real continua

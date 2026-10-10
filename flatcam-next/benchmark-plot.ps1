@@ -9,6 +9,9 @@ param(
     [ValidateRange(400, 7680)][int]$Width = 1280,
     [ValidateRange(300, 4320)][int]$Height = 800,
     [switch]$Software,
+    [switch]$PixelWriter,
+    [ValidateSet('FULL', 'OMIT_BODY', 'OMIT_WIDE_BODY', 'OMIT_PASS_LINES', 'OMIT_DECORATIONS', 'OMIT_CNC')]
+    [string]$CncProbe = 'FULL',
     [switch]$Jfr
 )
 
@@ -21,6 +24,9 @@ if ($Project) {
     }
 }
 if ($ObjectName -and -not $Project) { throw 'ObjectName requer Project.' }
+if ($CncProbe -ne 'FULL' -and (-not $Project -or -not $ObjectName)) {
+    throw 'Ablacao CNC requer Project e ObjectName explicitos; nao comparar tela vazia.'
+}
 $output = Join-Path $benchmarkRoot ('target/plot-benchmark-' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff'))
 New-Item -ItemType Directory -Path $output | Out-Null
 $revision = (& git -C $benchmarkRoot rev-parse HEAD).Trim()
@@ -31,6 +37,7 @@ $state = if ($dirty) { 'dirty' } else { 'clean' }
 # Surefire loads JavaFX on the classpath; named-module exports are unnecessary here.
 $jvmArgs = '-Dprism.verbose=true'
 if ($Software) { $jvmArgs += ' -Dprism.order=sw' }
+if ($PixelWriter) { $jvmArgs += ' -Dflatcam.plot.density.pixelBuffer=false' }
 if ($Jfr) {
     $recording = (Join-Path $output 'recording.jfr').Replace('\', '/')
     $jvmArgs += (' -XX:StartFlightRecording=settings=profile,dumponexit=true,filename="' + $recording + '"')
@@ -43,9 +50,12 @@ $arguments = @('-q', '-pl', 'flatcam-fx', '-am', 'test',
     "-Dflatcam.plot.benchmark.repeats=$Repeats", "-Dflatcam.plot.benchmark.timeoutSeconds=$TimeoutSeconds",
     "-Dflatcam.plot.benchmark.width=$Width", "-Dflatcam.plot.benchmark.height=$Height",
     "-Dflatcam.plot.benchmark.revision=$revision", "-Dflatcam.plot.benchmark.workingTree=$state",
+    "-Dflatcam.plot.benchmark.cncProbe=$CncProbe",
+    "-Dflatcam.plot.benchmark.jfr=$($Jfr.IsPresent.ToString().ToLowerInvariant())",
     "-DargLine=$jvmArgs")
 Write-Host 'Benchmark visivel: nao minimize nem interaja com a janela durante o ensaio.'
 Write-Host 'Mede comandos/filas/preparo e intervalos UI, nao FPS apresentado pela GPU.'
+if ($CncProbe -ne 'FULL') { Write-Host "DIAGNOSTICO ${CncProbe}: omite desenho propositalmente; nao conta como paridade/otimizacao." }
 Write-Host "Saida: $output"
 # stderr remains in the console; the separate Maven log avoids PowerShell 5 NativeCommandError.
 Push-Location $benchmarkRoot

@@ -164,4 +164,15 @@ class DensityRasterTest {
         assertEquals(2, near[0]);
         assertEquals(20, near[1], 1e-9);
     }
+
+    @Test
+    void wideStrokesSwitchToTheImageWithFewerSegmentsThanThinOnes() {
+        // A thin stroke needs thousands of segments; a cutter-wide one only hundreds, with hysteresis once dense.
+        assertEquals(false, DensityRaster.shouldRasterize(400, 4000, 10, false, 1.5));
+        assertEquals(true, DensityRaster.shouldRasterize(DensityRaster.WIDE_MIN_SEGMENTS, 4000, 10, false, 9));
+        assertEquals(false, DensityRaster.shouldRasterize(DensityRaster.WIDE_MIN_SEGMENTS - 1, 4000, 10, false, 9));
+        assertEquals(true, DensityRaster.shouldRasterize((long) (DensityRaster.WIDE_MIN_SEGMENTS * 0.7), 4000, 10, true, 9));
+        // Past the widest supported stroke the Canvas keeps it.
+        assertEquals(false, DensityRaster.shouldRasterize(100_000, 4000, 10, false, DensityRaster.MAX_WIDTH + 1));
+    }
 }

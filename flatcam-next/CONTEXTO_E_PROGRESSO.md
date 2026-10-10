@@ -1,5 +1,93 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade: alvo das pausas CNC isolado — 2026-10-10
+
+Worktree dirty sobre `a8116d0f`, branch `flatcam-next`; sem commit/push.
+Mantém os incrementos anteriores de fronteira raster e JFR ainda não commitados.
+
+- Benchmark schema 3 acrescenta `-CncProbe` e contagem de grupos BODY,
+  PASS_LINES e DECORATIONS. Modos OMIT removem pixels deliberadamente e são
+  rotulados diagnósticos, nunca aprovação de paridade/otimização. Só benchmark
+  instala o probe; startup/defaults do aplicativo não mudaram.
+- Sete ensaios sequenciais do CNC real, 120 passos × três repetições, D3D,
+  mesma Scene/HiDPI/tema, fonte SHA-256 preservada. FULL/recontrole têm pulso
+  máximo aquecido ~48 ms; omitir detalhes/decorações não elimina isso.
+  Omitir somente corpos > 2,5 px conserva raster estreito e 100 grupos de
+  linhas de detalhe, mas reduz pulso máximo aquecido a 16,72 / 17,31 ms.
+  Há picos frios ainda; não são FPS nem speedup com imagem equivalente.
+- Quatro testes novos cobrem política, contadores, opt-in/lifecycle e FULL
+  contra pixels normais. Resultados e limites em **PLOT_CNC_ABLATION.md**.
+
+Build integral: **1550 registrados, 1534 aprovados, 16 opcionais ignorados**,
+zero falhas/erros, BUILD SUCCESS e exit 0. Log:
+target/plot-cnc-ablation-full-recheck-20261010.log. Parser PowerShell e diff OK.
+
+Próximo alvo: spike opcional GPU para os corpos largos das passadas CNC,
+não trocar todo Plot às cegas. Preservar alpha/cor, caps/joins, sobreposição,
+detalhes, raster estreito, picking/overlays e fallback Canvas; comparar imagem
+e latência com FULL antes de adoção. Não foi implementado backend GPU novo.
+A ocorrência intermitente Tcl/save mencionada abaixo permanece sem causa
+confirmada; não tratar uma repetição bem-sucedida como correção.
+
+## Continuidade: testes comparativos de apresentação — 2026-10-10
+
+Continuação autorizada dos testes, não troca de backend/commit/push.
+Worktree dirty sobre `a8116d0f` na branch `flatcam-next`; a extração de rasters
+anterior continua junto das alterações de diagnóstico, ainda sem commit.
+
+- Benchmark com JFR marca fases e pulsos >= 50 ms; gera jfr-summary.json por
+  fase, sem misturar abertura/warm-up com zoom/edição. Código somente de teste,
+  não dependência/evento novo no aplicativo. Schema principal 2 e -PixelWriter
+  permitem identificar/controlar transporte; defaults do launcher intactos.
+- CNC real, 120 passos × três repetições em cada configuração: D3D/PixelBuffer,
+  D3D/PixelWriter e software. Todos COMPLETED, original preservado; só CNC,
+  portanto não contam edição. PixelWriter não remove pausas; software piora
+  latência sustentada. JFR isolado do zoom predomina em Marlin/QuantumRenderer,
+  não no DensityRaster. Não é percentual GPU/FPS ou prova do comando culpado.
+- Geometry real isolation_bottom reensaiada sem concorrência: 24 ações
+  apagar/desfazer, undo restaura versão original; pronto p95 91–96 ms com
+  pulso máximo ~17,42 ms, sem gap >= 50 ms nas fases de edição. Fonte intacta.
+  Um ensaio preliminar foi descartado da comparação por análise JFR concorrente.
+
+Detalhes, parâmetros, limitações e relatórios privados: **PLOT_RENDER_TEST_RESULTS.md**.
+Quatro testes JFR novos aprovados. Rechecagem integral: **1546 registrados,
+1530 aprovados, 16 opcionais ignorados**, zero falhas/erros (exit 0).
+Log: target/plot-phase-comparison-full-recheck-20261010.log. Parser e diff OK.
+Primeira execução integral teve uma ocorrência `save stages leaked` no teste
+Tcl de save_project; passou isoladamente e na repetição integral. Não foi
+corrigida, causa ainda não confirmada; guardar a pendência de confiabilidade,
+sem atribuí-la ao renderer nem tratar o rerun como correção. Logs no documento.
+Próximo: isolar o custo vetorial CNC e/ou spike de apresentação GPU integrada
+opcional. Não promover PixelWriter, desligar D3D, alterar CAM ou prometer speedup.
+
+## Continuidade: fronteira de raster/apresentação — 2026-10-10
+
+Primeira etapa commitada em `a8116d0f`, branch `flatcam-next`, sem push.
+Segundo incremento ainda sem commit. Não há GPU backend próprio ou alteração CAM.
+
+- PlotDensityRenderer assume pedidos/histerese/cache latest+overview; mutations
+  na thread FX. CanvasRasterPresenter só prepara/desenha imagem, com ownership
+  de pixels/aliases explícito. Viewport não possui mais esses caches/pixels.
+- Worker transfere pixels somente leitura; image antiga não é sobrescrita por
+  publicação nova. Invalidate conserva preview; forget/clear/close não deixam
+  ghost/publicação tardia. Scratch é liberado em clear/close, adiado no finally
+  se o worker ainda estiver no escopo de render. Teste controlado cobre isso.
+- Benchmark adiciona rasterBefore/After: imagens únicas estimadas, scratch CPU,
+  fila/publicações e tempos de preparo/emissão. Não VRAM/upload/FPS GPU.
+- Reensaios reais de isolation_bottom (delete/undo) e Cobre_Morto_Bottom_cnc
+  (pan/zoom), 120 passos × três repetições + JFR, passaram, SHA original intacto.
+  Controle público SW também passou. CNC ainda tem pausas no zoom (primeira
+  repetição até 432,58 ms; seguintes até 48,46/64,08 ms). Não houve ganho de
+  velocidade demonstrado; objetivo da etapa é isolamento e segurança do lifecycle.
+
+Contratos, resultados/limites/relatórios: **PLOT_RASTER_BOUNDARY.md**.
+Build integral: **1542 registrados, 1526 aprovados, 16 opcionais ignorados**,
+zero falhas/erros. Benchmarks acima rodaram separadamente. Regressores de
+apresentação/caches/ownership/scratch passam, assim como os testes anteriores.
+Log: target/raster-boundary-full-verify-20261010.log; diff check aprovado.
+Próximo: spike GPU de apresentação integrada, opcional/reversível e medido contra
+Canvas. Não migrar CAM/JTS, mexer nos projetos ou promover antes da validação.
+
 ## Continuidade: baseline e fronteira vetorial do renderer — 2026-10-10
 
 Branch `flatcam-next`, base `780728b5`; incremento reunido nesta entrega

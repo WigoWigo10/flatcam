@@ -2,7 +2,6 @@ package org.flatcam.fx;
 
 import static org.junit.jupiter.api.Assertions.*;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
@@ -71,9 +70,7 @@ class PlotPreparationUiTest {
     }
 
     private static int overviewCount(PlotAreaView view) throws Exception {
-        var field = PlotAreaView.class.getDeclaredField("denseOverviewFrames");
-        field.setAccessible(true);
-        return ((Map<?, ?>) field.get(view)).size();
+        return view.rasterStats().overviewFrames();
     }
 
     @Test void deleteAndUndoKeepTheOtherShapesVisibleWhileTheIndexChanges() throws Exception {

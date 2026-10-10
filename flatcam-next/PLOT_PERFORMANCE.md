@@ -2,6 +2,11 @@
 
 ## Benchmark visível do renderer — 2026-10-10
 
+A separação de rasters acrescenta contadores de frames/filas, estimativa de
+backing das imagens e capacidade de scratch CPU, além dos tempos de preparo/
+comandos de apresentação (não upload/FPS GPU). Baseline e contratos de liberação
+em [PLOT_RASTER_BOUNDARY.md](PLOT_RASTER_BOUNDARY.md).
+
 `benchmark-plot.ps1` executa pan/zoom determinísticos, seleção e publicação de
 apagar/desfazer de Geometry no Plot de produção. Aceita `.FlatPrj`/`.fcnproj`,
 filtro de objeto, tema, SW, repetições e JFR. Projeto fonte só é lido e tem hash
