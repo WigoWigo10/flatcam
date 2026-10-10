@@ -53,14 +53,19 @@ Pré-requisito do fluxo: área do contorno ANTES de panelizar, incluída no conj
 Converter o contorno já panelizado pelo atual OutlineToArea escolhe só a maior
 região. NCC Itself e Cutout Single têm outras semânticas: não presumir limpeza
 limitada às placas nem cortes individuais. O gerador Cutout exterior continua
-sem roteamento automático dos anéis internos. O contorno real testado possui
-zero anéis internos, enquanto a fixture pública MM/IN inclui um recorte.
+sem roteamento dos anéis internos por padrão. A opção nova **Incluir recortes
+internos** é uma extensão opt-in FX, testada separadamente no fluxo MM/IN
+com CNC/export e persistência; não entra na comparação de perímetro Python.
+O contorno real testado possui zero anéis internos. Veja [CUTOUT.md](CUTOUT.md).
 
 Resultados são de teste: o CNC do host Tcl usa uma passada Z e parâmetros
 explícitos, não os jobs privados originais nem receitas para usinagem. Não há
 Stage/FPS/cliques/segurança física validados. Guardas/defaults GUI têm testes
 separados. Salvamento/reabertura local levou ~62,4 s neste painel denso:
-próximo diagnóstico de desempenho, sem concluir causa por GPU/renderização.
+na medição inicial. Após perfil JFR e redução do preset XZ, a repetição do
+mesmo fluxo levou ~30,1 s (salvar 13,6 s + reabrir 16,5 s), com arquivo
+~5,6% maior. A etapa de abrir não demonstrou aceleração. Medições locais
+sem benchmark controlado; detalhes em [PLOT_PERFORMANCE.md](PLOT_PERFORMANCE.md).
 
 Oráculo/unitários adicionais conferem corpos originais, lista/polígono,
 coordenadas não nulas, buracos, layouts inválidos e quatro pontes por cópia.

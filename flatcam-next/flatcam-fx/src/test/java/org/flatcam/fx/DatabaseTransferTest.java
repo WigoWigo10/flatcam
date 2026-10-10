@@ -16,6 +16,30 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class DatabaseTransferTest {
+    @Test void internalCutControlIsExplicitAndRejectsNegativeMargin() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var result = new java.util.concurrent.atomic.AtomicReference<CutoutToolPanel.Result>();
+            var root = CutoutToolPanel.build("MM", (p, done, cancelled) -> false, () -> {}, result::set, () -> {});
+            var internal = (CheckBox) root.lookup("#cutout-internal-cuts");
+            assertFalse(internal.isSelected());
+            assertTrue(internal.getAccessibleHelp().contains("não o cobre"));
+            var buttons = ((javafx.scene.layout.VBox) root).getChildren().stream()
+                    .filter(n -> n instanceof Button).map(n -> (Button)n).toList();
+            var freeform = buttons.stream().filter(b -> b.getText().equals("Gerar (Free-form)")).findFirst().orElseThrow();
+            var rectangular = buttons.stream().filter(b -> b.getText().equals("Gerar (Rectangular)")).findFirst().orElseThrow();
+            internal.setSelected(true);
+            assertTrue(rectangular.isDisabled());
+            freeform.fire();
+            assertNotNull(result.get()); assertTrue(result.get().cutoutParams().includeInternalCuts());
+            result.set(null); ((TextField) root.lookup("#cutout-margin")).setText("-0.1");
+            freeform.fire(); assertNull(result.get());
+            assertTrue(((Label) root.lookup("#cutout-error")).getText().contains("margem nao negativa"));
+            ((TextField) root.lookup("#cutout-margin")).setText("0.1");
+            internal.setSelected(false); assertFalse(rectangular.isDisabled());
+            freeform.fire(); assertFalse(result.get().cutoutParams().includeInternalCuts());
+            return null;
+        });
+    }
     @Test void cutoutGapHelpExplainsPlacementWidthAndSafetyWithRichAccessibleTooltips() throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
         FutureTask<Void> task = new FutureTask<>(() -> {

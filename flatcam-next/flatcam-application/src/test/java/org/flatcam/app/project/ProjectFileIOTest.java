@@ -30,6 +30,16 @@ import org.locationtech.jts.geom.GeometryFactory;
 
 class ProjectFileIOTest {
 
+    @Test void invalidPlainCompressedAndTruncatedProjectsFailAsIoErrors() throws Exception {
+        assertThrows(IOException.class, () -> ProjectFileIO.parseRoot("invalid".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThrows(IOException.class, () -> ProjectFileIO.parseRoot(java.util.Arrays.copyOf(org.tukaani.xz.XZ.HEADER_MAGIC, 6)));
+        var output = new java.io.ByteArrayOutputStream();
+        try (var xz = new org.tukaani.xz.XZOutputStream(output, new org.tukaani.xz.LZMA2Options(1))) {
+            xz.write("invalid".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+        assertThrows(IOException.class, () -> ProjectFileIO.parseRoot(output.toByteArray()));
+    }
+
     @TempDir
     Path tempDir;
 

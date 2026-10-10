@@ -4,6 +4,33 @@ Cutout gera Geometry; a configuração e geração CNC são etapas posteriores.
 Os valores usam as unidades do objeto de origem. Confira os caminhos, as alturas
 e as profundidades antes de executar na máquina.
 
+## Recortes internos fechados (FX, 2026-10-10)
+
+Marque **Incluir recortes internos** para acrescentar os anéis internos da
+área da placa ao Cutout Free-form. Desmarcado por padrão: as chamadas antigas
+e a Tools Database continuam gerando somente o perímetro externo.
+
+Use uma **Geometry preenchida do contorno físico**, convertida a partir do
+Edge_Cuts antes de panelizar. Não use ilhas de cobre: todos os anéis internos
+da origem serão interpretados como aberturas a recortar. Se houver várias
+placas/componentes, use **Panel**. Cada abertura recebe compensação para
+dentro de `margem + raio da fresa`, preservando o posicionamento das cópias.
+
+Exige Free-form, Convex Shape desligado e margem não negativa. Rectangular é
+bloqueado enquanto a opção está marcada. Se uma abertura desaparecer ou se
+dividir após a compensação, a geração inteira falha: não omite esse recorte
+nem publica caminhos parciais. Reduza fresa/margem ou usine separadamente.
+
+Os caminhos internos são **fechados, sem pontes**, inclusive quando há gaps
+manuais. Thin e M-Bites continuam exclusivamente no perímetro externo. Trata-se
+de perfilamento, não desbaste de bolso nem compensação de cantos inacessíveis.
+Revise a fixação, peças que podem se soltar e a sequência CNC na prévia.
+
+Extensão opt-in do FX, não equivalência literal ao Cutout exterior do Python.
+Testes MM/IN cobrem compensação, cópias, gaps manuais, Thin/M-Bites externos,
+recusa de aberturas inviáveis e publicação -> CNC/export -> salvar/reabrir.
+O projeto privado real tem zero anéis internos; não valida este caso sozinho.
+
 ## Posicionamento automático retangular
 
 O centro dos gaps é o centro da caixa **original** da origem mais a margem

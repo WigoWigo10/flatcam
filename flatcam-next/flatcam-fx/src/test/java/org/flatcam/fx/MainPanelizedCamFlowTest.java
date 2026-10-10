@@ -259,9 +259,29 @@ class MainPanelizedCamFlowTest {
                     .put("units", input.units()).put("sourceWkt", WKT.write(board.geometry())).put("cases", new JSONArray().put(cutCase))
                     .put("comparisonScope", "Cutout on explicitly shared filled board areas; independent Python Edge_Cuts conversion and internal routing are NOT validated").toString(2));
             summary.put("cutoutInternalRingsIncluded", false).put("cutoutWarning", "Only exterior rings are cut. Internal rings require separate machining; this test does not certify them.");
+            // FX opt-in extension, tested separately from the perimeter-only Python oracle.
+            if (internalRings > 0) {
+                before = geometryNames(s); began = System.nanoTime();
+                var internal = new CutoutToolPanel.Result(new CutoutParameters(.8*u, 0, false,
+                        CutoutKind.PANEL, CutoutShape.FREEFORM, 2*u, GapPattern.FOUR, true),
+                        CutoutToolPanel.GapType.BRIDGE, 0, 0, List.of(), cutout.machining(), null, ToolProfile.C1);
+                await(s, start(s, "runCutoutGeneration", new Class<?>[]{TreeItem.class, String.class, Geometry.class, BooleanSupplier.class, CutoutToolPanel.Result.class},
+                        boundaryItem, input.units(), board.geometry(), (BooleanSupplier) () -> true, internal));
+                var entry = newGeometry(s, before);
+                int closed = 0;
+                for (int i=0; i<entry.geometry().getNumGeometries(); i++)
+                    if (entry.geometry().getGeometryN(i) instanceof LineString line && line.isClosed()) closed++;
+                assertEquals(internalRings*4, closed, "Every internal panel cut stays closed despite external bridges");
+                export(s, output, entry, "cutout-panel-internal", "cutout-internal-fx", board.geometry(), .8*u,
+                        new JSONObject().put("includeInternalCuts", true), elapsed(began), results);
+                summary.put("internalCutsFxRoundTripTested", true);
+            }
             var saved = MainIsolationMachiningTest.snapshot(s.window);
             began = System.nanoTime();
-            Path project = output.resolve("panelized-flow.fcnproj"); s.window.saveProject(project); s.window.openProject(project);
+            Path project = output.resolve("panelized-flow.fcnproj"); s.window.saveProject(project);
+            summary.put("saveMs", elapsed(began));
+            long reopenStart = System.nanoTime(); s.window.openProject(project);
+            summary.put("reopenMs", elapsed(reopenStart)).put("nativeBytes", Files.size(project));
             var reopened = MainIsolationMachiningTest.snapshot(s.window);
             summary.put("saveAndReopenMs", elapsed(began));
             assertEquals(saved.gerbers().size(), reopened.gerbers().size()); assertEquals(saved.excellons().size(), reopened.excellons().size());

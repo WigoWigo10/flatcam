@@ -56,6 +56,14 @@ public final class CutoutGenerator {
         }
         cancellationToken.throwIfCancellationRequested();
         GeometryFactory geometryFactory = copperGeometry.getFactory();
+        if (params.includeInternalCuts() && (copperGeometry.isEmpty()
+                || copperGeometry.getDimension() != 2 || !copperGeometry.isValid())) {
+            throw new IllegalArgumentException("Recortes internos exigem uma area de placa preenchida e valida.");
+        }
+        if (params.includeInternalCuts() && params.kind() == CutoutKind.SINGLE
+                && copperGeometry.getNumGeometries() > 1) {
+            throw new IllegalArgumentException("Use Panel para recortar varias placas com recortes internos.");
+        }
         Geometry source = params.convexShape() ? copperGeometry.convexHull() : copperGeometry;
         cancellationToken.throwIfCancellationRequested();
 
@@ -102,6 +110,12 @@ public final class CutoutGenerator {
                 cancellationToken.throwIfCancellationRequested();
                 paths.add(withGaps.getGeometryN(i));
             }
+            // Work from each ORIGINAL hole, not the outer buffer: small holes may vanish
+            // there silently. Internal profiles must never acquire automatic/manual bridges,
+            // Thin segments or M-Bites. Fail the whole job if any hole cannot fit the tool.
+            if (params.includeInternalCuts()) {
+                addInternalCuts(part, params, paths, cancellationToken);
+            }
         }
 
         cancellationToken.throwIfCancellationRequested();
@@ -119,6 +133,24 @@ public final class CutoutGenerator {
             result = result.difference(area);
         }
         return lineMerge(result, factory);
+    }
+
+    private static void addInternalCuts(Geometry part, CutoutParameters params, List<Geometry> paths,
+                                        CancellationToken cancellationToken) {
+        if (!(part instanceof Polygon polygon)) {
+            throw new IllegalArgumentException("Recortes internos exigem poligonos de placa preenchidos.");
+        }
+        for (int index = 0; index < polygon.getNumInteriorRing(); index++) {
+            cancellationToken.throwIfCancellationRequested();
+            Geometry hole = part.getFactory().createPolygon(polygon.getInteriorRingN(index).getCoordinates());
+            Geometry centerArea = hole.buffer(-(params.margin() + params.toolDiameter() / 2), QUADRANT_SEGMENTS);
+            cancellationToken.throwIfCancellationRequested();
+            if (!(centerArea instanceof Polygon center) || center.isEmpty() || center.getNumInteriorRing() != 0) {
+                throw new IllegalArgumentException("Recorte interno " + (index + 1)
+                        + " nao comporta a fresa/margem ou se divide. Use uma fresa menor ou usine separadamente.");
+            }
+            paths.add(center.getExteriorRing());
+        }
     }
 
     /** Creates the separate Excellon object used by Python's automatic M-Bites mode. */

@@ -1,11 +1,47 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-10: Cutout interno e persistência densa
+
+Validação panelizada anterior commitada em `d4ad0ce5`, branch `flatcam-next`.
+Implementação desta etapa: opção explícita **Incluir recortes
+internos**, desligada por padrão. Free-form, sem convex hull, margem >= 0,
+Geometry preenchida de placa recomendada; Panel obrigatório se várias partes.
+Cada abertura recebe erosão por margem + raio, emitindo caminho fechado sem
+bridges/Thin/M-Bites internos. Abertura que some ou se divide recusa o job
+inteiro. Chamadas antigas/Tools Database permanecem exterior-only. Não é
+desbaste de bolso; fixação e cantos precisam de revisão. Detalhes: CUTOUT.md.
+Tests MM/IN públicos incluem job MainWindow -> CNC/export -> salvar/reabrir;
+fixture privada continua com zero anéis internos, não prova esse caso.
+
+Persistência: JFR apontou HC4/XZ como maior custo. Salvamento isolado da cópia
+nativa densa levou 41,8 s (preset 3); preset 1 levou 12,6–14,1 s, aumentando o
+arquivo ~5,6% (33,92 -> 35,81 MB), sem simplificar dados. Abrir ainda ~16–18 s;
+nenhuma aceleração demonstrada nessa etapa. Cabeçalho XZ agora é reconhecido
+antes de tentar decodificar binário como UTF-8/JSON. Logs opt-in
+`[PROJECT-PROFILE]` separam fases; `MainProjectPerformanceTest` lê fixture
+nativa opcional e grava só cópia temporária, sem Stage/preferências.
+`MainPanelizedCamFlowTest` separa saveMs/reopenMs/nativeBytes. Não são FPS nem
+benchmark controlado. Formato nativo/Python, conteúdo e rename atômico mantidos.
+Reexecução do fluxo privado: saveMs 13572,76, reopenMs 16482,74, combinado
+30056,50 ms, arquivo 35805608 bytes; origem intacta. Resultados ignorados em
+`target/panelized-flow-20261010-improved`. Medição inicial combinada 62411,15 ms.
+Runner strict repetido: 5/5 MATCH_SAMPLED, zero divergências/erros; comportamento
+perímetro-only anterior preservado. Verify completo passou: 1484 registrados,
+1470 aprovados, 14 opcionais ignorados, zero falhas/erros. O diagnóstico nativo
+opt-in foi aprovado separadamente com a cópia densa, incluindo JFR e SHA-256.
+Testes de controles/tooltips e recortes sintéticos são headless; falta revisão
+manual do novo checkbox e da operação em uma placa real com abertura interna.
+
+Pendências seguem: desempenho de JSON/WKT/preview na abertura; contornos
+multipartes na conversão para área; ampliar NCC Connect/Rest/Itself panelizado;
+divergências Connect simples/Seed/Lines/multi-settings já documentadas.
+
 ## Continuidade em 2026-10-10: fluxo panelizado no projeto real
 
 A pedido do usuário, verificado o `.FlatPrj` real em grade 2 x 2 / espaçamento
 5 mm, com Edge_Cuts como referência compartilhada. Original somente lido;
 SHA-256 antes/depois igual. Nenhum algoritmo CAM/Python foi alterado nesta etapa.
-Novos testes/runner e extensão do oráculo; ainda sem commit.
+Novos testes/runner e extensão do oráculo commitados em `d4ad0ce5`.
 
 `MainPanelizedCamFlowTest` cobre panelização via MainWindow, Isolation três
 passadas em F_Cu/B_Cu, NCC Standard sem Connect e referência Geometry preenchida

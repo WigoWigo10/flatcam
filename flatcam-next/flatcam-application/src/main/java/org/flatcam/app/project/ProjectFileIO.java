@@ -30,6 +30,7 @@ import org.json.JSONObject;
 import org.tukaani.xz.LZMA2Options;
 import org.tukaani.xz.XZInputStream;
 import org.tukaani.xz.XZOutputStream;
+import org.tukaani.xz.XZ;
 import org.locationtech.jts.io.ParseException;
 import org.locationtech.jts.io.WKTReader;
 import org.locationtech.jts.io.WKTWriter;
@@ -56,7 +57,9 @@ public final class ProjectFileIO {
 
     private static final int CURRENT_VERSION = 2;
     private static final int LEGACY_V1_VERSION = 1;
-    private static final int XZ_PRESET = 3;
+    // Interactive saves prioritize latency over the last few percent of compression.
+    // Same XZ/JSON format; no rounding, simplification or loss of project data.
+    private static final int XZ_PRESET = 1;
 
     private ProjectFileIO() {
     }
@@ -66,7 +69,10 @@ public final class ProjectFileIO {
     }
 
     public static void save(ProjectFile project, Path path, boolean compress) throws IOException {
-        writeRoot(toJson(project), path, compress);
+        long start = System.nanoTime();
+        JSONObject root = toJson(project);
+        logPhase("JSON/WKT encode", start);
+        writeRoot(root, path, compress);
     }
 
     static JSONObject toJson(ProjectFile project) {
@@ -158,7 +164,10 @@ public final class ProjectFileIO {
     }
 
     static void writeRoot(JSONObject root, Path path, boolean compress) throws IOException {
+        long start = System.nanoTime();
         byte[] jsonBytes = root.toString().getBytes(StandardCharsets.UTF_8);
+        logPhase("JSON UTF-8 encode", start);
+        start = System.nanoTime();
         Path destination = path.toAbsolutePath();
         Path temporary = Files.createTempFile(destination.getParent(),
                 "." + destination.getFileName() + ".", ".tmp");
@@ -180,12 +189,16 @@ public final class ProjectFileIO {
         } finally {
             Files.deleteIfExists(temporary);
         }
+        logPhase(compress ? "XZ compress/write" : "plain write", start);
     }
 
     public static ProjectFile load(Path path) throws IOException {
         byte[] raw = Files.readAllBytes(path);
         JSONObject root = parseRoot(raw);
-        return fromJson(root);
+        long start = System.nanoTime();
+        ProjectFile project = fromJson(root);
+        logPhase("objects/WKT decode", start);
+        return project;
     }
 
     static ProjectFile fromJson(JSONObject root) throws IOException {
@@ -455,14 +468,33 @@ public final class ProjectFileIO {
     }
 
     static JSONObject parseRoot(byte[] raw) throws IOException {
+        // Detect the container first. Decoding compressed binary as UTF-8/JSON used to
+        // allocate a large useless String and throw on every ordinary project open.
+        long start = System.nanoTime();
+        boolean compressed = raw.length >= XZ.HEADER_MAGIC.length
+                && java.util.Arrays.equals(raw, 0, XZ.HEADER_MAGIC.length,
+                        XZ.HEADER_MAGIC, 0, XZ.HEADER_MAGIC.length);
         try {
-            return new JSONObject(new String(raw, StandardCharsets.UTF_8));
-        } catch (JSONException plainFailed) {
-            try (XZInputStream xzIn = new XZInputStream(new ByteArrayInputStream(raw))) {
-                return new JSONObject(new String(xzIn.readAllBytes(), StandardCharsets.UTF_8));
-            } catch (IOException xzFailed) {
-                throw new IOException("Not a valid project file (neither plain JSON nor XZ-compressed)", xzFailed);
+            if (compressed) {
+                try (XZInputStream xzIn = new XZInputStream(new ByteArrayInputStream(raw))) {
+                    raw = xzIn.readAllBytes();
+                }
+                logPhase("XZ decompress", start);
+                start = System.nanoTime();
             }
+            JSONObject root = new JSONObject(new String(raw, StandardCharsets.UTF_8));
+            logPhase("JSON decode", start);
+            return root;
+        } catch (JSONException | IOException invalid) {
+            throw new IOException("Not a valid project file (neither plain JSON nor XZ-compressed)", invalid);
+        }
+    }
+
+    private static void logPhase(String phase, long start) {
+        if (Boolean.getBoolean("flatcam.plot.profile")) {
+            System.getLogger(ProjectFileIO.class.getName()).log(System.Logger.Level.INFO,
+                    String.format(java.util.Locale.ROOT, "[PROJECT-PROFILE] %s (%s)=%.1fms",
+                            phase, Thread.currentThread().getName(), (System.nanoTime()-start)/1e6));
         }
     }
 

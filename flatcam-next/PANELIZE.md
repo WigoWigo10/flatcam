@@ -21,13 +21,18 @@ Para reproduzir o fluxo aprovado:
 5. Gere/revise CNC, confira a prévia, exporte e salve `.fcnproj`.
 
 Este cenário NÃO certifica NCC Connect/Rest/Itself ou todas as receitas CNC.
-Cutout gera os perímetros externos; recortes internos exigem operação separada
-e continuam pendentes de integração. A área real testada tem zero anéis internos;
-fixtures sintéticos MM/IN incluem um recorte. Prévia correta não garante corte
-interno no G-code. Programas gerados pelo teste não devem ser usados na máquina.
+Cutout gera os perímetros externos por padrão. Para recortes internos, marque
+**Incluir recortes internos**, com área preenchida, Panel, Free-form, Convex
+Shape off e margem não negativa. Os recortes ficam fechados e sem pontes;
+veja [CUTOUT.md](CUTOUT.md). A área real testada tem zero anéis internos;
+fixtures MM/IN validam a opção via CNC/export e persistência. Programas gerados
+pelo teste não devem ser usados na máquina sem revisão/configuração própria.
 
-Observação de desempenho: salvar/reabrir o painel real denso levou ~62 segundos
-na execução headless; isso permanece como investigação de persistência, não FPS.
+Observação inicial: salvar/reabrir o painel real denso levou ~62 segundos.
+O perfil posterior identificou compressão XZ como maior custo de salvar;
+preset 1 reduziu o salvamento isolado de ~42 s para ~13–14 s, com arquivo
+~5,6% maior e os mesmos dados. Reabrir ainda tem custo de JSON/WKT/preview.
+São medições headless locais, não FPS; veja [PLOT_PERFORMANCE.md](PLOT_PERFORMANCE.md).
 
 Implementação de 2026-10-07. Ferramentas > Panelize Tool.
 

@@ -15,9 +15,17 @@ package org.flatcam.cam.cutout;
  * @param gapSize      the bridge's own width, in file units - not yet including the tool radius
  *                     (see CutoutGenerator.buildGapBands())
  * @param gapPattern   automatic bridge placement - see {@link GapPattern}
+ * @param includeInternalCuts opt-in closed internal profiles, without bridges. Requires a filled
+ *                     board outline, FREEFORM, no convex hull and a nonnegative margin.
  */
 public record CutoutParameters(double toolDiameter, double margin, boolean convexShape, CutoutKind kind,
-                                CutoutShape shape, double gapSize, GapPattern gapPattern) {
+                                CutoutShape shape, double gapSize, GapPattern gapPattern, boolean includeInternalCuts) {
+    /** Preserve legacy perimeter-only callers and database settings. */
+    public CutoutParameters(double toolDiameter, double margin, boolean convexShape, CutoutKind kind,
+                            CutoutShape shape, double gapSize, GapPattern gapPattern) {
+        this(toolDiameter, margin, convexShape, kind, shape, gapSize, gapPattern, false);
+    }
+
     public CutoutParameters {
         java.util.Objects.requireNonNull(kind, "kind");
         java.util.Objects.requireNonNull(shape, "shape");
@@ -33,6 +41,9 @@ public record CutoutParameters(double toolDiameter, double margin, boolean conve
         }
         if (shape == CutoutShape.RECTANGULAR && margin < 0) {
             throw new IllegalArgumentException("Rectangular cutout with negative margin is not possible");
+        }
+        if (includeInternalCuts && (shape != CutoutShape.FREEFORM || convexShape || margin < 0)) {
+            throw new IllegalArgumentException("Recortes internos exigem Free-form, sem Convex Shape e margem nao negativa.");
         }
     }
 }

@@ -26,6 +26,73 @@ import org.locationtech.jts.geom.LineString;
 class CutoutGeneratorTest {
 
     @Test
+    void internalCutsPreservePanelOffsetsAndNeverReceiveBridgesInMmOrIn() {
+        GeometryFactory factory = new GeometryFactory();
+        for (double unit : new double[]{1, 1 / 25.4}) {
+            Geometry outer = factory.toGeometry(new Envelope(10*unit, 30*unit, 20*unit, 36*unit));
+            Geometry hole = factory.toGeometry(new Envelope(17*unit, 23*unit, 25*unit, 31*unit));
+            Geometry board = outer.difference(hole);
+            Geometry panel = factory.buildGeometry(java.util.List.of(board,
+                    org.locationtech.jts.geom.util.AffineTransformation.translationInstance(25*unit, 0).transform(board)));
+            var params = new CutoutParameters(.8*unit, .2*unit, false, CutoutKind.PANEL,
+                    CutoutShape.FREEFORM, 2*unit, GapPattern.FOUR, true);
+            Geometry expectedHole = hole.buffer(-.6*unit, 32).getBoundary();
+            for (boolean manual : new boolean[]{false, true}) {
+                var masks = manual ? java.util.List.of(factory.toGeometry(new Envelope(19*unit, 21*unit, 15*unit, 40*unit)))
+                        : java.util.List.<Geometry>of();
+                var result = CutoutGenerator.generate("MM", panel, params, masks, CancellationToken.none());
+                int closed = 0;
+                for (int i=0; i<result.geometry().getNumGeometries(); i++) {
+                    var line = (LineString) result.geometry().getGeometryN(i);
+                    if (line.isClosed() && (hole.covers(line)
+                            || org.locationtech.jts.geom.util.AffineTransformation.translationInstance(25*unit, 0).transform(hole).covers(line))) {
+                        closed++;
+                        double offset = line.getEnvelopeInternal().getMinX() > 30*unit ? 25*unit : 0;
+                        Geometry expected = org.locationtech.jts.geom.util.AffineTransformation.translationInstance(offset, 0).transform(expectedHole);
+                        assertEquals(expected.getLength(), line.getLength(), 1e-9*unit);
+                        assertTrue(org.locationtech.jts.algorithm.distance.DiscreteHausdorffDistance.distance(line, expected) < 1e-9*unit);
+                        assertTrue(result.gapGeometry().intersection(line).isEmpty(), "Thin is external only");
+                    }
+                }
+                assertEquals(2, closed, "One uninterrupted internal profile per board");
+                var bites = CutoutGenerator.generateMouseBites("MM", panel, params, .4*unit, .2*unit,
+                        masks, CancellationToken.none());
+                assertTrue(bites.totalDrills() > 0);
+                assertTrue(hole.intersection(bites.solidGeometry()).isEmpty());
+            }
+        }
+    }
+
+    @Test
+    void internalCutsAreOptInAndRefuseIncompatibleModesOrUnmachinableHoles() {
+        var f = new GeometryFactory();
+        Geometry board = f.toGeometry(new Envelope(0,20,0,16))
+                .difference(f.toGeometry(new Envelope(9,11,7,9)));
+        var legacy = new CutoutParameters(1,0,false,CutoutKind.SINGLE,CutoutShape.FREEFORM,0,GapPattern.NONE);
+        assertFalse(legacy.includeInternalCuts());
+        assertEquals(1, CutoutGenerator.generate("MM",board,legacy).partCount());
+        for (double diameter : new double[]{2, 3}) {
+            var params = new CutoutParameters(diameter,0,false,CutoutKind.SINGLE,CutoutShape.FREEFORM,0,GapPattern.NONE,true);
+            assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generate("MM",board,params));
+        }
+        assertThrows(IllegalArgumentException.class, () -> new CutoutParameters(1,0,true,CutoutKind.SINGLE,CutoutShape.FREEFORM,0,GapPattern.NONE,true));
+        assertThrows(IllegalArgumentException.class, () -> new CutoutParameters(1,0,false,CutoutKind.SINGLE,CutoutShape.RECTANGULAR,0,GapPattern.NONE,true));
+        assertThrows(IllegalArgumentException.class, () -> new CutoutParameters(1,-.1,false,CutoutKind.SINGLE,CutoutShape.FREEFORM,0,GapPattern.NONE,true));
+        var params = new CutoutParameters(1,0,false,CutoutKind.SINGLE,CutoutShape.FREEFORM,0,GapPattern.NONE,true);
+        assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generate("MM",board.getBoundary(),params));
+        Geometry second = org.locationtech.jts.geom.util.AffineTransformation.translationInstance(25,0).transform(board);
+        assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generate("MM",f.buildGeometry(java.util.List.of(board,second)),params));
+        Geometry narrowHole = f.toGeometry(new Envelope(3,7,5,10))
+                .union(f.toGeometry(new Envelope(10,14,5,10)))
+                .union(f.toGeometry(new Envelope(6,11,7,7.5)));
+        Geometry narrowBoard = f.toGeometry(new Envelope(0,20,0,16)).difference(narrowHole);
+        assertThrows(IllegalArgumentException.class, () -> CutoutGenerator.generate("MM",narrowBoard,params),
+                "A narrow neck splits the compensated hole: do not silently emit two incomplete profiles");
+        assertThrows(java.util.concurrent.CancellationException.class,
+                () -> CutoutGenerator.generate("MM",board,params, () -> true));
+    }
+
+    @Test
     void rectangularBridgesAndThinSegmentsFollowPythonSourceCenterPlusMargin() {
         GeometryFactory factory = new GeometryFactory();
         Geometry source = factory.toGeometry(new Envelope(0, 20, 0, 10));

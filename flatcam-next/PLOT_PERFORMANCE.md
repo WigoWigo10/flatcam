@@ -1,5 +1,40 @@
 # Diagnóstico de desempenho do Plot Area
 
+## Persistência de projetos densos — 2026-10-10
+
+Com `flatcam.plot.profile=true` (também em `profile-plot.cmd`), o codec passa
+a registrar `[PROJECT-PROFILE]`: construção JSON/WKT, codificação UTF-8,
+compressão/gravação, descompressão, JSON e reconstrução dos objetos/WKT.
+Os logs incluem o nome da thread. São custos de persistência, não FPS.
+
+No painel real 2 x 2, com cinco CNC Jobs densos, a medição inicial isolada
+foi: salvar 41,8 s; abrir incluindo previews/publicação 15,7 s. JFR mostrou
+42% das amostras em `HC4.getMatches` (busca da compressão XZ). O preset foi
+reduzido de 3 para 1, mantendo XZ, JSON, coordenadas, G-code e gravação
+temporária/rename. Abrir identifica o cabeçalho XZ antes de tentar JSON,
+evitando uma String UTF-8 inútil do arquivo binário inteiro.
+
+Salvar passou a ~12,6–14,1 s nas primeiras repetições. O arquivo foi de
+33.920.140 para ~35.805.512 bytes (+5,6%). Abrir ainda levou ~16–18 s;
+não houve aceleração demonstrada dessa etapa. JSON/WKT e reconstrução de
+previews continuam candidatos. Não é benchmark controlado nem ganho de GPU;
+medições variam com aquecimento da JVM, JFR, cache de disco e carga do PC.
+Reexecução completa do fluxo real: **30,06 s combinado** (salvar 13,57 s,
+reabrir 16,48 s), contra a observação inicial de 62,41 s; arquivo 35.805.608
+bytes. Não implica redução de ~50% em toda operação da aplicação.
+
+Diagnóstico opcional somente leitura do projeto original, com cópia temporária
+e sem Stage/preferências (pasta `flatcam-next`):
+
+```powershell
+.\mvnw.cmd -q -pl flatcam-fx -am test '-Dtest=MainProjectPerformanceTest' '-Dsurefire.failIfNoSpecifiedTests=false' '-Dflatcam.native.project.fixture=C:/caminho/painel.fcnproj' '-Dflatcam.plot.profile=true' -l target/project-performance.log
+```
+
+O teste separa decode, encode/compress e abertura completa, confere geometria,
+configurações e G-code preservados, e verifica o SHA-256 da origem. Não inclui
+renderização de janela ou manipulação do mouse. O teste panelizado também
+registra `saveMs`, `reopenMs` e `nativeBytes` separadamente em `flow-report.json`.
+
 ## Comparação da fluidez da interface: Python × FX
 
 Há agora um **protocolo comum nos dois aplicativos**: um callback na thread

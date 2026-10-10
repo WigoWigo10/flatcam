@@ -81,9 +81,24 @@ final class CutoutToolPanel {
         singleRadio.setSelected(true);
 
         CheckBox convexShapeCb = new CheckBox("Convex Shape");
+        CheckBox internalCuts = new CheckBox("Incluir recortes internos");
+        internalCuts.setId("cutout-internal-cuts");
+        internalCuts.selectedProperty().addListener((obs, old, selected) -> {
+            if (selected) convexShapeCb.setSelected(false);
+        });
+        convexShapeCb.disableProperty().bind(internalCuts.selectedProperty());
+        ToolDescriptions.apply(internalCuts, "Recortes internos fechados",
+                "Use uma Geometry de área da placa, criada a partir do Edge_Cuts, e não o cobre: "
+                + "todos os anéis internos da origem serão usinados. Em várias placas, selecione Panel.\n\n"
+                + "Disponível apenas em Free-form, sem Convex Shape e com margem não negativa. "
+                + "O raio da fresa e a margem deslocam o caminho para dentro de cada abertura. "
+                + "A geração é recusada se uma abertura desaparecer ou se dividir.\n\n"
+                + "Recortes internos são fechados, sem pontes, Thin ou M-Bites, mesmo com gaps manuais. "
+                + "Não é desbaste de bolso: revise os cantos, a fixação e as peças soltas antes de gerar CNC.");
 
         TextField toolDiaField = new TextField(metric ? "2.4" : "0.094");
         TextField marginField = new TextField(metric ? "0.1" : "0.004");
+        marginField.setId("cutout-margin");
         TextField cutZ = new TextField(metric ? "-1.7" : "-0.067"); cutZ.setId("cutout-cut-z");
         CheckBox multiDepth = new CheckBox("Multi-Depth"); multiDepth.setId("cutout-multi-depth"); multiDepth.setSelected(true);
         TextField perPass = new TextField(metric ? "0.5" : "0.02"); perPass.setId("cutout-depth-per-pass");
@@ -192,12 +207,14 @@ final class CutoutToolPanel {
         grid.addRow(9, new Label("Cut Z:"), cutZ);
         grid.addRow(10, multiDepth, perPass);
         grid.addRow(11, new Label("Thin Depth:"), thinZ);
+        grid.add(internalCuts, 0, 12, 2, 1);
         for (TextField field : List.of(cutZ, perPass, thinZ)) { field.setMinWidth(0); field.setPrefColumnCount(7); }
 
         Button freeformButton = new Button("Gerar (Free-form)");
         freeformButton.getStyleClass().add("primary-action");
         freeformButton.setMaxWidth(Double.MAX_VALUE);
         Button rectangularButton = new Button("Gerar (Rectangular)");
+        rectangularButton.disableProperty().bind(internalCuts.selectedProperty());
         rectangularButton.getStyleClass().add("primary-action");
         rectangularButton.setMaxWidth(Double.MAX_VALUE);
         ToolDescriptions.apply(freeformButton, "Recorte Free-form",
@@ -207,10 +224,10 @@ final class CutoutToolPanel {
         Button closeButton = new Button("Fechar");
         closeButton.setMaxWidth(Double.MAX_VALUE);
 
-        freeformButton.setOnAction(e -> tryGenerate(CutoutShape.FREEFORM, singleRadio, convexShapeCb, toolDiaField,
+        freeformButton.setOnAction(e -> tryGenerate(CutoutShape.FREEFORM, singleRadio, convexShapeCb, internalCuts, toolDiaField,
                 marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
                 biteSpacingField, manualAreas, cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), commonDefaults.get(), errorLabel, onGenerate));
-        rectangularButton.setOnAction(e -> tryGenerate(CutoutShape.RECTANGULAR, singleRadio, convexShapeCb, toolDiaField,
+        rectangularButton.setOnAction(e -> tryGenerate(CutoutShape.RECTANGULAR, singleRadio, convexShapeCb, internalCuts, toolDiaField,
                 marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
                 biteSpacingField, manualAreas, cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), commonDefaults.get(), errorLabel, onGenerate));
         closeButton.setOnAction(e -> onClose.run());
@@ -231,7 +248,7 @@ final class CutoutToolPanel {
         return box;
     }
 
-    private static void tryGenerate(CutoutShape shape, RadioButton singleRadio, CheckBox convexShapeCb,
+    private static void tryGenerate(CutoutShape shape, RadioButton singleRadio, CheckBox convexShapeCb, CheckBox internalCuts,
             TextField toolDiaField, TextField marginField, TextField gapSizeField,
             ComboBox<GapPattern> gapPatternCombo, ComboBox<GapType> gapTypeCombo,
             TextField biteDiameterField, TextField biteSpacingField,
@@ -244,7 +261,7 @@ final class CutoutToolPanel {
             double gapSize = parseDouble(gapSizeField.getText(), "Gap size");
             CutoutKind kind = singleRadio.isSelected() ? CutoutKind.SINGLE : CutoutKind.PANEL;
             CutoutParameters cutoutParams = new CutoutParameters(toolDia, margin, convexShapeCb.isSelected(),
-                    kind, shape, gapSize, gapPatternCombo.getValue());
+                    kind, shape, gapSize, gapPatternCombo.getValue(), internalCuts.isSelected());
             boolean bites = gapTypeCombo.getValue() == GapType.M_BITES;
             double biteDiameter = bites ? parseDouble(biteDiameterField.getText(), "M-Bites dia") : 0;
             double biteSpacing = bites ? parseDouble(biteSpacingField.getText(), "M-Bites spacing") : 0;
