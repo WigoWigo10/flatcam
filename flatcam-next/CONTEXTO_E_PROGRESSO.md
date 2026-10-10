@@ -2076,6 +2076,13 @@ o parser aceita caem nas opções padrão em vez de fazer toda importação falh
 opção: o parser do FX decodifica as duas convenções da mesma forma. Limite: reabrir um projeto que guarda só o caminho
 do arquivo de origem (`ProjectFileIO`) usa as opções padrão, não as das preferências. Testes: `ImportOptionsTest`.
 
+**Matriz de paridade (2026-10-10).** [MATRIZ_PARIDADE.md](MATRIZ_PARIDADE.md) registra o que foi medido contra o
+Python e com que nível de evidência (A = código real do Python no harness; B = algoritmo reescrito; C = só testes do
+FX). Execução desta data com o oráculo legado (Python 3.11, Shapely 1.8.5, GEOS 3.10.3): sintético MM e IN 27/28,
+projeto real 26/28; a única diferença é o NCC Seed padrão (deliberada) e o único erro é do próprio Python
+(`ncc-multi-settings` no projeto real). Das 24 ferramentas: 4 com nível A (Isolation, NCC, Paint e Cutout, as duas
+últimas parciais), 3 com nível B (Rules Check, Copper Thieving, Calibration) e 17 só com nível C.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
