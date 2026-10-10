@@ -420,10 +420,9 @@ public final class NccGenerator {
     /**
      * Expanding-ring strategy: the legacy clear_polygon2() method.
      *
-     * <p>The starting point is {@link StableInteriorPoint}, not JTS's {@code getInteriorPoint()}
-     * (which Python's own {@code representative_point()} shares the same scan-line algorithm
-     * with) - a deliberate divergence from Python for the reasons documented on that class,
-     * not an unintentional gap. See also INVESTIGACAO_CAM.md.
+     * <p>STABLE preserves the FX's {@link StableInteriorPoint} policy. PYTHON explicitly
+     * selects the legacy representative-point scan line (shared by JTS/GEOS), whose
+     * discontinuities are documented in INVESTIGACAO_CAM.md. No source rounding is applied.
      */
     private static List<LineString> seedPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                CancellationToken cancellation) {
@@ -434,7 +433,10 @@ public final class NccGenerator {
         if (safeArea.isEmpty()) {
             return paths;
         }
-        Coordinate seed = StableInteriorPoint.find(safeArea, toolRadius * 0.01, cancellation);
+        Coordinate seed = settings.seedPolicy() == NccSeedPolicy.PYTHON
+                ? safeArea.getInteriorPoint().getCoordinate()
+                : StableInteriorPoint.find(safeArea, toolRadius * 0.01, cancellation);
+        cancellation.throwIfCancellationRequested();
         if (seed == null) {
             return paths;
         }

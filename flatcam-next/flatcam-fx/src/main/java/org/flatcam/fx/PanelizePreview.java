@@ -34,7 +34,7 @@ final class PanelizePreview {
                 || input.layout().rows() > 1 && edgeBounds.getHeight() > input.layout().stepY()))
             notice = "Contorno maior que o passo entre copias: pode haver sobreposicao. Use sua caixa como referencia.";
         if (input.fillInterior() && input.showOutline()) {
-            try { interior = OutlineToArea.convert(outline).area(); }
+            try { interior = OutlineToArea.convert(outline, cancellation).area(); }
             catch (IllegalArgumentException open) {
                 notice = "Contorno aberto: previa das linhas disponivel, sem preencher/inventar cortes.";
             }

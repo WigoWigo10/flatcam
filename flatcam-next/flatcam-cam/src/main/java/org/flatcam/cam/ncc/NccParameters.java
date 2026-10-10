@@ -96,7 +96,7 @@ public record NccParameters(List<Double> toolDiameters, double overlapFraction, 
         NccToolSettings selected = toolSettings.getOrDefault(diameter, defaults);
         return restMachining
                 ? new NccToolSettings(selected.overlapFraction(), selected.method(),
-                        connect, contour, copperOffset)
+                        connect, contour, copperOffset, selected.seedPolicy())
                 : selected;
     }
 

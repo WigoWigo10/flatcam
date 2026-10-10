@@ -1,5 +1,102 @@
 # Comparação reproduzível CAM: FX × Python
 
+## NCC / fidelidade de exportação — 2026-10-10 (Item 2)
+
+Os três `GCODE_DIFFERENT` anteriores (Lines MM e multi-settings MM/IN) eram
+falsos negativos da métrica de comprimento **único**, não trechos omitidos.
+Após arredondar XY para a resolução do programa, passadas quase coincidentes
+podem ocupar exatamente a mesma linha. A união elimina essa repetição embora
+o programa execute ambas as passadas. Exemplo MM do corpus anterior:
+
+| Caso | Percurso de origem | Percurso lido pelo Python | Comprimento único origem / programa |
+| --- | ---: | ---: | ---: |
+| Lines | 1306,17078876 | 1306,17075800 | 1253,17078877 / 1223,17075800 |
+| multi-settings | 2756,13806298 | 2756,14054849 | 2756,13806298 / 2332,10134849 |
+
+`gcode_metrics` agora verifica o percurso com multiplicidade, mantendo a
+cobertura por união para distância/bounds. O relatório conserva comprimento
+único e sua diferença como diagnóstico, e acrescenta `lengthCriterion`,
+`fxTravelLength`, `pythonParsedTravelLength`, `travelRelativeLengthDelta`.
+O parser Python permanece original. A comparação **CAM × Python** mantém a
+métrica anterior, e nenhum limite foi aumentado: 0,003 mm (equivalente IN),
+0,001 de comprimento relativo e IoU 0,995 quando aplicável.
+Testes negativos recusam passada faltante/repetida/adicionada/deslocada;
+atribuição/ordem por fresa e erros do legado continuam reprovando.
+
+Reexecutando os mesmos exports anteriores: **52/54**, só os dois Seed estáveis
+continuam diferentes; zero GCODE_DIFFERENT/ORACLE_ERROR/PARTIAL_DIFFERENCE.
+Relatórios: `target/ncc-gcode-travel-mm-20261010` e `ncc-gcode-travel-in-20261010`.
+
+NCC agora oferece uma política Seed explícita por ferramenta: estável (padrão
+FX preservado) ou representativa Python. Corpus ampliado mantém o caso estável
+e acrescenta `ncc-seed-python`: **27/28 em MM e 27/28 em IN**, com Seed Python
+exato no MM e aprovado no IN. Não retirar o caso estável nem transformar sua
+diferença em aprovação: strict completo continua reprovado. Detalhes de uso
+em [NCC_SEED.md](NCC_SEED.md). Relatórios em `target/ncc-item2-public-*-python-20261010`.
+
+### Connect: controles rejeitados, não correção entregue
+
+`tools/NccRepresentationProbe.java` isola union-raw, repair-union e
+geos-repair-union, com/sem reparo final: os seis preservaram a diferença real
+**0,020312630895 mm**. Um controle aproximando a união plana do GEOS piorou
+para **0,10509134 mm**; não foi integrado à produção. Ele não porta std::sort
+nem todas as heurísticas do GEOS, portanto não é evidência de que um port
+completo falharia. Fontes para a investigação:
+[GEOS CascadedPolygonUnion](https://raw.githubusercontent.com/libgeos/geos/3.10.3/src/operation/union/CascadedPolygonUnion.cpp),
+[TemplateSTRtree](https://raw.githubusercontent.com/libgeos/geos/3.10.3/include/geos/index/strtree/TemplateSTRtree.h),
+[JTS CascadedPolygonUnion](https://raw.githubusercontent.com/locationtech/jts/1.20.0/modules/core/src/main/java/org/locationtech/jts/operation/union/CascadedPolygonUnion.java).
+GEOS 3.10 usa capacidade 10 e recursão binária sobre folhas planas;
+JTS usa capacidade 4 e redução por subárvores. Ordem/empates/heurísticas de
+overlay ainda exigem reprodução pública e comparação por estágio, não rotação
+arbitrária de anéis. Produção Connect e tolerância permanecem intactas.
+No controle, os inícios diferentes do cobre caem de 20 para 11, e os da área
+de 27 para 15, mas os caminhos pioram. Minimizar o número de inícios diferentes
+não é um critério válido para escolher uma implementação.
+
+Testes: verify integral final aprovado, **1507 registrados, 1492 aprovados, 15
+opcionais ignorados, zero falhas/erros**; 35 testes auxiliares Python aprovados.
+O painel Seed tem teste JavaFX de troca de linha/política/desabilitação/envio,
+e NccGCodeFidelityTest verifica Lines/per-tool em MM/IN com o parser FX real.
+Sem validação visual manual ou máquina CNC. Projeto privado continua somente
+lido; hash original conferido e intacto. Implementação anterior Contorno → Área
+incluída nesta mesma entrega.
+
+### Resultado real e reprodução pública do residual
+
+Comparação real ampliada: **9 MATCH_SAMPLED, 1 DIFFERENT (Connect), 1
+ORACLE_ERROR (multi-settings)** em `target/ncc-item2-real-20261010/source`.
+Seed Python passa, inclusive G-code: distância 4,72713794e-10 mm e comprimento
+relativo 4,17276764e-13. Rest e três ordens multi-tool passam. Os mesmos 11
+controles sintéticos IN passam em `synthetic-in`. Strict real continua reprovado.
+
+O erro vem do código original `ToolNCC.py:1934`: com Gerber sem ISO, buffering
+Full e Copper offset ativo, `MultiPolygon(sol_geo)` não aceita a representação
+`[MultiPolygon]` do projeto. Fixture pública reproduz o mesmo ValueError,
+sem importar a placa privada ou modificar o legado. FX aceita essa entrada
+(regressão Java MM/IN), mas a falha do oráculo **não conta** como paridade.
+
+Probe Connect ampliado: 12 discos públicos de raio 1 numa grade 4×3, passo
+6×5, resolução 16; casos diretos/list-multipart, MM/IN e duas posições.
+**28/32 independentes**: os quatro list-multipart novos reproduzem a diferença
+de Connect, 0,07455957 / 0,14524959 mm equivalentes, acima do limite. Área e
+Plain passam nos 32. Os controles de mesma área também passam 32/32 e NÃO
+são aprovações independentes. Relatório `target/ncc-connect-expanded-python-20261010.json`.
+Agora existe fixture pública para investigar a união/inícios antes de Connect,
+sem extrair geometria do usuário nem alterar os critérios. Não é uma correção
+entregue, e não se deve considerar o probe completo aprovado.
+
+Para reproduzir os diagnósticos, na pasta `flatcam-next`:
+
+```powershell
+# Usa classes atuais, não um JAR antigo instalado. Pasta de saída NOVA/ignorada.
+$probeClasspath = 'flatcam-cam/target/classes;' + (Get-Content target/ncc-connect-classpath.txt -Raw).Trim()
+java --class-path $probeClasspath tools/NccRepresentationProbe.java target/EXPORT/fx-cam.json target/NEW_REPRESENTATION
+.\target\oracle-py311\Scripts\python.exe tools/investigate_ncc_exports.py --legacy-root .. --fx-export target/EXPORT/fx-cam.json
+```
+
+O classpath é obtido pelo comando do probe Connect documentado abaixo.
+Exports/controles podem conter a placa privada: não versionar seus arquivos.
+
 ## Fluxo panelizado real — 2026-10-10
 
 Runner novo, sem alteração de algoritmos CAM ou código legado:
@@ -49,9 +146,14 @@ sobre áreas preenchidas explicitamente COMPARTILHADAS; compensação Gerber
 não negativa. Não valida reconstrução Edge_Cuts Python, margem negativa,
 Single, Thin/M-Bites ou recortes internos neste incremento.
 
-Pré-requisito do fluxo: área do contorno ANTES de panelizar, incluída no conjunto.
-Converter o contorno já panelizado pelo atual OutlineToArea escolhe só a maior
-região. NCC Itself e Cutout Single têm outras semânticas: não presumir limpeza
+O cenário do oráculo continua convertendo a área ANTES de panelizar e incluindo-a
+no conjunto. Agora também é possível converter o contorno depois de panelizar:
+`MainOutlineConversionTest` verifica todas as placas/recortes, menu/guards e
+NCC/Cutout/CNC/persistência MM/IN; conversão pós-panelização real é opt-in e
+confere frente à área pré-convertida replicada. Isso não compara a conversão
+multipartes com o Python, que segue escolhendo a maior região. Veja
+[OUTLINE_TO_AREA.md](OUTLINE_TO_AREA.md).
+NCC Itself e Cutout Single têm outras semânticas: não presumir limpeza
 limitada às placas nem cortes individuais. O gerador Cutout exterior continua
 sem roteamento dos anéis internos por padrão. A opção nova **Incluir recortes
 internos** é uma extensão opt-in FX, testada separadamente no fluxo MM/IN

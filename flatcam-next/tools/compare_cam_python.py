@@ -349,6 +349,30 @@ def ncc_boundary(case, copper, engine, root, cache):
     return result
 
 
+def gcode_metrics(source, parsed, tolerance):
+    """Validate travel length, not the union's unstable length after XY rounding.
+
+    Almost coincident passes can collapse to one line when exported to the
+    controller's coordinate precision. Both passes still occur in the program.
+    Keep the original spatial/length thresholds and unique-length diagnostics;
+    compare travelled length with multiplicity so an omitted/repeated pass fails.
+    CAM-vs-Python metrics intentionally retain their existing union semantics.
+    """
+    from shapely.ops import unary_union
+    source_lines, parsed_lines = lines(source), lines(parsed)
+    result = metrics(unary_union(source_lines), unary_union(parsed_lines), tolerance)
+    source_length = sum(line.length for line in source_lines)
+    parsed_length = sum(line.length for line in parsed_lines)
+    delta = abs(source_length - parsed_length) / max(source_length, parsed_length)
+    result.update(lengthCriterion="travel-with-multiplicity",
+                  fxTravelLength=source_length, pythonParsedTravelLength=parsed_length,
+                  travelRelativeLengthDelta=delta,
+                  matchesSampledCriteria=delta <= result["relativeLengthTolerance"]
+                      and result["boundsMaxDelta"] <= tolerance
+                      and result["sampledDistance"] <= tolerance)
+    return result
+
+
 def classify_result(result, fx_failed_polygons=0):
     """Keep CAM path differences distinct from interpreted G-code differences."""
     result["camMatchesSampledCriteria"] = result["matchesSampledCriteria"] and result.get("clearingAreaMatches", True) and result.get("toolPathsMatch",True)
@@ -369,7 +393,8 @@ def compare_tool_outputs(fx_tools, python_tools, python_order, tolerance, parse_
     from shapely.ops import unary_union
     details = []
     for tool in fx_tools:
-        fx = unary_union(lines(wkt.loads(tool["fxWkt"])))
+        source = wkt.loads(tool["fxWkt"])
+        fx = unary_union(lines(source))
         python = python_tools.get(tool["diameter"],GeometryCollection())
         if fx.is_empty or python.is_empty:
             cam = {"fxEmpty":fx.is_empty,"pythonEmpty":python.is_empty,
@@ -377,7 +402,7 @@ def compare_tool_outputs(fx_tools, python_tools, python_order, tolerance, parse_
         else:
             cam = metrics(fx,python,tolerance,tool["diameter"])
         gcode = ({"matchesSampledCriteria":True,"emptyTool":True} if fx.is_empty
-                 else metrics(fx,parse_cut(tool["gcode"]),tolerance))
+                 else gcode_metrics(source,parse_cut(tool["gcode"]),tolerance))
         details.append({"diameter":tool["diameter"],"cam":cam,"gcode":gcode})
     fx_order = [tool["diameter"] for tool in fx_tools if not wkt.loads(tool["fxWkt"]).is_empty]
     # Extra Python output not assigned to an FX tool also fails.
@@ -588,7 +613,10 @@ def run(args):
                 parsed = cnc.gcode_parse()
                 if parsed == "fail" or not parsed:
                     raise ValueError("Legacy CNC parser rejected FX G-code")
-                cut = unary_union([step["geom"] for step in parsed if step["kind"][0] == "C"])
+                from shapely.geometry import GeometryCollection
+                # Preserve repeated/overlapping passes for export fidelity.
+                # gcode_metrics performs a separate union for spatial coverage.
+                cut = GeometryCollection([step["geom"] for step in parsed if step["kind"][0] == "C"])
                 if cut.is_empty or cut.length <= 0:
                     raise ValueError("Legacy CNC parser found no cutting motion")
                 return cut
@@ -607,7 +635,13 @@ def run(args):
             (args.output / (case["id"] + ".python.wkt")).write_text(python.wkt, encoding="utf-8")
             (args.output / (case["id"] + ".fx.wkt")).write_text(fx.wkt, encoding="utf-8")
             result.update(metrics(fx, python, tolerance, case["diameter"]))
-            result["pythonParsedFxCutComparison"] = metrics(fx, cut, tolerance)
+            if "fxToolResults" in case["parameters"]:
+                from shapely.geometry import GeometryCollection
+                source_paths = GeometryCollection([wkt.loads(tool["fxWkt"])
+                                for tool in case["parameters"]["fxToolResults"]])
+            else:
+                source_paths = wkt.loads(case["fxWkt"])
+            result["pythonParsedFxCutComparison"] = gcode_metrics(source_paths, cut, tolerance)
             result["status"] = classify_result(result, case["parameters"].get("fxFailedPolygons", 0))
             filename = case["id"] + ".svg"
             (args.output / filename).write_text(overlay(fx, python), encoding="utf-8")

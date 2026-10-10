@@ -11,7 +11,8 @@ Marque **Incluir recortes internos** para acrescentar os anéis internos da
 e a Tools Database continuam gerando somente o perímetro externo.
 
 Use uma **Geometry preenchida do contorno físico**, convertida a partir do
-Edge_Cuts antes de panelizar. Não use ilhas de cobre: todos os anéis internos
+Edge_Cuts antes **ou depois** de panelizar (veja [OUTLINE_TO_AREA.md](OUTLINE_TO_AREA.md)).
+Não use ilhas de cobre: todos os anéis internos
 da origem serão interpretados como aberturas a recortar. Se houver várias
 placas/componentes, use **Panel**. Cada abertura recebe compensação para
 dentro de `margem + raio da fresa`, preservando o posicionamento das cópias.

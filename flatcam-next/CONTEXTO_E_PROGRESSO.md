@@ -1,5 +1,119 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-10: Item 2, NCC Seed e métricas de exportação
+
+Branch `flatcam-next`, base anterior `941750b8`; mudanças deste item e da
+conversão multipartes anterior reunidas nesta entrega. Consultar `git log`
+para o commit desta etapa ao retomar. Nenhum push realizado.
+
+NCC oferece **Seed inicial** por ferramenta CLEAR: Estável (FX), padrão
+preservado, ou Representativo (Python). NccSeedPolicy é um campo explícito de
+NccToolSettings; construtor anterior mantém STABLE. Rest conserva a política
+por fresa, Combo respeita-a no fallback, e Standard/Lines não a usam. Painel
+recupera ao trocar de linha, copia em Aplicar a todas, desabilita sem uma única
+CLEAR/Seed/Combo e explica a instabilidade numérica no tooltip. Escolha só na
+geração/painel, não preferência global/projeto nativo/Terminal. Paint intacto.
+Ver NCC_SEED.md. Não afirmar que o Seed estável reproduz literalmente Python.
+
+Os GCODE_DIFFERENT de Lines MM e multi-settings MM/IN eram falsos negativos:
+união após arredondamento de XY elimina comprimento de passadas quase
+coincidentes, embora elas continuem executadas. Comparador agora preserva
+os caminhos do parser original Python e verifica comprimento de percurso
+com multiplicidade; distância/bounds continuam por união. Conserva comprimento
+único como diagnóstico, sem aumentar nenhum limite. CAM×Python mantém as
+métricas anteriores. Testes negativos recusam passada omitida/repetida/extra/
+deslocada; atribuição/ordem por ferramenta e erros continuam reprovando.
+
+Mesmos exports sintéticos anteriores: **52/54**, Seed estável ainda diferente
+em MM/IN, sem GCODE_DIFFERENT/ORACLE_ERROR/PARTIAL_DIFFERENCE. Corpus ampliado
+mantém Seed estável e adiciona ncc-seed-python: **27/28 MM + 27/28 IN**; Seed
+Python coincide nos dois. Strict completo ainda reprova, deliberadamente não
+remove/normaliza o caso estável. Relatórios ignorados em target/ncc-gcode-travel-*
+e target/ncc-item2-public-*-python-20261010. As novas métricas/escopo estão
+explicados em COMPARACAO_CAM.md, inclusive comprimentos brutos que provam a causa.
+
+Connect simples ainda NÃO corrigido. NccRepresentationProbe testa seis ordens
+de união/reparo: todas preservaram 0,020312630895 mm do projeto real. Controle
+aproximando GEOS flat union piorou para 0,10509134 mm apesar de aproximar mais
+inícios de anéis. Não integrado à produção, não portar essa aproximação como
+solução. C++ std::sort/empates e outras heurísticas não estão reproduzidos.
+Não fazer rotação arbitrária nem relaxar tolerância. Controles privados ficam
+somente em target/ncc-representation*-20261010. Investigação seguinte deve
+usar a fixture pública descrita abaixo e comparar a representação por estágio,
+não mudar o conector que já coincide no controle de mesma área.
+
+Verify integral final: **1507 registrados, 1492 aprovados, 15 opcionais ignorados,
+zero falhas/erros**. 35 testes auxiliares Python aprovados; compileall/py_compile
+dos scripts modificados e diff --check passam. NccSeedPolicyPanelTest cobre
+seleção/desabilitação/envio por fresa; NccGCodeFidelityTest verifica exportação
+Lines/per-tool MM/IN com parser FX real. Ajuste final de largura mínima do combo
+também testado no JavaFX. Sem validação visual manual ou de máquina CNC.
+
+Validação independente real ampliada em target/ncc-item2-real-20261010:
+**9 MATCH_SAMPLED, 1 DIFFERENT (Connect), 1 ORACLE_ERROR (multi-settings)**.
+Seed Python passa incluindo G-code: distância 4,72713794e-10 mm, delta relativo
+4,17276764e-13. Rest/todas as três ordens passam. Os 11 controles sintéticos IN
+selecionados também passam. Strict real reprova; não somar erro como paridade.
+Erro original Python reproduzido com fixture pública: get_tool_empty_area,
+ToolNCC.py:1934, chama MultiPolygon(sol_geo) quando sol_geo é [MultiPolygon]
+e Copper offset está ativo. Shapely rejeita essa lista de multipolígonos.
+Referência não corrigida/achatada; Java tem regressão MM/IN de que aceita essa
+entrada e preserva a origem. Não declarar paridade nesse caso sem oráculo válido.
+Original somente lido, SHA-256
+C41580F1AC0D1E0BAF93026E6AFED18719A5614E78DA197407790C82667AA10C intacto.
+
+NccConnectProbe ampliado para 12 discos em grade pública, com empates X/Y e
+mais polígonos que as capacidades dos índices de união. **28/32 independentes**,
+os quatro casos novos list-multipart reproduzem Connect DIFFERENT nas duas
+unidades/posições (0,07455957 / 0,14524959 mm equivalentes). Plain passa nos 32;
+controles de mesma área 32/32, apenas diagnósticos. Isso localiza a divergência
+antes do conector. Dados ignorados em target/ncc-connect-expanded*-20261010.json.
+Próximo: investigar os inícios/união dessa fixture pública, sem coordenadas
+privadas nem afrouxar métricas; depois ampliar panelizados Connect/Rest/Itself.
+
+## Continuidade em 2026-10-10: conversão de contornos multipartes
+
+Etapa anterior commitada em `941750b8`, branch `flatcam-next`. Nesta entrega,
+OutlineToArea preserva material de todas as regiões
+separadas e resolve aberturas/ilhas por profundidade de contenção dos shells.
+Usa polygonização de todas as faces, índice espacial/prepared geometry e união
+robusta das faces materiais; Polygonizer(true) poderia descartar faces adjacentes.
+Não escolher maior face nem unir as faces das aberturas preenchendo-as.
+Faces contíguas são unidas: não inventa espaçamento/corte entre placas encostadas.
+Trechos abertos/dangles/cut edges/rings inválidos detectados recusam o objeto
+inteiro, não publicam uma área parcial. Grade de precisão anterior mantida.
+
+Menu Contorno → Área agora calcula em worker, com cancelamento e guards de
+versão/nome/projeto/editor antes da publicação. Console/tooltips informam
+regiões/recortes preservados; seleção de vários objetos mantém erros por objeto.
+Preview de panelização usa a mesma conversão com token de cancelamento.
+Original não alterado. Pode converter Edge_Cuts antes OU depois de panelizar.
+Detalhes/limites em OUTLINE_TO_AREA.md; Python mantém a regra da maior região,
+logo esta melhoria não é paridade literal com essa limitação do legado.
+
+Testes novos: OutlineToAreaTest e MainOutlineConversionTest (MM/IN, placas
+menores, múltiplos recortes, ilha com abertura, duplicatas/adjacência, origem
+intacta, entradas abertas/inválidas, cancelamento/stale publication).
+Fluxo sintético usa área convertida pós-panelização -> NCC Reference Geometry
+-> Cutout com recortes -> CNC/export -> salvar/reabrir. Fixture real opt-in
+confere quatro placas após conversão do contorno panelizado, contra replicar
+a área pré-convertida, e verifica SHA-256 da origem. Não certifica usinagem
+física nem cliques manuais; o projeto real tem zero anéis internos.
+
+Verify completo final aprovado: 1501 registrados, 1486 aprovados, 15 opcionais
+ignorados, zero falhas/erros. Primeira tentativa falhou somente na limpeza
+TempDir do PythonMainFlowImportTest no Windows (falha intermitente já registrada);
+reexecução integral passou sem mudar/desabilitar esse teste ou sua limpeza.
+Fixture real de MainOutlineConversionTest aprovada separadamente (9/9), com
+SHA-256 da origem intacto. Runner panelizado strict repetido: 5/5 MATCH_SAMPLED,
+zero divergências/erros, mesmas tolerâncias e mesma referência Python.
+Relatórios privados ignorados em `target/panelized-flow-20261010-outline-conversion`.
+O oráculo ainda compara área pré-convertida replicada, não a conversão Python
+multipartes. Não confundir esses cinco casos com paridade total.
+
+Próximo: divergências NCC Connect simples/Seed/Lines/multi-settings;
+ampliar casos panelizados Connect/Rest/Itself e grades; abertura JSON/WKT/preview.
+
 ## Continuidade em 2026-10-10: Cutout interno e persistência densa
 
 Validação panelizada anterior commitada em `d4ad0ce5`, branch `flatcam-next`.

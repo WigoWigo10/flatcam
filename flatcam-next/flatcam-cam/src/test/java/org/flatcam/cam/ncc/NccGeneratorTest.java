@@ -22,11 +22,74 @@ import org.flatcam.cam.gerber.GerberParser;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.Polygon;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.LineString;
 import org.junit.jupiter.api.Test;
 
 class NccGeneratorTest {
+    @Test
+    void copperOffsetAcceptsACollectionContainingMultipartCopperWithoutLegacyListError() {
+        for (double mm : List.of(1.,1/25.4)) {
+            Polygon first = (Polygon)FACTORY.toGeometry(new Envelope(0,2*mm,0,2*mm));
+            Polygon second = (Polygon)FACTORY.toGeometry(new Envelope(4*mm,6*mm,0,2*mm));
+            Geometry source = FACTORY.createGeometryCollection(new Geometry[]{
+                    FACTORY.createMultiPolygon(new Polygon[]{first,second})});
+            String original = source.toText();
+            var params = new NccParameters(List.of(.2*mm,.5*mm),.4,mm,NccMethod.STANDARD,false,true,0,
+                    false,NccOrder.NONE,new NccBoundary.Itself(),List.of(),Map.of(.2*mm,
+                    new NccToolSettings(.25,NccMethod.STANDARD,false,true,.1*mm)));
+            var result = NccGenerator.generate(mm==1?"MM":"IN",source,params);
+            assertEquals(2,result.toolResults().size());
+            assertTrue(result.toolResults().stream().noneMatch(NccToolResult::isEmpty));
+            assertEquals(0,result.totalFailedPolygonCount());
+            assertTrue(result.geometry().isValid());
+            assertFalse(result.geometry().intersects(source.getGeometryN(0)));
+            assertEquals(original,source.toText());
+        }
+    }
+
+    @Test
+    void pythonSeedUsesTheRepresentativeScanLineWithoutChangingTheStableDefault() {
+        for (double scale : List.of(1.,1 / 25.4)) {
+            Geometry copper = FACTORY.toGeometry(new Envelope(1*scale,3*scale,1*scale,3*scale));
+            Geometry board = FACTORY.toGeometry(new Envelope(0,20*scale,0,12*scale));
+            String original = copper.toText();
+            double diameter = .5*scale;
+            var stable = new NccParameters(List.of(diameter),.4,0,NccMethod.SEED,false,false,0,
+                    false,NccOrder.NONE,new NccBoundary.Area(board));
+            var legacy = new NccParameters(List.of(diameter),.4,0,NccMethod.SEED,false,false,0,
+                    false,NccOrder.NONE,new NccBoundary.Area(board),List.of(),Map.of(diameter,
+                    new NccToolSettings(.4,NccMethod.SEED,false,false,0,NccSeedPolicy.PYTHON)));
+            var defaultResult = NccGenerator.generate("MM",copper,stable);
+            var stableExplicit = new NccParameters(List.of(diameter),.4,0,NccMethod.SEED,false,false,0,
+                    false,NccOrder.NONE,new NccBoundary.Area(board),List.of(),Map.of(diameter,
+                    new NccToolSettings(.4,NccMethod.SEED,false,false,0,NccSeedPolicy.STABLE)));
+            assertEquals(defaultResult.geometry().toText(),NccGenerator.generate("MM",copper,stableExplicit).geometry().toText());
+            var legacyResult = NccGenerator.generate("MM",copper,legacy);
+            Geometry safe = org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(legacyResult.clearingArea(),
+                    -diameter/2,new org.locationtech.jts.operation.buffer.BufferParameters(64));
+            Coordinate seed = safe.getInteriorPoint().getCoordinate();
+            Coordinate start = legacyResult.geometry().getGeometryN(0).getCoordinate();
+            assertEquals(diameter/2*(1-.4),start.distance(seed),1e-10*scale);
+            assertTrue(safe.buffer(1e-10*scale).covers(legacyResult.geometry()));
+            assertFalse(defaultResult.geometry().equalsExact(legacyResult.geometry()));
+            assertEquals(original,copper.toText());
+        }
+    }
+
+    @Test
+    void restKeepsTheSeedPolicyPerToolAndRejectsNullPolicy() {
+        var params = new NccParameters(List.of(.5),.4,1,NccMethod.SEED,true,true,0,
+                true,NccOrder.NONE,new NccBoundary.Itself(),List.of(),Map.of(.5,
+                new NccToolSettings(.3,NccMethod.SEED,false,false,.1,NccSeedPolicy.PYTHON)));
+        assertEquals(NccSeedPolicy.PYTHON,params.settingsFor(.5).seedPolicy());
+        assertTrue(params.settingsFor(.5).connect());
+        assertTrue(params.settingsFor(.5).contour());
+        assertEquals(0,params.settingsFor(.5).copperOffset());
+        assertThrows(NullPointerException.class,() -> new NccToolSettings(.4,NccMethod.SEED,false,true,0,null));
+    }
+
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
 

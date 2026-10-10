@@ -40,6 +40,19 @@ class PanelizePreviewTest {
         assertEquals(4, result.outline().getNumGeometries());
         assertTrue(result.notice().contains("Contorno aberto"));
     }
+    @Test void multipartSourcePreviewFillsEveryBoardAndKeepsEveryCutout() {
+        Geometry source = F.buildGeometry(List.of(board(),
+                org.locationtech.jts.geom.util.AffineTransformation.translationInstance(65,0).transform(board())));
+        var input = new PanelizePreview.Input(List.of(), source.getBoundary(), F.toGeometry(source.getEnvelopeInternal()),
+                new Panelize.Layout(2,2,false,130,43),false,true,true);
+        var result = PanelizePreview.build(input, () -> false);
+        assertEquals(source.getArea()*4,result.interior().getArea(),1e-4);
+        assertEquals("",result.notice());
+        for(double[] offset : input.layout().offsets()) for(double dx : new double[]{0,65}) {
+            assertTrue(result.interior().covers(F.createPoint(new Coordinate(110+dx+offset[0],210+offset[1]))));
+            assertFalse(result.interior().covers(F.createPoint(new Coordinate(130+dx+offset[0],220+offset[1]))));
+        }
+    }
     @Test void optionsAndFallbackAreExplicit() {
         var result = PanelizePreview.build(input(null, false, false, false), () -> false);
         assertTrue(result.content().isEmpty()); assertTrue(result.outline().isEmpty()); assertTrue(result.interior().isEmpty());

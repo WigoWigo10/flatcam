@@ -46,6 +46,7 @@ import org.flatcam.cam.ncc.NccOperation;
 import org.flatcam.cam.ncc.NccOrder;
 import org.flatcam.cam.ncc.NccParameters;
 import org.flatcam.cam.ncc.NccToolSettings;
+import org.flatcam.cam.ncc.NccSeedPolicy;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.locationtech.jts.geom.Geometry;
@@ -66,6 +67,7 @@ final class NccToolPanel {
         NccOperation operation;
         String overlapPercent = "40";
         NccMethod method = NccMethod.SEED;
+        NccSeedPolicy seedPolicy = NccSeedPolicy.STABLE;
         boolean connect = true;
         boolean contour = true;
         boolean offsetEnabled;
@@ -81,7 +83,7 @@ final class NccToolPanel {
             String prefix = "Ferramenta " + format(diameter) + ": ";
             return new NccToolSettings(parseNumber(overlapPercent, prefix + "Overlap") / 100.0,
                     method, connect, contour,
-                    offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0);
+                    offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0, seedPolicy);
         }
     }
 
@@ -346,6 +348,7 @@ final class NccToolPanel {
                     NccToolSettings settings = selected.settings();
                     row.overlapPercent = format(settings.overlapFraction() * 100);
                     row.method = settings.method();
+                    row.seedPolicy = settings.seedPolicy();
                     row.connect = settings.connect();
                     row.contour = settings.contour();
                     row.offsetEnabled = settings.copperOffset() > 0;
@@ -531,6 +534,7 @@ final class NccToolPanel {
                 metric ? 0.1 : 0.01);
         TextField marginField = marginSpinner.getEditor();
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
+        methodCombo.setId("ncc-method");
         methodCombo.getItems().addAll(NccMethod.values());
         methodCombo.setValue(NccMethod.SEED);
         methodCombo.setTooltip(tooltip(
@@ -538,6 +542,18 @@ final class NccToolPanel {
                 + "Seed: aneis crescentes a partir de um ponto central.\n"
                 + "Lines: varredura paralela (raster).\n"
                 + "Combo: tenta Lines, depois Seed, depois Standard."));
+        ComboBox<NccSeedPolicy> seedPolicyCombo = new ComboBox<>();
+        seedPolicyCombo.setId("ncc-seed-policy");
+        seedPolicyCombo.getItems().addAll(NccSeedPolicy.values());
+        seedPolicyCombo.setValue(NccSeedPolicy.STABLE);
+        seedPolicyCombo.setMinWidth(0);
+        seedPolicyCombo.setPrefWidth(180);
+        seedPolicyCombo.setMaxWidth(Double.MAX_VALUE);
+        seedPolicyCombo.setTooltip(tooltip("Ponto inicial dos aneis Seed (tambem usado no fallback Combo).\n\n"
+                + "Estavel (FX): conserva o comportamento atual e reduz mudancas bruscas por pequenas variacoes da geometria.\n"
+                + "Representativo (Python): usa a mesma regra de scan-line do legado, para reproduzir seus aneis. "
+                + "Pequenas diferencas numericas na entrada ainda podem mudar o ponto e os trajetos.\n\n"
+                + "Esta escolha pertence a cada ferramenta; Standard e Lines nao a utilizam."));
         CheckBox connectCb = new CheckBox("Connect");
         connectCb.setSelected(true);
         connectCb.setTooltip(tooltip("Une trajetos proximos quando o percurso de ligacao continua dentro da area segura da ferramenta."));
@@ -579,6 +595,9 @@ final class NccToolPanel {
                 () -> toolTable.getSelectionModel().getSelectedItems().size() != 1,
                 toolTable.getSelectionModel().getSelectedItems());
         BooleanBinding noClearTool = noSingleTool.or(isoRadio.selectedProperty());
+        seedPolicyCombo.disableProperty().bind(noClearTool.or(Bindings.createBooleanBinding(
+                () -> methodCombo.getValue() != NccMethod.SEED && methodCombo.getValue() != NccMethod.COMBO,
+                methodCombo.valueProperty())));
         overlapSpinner.disableProperty().bind(noClearTool);
         methodCombo.disableProperty().bind(noClearTool);
         connectCb.disableProperty().bind(noClearTool.or(restCb.selectedProperty()));
@@ -605,6 +624,7 @@ final class NccToolPanel {
             try { overlapSpinner.getValueFactory().setValue(parseNumber(row.overlapPercent, "Overlap")); }
             catch (IllegalArgumentException ignored) { /* Preserve invalid draft for validation on Generate. */ }
             methodCombo.setValue(row.method);
+            seedPolicyCombo.setValue(row.seedPolicy);
             connectCb.setSelected(row.connect);
             contourCb.setSelected(row.contour);
             offsetCb.setSelected(row.offsetEnabled);
@@ -630,6 +650,11 @@ final class NccToolPanel {
         connectCb.selectedProperty().addListener((observable, oldValue, value) -> {
             if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
                 toolTable.getSelectionModel().getSelectedItem().connect = value;
+            }
+        });
+        seedPolicyCombo.valueProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && value != null && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
+                toolTable.getSelectionModel().getSelectedItem().seedPolicy = value;
             }
         });
         contourCb.selectedProperty().addListener((observable, oldValue, value) -> {
@@ -672,6 +697,7 @@ final class NccToolPanel {
         grid.addRow(2, new Label("Margin (comum):"), marginSpinner);
         grid.addRow(3, connectCb, contourCb);
         grid.addRow(4, offsetCb, offsetSpinner);
+        grid.addRow(5, new Label("Seed inicial:"), seedPolicyCombo);
 
         GridPane restGrid = new GridPane();
         restGrid.setHgap(8);
@@ -695,6 +721,7 @@ final class NccToolPanel {
                     row.operation = selected.operation;
                     row.overlapPercent = selected.overlapPercent;
                     row.method = selected.method;
+                    row.seedPolicy = selected.seedPolicy;
                     row.connect = selected.connect;
                     row.contour = selected.contour;
                     row.offsetEnabled = selected.offsetEnabled;

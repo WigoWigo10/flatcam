@@ -62,14 +62,14 @@ class ObjectMergeTest {
     }
 
     @Test
-    void outlineToAreaFillsAClosedOutlineAndPicksTheLargestRegion() {
+    void outlineToAreaFillsAllAdjacentFacesInsteadOfPickingOne() {
         Geometry outline = FACTORY.createMultiLineString(new org.locationtech.jts.geom.LineString[]{
                 FACTORY.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(10, 0),
                         new Coordinate(10, 5), new Coordinate(0, 5), new Coordinate(0, 0)}),
                 FACTORY.createLineString(new Coordinate[]{new Coordinate(5, 0), new Coordinate(5, 5)})});
         OutlineToArea.Result result = OutlineToArea.convert(outline);
         assertEquals(2, result.candidates());
-        assertEquals(25, result.area().getArea(), 1e-9);
+        assertEquals(50, result.area().getArea(), 1e-9);
     }
 
     @Test

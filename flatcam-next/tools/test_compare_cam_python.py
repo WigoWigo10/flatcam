@@ -7,11 +7,47 @@ from shapely.geometry import GeometryCollection, LineString, MultiLineString, Po
 from compare_cam_python import (classify_result, compile_rectangular_handler, compile_plugin_methods, dependency_metadata,
                                compile_ncc_gui, compare_tool_outputs,
                                isolation_exception_paths, ncc_boundary, leaves, lines, metrics, overlay,
-                               sampled_distance, sampled_witness)
+                               sampled_distance, sampled_witness, gcode_metrics)
 from compare_cam_python import panelize_legacy_source
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_original_gui_offset_rejects_a_list_containing_multipart_copper(self):
+        import shapely
+        from shapely.geometry import MultiPolygon
+        if shapely.__version__ != "1.8.5.post1":
+            self.skipTest("Reproduction targets the compatible unmodified legacy reference")
+        namespace = compile_ncc_gui(self.legacy_root())
+        source = SimpleNamespace(kind="gerber",solid_geometry=[MultiPolygon([box(0,0,2,2),box(4,0,6,2)])])
+        binding = SimpleNamespace(app=SimpleNamespace(defaults={"gerber_buffering":"full"},
+                inform=SimpleNamespace(emit=lambda *args:None)))
+        with self.assertRaisesRegex(ValueError,"Sequences of multi-polygons are not valid arguments"):
+            namespace["get_tool_empty_area"](binding,name="public",ncc_obj=source,geo_obj=None,
+                    isotooldia=None,has_offset=True,ncc_offset=.1,ncc_margin=1,
+                    bounding_box=box(-1,-1,7,3),tools_storage={})
+
+    def test_export_length_preserves_near_coincident_passes_after_xy_rounding(self):
+        for scale in (1, 1 / 25.4):
+            with self.subTest(scale=scale):
+                original = MultiLineString([[(0,0),(30*scale,0)],
+                                           [(0,1e-9*scale),(30*scale,1e-9*scale)]])
+                rounded = MultiLineString([[(0,0),(30*scale,0)],[(0,0),(30*scale,0)]])
+                report = gcode_metrics(original,rounded,.003*scale)
+                self.assertTrue(report["matchesSampledCriteria"])
+                self.assertAlmostEqual(60*scale,report["pythonParsedTravelLength"])
+                self.assertAlmostEqual(.5,report["relativeLengthDelta"])
+                self.assertEqual(0,report["travelRelativeLengthDelta"])
+
+    def test_export_fidelity_rejects_missing_repeated_added_and_shifted_passes(self):
+        lower = LineString([(0,0),(30,0)])
+        upper = LineString([(0,1e-9),(30,1e-9)])
+        source = MultiLineString([lower,upper])
+        for parsed in (lower, MultiLineString([lower,lower,lower]),
+                       MultiLineString([[(0,.1),(30,.1)],[(0,.1),(30,.1)]]),
+                       MultiLineString([[(0,0),(29,0)],[(0,0),(29,0)]])):
+            with self.subTest(parsed=parsed.wkt):
+                self.assertFalse(gcode_metrics(source,parsed,.003)["matchesSampledCriteria"])
+
     def test_original_panel_initializer_preserves_holes_positions_and_list_container(self):
         from shapely.geometry import Point
         from shapely.ops import unary_union

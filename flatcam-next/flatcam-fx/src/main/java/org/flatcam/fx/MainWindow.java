@@ -1400,11 +1400,16 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Edit > Conversion > Outline to Area: a filled Geometry from each selected closed Gerber/Geometry outline. */
     private void convertOutlineToArea() {
+        if (runningJob != null || camEditorActive()) {
+            appendConsole("Conclua a operacao e feche os editores antes de converter contornos.");
+            return;
+        }
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.isEmpty()) {
             appendConsole("Nenhum objeto selecionado.");
             return;
         }
+        List<OutlineConversion> requests = new ArrayList<>();
         for (TreeItem<String> item : selected) {
             GerberImage gerber = gerberByItem.get(item);
             GeometryEntry entry = geometryByItem.get(item);
@@ -1415,21 +1420,68 @@ final class MainWindow implements TclFlatcamHost {
             Geometry source = gerber != null && gerber.followGeometry() != null && !gerber.followGeometry().isEmpty()
                     ? gerber.followGeometry() : gerber != null ? gerber.solidGeometry() : entry.geometry();
             String units = gerber != null ? gerber.units() : entry.units();
-            try {
-                OutlineToArea.Result result = OutlineToArea.convert(source);
-                TreeItem<String> created = addGeometryToProject(uniqueDerivedName(item.getValue() + "_area"),
-                        item.getValue(), units, result.area(), false);
-                appendConsole("Area do contorno criada: " + created.getValue() + String.format(java.util.Locale.ROOT,
-                        " (%.4f %s^2)", result.area().getArea(), units.toLowerCase(java.util.Locale.ROOT)));
-                if (result.candidates() > 1) {
-                    appendConsole("Foram encontradas varias areas fechadas; a maior foi usada como area da placa.");
-                }
-                selectProjectItem(created);
-            } catch (IllegalArgumentException failed) {
-                appendConsole(item.getValue() + ": " + failed.getMessage());
-            }
+            requests.add(new OutlineConversion(new CamInput(item, item.getValue(), gerber != null ? gerber : entry), units, source));
         }
+        if (requests.isEmpty()) return;
+        CamGenerationState before = new CamGenerationState(tclProjectEpoch,
+                requests.stream().map(OutlineConversion::input).toList(), toolTab.getContent());
+        beginJob("Convertendo contornos para area...");
+        activeCamGeneration = before;
+        JobHandle<List<OutlineConversionOutcome>> handle = jobExecutor.submit(context -> {
+            List<OutlineConversionOutcome> results = new ArrayList<>();
+            for (int i = 0; i < requests.size(); i++) {
+                context.checkCancelled();
+                OutlineConversion request = requests.get(i);
+                context.reportProgress(.9 * i / requests.size(), "Convertendo " + request.input().name() + "...");
+                try {
+                    results.add(new OutlineConversionOutcome(request, OutlineToArea.convert(request.source(), context::isCancelled), null));
+                } catch (IllegalArgumentException invalid) {
+                    results.add(new OutlineConversionOutcome(request, null, Objects.toString(invalid.getMessage(), "Contorno invalido.")));
+                }
+            }
+            context.checkCancelled();
+            context.reportProgress(.95, "Publicando areas dos contornos...");
+            return List.copyOf(results);
+        }, camProgress(before));
+        runningJob = handle;
+        handle.completion().whenComplete((results, failure) -> Platform.runLater(() -> {
+            if (runningJob != handle) return;
+            try {
+                if (failure != null) throw new java.util.concurrent.CompletionException(failure);
+                if (!acceptCamGeneration(before, handle)) return;
+                TreeItem<String> last = null;
+                plotAreaView.beginBatchUpdate();
+                try {
+                    for (OutlineConversionOutcome outcome : results) {
+                        OutlineConversion request = outcome.request();
+                        if (outcome.error() != null) {
+                            appendConsole(request.input().name() + ": " + outcome.error());
+                            continue;
+                        }
+                        Geometry area = outcome.result().area();
+                        last = addGeometryToProject(uniqueDerivedName(request.input().name() + "_area"),
+                                request.input().name(), request.units(), area, false);
+                        int holes = 0;
+                        for (int i = 0; i < area.getNumGeometries(); i++)
+                            holes += ((org.locationtech.jts.geom.Polygon) area.getGeometryN(i)).getNumInteriorRing();
+                        appendConsole("Area do contorno criada: " + last.getValue() + String.format(java.util.Locale.ROOT,
+                                " (%.4f %s^2; %d area(s), %d recorte(s) interno(s) preservados)",
+                                area.getArea(), request.units().toLowerCase(java.util.Locale.ROOT), area.getNumGeometries(), holes));
+                    }
+                    if (last != null) selectProjectItem(last);
+                } finally { plotAreaView.endBatchUpdate(); }
+                updateProgress(1);
+                setStatus(last != null ? "Areas criadas." : "Nenhuma area criada; confira os contornos.", last != null ? IDLE_COLOR : ERROR_COLOR);
+            } catch (Exception error) {
+                reportJobError(error, "Falha ao converter contornos: ");
+            } finally {
+                if (runningJob == handle) onJobFinished();
+            }
+        }));
     }
+
+    private record OutlineConversion(CamInput input, String units, Geometry source) { }
+    private record OutlineConversionOutcome(OutlineConversion request, OutlineToArea.Result result, String error) { }
 
     private void copySelectedObjects() {
         List<TreeItem<String>> selected = selectedObjects();
@@ -1660,7 +1712,9 @@ final class MainWindow implements TclFlatcamHost {
         conversionsMenu.getItems().addAll(
                 tipped(chromeItem("Contorno → Area", "geometry32.png", this::convertOutlineToArea),
                         "Contorno → Área", "Fecha o contorno de um Gerber ou Geometry e cria uma Geometry com a "
-                        + "área da placa (a maior região fechada)."),
+                        + "área de todas as placas, preservando recortes internos e ilhas. "
+                        + "Funciona também após panelizar o contorno. Trechos abertos recusam a conversão "
+                        + "do objeto, sem criar uma área parcial; o cálculo é feito em segundo plano."),
                 tipped(chromeItem("Single → Multi-Geometry", "geometry32.png", this::convertSingleToMultiGeometry),
                         "Single → Multi-Geometry", "Coloca a geometria sob uma ferramenta de diâmetro escolhido, "
                         + "tornando-a multi-ferramenta."),

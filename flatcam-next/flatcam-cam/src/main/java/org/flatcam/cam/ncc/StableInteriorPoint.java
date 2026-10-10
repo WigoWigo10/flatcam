@@ -15,8 +15,9 @@ import org.locationtech.jts.geom.Polygon;
 
 /**
  * A "pole of inaccessibility" seed point - the point deepest inside the area, found by
- * grid-refinement search (Mapbox's polylabel algorithm) - used by NCC/Paint Seed instead
- * of JTS's {@code Geometry.getInteriorPoint()}.
+ * grid-refinement search (Mapbox's polylabel algorithm) - the default NCC/Paint Seed
+ * policy instead of JTS's {@code Geometry.getInteriorPoint()}. NCC also exposes an
+ * explicit {@link NccSeedPolicy#PYTHON} option without removing this stable default.
  *
  * <p>This is a deliberate difference from FlatCAM Python, not an implementation gap: Python's
  * own seed point ({@code Polygon.representative_point()}) and JTS's are backed by the very

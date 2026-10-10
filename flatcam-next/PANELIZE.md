@@ -9,10 +9,12 @@ Runner/escopo/diferenças em [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
 
 Para reproduzir o fluxo aprovado:
 
-1. Converta o Edge_Cuts ORIGINAL para Geometry preenchida (área), ou confira a
-   área já existente. A conversão atual escolhe a maior região; não aplique-a
-   ao contorno já panelizado esperando recuperar todas as placas.
-2. Panelize cobre, Excellons, contorno e essa área no MESMO conjunto/layout.
+1. Escolha o Edge_Cuts como contorno físico e referência compartilhada. Pode
+   convertê-lo para área antes de panelizar, ou deixar a conversão para depois.
+2. Panelize cobre, Excellons, contorno e, se já existir, essa área no MESMO
+   conjunto/layout. Se ainda não houver área, selecione o contorno panelizado
+   e use **Editar > Converter > Contorno → Área**. Agora a conversão preserva
+   todas as áreas separadas e seus recortes. Veja [OUTLINE_TO_AREA.md](OUTLINE_TO_AREA.md).
 3. Isolation usa F_Cu/B_Cu panelizados. NCC aprovado: Standard, Connect off,
    Contour on, referência **Geometry da área panelizada**, margem zero.
 4. Cutout: área panelizada como origem, **Panel**, Free-form e Convex Shape off.

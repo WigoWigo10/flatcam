@@ -118,6 +118,16 @@ class PythonCamComparisonExportTest {
                             .put("fxFailedPolygons", result.totalFailedPolygonCount()));
             paintArea = result.clearingArea();
         }
+        var pythonSeed = new NccParameters(List.of(.5 * mm),.4,mm,NccMethod.SEED,false,true,0,
+                false,NccOrder.NONE,new NccBoundary.Itself(),List.of(),Map.of(.5 * mm,
+                new org.flatcam.cam.ncc.NccToolSettings(.4,NccMethod.SEED,false,true,0,
+                        org.flatcam.cam.ncc.NccSeedPolicy.PYTHON)));
+        var pythonSeedResult = NccGenerator.generate(units,copper,pythonSeed);
+        add(cases,"ncc-seed-python","ncc",copper,pythonSeedResult.geometry(),units,.5*mm,
+                new JSONObject().put("method","SEED").put("seedPolicy","PYTHON")
+                        .put("margin",mm).put("overlap",.4).put("connect",false).put("contour",true)
+                        .put("fxClearingAreaWkt",new WKTWriter().write(pythonSeedResult.clearingArea()))
+                        .put("fxFailedPolygons",pythonSeedResult.totalFailedPolygonCount()));
         Geometry reference = factory.toGeometry(new Envelope(bounds.getMinX() - 2 * mm,bounds.getMaxX() + 2 * mm,
                 bounds.getMinY() + bounds.getHeight() * .35,bounds.getMaxY() + 2 * mm));
         Geometry concaveReference = reference.difference(factory.toGeometry(new Envelope(
@@ -205,7 +215,7 @@ class PythonCamComparisonExportTest {
         Files.createDirectories(directory);
         Files.writeString(directory.resolve(syntheticInch ? "fx-cam-in.json" : "fx-cam.json"), export.toString(2), StandardCharsets.UTF_8);
         assertTrue(cases.length() >= 26);
-        if (fixture == null || fixture.isBlank() || syntheticInch) assertEquals(27,cases.length());
+        if (fixture == null || fixture.isBlank() || syntheticInch) assertEquals(28,cases.length());
     }
 
     private static void add(JSONArray cases, String id, String operation, Geometry input, Geometry paths,
