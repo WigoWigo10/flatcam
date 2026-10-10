@@ -1,5 +1,60 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-10: fluxo panelizado no projeto real
+
+A pedido do usuário, verificado o `.FlatPrj` real em grade 2 x 2 / espaçamento
+5 mm, com Edge_Cuts como referência compartilhada. Original somente lido;
+SHA-256 antes/depois igual. Nenhum algoritmo CAM/Python foi alterado nesta etapa.
+Novos testes/runner e extensão do oráculo; ainda sem commit.
+
+`MainPanelizedCamFlowTest` cobre panelização via MainWindow, Isolation três
+passadas em F_Cu/B_Cu, NCC Standard sem Connect e referência Geometry preenchida
+nas duas faces, Cutout Panel/free-form/margem zero/quatro pontes, CNC/exportação
+pelo host Tcl e salvar/reabrir `.fcnproj`. MM/IN públicos + fixture real opt-in
+passam. Furos/slots preservam IDs, diâmetros e posições nas quatro cópias,
+inclusive após persistência (o codec reagrupa por ferramenta; não exigir a
+mesma ordem global da lista). Contorno/recortes da origem são replicados.
+
+`compare-panelized-flows.ps1 -Project <arquivo.FlatPrj> -Strict` passou:
+**5/5 MATCH_SAMPLED**, zero DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE/ORACLE_ERROR.
+Isolations: distâncias amostradas 0,00097359 / 0,00202909 mm; NCC ~0,00000107 mm,
+delta da área de clearing zero nas duas faces; Cutout ~0,00044820 mm.
+Critérios anteriores intactos, não são prova de paridade total ou segurança CNC.
+Referência Python 3.11 / Shapely 1.8.5.post1 / GEOS 3.10.3 existente, sem instalar.
+
+Oráculo de panelização usa corpo original de `ToolPanelize.job_init_geometry`
+com cópia/exportação das apertures stubadas: valida a solid_geometry, não edição
+de apertures nem panelização Excellon Python. Cutout usa handler free-form
+original sobre a MESMA área preenchida explícita; não compara a conversão
+Edge_Cuts->área do Python nem roteamento interno. Resultados privados só em
+`target/panelized-flow-20261010-final`, incluindo `fx/panelized-flow.fcnproj`.
+
+Cuidados de uso: converter o contorno original para área ANTES de panelizar e
+incluir essa Geometry no conjunto; `OutlineToArea.convert` continua escolhendo
+a maior região, não todas as placas de um contorno já panelizado. NCC Itself
+continua incluindo espaços entre placas; Cutout Single não é corte por placa.
+Recortes internos não entram automaticamente no Cutout exterior. O Edge_Cuts
+real tem concavidades, mas zero anéis internos; MM/IN sintéticos têm um recorte.
+As configurações CNC desta execução são de teste, não recomendações de máquina;
+o host Tcl usa uma passada Z, enquanto defaults GUI multi-depth são persistidos.
+
+Tempos headless locais: CAM/publicação ~0,15–2,8 s, panelização ~0,32 s,
+CNC/export/preview ~0,05–5,54 s, salvar/reabrir ~62,4 s. Sem Stage, FPS, cliques
+ou usinagem física. Investigar persistência desse painel denso como gargalo;
+não atribuir automaticamente o tempo a renderização/GPU.
+
+Próximo: fontes de contorno/área por placa e recortes internos no Cutout,
+persistência densa e ampliação do painel para NCC Connect/Rest/Itself e outras
+grades/espaçamentos. Connect simples residual e Seed/Lines/multi-settings do
+corpus anterior permanecem pendentes; 5/5 deste cenário não os resolve.
+
+Verify completo final: 1479 registrados, 1466 aprovados, 13 opcionais ignorados,
+zero falhas/erros. Inclui os dois novos cenários públicos MM/IN; fixture real
+opt-in foi aprovada separadamente pelo runner. A primeira tentativa falhou
+apenas na limpeza de TempDir de PythonMainFlowImportTest no Windows;
+reexecução integral passou, sem desabilitar a limpeza ou alterar testes antigos.
+32 testes Python auxiliares/compileall aprovados no ambiente compatível.
+
 ## Continuidade em 2026-10-08: preparação NCC integrada, 8/9 no projeto real
 
 Diagnósticos commitados em `fcf93ea8`, branch `flatcam-next`. Novo incremento

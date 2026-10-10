@@ -1,5 +1,34 @@
 # Panelização e prévia — FlatCAM FX
 
+## Continuação CAM verificada — 2026-10-10
+
+Validado no projeto real: panelização 2 x 2 com gap 5 mm -> Isolation/NCC
+nas duas faces -> Cutout exterior por placa -> CNC/export -> salvar/reabrir.
+Cinco casos numéricos passam frente ao Python, dentro das tolerâncias existentes.
+Runner/escopo/diferenças em [COMPARACAO_CAM.md](COMPARACAO_CAM.md).
+
+Para reproduzir o fluxo aprovado:
+
+1. Converta o Edge_Cuts ORIGINAL para Geometry preenchida (área), ou confira a
+   área já existente. A conversão atual escolhe a maior região; não aplique-a
+   ao contorno já panelizado esperando recuperar todas as placas.
+2. Panelize cobre, Excellons, contorno e essa área no MESMO conjunto/layout.
+3. Isolation usa F_Cu/B_Cu panelizados. NCC aprovado: Standard, Connect off,
+   Contour on, referência **Geometry da área panelizada**, margem zero.
+4. Cutout: área panelizada como origem, **Panel**, Free-form e Convex Shape off.
+   O modo trabalha por componente separado, não reconhece placas a partir de
+   ilhas de cobre. Espaçamento, raio da fresa e pontes precisam ser conferidos.
+5. Gere/revise CNC, confira a prévia, exporte e salve `.fcnproj`.
+
+Este cenário NÃO certifica NCC Connect/Rest/Itself ou todas as receitas CNC.
+Cutout gera os perímetros externos; recortes internos exigem operação separada
+e continuam pendentes de integração. A área real testada tem zero anéis internos;
+fixtures sintéticos MM/IN incluem um recorte. Prévia correta não garante corte
+interno no G-code. Programas gerados pelo teste não devem ser usados na máquina.
+
+Observação de desempenho: salvar/reabrir o painel real denso levou ~62 segundos
+na execução headless; isso permanece como investigação de persistência, não FPS.
+
 Implementação de 2026-10-07. Ferramentas > Panelize Tool.
 
 ## Uso

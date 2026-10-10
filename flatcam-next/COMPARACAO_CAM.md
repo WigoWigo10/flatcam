@@ -1,5 +1,79 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Fluxo panelizado real — 2026-10-10
+
+Runner novo, sem alteração de algoritmos CAM ou código legado:
+
+```powershell
+.\flatcam-next\compare-panelized-flows.ps1 -Project 'C:\caminho\projeto.FlatPrj' -Strict
+```
+
+Usa a referência compatível existente `target/oracle-py311/Scripts/python.exe`
+(ou `-Python` explícito); valida Python 3.11/Shapely 1.8.5.post1/GEOS 3.10.3 e
+não instala dependências. `-OutputDirectory` precisa ser uma pasta NOVA dentro
+de `flatcam-next/target`. Guarda logs, projetos/code/geometrias privados apenas
+ali e verifica o hash do original. Erros FX abortam antes do oráculo; Strict
+não aceita divergências ou erros como aprovação.
+
+Projeto real previamente usado: grade 2 x 2, gap 5 mm, referência Edge_Cuts;
+F_Cu/B_Cu, Edge_Cuts, Excellons e área do contorno recebem o mesmo layout.
+`MainPanelizedCamFlowTest`: MM/IN sintéticos mais fixture opcional real, usando
+MainWindow sem Stage -> CAM workers/publicação -> CNC/export host Tcl ->
+salvar/reabrir. Confere quatro cópias, posições/IDs/diâmetros/furos/slots,
+limitação do NCC às áreas de placa, Cutout por placa/pontes, previews e
+persistência de geometrias/unidades/defaults/G-code. Não substitui testes de
+todos os formulários CNC, controladores, opções de usinagem ou uso físico.
+
+Resultado final `target/panelized-flow-20261010-final`:
+
+| Caso | Distância amostrada CAM (mm) | Status |
+| --- | ---: | --- |
+| Isolation F_Cu, 3 passadas / 0,1 mm / 15% | 0,00097359 | MATCH_SAMPLED |
+| Isolation B_Cu, mesmos parâmetros | 0,00202909 | MATCH_SAMPLED |
+| NCC F_Cu, Standard / 0,5 mm / 40% / referência Geometry | 0,00000107 | MATCH_SAMPLED |
+| NCC B_Cu, mesmos parâmetros | 0,00000106 | MATCH_SAMPLED |
+| Cutout Panel / free-form / 0,8 mm / margem 0 / quatro pontes de 2 mm | 0,00044820 | MATCH_SAMPLED |
+
+**5/5, zero DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE/ORACLE_ERROR.** NCC:
+Connect off, Contour on, sem Rest; área de clearing coincide nas duas faces,
+zero polígonos falhados. Critérios anteriores de 0,003 mm/0,1%/IoU >=99,5%
+permanecem. G-code também passa no parser Python e na comparação amostrada.
+
+F_Cu/B_Cu são decodificados independentemente do original e panelizados pelo
+corpo original de `ToolPanelize.job_init_geometry`. Stubs limitados a ambiente,
+apertures/exportação (CAM usa solid_geometry); lista de saída original mantida.
+Referência/box é decodificada do projeto, não confiada a um WKT exportado pelo FX.
+O oráculo registra hash do ToolPanelize além dos outros fontes.
+Cutout compila `cutout_handler`, bounds/interseção/subtração/flatten originais,
+sobre áreas preenchidas explicitamente COMPARTILHADAS; compensação Gerber
+não negativa. Não valida reconstrução Edge_Cuts Python, margem negativa,
+Single, Thin/M-Bites ou recortes internos neste incremento.
+
+Pré-requisito do fluxo: área do contorno ANTES de panelizar, incluída no conjunto.
+Converter o contorno já panelizado pelo atual OutlineToArea escolhe só a maior
+região. NCC Itself e Cutout Single têm outras semânticas: não presumir limpeza
+limitada às placas nem cortes individuais. O gerador Cutout exterior continua
+sem roteamento automático dos anéis internos. O contorno real testado possui
+zero anéis internos, enquanto a fixture pública MM/IN inclui um recorte.
+
+Resultados são de teste: o CNC do host Tcl usa uma passada Z e parâmetros
+explícitos, não os jobs privados originais nem receitas para usinagem. Não há
+Stage/FPS/cliques/segurança física validados. Guardas/defaults GUI têm testes
+separados. Salvamento/reabertura local levou ~62,4 s neste painel denso:
+próximo diagnóstico de desempenho, sem concluir causa por GPU/renderização.
+
+Oráculo/unitários adicionais conferem corpos originais, lista/polígono,
+coordenadas não nulas, buracos, layouts inválidos e quatro pontes por cópia.
+32 testes Python auxiliares/compileall passam. Nenhum projeto privado é fixture
+commitada; todo relatório/projeto gerado permanece ignorado em target.
+As pendências anteriores de Connect/Seed/Lines/multi-settings continuam intactas.
+
+Build final completo: `mvnw.cmd -q verify` passou com 1479 registrados,
+1466 aprovados, 13 opcionais ignorados e zero falhas/erros. A fixture real
+opt-in passa no runner separado. Primeira tentativa teve falha transitória
+de limpeza TempDir/DirectoryNotEmptyException em PythonMainFlowImportTest;
+reexecução integral passou sem mudar limpeza/tolerâncias/testes existentes.
+
 ## Preparação NCC integrada — 2026-10-08
 
 Base diagnóstica commitada `fcf93ea8`, branch `flatcam-next`. A implementação

@@ -8,9 +8,49 @@ from compare_cam_python import (classify_result, compile_rectangular_handler, co
                                compile_ncc_gui, compare_tool_outputs,
                                isolation_exception_paths, ncc_boundary, leaves, lines, metrics, overlay,
                                sampled_distance, sampled_witness)
+from compare_cam_python import panelize_legacy_source
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_original_panel_initializer_preserves_holes_positions_and_list_container(self):
+        from shapely.geometry import Point
+        from shapely.ops import unary_union
+        copper = box(110,205,155,235).difference(Point(115,210).buffer(1))
+        original = copper.wkt
+        reference = box(100,200,160,240)
+        for source in (copper, [copper]):
+            result = panelize_legacy_source(self.legacy_root(),source,reference,
+                dict(columns=2,rows=2,spacingX=5,spacingY=3))
+            self.assertIsInstance(result,list)
+            self.assertEqual(4,len(result))
+            self.assertAlmostEqual(4*copper.area,unary_union(result).area)
+            self.assertEqual((110,205,220,278),unary_union(result).bounds)
+            for dx,dy in ((0,0),(65,0),(0,43),(65,43)):
+                self.assertFalse(unary_union(result).covers(Point(115+dx,210+dy)))
+        self.assertEqual(original,copper.wkt)
+
+    def test_original_panel_initializer_rejects_invalid_or_unbounded_layout(self):
+        for overrides in (dict(columns=0),dict(rows=1.5),dict(columns=10001),dict(spacingX=float('nan')),dict(spacingY=-1)):
+            layout=dict(columns=2,rows=2,spacingX=5,spacingY=3); layout.update(overrides)
+            with self.assertRaises(ValueError):
+                panelize_legacy_source(self.legacy_root(),box(0,0,10,10),box(0,0,10,10),layout)
+
+    def test_original_freeform_handler_keeps_four_bridges_per_translated_board(self):
+        import shapely
+        if int(shapely.__version__.split('.')[0]) >= 2:
+            self.skipTest("Original GUI multipart handler requires the compatible Shapely 1.8 reference; do not patch it")
+        from shapely.ops import linemerge
+        namespace = compile_rectangular_handler(self.legacy_root(),freeform=True)
+        namespace.update(margin=0,gaps='4')
+        cuts=[]
+        for dx,dy in ((0,0),(25,0),(0,21),(25,21)):
+            ring=box(10+dx,20+dy,30+dx,36+dy).buffer(.4).exterior
+            cut,rest=namespace['cutout_handler'](ring,1.4)
+            self.assertEqual(4,len(lines(linemerge(cut))))
+            self.assertEqual(4,len(lines(rest)))
+            cuts.extend(lines(cut))
+        self.assertEqual(16,len(lines(linemerge(cuts))))
+
     def test_per_tool_comparison_rejects_swapped_assignment_even_when_union_matches(self):
         lower = LineString([(0,0),(10,0)])
         upper = LineString([(0,2),(10,2)])

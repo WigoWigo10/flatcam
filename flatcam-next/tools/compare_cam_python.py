@@ -37,6 +37,49 @@ def leaves(geometry):
     return [] if geometry is None or geometry.is_empty else [geometry]
 
 
+def panelize_legacy_source(root, source, reference, layout):
+    """Execute the ORIGINAL Gerber solid-geometry initializer, preserving its list container.
+
+    Aperture copying/export is stubbed because subsequent CAM uses solid_geometry only.
+    This does not validate Python aperture editing, Excellon panelization or GUI gestures.
+    Reference bounds are independently decoded, never trusted from the FX export.
+    """
+    from copy import deepcopy
+    import numpy as np
+    from shapely import affinity
+    from shapely.ops import unary_union
+    columns, rows = layout["columns"], layout["rows"]
+    if (type(columns) is not int or type(rows) is not int or columns < 1 or rows < 1
+            or columns * rows > 10000):
+        raise ValueError("Invalid panel layout")
+    sx, sy = layout["spacingX"], layout["spacingY"]
+    if any(not math.isfinite(v) or v < 0 for v in (sx, sy)):
+        raise ValueError("Invalid panel spacing")
+    bounds = unary_union(leaves(reference)).bounds
+    if len(bounds) != 4:
+        raise ValueError("Empty panel reference")
+    path = root / "appTools/ToolPanelize.py"
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"))
+    initializers = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "job_init_geometry"]
+    if len(initializers) != 1:
+        raise ValueError("Legacy panel initializer layout changed")
+    noop = lambda *args, **kwargs: None
+    app = SimpleNamespace(abort_flag=False, inform=SimpleNamespace(emit=noop),
+                          proc_container=SimpleNamespace(update_view_text=noop),
+                          f_handlers=SimpleNamespace(export_gerber=noop, export_dxf=noop))
+    namespace = {"panel_source_obj": SimpleNamespace(kind="gerber", solid_geometry=source, apertures={}),
+                 "copied_apertures": {}, "rows": rows, "columns": columns,
+                 "lenghtx": bounds[2] - bounds[0] + sx, "lenghty": bounds[3] - bounds[1] + sy,
+                 "panel_type": "gerber", "to_optimize": False, "np": np, "affinity": affinity,
+                 "deepcopy": deepcopy, "_": lambda text: text, "grace": RuntimeError,
+                 "self": SimpleNamespace(app=app, outname="headless-panel"),
+                 "log": logging.getLogger("flatcam.comparison")}
+    exec(compile(ast.Module(body=initializers, type_ignores=[]), str(path), "exec"), namespace)
+    result = SimpleNamespace()
+    namespace["job_init_geometry"](result, app)
+    return result.solid_geometry
+
+
 def lines(geometry):
     from shapely.geometry import Polygon
     result = []
@@ -91,30 +134,31 @@ def metrics(fx, python, tolerance, diameter=None):
     return result
 
 
-def compile_rectangular_handler(root):
-    from shapely.geometry import Polygon, LineString, LinearRing
+def compile_rectangular_handler(root, freeform=False):
+    from copy import deepcopy
+    from shapely.geometry import Polygon, LineString, LinearRing, box
     from shapely.ops import unary_union
     tree = ast.parse((root / "appTools" / "ToolCutOut.py").read_text(encoding="utf-8-sig"))
     handler = next(node for node in ast.walk(tree)
-                   if isinstance(node, ast.FunctionDef) and node.name == "cutout_rect_handler")
+                   if isinstance(node, ast.FunctionDef) and node.name == ("cutout_handler" if freeform else "cutout_rect_handler"))
     # Globals replace the nested lexical bindings, not any algorithm or operation.
     # Importing the entire plugin pulls in legacy command-line/UI initialization. Compile only
     # the ORIGINAL required helpers; their bodies, including legacy multipart limitations, stay intact.
     cls = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "CutOut")
-    helpers = [node for node in cls.body if isinstance(node, ast.FunctionDef)
-               and node.name in ("flatten", "subtract_poly_from_geo")]
-    if len(helpers) != 2:
+    names = ("flatten", "subtract_poly_from_geo", "recursive_bounds", "intersect_geo") if freeform else ("flatten", "subtract_poly_from_geo")
+    helpers = [node for node in cls.body if isinstance(node, ast.FunctionDef) and node.name in names]
+    if len(helpers) != len(names):
         raise ValueError("Legacy Cutout helper layout changed")
     for node in helpers:
         node.decorator_list = []  # compiled as standalone functions, then bound as static helpers
     binding = SimpleNamespace()
     namespace = {"CutOut": binding, "Polygon": Polygon, "LineString": LineString,
-                 "LinearRing": LinearRing, "unary_union": unary_union,
+                 "LinearRing": LinearRing, "unary_union": unary_union, "box": box, "Inf": float("inf"), "deepcopy": deepcopy,
                  "log": logging.getLogger("flatcam.comparison")}
     exec(compile(ast.Module(body=helpers + [handler], type_ignores=[]), str(root / "appTools" / "ToolCutOut.py"),
                  "exec"), namespace)
-    binding.flatten = namespace["flatten"]
-    binding.subtract_poly_from_geo = namespace["subtract_poly_from_geo"]
+    for name in names:
+        setattr(binding,name,namespace[name])
     namespace["self"] = binding
     return namespace
 
@@ -367,6 +411,23 @@ def legacy_paths(case, copper, engine, root, handler_cache):
             results = isolation_exception_paths(results, wkt.loads(params["exceptionWkt"]), root, handler_cache)
         return unary_union(results), {"oracle": "Geometry.isolation_geometry; original ToolIsolation.area_subtraction when requested"}
     if operation == "cutout":
+        if params.get("shape") == "FREEFORM":
+            if params.get("kind") != "PANEL" or params["margin"] < 0:
+                raise ValueError("Free-form oracle currently covers Panel with nonnegative margin only")
+            if "freeform" not in handler_cache:
+                handler_cache["freeform"] = compile_rectangular_handler(root,freeform=True)
+            namespace = handler_cache["freeform"]
+            namespace.update(margin=params["margin"],gaps=params["gaps"])
+            # Explicitly shared filled outline, not reconstructed from copper or a bounding box.
+            source = wkt.loads(case["inputWkt"])
+            parts = leaves(source) if params.get("kind") == "PANEL" else [source]
+            output = []
+            for part in parts:
+                distance = params["margin"] + abs(diameter / 2) if params["margin"] >= 0 else params["margin"] - abs(diameter / 2)
+                outline = part.buffer(distance).exterior
+                cut, _ = namespace["cutout_handler"](outline,(params["gapSize"] + diameter) / 2)
+                output.extend(lines(cut))
+            return unary_union(output), {"oracle":"original nested free-form cutout_handler/helpers on explicitly shared filled board areas; positive/zero margin Gerber compensation"}
         if "namespace" not in handler_cache:
             handler_cache["namespace"] = compile_rectangular_handler(root)
         namespace = handler_cache["namespace"]
@@ -464,6 +525,8 @@ def run(args):
     copper = fx_copper
     legacy_source = fx_copper
     source_delta = 0
+    if export.get("panelization") and not args.project:
+        raise ValueError("Panelized comparison requires independent --project decoding")
     if args.project:
         raw = args.project.read_bytes()
         if raw.startswith(b"\xfd7zXZ"):
@@ -473,8 +536,14 @@ def run(args):
                      if obj["kind"] == "gerber" and obj["options"]["name"] == export["sourceName"])
         if entry["units"] != export["units"]:
             raise ValueError("Source units differ")
-        copper = unary_union(leaves(entry["solid_geometry"]))
         legacy_source = entry["solid_geometry"]
+        if export.get("panelization"):
+            reference = next(obj for obj in project["objs"]
+                             if obj["options"]["name"] == export["panelization"]["referenceName"])
+            if reference["units"] != export["units"]:
+                raise ValueError("Panel reference units differ")
+            legacy_source = panelize_legacy_source(root, legacy_source, reference["solid_geometry"], export["panelization"])
+        copper = unary_union(leaves(legacy_source))
         source_delta = copper.symmetric_difference(fx_copper).area
         if source_delta > max(copper.area, 1) * 1e-8:
             raise ValueError(f"Imported source differs before CAM: area delta {source_delta}")
@@ -497,6 +566,12 @@ def run(args):
     if export.get("diagnosticControl"):
         report["diagnosticControl"] = export["diagnosticControl"]
         report["scope"] += "; DIAGNOSTIC CANDIDATE ONLY: production behavior is unchanged"
+    if export.get("panelization"):
+        report["panelization"] = export["panelization"]
+        report["panelizationOracle"] = "original ToolPanelize.job_init_geometry solid-geometry branch; aperture copying/export stubbed"
+        report["legacySourceSha256"]["appTools/ToolPanelize.py"] = hashlib.sha256((root / "appTools/ToolPanelize.py").read_bytes()).hexdigest()
+    if export.get("comparisonScope"):
+        report["scope"] += "; " + export["comparisonScope"]
     cards = []
     handler_cache = {}
     for case in cases:
@@ -561,7 +636,7 @@ def run(args):
                 + (f'<p><strong>CONTROLE DIAGNÓSTICO — não é resultado da implementação em produção:</strong> '
                    f'{html.escape(str(export["diagnosticControl"]))}</p>' if export.get("diagnosticControl") else '')
                 +
-                f'<p>{html.escape(json.dumps(counts))}</p>' + "".join(cards) + '</html>')
+                f'<p>{html.escape(report["scope"])}</p><p>{html.escape(json.dumps(counts))}</p>' + "".join(cards) + '</html>')
     (args.output / "index.html").write_text(document, encoding="utf-8")
     print(json.dumps({"counts": counts, "report": str(args.output / "index.html")}))
     return 1 if args.strict and counts["MATCH_SAMPLED"] != len(cases) else 0
