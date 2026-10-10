@@ -147,4 +147,19 @@ class ToolDefaultsTest {
             assertEquals(python.get(rule).enabled(), ToolDefaults.flag(key + ".enabled"), rule.name());
         }
     }
+
+    @Test
+    void cncDefaultsKeepThePanelsValuesAndEveryPreprocessorCanBeChosen() {
+        assertEquals("-1.7", ToolDefaults.text("drilling.cutz", true));
+        assertEquals("-0.07", ToolDefaults.text("drilling.cutz", false));
+        assertEquals("0.8", ToolDefaults.text("geometry.tooldia", true));
+        assertEquals("0.0315", ToolDefaults.text("milling.tooldia", false));
+        var preprocessors = org.flatcam.cam.gcode.GCodePreprocessor.values();
+        assertEquals(preprocessors.length, ToolDefaults.setting("cnc.preprocessor").choices().size());
+        for (var preprocessor : preprocessors) {
+            ToolDefaults.set("cnc.preprocessor", true, preprocessor.name());
+            assertEquals(preprocessor, ToolDefaults.choice("cnc.preprocessor",
+                    org.flatcam.cam.gcode.GCodePreprocessor.class));
+        }
+    }
 }

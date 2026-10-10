@@ -184,6 +184,33 @@ final class ToolDefaults {
         millimetres("calibration.toolchangez", calibration, "Z de troca de ferramenta", "15.0");
 
         integer("optimal.precision", "Optimal", "Precisão (casas)", 4);
+
+        String cnc = "CNC Job (geral)";
+        choice("cnc.preprocessor", cnc, "Pós-processador", "FX_PORTABLE", "FX_PORTABLE", "DEFAULT", "DEFAULT_NO_M6", "GRBL_11", "GRBL_11_NO_M6", "MARLIN", "REPETIER", "BERTA_CNC", "GRBL_LASER", "MARLIN_LASER_FAN_PIN", "MARLIN_LASER_SPINDLE_PIN", "Z_LASER", "ISEL_CNC", "TOOLCHANGE_MANUAL", "TOOLCHANGE_CUSTOM", "LINE_XYZ", "ISEL_ICP_CNC", "HPGL", "ROLAND_MDX_20", "TOOLCHANGE_PROBE_MACH3");
+
+        String drilling = "Drilling";
+        length("drilling.cutz", drilling, "Cut Z", "-1.7", "-0.07");
+        length("drilling.depthperpass", drilling, "Profundidade por passe", "0.7", "0.03");
+        length("drilling.travelz", drilling, "Travel Z", "2.0", "0.1");
+        length("drilling.feedz", drilling, "Avanço Z", "300", "12");
+        number("drilling.spindle", drilling, "Spindle (RPM/potência)", "0");
+        number("drilling.dwelltime", drilling, "Tempo de dwell (s)", "1.0");
+        length("drilling.offsetz", drilling, "Offset Z", "0.0", "0.0");
+        length("drilling.toolchangez", drilling, "Z de troca de ferramenta", "15.0", "0.6");
+        length("drilling.endz", drilling, "Z final", "0.5", "0.02");
+        length("drilling.feedrapid", drilling, "Avanço rápido", "0", "0");
+
+        String geometry = "Geometry CNC";
+        length("geometry.tooldia", geometry, "Diâmetro da ferramenta", "0.8", "0.031");
+        length("geometry.travelz", geometry, "Travel Z", "3.0", "0.1");
+        length("geometry.cutdepth", geometry, "Profundidade de corte", "0.1", "0.004");
+        length("geometry.depthperpass", geometry, "Profundidade por passe", "0.05", "0.002");
+        length("geometry.feedrate", geometry, "Avanço XY", "300", "12");
+        length("geometry.probechangez", geometry, "Z de troca (sonda)", "15", "0.6");
+        length("geometry.vtipdia", geometry, "V-Tip: diâmetro da ponta", "0.1", "0.004");
+        number("geometry.vtipangle", geometry, "V-Tip: ângulo (graus)", "30");
+
+        length("milling.tooldia", "Excellon Milling", "Diâmetro da ferramenta", "0.8", "0.0315");
     }
 
     // --- definitions ---------------------------------------------------------------------------------------------

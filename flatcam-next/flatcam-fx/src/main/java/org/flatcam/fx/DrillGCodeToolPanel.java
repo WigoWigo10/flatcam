@@ -77,13 +77,13 @@ final class DrillGCodeToolPanel {
             this.diameter = diameter;
             this.drills = drills;
             this.slots = slots;
-            cutZ = metric ? "-1.7" : "-0.07";
-            travelZ = metric ? "2.0" : "0.1";
-            feedZ = metric ? "300" : "12";
-            spindle = "0";
-            depthPerPass = metric ? "0.7" : "0.03";
-            dwellTime = "1.0";
-            offsetZ = "0.0";
+            cutZ = ToolDefaults.text("drilling.cutz", metric);
+            travelZ = ToolDefaults.text("drilling.travelz", metric);
+            feedZ = ToolDefaults.text("drilling.feedz", metric);
+            spindle = ToolDefaults.text("drilling.spindle", metric);
+            depthPerPass = ToolDefaults.text("drilling.depthperpass", metric);
+            dwellTime = ToolDefaults.text("drilling.dwelltime", metric);
+            offsetZ = ToolDefaults.text("drilling.offsetz", metric);
         }
 
         DrillGCodeParameters parameters(boolean toolChange) {
@@ -198,14 +198,14 @@ final class DrillGCodeToolPanel {
         searchDb.setTooltip(new Tooltip("Carrega parametros das ferramentas de furacao da Tools Database do Python."));
 
         Label selectedTitle = heading("Parameters for: Multiple Tools");
-        TextField cutZ = field(metric ? "-1.7" : "-0.07");
-        TextField depthPerPass = field(metric ? "0.7" : "0.03");
-        TextField travelZ = field(metric ? "2.0" : "0.1");
-        TextField feedZ = field(metric ? "300" : "12");
-        TextField spindle = field("0");
+        TextField cutZ = field(ToolDefaults.text("drilling.cutz", metric));
+        TextField depthPerPass = field(ToolDefaults.text("drilling.depthperpass", metric));
+        TextField travelZ = field(ToolDefaults.text("drilling.travelz", metric));
+        TextField feedZ = field(ToolDefaults.text("drilling.feedz", metric));
+        TextField spindle = field(ToolDefaults.text("drilling.spindle", metric));
         spindle.setId("drill-power");
-        TextField dwellTime = field("1.0");
-        TextField offsetZ = field("0.0");
+        TextField dwellTime = field(ToolDefaults.text("drilling.dwelltime", metric));
+        TextField offsetZ = field(ToolDefaults.text("drilling.offsetz", metric));
         CheckBox multiDepth = new CheckBox("Multi-Depth");
         CheckBox dwell = new CheckBox("Dwell");
         dwell.setId("drill-dwell");
@@ -354,7 +354,7 @@ final class DrillGCodeToolPanel {
             if (value != null) toolChange.setSelected(value.drillDefaults().values().stream()
                     .anyMatch(DrillGCodeParameters::pauseForToolChange));
         });
-        TextField toolChangeZ = field(metric ? "15.0" : "0.6");
+        TextField toolChangeZ = field(ToolDefaults.text("drilling.toolchangez", metric));
         TextField startZ = field("None");
         startZ.setId("drill-start-z");
         startZ.setPromptText("None ou altura");
@@ -367,7 +367,7 @@ final class DrillGCodeToolPanel {
                 + "Exige Tool change e Z de troca >= maior Travel Z. O trajeto respeita Around/Over. "
                 + "Use X;Y para coordenadas com virgula decimal. Roland e sondagem nao suportados neste port."));
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not());
-        TextField endMoveZ = field(metric ? "0.5" : "0.02");
+        TextField endMoveZ = field(ToolDefaults.text("drilling.endz", metric));
         TextField endMoveXY = field("None");
         endMoveZ.setId("drill-end-z");
         endMoveXY.setId("drill-end-xy");
@@ -376,7 +376,7 @@ final class DrillGCodeToolPanel {
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
         preprocessor.setId("drill-preprocessor");
-        preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+        preprocessor.setValue(ToolDefaults.choice("cnc.preprocessor", GCodePreprocessor.class));
         var automaticTools = Bindings.createBooleanBinding(
                 () -> !preprocessor.getValue().supportsManualToolChange(), preprocessor.valueProperty());
         var roland = Bindings.createBooleanBinding(
@@ -415,7 +415,7 @@ final class DrillGCodeToolPanel {
         preprocessor.setMaxWidth(Double.MAX_VALUE);
         preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
                 + "M6 exige suporte do controlador; simule o G-code antes de usar na maquina."));
-        TextField rapidFeed = field("0");
+        TextField rapidFeed = field(ToolDefaults.text("drilling.feedrapid", metric));
         rapidFeed.setId("drill-rapid-feed");
         rapidFeed.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
@@ -540,16 +540,16 @@ final class DrillGCodeToolPanel {
             sourceCombo.setValue(initialSource);
             updateRows.run();
             exclusions.restore(false, List.of());
-            preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+            preprocessor.setValue(ToolDefaults.choice("cnc.preprocessor", GCodePreprocessor.class));
             probe.reset(metric);
             noOrder.setSelected(true);
             toolChange.setSelected(false);
-            toolChangeZ.setText(metric ? "15.0" : "0.6");
+            toolChangeZ.setText(ToolDefaults.text("drilling.toolchangez", metric));
             startZ.setText("None");
             toolChangeXY.setText("None");
-            endMoveZ.setText(metric ? "0.5" : "0.02");
+            endMoveZ.setText(ToolDefaults.text("drilling.endz", metric));
             endMoveXY.setText("None");
-            rapidFeed.setText("0");
+            rapidFeed.setText(ToolDefaults.text("drilling.feedrapid", metric));
             feedback.setText("");
             errorLabel.setText("");
         });
@@ -575,7 +575,7 @@ final class DrillGCodeToolPanel {
             exclusions.restore(saved != null && saved.options().exclusionsEnabled(),
                     saved == null ? List.of() : saved.options().exclusions());
             // Never leak a previous source's common/probe settings into the new source.
-            preprocessor.setValue(saved == null ? GCodePreprocessor.FX_PORTABLE : saved.preprocessor());
+            preprocessor.setValue(saved == null ? ToolDefaults.choice("cnc.preprocessor", GCodePreprocessor.class) : saved.preprocessor());
             probe.reset(sourceMetric);
             noOrder.setSelected(true);
             toolChange.setSelected(saved == null ? source.drillDefaults().values().stream()

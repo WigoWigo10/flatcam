@@ -69,7 +69,7 @@ final class ExcellonMillingToolPanel {
             if (value != null) reload.run();
         });
 
-        TextField diameter = new TextField("MM".equalsIgnoreCase(initial.image().units()) ? "0.8" : "0.0315");
+        TextField diameter = new TextField(ToolDefaults.text("milling.tooldia", "MM".equalsIgnoreCase(initial.image().units())));
         Label error = new Label();
         error.getStyleClass().add("form-error-label");
         error.setWrapText(true);

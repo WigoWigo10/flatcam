@@ -83,7 +83,7 @@ final class GeometryCncToolPanel {
         boolean multiTool = !tools.isEmpty();
         var singleProfile = new javafx.beans.property.SimpleObjectProperty<>(settings == null ? ToolProfile.C1 : settings.singleToolProfile());
 
-        TextField toolDiaField = new TextField(format(metric ? 0.8 : 0.031));
+        TextField toolDiaField = new TextField(ToolDefaults.text("geometry.tooldia", metric));
         toolDiaField.setId("cnc-tool-dia");
         if (!multiTool && settings != null && settings.singleToolDiameter() != null)
             toolDiaField.setText(Double.toString(settings.singleToolDiameter()));
@@ -109,16 +109,16 @@ final class GeometryCncToolPanel {
             toolDiaField.setText(format(tools.get(0).toolDiameter()));
         }
 
-        TextField safeZField = new TextField(defaults == null ? (metric ? "3.0" : "0.1")
+        TextField safeZField = new TextField(defaults == null ? ToolDefaults.text("geometry.travelz", metric)
                 : Double.toString(defaults.safeZ()));
-        TextField cutDepthField = new TextField(defaults == null ? (metric ? "0.1" : "0.004")
+        TextField cutDepthField = new TextField(defaults == null ? ToolDefaults.text("geometry.cutdepth", metric)
                 : Double.toString(defaults.cutDepth()));
         CheckBox multiDepthCb = new CheckBox("Multi-Depth");
         multiDepthCb.setSelected(defaults != null && defaults.multiDepth());
-        TextField depthPerPassField = new TextField(defaults == null ? (metric ? "0.05" : "0.002")
+        TextField depthPerPassField = new TextField(defaults == null ? ToolDefaults.text("geometry.depthperpass", metric)
                 : Double.toString(defaults.depthPerPass()));
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not());
-        TextField feedField = new TextField(defaults == null ? (metric ? "300" : "12")
+        TextField feedField = new TextField(defaults == null ? ToolDefaults.text("geometry.feedrate", metric)
                 : Double.toString(defaults.feedRate()));
         TextField spindleField = new TextField(defaults == null ? "10000"
                 : Integer.toString(defaults.spindleSpeedRpm()));
@@ -167,7 +167,7 @@ final class GeometryCncToolPanel {
         feedField.setId("cnc-feed");
         multiDepthCb.setId("cnc-multi-depth");
         pauseCheck.setId("cnc-tool-change");
-        preprocessor.setValue(GCodePreprocessor.FX_PORTABLE);
+        preprocessor.setValue(ToolDefaults.choice("cnc.preprocessor", GCodePreprocessor.class));
         preprocessor.setConverter(new StringConverter<>() {
             @Override public String toString(GCodePreprocessor value) {
                 return value == null ? "" : value.label();
@@ -207,7 +207,7 @@ final class GeometryCncToolPanel {
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not().or(noCutZ));
         pauseCheck.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> !preprocessor.getValue().supportsManualToolChange() || preprocessor.getValue().requiresProbe(), preprocessor.valueProperty()));
-        TextField probeChangeZ = new TextField(metric ? "15" : "0.6");
+        TextField probeChangeZ = new TextField(ToolDefaults.text("geometry.probechangez", metric));
         probeChangeZ.setMinWidth(0);
         probeChangeZ.setPrefColumnCount(7);
         Mach3ProbeFields probe = new Mach3ProbeFields(metric, probeChangeZ, true,
@@ -334,8 +334,8 @@ final class GeometryCncToolPanel {
         vSettings.disableProperty().bind(noCutZ);
         for (int i = 0; i < Math.max(1, tools.size()); i++) {
             ToolGeometry tool = multiTool ? tools.get(i) : new ToolGeometry(0.8, combinedGeometry);
-            TextField tipDia = new TextField(metric ? "0.1" : "0.004");
-            TextField tipAngle = new TextField("30");
+            TextField tipDia = new TextField(ToolDefaults.text("geometry.vtipdia", metric));
+            TextField tipAngle = new TextField(ToolDefaults.text("geometry.vtipangle", metric));
             tipDia.setId("cnc-v-tip-dia-" + i);
             tipAngle.setId("cnc-v-tip-angle-" + i);
             VTipSettings savedTip = settings == null ? null : settings.vTools().get(i);

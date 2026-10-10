@@ -2057,6 +2057,16 @@ incremento: os botões de opção (rádios) das ferramentas secundárias, Drilli
 padrões de objetos/CNC, próximo bloco) e os parâmetros de dispensa do SolderPaste. Testes: `ToolDefaultsTest`,
 `ToolDefaultsPaneTest`, `ToolDefaultsPanelsTest`.
 
+**Padrões de CNC nas preferências (2026-10-10).** O mesmo `ToolDefaults` passou a guardar os padrões dos painéis que
+geram G-code: Drilling (Cut Z, profundidade por passe, Travel Z, avanço Z, spindle, dwell, Offset Z, Z de troca, Z
+final, avanço rápido; valem para as linhas novas da tabela, os campos e o Reset), Geometry CNC (diâmetro, Travel Z,
+profundidade de corte e por passe, avanço XY, Z de troca da sonda, V-Tip) e Excellon Milling (diâmetro), além do
+pós-processador padrão (`cnc.preprocessor`, um para Drilling e Geometry CNC, entre os 20 do FX). Os valores de fábrica
+são os que os painéis já usavam. A precedência não mudou: valores já salvos no objeto (Geometry criada por
+Isolation/NCC/Cutout, configurações de CNC salvas no projeto, sugestões da Tools Database) continuam vencendo o padrão.
+Fora deste incremento: padrões de importação de Gerber/Excellon (formato, zeros, unidades) e os campos "None" de
+posição (Start Z, XY de troca, XY final).
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
