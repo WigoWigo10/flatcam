@@ -19,7 +19,6 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.FillRule;
 import javafx.scene.shape.StrokeLineCap;
 import javafx.scene.shape.StrokeLineJoin;
 import javafx.scene.text.TextAlignment;
@@ -27,10 +26,8 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.flatcam.cam.gerber.edit.TrackBendMode;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.CoordinateSequence;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryCollection;
 import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.Point;
 import org.locationtech.jts.geom.Polygon;
@@ -275,6 +272,31 @@ final class PlotAreaView extends StackPane {
             Color.web("#ff6b6b"), Color.rgb(10, 14, 20, 0.92));
 
     private final Canvas canvas = new Canvas();
+    private final CanvasPlotRenderer vectorRenderer = new CanvasPlotRenderer();
+    /** Opt-in diagnostics: completion means commands issued, not a GPU-presented frame. */
+    record RenderSample(long commandsNanos, boolean ready, boolean failed) { }
+    private Consumer<RenderSample> renderObserver;
+
+    void setRenderObserver(Consumer<RenderSample> observer) { renderObserver = observer; }
+    boolean renderReady() {
+        return !disposed && !interactionRedrawPending && !indexCache.preparing()
+                && !indexCache.failed() && !denseRenderer.preparing();
+    }
+    boolean renderFailed() { return indexCache.failed(); }
+    PlotCamera cameraSnapshot() {
+        return camera(Math.max(1, getWidth() - RULER_LEFT_WIDTH), Math.max(1, getHeight() - RULER_TOP_HEIGHT));
+    }
+    /** Diagnostic/camera restoration entry: same coalesced scheduling as pan/zoom input. */
+    void setCamera(PlotCamera camera) {
+        viewCenterX = camera.centerX();
+        viewCenterY = camera.centerY();
+        scale = clamp(camera.scale());
+        requestInteractionRedraw();
+    }
+
+    private PlotCamera camera(double width, double height) {
+        return new PlotCamera(viewCenterX, viewCenterY, scale, width, height, RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
+    }
     private final AnimationTimer interactionRedrawTimer = new AnimationTimer() {
         @Override
         public void handle(long now) {
@@ -940,6 +962,7 @@ final class PlotAreaView extends StackPane {
         denseRenderer.shutdown();
         interactionRedrawTimer.stop();
         if (uiFluidityTimer != null) uiFluidityTimer.stop();
+        renderObserver = null;
         stopWalk();
         denseFrames.clear();
         denseOverviewFrames.clear();
@@ -1741,9 +1764,8 @@ final class PlotAreaView extends StackPane {
     // --- Coordinate transform (operates in content-local pixels, i.e. excluding the ruler strips) ---
 
     private double[] worldToScreen(double worldX, double worldY, double contentWidth, double contentHeight) {
-        double screenX = (worldX - viewCenterX) * scale + contentWidth / 2.0;
-        double screenY = contentHeight / 2.0 - (worldY - viewCenterY) * scale;
-        return new double[]{screenX, screenY};
+        PlotCamera camera = camera(contentWidth, contentHeight);
+        return new double[]{camera.screenX(worldX) - RULER_LEFT_WIDTH, camera.screenY(worldY) - RULER_TOP_HEIGHT};
     }
 
     private CncStepView.View stepViewTransform(double contentWidth, double contentHeight) {
@@ -1752,11 +1774,8 @@ final class PlotAreaView extends StackPane {
     }
 
     private double[] screenToWorld(double contentX, double contentY) {
-        double contentWidth = getWidth() - RULER_LEFT_WIDTH;
-        double contentHeight = getHeight() - RULER_TOP_HEIGHT;
-        double worldX = (contentX - contentWidth / 2.0) / scale + viewCenterX;
-        double worldY = viewCenterY - (contentY - contentHeight / 2.0) / scale;
-        return new double[]{worldX, worldY};
+        PlotCamera camera = cameraSnapshot();
+        return new double[]{camera.worldX(contentX + RULER_LEFT_WIDTH), camera.worldY(contentY + RULER_TOP_HEIGHT)};
     }
 
     // --- Drawing --------------------------------------------------------
@@ -1781,7 +1800,7 @@ final class PlotAreaView extends StackPane {
             return;
         }
         boolean profiling = performance.enabled();
-        long redrawStart = profiling ? System.nanoTime() : 0;
+        long redrawStart = profiling || renderObserver != null ? System.nanoTime() : 0;
         double width = canvas.getWidth();
         double height = canvas.getHeight();
         double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
@@ -1896,6 +1915,8 @@ final class PlotAreaView extends StackPane {
             performance.recordRedraw(System.nanoTime() - redrawStart, baseNanos,
                     layerNanos, visibleLayers, samples);
         }
+        if (renderObserver != null)
+            renderObserver.accept(new RenderSample(System.nanoTime() - redrawStart, renderReady(), renderFailed()));
     }
 
     boolean profilingEnabled() {
@@ -2468,147 +2489,32 @@ final class PlotAreaView extends StackPane {
 
     private void drawLayer(GraphicsContext gc, RenderLayer layer, double contentWidth,
                            double contentHeight, Envelope viewBounds, PlotDrawableIndex index) {
-        gc.setFillRule(FillRule.EVEN_ODD);
-        gc.setLineWidth(!Double.isNaN(lodLineWidth) ? lodLineWidth : layer.strokeOnly() ? 1.5 : 1);
-        if (!layer.multicolor()) {
-            gc.setFill(layer.fillColor());
-            gc.setStroke(layer.strokeColor());
-        }
-
-        if (index != null) {
-            for (PlotDrawableIndex.Part part : index.visibleParts(viewBounds)) {
-                drawPart(gc, layer, part.geometry(), part.index(), contentWidth, contentHeight, viewBounds);
-            }
-        } else {
-            int[] partIndex = {0};
-            forEachDrawablePart(layer.geometry(), part -> {
-                int currentIndex = partIndex[0]++;
-                if (viewBounds == null || intersectsViewport(part, viewBounds)) {
-                    drawPart(gc, layer, part, currentIndex, contentWidth, contentHeight, viewBounds);
-                }
-            });
-        }
-    }
-
-    private void drawPart(GraphicsContext gc, RenderLayer layer, Geometry part, int partIndex,
-                          double contentWidth, double contentHeight, Envelope viewBounds) {
-        if (layer.multicolor()) {
-            Color partColor = multicolorHue(partIndex);
-            gc.setFill(partColor);
-            gc.setStroke(partColor.darker());
-        }
-        if (layer.strokeOnly()) {
-            if (part instanceof Point point) {
-                double[] position = worldToScreen(point.getX(), point.getY(), contentWidth, contentHeight);
-                double dot = Double.isNaN(lodLineWidth) ? 1.5 : lodLineWidth;
-                gc.fillOval(position[0] + RULER_LEFT_WIDTH - dot / 2,
-                        position[1] + RULER_TOP_HEIGHT - dot / 2, dot, dot);
-                return;
-            }
-            CoordinateSequence coordinates = switch (part) {
-                case LineString line -> line.getCoordinateSequence();
-                case Polygon polygon -> polygon.getExteriorRing().getCoordinateSequence();
-                default -> null;
-            };
-            if (coordinates == null || coordinates.size() == 0) {
-                return;
-            }
-            gc.beginPath();
-            // Not closed: a strokeOnly LineString is not always a closed ring - the
-            // Cutout Tool's preview (appTools/ToolCutOut.py's bridge gaps) is
-            // deliberately made of OPEN arcs, and closing each one back to its own
-            // start here drew a spurious chord straight across the gap it represents.
-            // An isolation ring's own coordinates already repeat the start point as
-            // the end point, so leaving this open draws it correctly too either way.
-            addRing(gc, coordinates, contentWidth, contentHeight, false);
-            gc.stroke();
-        } else if (part instanceof LineString line) {
-            gc.beginPath();
-            addRing(gc, line.getCoordinateSequence(), contentWidth, contentHeight, false);
-            gc.stroke();
-        } else if (part instanceof Polygon polygon) {
-            gc.beginPath();
-            addRing(gc, polygon.getExteriorRing().getCoordinateSequence(), contentWidth, contentHeight, true);
-            for (int r = 0; r < polygon.getNumInteriorRing(); r++) {
-                LineString hole = polygon.getInteriorRingN(r);
-                if (viewBounds == null || intersectsViewport(hole, viewBounds)) {
-                    addRing(gc, hole.getCoordinateSequence(), contentWidth, contentHeight, true);
-                }
-            }
-            // The legacy app's "Solid" plot option: filled copper/holes vs. outline-only.
-            if (layer.filled()) {
-                gc.fill();
-            }
-            gc.stroke();
-        }
+        double width = !Double.isNaN(lodLineWidth) ? lodLineWidth : layer.strokeOnly() ? 1.5 : 1;
+        // While preparation is pending the already-indexed previous display revision is intentional.
+        Geometry displayed = index == null ? layer.geometry() : index.geometry();
+        vectorRenderer.draw(gc, camera(contentWidth, contentHeight), new PlotRenderSnapshot(displayed, index,
+                layer.strokeOnly(), layer.filled(), layer.multicolor(), layer.fillColor(), layer.strokeColor(),
+                width, viewBounds));
     }
 
     /** Python project arrays can nest a MultiPolygon inside a GeometryCollection. */
     static void forEachDrawablePart(Geometry geometry, Consumer<Geometry> visitor) {
-        if (geometry == null || geometry.isEmpty()) {
-            return;
-        }
-        if (geometry instanceof GeometryCollection collection) {
-            for (int i = 0; i < collection.getNumGeometries(); i++) {
-                forEachDrawablePart(collection.getGeometryN(i), visitor);
-            }
-        } else {
-            visitor.accept(geometry);
-        }
-    }
-
-    /** A deterministic, well-spread hue per part index for the "Multi-Color" plot option - not literally random, so redraws don't flicker. */
-    private static Color multicolorHue(int partIndex) {
-        double hue = (partIndex * 137.508) % 360; // golden-angle spacing avoids adjacent parts landing on similar hues
-        return Color.hsb(hue, 0.65, 0.85);
+        CanvasPlotRenderer.forEachPart(geometry, visitor);
     }
 
     /** Includes a small stroke margin so paths touching the plot edge are not culled. */
     static Envelope visibleWorldBounds(double centerX, double centerY, double scale,
                                        double contentWidth, double contentHeight) {
-        double margin = 2.0 / scale;
-        return new Envelope(centerX - contentWidth / (2 * scale) - margin,
-                centerX + contentWidth / (2 * scale) + margin,
-                centerY - contentHeight / (2 * scale) - margin,
-                centerY + contentHeight / (2 * scale) + margin);
+        return new PlotCamera(centerX, centerY, scale, contentWidth, contentHeight, 0, 0).visibleBounds();
     }
 
     static boolean intersectsViewport(Geometry geometry, Envelope viewBounds) {
         return geometry.getEnvelopeInternal().intersects(viewBounds);
     }
 
-    private void addRing(GraphicsContext gc, CoordinateSequence coordinates,
-                         double contentWidth, double contentHeight, boolean close) {
-        if (coordinates.size() == 0) {
-            return;
-        }
-        double offsetX = RULER_LEFT_WIDTH + contentWidth / 2.0 - viewCenterX * scale;
-        double offsetY = RULER_TOP_HEIGHT + contentHeight / 2.0 + viewCenterY * scale;
-        double lastX = coordinates.getX(0) * scale + offsetX;
-        double lastY = offsetY - coordinates.getY(0) * scale;
-        gc.moveTo(lastX, lastY);
-        for (int i = 1; i < coordinates.size(); i++) {
-            double x = coordinates.getX(i) * scale + offsetX;
-            double y = offsetY - coordinates.getY(i) * scale;
-            // An open Geometry/CNC path can omit subpixel intermediate moves.
-            // Keep its final endpoint; closed polygon rings must retain every
-            // vertex to avoid changing fill topology and hole boundaries.
-            if (omitSubpixelOpenPathVertex(close, i, coordinates.size(), x - lastX, y - lastY)) {
-                continue;
-            }
-            gc.lineTo(x, y);
-            lastX = x;
-            lastY = y;
-        }
-        if (close) {
-            gc.closePath();
-        }
-    }
-
     static boolean omitSubpixelOpenPathVertex(boolean closed, int index, int size,
                                               double deltaX, double deltaY) {
-        return !closed && index < size - 1
-                && Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5;
+        return CanvasPlotRenderer.omitSubpixelOpenPathVertex(closed, index, size, deltaX, deltaY);
     }
 
     private void drawRulers(GraphicsContext gc, double width, double height, double contentWidth, double contentHeight, double step) {

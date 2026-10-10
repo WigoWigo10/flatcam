@@ -1,5 +1,45 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade: baseline e fronteira vetorial do renderer — 2026-10-10
+
+Branch `flatcam-next`, base `780728b5`; incremento reunido nesta entrega
+(consultar `git log` para o commit), sem push.
+Autorização: começar benchmark reproduzível + separação mínima, mantendo Canvas;
+não trocar GPU/backend, calcular CAM diferente ou declarar os fluxos 100%.
+
+- PlotCamera extrai câmera/transformações/limites em pixels lógicos.
+- PlotRenderSnapshot explicita geometria/índice por identidade de versão,
+  estilo e limites copiados; JTS somente emprestado, não imutabilidade profunda.
+- CanvasPlotRenderer contém o desenho vetorial de layers/editores. O viewport
+  ainda coordena eventos, rasters e apresentação; caches/LOD continuam intactos.
+- Observador opt-in mede emissão CPU dos comandos e readiness, não apresentação.
+- benchmark-plot.ps1 abre só o Plot em janela visível com restauração de layers/CNC
+  pelo host real, sem MainApp/preferências. Camadas públicas ou projeto somente
+  leitura/hash; filtros exatos, três repetições padrão, software/JFR opcionais.
+  Câmera/seleção são programáticas; GeometryEditSession + publicação são reais,
+  mas não certificam o fluxo completo de toolbar/tabela dos editores.
+
+Baseline COMPLETED: público D3D e SW; reais Cobre_Morto_Bottom_cnc e
+isolation_bottom (120 passos, três repetições e JFR), hash original intacto.
+Commands CPU baixos não ocultam pausas: CNC zoom UI pulse máximo 335,94 ms na
+primeira repetição, ~48,85 ms nas seguintes. JFR: 637/893 amostras QuantumRenderer,
+476 com Marlin na pilha (ensaio inteiro, não tempo GPU). Geometry delete/undo
+pronto p95 91–96 ms, pulse máximo ~18 ms. Não há comparação antes/depois nem
+ganho comprovado; arquivos privados ficam ignorados sob target.
+Documentação/comandos/relatórios: **PLOT_RENDER_BENCHMARK.md**.
+
+Verificação: build integral aprovado, **1535 registrados, 1519 aprovados,
+16 opcionais ignorados, zero falhas/erros**. O benchmark visível é um dos
+opcionais; suas quatro execuções acima foram feitas separadamente. Oráculo
+de pixels do renderer anterior aprovado nas 32 combinações; testes de câmera,
+ownership, métricas e observador passam. Parser PowerShell e diff check passam.
+Log: target/render-boundary-full-verify-20261010.log.
+
+Próximo: extrair raster/apresentação e ownership dos frames; depois spike GPU
+integrado opcional. Usar esses mesmos ensaios para regressões, sem reinterpretar
+callbacks/comandos como FPS ou confundir melhoria de viewport com cálculo NCC.
+Paridade CAM atual e limites seguem na seção NCC abaixo, sem alteração nesta etapa.
+
 ## Continuidade: NCC margem zero / Rest / Itself corrigidos — 2026-10-10
 
 Branch `flatcam-next`, base `ab93fc18`; correção reunida nesta entrega

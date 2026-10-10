@@ -1,5 +1,15 @@
 # Diagnóstico de desempenho do Plot Area
 
+## Benchmark visível do renderer — 2026-10-10
+
+`benchmark-plot.ps1` executa pan/zoom determinísticos, seleção e publicação de
+apagar/desfazer de Geometry no Plot de produção. Aceita `.FlatPrj`/`.fcnproj`,
+filtro de objeto, tema, SW, repetições e JFR. Projeto fonte só é lido e tem hash
+conferido. Gera JSON com percentis/amostras, pedidos obsoletos, heap/GC e metadata
+do pipeline em pasta exclusiva de target; não mede FPS apresentado pela GPU.
+Roteiro, fronteira Canvas extraída e baseline real/pública em
+[PLOT_RENDER_BENCHMARK.md](PLOT_RENDER_BENCHMARK.md).
+
 ## Persistência de projetos densos — 2026-10-10
 
 Com `flatcam.plot.profile=true` (também em `profile-plot.cmd`), o codec passa

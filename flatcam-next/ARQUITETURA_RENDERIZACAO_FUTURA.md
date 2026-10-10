@@ -1,5 +1,24 @@
 # Avaliação da arquitetura futura de renderização — FlatCAM FX
 
+## Incremento em 2026-10-10
+
+A proposta histórica abaixo continua sem backend GPU próprio. A primeira
+fronteira foi implementada: PlotCamera + PlotRenderSnapshot + CanvasPlotRenderer,
+preservando o Canvas, LOD/densidade, picking e CAM. Benchmark visível reproduzível
+em `benchmark-plot.ps1`, com fontes somente lidas, ensaios reais de CNC/Geometry,
+controle software e JFR. Escopo, métricas, resultados e limitações em
+[PLOT_RENDER_BENCHMARK.md](PLOT_RENDER_BENCHMARK.md).
+
+As observações antigas sobre retenção de `DenseRenderer.latest` abaixo são
+históricas: o código atual remove chaves em suspend/forget, limpa mapas em clear
+e remove tarefas canceladas da fila. Não reaplicar a correção como se ainda
+estivesse pendente. A camada de raster/apresentação ainda fica em PlotAreaView;
+extraí-la com ownership explícito é o próximo incremento antes do spike GPU.
+
+No baseline CNC, comandos Canvas rápidos coexistem com pausas na UI e amostras
+JFR no rasterizador Marlin da QuantumRenderer. Medir a apresentação real continua
+pendente; não confundir os novos percentis com FPS GPU ou ganho já comprovado.
+
 Data: 2026-10-02. Base de código examinada: `676c7516`.
 
 Status: proposta avaliada, favorável à experimentação incremental. **Não é uma decisão
