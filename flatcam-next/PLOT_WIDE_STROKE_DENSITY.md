@@ -85,3 +85,40 @@ as linhas finas), e não como o vetor nítido.
 `mvnw install`: BUILD SUCCESS; 711 + 152 + 670 testes sem falhas/erros (`WideStrokeRasterTest`
 e um caso novo em `DensityRasterTest` incluídos). Os ensaios de benchmark abrem a janela
 visível do Plot por cerca de um minuto cada.
+
+## Spike GPU: malha de triângulos num SubScene (descartado como padrão)
+
+Para saber se vale integrar uma apresentação GPU além da imagem de densidade, testei o único
+caminho GPU real do JavaFX puro: os corpos largos como `TriangleMesh` (quads por segmento, discos
+nas pontas/juntas) num `SubScene` com `ParallelCamera`, `AmbientLight` branca e MSAA. Zoom e pan
+seriam só uma `Affine` no nó, sem retesselar. O código está em
+[spikes/MeshSpike.java](spikes/MeshSpike.java) (fora do build Maven).
+
+Resultados neste equipamento (Intel Arc, D3D, janela de 1280 × 800 fora da tela, 200 quadros de
+zoom, `-Dprism.order=d3d,sw`):
+
+| Cenário | Intervalo médio entre pulsos | Máximo |
+| --- | --- | --- |
+| Cena vazia (referência do pulso) | 16,0 ms | 17,2 ms |
+| Canvas redesenhando 5 mil segmentos, 12 px | 45,5 ms | 319,5 ms |
+| Canvas redesenhando 50 mil segmentos | 143,3 ms | 558,5 ms |
+| Malha GPU, 200 segmentos | 31,0 ms | 33,4 ms |
+| Malha GPU, 5 mil / 50 mil segmentos | 31,2 / 31,1 ms | 48,5 / 33,6 ms |
+| Malha GPU, 250 mil segmentos (4,3 milhões de vértices) | 34,1–34,9 ms | 64,6 ms |
+| Malha GPU sem MSAA, 50 mil / 250 mil | 30,9 / 30,9 ms | 48,0 / 33,2 ms |
+
+- A cor é exata (diferença zero nos pixels sólidos) e o MSAA aproxima a borda do Canvas
+  (diferença média de alfa 0,004–0,011; 0,8–7% dos pixels do traço com diferença > 25%, contra
+  ≤ 0,6% da imagem de densidade).
+- O custo da malha é **fixo**: ~31 ms (dois pulsos) com 200 ou com 250 mil segmentos, com ou sem
+  MSAA. Escala bem com a geometria, mas o `SubScene` 3D sozinho já custa o dobro do pulso aqui.
+  A imagem de densidade entrega ~17 ms (um pulso) no mesmo projeto real.
+- Integrar exigiria dividir o desenho em duas camadas (Canvas abaixo, SubScene, Canvas acima com
+  detalhes/setas/anotações), tratar HiDPI/resize e alfa translúcido (a malha sobrepõe triângulos).
+
+**Decisão:** não integrar o backend de malha. Ele não supera a densidade (~17 ms) nem é mais
+fiel, e custa uma reestruturação do empilhamento do Plot. Reavaliar se um próximo JavaFX reduzir
+o custo fixo do `SubScene` ou se surgir um caso com muito mais geometria que a imagem de densidade
+não atenda (a imagem custa CPU em background proporcional ao tamanho da tela, não à geometria).
+Uma ponte nativa (OpenGL/Vulkan, ver `NATIVE_GPU.md`) continua sendo outro projeto, não um spike.
+
