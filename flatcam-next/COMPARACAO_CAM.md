@@ -1,5 +1,20 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Matriz NCC panelizado — 2026-10-10 (após `6fc150ee`)
+
+Validação ampliada para Reference Geometry/Itself × Rest × Connect, com
+ferramentas/G-code individualizados e grades 2×2, 3×1 e 1×3 MM/IN.
+Resultado público: **82 MATCH_SAMPLED / 32 DIFFERENT em 114 execuções**, sem
+erro do oráculo nem divergência de exportação; strict reprova por Connect.
+Projeto real 2×2/5 mm: **11 MATCH_SAMPLED / 8 DIFFERENT em 19 casos**, zero
+GCODE_DIFFERENT/PARTIAL_DIFFERENCE/ORACLE_ERROR. Todas as variantes Connect
+divergem nas duas faces; as sem Connect, Isolation e Cutout passam. Áreas
+coincidem, mas distâncias Connect 0,040188..0,285471 mm excedem o critério.
+Fonte original intacta; fluxo FX salva/reabre ferramentas e registro dos furos.
+Não generalizar os cinco casos anteriores nem a correção da união do cobre
+para todas as combinações. Escopo, reprodução e próximo diagnóstico:
+[PANELIZED_NCC.md](PANELIZED_NCC.md).
+
 ## NCC Connect: união plana e empates Windows — 2026-10-10
 
 O residual anterior foi reproduzido sem coordenadas privadas. União por folhas

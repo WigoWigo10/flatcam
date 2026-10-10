@@ -1,5 +1,17 @@
 # Panelização e prévia — FlatCAM FX
 
+## Matriz ampliada NCC — 2026-10-10
+
+Reference Geometry/Itself, Rest e Connect agora têm corpus panelizado MM/IN
+em três grades, com ferramentas/CNC e persistência verificados. O fluxo FX
+público passa, mas **32 de 114 comparações com Python divergem em Connect**.
+No projeto real ampliado, **11 de 19 passam e 8 divergem**, também só Connect.
+Gerar/exportar/salvar/reabrir no FX funcionou; isso não aprova as diferenças CAM.
+Isso não invalida o cenário aprovado abaixo, mas impede estender sua aprovação
+a essas combinações. Itself pode limpar entre placas; use a área preenchida
+como referência para limitar o clearing. Resultados/runner/limites em
+[PANELIZED_NCC.md](PANELIZED_NCC.md).
+
 ## Continuação CAM verificada — 2026-10-10
 
 Validado no projeto real: panelização 2 x 2 com gap 5 mm -> Isolation/NCC

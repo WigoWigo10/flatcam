@@ -2,6 +2,11 @@ param(
     [Parameter(Mandatory=$true)][string]$Project,
     [string]$Python,
     [string]$OutputDirectory,
+    [ValidateRange(1,10)][int]$Columns = 2,
+    [ValidateRange(1,10)][int]$Rows = 2,
+    [ValidateRange(0,1000)][double]$SpacingXmm = 5,
+    [ValidateRange(0,1000)][double]$SpacingYmm = 5,
+    [switch]$SkipPublic,
     [switch]$Strict
 )
 
@@ -44,21 +49,38 @@ try {
     Push-Location $comparisonRoot
     try {
         $exportDirectory = Join-Path $OutputDirectory 'fx'
-        Write-Host 'Validando panelizacao 2 x 2 / espacamento 5 mm, CAM, CNC e reabertura nativa...'
-        $buildArgs = @('-q','-pl','flatcam-fx','-am','-Dtest=MainPanelizedCamFlowTest',
+        Write-Host "Validando panelizacao $Columns x $Rows / gaps $SpacingXmm,$SpacingYmm mm, CAM, CNC e reabertura nativa..."
+        $testSelector = if ($SkipPublic) { 'MainPanelizedCamFlowTest#realProjectPanelizedMainFlows' } else { 'MainPanelizedCamFlowTest' }
+        $buildArgs = @('-q','-pl','flatcam-fx','-am',('-Dtest=' + $testSelector),
             '-Dsurefire.failIfNoSpecifiedTests=false',('-Dflatcam.python.project.fixture=' + $Project),
+            ('-Dflatcam.panelized.columns=' + $Columns),('-Dflatcam.panelized.rows=' + $Rows),
+            ('-Dflatcam.panelized.spacingXmm=' + $SpacingXmm.ToString([Globalization.CultureInfo]::InvariantCulture)),
+            ('-Dflatcam.panelized.spacingYmm=' + $SpacingYmm.ToString([Globalization.CultureInfo]::InvariantCulture)),
             ('-Dflatcam.panelized.output=' + $exportDirectory),'test','-l',(Join-Path $OutputDirectory 'export.log'))
+        if (-not $SkipPublic) { $buildArgs += ('-Dflatcam.panelized.public.output=' + (Join-Path $OutputDirectory 'public-fx')) }
         if ((Invoke-PanelNative (Join-Path $comparisonRoot 'mvnw.cmd') $buildArgs (Join-Path $OutputDirectory 'maven-launcher.log')) -ne 0) {
             throw 'Fluxo FX reprovado. Consulte export.log e fx/flow-report.json; resultados parciais nao aprovam o fluxo.'
         }
         $comparisonCode = 0
-        foreach ($entry in @(@{File='fx-f-cu.json';Name='f-cu';Independent=$true},
-                @{File='fx-b-cu.json';Name='b-cu';Independent=$true},
-                @{File='fx-cutout.json';Name='cutout';Independent=$false})) {
+        $entries = @(@{File=(Join-Path $exportDirectory 'fx-f-cu.json');Name='f-cu';Independent=$true},
+                @{File=(Join-Path $exportDirectory 'fx-b-cu.json');Name='b-cu';Independent=$true},
+                @{File=(Join-Path $exportDirectory 'fx-cutout.json');Name='cutout';Independent=$false})
+        if (-not $SkipPublic) {
+            $publicRoot = Join-Path $OutputDirectory 'public-fx'
+            $publicDirectories = @(Get-ChildItem -LiteralPath $publicRoot -Directory)
+            if ($publicDirectories.Count -ne 6) { throw 'Esperados seis cenarios publicos MM/IN (2x2, 3x1, 1x3).' }
+            foreach ($scenario in $publicDirectories) {
+                foreach ($face in @('f-cu','b-cu','cutout')) {
+                    $entries += @{File=(Join-Path $scenario.FullName ("fx-$face.json"));Name=("public-" + $scenario.Name + "-$face");Independent=$false}
+                }
+            }
+        }
+        $comparisonSummary = @()
+        foreach ($entry in $entries) {
             Write-Host "Comparando $($entry.Name) com os handlers originais Python..."
             $reportDirectory = Join-Path $OutputDirectory $entry.Name
             $oracleArgs = @((Join-Path $comparisonRoot 'tools/compare_cam_python.py'),'--legacy-root',$legacyRoot,
-                '--fx-export',(Join-Path $exportDirectory $entry.File),'--output',$reportDirectory)
+                '--fx-export',$entry.File,'--output',$reportDirectory)
             if ($entry.Independent) { $oracleArgs += @('--project',$Project) }
             if ($Strict) { $oracleArgs += '--strict' }
             $code = Invoke-PanelNative $Python $oracleArgs (Join-Path $OutputDirectory ($entry.Name + '.log'))
@@ -66,9 +88,20 @@ try {
                 throw "Oraculo $($entry.Name) falhou. Consulte seu log."
             }
             if ($code -ne 0) { $comparisonCode = 1 }
+            $report = Get-Content -LiteralPath (Join-Path $reportDirectory 'report.json') -Raw | ConvertFrom-Json
+            $comparisonSummary += [ordered]@{Scenario=$entry.Name;IndependentProjectDecode=$entry.Independent;
+                Counts=$report.counts;NonMatchingCases=@($report.cases | Where-Object status -ne 'MATCH_SAMPLED' |
+                    ForEach-Object { [ordered]@{Id=$_.id;Status=$_.status} })}
             Write-Host "Relatorio: $(Join-Path $reportDirectory 'index.html')"
         }
+        [ordered]@{Schema=1;Scope='Numerical sampled comparison, no visual/physical CNC certification';
+            Columns=$Columns;Rows=$Rows;SpacingXmm=$SpacingXmm;SpacingYmm=$SpacingYmm;
+            SourceSha256=$before;StrictRequested=[bool]$Strict;OracleExitCode=$comparisonCode;
+            Reports=$comparisonSummary} | ConvertTo-Json -Depth 12 |
+            Out-File -LiteralPath (Join-Path $OutputDirectory 'comparison-summary.json') -Encoding utf8
         Write-Host 'Cutout compara area preenchida compartilhada: nao valida reconstrucao Python do Edge_Cuts nem recortes internos.'
+        Write-Host 'Publicos usam cobre traduzido compartilhado: validam CAM/G-code Python independente, nao a importacao/panelizacao Python.'
+        Write-Host 'NCC: Reference Geometry/Itself x Rest on/off x Connect on/off; ferramentas Rest e G-code verificados individualmente.'
         if ($comparisonCode) { Write-Host 'Strict reprovado; divergencias nao contam como paridade.' }
         exit $comparisonCode
     } finally {

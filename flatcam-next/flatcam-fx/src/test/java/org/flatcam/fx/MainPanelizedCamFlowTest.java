@@ -25,9 +25,11 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.io.WKTWriter;
+import org.locationtech.jts.operation.overlayng.OverlayNG;
+import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /** Panelize -> actual MainWindow CAM jobs -> CNC/export -> native reopen.
  * Private fixture is opt-in, read-only; generated data must stay under target.
@@ -83,27 +85,42 @@ class MainPanelizedCamFlowTest {
         return new Input(edge.image().units(), copper, edge, area, project.excellons());
     }
 
-    @ParameterizedTest @ValueSource(strings={"MM", "IN"})
-    void panelizedMainFlowsKeepAllCopiesAndRoundTrip(String units) throws Exception {
-        run(synthetic(units), temporary.resolve(units), null);
+    private record Grid(int columns, int rows, double spacingXmm, double spacingYmm) { }
+
+    @ParameterizedTest @CsvSource({"MM,2,2,5,5", "IN,2,2,5,5", "MM,3,1,0,0",
+            "IN,3,1,0,0", "MM,1,3,2,7", "IN,1,3,2,7"})
+    void panelizedMainFlowsKeepAllCopiesAndRoundTrip(String units, int columns, int rows,
+                                                    double spacingX, double spacingY) throws Exception {
+        var grid = new Grid(columns, rows, spacingX, spacingY);
+        String publicOutput = System.getProperty("flatcam.panelized.public.output");
+        Path directory = publicOutput == null || publicOutput.isBlank() ? temporary.resolve(units)
+                : safeOutput(Path.of(publicOutput).resolve(units + "-" + columns + "x" + rows));
+        run(synthetic(units), directory, null, grid);
     }
     @Test void realProjectPanelizedMainFlows() throws Exception {
         String fixture = System.getProperty("flatcam.python.project.fixture");
         Assumptions.assumeTrue(fixture != null && !fixture.isBlank(), "Private fixture is explicitly opt-in");
         Path source = Path.of(fixture).toRealPath();
         byte[] hash = MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(source));
-        try { run(real(source), output(), source); }
+        var grid = new Grid(Integer.getInteger("flatcam.panelized.columns", 2),
+                Integer.getInteger("flatcam.panelized.rows", 2),
+                Double.parseDouble(System.getProperty("flatcam.panelized.spacingXmm", "5")),
+                Double.parseDouble(System.getProperty("flatcam.panelized.spacingYmm", "5")));
+        try { run(real(source), output(), source, grid); }
         finally { assertArrayEquals(hash, MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(source)),
                 "The original project must never change, even if CAM fails"); }
     }
     private Path output() throws Exception {
         String output = System.getProperty("flatcam.panelized.output");
         if (output == null || output.isBlank()) return temporary.resolve("real");
+        return safeOutput(Path.of(output));
+    }
+    private Path safeOutput(Path requested) throws Exception {
         Path reactor = Path.of(System.getProperty("user.dir")).toAbsolutePath();
         while (reactor != null && !Files.isRegularFile(reactor.resolve("CONTEXTO_E_PROGRESSO.md"))) reactor = reactor.getParent();
         assertNotNull(reactor, "Cannot identify the FlatCAM FX reactor");
         Path root = reactor.resolve("target").toRealPath();
-        Path path = Path.of(output).toAbsolutePath().normalize();
+        Path path = requested.toAbsolutePath().normalize();
         assertTrue(path.startsWith(root) && !path.equals(root), "Private output must be a new subdirectory of reactor target");
         assertFalse(Files.exists(path), "Do not overwrite existing reports");
         Files.createDirectories(path);
@@ -148,12 +165,15 @@ class MainPanelizedCamFlowTest {
         return new HashSet<>(MainIsolationMachiningTest.snapshot(s.window).geometries().stream().map(ProjectFile.GeometryEntry::name).toList());
     }
 
-    private void run(Input input, Path output, Path source) throws Exception {
+    private void run(Input input, Path output, Path source, Grid grid) throws Exception {
         Files.createDirectories(output);
         double u = input.units().equals("IN") ? 1 / 25.4 : 1;
-        var layout = Panelize.layout(input.outline().image().bounds(), 2, 2, 5 * u, 5 * u, Double.NaN, Double.NaN);
+        var layout = Panelize.layout(input.outline().image().bounds(), grid.columns(), grid.rows(),
+                grid.spacingXmm() * u, grid.spacingYmm() * u, Double.NaN, Double.NaN);
+        int copies = layout.offsets().size();
         var summary = new JSONObject().put("scope", "MainWindow jobs without Stage; no physical machining or FPS measurement")
-                .put("units", input.units()).put("columns", 2).put("rows", 2).put("spacing", 5 * u);
+                .put("units", input.units()).put("columns", grid.columns()).put("rows", grid.rows())
+                .put("spacingX", grid.spacingXmm() * u).put("spacingY", grid.spacingYmm() * u);
         var results = new JSONArray(); summary.put("operations", results);
         int internalRings = 0;
         for (int i=0; i<input.area().getNumGeometries(); i++)
@@ -178,9 +198,9 @@ class MainPanelizedCamFlowTest {
             summary.put("panelizeMs", elapsed(began));
             var panel = MainIsolationMachiningTest.snapshot(s.window);
             var board = panel.geometries().stream().filter(g -> g.name().equals("board_area_panelized")).findFirst().orElseThrow();
-            assertEquals(input.area().getArea() * 4, board.geometry().getArea(), Math.max(1, input.area().getArea()) * 1e-9);
+            assertEquals(input.area().getArea() * copies, board.geometry().getArea(), Math.max(1, input.area().getArea()) * 1e-9);
             var panelEdge = panel.gerbers().stream().filter(g -> g.name().equals(input.outline().name() + "_panelized")).findFirst().orElseThrow();
-            assertEquals(input.outline().image().followGeometry().getLength() * 4,
+            assertEquals(input.outline().image().followGeometry().getLength() * copies,
                     panelEdge.image().followGeometry().getLength(), 1e-7 * u);
             var expectedEdge = F.buildGeometry(layout.offsets().stream().map(o -> new TransformOp.Offset(o[0],o[1])
                     .apply(input.outline().image().followGeometry())).toList());
@@ -192,7 +212,7 @@ class MainPanelizedCamFlowTest {
             var boundaryItem = find(s, "geometryByItem", board.name());
             for (var original : input.copper()) {
                 var copper = panel.gerbers().stream().filter(g -> g.name().equals(original.name() + "_panelized")).findFirst().orElseThrow();
-                assertEquals(original.image().solidGeometry().getArea() * 4, copper.image().solidGeometry().getArea(),
+                assertEquals(original.image().solidGeometry().getArea() * copies, copper.image().solidGeometry().getArea(),
                         Math.max(1, original.image().solidGeometry().getArea()) * 1e-8);
                 var item = find(s, "gerberByItem", copper.name());
                 var before = geometryNames(s); began = System.nanoTime();
@@ -204,37 +224,21 @@ class MainPanelizedCamFlowTest {
                 var isoEntry = newGeometry(s, before);
                 var isoCase = export(s, output, isoEntry, "isolation-" + (original.name().toLowerCase(Locale.ROOT).contains("f_cu") ? "f-cu" : "b-cu"),
                         "isolation", copper.image().solidGeometry(), .1 * u, new JSONObject().put("passes", 3).put("overlap", .15), elapsed(began), results);
-                for (double[] offset : layout.offsets()) assertFalse(isoEntry.geometry().intersection(new TransformOp.Offset(offset[0], offset[1])
+                for (double[] offset : layout.offsets()) assertFalse(intersection(isoEntry.geometry(),new TransformOp.Offset(offset[0], offset[1])
                         .apply(original.image().solidGeometry()).getEnvelope().buffer(u)).isEmpty(), "Isolation must reach every board");
                 JSONArray cases = new JSONArray().put(isoCase);
-                before = geometryNames(s); began = System.nanoTime();
-                var params = new NccParameters(List.of(.5 * u), .4, 0, NccMethod.STANDARD, false, true, 0,
-                        false, NccOrder.NONE, new NccBoundary.ReferenceGeometry(board.geometry()), List.of());
-                var ncc = new NccToolPanel.Result(new NccToolPanel.SourceCandidate(item, copper.name(), input.units(), true,
-                        copper.image().solidGeometry()), params, false, Map.of(.5 * u, ToolProfile.C1),
-                        new NccToolPanel.ReferenceCandidate(boundaryItem, board.name(), false, board.geometry()));
-                var nccJob = start(s, "runNccGeneration", new Class<?>[]{TreeItem.class, String.class, Geometry.class, boolean.class, NccToolPanel.Result.class},
-                        item, input.units(), copper.image().solidGeometry(), true, ncc);
-                await(s, nccJob);
-                Object outcome = nccJob.completion().get();
-                var accessor = outcome.getClass().getDeclaredMethod("result"); accessor.setAccessible(true);
-                var nccResult = (NccResult) accessor.invoke(outcome);
-                var nccEntry = newGeometry(s, before);
-                for (double[] offset : layout.offsets()) assertFalse(nccEntry.geometry().intersection(new TransformOp.Offset(offset[0],offset[1])
-                        .apply(input.area())).isEmpty(), "NCC must reach every board");
-                assertTrue(nccEntry.geometry().difference(board.geometry().buffer(1e-7 * u)).getLength() < 1e-6 * u,
-                        "Reference Geometry must not clear the spaces between boards or internal cutouts");
-                var nccCase = export(s, output, nccEntry, "ncc-reference-geometry", "ncc", copper.image().solidGeometry(), .5 * u,
-                        new JSONObject().put("method", "STANDARD").put("overlap", .4).put("margin", 0).put("connect", false)
-                                .put("contour", true).put("boundary", "reference-geometry").put("referenceWkt", WKT.write(board.geometry()))
-                                .put("fxClearingAreaWkt", WKT.write(nccResult.clearingArea()))
-                                .put("fxFailedPolygons", nccResult.totalFailedPolygonCount()),
-                        elapsed(began), results);
-                cases.put(nccCase);
-                var metadata = new JSONObject().put("columns", 2).put("rows", 2).put("spacingX", 5 * u).put("spacingY", 5 * u)
+                for (boolean reference : List.of(true, false)) for (boolean rest : List.of(false, true))
+                    for (boolean connect : List.of(false, true)) {
+                        cases.put(nccCase(s, input, output, board, boundaryItem, copper, item,
+                                layout, reference, rest, connect, results));
+                    }
+                var metadata = new JSONObject().put("columns", grid.columns()).put("rows", grid.rows())
+                        .put("spacingX", grid.spacingXmm() * u).put("spacingY", grid.spacingYmm() * u)
                         .put("referenceName", input.outline().name());
                 var comparison = new JSONObject().put("schema", 1).put("sourceName", original.name()).put("units", input.units())
-                        .put("sourceWkt", WKT.write(copper.image().solidGeometry())).put("panelization", metadata).put("cases", cases);
+                        .put("sourceWkt", WKT.write(copper.image().solidGeometry())).put("cases", cases);
+                if (source != null) comparison.put("panelization", metadata);
+                else comparison.put("comparisonScope", "Public synthetic translated copper shared explicitly; independent Python CAM/G-code, not independent source panelization");
                 Files.writeString(output.resolve(original.name().toLowerCase(Locale.ROOT).contains("f_cu") ? "fx-f-cu.json" : "fx-b-cu.json"), comparison.toString(2));
             }
             var before = geometryNames(s); began = System.nanoTime();
@@ -271,7 +275,7 @@ class MainPanelizedCamFlowTest {
                 int closed = 0;
                 for (int i=0; i<entry.geometry().getNumGeometries(); i++)
                     if (entry.geometry().getGeometryN(i) instanceof LineString line && line.isClosed()) closed++;
-                assertEquals(internalRings*4, closed, "Every internal panel cut stays closed despite external bridges");
+                assertEquals(internalRings*copies, closed, "Every internal panel cut stays closed despite external bridges");
                 export(s, output, entry, "cutout-panel-internal", "cutout-internal-fx", board.geometry(), .8*u,
                         new JSONObject().put("includeInternalCuts", true), elapsed(began), results);
                 summary.put("internalCutsFxRoundTripTested", true);
@@ -290,6 +294,13 @@ class MainPanelizedCamFlowTest {
                 var copy = reopened.geometries().stream().filter(g -> g.name().equals(entry.name())).findFirst().orElseThrow();
                 assertTrue(entry.geometry().equalsExact(copy.geometry(), 1e-10 * u));
                 assertEquals(entry.units(), copy.units()); assertEquals(entry.cncDefaults(), copy.cncDefaults());
+                assertEquals(entry.tools().size(), copy.tools().size());
+                for (int i=0; i<entry.tools().size(); i++) {
+                    var tool = entry.tools().get(i); var restored = copy.tools().get(i);
+                    assertEquals(tool.toolDiameter(), restored.toolDiameter());
+                    assertEquals(tool.toolProfile(), restored.toolProfile());
+                    assertTrue(tool.geometry().equalsExact(restored.geometry(), 1e-10 * u));
+                }
             }
             for (var original : input.drills()) verifyDrills(original.image(), reopened.excellons().stream()
                     .filter(e -> e.name().equals(original.name() + "_panelized")).findFirst().orElseThrow().image(), layout, false);
@@ -297,10 +308,87 @@ class MainPanelizedCamFlowTest {
             summary.put("nativeRoundTripChecked", true).put("sourceReadOnly", source != null).put("status", "PASS_WITH_DOCUMENTED_LIMITATIONS");
         } finally { Files.writeString(output.resolve("flow-report.json"), summary.toString(2)); }
     }
+    private JSONObject nccCase(MainCamFlowTest.Session s, Input input, Path output,
+                               ProjectFile.GeometryEntry board, TreeItem<String> boundaryItem,
+                               ProjectFile.GerberEntry copper, TreeItem<String> item, Panelize.Layout layout,
+                               boolean reference, boolean rest, boolean connect, JSONArray results) throws Exception {
+        double u = input.units().equals("IN") ? 1 / 25.4 : 1;
+        String id = "ncc-" + (rest ? "rest-" : "") + (reference ? "reference-geometry" : "itself")
+                + (connect ? "-connect" : "");
+        var before = geometryNames(s); long began = System.nanoTime();
+        NccBoundary boundary = reference ? new NccBoundary.ReferenceGeometry(board.geometry()) : new NccBoundary.Itself();
+        // Deliberately entered small-first: Rest must process largest-first.
+        var params = new NccParameters(rest ? List.of(.2*u, u) : List.of(.5*u), .4, 0,
+                NccMethod.STANDARD, connect, true, 0, rest, NccOrder.NONE, boundary, List.of());
+        var ncc = new NccToolPanel.Result(new NccToolPanel.SourceCandidate(item, copper.name(), input.units(), true,
+                copper.image().solidGeometry()), params, false, Map.of(), reference
+                ? new NccToolPanel.ReferenceCandidate(boundaryItem, board.name(), false, board.geometry()) : null);
+        var job = start(s, "runNccGeneration",
+                new Class<?>[]{TreeItem.class, String.class, Geometry.class, boolean.class, NccToolPanel.Result.class},
+                item, input.units(), copper.image().solidGeometry(), true, ncc);
+        await(s, job);
+        Object outcome = job.completion().get();
+        var accessor = outcome.getClass().getDeclaredMethod("result"); accessor.setAccessible(true);
+        var result = (NccResult) accessor.invoke(outcome);
+        var entry = newGeometry(s, before);
+        for (double[] offset : layout.offsets()) assertFalse(intersection(entry.geometry(),new TransformOp.Offset(offset[0],offset[1])
+                .apply(input.area())).isEmpty(), id + " must reach every board");
+        // Assertion-only robust overlay: classic line/polygon difference may
+        // throw on almost coincident vertices in dense, otherwise valid paths.
+        // Does not snap, repair or alter the exported production CAM paths.
+        if (reference) assertTrue(difference(entry.geometry(), board.geometry().buffer(1e-7*u)).getLength() < 1e-6*u,
+                id + " must not clear the spaces between boards or internal cutouts");
+        else {
+            Geometry hull = copper.image().solidGeometry().convexHull();
+            assertTrue(difference(entry.geometry(), hull.buffer(1e-7*u)).getLength() < 1e-6*u,
+                    "Itself follows the copper convex hull, not individual board outlines");
+            if (layout.columns()*layout.rows() > 1) assertTrue(difference(result.clearingArea(),board.geometry()).getArea() > 0,
+                    "Itself may clear spaces between copies; this is its documented semantics");
+        }
+        var tools = new JSONArray(); var toolResults = new JSONArray();
+        for (double diameter : params.toolDiameters()) {
+            var setting = params.settingsFor(diameter);
+            tools.put(new JSONObject().put("diameter",diameter).put("method",setting.method().name())
+                    .put("overlap",setting.overlapFraction()).put("connect",setting.connect())
+                    .put("contour",setting.contour()).put("copperOffset",setting.copperOffset()));
+        }
+        var nonempty = result.toolResults().stream().filter(t -> !t.isEmpty()).toList();
+        assertEquals(nonempty.size(), entry.tools().size(), "Published paths must stay associated with their cutters");
+        if (rest) assertEquals(u, result.toolResults().getFirst().toolDiameter(), "Rest must ignore input order");
+        var form = MainIsolationMachiningTest.cnc(entry);
+        assertEquals(entry.tools(), form.tools(), "CNC form must retain per-tool paths and order");
+        for (int i=0; i<nonempty.size(); i++) {
+            assertEquals(nonempty.get(i).toolDiameter(), entry.tools().get(i).toolDiameter());
+            assertTrue(nonempty.get(i).geometry().equalsExact(entry.tools().get(i).geometry()));
+        }
+        for (var tool : result.toolResults()) toolResults.put(new JSONObject().put("diameter",tool.toolDiameter())
+                .put("fxWkt",WKT.write(tool.geometry())).put("fxFailedPolygons",tool.failedPolygonCount())
+                .put("gcode",tool.isEmpty() ? "" : GCodeGenerator.generateGeometryCncJob(input.units(), tool.geometry(),
+                        testCncParameters(u, false), tool.toolDiameter(), () -> false).gcode()));
+        var json = new JSONObject().put("method","STANDARD").put("overlap",.4).put("margin",0)
+                .put("connect",connect).put("contour",true).put("boundary",reference ? "reference-geometry" : "itself")
+                .put("fxClearingAreaWkt",WKT.write(result.clearingArea())).put("fxFailedPolygons",result.totalFailedPolygonCount());
+        if (reference) json.put("referenceWkt",WKT.write(board.geometry()));
+        if (rest) json.put("restMachining",true).put("order","NONE").put("copperOffset",0)
+                .put("tools",tools).put("fxToolResults",toolResults);
+        return export(s, output, entry, id, "ncc", copper.image().solidGeometry(), rest ? .2*u : .5*u,
+                json, elapsed(began), results);
+    }
+    private static GeometryGCodeParameters testCncParameters(double u, boolean multiTool) {
+        return new GeometryGCodeParameters(3*u, .1*u, false, 0, 120*u, 0,
+                multiTool, 0, null, 50*u, false, 0, false, 0);
+    }
+    private static Geometry difference(Geometry a, Geometry b) {
+        return OverlayNGRobust.overlay(a,b,OverlayNG.DIFFERENCE);
+    }
+    private static Geometry intersection(Geometry a, Geometry b) {
+        return OverlayNGRobust.overlay(a,b,OverlayNG.INTERSECTION);
+    }
     private static double elapsed(long start) { return (System.nanoTime() - start) / 1e6; }
     private static void verifyDrills(ExcellonImage source, ExcellonImage panel, Panelize.Layout layout, boolean ordered) {
         assertEquals(source.toolDiameters(), panel.toolDiameters());
-        assertEquals(source.totalDrills() * 4, panel.totalDrills()); assertEquals(source.totalSlots() * 4, panel.totalSlots());
+        int copies = layout.offsets().size();
+        assertEquals(source.totalDrills() * copies, panel.totalDrills()); assertEquals(source.totalSlots() * copies, panel.totalSlots());
         List<ExcellonImage.Drill> expectedDrills = new ArrayList<>();
         List<ExcellonImage.Slot> expectedSlots = new ArrayList<>();
         for (double[] offset : layout.offsets()) {
@@ -330,22 +418,32 @@ class MainPanelizedCamFlowTest {
                                      String id, String operation, Geometry input, double diameter, JSONObject params,
                                      double millis, JSONArray results) throws Exception {
         assertFalse(entry.geometry().isEmpty()); assertTrue(entry.geometry().isValid()); assertTrue(entry.strokeOnly());
-        assertEquals(diameter, entry.tools().getFirst().toolDiameter());
+        assertFalse(entry.tools().isEmpty());
         long began = System.nanoTime();
         String jobName = id + "-" + results.length();
-        // Actual Tcl host route, with explicit test settings (not machine recommendations).
+        // Explicit test settings, not machine recommendations.
         // Tcl cncjob uses one depth pass; GUI multi-depth defaults are checked separately in the round-trip.
         double u = entry.units().equals("IN") ? 1 / 25.4 : 1;
         double cutDepth = entry.cncDefaults() == null ? .1 * u : entry.cncDefaults().cutDepth();
-        s.window.cncjob(entry.name(), jobName, diameter, -cutDepth, 3 * u, 120 * u, 50 * u, 0);
-        Path path = directory.resolve(jobName + ".nc"); s.window.writeGcode(jobName, path, "", "");
+        Path path = directory.resolve(jobName + ".nc");
+        if (params.has("fxToolResults")) {
+            // Tcl cncjob is intentionally single-tool; do not pass a Rest drawing
+            // through it pretending every path uses the same cutter.
+            var generated = GCodeGenerator.generateGeometryCncJob(entry.units(), entry.tools(), testCncParameters(u, true));
+            TerminalPanelTest.fx(() -> call(s.window,"addCncJobToProject",
+                    new Class<?>[]{String.class,String.class,Path.class,String.class,Geometry.class,Geometry.class},
+                    jobName,entry.name(),path,generated.gcode(),generated.travelGeometry(),generated.cutGeometry()));
+        } else s.window.cncjob(entry.name(), jobName, diameter, -cutDepth, 3*u, 120*u, 50*u, 0);
+        s.window.writeGcode(jobName, path, "", "");
         String text = Files.readString(path);
         var preview = GCodeToolpathParser.parse(text, () -> false, f -> {});
         assertTrue(preview.plotAvailable(), preview.warning()); assertFalse(preview.cutGeometry().isEmpty());
         assertEquals(entry.units(), preview.units());
         // Four-decimal G-code precision is a separate numerical check from CAM topology.
         assertNotNull(preview.cutCenterlines());
-        assertEquals(entry.geometry().getLength(), preview.cutCenterlines().getLength(), Math.max(.003 * u, entry.geometry().getLength() * .001));
+        double sourceLength = params.has("fxToolResults") ? entry.tools().stream().mapToDouble(t -> t.geometry().getLength()).sum()
+                : entry.geometry().getLength();
+        assertEquals(sourceLength, preview.cutCenterlines().getLength(), Math.max(.003*u, sourceLength*.001));
         results.put(new JSONObject().put("id", jobName).put("source", entry.sourceName()).put("camAndPublicationMs", millis)
                 .put("cncExportAndPreviewMs", elapsed(began)).put("length", entry.geometry().getLength())
                 .put("points", entry.geometry().getNumPoints()).put("previewAvailable", true).put("failedPolygons",params.optInt("fxFailedPolygons",0)));

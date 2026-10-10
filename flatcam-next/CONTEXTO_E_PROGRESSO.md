@@ -1,5 +1,63 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade: matriz NCC panelizado — 2026-10-10
+
+Correção NCC Connect anterior commitada em **6fc150ee**, branch `flatcam-next`,
+sem push. Testes/runner/documentação ampliados e reunidos na entrega da matriz
+NCC panelizado (consultar `git log` para o hash). Não houve alteração de
+CAM/renderização de produção.
+MainPanelizedCamFlowTest: Reference Geometry/Itself × Rest × Connect, Standard,
+40%, margem zero, Contour; simples 0,5 mm, Rest 0,2/1 mm em ordem de entrada
+pequena-primeiro, verificando processamento grande-primeiro. CNC multi-tool
+real usa ferramentas publicadas; cada ferramenta/CNC tem oráculo próprio.
+Asserções de contenção/interseção usam OverlayNGRobust; duas primeiras tentativas
+reais falharam na asserção clássica, não na geração CAM. Não contam como PASS.
+
+Público: seis fixtures MM/IN, grades 2×2 5/5 mm, 3×1 0/0, 1×3 2/7; abertura
+interna, furo/slot, origem deslocada, mesmo layout para todas as camadas.
+Fluxos FX passam com CNC/persistência. Oráculo Python original compatível:
+**114 execuções = 82 MATCH_SAMPLED + 32 DIFFERENT**, zero GCODE_DIFFERENT,
+PARTIAL_DIFFERENCE/ORACLE_ERROR. F/B sintéticos têm o mesmo cobre: não são
+114 geometrias independentes. Diferenças exclusivamente Connect (Reference,
+Rest Reference, Rest Itself); Itself simples Connect e todos sem Connect passam.
+Publica cobre traduzido explicitamente compartilhado; não aprova importação/
+panelização Python independente. Strict 1 deve continuar visível, sem relaxar
+critérios nem compartilhar área FX para contabilizar paridade.
+
+Projeto real: fluxo FX ampliado completo passou (19 CAM/CNC, mesma referência,
+furos/slots registrados, ferramentas/diâmetros/geometrias e G-code restaurados).
+Native 224586312 bytes; save 74,28 s, reopen 83,24 s: matriz muito maior que a
+anterior, não benchmark renderer/FPS. Oráculos reais completos: **19 casos =
+11 MATCH_SAMPLED + 8 DIFFERENT**, zero GCODE_DIFFERENT/PARTIAL_DIFFERENCE/
+ORACLE_ERROR; strict 1. F/B: cada face 5 MATCH + 4 DIFFERENT. Isolation, Cutout
+e todos os NCC sem Connect passam; TODAS as quatro variantes Connect divergem
+em cada face (Itself simples público passara, mas não o real). Clearing areas
+coincidem e ordem Rest/G-code FX passam. Isso não torna os conectores aprovados.
+Distâncias Connect reais 0,040188..0,285471 mm; limites mantidos.
+Relatórios completos em target/panelized-ncc-matrix-real-final-20261010;
+somente Gerber Python panelizado independentemente, não Excellon/apertures/UI;
+Cutout na área compartilhada, não Edge_Cuts Python independente.
+Original SHA256 C41580F1AC0D1E0BAF93026E6AFED18719A5614E78DA197407790C82667AA10C intacto.
+Verify completo: **1524 registrados, 1509 aprovados, 15 opcionais ignorados,
+zero falhas/erros**; 37 auxiliares Python passam; parser PowerShell e diff check
+passam. Relatórios privados/candidatos só em target, não adicionar ao Git.
+
+Diagnóstico público Reference Connect 1×3: áreas equivalentes, anéis/ordem não
+idênticos; fornecer a área FX ao Python coincide (~7,3e-15 mm / zero IN), mas
+é apenas controle diagnóstico. mitreBuffer pula preparação para margem zero;
+Python aplica buffer(0) por componente e unary_union no Reference Geometry.
+Candidato GeosBufferOp(0) por componente + NccCopperUnion na referência passa
+os dois controles simples MM/IN; **não integrado**, sem cobertura Rest/matriz
+completa e não somado aos MATCH de produção.
+
+Runner compare-panelized-flows.ps1 aceita Columns/Rows/SpacingXmm/SpacingYmm,
+SkipPublic (apenas privado), mantém saída nova sob target/hash no finally e
+agrega relatórios em comparison-summary.json. Matrizes densas escrevem centenas
+de MB por face e projeto nativo grande; preservar evidência, não versioná-la.
+Detalhes/limites/reprodução: **PANELIZED_NCC.md**. Próximo: validar/integrar a
+preparação de margem zero com regressões e diagnosticar resíduos Rest Itself;
+repetir strict completo. Não migrar renderização nem declarar fluxos 100% ainda.
+
 ## Continuidade em 2026-10-10: correção da preparação NCC Connect
 
 Branch `flatcam-next`, base `81208c85`; etapa reunida na entrega de correção NCC

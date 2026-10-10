@@ -1,5 +1,14 @@
 # Fluxos principais — critérios e validação
 
+## Estado atual — 2026-10-10
+
+O histórico abaixo registra etapas anteriores; o estado atual é consolidado
+em [CONTEXTO_E_PROGRESSO.md](CONTEXTO_E_PROGRESSO.md) e
+[COMPARACAO_CAM.md](COMPARACAO_CAM.md). A união NCC foi corrigida (`6fc150ee`),
+mas a matriz **panelizada** ampliada ainda revela diferenças de Connect,
+inclusive em fixtures públicas. Não declarar 100% dos fluxos principais antes
+de fechar essas diferenças; detalhes em [PANELIZED_NCC.md](PANELIZED_NCC.md).
+
 Atualizado em 2026-10-07, branch `flatcam-next` (incremento anterior: `eeeef1ff`).
 Prioridade solicitada: consolidar os fluxos de produção antes de ampliar
 ferramentas secundárias/automação. Não declarar 100% apenas pela presença dos painéis.
