@@ -72,13 +72,13 @@ final class ExtractDrillsToolPanel {
         }
         fixed.setSelected(true);
 
-        TextField fixedDiameter = field("0.5");
-        TextField factor = field("80");
-        TextField ringCircular = field("0.2");
-        TextField ringOblong = field("0.2");
-        TextField ringSquare = field("0.2");
-        TextField ringRectangular = field("0.2");
-        TextField ringOther = field("0.2");
+        TextField fixedDiameter = field(ToolDefaults.text("extract.fixeddiameter"));
+        TextField factor = field(ToolDefaults.text("extract.factor"));
+        TextField ringCircular = field(ToolDefaults.text("extract.ringcircular"));
+        TextField ringOblong = field(ToolDefaults.text("extract.ringoblong"));
+        TextField ringSquare = field(ToolDefaults.text("extract.ringsquare"));
+        TextField ringRectangular = field(ToolDefaults.text("extract.ringrectangular"));
+        TextField ringOther = field(ToolDefaults.text("extract.ringother"));
 
         GridPane grid = new GridPane();
         grid.setHgap(6);

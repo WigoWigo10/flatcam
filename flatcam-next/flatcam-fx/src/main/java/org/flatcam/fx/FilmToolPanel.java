@@ -75,10 +75,10 @@ final class FilmToolPanel {
         RadioButton negative = new RadioButton("Negativo");
         positive.setToggleGroup(types);
         negative.setToggleGroup(types);
-        negative.setSelected(true);
-        TextField boundary = field("1.0");
+        (ToolDefaults.flag("film.negative") ? negative : positive).setSelected(true);
+        TextField boundary = field(ToolDefaults.text("film.boundary"));
         boundary.disableProperty().bind(negative.selectedProperty().not());
-        TextField stroke = field("0");
+        TextField stroke = field(ToolDefaults.text("film.scalestroke"));
         TextField color = field("#000000");
         color.disableProperty().bind(negative.selectedProperty());
 
@@ -93,7 +93,7 @@ final class FilmToolPanel {
         ComboBox<TreeItem<String>> excellon = combo(host.excellons());
         ToolDescriptions.apply(excellon,"Furos do filme", "Excellon alinhado usado para abrir furos no filme positivo. Só atua com a opção Furar e origem Excellon.");
         excellon.getSelectionModel().selectFirst();
-        TextField padSize = field("1.0");
+        TextField padSize = field(ToolDefaults.text("film.padsize"));
         HBox sources = new HBox(10, fromExcellon, fromPads);
         VBox punchBox = new VBox(6, punch, sources, excellon, new HBox(6, new Label("Furo:"), padSize));
         sources.visibleProperty().bind(punch.selectedProperty());
@@ -105,13 +105,13 @@ final class FilmToolPanel {
         padRow.managedProperty().bind(padRow.visibleProperty());
 
         CheckBox scale = new CheckBox("Escala");
-        TextField scaleX = field("1.0");
-        TextField scaleY = field("1.0");
+        TextField scaleX = field(ToolDefaults.text("film.scalex"));
+        TextField scaleY = field(ToolDefaults.text("film.scaley"));
         scaleX.disableProperty().bind(scale.selectedProperty().not());
         scaleY.disableProperty().bind(scale.selectedProperty().not());
         CheckBox skew = new CheckBox("Inclinacao (graus)");
-        TextField skewX = field("0.0");
-        TextField skewY = field("0.0");
+        TextField skewX = field(ToolDefaults.text("film.skewx"));
+        TextField skewY = field(ToolDefaults.text("film.skewy"));
         ComboBox<String> skewReference = new ComboBox<>();
         skewReference.getItems().setAll("Canto inferior esquerdo", "Canto inferior direito", "Canto superior esquerdo",
                 "Canto superior direito", "Centro");
@@ -144,7 +144,7 @@ final class FilmToolPanel {
         portrait.setToggleGroup(orientation);
         landscape.setToggleGroup(orientation);
         portrait.setSelected(true);
-        TextField dpi = field("96");
+        TextField dpi = field(ToolDefaults.text("film.dpi"));
         pageSize.disableProperty().bind(fileType.valueProperty().isNotEqualTo("PDF"));
         portrait.disableProperty().bind(pageSize.disableProperty());
         landscape.disableProperty().bind(pageSize.disableProperty());

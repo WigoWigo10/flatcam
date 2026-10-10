@@ -55,7 +55,7 @@ final class InvertGerberToolPanel {
             gerber.getSelectionModel().selectFirst();
         }
 
-        TextField margin = new TextField("0.1");
+        TextField margin = new TextField(ToolDefaults.text("invert.margin"));
         margin.setPrefColumnCount(6);
         margin.setTooltip(tooltip("Quanto a caixa ao redor do Gerber passa da borda do cobre."));
         ToggleGroup joins = new ToggleGroup();

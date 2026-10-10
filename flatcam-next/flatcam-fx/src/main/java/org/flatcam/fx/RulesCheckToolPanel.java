@@ -105,8 +105,9 @@ final class RulesCheckToolPanel {
         int row = 0;
         for (Rule rule : Rule.values()) {
             CheckBox enabled = new CheckBox(rule.title());
-            enabled.setSelected(defaults.get(rule).enabled());
-            TextField value = new TextField(String.valueOf(defaults.get(rule).value()));
+            String key = "rules." + rule.name().toLowerCase(java.util.Locale.ROOT);
+            enabled.setSelected(ToolDefaults.flag(key + ".enabled"));
+            TextField value = new TextField(ToolDefaults.text(key));
             value.setPrefColumnCount(5);
             value.disableProperty().bind(enabled.selectedProperty().not());
             switches.put(rule, enabled);

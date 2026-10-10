@@ -59,7 +59,7 @@ final class OptimalToolPanel {
         if (gerber.getValue() == null) {
             gerber.getSelectionModel().selectFirst();
         }
-        TextField precision = new TextField("4");
+        TextField precision = new TextField(ToolDefaults.text("optimal.precision"));
         precision.setPrefColumnCount(4);
 
         TextField minimum = new TextField("0.0");

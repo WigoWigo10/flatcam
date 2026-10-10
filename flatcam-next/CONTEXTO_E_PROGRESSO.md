@@ -2038,6 +2038,25 @@ Comparação com o Python (shapely) no F_Cu real, escala 1,002/0,998 e inclinaç
 de aquecido, 33 ms na 1ª execução; a área resultante é igual, 3092,1585). A ferramenta é só aritmética de poucos pontos,
 então não há ganho a mostrar. Testes em `CalibrationTest`.
 
+**Preferências das ferramentas (2026-10-10).** `ToolDefaults` (flatcam-fx) é o registro central dos valores com que
+os painéis de ferramentas abrem (os `tools_*` do `defaults.py` do Python): cada valor tem chave, ferramenta, rótulo,
+tipo (número, inteiro, opção, liga/desliga) e valor de fábrica igual ao que o painel já usava. Comprimentos têm um valor
+para milímetros e outro para polegadas (nada é convertido ao trocar de unidade); as ferramentas secundárias, que usavam
+o mesmo número nas duas unidades, passaram a ter em polegadas o mesmo comprimento convertido (4 casas), como o Python.
+Editável em Editar > Preferências, seção "Padrões das ferramentas" (`ToolDefaultsPane`: um grupo por ferramenta,
+seletor mm/in, Salvar, Restaurar padrões de fábrica com confirmação) e por Arquivo > Backup > Exportar/Importar
+preferências (arquivo `.properties` editável; entradas desconhecidas ou inválidas são ignoradas e contadas). Um valor
+salvo inválido cai no de fábrica; salvar o valor de fábrica apaga o salvo. Só a aplicação real persiste (nó
+`toolDefaults` das preferências do usuário, instalado em `MainApp`): testes e harnesses usam um armazenamento em
+memória e sempre veem os valores de fábrica. Painéis ligados: Cutout, Isolation, NCC, Paint (todos os parâmetros
+principais, inclusive a lista inicial de ferramentas do NCC e os botões de Reset) e os campos numéricos de Film,
+Panelize, 2-Sided (furo de alinhamento), Copper Thieving, Rules Check (limite e liga/desliga de cada regra),
+Fiducials, Corner Markers, QRCode, Etch Compensation, Punch Gerber, Extract Drills, Invert Gerber, SolderPaste (novo
+bico), Calibration (Z do G-code) e Optimal. Um painel já aberto conserva os valores com que abriu. Fora deste
+incremento: os botões de opção (rádios) das ferramentas secundárias, Drilling, Geometry CNC e Excellon Milling (são os
+padrões de objetos/CNC, próximo bloco) e os parâmetros de dispensa do SolderPaste. Testes: `ToolDefaultsTest`,
+`ToolDefaultsPaneTest`, `ToolDefaultsPanelsTest`.
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

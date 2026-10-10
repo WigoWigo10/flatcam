@@ -65,9 +65,9 @@ final class QrCodeToolPanel {
         TextArea text = new TextArea();
         text.setPrefRowCount(3);
         text.setWrapText(true);
-        TextField version = field("1");
-        TextField boxSize = field("3");
-        TextField border = field("4");
+        TextField version = field(ToolDefaults.text("qrcode.version"));
+        TextField boxSize = field(ToolDefaults.text("qrcode.boxsize"));
+        TextField border = field(ToolDefaults.text("qrcode.border"));
         ToggleGroup levels = new ToggleGroup();
         RadioButton levelL = new RadioButton("L");
         RadioButton levelM = new RadioButton("M");

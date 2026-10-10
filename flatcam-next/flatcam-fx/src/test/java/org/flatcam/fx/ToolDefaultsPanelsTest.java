@@ -33,6 +33,7 @@ class ToolDefaultsPanelsTest {
     @AfterEach
     void freshStore() {
         ToolDefaults.useStore(ToolDefaults.memoryStore());
+        ToolDefaults.useDisplayUnits(() -> true);
     }
 
     private static Node laidOut(Node panel) {

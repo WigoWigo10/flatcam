@@ -66,7 +66,7 @@ final class EtchCompensationToolPanel {
         Label milsMicrons = new Label("= um");
         mils.textProperty().addListener((o, a, b) -> milsMicrons.setText(converted(b, 25.4)));
 
-        TextField thickness = new TextField("18");
+        TextField thickness = new TextField(ToolDefaults.text("etch.thickness"));
         ToggleGroup ratio = new ToggleGroup();
         RadioButton byFactor = new RadioButton("Fator de corrosao");
         RadioButton byEtchant = new RadioButton("Lista de corrosivos");

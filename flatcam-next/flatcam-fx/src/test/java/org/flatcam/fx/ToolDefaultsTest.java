@@ -18,6 +18,7 @@ class ToolDefaultsTest {
     @AfterEach
     void freshStore() {
         ToolDefaults.useStore(ToolDefaults.memoryStore());
+        ToolDefaults.useDisplayUnits(() -> true);
     }
 
     @Test
@@ -112,6 +113,38 @@ class ToolDefaultsTest {
             // Saving the factory value back must be accepted in both unit systems.
             ToolDefaults.set(setting.key(), true, setting.factory(true));
             ToolDefaults.set(setting.key(), false, setting.factory(false));
+        }
+    }
+
+    @Test
+    void millimetreDefaultsHaveTheSameLengthInInches() {
+        assertEquals("0.0394", ToolDefaults.text("fiducials.size", false));
+        assertEquals("7.874", ToolDefaults.text("panelize.limitwidth", false));
+        assertEquals("0.0", ToolDefaults.text("corners.margin", false));
+        assertEquals("0.123", ToolDefaults.text("twosided.drilldia", false));
+        // A count or a percentage is the same in both.
+        assertEquals("2", ToolDefaults.text("panelize.columns", false));
+        assertEquals("80", ToolDefaults.text("punch.factor", false));
+    }
+
+    @Test
+    void panelsWithoutAnObjectUseTheUnitsTheApplicationShows() {
+        assertEquals("1.0", ToolDefaults.text("fiducials.size"));
+        ToolDefaults.useDisplayUnits(() -> false);
+        assertEquals("0.0394", ToolDefaults.text("fiducials.size"));
+        ToolDefaults.set("fiducials.size", false, "0.05");
+        assertEquals("0.05", ToolDefaults.text("fiducials.size"));
+        ToolDefaults.useDisplayUnits(() -> true);
+        assertEquals("1.0", ToolDefaults.text("fiducials.size"));
+    }
+
+    @Test
+    void everyDesignRuleHasItsDefaultAndPythonsValue() {
+        var python = org.flatcam.cam.analysis.RulesCheck.defaults();
+        for (var rule : org.flatcam.cam.analysis.RulesCheck.Rule.values()) {
+            String key = "rules." + rule.name().toLowerCase(java.util.Locale.ROOT);
+            assertEquals(python.get(rule).value(), ToolDefaults.number(key, true), rule.name());
+            assertEquals(python.get(rule).enabled(), ToolDefaults.flag(key + ".enabled"), rule.name());
         }
     }
 }

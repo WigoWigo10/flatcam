@@ -59,6 +59,7 @@ public class MainApp extends Application {
         // Only the real application remembers the tool defaults; tests and harnesses keep the factory values.
         ToolDefaults.useStore(AppPreferences.toolDefaultsStore());
         mainWindow = new MainWindow(jobExecutor);
+        ToolDefaults.useDisplayUnits(mainWindow::displayUnitsMetric);
         StartupTarget startup = startupTarget();
         Rectangle2D startupBounds = startup.screen().getBounds();
         primaryStage.setTitle("FlatCAM FX");

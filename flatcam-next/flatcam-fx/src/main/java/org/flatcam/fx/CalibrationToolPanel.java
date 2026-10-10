@@ -95,7 +95,6 @@ final class CalibrationToolPanel {
     }
 
     static Node build(Host host, Runnable onClose) {
-        GCodeSettings d = GCodeSettings.defaults();
         double[][] points = new double[4][2];
         int[] count = {0};
 
@@ -211,10 +210,10 @@ final class CalibrationToolPanel {
         pointsBox.setPadding(new Insets(6));
 
         // --- step 2: verification g-code ---
-        TextField travelZ = field(String.valueOf(d.travelZ()), true);
-        TextField verificationZ = field(String.valueOf(d.verificationZ()), true);
+        TextField travelZ = field(ToolDefaults.text("calibration.travelz"), true);
+        TextField verificationZ = field(ToolDefaults.text("calibration.verificationz"), true);
         CheckBox zeroZ = new CheckBox("Zerar Z antes");
-        TextField toolChangeZ = field(String.valueOf(d.toolChangeZ()), true);
+        TextField toolChangeZ = field(ToolDefaults.text("calibration.toolchangez"), true);
         TextField toolChangeXY = field("", true);
         toolChangeXY.setPromptText("x, y");
         ToggleGroup second = new ToggleGroup();

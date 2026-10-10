@@ -138,10 +138,10 @@ final class PanelizeToolPanel {
                 + "placa) mais o espacamento, mesmo que o objeto seja menor."));
 
         // FX starts with 2 x 2 for a useful preview; other defaults match Python.
-        TextField columns = new TextField("2");
-        TextField rows = new TextField("2");
-        TextField spacingColumns = new TextField("0.0");
-        TextField spacingRows = new TextField("0.0");
+        TextField columns = new TextField(ToolDefaults.text("panelize.columns"));
+        TextField rows = new TextField(ToolDefaults.text("panelize.rows"));
+        TextField spacingColumns = new TextField(ToolDefaults.text("panelize.spacingcolumns"));
+        TextField spacingRows = new TextField(ToolDefaults.text("panelize.spacingrows"));
         columns.setId("panelize-columns"); rows.setId("panelize-rows");
         spacingColumns.setId("panelize-spacing-x"); spacingRows.setId("panelize-spacing-y");
         for (TextField field : List.of(columns, rows, spacingColumns, spacingRows)) {
@@ -150,8 +150,8 @@ final class PanelizeToolPanel {
         CheckBox constrain = new CheckBox("Limitar o tamanho do painel");
         constrain.setId("panelize-limit");
         constrain.setTooltip(tooltip("Se a grade nao couber, colunas e linhas diminuem ate caber, como no Python."));
-        TextField limitWidth = new TextField("200.0");
-        TextField limitHeight = new TextField("290.0");
+        TextField limitWidth = new TextField(ToolDefaults.text("panelize.limitwidth"));
+        TextField limitHeight = new TextField(ToolDefaults.text("panelize.limitheight"));
         limitWidth.setPrefColumnCount(5);
         limitHeight.setPrefColumnCount(5);
         HBox limits = new HBox(6, new Label("Largura:"), limitWidth, new Label("Altura:"), limitHeight);

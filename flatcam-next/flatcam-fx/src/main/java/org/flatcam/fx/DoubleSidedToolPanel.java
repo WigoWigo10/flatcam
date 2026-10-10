@@ -267,7 +267,7 @@ final class DoubleSidedToolPanel {
         errorLabel.setWrapText(true);
 
         // --- alignment holes ---
-        TextField diameter = new TextField("3.125"); // Python's tools_2sided_drilldia default
+        TextField diameter = new TextField(ToolDefaults.text("twosided.drilldia")); // Python's tools_2sided_drilldia default
         diameter.setPrefColumnCount(6);
         TextArea holesText = new TextArea();
         ToolDescriptions.apply(holesText,"Pontos de alinhamento", "Um ponto por linha: X, Y; ou uma lista no formato (X, Y), (X, Y). Cada ponto gera também um furo espelhado pelo eixo escolhido.\n\nUnidades: unidade dos objetos (mm ou in).");

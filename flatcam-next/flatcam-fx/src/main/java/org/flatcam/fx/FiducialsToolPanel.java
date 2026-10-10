@@ -56,9 +56,9 @@ final class FiducialsToolPanel {
         }
         ComboBox<TreeItem<String>> mask = combo(host.gerbers());
 
-        TextField size = field("1.0");
-        TextField margin = field("1.0");
-        TextField thickness = field("0.25");
+        TextField size = field(ToolDefaults.text("fiducials.size"));
+        TextField margin = field(ToolDefaults.text("fiducials.margin"));
+        TextField thickness = field(ToolDefaults.text("fiducials.thickness"));
         ToggleGroup modes = new ToggleGroup();
         RadioButton auto = new RadioButton("Automatico");
         RadioButton manual = new RadioButton("Manual");

@@ -82,6 +82,12 @@ final class CopperThievingToolPanel {
         return box;
     }
 
+    private static TextField number(String value) {
+        TextField field = new TextField(value);
+        field.setPrefColumnCount(5);
+        return field;
+    }
+
     private static TextField number(double value) {
         TextField field = new TextField(String.valueOf(value));
         field.setPrefColumnCount(5);
@@ -122,9 +128,9 @@ final class CopperThievingToolPanel {
         status.setWrapText(true);
 
         // --- thieving ---
-        TextField clearance = number(d.clearance());
-        TextField margin = number(d.margin());
-        TextField minArea = number(d.minArea());
+        TextField clearance = number(ToolDefaults.text("thieving.clearance"));
+        TextField margin = number(ToolDefaults.text("thieving.margin"));
+        TextField minArea = number(ToolDefaults.text("thieving.minarea"));
         ToggleGroup reference = new ToggleGroup();
         RadioButton itself = radio("O próprio objeto", reference, Reference.ITSELF);
         RadioButton area = radio("Áreas desenhadas", reference, Reference.AREA);
@@ -179,12 +185,12 @@ final class CopperThievingToolPanel {
         RadioButton squares = radio("Quadrados", fill, Fill.SQUARE);
         RadioButton lines = radio("Linhas", fill, Fill.LINE);
         solid.setSelected(true);
-        TextField dotDiameter = number(d.dotDiameter());
-        TextField dotSpacing = number(d.dotSpacing());
-        TextField squareSize = number(d.squareSize());
-        TextField squareSpacing = number(d.squareSpacing());
-        TextField lineSize = number(d.lineSize());
-        TextField lineSpacing = number(d.lineSpacing());
+        TextField dotDiameter = number(ToolDefaults.text("thieving.dotdiameter"));
+        TextField dotSpacing = number(ToolDefaults.text("thieving.dotspacing"));
+        TextField squareSize = number(ToolDefaults.text("thieving.squaresize"));
+        TextField squareSpacing = number(ToolDefaults.text("thieving.squarespacing"));
+        TextField lineSize = number(ToolDefaults.text("thieving.linesize"));
+        TextField lineSpacing = number(ToolDefaults.text("thieving.linespacing"));
         GridPane dotGrid = pairs("Diâmetro:", dotDiameter, "Espaço:", dotSpacing);
         GridPane squareGrid = pairs("Lado:", squareSize, "Espaço:", squareSpacing);
         GridPane lineGrid = pairs("Espessura:", lineSize, "Espaço:", lineSpacing);
@@ -238,8 +244,8 @@ final class CopperThievingToolPanel {
         thievingBox.setPadding(new Insets(6));
 
         // --- robber bar ---
-        TextField robberMargin = number(1.0);
-        TextField robberThickness = number(1.0);
+        TextField robberMargin = number(ToolDefaults.text("thieving.robbermargin"));
+        TextField robberThickness = number(ToolDefaults.text("thieving.robberthickness"));
         Button robber = new Button("Adicionar Robber Bar");
         robber.setMaxWidth(Double.MAX_VALUE);
         robber.setOnAction(event -> {
@@ -262,7 +268,7 @@ final class CopperThievingToolPanel {
         // --- pattern plating mask ---
         ComboBox<TreeItem<String>> maskObject = chooser(host.gerbers());
         maskObject.getSelectionModel().selectFirst();
-        TextField maskClearance = number(0.0);
+        TextField maskClearance = number(ToolDefaults.text("thieving.maskclearance"));
         ToggleGroup plating = new ToggleGroup();
         RadioButton both = radio("Ambos", plating, Plating.BOTH);
         RadioButton onlyThieving = radio("Thieving", plating, Plating.THIEVING);

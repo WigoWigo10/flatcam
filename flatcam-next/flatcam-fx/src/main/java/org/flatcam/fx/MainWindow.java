@@ -2138,6 +2138,11 @@ final class MainWindow implements TclFlatcamHost {
                 : dotColor == CANCELLED_COLOR ? "Cancelled." : "Idle.");
     }
 
+    /** Whether the application is showing millimetres (the units of the last object loaded). */
+    boolean displayUnitsMetric() {
+        return !unitsLabel.getText().toLowerCase(java.util.Locale.ROOT).contains("in");
+    }
+
     private void setDisplayUnits(String units) {
         String display = units == null || units.isBlank() ? "mm" : units.toLowerCase(java.util.Locale.ROOT);
         unitsLabel.setText("[" + display + "]");

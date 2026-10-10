@@ -99,13 +99,13 @@ final class PunchGerberToolPanel {
         CheckBox other = new CheckBox("Outros");
         circular.setSelected(true);
 
-        TextField fixedDiameter = field("0.5");
-        TextField factor = field("80");
-        TextField ringCircular = field("0.2");
-        TextField ringOblong = field("0.2");
-        TextField ringSquare = field("0.2");
-        TextField ringRectangular = field("0.2");
-        TextField ringOther = field("0.2");
+        TextField fixedDiameter = field(ToolDefaults.text("punch.fixeddiameter"));
+        TextField factor = field(ToolDefaults.text("punch.factor"));
+        TextField ringCircular = field(ToolDefaults.text("punch.ringcircular"));
+        TextField ringOblong = field(ToolDefaults.text("punch.ringoblong"));
+        TextField ringSquare = field(ToolDefaults.text("punch.ringsquare"));
+        TextField ringRectangular = field(ToolDefaults.text("punch.ringrectangular"));
+        TextField ringOther = field(ToolDefaults.text("punch.ringother"));
         GridPane grid = new GridPane();
         grid.setHgap(6);
         grid.setVgap(6);

@@ -43,6 +43,7 @@ final class ToolDefaults {
 
     private static final Map<String, Setting> SETTINGS = new LinkedHashMap<>();
     private static Store store = memoryStore();
+    private static java.util.function.BooleanSupplier displayMetric = () -> true;
 
     private ToolDefaults() {
     }
@@ -98,12 +99,107 @@ final class ToolDefaults {
         flag("paint.connect", paint, "Conectar caminhos", true);
         flag("paint.contour", paint, "Contorno", true);
         choice("paint.order", paint, "Ordem das ferramentas", "REVERSE", "NONE", "FORWARD", "REVERSE");
+
+        String film = "Film";
+        flag("film.negative", film, "Filme negativo", true);
+        millimetres("film.boundary", film, "Borda (negativo)", "1.0");
+        number("film.scalestroke", film, "Escala do traço", "0");
+        millimetres("film.padsize", film, "Tamanho do furo nos pads", "1.0");
+        number("film.scalex", film, "Escala X", "1.0");
+        number("film.scaley", film, "Escala Y", "1.0");
+        number("film.skewx", film, "Inclinação X (graus)", "0.0");
+        number("film.skewy", film, "Inclinação Y (graus)", "0.0");
+        integer("film.dpi", film, "DPI (PNG)", 96);
+
+        String panelize = "Panelize";
+        integer("panelize.columns", panelize, "Colunas", 2);
+        integer("panelize.rows", panelize, "Linhas", 2);
+        millimetres("panelize.spacingcolumns", panelize, "Espaço entre colunas", "0.0");
+        millimetres("panelize.spacingrows", panelize, "Espaço entre linhas", "0.0");
+        millimetres("panelize.limitwidth", panelize, "Largura máxima", "200.0");
+        millimetres("panelize.limitheight", panelize, "Altura máxima", "290.0");
+
+        millimetres("twosided.drilldia", "2-Sided", "Diâmetro do furo de alinhamento", "3.125");
+
+        String thieving = "Copper Thieving";
+        millimetres("thieving.clearance", thieving, "Distância", "0.25");
+        millimetres("thieving.margin", thieving, "Margem", "1.0");
+        number("thieving.minarea", thieving, "Área mínima", "0.1");
+        millimetres("thieving.dotdiameter", thieving, "Diâmetro dos pontos", "1.0");
+        millimetres("thieving.dotspacing", thieving, "Espaço dos pontos", "2.0");
+        millimetres("thieving.squaresize", thieving, "Lado dos quadrados", "1.0");
+        millimetres("thieving.squarespacing", thieving, "Espaço dos quadrados", "2.0");
+        millimetres("thieving.linesize", thieving, "Espessura das linhas", "0.25");
+        millimetres("thieving.linespacing", thieving, "Espaço das linhas", "2.0");
+        millimetres("thieving.robbermargin", thieving, "Margem da robber bar", "1.0");
+        millimetres("thieving.robberthickness", thieving, "Espessura da robber bar", "1.0");
+        millimetres("thieving.maskclearance", thieving, "Distância da máscara", "0.0");
+
+        String rules = "Rules Check";
+        String[][] ruleDefaults = {{"trace_size", "Tamanho da trilha", "0.25"},
+                {"copper_to_copper", "Cobre a cobre", "0.25"}, {"copper_to_outline", "Cobre ao contorno", "1.0"},
+                {"silk_to_silk", "Seda a seda", "0.25"}, {"silk_to_mask", "Seda à máscara", "0.25"},
+                {"silk_to_outline", "Seda ao contorno", "1.0"}, {"mask_sliver", "Lasca da máscara", "0.25"},
+                {"annular_ring", "Anel anular", "0.3"}, {"hole_to_hole", "Furo a furo", "0.3"},
+                {"hole_size", "Tamanho do furo", "0.3"}};
+        for (String[] rule : ruleDefaults) {
+            flag("rules." + rule[0] + ".enabled", rules, rule[1] + ": verificar", true);
+            millimetres("rules." + rule[0], rules, rule[1], rule[2]);
+        }
+
+        String fiducials = "Fiducials";
+        millimetres("fiducials.size", fiducials, "Tamanho", "1.0");
+        millimetres("fiducials.margin", fiducials, "Margem", "1.0");
+        millimetres("fiducials.thickness", fiducials, "Espessura da linha", "0.25");
+
+        String corners = "Corner Markers";
+        millimetres("corners.thickness", corners, "Espessura", "0.1");
+        millimetres("corners.length", corners, "Comprimento", "3.0");
+        millimetres("corners.margin", corners, "Margem", "0.0");
+        millimetres("corners.drill", corners, "Diâmetro do furo", "0.5");
+
+        String qrcode = "QRCode";
+        integer("qrcode.version", qrcode, "Versão", 1);
+        integer("qrcode.boxsize", qrcode, "Tamanho do módulo", 3);
+        integer("qrcode.border", qrcode, "Borda (módulos)", 4);
+
+        number("etch.thickness", "Etch Compensation", "Espessura do cobre (µm)", "18");
+
+        for (String[] tool : new String[][] {{"punch", "Punch Gerber"}, {"extract", "Extract Drills"}}) {
+            millimetres(tool[0] + ".fixeddiameter", tool[1], "Diâmetro fixo", "0.5");
+            number(tool[0] + ".factor", tool[1], "Proporção (%)", "80");
+            millimetres(tool[0] + ".ringcircular", tool[1], "Anel: circular", "0.2");
+            millimetres(tool[0] + ".ringoblong", tool[1], "Anel: oblongo", "0.2");
+            millimetres(tool[0] + ".ringsquare", tool[1], "Anel: quadrado", "0.2");
+            millimetres(tool[0] + ".ringrectangular", tool[1], "Anel: retangular", "0.2");
+            millimetres(tool[0] + ".ringother", tool[1], "Anel: outros", "0.2");
+        }
+
+        millimetres("invert.margin", "Invert Gerber", "Margem", "0.1");
+        millimetres("paste.newnozzle", "SolderPaste", "Diâmetro de novo bico", "0.3");
+
+        String calibration = "Calibration";
+        millimetres("calibration.travelz", calibration, "Z de deslocamento", "2.0");
+        millimetres("calibration.verificationz", calibration, "Z de verificação", "0.1");
+        millimetres("calibration.toolchangez", calibration, "Z de troca de ferramenta", "15.0");
+
+        integer("optimal.precision", "Optimal", "Precisão (casas)", 4);
     }
 
     // --- definitions ---------------------------------------------------------------------------------------------
 
     private static void length(String key, String tool, String label, String millimetres, String inches) {
         define(new Setting(key, tool, label, Kind.NUMBER, millimetres, inches, List.of()));
+    }
+
+    /**
+     * A length given in millimetres whose inch value is the same length converted (4 decimals), as Python converts its
+     * defaults when the units change.
+     */
+    private static void millimetres(String key, String tool, String label, String value) {
+        String inches = java.math.BigDecimal.valueOf(Double.parseDouble(value) / 25.4)
+                .setScale(4, java.math.RoundingMode.HALF_UP).stripTrailingZeros().toPlainString();
+        length(key, tool, label, value, inches.contains(".") ? inches : inches + ".0");
     }
 
     /** A free text that depends on the units (a list of diameters): validated by the panel that reads it. */
@@ -167,6 +263,11 @@ final class ToolDefaults {
         Setting setting = setting(key);
         String saved = store.get(storeKey(setting, metric));
         return saved != null && problem(setting, saved) == null ? saved : setting.factory(metric);
+    }
+
+    /** The value for the units the application is showing, for the panels that do not belong to one object. */
+    static String text(String key) {
+        return text(key, displayMetric.getAsBoolean());
     }
 
     static double number(String key, boolean metric) {
@@ -279,6 +380,11 @@ final class ToolDefaults {
     }
 
     // --- storage -------------------------------------------------------------------------------------------------
+
+    /** Tells which units the application shows; millimetres until the application says otherwise. */
+    static void useDisplayUnits(java.util.function.BooleanSupplier metric) {
+        displayMetric = metric;
+    }
 
     static void useStore(Store replacement) {
         store = replacement;

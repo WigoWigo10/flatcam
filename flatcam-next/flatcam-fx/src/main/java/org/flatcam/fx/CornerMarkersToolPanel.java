@@ -61,10 +61,10 @@ final class CornerMarkersToolPanel {
             gerber.getSelectionModel().selectFirst();
         }
 
-        TextField thickness = field("0.1");
-        TextField length = field("3.0");
-        TextField margin = field("0.0");
-        TextField drill = field("0.5");
+        TextField thickness = field(ToolDefaults.text("corners.thickness"));
+        TextField length = field(ToolDefaults.text("corners.length"));
+        TextField margin = field(ToolDefaults.text("corners.margin"));
+        TextField drill = field(ToolDefaults.text("corners.drill"));
         ToggleGroup styles = new ToggleGroup();
         RadioButton safe = new RadioButton("Canto (L)");
         RadioButton cross = new RadioButton("Cruz");
