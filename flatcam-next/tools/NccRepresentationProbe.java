@@ -13,7 +13,7 @@ import org.flatcam.cam.gcode.*;
 /** Diagnostic only: isolate union/repair ordering, never normalize oracle rings. */
 public class NccRepresentationProbe {
     public static void main(String[] args) throws Exception {
-        if (args.length != 2 && args.length != 3) throw new IllegalArgumentException("Usage: FX_EXPORT NEW_DIRECTORY [VARIANT]");
+        if (args.length < 2 || args.length > 4) throw new IllegalArgumentException("Usage: FX_EXPORT NEW_DIRECTORY [VARIANT [ORDER_FILE]]");
         Path output = Path.of(args[1]);
         if (Files.exists(output)) throw new IllegalArgumentException("Choose a new directory");
         Files.createDirectories(output);
@@ -36,15 +36,18 @@ public class NccRepresentationProbe {
                 NccToolSettings.class,boolean.class,CancellationToken.class,DoubleConsumer.class);
         clear.setAccessible(true);
         var stages = new JSONObject();
-        var variants = List.of("repair-union","union-raw","geos-repair-union","geos-flat-union");
-        if (args.length == 3 && !variants.contains(args[2])) throw new IllegalArgumentException("Unknown variant");
-        for (String variant : args.length == 3 ? List.of(args[2]) : variants) {
+        var variants = List.of("repair-union","union-raw","geos-repair-union","geos-flat-union","native-order","java-msvc-order");
+        if (args.length >= 3 && !variants.contains(args[2])) throw new IllegalArgumentException("Unknown variant");
+        if (args.length >= 3 && args[2].equals("native-order") && args.length != 4) throw new IllegalArgumentException("native-order requires ORDER_FILE");
+        for (String variant : args.length >= 3 ? List.of(args[2]) : variants.subList(0,4)) {
             Geometry repaired = switch (variant) {
-                case "union-raw", "geos-flat-union" -> source;
+                case "union-raw", "geos-flat-union", "native-order", "java-msvc-order" -> source;
                 case "geos-repair-union" -> GeosBufferOp.bufferOp(source,0,new org.locationtech.jts.operation.buffer.BufferParameters(64));
                 default -> source.buffer(0);
             };
-            Geometry copper = variant.equals("geos-flat-union") ? flatUnion(repaired) : OverlayNGRobust.union(repaired);
+            Geometry copper = variant.equals("java-msvc-order") ? NccCopperUnion.union(repaired,CancellationToken.none())
+                    : variant.equals("native-order") ? orderedUnion(repaired,Path.of(args[3]))
+                    : variant.equals("geos-flat-union") ? flatUnion(repaired) : OverlayNGRobust.union(repaired);
             Geometry boundary = GeosBufferOp.bufferOp(copper.convexHull(),p.getDouble("margin"),bufferParams);
             Geometry difference = OverlayNGRobust.overlay(boundary,copper,OverlayNG.DIFFERENCE);
             for (boolean repair : List.of(false,true)) {
@@ -60,6 +63,7 @@ public class NccRepresentationProbe {
                 double mm = units.equals("IN") ? 1/25.4 : 1;
                 candidate.put("gcode",GCodeGenerator.generateGeometryCncJob(units,paths,
                         new GeometryGCodeParameters(3*mm,.1*mm,false,0,300*mm,0,false),diameter).gcode());
+                candidate.put("fxDetailedPreviewAvailable",false).put("fxPreviewWarning","Diagnostic candidate; preview not checked");
                 String name = variant + (repair ? "-final-repair" : "-no-final-repair");
                 var control = new JSONObject(export.toString()).put("cases",new JSONArray().put(candidate))
                         .put("diagnosticControl",name + "; not production parity");
@@ -90,6 +94,15 @@ public class NccRepresentationProbe {
     private static void collect(Geometry source,List<Geometry> parts) {
         if (source instanceof Polygon) parts.add(source);
         else if (source instanceof GeometryCollection) for (int i=0;i<source.getNumGeometries();i++) collect(source.getGeometryN(i),parts);
+    }
+
+    private static Geometry orderedUnion(Geometry source,Path orderFile) throws Exception {
+        var parts=new ArrayList<Geometry>();
+        collect(source,parts);
+        var order=Files.readAllLines(orderFile).stream().map(Integer::parseInt).toList();
+        if(order.size()!=parts.size() || new HashSet<>(order).size()!=parts.size()
+                || order.stream().anyMatch(i -> i<0 || i>=parts.size())) throw new IllegalArgumentException("Invalid permutation");
+        return binaryUnion(order.stream().map(parts::get).toList(),0,parts.size());
     }
 
     private static Geometry binaryUnion(List<Geometry> parts,int start,int end) {

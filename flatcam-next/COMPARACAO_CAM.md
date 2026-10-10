@@ -1,5 +1,31 @@
 # Comparação reproduzível CAM: FX × Python
 
+## NCC Connect: união plana e empates Windows — 2026-10-10
+
+O residual anterior foi reproduzido sem coordenadas privadas. União por folhas
+STR/capacidade 10 resolve os quatro casos list-multipart da fixture de 12 discos.
+No projeto real, a ordenação estável ainda divergira; a ordem obtida pelo MSVC
+e sua adaptação Java fazem Connect passar: distância 2,1316282e-14 mm, delta de
+área zero, comprimento relativo 1,96e-16, G-code aprovado.
+Código/limites/reprodução em [NCC_CONNECT.md](NCC_CONNECT.md).
+
+O NCC usa essa preparação somente para listas de cobre; conector, Paint,
+políticas dos objetos diretos e tolerâncias não foram modificados. Golden
+público cruza limiares de STR/sort e testa os vértices/ordem, não só a área.
+Verify completo: 1520 registrados, 1505 aprovados, 15 ignorados opcionais;
+zero falhas/erros. 37 auxiliares Python aprovados. Referência original intacta.
+
+Comparação final de produção: **32/32 casos públicos independentes** de Connect,
+sem contar os controles de mesma área como paridade. Reexecução real ampliada:
+**10 MATCH_SAMPLED, zero DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE, 1 ORACLE_ERROR**
+(ncc-multi-settings, ValueError original Python da lista [MultiPolygon] com offset).
+Os 11 controles sintéticos IN passam. Standard, Seed Python, três ordens,
+Rest/Rest Connect e limites Area/Reference passam nesse conjunto real.
+Strict ainda retorna 1 pelo erro original do legado, que não é aprovação.
+Dados em `target/ncc-union-production-real-20261010`; trace público em
+`target/ncc-connect-production-union*-20261010.json`. Projeto somente lido,
+SHA-256 intacto. Não é paridade total, validação visual ou segurança CNC.
+
 ## NCC / fidelidade de exportação — 2026-10-10 (Item 2)
 
 Os três `GCODE_DIFFERENT` anteriores (Lines MM e multi-settings MM/IN) eram

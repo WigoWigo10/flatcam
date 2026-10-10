@@ -1,5 +1,40 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade em 2026-10-10: correção da preparação NCC Connect
+
+Branch `flatcam-next`, base `81208c85`; etapa reunida na entrega de correção NCC
+Connect (consultar `git log` para o hash). Nenhum push realizado.
+NccCopperUnion prepara listas de cobre (GeometryCollection genérica) com folhas
+STR de capacidade 10 e união binária plana, incluindo os empates da ordenação
+MSVC da referência Windows. O controle nativo confirmou a ordem e a adaptação
+Java reproduziu-o; aplicativo continua sem dependência nativa adicional.
+Não usar ordenação estável como equivalente a std::sort com empates >32 itens.
+Origem preservada; membros válidos não recebem reparo global antes da união.
+Membros inválidos têm reparo limitado; Polygon/MultiPolygon diretos e Paint
+mantêm as políticas anteriores. Conector e tolerâncias permanecem intactos.
+Detalhes, licença distribuída no JAR e reprodução: NCC_CONNECT.md.
+
+Controle Java no projeto real: Connect MATCH_SAMPLED, distância 2,1316282e-14 mm,
+delta de área zero, comprimento relativo 1,96e-16, G-code também aprovado.
+Não generalizar esse controle isolado para todos os cenários/painéis.
+Build integral aprovado: 1520 registrados, 1505 aprovados, 15 opcionais ignorados,
+zero falhas/erros; 37 auxiliares Python passam. Golden público independente para
+dez tamanhos, MM/IN, translação, IDs/índices dos vértices e cancelamento.
+Sem medição de FPS, validação visual manual ou segurança física CNC.
+Projeto original somente lido, hash C41580F1AC0D1E0BAF93026E6AFED18719A5614E78DA197407790C82667AA10C intacto.
+Comparação de produção final: **32/32 públicos independentes**, também Plain/área
+e controles de mesma área (estes últimos só diagnósticos). No projeto real,
+**10 MATCH_SAMPLED, 0 DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE, 1 ORACLE_ERROR**
+em ncc-multi-settings: mesmo ValueError original Python [MultiPolygon] com offset,
+não corrigido/achatado nem contado como paridade. Rest/Rest Connect, três ordens,
+Standard e Seed Python passam. Onze controles sintéticos IN passam (11/11).
+Strict real retorna 1 somente pelo erro do legado; não afirmar strict integral
+aprovado. Relatórios privados ignorados em target/ncc-union-production-real-20261010;
+trace público em target/ncc-connect-production-union*-20261010.json.
+Próximo: ampliar o corpus panelizado Connect/Rest/Itself, grades e espaçamentos.
+Depois, baseline/protótipo incremental da renderização, sem atribuir JSON/WKT/CAM
+ao renderer ou prometer ganhos de FPS. Nenhum push realizado.
+
 ## Continuidade em 2026-10-10: Item 2, NCC Seed e métricas de exportação
 
 Branch `flatcam-next`, base anterior `941750b8`; mudanças deste item e da

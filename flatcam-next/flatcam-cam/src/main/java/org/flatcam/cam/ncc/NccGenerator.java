@@ -78,16 +78,14 @@ public final class NccGenerator {
         }
 
         progress.report(0.02);
-        // Python rejects outline-only sources: lines cannot represent copper
-        // to subtract. Repair the filled part before the Boolean operations.
-        Geometry repairedCopper = copper.buffer(0);
         // Imported Python lists of multipart polygons are represented by a
-        // generic GeometryCollection. The GUI unions that list before
-        // subtraction; buffer(0) alone preserves different ring starts and
-        // changes Connect's endpoints despite an identical copper area.
-        // Do not apply list semantics to an ordinary Polygon/MultiPolygon.
+        // generic GeometryCollection. Match the legacy Windows flat union's
+        // leaf order (including equal keys), not JTS's capacity-4 subtree union.
+        // Preserve raw valid list members until that union; repairing the
+        // entire collection first can change Connect's endpoints. Direct
+        // Polygon/MultiPolygon keep their previous Full-buffering policy.
         Geometry cleanCopper = copper.getGeometryType().equals("GeometryCollection")
-                ? OverlayNGRobust.union(repairedCopper) : repairedCopper;
+                ? NccCopperUnion.union(copper, cancellation) : copper.buffer(0);
         cancellation.throwIfCancellationRequested();
         Geometry rawBoundary = switch (params.boundary()) {
             case NccBoundary.Itself ignored -> cleanCopper.convexHull();

@@ -124,7 +124,7 @@ class NccGeneratorTest {
         Geometry multipart = reader.read("MULTIPOLYGON (((0 0,6 0,6 8,0 8,0 0)),((8 0,14 0,14 8,8 8,8 0)))");
         Geometry input = FACTORY.createGeometryCollection(new Geometry[]{multipart});
         String original = input.toText();
-        Geometry prepared = org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(input.buffer(0));
+        Geometry prepared = NccCopperUnion.union(input,org.flatcam.cam.CancellationToken.none());
         var params = new NccParameters(.5,.4,1,NccMethod.STANDARD,true,true,0);
         var listedResult = NccGenerator.generate("MM",input,params);
         var preparedResult = NccGenerator.generate("MM",prepared,params);
