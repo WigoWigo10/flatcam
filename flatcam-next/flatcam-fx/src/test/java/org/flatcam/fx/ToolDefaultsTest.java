@@ -162,4 +162,21 @@ class ToolDefaultsTest {
                     org.flatcam.cam.gcode.GCodePreprocessor.class));
         }
     }
+
+    @Test
+    void importOptionsFollowThePreferencesAndFallBackWhenOutOfRange() {
+        assertEquals(org.flatcam.cam.gerber.GerberParser.Options.standard(), ToolDefaults.gerberImport());
+        assertEquals(org.flatcam.cam.excellon.ExcellonParser.Options.standard(), ToolDefaults.excellonImport());
+        ToolDefaults.set("import.gerber.units", true, "MM");
+        ToolDefaults.set("import.gerber.circlesteps", true, "128");
+        ToolDefaults.set("import.excellon.units", true, "MM");
+        ToolDefaults.set("import.excellon.decimals.mm", true, "4");
+        assertEquals(new org.flatcam.cam.gerber.GerberParser.Options("MM", 128), ToolDefaults.gerberImport());
+        assertEquals(new org.flatcam.cam.excellon.ExcellonParser.Options("MM", 4, 4), ToolDefaults.excellonImport());
+        // An integer the parser does not accept: the parser's own options are used instead of failing every import.
+        ToolDefaults.set("import.gerber.circlesteps", true, "2");
+        ToolDefaults.set("import.excellon.decimals.in", true, "40");
+        assertEquals(org.flatcam.cam.gerber.GerberParser.Options.standard(), ToolDefaults.gerberImport());
+        assertEquals(org.flatcam.cam.excellon.ExcellonParser.Options.standard(), ToolDefaults.excellonImport());
+    }
 }

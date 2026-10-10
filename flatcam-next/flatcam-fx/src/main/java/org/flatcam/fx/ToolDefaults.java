@@ -211,6 +211,16 @@ final class ToolDefaults {
         number("geometry.vtipangle", geometry, "V-Tip: ângulo (graus)", "30");
 
         length("milling.tooldia", "Excellon Milling", "Diâmetro da ferramenta", "0.8", "0.0315");
+
+        String gerberImport = "Importação: Gerber";
+        choice("import.gerber.units", gerberImport, "Unidades quando o arquivo não declara", "IN", "IN", "MM");
+        integer("import.gerber.circlesteps", gerberImport, "Segmentos por círculo (arcos)", 64);
+
+        String excellonImport = "Importação: Excellon";
+        choice("import.excellon.units", excellonImport, "Unidades quando o arquivo não declara", "RECUSAR",
+                "RECUSAR", "IN", "MM");
+        integer("import.excellon.decimals.in", excellonImport, "Casas decimais sem ponto (polegadas)", 4);
+        integer("import.excellon.decimals.mm", excellonImport, "Casas decimais sem ponto (mm)", 3);
     }
 
     // --- definitions ---------------------------------------------------------------------------------------------
@@ -407,6 +417,30 @@ final class ToolDefaults {
     }
 
     // --- storage -------------------------------------------------------------------------------------------------
+
+    /**
+     * The Gerber import options of Preferences. Values outside what the parser accepts (a hand-edited file) fall back
+     * to the parser's own.
+     */
+    static org.flatcam.cam.gerber.GerberParser.Options gerberImport() {
+        try {
+            return new org.flatcam.cam.gerber.GerberParser.Options(choice("import.gerber.units"),
+                    integer("import.gerber.circlesteps"));
+        } catch (IllegalArgumentException invalid) {
+            return org.flatcam.cam.gerber.GerberParser.Options.standard();
+        }
+    }
+
+    /** The Excellon import options of Preferences ("RECUSAR" keeps refusing a file that never declares units). */
+    static org.flatcam.cam.excellon.ExcellonParser.Options excellonImport() {
+        try {
+            String units = choice("import.excellon.units");
+            return new org.flatcam.cam.excellon.ExcellonParser.Options("RECUSAR".equals(units) ? null : units,
+                    integer("import.excellon.decimals.in"), integer("import.excellon.decimals.mm"));
+        } catch (IllegalArgumentException invalid) {
+            return org.flatcam.cam.excellon.ExcellonParser.Options.standard();
+        }
+    }
 
     /** Tells which units the application shows; millimetres until the application says otherwise. */
     static void useDisplayUnits(java.util.function.BooleanSupplier metric) {

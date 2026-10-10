@@ -72,6 +72,38 @@ public final class ExcellonParser {
 
     private final GeometryFactory geometryFactory = new GeometryFactory();
 
+    /**
+     * What to assume when the file does not say (legacy defaults "excellon_units" and "excellon_format_lower_*").
+     *
+     * @param defaultUnits "IN" or "MM" for a file that never declares its units; null refuses such a file
+     * @param lowerDigitsInch decimal digits of an inch coordinate written without a decimal point
+     * @param lowerDigitsMm   the same for millimetres
+     */
+    public record Options(String defaultUnits, int lowerDigitsInch, int lowerDigitsMm) {
+        public Options {
+            if (defaultUnits != null && !defaultUnits.equals("IN") && !defaultUnits.equals("MM")) {
+                throw new IllegalArgumentException("Units must be IN, MM or null: " + defaultUnits);
+            }
+            if (lowerDigitsInch < 0 || lowerDigitsInch > 9 || lowerDigitsMm < 0 || lowerDigitsMm > 9) {
+                throw new IllegalArgumentException("Decimal digits must be between 0 and 9");
+            }
+        }
+
+        public static Options standard() {
+            return new Options(null, DEFAULT_LOWER_IN, DEFAULT_LOWER_MM);
+        }
+    }
+
+    private final Options options;
+
+    public ExcellonParser() {
+        this(Options.standard());
+    }
+
+    public ExcellonParser(Options options) {
+        this.options = Objects.requireNonNull(options, "options");
+    }
+
     public ExcellonImage parse(Path file) throws IOException {
         return parse(file, CancellationToken.none());
     }
@@ -184,7 +216,7 @@ public final class ExcellonParser {
 
             Matcher slot = SLOT_LINE.matcher(line);
             if (slot.matches()) {
-                requireUnits(units, line);
+                units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
                 double x1 = slot.group(1) != null ? decode(slot.group(1), lower) : posX;
                 double y1 = slot.group(2) != null ? decode(slot.group(2), lower) : posY;
@@ -217,7 +249,7 @@ public final class ExcellonParser {
                 if (target.group(first) == null && target.group(first + 1) == null) {
                     continue;
                 }
-                requireUnits(units, line);
+                units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
                 double x = target.group(first) != null ? decode(target.group(first), lower) : posX;
                 double y = target.group(first + 1) != null ? decode(target.group(first + 1), lower) : posY;
@@ -235,7 +267,7 @@ public final class ExcellonParser {
             }
 
             if (coordLine) {
-                requireUnits(units, line);
+                units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
                 double x = coord.group(1) != null ? decode(coord.group(1), lower) : posX;
                 double y = coord.group(2) != null ? decode(coord.group(2), lower) : posY;
@@ -257,7 +289,7 @@ public final class ExcellonParser {
         Geometry solid = shapes.isEmpty() ? geometryFactory.createPolygon() : OverlayNGRobust.union(shapes);
         cancellationToken.throwIfCancellationRequested();
         progressCallback.report(1);
-        return new ExcellonImage(units == null ? "IN" : units, toolDiameters, drills, slots, solid);
+        return new ExcellonImage(units != null ? units : options.defaultUnits() != null ? options.defaultUnits() : "IN", toolDiameters, drills, slots, solid);
     }
 
     private static void reportProgressStep(ProgressCallback callback, int completed, int total,
@@ -291,17 +323,21 @@ public final class ExcellonParser {
         return negative ? -value : value;
     }
 
-    private static int resolveLowerDigits(String units, Integer override) {
+    private int resolveLowerDigits(String units, Integer override) {
         if (override != null) {
             return override;
         }
-        return "MM".equals(units) ? DEFAULT_LOWER_MM : DEFAULT_LOWER_IN;
+        return "MM".equals(units) ? options.lowerDigitsMm() : options.lowerDigitsInch();
     }
 
-    private static void requireUnits(String units, String line) {
-        if (units == null) {
+    private String unitsOrDefault(String units, String line) {
+        if (units != null) {
+            return units;
+        }
+        if (options.defaultUnits() == null) {
             throw new ExcellonParseException("Coordinate data before units (INCH/METRIC/M71/M72) were declared: " + line);
         }
+        return options.defaultUnits();
     }
 
     private static double requireToolDiameter(Map<Integer, Double> toolDiameters, Integer currentTool, String line) {

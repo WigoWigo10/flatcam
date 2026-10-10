@@ -53,6 +53,37 @@ public final class GerberParser {
 
     private static final int GERBER_CIRCLE_STEPS = 64; // matches legacy defaults["gerber_circle_steps"]
 
+    /**
+     * Legacy defaults "gerber_def_units" and "gerber_circle_steps".
+     *
+     * @param defaultUnits "IN" or "MM" for a file without %MO / G70 / G71
+     * @param circleSteps  segments of a full circle when an arc is turned into line segments
+     */
+    public record Options(String defaultUnits, int circleSteps) {
+        public Options {
+            if (!"IN".equals(defaultUnits) && !"MM".equals(defaultUnits)) {
+                throw new IllegalArgumentException("Units must be IN or MM: " + defaultUnits);
+            }
+            if (circleSteps < 8 || circleSteps > 1024) {
+                throw new IllegalArgumentException("Circle steps must be between 8 and 1024");
+            }
+        }
+
+        public static Options standard() {
+            return new Options("IN", GERBER_CIRCLE_STEPS);
+        }
+    }
+
+    private final Options options;
+
+    public GerberParser() {
+        this(Options.standard());
+    }
+
+    public GerberParser(Options options) {
+        this.options = Objects.requireNonNull(options, "options");
+    }
+
     private static final Set<String> IGNORABLE_EXACT = Set.of(
             "M00*", "M01*", "M02*", "M30*"
     );
@@ -329,7 +360,7 @@ public final class GerberParser {
         Geometry followGeometry = geometryFactory.createGeometryCollection(followShapes.toArray(Geometry[]::new));
         cancellationToken.throwIfCancellationRequested();
         progressCallback.report(1);
-        return new GerberImage(units == null ? "IN" : units, apertures, solidGeometry,
+        return new GerberImage(units == null ? options.defaultUnits() : units, apertures, solidGeometry,
                 followGeometry, apertureGeometry, drawnShapes);
     }
 
@@ -517,7 +548,7 @@ public final class GerberParser {
      * endpoints and subtends at most a quarter turn (the Gerber spec's
      * single-quadrant constraint).
      */
-    private static List<Coordinate> arcPoints(double startX, double startY, double endX, double endY,
+    private List<Coordinate> arcPoints(double startX, double startY, double endX, double endY,
             double offsetI, double offsetJ, int interpolationMode, String quadrantMode, String rawLine) {
         if (quadrantMode == null) {
             throw new GerberParseException("Arc (G0" + interpolationMode + ") without a preceding G74/G75 quadrant mode: " + rawLine);
@@ -557,7 +588,7 @@ public final class GerberParser {
     }
 
     /** Samples an arc at {@link #GERBER_CIRCLE_STEPS} segments per full circle, snapping the last point to the exact end coordinate. */
-    private static List<Coordinate> pointsAlongArc(double centerX, double centerY, double radius,
+    private List<Coordinate> pointsAlongArc(double centerX, double centerY, double radius,
             double start, double stop, boolean clockwise, double exactEndX, double exactEndY) {
         if (!clockwise && stop <= start) {
             stop += 2 * Math.PI;
@@ -566,7 +597,7 @@ public final class GerberParser {
             stop -= 2 * Math.PI;
         }
         double angle = Math.abs(stop - start);
-        int steps = Math.max((int) Math.ceil(angle / (2 * Math.PI) * GERBER_CIRCLE_STEPS), 2);
+        int steps = Math.max((int) Math.ceil(angle / (2 * Math.PI) * options.circleSteps()), 2);
         double deltaAngle = (clockwise ? -1.0 : 1.0) * angle / steps;
 
         List<Coordinate> points = new ArrayList<>(steps + 1);

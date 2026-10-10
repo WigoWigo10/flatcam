@@ -8055,7 +8055,7 @@ final class MainWindow implements TclFlatcamHost {
     @Override
     public String openGerber(Path file, String outname) throws IOException {
         long epoch = TclExecution.onFx(() -> tclProjectEpoch);
-        GerberImage image = new GerberParser().parse(file, TclExecution.cancellation(),
+        GerberImage image = new GerberParser(ToolDefaults.gerberImport()).parse(file, TclExecution.cancellation(),
                 TclExecution.progress("Carregando Gerber..."));
         return TclExecution.onFx(() -> {
             checkTclProject(epoch);
@@ -8069,7 +8069,7 @@ final class MainWindow implements TclFlatcamHost {
     @Override
     public String openExcellon(Path file, String outname) throws IOException {
         long epoch = TclExecution.onFx(() -> tclProjectEpoch);
-        ExcellonImage image = new ExcellonParser().parse(file, TclExecution.cancellation(),
+        ExcellonImage image = new ExcellonParser(ToolDefaults.excellonImport()).parse(file, TclExecution.cancellation(),
                 TclExecution.progress("Carregando Excellon..."));
         return TclExecution.onFx(() -> {
             checkTclProject(epoch);
@@ -8723,7 +8723,7 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole(message);
         }
         JobHandle<GerberImage> handle = jobExecutor.submit(context ->
-                new GerberParser().parse(file.toPath(), context::isCancelled,
+                new GerberParser(ToolDefaults.gerberImport()).parse(file.toPath(), context::isCancelled,
                         fileFraction -> context.reportProgress(
                                 (index + fileFraction) / files.size(), message)),
                 (fraction, progressMessage) -> Platform.runLater(() -> {
@@ -8780,7 +8780,7 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole(message);
         }
         JobHandle<ExcellonImage> handle = jobExecutor.submit(context ->
-                new ExcellonParser().parse(file.toPath(), context::isCancelled,
+                new ExcellonParser(ToolDefaults.excellonImport()).parse(file.toPath(), context::isCancelled,
                         fileFraction -> context.reportProgress(
                                 (index + fileFraction) / files.size(), message)),
                 (fraction, progressMessage) -> Platform.runLater(() -> {

@@ -2064,8 +2064,17 @@ profundidade de corte e por passe, avanço XY, Z de troca da sonda, V-Tip) e Exc
 pós-processador padrão (`cnc.preprocessor`, um para Drilling e Geometry CNC, entre os 20 do FX). Os valores de fábrica
 são os que os painéis já usavam. A precedência não mudou: valores já salvos no objeto (Geometry criada por
 Isolation/NCC/Cutout, configurações de CNC salvas no projeto, sugestões da Tools Database) continuam vencendo o padrão.
-Fora deste incremento: padrões de importação de Gerber/Excellon (formato, zeros, unidades) e os campos "None" de
-posição (Start Z, XY de troca, XY final).
+Fora deste incremento: os campos "None" de posição (Start Z, XY de troca, XY final).
+
+**Padrões de importação (2026-10-10).** `GerberParser.Options(defaultUnits, circleSteps)` e
+`ExcellonParser.Options(defaultUnits, lowerDigitsInch, lowerDigitsMm)` decidem só o que o arquivo não declara
+(`gerber_def_units`, `gerber_circle_steps`, `excellon_units`, `excellon_format_lower_*` do Python); o que o arquivo
+declara continua valendo. Os construtores sem argumento mantêm o comportamento anterior (Gerber sem unidades = IN, 64
+segmentos por círculo; Excellon sem unidades é recusado, 4 casas em polegadas e 3 em mm). Em Preferências, grupos
+"Importação: Gerber" e "Importação: Excellon"; usados ao abrir arquivos pelo menu e pelo Terminal. Valores fora do que
+o parser aceita caem nas opções padrão em vez de fazer toda importação falhar. Zeros à esquerda/direita não têm
+opção: o parser do FX decodifica as duas convenções da mesma forma. Limite: reabrir um projeto que guarda só o caminho
+do arquivo de origem (`ProjectFileIO`) usa as opções padrão, não as das preferências. Testes: `ImportOptionsTest`.
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
