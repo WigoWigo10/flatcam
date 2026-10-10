@@ -1,5 +1,81 @@
 # NCC depois da panelização — matriz e limites (2026-10-10)
 
+## Correção da margem zero e dos resíduos Rest
+
+Esta implementação sucede a matriz de `ab93fc18`. O histórico de reprovações
+abaixo documenta o diagnóstico anterior, não o resultado da correção.
+
+Três diferenças de preparação foram corrigidas, sem alterar `paint_connect`,
+as coordenadas da origem ou as tolerâncias:
+
+1. NCC prepara a margem mesmo quando ela é zero. Area/Reference Geometry
+   executam `GeosBufferOp(0)` por membro, seguido da união compatível com a
+   referência Windows. Itself/Reference Gerber também executam o buffer zero.
+2. Rest constrói o MultiPolygon dos caminhos varridos com raio
+   `tool/1.9999999` e só então aplica `buffer(+1e-7)`, resolução 16. Eliminar
+   a união intermediária preserva os anéis residuais da segunda fresa.
+   A política conservadora de Paint não foi alterada.
+3. A panelização Gerber preserva as cópias traduzidas numa GeometryCollection,
+   como a lista do Python, até o CAM. A união antecipada por subárvores
+   descartava a ordem necessária ao NCC. Join Objects continua usando sua
+   união normal. O contorno, apertures, shapes, furos/slots e layout não mudam.
+
+### Resultado final de produção
+
+**Público: 114/114 MATCH_SAMPLED, strict 0 em todos os 18 relatórios.**
+As seis grades/unidades e as duas rotas F/B foram repetidas após a correção.
+O export contém a origem e referência sintéticas ANTES da panelização; o
+oráculo executa o handler original `ToolPanelize` para construir sua própria
+lista de cópias, depois os métodos originais NCC/CAM/parser CNC. Uma WKT de
+GeometryCollection Java não pode ser tratada como se fosse uma lista Python.
+Esta rodada valida a panelização das geometrias sintéticas e CAM/G-code,
+não a importação de arquivos Gerber. F/B sintéticos continuam idênticos.
+
+**Real: 19/19 MATCH_SAMPLED, strict 0 em F_Cu, B_Cu e Cutout.** As quatro
+variantes Connect passam nas duas faces, com clearing areas, ordem e caminhos
+por ferramenta conferidos. Nos quatro Rest/Connect reais, as fresas de 1 e
+0,2 mm têm CAM e G-code comparados SEPARADAMENTE; nenhum erro/diferença foi
+ocultado na geometria combinada. Distância máxima entre esses caminhos por
+fresa: ~1,32e-11 mm. Nenhum GCODE_DIFFERENT/PARTIAL_DIFFERENCE/ORACLE_ERROR.
+
+| Connect real | Distância F_Cu (mm) | Distância B_Cu (mm) |
+| --- | --- | --- |
+| Reference Geometry | 2,01e-14 | 1,99e-13 |
+| Rest Reference Geometry | 0 | 2,84e-14 |
+| Itself | 2,23e-12 | 3,55e-14 |
+| Rest Itself | 2,84e-14 | 0 |
+
+O host gerou/exportou os 19 CAM/CNC, salvou/reabriu ferramentas/geometrias,
+G-code e registro de furos/slots. A leitura pelo codec nativo também confirmou
+os membros/ordem dos Gerbers F/B/Edge_Cuts exatamente preservados. A asserção
+de preservação dos Gerbers foi incorporada ao teste permanente de roundtrip.
+Arquivo nativo: 225.089.052 bytes. Save/reopen 88,38/99,90 s, com comparações
+concorrentes: não comparar esses tempos como benchmark/FPS.
+SHA256 original permanece `C41580F1AC0D1E0BAF93026E6AFED18719A5614E78DA197407790C82667AA10C`.
+
+Build integral: **1.512 aprovados / 1.527 registrados / 15 opcionais ignorados,
+zero falhas/erros**. Teste privado opt-in executado separadamente; 39 auxiliares
+Python, parser PowerShell e diff check passam. Novas regressões: margem zero
+com golden GEOS de vértices/ordem em MM/IN; construção do residual Rest; cópias
+Gerber imutáveis; oráculo público usa a origem original, não o resultado FX.
+
+Artefatos finais ignorados:
+
+- `target/panelized-final-independent-public-20261010` (host/export);
+- `target/panelized-final-independent-public-python-20261010` (18 relatórios);
+- `target/panelized-connect-copies-real-20261010` (host/export e 3 relatórios);
+- `target/ncc-boundary-rest-final-verify-20261010.log`.
+
+Os controles `panelized-raw-copies-*` e as rodadas intermediárias não entram
+nesses números. Permanecem os limites da matriz: Standard/40%/Contour,
+margem zero, sem offset/ISO. O ValueError legado de offset sobre lista de
+MultiPolygon do corpus anterior não foi alterado nem contado como aprovação.
+Cutout ainda compara área preenchida compartilhada; Excellon/apertures/UI
+Python, reconstrução independente de Edge_Cuts, renderização/FPS e segurança
+física CNC não são certificados. Não declarar todos os fluxos 100% por isso.
+
+## Histórico: matriz anterior à correção
+
 Base commitada: `6fc150ee` (união do cobre compatível com Python Windows).
 Esta etapa amplia a **validação**, não altera NCC, conectores nem tolerâncias
 de produção. Não é uma declaração de paridade total.
@@ -129,7 +205,7 @@ clássicas, corrigidas para overlay robusto; só a execução final conta.
 Build completo: **1.509 aprovados de 1.524 registrados, 15 opcionais ignorados,
 zero falhas/erros**, mais 37 testes auxiliares Python aprovados.
 
-## Próxima correção
+## Próxima correção registrada antes desta implementação (histórico)
 
 Investigar os anéis/ordem da área Reference Geometry e os resíduos Rest usando
 as fixtures públicas acima, mantendo o oráculo original e os critérios atuais.

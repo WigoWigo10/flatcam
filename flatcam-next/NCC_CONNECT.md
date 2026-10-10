@@ -1,5 +1,13 @@
 # NCC Connect: união compatível com a referência Windows
 
+## Complemento: margem zero, Rest e panelização
+
+A correção posterior preserva a preparação da referência mesmo em margem zero,
+o `MultiPolygon(...).buffer(+1e-7)` original dos resíduos Rest e a lista de
+cópias Gerber até a união NCC. Join Objects, Paint e o algoritmo do conector
+não foram modificados. As comparações por fresa e os limites da matriz ampliada
+estão em [PANELIZED_NCC.md](PANELIZED_NCC.md); os números abaixo são históricos.
+
 Implementação em 2026-10-10, depois do commit base `81208c85`.
 
 O residual de Connect não vinha do conector: a área e os caminhos sem Connect

@@ -4,10 +4,13 @@
 
 O histórico abaixo registra etapas anteriores; o estado atual é consolidado
 em [CONTEXTO_E_PROGRESSO.md](CONTEXTO_E_PROGRESSO.md) e
-[COMPARACAO_CAM.md](COMPARACAO_CAM.md). A união NCC foi corrigida (`6fc150ee`),
-mas a matriz **panelizada** ampliada ainda revela diferenças de Connect,
-inclusive em fixtures públicas. Não declarar 100% dos fluxos principais antes
-de fechar essas diferenças; detalhes em [PANELIZED_NCC.md](PANELIZED_NCC.md).
+[COMPARACAO_CAM.md](COMPARACAO_CAM.md). A matriz **panelizada** NCC Standard,
+margem zero, Reference/Itself × Rest × Connect foi fechada: **114/114 públicos
+e 19/19 reais**, strict aprovado, com fresas e G-code verificados separadamente.
+As correções preservam a preparação da referência, o residual Rest e as cópias
+Gerber até o CAM. Isso não declara 100% de todos os métodos/receitas ou segurança
+física: o erro legado de offset do corpus anterior e a validação manual ainda
+exigem tratamento. Escopo e relatórios em [PANELIZED_NCC.md](PANELIZED_NCC.md).
 
 Atualizado em 2026-10-07, branch `flatcam-next` (incremento anterior: `eeeef1ff`).
 Prioridade solicitada: consolidar os fluxos de produção antes de ampliar

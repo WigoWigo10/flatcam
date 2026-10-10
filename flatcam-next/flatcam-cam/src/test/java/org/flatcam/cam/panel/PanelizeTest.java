@@ -24,6 +24,32 @@ import org.locationtech.jts.geom.GeometryFactory;
 class PanelizeTest {
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
+    @Test
+    void gerberPanelPreservesTranslatedMembersUntilCamInsteadOfEagerlyUnioningThem() {
+        for (double scale : List.of(1.,1/25.4)) {
+            Geometry solid = FACTORY.createGeometryCollection(new Geometry[]{
+                    FACTORY.createMultiPolygon(new org.locationtech.jts.geom.Polygon[]{
+                            (org.locationtech.jts.geom.Polygon)FACTORY.toGeometry(new Envelope(0,2*scale,0,3*scale)),
+                            (org.locationtech.jts.geom.Polygon)FACTORY.toGeometry(new Envelope(4*scale,6*scale,0,3*scale))})});
+            String original = solid.toText();
+            var source = GerberImage.of(scale==1?"MM":"IN",Map.of(),solid,solid.getGeometryN(0).getBoundary(),Map.of());
+            var layout = Panelize.layout(new double[]{0,0,6*scale,3*scale},2,2,scale,scale,Double.NaN,Double.NaN);
+            var panel = Panelize.gerber(source,layout);
+            assertEquals("GeometryCollection",panel.solidGeometry().getGeometryType());
+            assertEquals(4,panel.solidGeometry().getNumGeometries());
+            for (int i=0;i<4;i++) {
+                double[] cell=layout.offsets().get(i);
+                Geometry expected=new org.flatcam.cam.transform.TransformOp.Offset(cell[0],cell[1]).apply(solid);
+                assertTrue(expected.equalsExact(panel.solidGeometry().getGeometryN(i)),
+                        "Part order and ring endpoints must survive until NCC prepares the copper");
+            }
+            assertEquals(original,solid.toText());
+            // Joining objects is still a resolved polygon union, not a panel list.
+            assertTrue(org.flatcam.cam.merge.GerberJoin.join(List.of(source,source)).solidGeometry()
+                    instanceof org.locationtech.jts.geom.Polygonal);
+        }
+    }
+
     @TempDir
     Path directory;
 

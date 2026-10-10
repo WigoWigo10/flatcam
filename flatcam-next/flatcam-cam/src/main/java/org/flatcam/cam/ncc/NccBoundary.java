@@ -34,11 +34,13 @@ public sealed interface NccBoundary {
     }
 
     /**
-     * Another Geometry object's own shape, used AS-IS with no convex hull -
+     * Another Geometry object's own shape, with no convex hull -
      * Python's "Reference Object" option with a Geometry kind reference.
      * Python takes the raw shape here (unlike the Gerber case) because a
      * Geometry object's own outline is already whatever the user intended,
      * not a raw copper pour that needs hulling to make sense as a boundary.
+     * The margin is applied to each member before union, including buffer(0)
+     * at zero margin; it is not a request to bypass boundary preparation.
      */
     record ReferenceGeometry(Geometry geometry) implements NccBoundary {
         public ReferenceGeometry {

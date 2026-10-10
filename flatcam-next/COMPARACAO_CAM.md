@@ -1,5 +1,23 @@
 # Comparação reproduzível CAM: FX × Python
 
+## NCC margem zero, Rest e Itself — correção final 2026-10-10
+
+Preparação por membro em margem zero, residual Rest sem união antecipada e
+preservação das cópias Gerber até o CAM. Conector/tolerâncias/legado intactos.
+Produção final: **114/114 públicos e 19/19 reais MATCH_SAMPLED**, strict 0,
+zero DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE/ORACLE_ERROR. Reference,
+Itself e Rest/Connect passam nas duas faces; caminhos/G-code comparados por
+fresa. O público agora executa o ToolPanelize original sobre as fontes e
+referências sintéticas originais, não uma coleção FX convertida por suposição.
+Origem/referência sintéticas compartilhadas não certificam importação Gerber.
+Projeto original intacto e fonte real decodificada/panelizada independentemente.
+Build: 1512 aprovados/1527 registrados/15 opcionais ignorados; 39 auxiliares
+Python passam. Detalhes, dados finais e limites: [PANELIZED_NCC.md](PANELIZED_NCC.md).
+O erro legado de offset ncc-multi-settings do corpus anterior não foi alterado;
+essa matriz não é certificação visual/física nem paridade de todas as receitas.
+
+Os resultados abaixo são históricos e não substituem essa rodada final.
+
 ## Matriz NCC panelizado — 2026-10-10 (após `6fc150ee`)
 
 Validação ampliada para Reference Geometry/Itself × Rest × Connect, com

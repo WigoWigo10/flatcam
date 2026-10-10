@@ -78,8 +78,8 @@ public final class NccGenerator {
         }
 
         progress.report(0.02);
-        // Imported Python lists of multipart polygons are represented by a
-        // generic GeometryCollection. Match the legacy Windows flat union's
+        // Imported Python lists and translated Gerber panel copies are
+        // represented by a generic GeometryCollection. Match the legacy Windows flat union's
         // leaf order (including equal keys), not JTS's capacity-4 subtree union.
         // Preserve raw valid list members until that union; repairing the
         // entire collection first can change Connect's endpoints. Direct
@@ -96,7 +96,7 @@ public final class NccGenerator {
             // Python buffers each reference shape by the margin before unioning it.
             case NccBoundary.ReferenceGeometry ref -> ref.geometry();
         };
-        Geometry boundary = mitreBuffer(rawBoundary, params.margin());
+        Geometry boundary = prepareBoundary(rawBoundary, params, cancellation);
         if (boundary.isEmpty() || boundary.getArea() <= 0) {
             throw new IllegalArgumentException("O limite do NCC precisa ter area preenchida; "
                     + "ajuste a referencia ou a margem.");
@@ -329,17 +329,46 @@ public final class NccGenerator {
         }
         Geometry geometry = allPaths.isEmpty()
                 ? factory.createGeometryCollection() : factory.buildGeometry(new ArrayList<>(allPaths));
-        Geometry footprint = footprints.isEmpty() ? factory.createGeometryCollection() : OverlayNGRobust.union(footprints);
-        if (nccRest && !footprint.isEmpty()) {
-            footprint = GeosBufferOp.bufferOp(footprint,1e-7,new BufferParameters(16));
+        Geometry footprint;
+        if (nccRest && !footprints.isEmpty()) {
+            // GUI gen_clear_area_rest constructs an overlapping MultiPolygon
+            // of swept paths and THEN buffers it by +1e-7. A preliminary union
+            // changes residual ring starts, so the next cutter's Connect walks
+            // differ even though the removed areas are topologically equal.
+            List<Polygon> swept = new ArrayList<>();
+            for (Geometry part : footprints) {
+                cancellation.throwIfCancellationRequested();
+                collectPolygons(part, swept);
+            }
+            footprint = GeosBufferOp.bufferOp(factory.createMultiPolygon(swept.toArray(Polygon[]::new)),
+                    1e-7,new BufferParameters(16));
+        } else {
+            footprint = footprints.isEmpty() ? factory.createGeometryCollection() : OverlayNGRobust.union(footprints);
         }
         return new ToolClearResult(geometry, footprint, failures);
     }
 
-    private static Geometry mitreBuffer(Geometry geometry, double distance) {
-        if (distance == 0) {
-            return geometry;
+    private static Geometry prepareBoundary(Geometry geometry, NccParameters params,
+                                             CancellationToken cancellation) {
+        // ToolNCC.apply_margin_to_bounding_box buffers even a zero margin.
+        // Area/Geometry references buffer their members BEFORE unary_union;
+        // buffering the whole collection gives equal areas but different ring
+        // starts, which affect paint_connect's nearest endpoints.
+        if (params.boundary() instanceof NccBoundary.Area
+                || params.boundary() instanceof NccBoundary.ReferenceGeometry) {
+            List<Geometry> buffered = new ArrayList<>();
+            for (int i = 0; i < geometry.getNumGeometries(); i++) {
+                cancellation.throwIfCancellationRequested();
+                buffered.add(mitreBuffer(geometry.getGeometryN(i), params.margin()));
+            }
+            return NccCopperUnion.union(geometry.getFactory().createGeometryCollection(
+                    buffered.toArray(Geometry[]::new)), cancellation);
         }
+        cancellation.throwIfCancellationRequested();
+        return mitreBuffer(geometry, params.margin());
+    }
+
+    private static Geometry mitreBuffer(Geometry geometry, double distance) {
         BufferParameters parameters = new BufferParameters(
                 QUADRANT_SEGMENTS, BufferParameters.CAP_ROUND, BufferParameters.JOIN_MITRE, 5.0);
         // NCC's margin has the same GEOS near-parallel corner rules as its

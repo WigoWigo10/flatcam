@@ -114,7 +114,7 @@ public final class Panelize {
             progress.report(.9 * copies.size() / ((double) layout.columns() * layout.rows()));
         }
         cancellation.throwIfCancellationRequested();
-        GerberImage result = copies.size() == 1 ? source : GerberJoin.join(copies);
+        GerberImage result = copies.size() == 1 ? source : GerberJoin.panelCopies(copies);
         cancellation.throwIfCancellationRequested(); progress.report(1);
         cancellation.throwIfCancellationRequested(); return result;
     }

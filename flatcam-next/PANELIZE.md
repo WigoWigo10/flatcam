@@ -3,13 +3,16 @@
 ## Matriz ampliada NCC — 2026-10-10
 
 Reference Geometry/Itself, Rest e Connect agora têm corpus panelizado MM/IN
-em três grades, com ferramentas/CNC e persistência verificados. O fluxo FX
-público passa, mas **32 de 114 comparações com Python divergem em Connect**.
-No projeto real ampliado, **11 de 19 passam e 8 divergem**, também só Connect.
-Gerar/exportar/salvar/reabrir no FX funcionou; isso não aprova as diferenças CAM.
-Isso não invalida o cenário aprovado abaixo, mas impede estender sua aprovação
-a essas combinações. Itself pode limpar entre placas; use a área preenchida
-como referência para limitar o clearing. Resultados/runner/limites em
+em três grades, com ferramentas/CNC e persistência verificados. Após a correção
+de margem zero, residual Rest e ordem das cópias Gerber: **114/114 públicos e
+19/19 reais coincidem nos critérios**, strict aprovado. Cada fresa Rest é
+conferida separadamente. A panelização preserva as cópias sem união antecipada,
+inclusive no arquivo nativo; Join Objects permanece com sua união normal.
+O público executa o ToolPanelize original sobre origem/referência sintéticas;
+o real é decodificado/panelizado pelo Python independentemente. Não certifica
+todos os métodos/offsets/receitas ou segurança física CNC. Itself pode limpar
+entre placas; use a área preenchida como referência para limitar o clearing.
+Resultados/runner/limites em
 [PANELIZED_NCC.md](PANELIZED_NCC.md).
 
 ## Continuação CAM verificada — 2026-10-10

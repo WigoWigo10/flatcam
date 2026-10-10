@@ -29,6 +29,61 @@ import org.junit.jupiter.api.Test;
 
 class NccGeneratorTest {
     @Test
+    void restBuffersTheOverlappingSweptPathsBeforePreparingTheNextTool() throws Exception {
+        var clear = NccGenerator.class.getDeclaredMethod("clearArea",Geometry.class,double.class,
+                NccToolSettings.class,boolean.class,CancellationToken.class,java.util.function.DoubleConsumer.class);
+        clear.setAccessible(true);
+        for (double scale : List.of(1.,1/25.4)) {
+            Geometry area = FACTORY.toGeometry(new Envelope(0,8*scale,0,6*scale))
+                    .difference(FACTORY.createPoint(new Coordinate(3*scale,3*scale)).buffer(scale));
+            Object result = clear.invoke(null,area,scale,
+                    new NccToolSettings(.4,NccMethod.STANDARD,true,true,0),true,
+                    CancellationToken.none(),(java.util.function.DoubleConsumer)(v -> { }));
+            var geometry = result.getClass().getDeclaredMethod("geometry");
+            var footprint = result.getClass().getDeclaredMethod("footprint");
+            geometry.setAccessible(true); footprint.setAccessible(true);
+            Geometry paths = (Geometry)geometry.invoke(result);
+            List<Polygon> swept = new ArrayList<>();
+            for (int i=0;i<paths.getNumGeometries();i++) swept.add((Polygon)
+                    org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(paths.getGeometryN(i),
+                            scale/1.9999999,new org.locationtech.jts.operation.buffer.BufferParameters(16)));
+            Geometry expected = org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(
+                    FACTORY.createMultiPolygon(swept.toArray(Polygon[]::new)),1e-7,
+                    new org.locationtech.jts.operation.buffer.BufferParameters(16));
+            assertTrue(expected.equalsExact((Geometry)footprint.invoke(result)),
+                    "Rest must not replace the Python MultiPolygon.buffer(+1e-7) with union-before-buffer");
+        }
+    }
+
+    @Test
+    void zeroMarginPreparesEachReferenceMemberWithGeosRingOrder() throws Exception {
+        var reader = new org.locationtech.jts.io.WKTReader();
+        Geometry reference = reader.read("MULTIPOLYGON (((0 0,3 0,3 4,0 4,0 0),"
+                + "(1 1,2 1,2 2,1 2,1 1)),((0 8,3 8,3 12,0 12,0 8)))");
+        // Shapely 1.8.5.post1 / Windows GEOS 3.10.3: per-member buffer(0,
+        // join_style=2), then unary_union. Compare vertices, not only area:
+        // Connect uses the ring starts and direction as endpoints.
+        Geometry expected = reader.read("MULTIPOLYGON (((0 4,3 4,3 0,0 0,0 4),"
+                + "(2 1,2 2,1 2,1 1,2 1)),((0 12,3 12,3 8,0 8,0 12)))");
+        var prepare = NccGenerator.class.getDeclaredMethod("prepareBoundary",
+                Geometry.class,NccParameters.class,CancellationToken.class);
+        prepare.setAccessible(true);
+        for (double scale : List.of(1.,1/25.4)) {
+            var transform = org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(scale,scale);
+            Geometry input = transform.transform(reference);
+            String original = input.toText();
+            for (NccBoundary boundary : List.of(new NccBoundary.Area(input),
+                    new NccBoundary.ReferenceGeometry(input))) {
+                var params = new NccParameters(List.of(.2*scale),.4,0,NccMethod.STANDARD,
+                        true,true,0,false,NccOrder.NONE,boundary,List.of());
+                Geometry actual = (Geometry)prepare.invoke(null,input,params,CancellationToken.none());
+                assertTrue(actual.equalsExact(transform.transform(expected),1e-14*scale),actual.toText());
+                assertEquals(original,input.toText());
+            }
+        }
+    }
+
+    @Test
     void copperOffsetAcceptsACollectionContainingMultipartCopperWithoutLegacyListError() {
         for (double mm : List.of(1.,1/25.4)) {
             Polygon first = (Polygon)FACTORY.toGeometry(new Envelope(0,2*mm,0,2*mm));

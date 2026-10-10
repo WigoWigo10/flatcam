@@ -1,6 +1,51 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
-## Continuidade: matriz NCC panelizado — 2026-10-10
+## Continuidade: NCC margem zero / Rest / Itself corrigidos — 2026-10-10
+
+Branch `flatcam-next`, base `ab93fc18`; correção reunida nesta entrega
+(consultar `git log` para o commit), sem push. Este estado supera as
+reprovações da matriz histórica abaixo.
+
+- NCC aplica a preparação da margem mesmo em zero. Area/Reference Geometry
+  bufferizam cada membro antes de NccCopperUnion; Itself/Reference Gerber
+  também executam buffer(0), sem alterar o conector ou as tolerâncias.
+- Rest usa o MultiPolygon dos caminhos varridos com raio tool/1.9999999,
+  seguido diretamente de buffer(+1e-7), resolução 16. A união intermediária
+  anterior mudava os resíduos/Connect da fresa menor. Paint permanece intacto.
+- Panelize.gerber mantém as cópias traduzidas numa GeometryCollection até o
+  CAM, em vez de antecipar uma união que perdia a ordem dos anéis. A função
+  GerberJoin.panelCopies compartilha apertures/shapes sem unir o cobre; Join
+  Objects mantém sua política. Codec nativo preserva a lista/ordem.
+- Oráculo público exporta fonte/referência sintéticas originais e executa o
+  ToolPanelize original. Não confundir a coleção Java com uma lista Python,
+  nem alimentar a área FX ao oráculo para aprovar conectores.
+
+Produção final: **114/114 públicos e 19/19 reais MATCH_SAMPLED**, strict 0
+em todos os relatórios, zero DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE/
+ORACLE_ERROR. Real: F/B 9/9 cada, Cutout 1/1. Reference/Itself, Rest e Connect
+passam; cada fresa Rest de 1/0,2 mm tem caminhos e G-code comparados à parte.
+No Rest/Connect real, distância máxima por fresa ~1,32e-11 mm. Fonte privada
+decodificada/panelizada pelo Python independentemente, SHA256 original intacto:
+C41580F1AC0D1E0BAF93026E6AFED18719A5614E78DA197407790C82667AA10C.
+Host real concluiu CAM/CNC, export e roundtrip; Gerbers F/B/Edge_Cuts nativos
+também preservam exatamente seus membros/ordem. Build integral: **1527
+registrados, 1512 aprovados, 15 opcionais ignorados, zero falhas/erros**;
+39 auxiliares Python, parser PowerShell e diff check aprovados.
+
+Relatórios: target/panelized-final-independent-public-20261010,
+target/panelized-final-independent-public-python-20261010,
+target/panelized-connect-copies-real-20261010 e
+target/ncc-boundary-rest-final-verify-20261010.log. Não versionar dados privados.
+Matriz: Standard, overlap 40%, margem zero, Contour, sem offset/ISO; público
+MM/IN em três grades, faces sintéticas iguais, fonte sintética compartilhada
+antes da panelização (não importação Gerber). Cutout usa área compartilhada;
+apertures/Excellon/UI Python e segurança física CNC não são certificados.
+O erro legado ncc-multi-settings com offset sobre [MultiPolygon] continua fora
+da matriz, não foi modificado nem contado como paridade. Não anunciar 100%.
+Próximo: validação manual dos fluxos/receitas reais e ampliar o corpus para
+outros métodos/offsets/ISO, preservando os critérios e esses controles.
+
+## Histórico: matriz NCC panelizado — 2026-10-10
 
 Correção NCC Connect anterior commitada em **6fc150ee**, branch `flatcam-next`,
 sem push. Testes/runner/documentação ampliados e reunidos na entrega da matriz

@@ -15,7 +15,8 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
  * Result of parsing one Gerber file: the resolved apertures, the final
- * (unioned/cleared) solid geometry, the unbuffered paths used to construct it,
+ * solid geometry (resolved copper, or a collection of translated panel copies),
+ * the unbuffered paths used to construct it,
  * and each aperture's own shapes (every flash/stroke that used it, unioned,
  * regardless of polarity) for the apertures table's "Mark" highlight - see
  * GerberParser's class doc. Units are always inches or millimeters as declared

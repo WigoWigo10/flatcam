@@ -27,6 +27,20 @@ public final class GerberJoin {
     }
 
     public static GerberImage join(List<GerberImage> images) {
+        return join(images, false);
+    }
+
+    /**
+     * ToolPanelize keeps a list of translated solids, not an eager union.
+     * Keep that representation so subsequent NCC can apply the legacy union
+     * order once, without losing the original endpoints. Ordinary Join Objects
+     * retains its resolved union policy.
+     */
+    public static GerberImage panelCopies(List<GerberImage> images) {
+        return join(images, true);
+    }
+
+    private static GerberImage join(List<GerberImage> images, boolean preserveCopies) {
         if (images.size() < 2) {
             throw new IllegalArgumentException("At least two Gerber objects are required to join them");
         }
@@ -74,7 +88,8 @@ public final class GerberJoin {
                 follows.add(image.followGeometry());
             }
         }
-        Geometry solid = solids.isEmpty() ? factory.createGeometryCollection()
+        Geometry solid = preserveCopies ? factory.createGeometryCollection(solids.toArray(Geometry[]::new))
+                : solids.isEmpty() ? factory.createGeometryCollection()
                 : solids.size() == 1 ? solids.get(0) : ParallelGeometry.unionGrouped(solids);
         Geometry follow = factory.buildGeometry(follows);
         return GerberImage.of(units, apertures, solid, follow, new LazyApertureGeometry(aperturePieces),

@@ -8,10 +8,30 @@ from compare_cam_python import (classify_result, compile_rectangular_handler, co
                                compile_ncc_gui, compare_tool_outputs,
                                isolation_exception_paths, ncc_boundary, leaves, lines, metrics, overlay,
                                sampled_distance, sampled_witness, gcode_metrics)
-from compare_cam_python import panelize_legacy_source
+from compare_cam_python import panelize_legacy_source, public_panelized_source
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_public_panel_oracle_uses_original_inputs_not_the_fx_collection_or_clearing_area(self):
+        from shapely.ops import unary_union
+        from shapely.geometry import Point
+        copper=box(10,20,16,28).difference(Point(12,23).buffer(.5))
+        export={"panelization":dict(columns=2,rows=2,spacingX=3,spacingY=5),
+                "publicPanelizationInputs":{"sourceWkt":copper.wkt,"referenceWkt":box(9,19,17,29).wkt},
+                # Deliberately unrelated: this field must NOT generate the oracle source.
+                "sourceWkt":box(-10,-10,-9,-9).wkt,"cases":[]}
+        result=public_panelized_source(export,self.legacy_root())
+        self.assertIsInstance(result,list)
+        self.assertEqual(4,len(result))
+        self.assertEqual((10,20,27,43),unary_union(result).bounds)
+        self.assertAlmostEqual(4*copper.area,unary_union(result).area)
+        for dx,dy in ((0,0),(11,0),(0,15),(11,15)):
+            self.assertFalse(unary_union(result).covers(Point(12+dx,23+dy)))
+
+    def test_public_panel_oracle_rejects_inputs_without_layout(self):
+        with self.assertRaisesRegex(ValueError,"explicit layout"):
+            public_panelized_source({"publicPanelizationInputs":{}},self.legacy_root())
+
     def test_original_gui_offset_rejects_a_list_containing_multipart_copper(self):
         import shapely
         from shapely.geometry import MultiPolygon

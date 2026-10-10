@@ -100,7 +100,7 @@ try {
             Reports=$comparisonSummary} | ConvertTo-Json -Depth 12 |
             Out-File -LiteralPath (Join-Path $OutputDirectory 'comparison-summary.json') -Encoding utf8
         Write-Host 'Cutout compara area preenchida compartilhada: nao valida reconstrucao Python do Edge_Cuts nem recortes internos.'
-        Write-Host 'Publicos usam cobre traduzido compartilhado: validam CAM/G-code Python independente, nao a importacao/panelizacao Python.'
+        Write-Host 'Publicos compartilham origem/referencia sinteticas: executam a panelizacao e CAM/G-code Python originais; nao validam importacao de Gerber.'
         Write-Host 'NCC: Reference Geometry/Itself x Rest on/off x Connect on/off; ferramentas Rest e G-code verificados individualmente.'
         if ($comparisonCode) { Write-Host 'Strict reprovado; divergencias nao contam como paridade.' }
         exit $comparisonCode

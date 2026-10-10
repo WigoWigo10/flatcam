@@ -237,8 +237,11 @@ class MainPanelizedCamFlowTest {
                         .put("referenceName", input.outline().name());
                 var comparison = new JSONObject().put("schema", 1).put("sourceName", original.name()).put("units", input.units())
                         .put("sourceWkt", WKT.write(copper.image().solidGeometry())).put("cases", cases);
-                if (source != null) comparison.put("panelization", metadata);
-                else comparison.put("comparisonScope", "Public synthetic translated copper shared explicitly; independent Python CAM/G-code, not independent source panelization");
+                comparison.put("panelization", metadata);
+                if (source == null) comparison.put("publicPanelizationInputs",new JSONObject()
+                        .put("sourceWkt",WKT.write(original.image().solidGeometry()))
+                        .put("referenceWkt",WKT.write(input.outline().image().solidGeometry())))
+                        .put("comparisonScope", "Public synthetic source/reference shared explicitly; original Python panelization and CAM/G-code executed independently");
                 Files.writeString(output.resolve(original.name().toLowerCase(Locale.ROOT).contains("f_cu") ? "fx-f-cu.json" : "fx-b-cu.json"), comparison.toString(2));
             }
             var before = geometryNames(s); began = System.nanoTime();
@@ -290,6 +293,12 @@ class MainPanelizedCamFlowTest {
             summary.put("saveAndReopenMs", elapsed(began));
             assertEquals(saved.gerbers().size(), reopened.gerbers().size()); assertEquals(saved.excellons().size(), reopened.excellons().size());
             assertEquals(saved.geometries().size(), reopened.geometries().size()); assertEquals(saved.cncJobs().size(), reopened.cncJobs().size());
+            for (var entry : saved.gerbers()) {
+                var copy = reopened.gerbers().stream().filter(g -> g.name().equals(entry.name())).findFirst().orElseThrow();
+                assertTrue(entry.image().solidGeometry().equalsExact(copy.image().solidGeometry(),1e-10*u),
+                        "Reopening must retain panel members/ring endpoints for subsequent NCC Connect");
+                assertEquals(entry.image().units(),copy.image().units());
+            }
             for (var entry : saved.geometries()) {
                 var copy = reopened.geometries().stream().filter(g -> g.name().equals(entry.name())).findFirst().orElseThrow();
                 assertTrue(entry.geometry().equalsExact(copy.geometry(), 1e-10 * u));

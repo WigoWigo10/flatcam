@@ -349,6 +349,20 @@ def ncc_boundary(case, copper, engine, root, cache):
     return result
 
 
+def public_panelized_source(export, root):
+    """Decode explicit ORIGINAL synthetic inputs, never the FX clearing area.
+
+    WKT cannot encode a Python list. Invoke the original ToolPanelize handler
+    to get the actual legacy container/order, as for independently read projects.
+    """
+    from shapely import wkt
+    inputs = export["publicPanelizationInputs"]
+    if not export.get("panelization"):
+        raise ValueError("Public panel inputs require an explicit layout")
+    return panelize_legacy_source(root,wkt.loads(inputs["sourceWkt"]),
+                                 wkt.loads(inputs["referenceWkt"]),export["panelization"])
+
+
 def gcode_metrics(source, parsed, tolerance):
     """Validate travel length, not the union's unstable length after XY rounding.
 
@@ -550,8 +564,16 @@ def run(args):
     copper = fx_copper
     legacy_source = fx_copper
     source_delta = 0
-    if export.get("panelization") and not args.project:
+    if export.get("panelization") and not args.project and not export.get("publicPanelizationInputs"):
         raise ValueError("Panelized comparison requires independent --project decoding")
+    if export.get("publicPanelizationInputs") and args.project:
+        raise ValueError("Do not mix public synthetic inputs and a private project")
+    if export.get("publicPanelizationInputs"):
+        legacy_source = public_panelized_source(export,root)
+        copper = unary_union(leaves(legacy_source))
+        source_delta = copper.symmetric_difference(fx_copper).area
+        if source_delta > max(copper.area,1) * 1e-8:
+            raise ValueError(f"Public panelized source differs before CAM: area delta {source_delta}")
     if args.project:
         raw = args.project.read_bytes()
         if raw.startswith(b"\xfd7zXZ"):
@@ -593,6 +615,9 @@ def run(args):
         report["scope"] += "; DIAGNOSTIC CANDIDATE ONLY: production behavior is unchanged"
     if export.get("panelization"):
         report["panelization"] = export["panelization"]
+        report["independentPanelization"] = True
+        report["panelizationInputs"] = ("explicit original synthetic source/reference"
+                                       if export.get("publicPanelizationInputs") else "independently decoded project")
         report["panelizationOracle"] = "original ToolPanelize.job_init_geometry solid-geometry branch; aperture copying/export stubbed"
         report["legacySourceSha256"]["appTools/ToolPanelize.py"] = hashlib.sha256((root / "appTools/ToolPanelize.py").read_bytes()).hexdigest()
     if export.get("comparisonScope"):
