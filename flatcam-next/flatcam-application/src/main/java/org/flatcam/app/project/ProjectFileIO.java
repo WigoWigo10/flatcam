@@ -61,6 +61,8 @@ public final class ProjectFileIO {
     // Same XZ/JSON format; no rounding, simplification or loss of project data.
     private static final int XZ_PRESET = 1;
 
+    private static final String PYTHON_ORIGINAL = "pythonOriginal";
+
     private ProjectFileIO() {
     }
 
@@ -71,6 +73,11 @@ public final class ProjectFileIO {
     public static void save(ProjectFile project, Path path, boolean compress) throws IOException {
         long start = System.nanoTime();
         JSONObject root = toJson(project);
+        if (project.pythonLegacy() != null) {
+            // The Python project this one came from rides along, so a later save as .FlatPrj still has it.
+            root.getJSONObject("_java").put(PYTHON_ORIGINAL,
+                    java.util.Base64.getEncoder().encodeToString(project.pythonLegacy().original()));
+        }
         logPhase("JSON/WKT encode", start);
         writeRoot(root, path, compress);
     }
@@ -198,6 +205,16 @@ public final class ProjectFileIO {
         long start = System.nanoTime();
         ProjectFile project = fromJson(root);
         logPhase("objects/WKT decode", start);
+        JSONObject javaExtra = root.optJSONObject("_java");
+        String pythonOriginal = javaExtra == null ? null : javaExtra.optString(PYTHON_ORIGINAL, null);
+        if (pythonOriginal != null) {
+            try {
+                project = project.withPythonLegacy(
+                        new ProjectFile.PythonLegacy(java.util.Base64.getDecoder().decode(pythonOriginal)));
+            } catch (IllegalArgumentException damaged) {
+                // Not valid Base64: the project itself is intact, only the way back to Python is gone.
+            }
+        }
         return project;
     }
 

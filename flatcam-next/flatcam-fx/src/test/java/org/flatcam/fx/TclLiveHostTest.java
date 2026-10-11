@@ -711,6 +711,170 @@ class TclLiveHostTest {
         assertFalse(Files.exists(directory.resolve("not-written.nc")), "saving must not overwrite/export CNC source files");
     }
 
+    /** A project as FlatCAM Python writes it: no FX metadata, plus values the FX has no model for. */
+    private static org.json.JSONObject pythonStyleProject(Path directory, boolean withFxMetadata) throws Exception {
+        Path seed = directory.resolve("seed.FlatPrj");
+        org.flatcam.app.project.PythonProjectWriter.save(fixture(directory), seed, false);
+        var root = new org.json.JSONObject(Files.readString(seed));
+        if (!withFxMetadata) { root.remove("_fx_format"); root.remove("_java"); }
+        root.getJSONObject("options").put("global_theme", "dark").put("tools_iso_passes", 3)
+                .put("excellon_zeros", "T").put("global_recent_limit", 10);
+        root.put("python_only_root", new org.json.JSONArray().put(1).put("two"));
+        var objects = root.getJSONArray("objs");
+        for (int i = 0; i < objects.length(); i++) {
+            var object = objects.getJSONObject(i);
+            if (!withFxMetadata) object.remove("_java");
+            object.getJSONObject("options").put("python_only_option", "kept-" + i).put("tools_mill_feedrate", 77.5);
+            object.put("python_only_field", new org.json.JSONObject().put("index", i));
+            if (object.getString("kind").equals("gerber"))
+                object.put("aperture_macros", new org.json.JSONObject().put("RoundRect", "0 $1=...")).put("int_digits", 3).put("frac_digits", 6);
+            if (object.getString("kind").equals("excellon"))
+                object.put("excellon_format_upper_mm", 3).put("zeros", "T").put("source_file", "M48\nMETRIC\n");
+            if (object.getString("kind").equals("cncjob")) object.put("z_cut", -1.25).put("feedrate", 120).put("dwell", false);
+        }
+        return root;
+    }
+
+    private static org.json.JSONObject readProject(Path file) throws Exception {
+        byte[] raw = Files.readAllBytes(file);
+        if (raw.length > 5 && raw[0] == (byte) 0xFD && raw[1] == '7') {
+            try (var in = new org.tukaani.xz.XZInputStream(new java.io.ByteArrayInputStream(raw))) { raw = in.readAllBytes(); }
+        }
+        return new org.json.JSONObject(new String(raw, java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static org.json.JSONObject named(org.json.JSONObject root, String name) {
+        var objects = root.getJSONArray("objs");
+        for (int i = 0; i < objects.length(); i++)
+            if (objects.getJSONObject(i).getJSONObject("options").getString("name").equals(name)) return objects.getJSONObject(i);
+        throw new AssertionError("No object " + name);
+    }
+
+    private static List<String> names(org.json.JSONObject root) {
+        var objects = root.getJSONArray("objs");
+        return java.util.stream.IntStream.range(0, objects.length())
+                .mapToObj(i -> objects.getJSONObject(i).getJSONObject("options").getString("name")).toList();
+    }
+
+    /** Root values and every object, by name; the FX's own metadata ("_java", "_fx_format") is its to rewrite. */
+    private static void assertWholeProjectKept(org.json.JSONObject original, org.json.JSONObject saved, String where) {
+        for (String key : original.keySet()) {
+            if (key.equals("objs") || key.equals("_java") || key.equals("_fx_format")) continue;
+            assertKept(new org.json.JSONObject().put(key, original.get(key)), saved, where);
+        }
+        assertEquals(names(original), names(saved), where);
+        for (String name : names(original)) {
+            var expected = new org.json.JSONObject(named(original, name).toString());
+            expected.remove("_java");
+            assertKept(expected, named(saved, name), where + ": " + name);
+        }
+    }
+
+    /** Everything of {@code expected} is in {@code actual} with the same value (the FX may add its own keys). */
+    private static void assertKept(org.json.JSONObject expected, org.json.JSONObject actual, String where) {
+        for (String key : expected.keySet()) {
+            assertTrue(actual.has(key), where + ": lost " + key);
+            Object a = expected.get(key), b = actual.get(key);
+            if (a instanceof org.json.JSONObject x && b instanceof org.json.JSONObject y) assertKept(x, y, where + "." + key);
+            else if (a instanceof org.json.JSONArray x) assertTrue(x.similar(b), where + ": changed " + key);
+            else if (a instanceof Number x && b instanceof Number y) assertEquals(x.doubleValue(), y.doubleValue(), where + "." + key);
+            else assertEquals(a, b, where + "." + key);
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void anUntouchedPythonProjectIsSavedBackWithEverythingItHad(boolean withFxMetadata, @TempDir Path directory) throws Exception {
+        var original = pythonStyleProject(directory, withFxMetadata);
+        Path source = directory.resolve("python.FlatPrj"); Files.writeString(source, original.toString());
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            Path first = directory.resolve("first.FlatPrj");
+            session.eval("save_project " + quoted(first));
+            var saved = readProject(first);
+            assertWholeProjectKept(original, saved, "first save");
+            assertEquals(List.of("copper", "drills", "route", "route_cnc"), names(saved));
+
+            // A second generation (the FX reopening its own save) keeps them too.
+            session.host.openProject(first);
+            Path second = directory.resolve("second.FlatPrj");
+            session.eval("save_project " + quoted(second));
+            assertWholeProjectKept(original, readProject(second), "second save");
+        }
+    }
+
+    @Test void editsInTheFxReplaceOnlyWhatChangedInAPythonProject(@TempDir Path directory) throws Exception {
+        var original = pythonStyleProject(directory, false);
+        Path source = directory.resolve("python.FlatPrj"); Files.writeString(source, original.toString());
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            session.eval("offset drills 10 0; delete route_cnc; new_geometry added; plot_objects copper -plot_status True");
+            Path output = directory.resolve("edited.FlatPrj");
+            session.eval("save_project " + quoted(output));
+            var saved = readProject(output);
+            assertKept(original.getJSONObject("options"), saved.getJSONObject("options"), "application options");
+            assertTrue(original.getJSONArray("python_only_root").similar(saved.get("python_only_root")));
+            assertEquals(List.of("copper", "drills", "route", "added"), names(saved));
+            // Untouched object: everything as it was.
+            assertKept(named(original, "route"), named(saved, "route"), "route");
+            // Shown again: only the plot flag differs.
+            var copper = named(saved, "copper");
+            assertTrue(copper.getJSONObject("options").getBoolean("plot"));
+            assertEquals("kept-0", copper.getJSONObject("options").getString("python_only_option"));
+            assertEquals(named(original, "copper").get("solid_geometry").toString(), copper.get("solid_geometry").toString());
+            assertTrue(copper.has("aperture_macros"));
+            // Moved: new geometry, the Python-only values stay, the stale source text goes.
+            var drills = named(saved, "drills");
+            assertFalse(named(original, "drills").get("tools").toString().equals(drills.get("tools").toString()));
+            assertEquals("kept-1", drills.getJSONObject("options").getString("python_only_option"));
+            assertEquals(3, drills.getInt("excellon_format_upper_mm"));
+            assertFalse(drills.has("source_file"), "the source text no longer describes the moved holes");
+            // And the FX reads its own result back.
+            session.host.openProject(output);
+            assertEquals(List.of("copper", "drills", "route", "added"), session.host.objectNames());
+            var moved = (ExcellonImage) version(session, "drills");
+            assertEquals(13.0, moved.drills().get(0).x(), 1e-9);
+        }
+    }
+
+    @Test void optionalRealPythonProjectSurvivesALiveSave() throws Exception {
+        String real = System.getProperty("flatcam.compat.realProject"), output = System.getProperty("flatcam.compat.output");
+        org.junit.jupiter.api.Assumptions.assumeTrue(real != null && output != null);
+        Path folder = Path.of(output); Files.createDirectories(folder);
+        try (Session session = new Session()) {
+            session.host.openProject(Path.of(real));
+            Path saved = folder.resolve("real-live-roundtrip.FlatPrj");
+            Files.deleteIfExists(saved);
+            session.eval("save_project " + quoted(saved));
+            var original = readProject(Path.of(real)); var result = readProject(saved);
+            assertKept(original.getJSONObject("options"), result.getJSONObject("options"), "application options");
+            assertEquals(names(original), names(result));
+
+            // An edited copy for the Python-side validation: one object hidden/shown, one moved, one deleted, one new.
+            var gerber = original.getJSONArray("objs").toList().stream().map(o -> (Map<?, ?>) o)
+                    .filter(o -> "gerber".equals(o.get("kind"))).map(o -> (String) ((Map<?, ?>) o.get("options")).get("name"))
+                    .findFirst().orElseThrow();
+            var excellon = original.getJSONArray("objs").toList().stream().map(o -> (Map<?, ?>) o)
+                    .filter(o -> "excellon".equals(o.get("kind"))).map(o -> (String) ((Map<?, ?>) o.get("options")).get("name"))
+                    .findFirst().orElseThrow();
+            var job = original.getJSONArray("objs").toList().stream().map(o -> (Map<?, ?>) o)
+                    .filter(o -> "cncjob".equals(o.get("kind"))).map(o -> (String) ((Map<?, ?>) o.get("options")).get("name"))
+                    .findFirst().orElseThrow();
+            boolean shown = named(original, gerber).getJSONObject("options").optBoolean("plot", true);
+            session.eval("plot_objects {" + gerber + "} -plot_status " + (shown ? "False" : "True")
+                    + "; offset {" + excellon + "} 1.5 -2; delete {" + job + "}; new_geometry fx_added");
+            Path edited = folder.resolve("real-live-edited.FlatPrj");
+            Files.deleteIfExists(edited);
+            session.eval("save_project " + quoted(edited));
+            Files.writeString(folder.resolve("real-live-edited.txt"), gerber + "\n" + excellon + "\n" + job + "\n");
+            var changed = readProject(edited);
+            assertKept(original.getJSONObject("options"), changed.getJSONObject("options"), "application options");
+            assertEquals(shown, !named(changed, gerber).getJSONObject("options").getBoolean("plot"));
+            assertFalse(names(changed).contains(job));
+            assertTrue(names(changed).contains("fx_added"));
+        }
+    }
+
     private static TreeItem<String> namedItemOnFx(Session session, String name) throws Exception {
         Method find = MainWindow.class.getDeclaredMethod("findTclItemByName", String.class); find.setAccessible(true);
         @SuppressWarnings("unchecked") TreeItem<String> item = (TreeItem<String>) find.invoke(session.host, name);

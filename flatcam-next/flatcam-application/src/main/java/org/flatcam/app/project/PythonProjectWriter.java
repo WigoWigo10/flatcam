@@ -20,6 +20,24 @@ public final class PythonProjectWriter {
     public static void save(ProjectFile project, Path path) throws IOException { save(project, path, true); }
 
     public static void save(ProjectFile project, Path path, boolean compressed) throws IOException {
+        JSONObject root = toRoot(project);
+        ProjectFile.PythonLegacy legacy = project.pythonLegacy();
+        if (legacy != null) {
+            JSONObject baseline;
+            try {
+                // What the FX writes for the project exactly as it opened it: the reference for "unchanged".
+                baseline = toRoot(PythonProjectIO.decode(legacy.original()));
+            } catch (IOException | RuntimeException unavailable) {
+                // The opened project has no legacy representation of its own: nothing to compare with.
+                baseline = null;
+            }
+            if (baseline != null) root = PythonLegacyMerge.merge(ProjectFileIO.parseRoot(legacy.original()), baseline, root);
+        }
+        ProjectFileIO.writeRoot(root, path, compressed);
+    }
+
+    /** The project as a FlatCAM Python root object, from what the FX models alone. */
+    static JSONObject toRoot(ProjectFile project) throws IOException {
         for (var entry : project.excellons()) {
             if (entry.cncSettings() != null && !entry.cncSettings().options().exclusions().isEmpty())
                 throw new IOException("Exclusoes Drilling nao possuem representacao segura no projeto Python. Salve em .fcnproj e exporte o G-code validado. Objeto: " + entry.name());
@@ -105,7 +123,7 @@ public final class PythonProjectWriter {
                 throw new IOException("CNC Job com unidade diferente do projeto: " + job.name() + ". Use .fcnproj.");
             objects.put(object);
         }
-        ProjectFileIO.writeRoot(root, path, compressed);
+        return root;
     }
 
     private static JSONObject geometry(ProjectFile.GeometryEntry entry) {
@@ -219,7 +237,12 @@ public final class PythonProjectWriter {
     }
 
     private static String webColor(String value, String fallback) {
-        return value == null ? fallback : value.startsWith("0x") ? "#" + value.substring(2) : value;
+        if (value == null) return fallback;
+        // One spelling for one colour ("#112233", "0x112233ff" and "#112233FF" are the same), so that a colour the
+        // application merely passed through is not mistaken for a change when a Python project is saved back.
+        String hex = value.startsWith("0x") ? value.substring(2) : value.startsWith("#") ? value.substring(1) : null;
+        if (hex == null || !hex.matches("[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) return value;
+        return "#" + (hex.length() == 6 ? hex + "ff" : hex).toLowerCase(java.util.Locale.ROOT);
     }
 
     private static JSONArray parts(Geometry geometry) {

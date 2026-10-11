@@ -251,7 +251,7 @@ final class MainWindow implements TclFlatcamHost {
     private record LoadedProject(List<ProjectFile.GerberEntry> gerbers, List<ProjectFile.ExcellonEntry> excellons,
                                  List<ProjectFile.GeometryEntry> geometries,
                                  List<LoadedCncJob> cncJobs, List<String> warnings,
-                                 List<String> importWarnings) {
+                                 List<String> importWarnings, ProjectFile.PythonLegacy pythonLegacy) {
     }
 
     /** PlotAreaView layer keys for a CNC Job's two toolpath layers - see {@link #addCncJobToProject}. */
@@ -287,6 +287,8 @@ final class MainWindow implements TclFlatcamHost {
     private Label cncStepLabel;
     /** Conversion caveats remain attached when an imported Python project is saved as native .fcnproj. */
     private List<String> currentProjectImportWarnings = List.of();
+    /** The FlatCAM Python project that is open, so that saving as .FlatPrj keeps what the FX does not model. */
+    private ProjectFile.PythonLegacy currentPythonLegacy;
     /** Gerber objects currently plotted as unbuffered trace centerlines instead of solid copper. */
     private final Set<TreeItem<String>> gerberFollowItems = new LinkedHashSet<>();
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
@@ -9081,6 +9083,8 @@ final class MainWindow implements TclFlatcamHost {
         chooser.setTitle("Salvar Projeto");
         chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
                 new FileChooser.ExtensionFilter("Projeto FlatCAM Python 8.994 (compatibilidade)", "*.FlatPrj"));
+        // A project that came from the Python application is offered back in its own format first.
+        if (currentPythonLegacy != null) chooser.setSelectedExtensionFilter(chooser.getExtensionFilters().get(1));
         String fallbackDir = Path.of("").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -9091,8 +9095,11 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
         boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
-        if (pythonFormat) appendConsole("Exportacao Python 8.994: preserva geometria e G-code suportado. "
-                + "Preferencias globais e recursos exclusivos FX nao tem equivalencia completa no Python; mantenha tambem uma copia .fcnproj.");
+        if (pythonFormat) appendConsole(project.pythonLegacy() != null
+                ? "Salvando no formato Python 8.994: o que nao foi alterado no FX e mantido como estava no projeto original "
+                        + "(preferencias, opcoes dos objetos, macros, scripts); recursos exclusivos do FX ficam so para o FX."
+                : "Exportacao Python 8.994: preserva geometria e G-code suportado. "
+                        + "Recursos exclusivos FX nao tem equivalencia completa no Python; mantenha tambem uma copia .fcnproj.");
 
         beginJob("Salvando projeto " + file.getName() + "...");
         // Menu save publishes via the serializers directly; compression has no cooperative cancellation point.
@@ -9161,7 +9168,7 @@ final class MainWindow implements TclFlatcamHost {
                     geometry.cncDefaults(), geometryCncSettingsByItem.get(item)));
         }
         return new ProjectFile(gerbers, excellons, geometries, jobs,
-                currentProjectImportWarnings);
+                currentProjectImportWarnings, currentPythonLegacy);
     }
 
     /**
@@ -9287,7 +9294,7 @@ final class MainWindow implements TclFlatcamHost {
         cancellation.throwIfCancellationRequested();
         context.reportProgress(1, "Projeto carregado.");
         return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
-                List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings());
+                List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings(), project.pythonLegacy());
     }
 
     /** Fail before replacing anything if a stored colour cannot be restored. */
@@ -9309,6 +9316,7 @@ final class MainWindow implements TclFlatcamHost {
         try {
             clearProject(cancelTerminal);
             currentProjectImportWarnings = project.importWarnings();
+            currentPythonLegacy = project.pythonLegacy();
             for (ProjectFile.GerberEntry loaded : project.gerbers()) {
                 TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
                 applyRestoredGerberState(item, loaded.image(), loaded);
@@ -9417,6 +9425,7 @@ final class MainWindow implements TclFlatcamHost {
         gerberFollowItems.clear();
         sourcePathByItem.clear();
         currentProjectImportWarnings = List.of();
+        currentPythonLegacy = null;
         plotAreaView.clearLayers();
         setDisplayUnits("MM");
     }

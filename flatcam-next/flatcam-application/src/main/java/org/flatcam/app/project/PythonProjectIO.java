@@ -26,8 +26,17 @@ public final class PythonProjectIO {
 
     private PythonProjectIO() { }
 
+    /**
+     * Opens a FlatCAM Python project. The result remembers the file it came from ({@link ProjectFile#pythonLegacy()}),
+     * so that {@link PythonProjectWriter} can write back unchanged everything the FX does not model.
+     */
     public static ProjectFile load(Path path) throws IOException {
-        JSONObject root = ProjectFileIO.parseRoot(Files.readAllBytes(path));
+        byte[] original = Files.readAllBytes(path);
+        return decode(original).withPythonLegacy(new ProjectFile.PythonLegacy(original));
+    }
+
+    static ProjectFile decode(byte[] original) throws IOException {
+        JSONObject root = ProjectFileIO.parseRoot(original);
         double version = root.optDouble("version", Double.NaN);
         if (!Double.isFinite(version) || version < 8.9 || version >= 9.0)
             throw new IOException("Versao FlatCAM Python nao suportada: " + version);
@@ -48,6 +57,7 @@ public final class PythonProjectIO {
         List<ProjectFile.ExcellonEntry> excellons = new ArrayList<>();
         List<ProjectFile.GeometryEntry> geometries = new ArrayList<>();
         List<ProjectFile.CncJobRecord> jobs = new ArrayList<>();
+        List<String> passedThrough = new ArrayList<>();
         int objectsWithUnappliedOptions = 0;
         int toolsWithUnappliedData = 0;
         for (int index = 0; index < objects.length(); index++) {
@@ -69,6 +79,12 @@ public final class PythonProjectIO {
                     }
                     case "geometry" -> geometries.add(readGeometry(object));
                     case "cncjob" -> jobs.add(readCncJob(object));
+                    case "script", "document" -> {
+                        // Text objects of the Python application: the FX has no view for them, but they stay in
+                        // the file when it is saved back (see PythonLegacyMerge).
+                        passedThrough.add(name(object, kind));
+                        continue;
+                    }
                     default -> throw new IllegalArgumentException("Tipo de objeto nao suportado: " + kind);
                 }
                 JSONObject options = object.optJSONObject("options");
@@ -96,6 +112,10 @@ public final class PythonProjectIO {
         if (globalOptions != null && !globalOptions.isEmpty()) {
             warnings.add("Projeto Python: " + globalOptions.length()
                     + " preferencias globais nao foram aplicadas no FX.");
+        }
+        if (!passedThrough.isEmpty()) {
+            warnings.add("Projeto Python: " + passedThrough.size() + " objeto(s) de script/documento nao sao exibidos no FX ("
+                    + String.join(", ", passedThrough) + "); sao mantidos ao salvar em .FlatPrj.");
         }
         if (objectsWithUnappliedOptions > 0) {
             warnings.add("Projeto Python: opcoes avancadas de " + objectsWithUnappliedOptions

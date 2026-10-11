@@ -29,10 +29,40 @@ public record ProjectFile(
         List<ExcellonEntry> excellons,
         List<GeometryEntry> geometries,
         List<CncJobRecord> cncJobs,
-        List<String> importWarnings
+        List<String> importWarnings,
+        PythonLegacy pythonLegacy
 ) {
     public ProjectFile {
         importWarnings = List.copyOf(importWarnings);
+    }
+
+    /**
+     * The FlatCAM Python project this one was opened from, so that saving it back as .FlatPrj keeps everything the FX
+     * does not model (see {@link PythonProjectWriter}). Null for anything else. It also travels inside a native
+     * .fcnproj save, so the way back to Python survives working in the FX's own format.
+     *
+     * @param original the bytes of the opened file, as they were (XZ or plain JSON); what changed since is found by
+     *                 comparing with what the FX reads from them
+     */
+    public record PythonLegacy(byte[] original) {
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof PythonLegacy legacy && java.util.Arrays.equals(original, legacy.original);
+        }
+
+        @Override
+        public int hashCode() {
+            return java.util.Arrays.hashCode(original);
+        }
+    }
+
+    public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,
+                       List<GeometryEntry> geometries, List<CncJobRecord> cncJobs, List<String> importWarnings) {
+        this(gerbers, excellons, geometries, cncJobs, importWarnings, null);
+    }
+
+    public ProjectFile withPythonLegacy(PythonLegacy legacy) {
+        return new ProjectFile(gerbers, excellons, geometries, cncJobs, importWarnings, legacy);
     }
 
     public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,

@@ -2091,6 +2091,14 @@ com o projeto real: 47 iguais e 3 documentadas em 50; estrito aprovado. Achados:
 processa um Gerber de projeto reaberto (lista com MultiPolygon) e o Python acusa vãos exatamente no limite por causa de
 um buffer de 1e-6. Detalhes em [MATRIZ_PARIDADE.md](MATRIZ_PARIDADE.md).
 
+**Projetos Python sem perdas ao salvar (2026-10-10).** O FX guarda os bytes do `.FlatPrj` aberto
+(`ProjectFile.PythonLegacy`, levado também dentro do `.fcnproj`) e `PythonLegacyMerge` faz uma fusão de três versões ao
+salvar em `.FlatPrj`: o que o FX não alterou volta como estava no original (preferências, opções por objeto, macros,
+formatos, parâmetros de CNC Job, ordem dos objetos, scripts e documentos); o que alterou é substituído só onde mudou.
+Projeto real: 0 diferenças em 21 objetos / 1541 valores / 550 preferências após abrir e salvar pelo aplicativo ao vivo;
+serializadores reais do Python aceitam o original, o salvo e uma versão editada. Limites e validação em
+[COMPATIBILIDADE_FLATPRJ.md](COMPATIBILIDADE_FLATPRJ.md).
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,

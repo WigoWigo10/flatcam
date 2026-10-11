@@ -52,9 +52,17 @@ def main():
                "geometry": (camlib.Geometry, "FlatCAMGeometry.py"), "cncjob": (camlib.CNCjob, "FlatCAMCNCJob.py")}
     restored = []
     counts = {}
+    def flat(value):
+        if isinstance(value, (list, tuple)):
+            return [leaf for item in value for leaf in flat(item)]
+        return [] if value is None else [value]
+
     def same_data(expected, actual):
         if isinstance(expected, BaseGeometry):
             return isinstance(actual, BaseGeometry) and expected.equals_exact(actual, 1e-9)
+        if hasattr(expected, "to_dict") and not isinstance(expected, dict):
+            # Legacy value objects (ApertureMacro) have no equality of their own: compare what they serialize.
+            return type(expected) is type(actual) and same_data(expected.to_dict(), actual.to_dict())
         if isinstance(expected, dict):
             return all(k in actual and same_data(v,actual[k]) for k,v in expected.items())
         if isinstance(expected, list):
@@ -73,12 +81,12 @@ def main():
         obj.bounds()  # AppObject.new_object() calculates this after restoring an object.
         if kind == "geometry":
             for tool in obj.tools.values():
-                assert isinstance(tool["solid_geometry"], list)
-                assert all(isinstance(g, BaseGeometry) for g in tool["solid_geometry"])
-                assert tool["tooldia"] > 0
+                # Python itself stores either a list or one geometry here; both must be accepted.
+                assert all(isinstance(g, BaseGeometry) for g in flat(tool["solid_geometry"]))
+                assert float(tool["tooldia"]) > 0
         if kind == "excellon":
             for tool in obj.tools.values():
-                assert len(tool["solid_geometry"]) == len(tool["drills"]) + len(tool["slots"])
+                assert len(tool["solid_geometry"]) == len(tool.get("drills", [])) + len(tool.get("slots", []))
                 assert all(isinstance(g, BaseGeometry) for g in tool["solid_geometry"])
         if kind == "cncjob":
             assert obj.gcode == encoded["gcode"]

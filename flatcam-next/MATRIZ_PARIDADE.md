@@ -145,9 +145,9 @@ Nenhuma das 24 está sem implementação. "24/24 no menu" não é "24/24 equival
 | Área | Estado | Evidência |
 | --- | --- | --- |
 | Importação Gerber/Excellon | implementada | Testes do FX e corpus; projeto real abre e reserializa. Opções de importação nas preferências (este incremento). |
-| Projetos `.FlatPrj` | leitura e escrita | Reserialização comparada com tolerância 1e-9 (COMPATIBILIDADE_FLATPRJ.md); `validate_flatprj_python.py`. |
+| Projetos `.FlatPrj` | leitura e escrita, preservando o que o FX não modela | Projeto real aberto e salvo pelo FX: 0 diferenças em 1541 valores de objeto e 550 preferências; serializadores reais do Python aceitam o resultado (COMPATIBILIDADE_FLATPRJ.md). |
 | Pós-processadores | 20 no FX: os 19 perfis Python selecionáveis e o FX portable; `Paste_1` atende o SolderPaste | Portados à mão; **nenhum** validado em máquina (PREPROCESSADORES.md). |
-| Terminal Tcl | 28 comandos registrados no FX, de 66 arquivos de comando do Python | Cobre abrir/salvar/transformar/plotar/exportar; faltam os comandos CAM (isolate, ncc, paint, cutout, drillcncjob, cncjob, ...). |
+| Terminal Tcl | 28 comandos registrados no FX, de 66 arquivos de comando do Python | Cobre abrir/salvar/transformar/plotar/exportar e parte do CAM (isolate, ncc, cutout, cncjob); faltam paint, drillcncjob, milling e os demais. |
 | Preferências | 116 padrões de ferramentas/CNC/importação no FX, de 562 chaves do `defaults.py` | Cobre os valores iniciais dos painéis; faltam cores, opções de plot por objeto, exportação, editores. |
 | Editores (Geometry, Gerber, Excellon, G-code) | implementados | Nível C/D: sem comparação sistemática de cada ferramenta de edição. |
 | Interface | 24 painéis, temas, tooltips | Nível D: validação manual dos painéis novos pendente. |

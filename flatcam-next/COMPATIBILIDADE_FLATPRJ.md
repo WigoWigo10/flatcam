@@ -1,5 +1,56 @@
 # Projetos Python 8.994 e FX
 
+## Abrir e salvar de volta sem perder nada — 2026-10-10
+
+Um `.FlatPrj` guarda muito mais do que o FX modela: ~550 preferências da aplicação, dezenas de opções por objeto,
+macros de abertura, formato do Excellon, parâmetros do CNC Job, objetos de script e documento. Até aqui, salvar pelo
+FX reescrevia só o que ele modela: no projeto real de referência sobravam 1 das 550 preferências e 164 das 1121 opções
+dos objetos, e 12 campos de objeto sumiam.
+
+Agora o FX **lembra o arquivo que abriu** (`ProjectFile.PythonLegacy`, os bytes originais) e, ao salvar em `.FlatPrj`,
+compara três versões (`PythonLegacyMerge`): o arquivo original, o que o FX escreveria para o projeto exatamente como
+abriu, e o que escreve agora. Onde as duas últimas coincidem, o FX não mexeu e vale o valor original, como estava;
+onde diferem, vale o do FX. A comparação desce em `options`, `tools` e nos dados de cada ferramenta.
+
+- **Projeto não alterado:** todos os valores do original são mantidos (projeto real: 21 objetos, 1541 valores de
+  objeto e 550 preferências, zero diferenças), na ordem original dos objetos.
+- **Objeto alterado no FX:** só o que mudou é substituído. Ex.: ocultar um Gerber muda só `options.plot`; deslocar um
+  Excellon muda `solid_geometry` e os furos/sólidos das ferramentas, e remove `source_file` (o texto-fonte deixaria de
+  descrever os furos). O resto do objeto fica como estava.
+- **Renomear, excluir, criar:** o objeto renomeado é reconhecido e mantém o que tinha; o excluído sai; o novo entra
+  no fim, escrito pelo FX.
+- **Scripts e documentos do Python** (`kind` `script`/`document`): o FX não os exibe (avisa ao abrir), mas eles
+  continuam no arquivo, no mesmo lugar. Antes, um projeto com eles nem abria.
+- **Passando pelo formato nativo:** salvar em `.fcnproj` leva junto o original Python; reabrir e salvar em `.FlatPrj`
+  continua preservando tudo.
+- O diálogo Salvar Projeto já propõe `.FlatPrj` quando o projeto aberto veio do Python.
+
+Validação (sem abrir janelas do Python):
+
+- `tools/compare_flatprj_roundtrip.py original salvo --strict`: comparação JSON valor a valor, ignorando só os
+  metadados do FX (`_fx_format`, `_java`). Projeto real aberto e salvo pelo aplicativo FX ao vivo (teste
+  `optionalRealPythonProjectSurvivesALiveSave`): 0 diferenças; versão editada (um Gerber ocultado, um Excellon
+  deslocado, um CNC Job excluído, uma Geometry nova): só as diferenças esperadas.
+- `tools/validate_flatprj_python.py` com Python 3.11 + Shapely 1.8.5: os serializadores reais do Python
+  (`dict2obj`, `from_dict`, `to_dict`, parser de G-code) aceitam o original, o salvo e o editado. O validador foi
+  corrigido: ele rejeitava o próprio projeto original (macros de abertura, ferramenta sem `slots`, geometria de
+  ferramenta que não é lista).
+- Testes: `PythonLegacyMergeTest` (núcleo) e três casos novos em `TclLiveHostTest` (aplicativo ao vivo).
+
+O que ainda **não** é compatibilidade total:
+
+- O FX continua adicionando seus metadados (`_fx_format`, `_java`); o Python os ignora e os descarta ao salvar. O
+  arquivo fica maior (projeto real: 1,9 MB → 4,9 MB).
+- O que o FX altera é escrito do jeito dele: um objeto editado no FX perde, nas partes editadas, detalhes que só o
+  Python tinha (por exemplo, o `source_file`).
+- Continuam recusados na exportação: exclusões de Drilling/CNC, sondagem, programas ICP/HPGL/Roland e projetos com
+  unidades mistas, mesmo que o objeto não tenha sido tocado.
+- As preferências do projeto são preservadas, **não aplicadas**: o FX não passa a usar as 550 opções do Python.
+- Nada disso foi conferido abrindo o arquivo na janela do FlatCAM Python; a validação usa os serializadores reais,
+  sem interface.
+
+## Formatos no diálogo Salvar Projeto
+
 No diálogo **Salvar Projeto**, o FX oferece o formato nativo `.fcnproj` e o formato
 de compatibilidade `.FlatPrj`. O formato nativo continua recomendado como arquivo
 de trabalho e backup. A exportação de compatibilidade usa publicação por arquivo
