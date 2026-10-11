@@ -29,6 +29,67 @@ import org.junit.jupiter.api.Test;
 
 class NccGeneratorTest {
     @Test
+    void isoBuffersOriginalPanelMembersBeforeUnioningTheirEnvelopes() {
+        for (double scale : List.of(1., 1/25.4)) {
+            Coordinate[] ring = new Coordinate[129];
+            for (int i = 0; i < 128; i++) {
+                double angle = i * 2 * Math.PI / 128;
+                ring[i] = new Coordinate((2 + .003*Math.sin(i*1.71))*Math.cos(angle)*scale,
+                        (2 + .003*Math.cos(i*1.91))*Math.sin(angle)*scale);
+            }
+            ring[128] = ring[0].copy();
+            Geometry first = FACTORY.createPolygon(ring);
+            Geometry second = org.locationtech.jts.geom.util.AffineTransformation
+                    .translationInstance(6*scale, 4*scale).transform(first);
+            Geometry source = FACTORY.createGeometryCollection(new Geometry[]{first, second});
+            Geometry reference = FACTORY.toGeometry(new Envelope(-4*scale,12*scale,-4*scale,12*scale));
+            String original = source.toText();
+            var params = new NccParameters(List.of(.5*scale), .4, 0, NccMethod.STANDARD,
+                    false, true, .1*scale, false, NccOrder.NONE,
+                    new NccBoundary.ReferenceGeometry(reference), List.of(.1*scale, .3*scale));
+            var result = NccGenerator.generate(scale == 1 ? "MM" : "IN", source, params);
+            var arcs = new org.locationtech.jts.operation.buffer.BufferParameters(64);
+            var offset = new org.locationtech.jts.operation.buffer.BufferParameters(16);
+            Geometry iso = NccCopperUnion.union(FACTORY.createGeometryCollection(new Geometry[]{
+                    org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(first,.15*scale,arcs),
+                    org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(second,.15*scale,arcs)}),
+                    CancellationToken.none());
+            Geometry keepOut = org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(
+                    NccCopperUnion.union(iso,CancellationToken.none()),.1*scale,offset);
+            Geometry expected = org.locationtech.jts.operation.overlayng.OverlayNGRobust.overlay(reference,
+                    keepOut,org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE).buffer(0);
+            Geometry oldIso = org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(
+                    NccCopperUnion.union(source,CancellationToken.none()),.15*scale,arcs);
+            Geometry oldArea = reference.difference(org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(
+                    oldIso,.1*scale,offset));
+            assertEquals(0, result.clearingArea().symDifference(expected).getArea(), 1e-11*scale*scale);
+            assertTrue(result.clearingArea().equalsExact(expected,1e-12*scale),
+                    "Preserve the second GUI union's ring representation as well as its area");
+            assertTrue(expected.symDifference(oldArea).getArea() > 1e-9*scale*scale,
+                    "The public shallow-arc fixture must distinguish union-before-ISO");
+            // Independent Shapely 1.8.5.post1 / GEOS 3.10.3: buffer each
+            // original member at .15 (64), union, offset .1 (16), difference.
+            assertEquals(224.1988923230861*scale*scale,result.clearingArea().getArea(),1e-10*scale*scale);
+            assertEquals(original,source.toText());
+            assertEquals(List.of(.1*scale,.3*scale,.5*scale),
+                    result.toolResults().stream().map(NccToolResult::toolDiameter).toList());
+            var restParams = new NccParameters(List.of(1.*scale,.2*scale), .4, 0, NccMethod.STANDARD,
+                    false, true, 0, true, NccOrder.NONE,
+                    new NccBoundary.ReferenceGeometry(reference),List.of(.1*scale,.3*scale));
+            var restResult = NccGenerator.generate(scale == 1 ? "MM" : "IN",source,restParams);
+            Geometry expectedWithoutOffset = org.locationtech.jts.operation.overlayng.OverlayNGRobust.overlay(
+                    reference,NccCopperUnion.union(iso,CancellationToken.none()),
+                    org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE).buffer(0);
+            Geometry onlyOneUnion = org.locationtech.jts.operation.overlayng.OverlayNGRobust.overlay(reference,
+                    iso,org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE).buffer(0);
+            assertTrue(restResult.clearingArea().equalsExact(expectedWithoutOffset,1e-12*scale));
+            assertFalse(expectedWithoutOffset.equalsExact(onlyOneUnion,1e-12*scale),
+                    "The fixture must distinguish the second union even with zero area difference");
+            assertEquals(original,source.toText());
+        }
+    }
+
+    @Test
     void offsetUsesDefaultArcsAfterTheIsoEnvelopeRatherThanAddingRadii() {
         for (double scale : List.of(1., 1/25.4)) {
             Geometry copper = FACTORY.toGeometry(new Envelope(1*scale, 8*scale, 1*scale, 7*scale))

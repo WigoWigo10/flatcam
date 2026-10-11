@@ -1,5 +1,21 @@
 # Comparação reproduzível CAM: FX × Python
 
+## ISO por membro e segunda união — resultado final 2026-10-11
+
+Sucessor de `9eb77ff6`: expandir cada membro original antes de unir os
+envelopes e conservar a segunda união do envelope escolhido pelo GUI NCC.
+Sem arredondar/girar anéis para fixtures, alterar o Python ou relaxar critérios.
+Regressão sintética MM/IN distingue área e representação dos anéis.
+**34/34 públicos e 6/6 privados ISO MATCH_SAMPLED**, strict 0. No privado
+foram repetidas ISO, ISO/Rest e ISO/offset em ambas as faces, com CAM/G-code por
+fresa. Divergência original B_Cu ISO/offset e regressão intermediária ISO/Rest
+resolvidas. Host real também passou persistência, ferramentas e registro.
+Não agregar os 17 privados da rodada inicial como novos resultados; os dois
+erros originais sem ISO não foram corrigidos/revalidados nesta rodada focada.
+Artefatos: `target/ncc-iso-members-final-20261011`. Build completo 1575
+aprovados/1592 registrados/17 opcionais ignorados; 55 auxiliares Python passam.
+Fonte intacta e limites/diagnóstico em [PANELIZED_NCC.md](PANELIZED_NCC.md).
+
 ## Receitas NCC panelizadas ISO/offset — 2026-10-11
 
 Suíte opt-in `compare-panelized-flows.ps1 -AdvancedRecipes`: Lines/Rest,

@@ -1,5 +1,66 @@
 # NCC depois da panelização — matriz e limites (2026-10-10)
 
+## ISO por membro original — correção residual 2026-10-11
+
+Incremento posterior a `9eb77ff6`, reunido nesta entrega (consultar git log),
+sem push. Esta seção supera a pendência B_Cu da rodada inicial abaixo.
+A divergência B_Cu
+ISO/offset descrita na seção histórica abaixo foi localizada na ordem da
+preparação: `camlib.Geometry.isolation_geometry` bufferiza cada membro
+original (cópia do painel), depois une os envelopes. O FX unia todo o cobre
+primeiro. Embora a área do cobre seja igual, a união muda a representação dos
+anéis, e a simplificação dos arcos no buffer ISO pode escolher outros vértices.
+O offset seguinte amplifica essa diferença. Não era erro no offset GEOS nem
+na inversão da direção dos anéis: sobre o mesmo envelope, ambos coincidem.
+
+O FX agora preserva os membros originais durante o buffer ISO e une só os
+envelopes produzidos. Reutiliza esses envelopes por diâmetro para ISO e CLEAR;
+o maior diâmetro continua definindo o keep-out, sem copiar o bug de usar apenas
+a última ISO de uma lista invertida. Há verificação de cancelamento entre
+membros/diâmetros. NCC sem ISO, Rest, conector e critérios não foram alterados.
+
+Também conserva a segunda união do envelope escolhido, feita pelo
+`get_tool_empty_area` original antes do offset/difference. Ela não muda a área,
+mas muda os inícios dos anéis usados pela erosão. Só bufferizar por membro
+passou ISO/offset, porém introduziu reprovação ISO/Rest B_Cu: a fresa de 1 mm
+ficou a ~0,003954 mm do caminho Python (limite 0,003 mm). No diagnóstico dessa
+primeira fresa, reproduzir a segunda união baixou a distância amostrada a zero.
+Não se consertou isso girando anéis para coordenadas de um projeto, removendo
+vértices ou relaxando a tolerância. A regressão pública também distingue os
+inícios dos anéis com e sem essa etapa, mesmo quando a área é igual.
+
+Diagnóstico privado apenas de preparação (não aprovação CAM/G-code):
+diferença de offset B_Cu reduziu de 7,0222756e-5 para ~1,30e-14 mm²;
+envelope ISO por membro difere ~9,56e-15 mm². Artefatos ignorados:
+`target/iso-preparation-b-20261011` e `target/iso-preparation-member-b-20261011`.
+Não publicar os WKT privados no Git. Regressão pública usa dois polígonos
+sintéticos de arcos rasos, golden Shapely 1.8.5.post1/GEOS 3.10.3 em MM/IN,
+e prova que a preparação antiga realmente difere; fonte permanece intacta.
+47 testes NCC aprovados. A primeira rodada de build/host passou e o público
+teve 34/34, mas o oráculo privado ficou em 5/6 por causa de ISO/Rest B_Cu;
+`target/ncc-iso-members-host-20261011` é intermediário, não aprovação final.
+Build final após a segunda união aprovado: 1592 registrados, 1575 aprovados,
+17 skips opcionais, zero falhas/erros; log
+`target/ncc-iso-members-full-final-20261011.log`. Os 55 auxiliares Python
+passaram novamente. Host final público MM/IN e real também aprovados (três
+testes), incluindo salvar/reabrir, ferramentas, furos/slots e contorno;
+fonte SHA-256 intacta. Log: `target/ncc-iso-members-host-final-20261011.log`.
+Público final: 34/34 MATCH_SAMPLED, strict 0 nos seis relatórios em
+`target/ncc-iso-members-final-20261011/public-python`.
+
+**Privado final: 6/6 MATCH_SAMPLED**, strict 0 nas duas faces, zero
+DIFFERENT/GCODE_DIFFERENT/PARTIAL_DIFFERENCE/ORACLE_ERROR. Foram repetidas
+ISO, ISO/Rest e ISO/offset, com área preparada, CAM/G-code de cada fresa,
+ordem e contagem de falhas aprovados. B_Cu ISO/Rest passou também na fresa
+de 1 mm; B_Cu ISO/offset tem delta de área ~1,29e-14 mm². Relatórios:
+`target/ncc-iso-members-final-20261011/real-python/{f-cu,b-cu}/report.json`.
+As contagens não misturam o privado integral anterior com essa rodada focada.
+Não foram repetidos todos os 17 casos privados: os dois ORACLE_ERROR de offset
+sem ISO da rodada anterior permanecem conhecidos, fora da correção ISO.
+Matching de regiões não usinadas não significa remover todo o cobre, e estes
+ensaios não certificam UI visual, segurança física, outras receitas/projetos
+ou uma ordem ISO invertida. Fonte original preservada por SHA-256.
+
 ## Receitas ampliadas e preparação ISO/offset — 2026-10-11
 
 Nova suíte opt-in `-AdvancedRecipes`, separada da matriz Standard/Rest/Connect

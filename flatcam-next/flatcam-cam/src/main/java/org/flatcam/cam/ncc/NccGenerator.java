@@ -103,13 +103,23 @@ public final class NccGenerator {
         }
         // ISO contours precede clearing, and the widest selected ISO cutter
         // sets the copper envelope the CLEAR cutters must stay outside.
-        double isolationRadius = params.isolationToolDiameters().stream()
-                .mapToDouble(Double::doubleValue).max().orElse(0) / 2.0;
+        Map<Double, Geometry> isolationEnvelopes = new HashMap<>();
+        for (double diameter : params.isolationToolDiameters()) {
+            cancellation.throwIfCancellationRequested();
+            isolationEnvelopes.computeIfAbsent(diameter,
+                    value -> isolationEnvelope(copper, value / 2.0, cancellation));
+        }
+        double widestIsolationTool = params.isolationToolDiameters().stream()
+                .mapToDouble(Double::doubleValue).max().orElse(0);
+        Geometry keepOutBase = widestIsolationTool == 0 ? cleanCopper
+                // get_tool_empty_area unary_unions the chosen ISO envelope
+                // again before offset/difference. This is area-redundant, but
+                // fixes ring starts used by later erosion and Rest toolpaths.
+                : NccCopperUnion.union(isolationEnvelopes.get(widestIsolationTool), cancellation);
         List<Double> orderedTools = orderedToolDiameters(params);
         double initialOffset = params.restMachining() ? params.copperOffset()
                 : params.settingsFor(orderedTools.get(0)).copperOffset();
-        Geometry clearingArea = clearingArea(boundary, cleanCopper,
-                isolationRadius, initialOffset);
+        Geometry clearingArea = clearingArea(boundary, keepOutBase, initialOffset);
         cancellation.throwIfCancellationRequested();
         progress.report(0.08);
 
@@ -121,7 +131,7 @@ public final class NccGenerator {
         double smallestToolOffset = Double.POSITIVE_INFINITY;
         for (double diameter : params.isolationToolDiameters()) {
             cancellation.throwIfCancellationRequested();
-            Geometry envelope = preciseRoundBuffer(cleanCopper, diameter / 2.0);
+            Geometry envelope = isolationEnvelopes.get(diameter);
             List<LineString> rings = new ArrayList<>();
             collectIsoBoundaryLines(envelope, params.millingType(), rings);
             List<LineString> clipped = new ArrayList<>();
@@ -143,7 +153,7 @@ public final class NccGenerator {
             NccToolSettings settings = params.settingsFor(toolDiameter);
             Geometry areaForThisTool = params.restMachining() ? remainingArea
                     : areaByOffset.computeIfAbsent(settings.copperOffset(), offset ->
-                            clearingArea(boundary, cleanCopper, isolationRadius, offset));
+                            clearingArea(boundary, keepOutBase, offset));
             // All tools share one boundary and their copper keep-outs are
             // nested. The union of their clearable areas is the one with the
             // smallest offset; no expensive polygon union is needed here.
@@ -229,18 +239,34 @@ public final class NccGenerator {
                 org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(requestedAreas), toolResults);
     }
 
-    private static Geometry clearingArea(Geometry boundary, Geometry copper, double isolationRadius, double copperOffset) {
+    private static Geometry clearingArea(Geometry boundary, Geometry isolationEnvelopeOrCopper, double copperOffset) {
         // ToolNCC.get_tool_empty_area first creates the ISO envelope with
         // geo_steps_per_circle, then applies optional .buffer(ncc_offset)
         // with Shapely's DEFAULT 16 quadrant segments. Combining the radii
         // is not equivalent around corners, holes or narrow channels.
-        Geometry keepOut = isolationRadius == 0 ? copper : preciseRoundBuffer(copper, isolationRadius);
+        Geometry keepOut = isolationEnvelopeOrCopper;
         if (copperOffset != 0) keepOut = GeosBufferOp.bufferOp(keepOut, copperOffset, new BufferParameters(16));
         // GEOS 3.10 uses OverlayNG for polygon subtraction. JTS's default
         // classic overlay represents the same area but starts rings on different
         // vertices, changing paint_connect's endpoints and thus cutting moves.
         // Use the robust modern operation, not a fixture-specific ring rotation.
         return OverlayNGRobust.overlay(boundary, keepOut, OverlayNG.DIFFERENCE).buffer(0);
+    }
+
+    private static Geometry isolationEnvelope(Geometry source, double radius, CancellationToken cancellation) {
+        // camlib.Geometry.isolation_geometry buffers the ORIGINAL top-level
+        // members, then unary_unions the buffered polygons. A prior copper
+        // union is area-equivalent but may move ring starts; the buffer's
+        // simplifier can then choose different shallow arc vertices, amplified
+        // by the following NCC copper offset. Preserve panel-copy membership.
+        List<Geometry> buffered = new ArrayList<>();
+        for (int i = 0; i < source.getNumGeometries(); i++) {
+            cancellation.throwIfCancellationRequested();
+            buffered.add(preciseRoundBuffer(source.getGeometryN(i), radius));
+        }
+        cancellation.throwIfCancellationRequested();
+        return NccCopperUnion.union(source.getFactory().createGeometryCollection(
+                buffered.toArray(Geometry[]::new)), cancellation);
     }
 
     /**

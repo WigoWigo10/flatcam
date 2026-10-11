@@ -1,5 +1,38 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade: ISO por membro original — 2026-10-11
+
+Incremento anterior commitado em `9eb77ff6`, branch `flatcam-next`, sem push.
+Correção desta entrega (consultar git log), sem push: NCC expande cada membro original antes
+de unir os envelopes ISO, como camlib.Geometry.isolation_geometry. Unir o
+cobre primeiro preservava a área, mas alterava arcos rasos; o segundo offset
+amplificava a diferença B_Cu. Diagnóstico isolado: offset 7,0222756e-5 →
+~1,30e-14 mm². Não significa aprovação completa dos caminhos/G-code.
+Cache por diâmetro e checks de cancelamento; sem ISO, Rest/conector/critério
+inalterados. Regressão pública sintética com golden GEOS MM/IN e fonte intacta;
+47 testes NCC passam. A primeira rodada teve build/host aprovados, público
+34/34 e privado 5/6: ISO/offset B_Cu passou, mas ISO/Rest B_Cu divergiu no
+caminho da fresa de 1 mm (~0,003954 mm). Segunda correção conserva a união
+adicional do envelope ISO feita pelo get_tool_empty_area antes da diferença;
+não muda a área, mas muda os inícios dos anéis da erosão. Diagnóstico dessa
+fresa passa com distância amostrada zero. Regressão pública prova que a
+representação dos anéis distingue essa etapa. Tolerâncias intactas.
+Resultado final após ambas as correções: **34/34 públicos e 6/6 privados ISO**,
+strict 0 nos oito relatórios. Privado repetiu ISO, ISO/Rest e ISO/offset nas
+duas faces, com área, CAM/G-code por fresa, ordem e contagem de falhas aprovados.
+B_Cu ISO/Rest passou na fresa de 1 mm; ISO/offset delta ~1,29e-14 mm².
+Build final: 1592 registrados, 1575 aprovados, 17 skips opcionais; mais
+55 testes auxiliares Python. Host final público/real aprovado, inclusive
+native save/reopen, furos/slots, contorno e ferramentas; fonte SHA-256 intacta.
+Logs: target/ncc-iso-members-full-final-20261011.log e
+target/ncc-iso-members-host-final-20261011.log. Artefatos finais e limites em
+PANELIZED_NCC.md / target/ncc-iso-members-final-20261011. O host intermediário
+ncc-iso-members-host-20261011 não conta como aprovação por causa de ISO/Rest.
+Não agregar os 17 privados anteriores como se todos tivessem sido repetidos.
+Próximo: ampliar projetos/receitas e validação visual/física; os dois erros
+originais de offset sem ISO continuam conhecidos e não foram corrigidos nem
+revalidados nesta rodada focada. Ordem ISO invertida permanece fora do corpus.
+
 ## Continuidade: receitas panelizadas ISO/offset — 2026-10-11
 
 Base `6913106e`, branch `flatcam-next`; incremento local sem commit/push.
