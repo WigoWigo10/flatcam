@@ -1,6 +1,6 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
-Revisão `e7a576b6` do FX (branch `flatcam-next`), checkout Python deste repositório. Complementa
+Revisão `a71294f1` + harness das ferramentas secundárias do FX (branch `flatcam-next`), checkout Python deste repositório. Complementa
 [PLANO_PARIDADE.md](PLANO_PARIDADE.md) (o que fazer) e [COMPARACAO_CAM.md](COMPARACAO_CAM.md)
 (histórico das comparações). Aqui fica **o que foi medido e com que evidência**.
 
@@ -10,7 +10,7 @@ Paridade não tem um número único. Cada linha tem um **nível de evidência**:
 
 | Nível | Significado |
 | --- | --- |
-| **A** | Comparação diferencial contra o **código real do Python** (harness `compare-main-flows.ps1`: mesmas entradas, rotinas originais compiladas da AST do checkout, Python 3.11 + Shapely 1.8.5 + GEOS 3.10.3). |
+| **A** | Comparação diferencial contra o **código real do Python** (harnesses `compare-main-flows.ps1` e `compare-secondary-tools.ps1`: mesmas entradas, rotinas originais compiladas da AST do checkout, Python 3.11 + Shapely 1.8.5 + GEOS 3.10.3). |
 | **B** | Comparação contra o **algoritmo do Python reescrito** num script (mesmos laços e chamadas shapely), com a geometria exportada do FX. Mede o resultado, mas o script não é o código original. |
 | **C** | Só **testes do FX** com expectativas derivadas da leitura do código Python. Nenhuma execução do Python. |
 | **D** | Implementado, sem verificação de resultado contra o Python (ou só validação manual pendente). |
@@ -55,6 +55,58 @@ Casos por operação (iguais nos três conjuntos, salvo indicado):
 O harness também interpreta com o parser do Python os cortes XY do G-code gerado pelo FX
 (`GCODE_DIFFERENT` = 0 nos três conjuntos).
 
+## Ferramentas secundárias no harness (nível A) — 2026-10-10
+
+`compare-secondary-tools.ps1 -LegacyCompatible -Strict` exporta o que o FX produz
+(`PythonToolsComparisonExportTest`) e roda os **corpos originais** dos métodos do Python
+(`tools/compare_tools_python.py`): as seis regras estáticas de `ToolRulesCheck.py`;
+`copper_thieving`, `on_add_robber_bar_click` e `on_new_pattern_plating_object` de
+`ToolCopperThieving.py`; `calculate_factors` e `generate_verification_gcode` de
+`ToolCalibration.py`; e `Gerber.scale`/`Gerber.skew`. Só a interface é substituída por
+stand-ins (campos, sinais, criação de objeto); nenhum algoritmo é alterado. Relatórios em
+`target/tools-comparison-synthetic-20261010` e `target/tools-comparison-real-20261010`.
+
+| Conjunto | MATCH | DIFFERENT | Diferença documentada | ORACLE_ERROR |
+| --- | --- | --- | --- | --- |
+| Sintético (29 casos; Gerber/Excellon lidos pelos **parsers do Python**) | 27 | 0 | 2 | 0 |
+| Com o projeto real (50 casos; objetos decodificados do `.FlatPrj` pelo Python) | 47 | 0 | 3 | 0 |
+
+Modo estrito aprovado nos dois (saída 0). Critérios: Rules Check compara **as mesmas violações**
+(o par de peças de cada ponto, pois bordas paralelas não têm um único ponto mais próximo) e os
+mesmos tamanhos; geometria compara a diferença simétrica das uniões (≤ 0,1% da área) e, em pontos
+e quadrados, a contagem; fatores com 1e-9; G-code de verificação linha a linha, sem comentários.
+
+| Ferramenta | Casos | Resultado |
+| --- | --- | --- |
+| Rules Check | 10 regras no sintético; 10 casos no projeto real (trilha, cobre-cobre topo/base em 0,25/0,4/0,45, cobre-contorno, anel anular 0,3/0,6, furo-furo, tamanho do furo) | 19 iguais (até 57 violações idênticas no anel anular), 2 documentadas |
+| Copper Thieving | sólido (caixa retangular e mínima), pontos, quadrados, linhas, áreas desenhadas (sólido e pontos), referência Gerber; robber bar; máscara de galvanoplastia com e sem distância — nos dois conjuntos | 22 iguais; diferença de área entre 0 e 0,07% |
+| Calibration | fatores (3), G-code de verificação (3, em mm e polegadas, com e sem zerar Z), objeto calibrado | 6 iguais, 1 documentada |
+
+Diferenças documentadas (o caso existe para registrá-las, não conta como igual):
+
+- **Cobre-cobre com uma peça só:** o Python responde "Failed. Only one polygon."; o FX passa com uma nota.
+- **Vão exatamente no limite:** o Python aumenta o cobre em 1e-6 antes de medir, então um vão de
+  0,400000 é acusado com limite 0,4 (5 pares a mais no B_Cu real); o FX só acusa vão menor que o limite.
+- **Inclinação Y da Calibration com origem fora de Y = 0:** o Python soma a Y da origem ao delta
+  (11,86° no caso de teste); o FX usa só o delta (0,573°).
+
+O que a comparação mostrou além do placar:
+
+- **O Copper Thieving do Python não processa um Gerber de projeto reaberto.** O `.FlatPrj` guarda a
+  geometria como lista com um MultiPolygon; as rotinas originais falham com
+  "Sequences of multi-polygons are not valid arguments" ou encerram com "No object available."
+  O harness registra esse erro (`legacyContainerError`) e repete com a mesma geometria em lista plana
+  (como fica após abrir o arquivo Gerber), marcando a entrada como `python-project-flattened`.
+  O FX processa os dois casos.
+- No cobre-contorno com topo e base, o Python funde as duas camadas antes de medir e dá um ponto por
+  violação; o FX dá um ponto por peça de cada camada (4 pontos para a mesma violação no projeto real).
+- Tempo das rotinas originais no projeto real (Shapely 1.8.5): thieving sólido ~1,0 s, pontos ~1,2 s,
+  linhas ~2,2 s; cobre-cobre ~0,2–0,3 s por camada. Os números da seção "Tempo" abaixo são de um script
+  mais simples e ficam como ordem de grandeza.
+
+Não coberto: Rules Check com polígonos "clear" (LPC) e com dois Excellon; referência Geometry no
+thieving; "Apply Scale/Skew" sobre os pontos da Calibration; corpus em polegadas (só o G-code).
+
 ## Ferramentas do menu (24)
 
 | Ferramenta | Nível | Evidência e limites |
@@ -63,9 +115,9 @@ O harness também interpreta com o parser do Python os cortes XY do G-code gerad
 | NCC | **A** | 16 casos × 3 conjuntos, mais a matriz panelizada (114 públicos e 19 reais, ver COMPARACAO_CAM.md). Seed padrão difere de propósito. |
 | Paint | **A** (parcial) | Só Standard. Seed, Lines, Combo, seleção por área/polígono/referência: nível C. |
 | Cutout | **A** (parcial) | Retangular e free-form com margem e quatro pontes. Thin, M-Bites, gaps manuais, recortes internos: nível C. |
-| Rules Check | **B** | 5 das 10 regras no projeto real (cobre-cobre topo/base, cobre-contorno, anel anular, furo-furo): mesmas contagens de violação (0, 0, 4, 0, 0). Trilha, seda, máscara e tamanho do furo: nível C. Diferenças deliberadas documentadas. |
-| Copper Thieving | **B** | F_Cu real, 4 preenchimentos: sólido 13 polígonos, pontos 44, quadrados 43 (idênticos); linhas com área unida igual a 0,004%. Referências Area/Box, robber bar e máscara: nível C. |
-| Calibration | **B** | Escala + inclinação do F_Cu real: área resultante idêntica (3092,1585). Fatores: nível C, com duas correções deliberadas. |
+| Rules Check | **A** | As 10 regras contra as rotinas originais, sintético e projeto real: mesmas violações. Duas diferenças documentadas (peça única, vão no limite). |
+| Copper Thieving | **A** | 4 preenchimentos, 3 referências, robber bar e máscara, sintético e projeto real. Falta referência Geometry. |
+| Calibration | **A** | Fatores, G-code de verificação e objeto calibrado. Uma diferença documentada (inclinação Y). |
 | Drilling | **C** | Testes do FX (profundidades, troca, exclusões, banco de ferramentas). Sem oráculo Python do G-code de furação. |
 | Geometry CNC | **A** (XY) / **C** | Cortes XY interpretados pelo parser do Python no harness; alturas, avanços, multi-depth, V-Tip: nível C. |
 | Optimal | **C** | Projeto real: 44 peças, vão mínimo 0,3505 mm; não executado contra o Python. |
@@ -85,7 +137,7 @@ O harness também interpreta com o parser do Python os cortes XY do G-code gerad
 | Transform | **C** | Rotação, escala, inclinação, espelho e deslocamento; a inclinação bate com `shapely.affinity.skew` (ver Calibration). |
 | Calculators | **C** | Fórmulas conferidas por teste. |
 
-Resumo: **4** ferramentas com nível A (duas delas parciais), **3** com nível B, **17** só com nível C.
+Resumo: **7** ferramentas com nível A (duas delas parciais) e **17** só com nível C.
 Nenhuma das 24 está sem implementação. "24/24 no menu" não é "24/24 equivalentes".
 
 ## Outras áreas
@@ -122,14 +174,12 @@ uma execução por medida: servem de ordem de grandeza.
 
 - Não há uma "porcentagem de paridade do aplicativo". Os 96,4% são dos **casos CAM comparados**.
 - Nível A cobre caminhos e cortes XY, não segurança CNC, alturas ou avanços.
-- Os scripts do nível B (Rules Check, Copper Thieving, Calibration) não estão no repositório:
-  foram rodados numa pasta temporária. Levar para `tools/` com os mesmos critérios do harness é
-  o próximo passo para torná-los reproduzíveis.
+- Os tempos da tabela "Tempo" vêm de scripts simplificados que não estão no repositório.
 - Nenhum G-code foi validado numa máquina.
 
 ## Próximas ações sugeridas, por retorno
 
-1. Levar ao harness (nível A) as ferramentas hoje em B: Rules Check, Copper Thieving, Calibration.
+1. Feito: Rules Check, Copper Thieving e Calibration estão no harness (seção acima).
 2. Subir de C para A as ferramentas de geometria pura mais usadas: Extract Drills, Punch, Fiducials,
    Corner Markers, Invert, Subtract, 2-Sided (as rotinas do Python são curtas e sem interface).
 3. Oráculo de G-code para Drilling e Geometry CNC (alturas, avanços, troca), por pós-processador.

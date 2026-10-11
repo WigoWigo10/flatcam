@@ -2083,6 +2083,14 @@ projeto real 26/28; a única diferença é o NCC Seed padrão (deliberada) e o �
 (`ncc-multi-settings` no projeto real). Das 24 ferramentas: 4 com nível A (Isolation, NCC, Paint e Cutout, as duas
 últimas parciais), 3 com nível B (Rules Check, Copper Thieving, Calibration) e 17 só com nível C.
 
+**Ferramentas secundárias contra o Python real (2026-10-10).** `compare-secondary-tools.ps1` (exportador
+`PythonToolsComparisonExportTest`, oráculo `tools/compare_tools_python.py`, testes `tools/test_compare_tools_python.py`)
+roda os corpos originais de Rules Check, Copper Thieving (thieving, robber bar, máscara) e Calibration (fatores,
+G-code, escala/inclinação) com stand-ins só de interface. Sintético: 27 iguais e 2 diferenças documentadas em 29;
+com o projeto real: 47 iguais e 3 documentadas em 50; estrito aprovado. Achados: o Copper Thieving do Python não
+processa um Gerber de projeto reaberto (lista com MultiPolygon) e o Python acusa vãos exatamente no limite por causa de
+um buffer de 1e-6. Detalhes em [MATRIZ_PARIDADE.md](MATRIZ_PARIDADE.md).
+
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)
 
 Rotate/Skew/Scale/Flip/Offset reutilizáveis para Gerber, Excellon e Geometry,
