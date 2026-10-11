@@ -1,7 +1,24 @@
 # Corpos largos CNC pela imagem de densidade — 2026-10-10
 
-Continuação de [PLOT_CNC_ABLATION.md](PLOT_CNC_ABLATION.md). Worktree dirty sobre `a8116d0f`,
-sem commit/push.
+Continuação de [PLOT_CNC_ABLATION.md](PLOT_CNC_ABLATION.md), implementada em `4c05aec1`.
+Os resultados abaixo são da execução histórica de 2026-10-10.
+
+## Correções da revisão — 2026-10-11
+
+- A prévia distingue larguras fixas em pixels de larguras da fresa em unidades
+  do desenho. Ao dar zoom, a largura em pixels muda, mas a relação largura/escala
+  permanece: a imagem anterior pode ser transformada enquanto a nova é preparada.
+  Mudança real de diâmetro, cor, opacidade ou modo ainda rejeita pixels antigos.
+- **Corpos largos translúcidos usam fallback Canvas.** A soma de cobertura dos
+  segmentos não reproduz a união de um único stroke translúcido nas curvas:
+  a revisão reproduziu alfa 191 no raster contra 127 no Canvas. Não declarar
+  equivalência geral de transparência. Raster largo opaco mantém a otimização;
+  união/composição por caminho para transparência continua futura. O comportamento
+  anterior do raster estreito não foi alterado nesta correção.
+- PlotDensityRendererTest cobre prévia no zoom, rejeição de mudança real de
+  estilo/diâmetro e fallback translúcido. WideStrokeRasterTest continua cobrindo
+  curvas/caps/joins opacos. Não há novo backend GPU, alteração CAM ou novo
+  speedup medido nesta revisão.
 
 ## Decisão
 
@@ -51,9 +68,9 @@ pixel (larguras 3, 7, 9, 15 e 30 px):
 | 30 | 0,00149 | 0,60% |
 
 As diferenças ficam na borda anti-aliased (o Canvas usa outro rasterizador de bordas).
-Cor translúcida: a tabela de alfa do `DensityRaster` empilha cobertura sobreposta como o
-Canvas empilha strokes separados; o corpo de corte do CNC é opaco (`#5E6CFF`), o de viagem é
-fino (< 2,5 px) e continua como era.
+Essa comparação usa tinta opaca. Ela não cobre a composição de segmentos de um
+mesmo caminho translúcido; ver o fallback adotado na revisão acima. A cor padrão
+do corte é opaca (`#5E6CFF`), mas o usuário pode ajustar sua opacidade.
 
 ## Desempenho no projeto real
 

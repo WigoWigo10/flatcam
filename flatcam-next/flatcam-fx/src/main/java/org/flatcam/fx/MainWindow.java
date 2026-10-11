@@ -289,6 +289,8 @@ final class MainWindow implements TclFlatcamHost {
     private List<String> currentProjectImportWarnings = List.of();
     /** The FlatCAM Python project that is open, so that saving as .FlatPrj keeps what the FX does not model. */
     private ProjectFile.PythonLegacy currentPythonLegacy;
+    /** Stable item identity survives renames/edits. New/copied items never inherit an original object's metadata. */
+    private final Map<TreeItem<String>, String> pythonOriginByItem = new LinkedHashMap<>();
     /** Gerber objects currently plotted as unbuffered trace centerlines instead of solid copper. */
     private final Set<TreeItem<String>> gerberFollowItems = new LinkedHashSet<>();
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
@@ -9167,8 +9169,28 @@ final class MainWindow implements TclFlatcamHost {
                     colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item),
                     geometry.cncDefaults(), geometryCncSettingsByItem.get(item)));
         }
-        return new ProjectFile(gerbers, excellons, geometries, jobs,
-                currentProjectImportWarnings, currentPythonLegacy);
+        ProjectFile.PythonLegacy legacy = currentPythonLegacy;
+        if (legacy != null) {
+            Map<String, String> origins = new LinkedHashMap<>();
+            gerberByItem.keySet().forEach(item -> snapshotPythonOrigin(origins, item, "gerber"));
+            excellonByItem.keySet().forEach(item -> snapshotPythonOrigin(origins, item, "excellon"));
+            geometryByItem.keySet().forEach(item -> snapshotPythonOrigin(origins, item, "geometry"));
+            cncJobByItem.keySet().forEach(item -> snapshotPythonOrigin(origins, item, "cncjob"));
+            legacy = new ProjectFile.PythonLegacy(legacy.original(), origins);
+        }
+        return new ProjectFile(gerbers, excellons, geometries, jobs, currentProjectImportWarnings, legacy);
+    }
+
+    private void snapshotPythonOrigin(Map<String, String> origins, TreeItem<String> item, String kind) {
+        String origin = pythonOriginByItem.get(item);
+        if (origin != null) origins.put(ProjectFile.PythonLegacy.key(kind, item.getValue()), origin);
+    }
+
+    private void rememberPythonOrigin(TreeItem<String> item, String kind) {
+        if (currentPythonLegacy == null) return;
+        Map<String, String> origins = currentPythonLegacy.objectOrigins();
+        String origin = origins == null ? item.getValue() : origins.get(ProjectFile.PythonLegacy.key(kind, item.getValue()));
+        if (origin != null) pythonOriginByItem.put(item, origin);
     }
 
     /**
@@ -9319,6 +9341,7 @@ final class MainWindow implements TclFlatcamHost {
             currentPythonLegacy = project.pythonLegacy();
             for (ProjectFile.GerberEntry loaded : project.gerbers()) {
                 TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
+                rememberPythonOrigin(item, "gerber");
                 applyRestoredGerberState(item, loaded.image(), loaded);
                 setDisplayUnits(loaded.image().units());
             }
@@ -9326,6 +9349,7 @@ final class MainWindow implements TclFlatcamHost {
                 TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
                         loaded.drillDefaults());
                 if (loaded.cncSettings() != null) drillCncSettingsByItem.put(item, loaded.cncSettings());
+                rememberPythonOrigin(item, "excellon");
                 applyRestoredExcellonState(item, loaded);
                 setDisplayUnits(loaded.image().units());
             }
@@ -9334,6 +9358,7 @@ final class MainWindow implements TclFlatcamHost {
                         loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
                         loaded.cncDefaults());
                 if (loaded.cncSettings() != null) geometryCncSettingsByItem.put(item, loaded.cncSettings());
+                rememberPythonOrigin(item, "geometry");
                 if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
                     plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
                             Color.web(loaded.strokeColorWeb()));
@@ -9348,6 +9373,7 @@ final class MainWindow implements TclFlatcamHost {
                         loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry(),
                         loaded.travelCenterlines(), loaded.cutCenterlines(), loaded.previewStrokeWidth(),
                         loaded.stats());
+                rememberPythonOrigin(item, "cncjob");
                 if (!loaded.visible()) setObjectVisible(item, false);
                 if (loaded.units() != null) {
                     setDisplayUnits(loaded.units());
@@ -9426,6 +9452,7 @@ final class MainWindow implements TclFlatcamHost {
         sourcePathByItem.clear();
         currentProjectImportWarnings = List.of();
         currentPythonLegacy = null;
+        pythonOriginByItem.clear();
         plotAreaView.clearLayers();
         setDisplayUnits("MM");
     }

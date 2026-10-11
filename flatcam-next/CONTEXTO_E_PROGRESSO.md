@@ -1,5 +1,41 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade: correções da revisão da sessão Claude — 2026-10-11
+
+Base `c6bed2a1`, branch `flatcam-next`; correções reunidas nesta entrega
+(consultar `git log` para o commit), sem push.
+Esta seção supera as indicações históricas de "ainda sem commit" abaixo: os
+incrementos raster, preferências e compatibilidade foram commitados por outra
+sessão. Renderer largo CPU/background em `4c05aec1`; spike de malha GPU separado
+em `861ef5f3`, não integrado como padrão.
+
+- Origem Python por identidade do item, persistida em `.fcnproj`, conserva os
+  campos exclusivos mesmo com rename + edits. Novo objeto com nome reutilizado
+  não herda os dados do excluído. Regressores de merge e host Tcl real.
+- Preview do corpo largo aceita mudança de largura proporcional ao zoom,
+  rejeitando mudança real de diâmetro/cor/mode. Traços largos translúcidos voltam
+  ao Canvas: o raster acumulava alpha nas curvas de um mesmo caminho. Opacos
+  mantêm o raster; não há speedup novo medido nem GPU backend novo.
+- Comparador `.FlatPrj` simétrico reprova extras/duplicados/ordem, com --added
+  para novos objetos intencionais. Validador Python verifica os erros DEPOIS
+  do save, analisa arquivo de estágio novo/inventário e publica apenas sucesso.
+  Falha conserva destino anterior; fonte nunca é destino do ensaio.
+
+Contratos/limites: COMPATIBILIDADE_FLATPRJ.md, PLOT_WIDE_STROKE_DENSITY.md.
+Validação desta revisão: `mvnw.cmd verify` passou, 1588 testes registrados,
+1571 executados com sucesso e 17 skips opcionais (20 suporte + 715 CAM + 163
+aplicação + 690 FX). Log: `target/review-fixes-full-final-20261011.log`.
+Os 53 testes Python de `tools/test_*.py` passaram no ambiente legado Python
+3.11/Shapely 1.8.5; nove cobrem os validadores corrigidos sem depender de Qt.
+O aplicativo Python real abriu/regravou as novas cópias intocada e editada do
+projeto do usuário. Comparador simétrico estrito: zero diferenças entre original
+e cópia FX intocada, e entre controles intocados regravados pelo Python.
+Fonte SHA-256 e conteúdo/datas das preferências/recentes permaneceram intactos.
+Artefatos: `flatcam-fx/target/review-fixes-rt-20261011`. Execução offscreen não
+certifica aparência do Plot Python; zoom/edição/opacidade aguardam ensaio visual.
+A hipótese antivírus/indexador para temporários continua sem confirmação.
+Não declarar paridade universal de projetos/plot/usinagem a partir desse corpus.
+
 ## Continuidade: alvo das pausas CNC isolado — 2026-10-10
 
 Worktree dirty sobre `a8116d0f`, branch `flatcam-next`; sem commit/push.

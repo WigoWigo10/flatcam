@@ -10,11 +10,54 @@ read or written.
 """
 import argparse
 import json
+import lzma
+import math
 import os
 import sys
 import tempfile
 import traceback
 from pathlib import Path
+from collections import Counter
+
+
+def application_errors(messages):
+    return [text for text in messages if "[ERROR" in text]
+
+
+def read_project(path):
+    raw = path.read_bytes()
+    if raw.startswith(b"\xfd7zXZ"):
+        raw = lzma.decompress(raw)
+    root = json.loads(raw.decode("utf-8-sig"))
+    if not isinstance(root, dict) or not isinstance(root.get("objs"), list) or "version" not in root:
+        raise RuntimeError("The application did not write a valid project")
+    return root
+
+
+def object_inventory(objects):
+    return Counter((obj.kind, obj.options["name"]) for obj in objects)
+
+
+def save_and_validate(fc, target, messages):
+    """Save to a fresh staging file, validate it, then atomically publish. An old target is not proof of success."""
+    target = Path(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    fd, name = tempfile.mkstemp(prefix=".flatcam-python-validation-", suffix=".FlatPrj", dir=target.parent)
+    os.close(fd)
+    stage = Path(name)
+    try:
+        fc.f_handlers.save_project(str(stage), silent=True)
+        errors = application_errors(messages)  # includes errors emitted DURING saving, not only loading
+        if errors:
+            raise RuntimeError("The Python application reported errors: " + "; ".join(errors))
+        root = read_project(stage)  # empty/partial/old unrelated output cannot pass
+        saved = Counter((obj["kind"], obj["options"]["name"]) for obj in root["objs"])
+        if saved != object_inventory(fc.collection.get_list()):
+            raise RuntimeError("The saved object's inventory differs from the open project")
+        stage.replace(target)
+        return target.name
+    finally:
+        stage.unlink(missing_ok=True)
 
 
 def main():
@@ -33,6 +76,10 @@ def main():
     args.report = args.report.resolve()
     if args.resave:
         args.resave = args.resave.resolve()
+        if args.resave == project:
+            parser.error("--resave must be a copy, not the source project")
+    if args.report in {project, args.resave}:
+        parser.error("--report must not overwrite a project")
     report = {"status": "ERROR", "project": project.name}
 
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
@@ -78,30 +125,31 @@ def main():
                 raise RuntimeError("The application is not using the isolated settings folder: %s" % fc.data_path)
             fc.f_handlers.open_project(str(project), cli=True, plot=False)
             objects = fc.collection.get_list()
+            expected = Counter((obj["kind"], obj["options"]["name"]) for obj in read_project(project)["objs"])
+            if object_inventory(objects) != expected:
+                raise RuntimeError("The loaded object's inventory differs from the source project")
             report["objects"] = [{"name": o.options["name"], "kind": o.kind} for o in objects]
             counts = {}
             for o in objects:
                 counts[o.kind] = counts.get(o.kind, 0) + 1
-                o.bounds()                          # every object must be usable, not merely listed
+                bounds = o.bounds()                 # every object must be usable, not merely listed
+                if not all(math.isfinite(value) for value in bounds):
+                    raise RuntimeError("Non-finite bounds: " + o.options["name"])
             report["counts"] = counts
             report["units"] = fc.defaults["units"]
-            errors = [text for text in messages if "[ERROR" in text]
-            report["applicationErrors"] = errors
             if args.new_empty_geometry:
                 # Control: what the Python application does with a blank Geometry of its own.
                 fc.app_obj.new_geometry_object()
                 report["ownEmptyGeometryBounds"] = [repr(v) for v in fc.collection.get_list()[-1].bounds()]
             if args.resave:
-                target = args.resave.resolve()
-                target.parent.mkdir(parents=True, exist_ok=True)
-                fc.f_handlers.save_project(str(target), silent=True)
-                report["resaved"] = target.name if target.exists() else None
-                if not target.exists():
-                    raise RuntimeError("The application did not write the project")
+                report["resaved"] = save_and_validate(fc, args.resave, messages)
+            errors = application_errors(messages)
+            report["applicationErrors"] = errors
             report["status"] = "PASS" if not errors else "APPLICATION_ERRORS"
             finish(0 if not errors else 1)
         except Exception as error:
             report.update(status="ERROR", error="%s: %s" % (type(error).__name__, error),
+                          applicationErrors=application_errors(messages),
                           trace=traceback.format_exc(limit=8))
             finish(2)
 

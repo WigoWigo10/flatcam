@@ -47,9 +47,17 @@ final class PlotDensityRenderer implements AutoCloseable {
 
     DrawResult draw(GraphicsContext gc, Object key, PlotDrawableIndex index, boolean strokeOnly, boolean multicolor,
                     Color ink, double lineWidth, PlotCamera camera, Envelope bounds) {
+        return draw(gc, key, index, strokeOnly, multicolor, ink, lineWidth, camera, bounds, false);
+    }
+
+    DrawResult draw(GraphicsContext gc, Object key, PlotDrawableIndex index, boolean strokeOnly, boolean multicolor,
+                    Color ink, double lineWidth, PlotCamera camera, Envelope bounds, boolean worldWidth) {
         requireFx();
         if (closed) return DrawResult.VECTOR;
-        if (index == null || !strokeOnly || multicolor || !(lineWidth <= DensityRaster.MAX_WIDTH)) {
+        if (index == null || !strokeOnly || multicolor || !(lineWidth <= DensityRaster.MAX_WIDTH)
+                // Segment coverage adds overlaps within a path; it is not a translucent Canvas stroke union.
+                // Until per-path compositing is available, wide translucent bodies must remain vector.
+                || lineWidth > DensityRaster.ROUND_FROM_WIDTH && ink.getOpacity() < 1) {
             suspend(key);
             return DrawResult.VECTOR;
         }
@@ -64,7 +72,7 @@ final class PlotDensityRenderer implements AutoCloseable {
         var view = new DenseRenderer.View(index.geometry(), camera.scale(), camera.centerX(), camera.centerY(),
                 camera.width() / 2.0 - camera.centerX() * camera.scale(),
                 camera.height() / 2.0 + camera.centerY() * camera.scale(), width, height,
-                ink.getRed(), ink.getGreen(), ink.getBlue(), ink.getOpacity(), lineWidth);
+                ink.getRed(), ink.getGreen(), ink.getBlue(), ink.getOpacity(), lineWidth, worldWidth);
         var frame = preview(key, view);
         if (frame == null || !frame.view().sameAs(view)) {
             if (asynchronous) {
@@ -174,7 +182,12 @@ final class PlotDensityRenderer implements AutoCloseable {
     }
     private static boolean sameInk(DenseRenderer.View a, DenseRenderer.View b) {
         return a.red() == b.red() && a.green() == b.green() && a.blue() == b.blue()
-                && a.opacity() == b.opacity() && a.lineWidth() == b.lineWidth();
+                && a.opacity() == b.opacity() && a.worldWidth() == b.worldWidth()
+                && (a.worldWidth() ? sameWorldWidth(a, b) : a.lineWidth() == b.lineWidth());
+    }
+    private static boolean sameWorldWidth(DenseRenderer.View a, DenseRenderer.View b) {
+        double x = a.lineWidth() / a.scale(), y = b.lineWidth() / b.scale();
+        return Math.abs(x - y) <= Math.max(Math.abs(x), Math.abs(y)) * 1e-12;
     }
     private static void requireFx() {
         if (!Platform.isFxApplicationThread()) throw new IllegalStateException("Plot raster presentation belongs to the FX thread");

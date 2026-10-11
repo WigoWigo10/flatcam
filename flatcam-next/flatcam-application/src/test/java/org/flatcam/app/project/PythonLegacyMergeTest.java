@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -130,6 +131,50 @@ class PythonLegacyMergeTest {
         currentObject.getJSONObject("options").put("tooldia", 1.0);
         JSONObject merged = PythonLegacyMerge.merge(root(originalObject), root(baselineObject), root(currentObject));
         assertEquals("0.80", merged.getJSONArray("objs").getJSONObject(0).getJSONObject("options").get("tooldia"));
+    }
+
+    @Test void trackedOriginSurvivesRenameAndEditsWithoutGuessingOrMatchingReplacements() {
+        JSONObject original = object("geometry", "old").put("python_only", "keep");
+        original.getJSONObject("options").put("python_option", 123);
+        JSONObject baseline = object("geometry", "old");
+        JSONObject current = copy(baseline);
+        current.getJSONObject("options").put("name", "renamed").put("plot", false);
+        current.put("solid_geometry", new JSONArray().put("POINT (4 5)"));
+        var origins = java.util.Map.of(ProjectFile.PythonLegacy.key("geometry", "renamed"), "old");
+        JSONObject merged = PythonLegacyMerge.merge(root(original), root(baseline), root(current), origins)
+                .getJSONArray("objs").getJSONObject(0);
+        assertEquals("keep", merged.getString("python_only"));
+        assertEquals(123, merged.getJSONObject("options").getInt("python_option"));
+        assertFalse(merged.getJSONObject("options").getBoolean("plot"));
+        assertEquals("POINT (4 5)", merged.getJSONArray("solid_geometry").getString(0));
+        // A new object reusing a deleted original's name must not inherit that object's settings.
+        var replacement = PythonLegacyMerge.merge(root(original), root(baseline), root(copy(baseline)), java.util.Map.of());
+        assertFalse(replacement.getJSONArray("objs").getJSONObject(0).has("python_only"));
+        assertThrows(IllegalArgumentException.class, () -> PythonLegacyMerge.merge(root(original), root(baseline),
+                root(current), java.util.Map.of(ProjectFile.PythonLegacy.key("geometry", "renamed"), "missing")));
+    }
+
+    @Test void trackedOriginsDistinguishIdenticalObjectsRenamedAndEditedTogether() {
+        var one = object("geometry", "one").put("python_only", 1);
+        var two = object("geometry", "two").put("python_only", 2);
+        var renamedOne = object("geometry", "renamed-one");
+        var renamedTwo = object("geometry", "renamed-two");
+        renamedOne.getJSONObject("options").put("plot", false);
+        renamedTwo.getJSONObject("options").put("plot", false);
+        var result = PythonLegacyMerge.merge(root(one, two), root(object("geometry", "one"), object("geometry", "two")),
+                root(renamedTwo, renamedOne), java.util.Map.of("geometry/renamed-one", "one", "geometry/renamed-two", "two"));
+        assertEquals(List.of("renamed-one", "renamed-two"), names(result));
+        assertEquals(1, result.getJSONArray("objs").getJSONObject(0).getInt("python_only"));
+        assertEquals(2, result.getJSONArray("objs").getJSONObject(1).getInt("python_only"));
+    }
+
+    @Test void unreadableOriginalNeverSilentlyFallsBackToALossySave(@TempDir Path directory) throws Exception {
+        var project = new ProjectFile(List.of(), List.of(), List.of()).withPythonLegacy(
+                new ProjectFile.PythonLegacy("damaged".getBytes(StandardCharsets.UTF_8)));
+        Path output = directory.resolve("keep.FlatPrj");
+        Files.writeString(output, "previous contents");
+        assertThrows(java.io.IOException.class, () -> PythonProjectWriter.save(project, output, false));
+        assertEquals("previous contents", Files.readString(output));
     }
 
     @Test

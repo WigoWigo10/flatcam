@@ -31,13 +31,20 @@ final class DenseRenderer {
      * object), the rest by value.
      */
     record View(Geometry geometry, double scale, double centerX, double centerY, double offsetX, double offsetY,
-                int width, int height, double red, double green, double blue, double opacity, double lineWidth) {
+                int width, int height, double red, double green, double blue, double opacity, double lineWidth,
+                boolean worldWidth) {
+
+        View(Geometry geometry, double scale, double centerX, double centerY, double offsetX, double offsetY,
+             int width, int height, double red, double green, double blue, double opacity, double lineWidth) {
+            this(geometry, scale, centerX, centerY, offsetX, offsetY, width, height, red, green, blue, opacity, lineWidth, false);
+        }
 
         boolean sameAs(View other) {
             return other != null && geometry == other.geometry && scale == other.scale && centerX == other.centerX
                     && centerY == other.centerY && offsetX == other.offsetX && offsetY == other.offsetY
                     && width == other.width && height == other.height && red == other.red && green == other.green
-                    && blue == other.blue && opacity == other.opacity && lineWidth == other.lineWidth;
+                    && blue == other.blue && opacity == other.opacity && lineWidth == other.lineWidth
+                    && worldWidth == other.worldWidth;
         }
     }
 

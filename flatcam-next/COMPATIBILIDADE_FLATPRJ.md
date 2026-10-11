@@ -1,5 +1,44 @@
 # Projetos Python 8.994 e FX
 
+## Correções da revisão — 2026-10-11
+
+- O aplicativo registra a origem dos objetos por identidade do item, não por
+  semelhança de nome/geometria. Renomear **e** alterar visibilidade/geometria
+  antes de salvar mantém as opções exclusivas Python não alteradas. Essa relação
+  viaja em `.fcnproj`; uma segunda renomeação após reabrir também é reconhecida.
+  Objetos novos/copiados não herdam a origem de objetos excluídos, mesmo quando
+  reutilizam o nome. Arquivos nativos antigos sem esse mapa continuam legíveis.
+  Se o original não puder ser decodificado/validado para a mesclagem, a exportação
+  falha sem tocar o destino; não há fallback silencioso para uma gravação com perdas.
+- O comparador agora é simétrico: `--strict` reprova campos/objetos extras,
+  perdas, alterações, nomes duplicados e mudanças de ordem. Para edições
+  intencionais, declarar `--added nome`, `--removed nome` e `--expect kind.key`
+  (campos de raiz: `root.key`). O prefixo deve terminar numa fronteira de chave;
+  esperar `tools.1` não autoriza mudanças em `tools.11`.
+- O validador do aplicativo Python salva num arquivo temporário novo, analisa
+  seu JSON/XZ, verifica o inventário de objetos e só depois publica a cópia.
+  Erros emitidos durante o salvamento contam como falha. Um destino anterior
+  permanece intacto se o save falhar; sua existência não é prova de sucesso.
+  Fonte e destino não podem ser o mesmo arquivo. Também confere o inventário
+  carregado e limites finitos, não somente se os objetos foram listados.
+
+Regressores Java: PythonLegacyMergeTest, TclLiveHostTest; auxiliares sem Qt:
+`python -m unittest discover -s tools -p test_flatprj_validation.py -v`.
+Os testes não provam paridade visual/segurança de usinagem e não removem as
+restrições de exportação descritas abaixo. A causa da ocorrência intermitente
+de temporários no Windows continua não confirmada.
+
+Reensaio real desta revisão: FX salva cópia intocada e editada; o aplicativo
+Python 3.11 + Shapely 1.8.5 abre/regrava ambas com inventário correto e limites
+finitos, sem applicationErrors. Comparação simétrica estrita do original com a
+cópia FX intocada: zero diferenças. O Python regravado também coincide com o
+controle original regravado por ele (21 objetos, 1541 valores, 550 opções).
+SHA-256 do original e conteúdo/datas dos arquivos de preferências/recentes em
+%APPDATA%/FlatCAM intactos. Artefatos privados ignorados:
+`flatcam-fx/target/review-fixes-rt-20261011`; log de exportação:
+`target/review-fixes-real-export-20261011.log`. Não certifica o Plot Python:
+execução offscreen, sem contexto OpenGL (avisos esperados desse modo).
+
 ## Abrir e salvar de volta sem perder nada — 2026-10-10
 
 Um `.FlatPrj` guarda muito mais do que o FX modela: ~550 preferências da aplicação, dezenas de opções por objeto,
@@ -76,7 +115,7 @@ Dois defeitos reais apareceram nessa cadeia e foram corrigidos:
 
 ```powershell
 & target\oracle-py311\Scripts\python.exe tools\open_in_python_app.py --legacy-root .. <arquivo.FlatPrj> `
-    --resave target\saida.FlatPrj --report targetelatorio.json
+    --resave target\saida.FlatPrj --report target\relatorio.json
 python tools\compare_flatprj_roundtrip.py <original.FlatPrj> <salvo.FlatPrj> --strict
 ```
 

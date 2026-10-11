@@ -44,15 +44,28 @@ public record ProjectFile(
      * @param original the bytes of the opened file, as they were (XZ or plain JSON); what changed since is found by
      *                 comparing with what the FX reads from them
      */
-    public record PythonLegacy(byte[] original) {
+    public record PythonLegacy(byte[] original, Map<String, String> objectOrigins) {
+        public PythonLegacy {
+            original = original.clone();
+            objectOrigins = objectOrigins == null ? null : Map.copyOf(objectOrigins);
+        }
+
+        public PythonLegacy(byte[] original) { this(original, null); }
+
+        /** Null origins means an older/untracked snapshot; an empty map means all original objects were deleted. */
+        public static String key(String kind, String name) { return kind + "/" + name; }
+
+        @Override public byte[] original() { return original.clone(); }
+
         @Override
         public boolean equals(Object other) {
-            return other instanceof PythonLegacy legacy && java.util.Arrays.equals(original, legacy.original);
+            return other instanceof PythonLegacy legacy && java.util.Arrays.equals(original, legacy.original)
+                    && java.util.Objects.equals(objectOrigins, legacy.objectOrigins);
         }
 
         @Override
         public int hashCode() {
-            return java.util.Arrays.hashCode(original);
+            return 31 * java.util.Arrays.hashCode(original) + java.util.Objects.hashCode(objectOrigins);
         }
     }
 

@@ -111,4 +111,51 @@ class PlotDensityRendererTest {
     }
 
     private static <T> T fx(Callable<T> action) throws Exception { return TerminalPanelTest.fx(action); }
+
+    @Test void worldWidthZoomKeepsPreviewButActualStyleChangesDoNot() throws Exception {
+        var index = new PlotDrawableIndex(packed());
+        var renderer = fx(() -> new PlotDensityRenderer(true, true, key -> true, () -> {}));
+        try {
+            fx(() -> {
+                var gc = new Canvas(124, 80).getGraphicsContext2D();
+                assertEquals(PlotDensityRenderer.DrawResult.PREPARING,
+                        renderer.draw(gc, "key", index, true, false, Color.RED, 9, CAMERA, CAMERA.visibleBounds(), true));
+                return null;
+            });
+            await(renderer);
+            fx(() -> {
+                var gc = new Canvas(124, 80).getGraphicsContext2D();
+                var zoom = new PlotCamera(50, 40, 6, 80, 60, 44, 20);
+                assertEquals(PlotDensityRenderer.DrawResult.PREVIEW,
+                        renderer.draw(gc, "key", index, true, false, Color.RED, 18, zoom, zoom.visibleBounds(), true));
+                assertEquals(PlotDensityRenderer.DrawResult.PREPARING,
+                        renderer.draw(gc, "key", index, true, false, Color.RED, 24, zoom, zoom.visibleBounds(), true),
+                        "a changed cutter width is not just zoom");
+                assertEquals(PlotDensityRenderer.DrawResult.PREPARING,
+                        renderer.draw(gc, "key", index, true, false, Color.GREEN, 18, zoom, zoom.visibleBounds(), true));
+                assertEquals(PlotDensityRenderer.DrawResult.PREPARING,
+                        renderer.draw(gc, "key", index, true, false, Color.RED, 18, zoom, zoom.visibleBounds(), false));
+                return null;
+            });
+        } finally { fx(() -> { renderer.close(); return null; }); }
+    }
+
+    @Test void wideTranslucentStrokesStayOnCanvasRatherThanAccumulateAlphaWithinAPath() throws Exception {
+        var index = new PlotDrawableIndex(packed());
+        var renderer = fx(() -> new PlotDensityRenderer(true, true, key -> true, () -> {}));
+        try {
+            fx(() -> {
+                var gc = new Canvas(124, 80).getGraphicsContext2D();
+                for (double width : new double[]{3, 9, 30})
+                    assertEquals(PlotDensityRenderer.DrawResult.VECTOR,
+                            renderer.draw(gc, "key", index, true, false, Color.color(1,0,0,.5), width,
+                                    CAMERA, CAMERA.visibleBounds(), true));
+                assertFalse(renderer.preparing());
+                assertEquals(0, renderer.stats().publications());
+                assertEquals(PlotDensityRenderer.DrawResult.PREPARING,
+                        renderer.draw(gc, "key", index, true, false, Color.RED, 9, CAMERA, CAMERA.visibleBounds(), true));
+                return null;
+            });
+        } finally { fx(() -> { renderer.close(); return null; }); }
+    }
 }

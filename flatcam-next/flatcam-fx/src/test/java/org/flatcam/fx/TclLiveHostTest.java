@@ -845,6 +845,42 @@ class TclLiveHostTest {
         }
     }
 
+    @Test void renamedAndEditedPythonObjectsKeepTheirOriginThroughNativeSave(@TempDir Path directory) throws Exception {
+        var original = pythonStyleProject(directory, false);
+        Path source = directory.resolve("python.FlatPrj"); Files.writeString(source, original.toString());
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            TerminalPanelTest.fx(() -> { namedItemOnFx(session, "drills").setValue("renamed"); return null; });
+            session.eval("offset renamed 10 0; plot_objects renamed -plot_status False");
+            Path nativeSave = directory.resolve("work.fcnproj");
+            session.eval("save_project " + quoted(nativeSave));
+            session.host.openProject(nativeSave);
+            TerminalPanelTest.fx(() -> { namedItemOnFx(session, "renamed").setValue("renamed_twice"); return null; });
+            session.eval("offset renamed_twice 1 0");
+            Path output = directory.resolve("output.FlatPrj");
+            session.eval("save_project " + quoted(output));
+            var result = named(readProject(output), "renamed_twice");
+            assertEquals("kept-1", result.getJSONObject("options").getString("python_only_option"));
+            assertEquals(3, result.getInt("excellon_format_upper_mm"));
+            assertFalse(result.has("source_file"));
+            assertFalse(result.getJSONObject("options").getBoolean("plot"));
+            session.host.openProject(output);
+            assertEquals(14.0, ((ExcellonImage)version(session, "renamed_twice")).drills().getFirst().x(), 1e-9);
+        }
+    }
+
+    @Test void aNewObjectUsingADeletedObjectsNameDoesNotInheritItsPythonMetadata(@TempDir Path directory) throws Exception {
+        var original = pythonStyleProject(directory, false);
+        Path source = directory.resolve("python.FlatPrj"); Files.writeString(source, original.toString());
+        try (Session session = new Session()) {
+            session.host.openProject(source);
+            session.eval("delete route; new_geometry route");
+            Path output = directory.resolve("output.FlatPrj");
+            session.eval("save_project " + quoted(output));
+            assertFalse(named(readProject(output), "route").getJSONObject("options").has("python_only_option"));
+        }
+    }
+
     @Test void optionalRealPythonProjectSurvivesALiveSave() throws Exception {
         String real = System.getProperty("flatcam.compat.realProject"), output = System.getProperty("flatcam.compat.output");
         org.junit.jupiter.api.Assumptions.assumeTrue(real != null && output != null);

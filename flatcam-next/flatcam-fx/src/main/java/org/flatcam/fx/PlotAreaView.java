@@ -1952,7 +1952,8 @@ final class PlotAreaView extends StackPane {
     private boolean drawDensityLayer(GraphicsContext gc, Object key, RenderLayer layer, PlotDrawableIndex index,
                                      Envelope viewBounds, double contentWidth, double contentHeight, double lineWidth) {
         var result = densityRenderer.draw(gc, key, index, layer.strokeOnly(), layer.multicolor(), layer.strokeColor(),
-                lineWidth, camera(contentWidth, contentHeight), viewBounds);
+                lineWidth, camera(contentWidth, contentHeight), viewBounds,
+                layer.category() == LayerCategory.CNCJOB && Double.isFinite(lodLineWidth) && lodLineWidth > 1.5);
         lastLayerDense = result != PlotDensityRenderer.DrawResult.VECTOR;
         lastLayerStale = result == PlotDensityRenderer.DrawResult.PREVIEW;
         return lastLayerDense;

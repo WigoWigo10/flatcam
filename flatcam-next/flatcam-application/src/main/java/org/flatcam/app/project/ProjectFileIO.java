@@ -77,6 +77,8 @@ public final class ProjectFileIO {
             // The Python project this one came from rides along, so a later save as .FlatPrj still has it.
             root.getJSONObject("_java").put(PYTHON_ORIGINAL,
                     java.util.Base64.getEncoder().encodeToString(project.pythonLegacy().original()));
+            if (project.pythonLegacy().objectOrigins() != null)
+                root.getJSONObject("_java").put("pythonObjectOrigins", new JSONObject(project.pythonLegacy().objectOrigins()));
         }
         logPhase("JSON/WKT encode", start);
         writeRoot(root, path, compress);
@@ -209,8 +211,12 @@ public final class ProjectFileIO {
         String pythonOriginal = javaExtra == null ? null : javaExtra.optString(PYTHON_ORIGINAL, null);
         if (pythonOriginal != null) {
             try {
-                project = project.withPythonLegacy(
-                        new ProjectFile.PythonLegacy(java.util.Base64.getDecoder().decode(pythonOriginal)));
+                JSONObject encodedOrigins = javaExtra.optJSONObject("pythonObjectOrigins");
+                Map<String, String> origins = encodedOrigins == null ? null : new java.util.LinkedHashMap<>();
+                if (encodedOrigins != null) for (String key : encodedOrigins.keySet())
+                    origins.put(key, encodedOrigins.getString(key));
+                project = project.withPythonLegacy(new ProjectFile.PythonLegacy(
+                        java.util.Base64.getDecoder().decode(pythonOriginal), origins));
             } catch (IllegalArgumentException damaged) {
                 // Not valid Base64: the project itself is intact, only the way back to Python is gone.
             }

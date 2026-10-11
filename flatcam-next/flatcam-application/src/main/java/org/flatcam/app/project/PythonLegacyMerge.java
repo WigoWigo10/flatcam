@@ -29,6 +29,11 @@ final class PythonLegacyMerge {
     }
 
     static JSONObject merge(JSONObject original, JSONObject baseline, JSONObject current) {
+        return merge(original, baseline, current, null);
+    }
+
+    static JSONObject merge(JSONObject original, JSONObject baseline, JSONObject current,
+                            java.util.Map<String, String> origins) {
         JSONObject root = new JSONObject();
         for (String key : original.keySet()) {
             if (!key.equals("objs")) {
@@ -48,13 +53,17 @@ final class PythonLegacyMerge {
         JSONObject[] match = new JSONObject[currents.length()];   // the baseline object each current one came from
         Set<Integer> used = new HashSet<>();
         for (int i = 0; i < currents.length(); i++) {
-            int found = find(baselines, used, currents.getJSONObject(i), true);
+            JSONObject object = currents.getJSONObject(i);
+            String origin = origins == null ? name(object) : origins.get(ProjectFile.PythonLegacy.key(kind(object), name(object)));
+            int found = origin == null ? -1 : findNamed(baselines, used, kind(object), origin);
+            if (origins != null && origin != null && found < 0)
+                throw new IllegalArgumentException("Origem Python do objeto nao encontrada: " + name(object));
             if (found >= 0) {
                 used.add(found);
                 match[i] = baselines.getJSONObject(found);
             }
         }
-        for (int i = 0; i < currents.length(); i++) {
+        for (int i = 0; origins == null && i < currents.length(); i++) {
             if (match[i] == null) {
                 // Renamed in the FX: the same object under another name.
                 int found = find(baselines, used, currents.getJSONObject(i), false);
@@ -107,6 +116,14 @@ final class PythonLegacyMerge {
 
     private static boolean sameIdentity(JSONObject a, JSONObject b) {
         return kind(a).equals(kind(b)) && name(a).equals(name(b));
+    }
+
+    private static int findNamed(JSONArray baselines, Set<Integer> used, String kind, String name) {
+        for (int i = 0; i < baselines.length(); i++) {
+            JSONObject candidate = baselines.getJSONObject(i);
+            if (!used.contains(i) && kind(candidate).equals(kind) && name(candidate).equals(name)) return i;
+        }
+        return -1;
     }
 
     /** By kind and name; or, for a renamed object, the unused one of the same kind that is otherwise identical. */

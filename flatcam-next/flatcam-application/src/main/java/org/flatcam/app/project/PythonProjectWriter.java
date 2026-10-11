@@ -28,10 +28,12 @@ public final class PythonProjectWriter {
                 // What the FX writes for the project exactly as it opened it: the reference for "unchanged".
                 baseline = toRoot(PythonProjectIO.decode(legacy.original()));
             } catch (IOException | RuntimeException unavailable) {
-                // The opened project has no legacy representation of its own: nothing to compare with.
-                baseline = null;
+                // Never silently turn a preservation save into a lossy fresh export.
+                throw new IOException("Nao foi possivel verificar a preservacao do projeto Python original. "
+                        + "Salve em .fcnproj e confira a origem antes de exportar .FlatPrj.", unavailable);
             }
-            if (baseline != null) root = PythonLegacyMerge.merge(ProjectFileIO.parseRoot(legacy.original()), baseline, root);
+            root = PythonLegacyMerge.merge(ProjectFileIO.parseRoot(legacy.original()), baseline, root,
+                    legacy.objectOrigins());
         }
         ProjectFileIO.writeRoot(root, path, compressed);
     }
