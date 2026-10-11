@@ -2096,7 +2096,9 @@ um buffer de 1e-6. Detalhes em [MATRIZ_PARIDADE.md](MATRIZ_PARIDADE.md).
 salvar em `.FlatPrj`: o que o FX não alterou volta como estava no original (preferências, opções por objeto, macros,
 formatos, parâmetros de CNC Job, ordem dos objetos, scripts e documentos); o que alterou é substituído só onde mudou.
 Projeto real: 0 diferenças em 21 objetos / 1541 valores / 550 preferências após abrir e salvar pelo aplicativo ao vivo;
-serializadores reais do Python aceitam o original, o salvo e uma versão editada. Limites e validação em
+serializadores reais do Python aceitam o original, o salvo e uma versão editada. O aplicativo FlatCAM Python real
+(fora da tela, isolado; `tools/open_in_python_app.py`) abre e regrava os arquivos do FX, e o FX reabre o que ele gravou;
+essa cadeia revelou e corrigiu a Geometry vazia nos dois sentidos. Limites e validação em
 [COMPATIBILIDADE_FLATPRJ.md](COMPATIBILIDADE_FLATPRJ.md).
 
 ### 9.2 Transformations - concluído nesta revisão (ver seção 4)

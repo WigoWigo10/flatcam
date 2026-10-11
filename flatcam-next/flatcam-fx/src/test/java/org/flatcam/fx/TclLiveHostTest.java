@@ -652,9 +652,17 @@ class TclLiveHostTest {
     private static String quoted(Path file) { return "{" + file.toString().replace('\\', '/') + "}"; }
 
     private static void assertNoSaveStages(Path directory) throws Exception {
-        try (var files = Files.list(directory)) {
-            assertTrue(files.noneMatch(file -> file.getFileName().toString().endsWith(".tmp")), "save stages leaked");
+        // On Windows a deleted or replaced file stays listed while another process (antivirus, indexer) still holds
+        // it open: give such a pending delete a moment. A stage that was really left behind is still there after it.
+        List<String> stages = List.of();
+        for (int attempt = 0; attempt < 20; attempt++) {
+            try (var files = Files.list(directory)) {
+                stages = files.map(file -> file.getFileName().toString()).filter(name -> name.endsWith(".tmp")).toList();
+            }
+            if (stages.isEmpty()) return;
+            Thread.sleep(100);
         }
+        assertTrue(stages.isEmpty(), "save stages leaked: " + stages);
     }
 
     private static TreeItem<String> namedItem(Session session, String name) throws Exception {

@@ -145,7 +145,8 @@ public final class PythonProjectIO {
                             "Geometry multi-tool sem caminhos da ferramenta " + id);
                     paths = geometry;
                 }
-                if (paths == null) throw new IllegalArgumentException("Geometry sem caminhos da ferramenta " + id);
+                // A blank Geometry ("New Geometry" in the Python application): one tool defined, nothing drawn yet.
+                if (paths == null || paths.isEmpty()) continue;
                 tools.add(new ToolGeometry(tool.getDouble("tooldia"), paths,
                         ToolProfile.fromLegacy(tool.optString("tool_type", "C1"))));
             }

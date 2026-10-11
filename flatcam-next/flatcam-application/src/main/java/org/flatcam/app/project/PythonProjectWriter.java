@@ -130,6 +130,13 @@ public final class PythonProjectWriter {
         JSONObject object = new JSONObject().put("kind", "geometry").put("units", entry.units())
                 .put("solid_geometry", parts(entry.geometry())).put("follow_geometry", new JSONArray())
                 .put("multigeo", !entry.tools().isEmpty()).put("options", options(entry.name(), entry.visible(), entry.geometry()));
+        if (entry.geometry() == null || entry.geometry().isEmpty()) {
+            // A blank Geometry, written the way the Python application writes its own ("New Geometry"): no solid
+            // geometry at all, multigeo, zero bounds. With an empty list instead, Python computes infinite bounds
+            // when it opens the project and then cannot save it ("Out of range float values are not JSON compliant").
+            object.put("solid_geometry", JSONObject.NULL).put("multigeo", true);
+            object.getJSONObject("options").put("xmin", 0).put("ymin", 0).put("xmax", 0).put("ymax", 0);
+        }
         JSONObject tools = new JSONObject();
         List<ToolGeometry> paths = entry.tools().isEmpty()
                 ? List.of(new ToolGeometry(entry.cncSettings() != null && entry.cncSettings().singleToolDiameter() != null

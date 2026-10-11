@@ -46,8 +46,39 @@ O que ainda **não** é compatibilidade total:
 - Continuam recusados na exportação: exclusões de Drilling/CNC, sondagem, programas ICP/HPGL/Roland e projetos com
   unidades mistas, mesmo que o objeto não tenha sido tocado.
 - As preferências do projeto são preservadas, **não aplicadas**: o FX não passa a usar as 550 opções do Python.
-- Nada disso foi conferido abrindo o arquivo na janela do FlatCAM Python; a validação usa os serializadores reais,
-  sem interface.
+- A conferência **visual** na janela do FlatCAM Python continua por fazer: o aplicativo real foi executado fora da
+  tela (seção abaixo), o que prova abrir, listar, calcular limites e salvar, não como o plot aparece.
+
+## Conferido no aplicativo FlatCAM Python real — 2026-10-10
+
+`tools/open_in_python_app.py` inicia o **aplicativo** (`app_Main.App`, com a coleção de objetos e os próprios
+`open_project`/`save_project`), não só os serializadores. Roda fora da tela (plataforma Qt "offscreen", `--headless=1`)
+e isolado: a pasta de configurações e o QSettings são redirecionados para uma pasta temporária, então as preferências
+e as listas de recentes do usuário não são lidas nem gravadas (conferido pelas datas dos arquivos em `%APPDATA%\FlatCAM`).
+
+Cadeia executada com o projeto real (21 objetos), Python 3.11 + Shapely 1.8.5:
+
+1. O FX (aplicativo ao vivo, em teste) abre o original e salva `real-live-roundtrip.FlatPrj` e uma versão editada
+   (Gerber ocultado, Excellon deslocado, CNC Job excluído, Geometry nova).
+2. O aplicativo Python abre cada um, sem mensagens de erro, com as contagens certas, calcula os limites de todos os
+   objetos e **salva o projeto de novo**.
+3. O que o Python grava depois de abrir o arquivo do FX é idêntico ao que grava depois de abrir o original
+   (0 diferenças em 21 objetos / 1541 valores / 550 preferências).
+4. O FX reabre os arquivos regravados pelo Python e os salva outra vez sem perder nada (0 diferenças).
+
+Dois defeitos reais apareceram nessa cadeia e foram corrigidos:
+
+- **Geometry vazia criada no FX:** o Python abria o projeto, mas não conseguia mais salvá-lo ("Out of range float
+  values are not JSON compliant"): com `solid_geometry: []` ele calcula limites infinitos. O FX agora escreve a
+  Geometry vazia como o próprio Python escreve a dele (`solid_geometry: null`, multigeo, limites zero).
+- **Geometry vazia criada no Python ("New Geometry"):** o FX recusava o projeto inteiro ("Geometry sem caminhos da
+  ferramenta 1"). Agora abre como uma Geometry vazia.
+
+```powershell
+& target\oracle-py311\Scripts\python.exe tools\open_in_python_app.py --legacy-root .. <arquivo.FlatPrj> `
+    --resave target\saida.FlatPrj --report targetelatorio.json
+python tools\compare_flatprj_roundtrip.py <original.FlatPrj> <salvo.FlatPrj> --strict
+```
 
 ## Formatos no diálogo Salvar Projeto
 
