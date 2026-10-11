@@ -1,5 +1,23 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Receitas NCC panelizadas ISO/offset — 2026-10-11
+
+Suíte opt-in `compare-panelized-flows.ps1 -AdvancedRecipes`: Lines/Rest,
+Combo, margem, offset e duas ISO antes de CLEAR/Rest, com comparação CAM e
+G-code por fresa. O oráculo executa generate_envelope e os handlers GUI
+originais, não uma área produzida pelo FX. Corrigida a preparação em duas
+expansões: ISO GEOS 64, depois offset GEOS 16. Mesmos critérios e fonte Python.
+
+Público 2x2 MM/IN: **34/34 MATCH_SAMPLED**, strict 0; antes, 26/34.
+São 28 NCC ampliados e seis controles repetidos Isolation/Cutout. F/B
+sintéticos usam cobre igual; o corpus não certifica todas as ordens/receitas.
+Host real concluiu CAM/CNC e persistência. Oráculo privado: **14 matches,
+uma diferença de área ISO/offset B_Cu e dois erros originais**, strict exit 1.
+Os caminhos/G-code por fresa passam mesmo na diferença, mas a área preparada
+não passa; não se alteraram os critérios. Detalhes e próxima investigação em
+[PANELIZED_NCC.md](PANELIZED_NCC.md). O ValueError original de offset
+sem ISO sobre [MultiPolygon] continua reprovação, não paridade automática.
+
 ## NCC margem zero, Rest e Itself — correção final 2026-10-10
 
 Preparação por membro em margem zero, residual Rest sem união antecipada e

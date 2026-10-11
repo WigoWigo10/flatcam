@@ -1,6 +1,18 @@
 # Fluxos principais — critérios e validação
 
-## Estado atual — 2026-10-10
+## Estado atual — 2026-10-11
+
+Receitas NCC panelizadas ampliadas: Lines/Rest, Combo, margem/offset e ISO
+antes de CLEAR/Rest. A preparação ISO/offset foi corrigida; o host público
+MM/IN passou **34/34 comparações amostradas** com os handlers Python originais.
+O host também concluiu CAM/CNC e salvar/reabrir o projeto real na suíte
+ampliada; o oráculo privado ficou em **14 matches, uma divergência de área
+ISO/offset B_Cu e dois erros originais Python** (strict reprovado). Caminhos
+e G-code por fresa passam na divergência, mas isso não aprova a área preparada.
+Resultado, próxima investigação e limitações
+em [PANELIZED_NCC.md](PANELIZED_NCC.md). O erro original Python de offset sem
+ISO sobre [MultiPolygon] permanece, assim como receitas fora do corpus e
+validação visual/física. Não declarar os fluxos 100% por esses controles.
 
 O histórico abaixo registra etapas anteriores; o estado atual é consolidado
 em [CONTEXTO_E_PROGRESSO.md](CONTEXTO_E_PROGRESSO.md) e

@@ -86,6 +86,33 @@ class MainPanelizedCamFlowTest {
     }
 
     private record Grid(int columns, int rows, double spacingXmm, double spacingYmm) { }
+    private record NccRecipe(String id, boolean reference, boolean rest, boolean connect,
+                             NccMethod method, double marginMm, double offsetMm, List<Double> isoMm) { }
+
+    private static List<NccRecipe> recipes(boolean advanced) {
+        if (advanced) return List.of(
+                new NccRecipe("ncc-lines-reference", true, false, false, NccMethod.LINES, 0, 0, List.of()),
+                new NccRecipe("ncc-lines-rest-reference", true, true, false, NccMethod.LINES, 0, 0, List.of()),
+                new NccRecipe("ncc-combo-itself", false, false, false, NccMethod.COMBO, 0, 0, List.of()),
+                new NccRecipe("ncc-offset-reference", true, false, false, NccMethod.STANDARD, .6, .1, List.of()),
+                new NccRecipe("ncc-iso-reference", true, false, false, NccMethod.STANDARD, .6, 0, List.of(.1, .3)),
+                new NccRecipe("ncc-iso-rest-reference", true, true, false, NccMethod.STANDARD, .6, 0, List.of(.1, .3)),
+                new NccRecipe("ncc-iso-offset-reference", true, false, false, NccMethod.STANDARD, .6, .1, List.of(.1, .3)));
+        var recipes = new ArrayList<NccRecipe>();
+        for (boolean reference : List.of(true, false)) for (boolean rest : List.of(false, true))
+            for (boolean connect : List.of(false, true)) recipes.add(new NccRecipe(
+                    "ncc-" + (rest ? "rest-" : "") + (reference ? "reference-geometry" : "itself")
+                            + (connect ? "-connect" : ""), reference, rest, connect, NccMethod.STANDARD, 0, 0, List.of()));
+        return recipes;
+    }
+
+    @ParameterizedTest @org.junit.jupiter.params.provider.ValueSource(strings = {"MM", "IN"})
+    void advancedPanelizedRecipesKeepToolAssignmentsAndRoundTrip(String units) throws Exception {
+        String publicOutput = System.getProperty("flatcam.panelized.public.output");
+        Path directory = publicOutput == null || publicOutput.isBlank() ? temporary.resolve("advanced-" + units)
+                : safeOutput(Path.of(publicOutput).resolve(units + "-2x2"));
+        run(synthetic(units), directory, null, new Grid(2, 2, 5, 5), true);
+    }
 
     @ParameterizedTest @CsvSource({"MM,2,2,5,5", "IN,2,2,5,5", "MM,3,1,0,0",
             "IN,3,1,0,0", "MM,1,3,2,7", "IN,1,3,2,7"})
@@ -166,12 +193,16 @@ class MainPanelizedCamFlowTest {
     }
 
     private void run(Input input, Path output, Path source, Grid grid) throws Exception {
+        run(input, output, source, grid, Boolean.getBoolean("flatcam.panelized.advancedRecipes"));
+    }
+    private void run(Input input, Path output, Path source, Grid grid, boolean advanced) throws Exception {
         Files.createDirectories(output);
         double u = input.units().equals("IN") ? 1 / 25.4 : 1;
         var layout = Panelize.layout(input.outline().image().bounds(), grid.columns(), grid.rows(),
                 grid.spacingXmm() * u, grid.spacingYmm() * u, Double.NaN, Double.NaN);
         int copies = layout.offsets().size();
         var summary = new JSONObject().put("scope", "MainWindow jobs without Stage; no physical machining or FPS measurement")
+                .put("recipeSuite", advanced ? "advanced" : "standard-rest-connect")
                 .put("units", input.units()).put("columns", grid.columns()).put("rows", grid.rows())
                 .put("spacingX", grid.spacingXmm() * u).put("spacingY", grid.spacingYmm() * u);
         var results = new JSONArray(); summary.put("operations", results);
@@ -227,10 +258,9 @@ class MainPanelizedCamFlowTest {
                 for (double[] offset : layout.offsets()) assertFalse(intersection(isoEntry.geometry(),new TransformOp.Offset(offset[0], offset[1])
                         .apply(original.image().solidGeometry()).getEnvelope().buffer(u)).isEmpty(), "Isolation must reach every board");
                 JSONArray cases = new JSONArray().put(isoCase);
-                for (boolean reference : List.of(true, false)) for (boolean rest : List.of(false, true))
-                    for (boolean connect : List.of(false, true)) {
+                for (var recipe : recipes(advanced)) {
                         cases.put(nccCase(s, input, output, board, boundaryItem, copper, item,
-                                layout, reference, rest, connect, results));
+                                layout, recipe, results));
                     }
                 var metadata = new JSONObject().put("columns", grid.columns()).put("rows", grid.rows())
                         .put("spacingX", grid.spacingXmm() * u).put("spacingY", grid.spacingYmm() * u)
@@ -320,15 +350,16 @@ class MainPanelizedCamFlowTest {
     private JSONObject nccCase(MainCamFlowTest.Session s, Input input, Path output,
                                ProjectFile.GeometryEntry board, TreeItem<String> boundaryItem,
                                ProjectFile.GerberEntry copper, TreeItem<String> item, Panelize.Layout layout,
-                               boolean reference, boolean rest, boolean connect, JSONArray results) throws Exception {
+                               NccRecipe recipe, JSONArray results) throws Exception {
         double u = input.units().equals("IN") ? 1 / 25.4 : 1;
-        String id = "ncc-" + (rest ? "rest-" : "") + (reference ? "reference-geometry" : "itself")
-                + (connect ? "-connect" : "");
+        String id = recipe.id();
+        boolean reference = recipe.reference(), rest = recipe.rest(), connect = recipe.connect();
         var before = geometryNames(s); long began = System.nanoTime();
         NccBoundary boundary = reference ? new NccBoundary.ReferenceGeometry(board.geometry()) : new NccBoundary.Itself();
         // Deliberately entered small-first: Rest must process largest-first.
-        var params = new NccParameters(rest ? List.of(.2*u, u) : List.of(.5*u), .4, 0,
-                NccMethod.STANDARD, connect, true, 0, rest, NccOrder.NONE, boundary, List.of());
+        var params = new NccParameters(rest ? List.of(.2*u, u) : List.of(.5*u), .4, recipe.marginMm()*u,
+                recipe.method(), connect, true, recipe.offsetMm()*u, rest, NccOrder.NONE, boundary,
+                recipe.isoMm().stream().map(d -> d*u).toList());
         var ncc = new NccToolPanel.Result(new NccToolPanel.SourceCandidate(item, copper.name(), input.units(), true,
                 copper.image().solidGeometry()), params, false, Map.of(), reference
                 ? new NccToolPanel.ReferenceCandidate(boundaryItem, board.name(), false, board.geometry()) : null);
@@ -345,11 +376,14 @@ class MainPanelizedCamFlowTest {
         // Assertion-only robust overlay: classic line/polygon difference may
         // throw on almost coincident vertices in dense, otherwise valid paths.
         // Does not snap, repair or alter the exported production CAM paths.
-        if (reference) assertTrue(difference(entry.geometry(), board.geometry().buffer(1e-7*u)).getLength() < 1e-6*u,
-                id + " must not clear the spaces between boards or internal cutouts");
+        if (reference) assertTrue(difference(entry.geometry(), org.locationtech.jts.operation.buffer.BufferOp.bufferOp(
+                board.geometry(), (recipe.marginMm()+1e-7)*u, new org.locationtech.jts.operation.buffer.BufferParameters(
+                16, org.locationtech.jts.operation.buffer.BufferParameters.CAP_FLAT,
+                org.locationtech.jts.operation.buffer.BufferParameters.JOIN_MITRE, 5))).getLength() < 1e-6*u,
+                id + " must remain inside the reference with its explicitly selected margin");
         else {
             Geometry hull = copper.image().solidGeometry().convexHull();
-            assertTrue(difference(entry.geometry(), hull.buffer(1e-7*u)).getLength() < 1e-6*u,
+            assertTrue(difference(entry.geometry(), hull.buffer((recipe.marginMm()+1e-7)*u)).getLength() < 1e-6*u,
                     "Itself follows the copper convex hull, not individual board outlines");
             if (layout.columns()*layout.rows() > 1) assertTrue(difference(result.clearingArea(),board.geometry()).getArea() > 0,
                     "Itself may clear spaces between copies; this is its documented semantics");
@@ -363,7 +397,10 @@ class MainPanelizedCamFlowTest {
         }
         var nonempty = result.toolResults().stream().filter(t -> !t.isEmpty()).toList();
         assertEquals(nonempty.size(), entry.tools().size(), "Published paths must stay associated with their cutters");
-        if (rest) assertEquals(u, result.toolResults().getFirst().toolDiameter(), "Rest must ignore input order");
+        if (rest) assertEquals(u, result.toolResults().stream().filter(t -> t.operation() == NccOperation.CLEAR)
+                .findFirst().orElseThrow().toolDiameter(), "Rest must ignore input order after ISO");
+        assertEquals(params.isolationToolDiameters(), result.toolResults().stream()
+                .filter(t -> t.operation() == NccOperation.ISO).map(NccToolResult::toolDiameter).toList());
         var form = MainIsolationMachiningTest.cnc(entry);
         assertEquals(entry.tools(), form.tools(), "CNC form must retain per-tool paths and order");
         for (int i=0; i<nonempty.size(); i++) {
@@ -371,18 +408,21 @@ class MainPanelizedCamFlowTest {
             assertTrue(nonempty.get(i).geometry().equalsExact(entry.tools().get(i).geometry()));
         }
         for (var tool : result.toolResults()) toolResults.put(new JSONObject().put("diameter",tool.toolDiameter())
+                .put("operation",tool.operation().name())
                 .put("fxWkt",WKT.write(tool.geometry())).put("fxFailedPolygons",tool.failedPolygonCount())
                 .put("gcode",tool.isEmpty() ? "" : GCodeGenerator.generateGeometryCncJob(input.units(), tool.geometry(),
                         testCncParameters(u, false), tool.toolDiameter(), () -> false).gcode()));
-        var json = new JSONObject().put("method","STANDARD").put("overlap",.4).put("margin",0)
+        var json = new JSONObject().put("method",recipe.method().name()).put("overlap",.4).put("margin",params.margin())
                 .put("connect",connect).put("contour",true).put("boundary",reference ? "reference-geometry" : "itself")
                 .put("fxClearingAreaWkt",WKT.write(result.clearingArea())).put("fxFailedPolygons",result.totalFailedPolygonCount());
         if (reference) json.put("referenceWkt",WKT.write(board.geometry()));
-        if (rest) json.put("restMachining",true).put("order","NONE").put("copperOffset",0)
-                .put("tools",tools).put("fxToolResults",toolResults);
+        if (rest || advancedRecipe(recipe)) json.put("restMachining",rest).put("order","NONE")
+                .put("copperOffset",params.copperOffset()).put("isoTools",new JSONArray(params.isolationToolDiameters()))
+                .put("millingType",params.millingType().name()).put("tools",tools).put("fxToolResults",toolResults);
         return export(s, output, entry, id, "ncc", copper.image().solidGeometry(), rest ? .2*u : .5*u,
                 json, elapsed(began), results);
     }
+    private static boolean advancedRecipe(NccRecipe recipe) { return !recipes(false).contains(recipe); }
     private static GeometryGCodeParameters testCncParameters(double u, boolean multiTool) {
         return new GeometryGCodeParameters(3*u, .1*u, false, 0, 120*u, 0,
                 multiTool, 0, null, 50*u, false, 0, false, 0);

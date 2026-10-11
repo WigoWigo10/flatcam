@@ -202,7 +202,7 @@ def compile_ncc_gui(root):
         raise ValueError("Legacy GUI NCC initializer layout changed")
     namespace = compile_plugin_methods(root,"ToolNCC.py","NonCopperClear",
             {"calculate_bounding_box","apply_margin_to_bounding_box","get_tool_empty_area",
-             "get_ncc_empty_area","clear_polygon_worker","geometry_parts","poly2rings"})
+             "get_ncc_empty_area","clear_polygon_worker","geometry_parts","poly2rings","generate_envelope"})
     namespace.update(deepcopy=deepcopy,Iterable=Iterable,np=np,QtWidgets=QtWidgets,
                      grace=GracefulException,BaseGeometry=namespace["base"].BaseGeometry)
     exec(compile(ast.Module(body=initializers,type_ignores=[]),str(source),"exec"),namespace)
@@ -226,26 +226,50 @@ def legacy_ncc_tools(case, engine, root, cache):
     params = case["parameters"]
     rest = params["restMachining"]
     tools = params["tools"]
+    iso_tools = params.get("isoTools", [])
+    if any(not math.isfinite(diameter) or diameter <= 0 for diameter in iso_tools):
+        raise ValueError("Invalid ISO tool diameter in comparison fixture")
+    if len(set(iso_tools)) != len(iso_tools) or set(iso_tools) & {tool["diameter"] for tool in tools}:
+        raise ValueError("Ambiguous ISO/CLEAR tool diameters in comparison fixture")
+    milling_type = params.get("millingType", "CLIMB")
+    if milling_type not in ("CLIMB", "CONVENTIONAL"):
+        raise ValueError("Unsupported ISO milling direction in comparison fixture")
     settings = {i + 1:{"tooldia":tool["diameter"],"solid_geometry":[],"data":{
         "tools_ncc_overlap":tool["overlap"] * 100,
         "tools_ncc_method":["STANDARD","SEED","LINES","COMBO"].index(tool["method"]),
         "tools_ncc_connect":tool["connect"],"tools_ncc_contour":tool["contour"],
         "tools_ncc_offset_choice":tool["copperOffset"] != 0,"tools_ncc_offset_value":tool["copperOffset"]}}
         for i,tool in enumerate(tools)}
+    for diameter in iso_tools:
+        settings[len(settings) + 1] = {"tooldia":diameter,"solid_geometry":[],
+            "data":{"tools_ncc_operation":"iso"}}
     field = lambda value: SimpleNamespace(get_value=lambda:value)
     binding = SimpleNamespace(app=engine.app,circle_steps=64,decimals=engine.app.decimals,
         ncc_tools=deepcopy(settings),sel_rect=[],
         ui=SimpleNamespace(ncc_margin_entry=field(params["margin"]),
             rest_ncc_connect_cb=field(params["connect"]),rest_ncc_contour_cb=field(params["contour"]),
             rest_ncc_choice_offset_cb=field(params["copperOffset"] != 0),
-            rest_ncc_offset_spinner=field(params["copperOffset"])))
+            rest_ncc_offset_spinner=field(params["copperOffset"]),
+            milling_type_radio=field("cl" if milling_type == "CLIMB" else "cv")))
     for name in ("calculate_bounding_box","apply_margin_to_bounding_box","get_tool_empty_area",
-                 "get_ncc_empty_area","clear_polygon_worker"):
+                 "get_ncc_empty_area","clear_polygon_worker","generate_envelope"):
         setattr(binding,name,MethodType(namespace[name],binding))
+    # The original generate_envelope reads self.solid_geometry populated by
+    # get_tool_empty_area. Bind the actual CAM method to that input explicitly.
+    binding.isolation_geometry = lambda *args,**kwargs: engine.isolation_geometry(
+        *args,geometry=binding.solid_geometry,**kwargs)
     binding.geometry_parts = namespace["geometry_parts"]
     binding.poly2rings = namespace["poly2rings"]
     failures = 0
     attempted_order = []
+    attempted_iso_order = []
+    original_envelope = binding.generate_envelope
+    def capture_envelope(offset, *args, **kwargs):
+        diameter = offset * 2
+        if diameter not in attempted_iso_order:
+            attempted_iso_order.append(diameter)
+        return original_envelope(offset, *args, **kwargs)
+    binding.generate_envelope = capture_envelope
     worker_active = False
     # Observers keep actual clearing functions unchanged and count their None outputs.
     def observed(method):
@@ -299,7 +323,7 @@ def legacy_ncc_tools(case, engine, root, cache):
     namespace.update(self=binding,run_threaded=True,order={"NONE":"no","FORWARD":"fwd","REVERSE":"rev"}[params["order"]],
         sorted_clear_tools=[tool["diameter"] for tool in tools],ncc_select=selection,
         ncc_obj=SimpleNamespace(kind="gerber",solid_geometry=engine.solid_geometry),sel_obj=reference_obj,
-        isotooldia=[],name="headless-ncc",units=case["units"],prog_plot=False,tools_storage=deepcopy(settings))
+        isotooldia=iso_tools,name="headless-ncc",units=case["units"],prog_plot=False,tools_storage=deepcopy(settings))
     outcome = namespace["gen_clear_area_rest" if rest else "gen_clear_area"](obj,app)
     if outcome == "fail" or not obj.solid_geometry or not areas:
         raise ValueError("Original GUI NCC produced no output")
@@ -309,7 +333,8 @@ def legacy_ncc_tools(case, engine, root, cache):
         "pythonFailedPolygons":failures,"_toolPaths":tool_paths,
         # Normal GUI output dict keeps insertion order even when processing
         # was reversed. Observe actual clearing calls, not that storage order.
-        "pythonNonemptyToolOrder":[diameter for diameter in attempted_order
+        "pythonIsoAttemptedOrder":attempted_iso_order,
+        "pythonNonemptyToolOrder":[diameter for diameter in attempted_iso_order + attempted_order
                                     if diameter in tool_paths and not tool_paths[diameter].is_empty],
         "clearingAreaSymmetricDifference":unary_union(areas).symmetric_difference(wkt.loads(params["fxClearingAreaWkt"])).area,
         "clearingAreaMatches":unary_union(areas).symmetric_difference(wkt.loads(params["fxClearingAreaWkt"])).area

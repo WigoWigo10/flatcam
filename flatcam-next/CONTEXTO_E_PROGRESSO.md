@@ -1,5 +1,46 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuidade: receitas panelizadas ISO/offset — 2026-10-11
+
+Base `6913106e`, branch `flatcam-next`; incremento local sem commit/push.
+Novo runner `compare-panelized-flows.ps1 -AdvancedRecipes` mantém separada a
+matriz Standard/Rest/Connect anterior. Sete receitas ampliam Lines/Rest, Combo,
+margem 0,6 mm, offset 0,1 mm e ISO 0,1/0,3 mm antes de CLEAR/Rest. Público
+MM/IN 2x2, gaps 5 mm; F/B sintéticos iguais. Comparação CAM e parser G-code
+por fresa, incluindo ISO, pelo handler GUI original e generate_envelope.
+
+Defeito corrigido: a preparação somava raio ISO+offset com buffer JTS 64.
+Agora envelope ISO GEOS 64, seguido de offset GEOS 16 (padrão Shapely), como
+no Python. Contornos ISO usam o mesmo envelope GEOS; golden público de
+canto/furo com arcos densos prova a diferença e a área em MM/IN. Sem ISO/offset
+nada mudou; Rest/conector/tolerâncias/legado não foram alterados.
+
+Público: 34/34 MATCH_SAMPLED, strict 0 nos seis relatórios. São 28 NCC e seis
+controles repetidos Isolation/Cutout, não 34 receitas/fontes diferentes.
+Antes: 26/34; estágio intermediário JTS: 30/34. Só os artefatos finais do host
+contam: `target/advanced-panelized-public-final-20261011`. Probes são diagnósticos.
+Build completo passou em `target/advanced-main-flows-full-20261011.log`:
+1591 registrados, 1574 aprovados, 17 skips opcionais, zero falhas/erros
+(20 suporte + 716 CAM + 163 aplicação + 692 FX). 55 auxiliares Python passam.
+Parser PowerShell e diff check passam.
+
+Projeto real teve CAM/CNC e native save/reopen aprovados na suíte ampliada,
+com furos/slots, ferramentas e G-code preservados. Comparação independente
+Python em `target/advanced-panelized-real-final-20261011`: 14 MATCH_SAMPLED,
+1 DIFFERENT e 2 ORACLE_ERROR em 17 casos; strict exit 1. F_Cu: 7 matches e
+um erro; B_Cu: 6 matches, um erro e diferença ISO/offset; Cutout: um match.
+Na diferença B_Cu, CAM/G-code por fresa, ordem e contagem passam, mas a área
+preparada difere 7,0222756e-5 mm² e reprova o critério original relativo 1e-8.
+Causa residual ainda não estabelecida; investigar/localizar a diferença e
+criar regressão reduzida antes de nova correção. Não relaxar o critério nem
+inferir aprovação do oráculo pela aprovação do host. Fonte SHA-256 intacta.
+Offset sem ISO sobre [MultiPolygon] mantém o erro original Python e reprova
+strict. Não certificar ordem ISO invertida, receitas fora da matriz, UI visual
+ou segurança física. Alguns pequenos polígonos não admitem a fresa escolhida;
+matching da contagem de falhas não significa que todo o cobre foi removido.
+Contrato/reprodução: PANELIZED_NCC.md. `-DependencyPath` aceita dependências
+isoladas existentes sem instalação/mudança permanente de ambiente.
+
 ## Continuidade: correções da revisão da sessão Claude — 2026-10-11
 
 Base `c6bed2a1`, branch `flatcam-next`; correções reunidas nesta entrega

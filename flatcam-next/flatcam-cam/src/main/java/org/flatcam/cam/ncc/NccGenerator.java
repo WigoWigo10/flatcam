@@ -109,7 +109,7 @@ public final class NccGenerator {
         double initialOffset = params.restMachining() ? params.copperOffset()
                 : params.settingsFor(orderedTools.get(0)).copperOffset();
         Geometry clearingArea = clearingArea(boundary, cleanCopper,
-                isolationRadius + initialOffset);
+                isolationRadius, initialOffset);
         cancellation.throwIfCancellationRequested();
         progress.report(0.08);
 
@@ -121,7 +121,7 @@ public final class NccGenerator {
         double smallestToolOffset = Double.POSITIVE_INFINITY;
         for (double diameter : params.isolationToolDiameters()) {
             cancellation.throwIfCancellationRequested();
-            Geometry envelope = cleanCopper.buffer(diameter / 2.0, QUADRANT_SEGMENTS);
+            Geometry envelope = preciseRoundBuffer(cleanCopper, diameter / 2.0);
             List<LineString> rings = new ArrayList<>();
             collectIsoBoundaryLines(envelope, params.millingType(), rings);
             List<LineString> clipped = new ArrayList<>();
@@ -143,7 +143,7 @@ public final class NccGenerator {
             NccToolSettings settings = params.settingsFor(toolDiameter);
             Geometry areaForThisTool = params.restMachining() ? remainingArea
                     : areaByOffset.computeIfAbsent(settings.copperOffset(), offset ->
-                            clearingArea(boundary, cleanCopper, isolationRadius + offset));
+                            clearingArea(boundary, cleanCopper, isolationRadius, offset));
             // All tools share one boundary and their copper keep-outs are
             // nested. The union of their clearable areas is the one with the
             // smallest offset; no expensive polygon union is needed here.
@@ -229,9 +229,13 @@ public final class NccGenerator {
                 org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(requestedAreas), toolResults);
     }
 
-    private static Geometry clearingArea(Geometry boundary, Geometry copper, double keepOutOffset) {
-        Geometry keepOut = keepOutOffset == 0 ? copper
-                : copper.buffer(keepOutOffset, QUADRANT_SEGMENTS);
+    private static Geometry clearingArea(Geometry boundary, Geometry copper, double isolationRadius, double copperOffset) {
+        // ToolNCC.get_tool_empty_area first creates the ISO envelope with
+        // geo_steps_per_circle, then applies optional .buffer(ncc_offset)
+        // with Shapely's DEFAULT 16 quadrant segments. Combining the radii
+        // is not equivalent around corners, holes or narrow channels.
+        Geometry keepOut = isolationRadius == 0 ? copper : preciseRoundBuffer(copper, isolationRadius);
+        if (copperOffset != 0) keepOut = GeosBufferOp.bufferOp(keepOut, copperOffset, new BufferParameters(16));
         // GEOS 3.10 uses OverlayNG for polygon subtraction. JTS's default
         // classic overlay represents the same area but starts rings on different
         // vertices, changing paint_connect's endpoints and thus cutting moves.
@@ -416,11 +420,12 @@ public final class NccGenerator {
      * same real board copper disagreed by as much as ~0.021 mm by the time Rest Machining's later,
      * smaller tools ran; on the public synthetic fixtures this port's own output matches a real GEOS
      * 3.10.3/3.13.1 oracle to within floating-point noise (~1e-14 mm), at every resolution and pass
-     * tested. It is not a general buffer replacement: only Standard's repeated erosion and the Seed/
-     * Lines/Rest-Machining safe-area erosion in {@link #preciseRoundBuffer} switch to it.
+     * tested. It is not a general buffer replacement: Standard's repeated erosion and the Seed/
+     * Lines/Rest-Machining safe-area erosion use it via {@link #preciseRoundBuffer}.
      * GUI NCC Rest footprints also use it with the legacy default resolution 16,
-     * as do NCC's mitred margins. Copper offsets and Paint footprints retain
-     * their own policies.
+     * as do NCC's mitred margins. ISO envelopes use resolution 64 and subsequent
+     * copper offsets use 16, in distinct operations. Paint footprints retain
+     * their independent policies.
      */
     private static List<LineString> standardPaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                    CancellationToken cancellation) {

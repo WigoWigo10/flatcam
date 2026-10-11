@@ -9,9 +9,59 @@ from compare_cam_python import (classify_result, compile_rectangular_handler, co
                                isolation_exception_paths, ncc_boundary, leaves, lines, metrics, overlay,
                                sampled_distance, sampled_witness, gcode_metrics)
 from compare_cam_python import panelize_legacy_source, public_panelized_source
+from compare_cam_python import legacy_ncc_tools
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_original_iso_helper_keeps_two_cutters_before_clear_and_does_not_leak_between_cases(self):
+        import sys
+        import shapely
+        if int(shapely.__version__.split('.')[0]) >= 2:
+            self.skipTest("Original GUI ISO iteration requires the compatible Shapely 1.8 reference")
+        from shapely.ops import unary_union
+        root = self.legacy_root()
+        sys.path[:0] = [str(root), str(root / "tests")]
+        import camlib
+        from parser_baseline import install_stub_app
+        install_stub_app()
+        engine = camlib.Geometry()
+        engine.geo_steps_per_circle = 64
+        source = box(2, 2, 8, 6).difference(box(4, 3, 6, 5))
+        engine.solid_geometry = source
+        cache = {}
+        for iso_diameters, offset in (([.1, .3], 0), ([], .1), ([.1, .3], .1), ([], 0)):
+            envelope = source.buffer(max(iso_diameters)/2, resolution=64) if iso_diameters else source
+            if offset:
+                envelope = envelope.buffer(offset, resolution=16)
+            area = box(0, 0, 12, 10).buffer(.6, join_style=2).difference(envelope).buffer(0)
+            params = dict(restMachining=False, order="NONE", method="STANDARD", margin=.6,
+                connect=False, contour=True, copperOffset=offset, boundary="reference-geometry",
+                referenceWkt=box(0, 0, 12, 10).wkt, isoTools=iso_diameters,
+                tools=[dict(diameter=.5, overlap=.4, method="STANDARD", connect=False, contour=True, copperOffset=offset)],
+                fxClearingAreaWkt=area.wkt)
+            result, extra = legacy_ncc_tools(dict(units="MM", parameters=params), engine, root, cache)
+            self.assertEqual(iso_diameters + [.5], extra["pythonNonemptyToolOrder"])
+            self.assertEqual(iso_diameters, extra["pythonIsoAttemptedOrder"])
+            self.assertEqual(set(iso_diameters + [.5]), set(extra["_toolPaths"]))
+            self.assertTrue(extra["clearingAreaMatches"])
+            self.assertEqual(0, extra["pythonFailedPolygons"])
+            self.assertFalse(result.is_empty)
+            for diameter in iso_diameters:
+                expected = unary_union(lines(source.buffer(diameter/2, resolution=64)))
+                self.assertLess(sampled_distance(expected, extra["_toolPaths"][diameter]), 1e-12)
+            self.assertEqual(source.wkt, engine.solid_geometry.wkt)
+
+    def test_comparison_fixture_rejects_duplicate_or_ambiguous_iso_diameters(self):
+        for iso in ([.1, .1], [.5], [-.1], [float("nan")]):
+            case = dict(parameters=dict(restMachining=False, isoTools=iso,
+                tools=[dict(diameter=.5)]))
+            with self.assertRaisesRegex(ValueError,"Ambiguous ISO/CLEAR|Invalid ISO"):
+                legacy_ncc_tools(case, self.engine(box(0,0,1,1)), self.legacy_root(), {})
+        with self.assertRaisesRegex(ValueError,"Unsupported ISO milling"):
+            legacy_ncc_tools(dict(parameters=dict(restMachining=False, isoTools=[.1],
+                millingType="unknown", tools=[dict(diameter=.5)])),
+                self.engine(box(0,0,1,1)), self.legacy_root(), {})
+
     def test_public_panel_oracle_uses_original_inputs_not_the_fx_collection_or_clearing_area(self):
         from shapely.ops import unary_union
         from shapely.geometry import Point

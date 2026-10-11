@@ -1,5 +1,100 @@
 # NCC depois da panelização — matriz e limites (2026-10-10)
 
+## Receitas ampliadas e preparação ISO/offset — 2026-10-11
+
+Nova suíte opt-in `-AdvancedRecipes`, separada da matriz Standard/Rest/Connect
+abaixo. São sete receitas: Lines e Lines/Rest com Reference Geometry; Combo
+Itself; Standard com margem 0,6 mm e offset 0,1 mm; ISO/CLEAR, ISO/Rest e
+ISO/offset com referência. ISO usa duas fresas, 0,1 e 0,3 mm nessa ordem;
+CLEAR usa 0,5 mm, ou 1/0,2 mm no Rest. Valores são fixtures de comparação,
+**não recomendações de usinagem**. IN recebe todos os comprimentos convertidos.
+
+O host real MainWindow paneliza, publica CAM, conserva ferramentas no formulário
+CNC, gera/exporta programas multi-tool e salva/reabre o nativo. Não automatiza
+FileChooser, gestos visuais ou máquina. Furos/slots e contorno continuam sendo
+checados pelo FX; Cutout mantém a área preenchida explicitamente compartilhada.
+O público executa o ToolPanelize original sobre fontes sintéticas explícitas;
+F/B sintéticos são iguais, não quatro fontes independentes.
+
+A matriz encontrou um defeito na preparação do keep-out: o FX somava raio ISO
+e offset e bufferizava uma vez a 64 segmentos/quadrante. O Python gera primeiro
+o envelope ISO a 64, depois aplica offset com o padrão Shapely de 16. Agora são
+duas operações, com as regras GEOS já portadas para o FX em ambas, inclusive
+nos contornos ISO. Arcos densos também diferiam com o buffer nativo JTS na
+primeira operação. Sem ISO/offset, a preparação não foi alterada. Rest, conector,
+tolerâncias de comparação e código Python permanecem intactos.
+
+Regressão pública de canto/furo MM/IN compara a área com golden independente
+Shapely 1.8.5.post1/GEOS 3.10.3 e distingue a expansão antiga. O oráculo agora
+executa o `generate_envelope` original, observa a ordem ISO antes de CLEAR e
+compara CAM/G-code de **cada fresa**, incluindo ISO. Casos sem ISO continuam
+usando os mesmos helpers. Há regressões de isolamento entre execuções e de
+diâmetros ISO/CLEAR ambíguos; isso não normaliza a entrada do legado.
+
+Reprodução, na raiz do worktree:
+
+```powershell
+.\flatcam-next\compare-panelized-flows.ps1 -Project 'C:\caminho\projeto.FlatPrj' -AdvancedRecipes -Strict
+# Só o projeto privado; ainda confere original SHA-256 no finally.
+.\flatcam-next\compare-panelized-flows.ps1 -Project 'C:\caminho\projeto.FlatPrj' -AdvancedRecipes -SkipPublic -Strict
+```
+
+`-Python` e `-DependencyPath` opcionais permitem usar um executável compatível
+com dependências isoladas já existentes, sem instalar nada nem alterar o ambiente.
+Os logs são gravados continuamente em UTF-8 e a conclusão de cada receita é
+exibida no terminal; não é preciso esperar o processo inteiro para ler o log.
+Sem `-AdvancedRecipes`, a matriz anterior de seis grades públicas permanece.
+Com ele, o público cobre MM/IN 2x2, gaps 5 mm; o privado usa os parâmetros da
+grade informada. O ValueError legado em offset sem ISO sobre [MultiPolygon]
+continua sendo ORACLE_ERROR e reprova strict, nunca aprovação parcial automática.
+Ordem ISO invertida, outros parâmetros/grades/métodos e segurança física não
+estão certificados por essa suíte.
+
+Público final: **34/34 MATCH_SAMPLED**, strict 0 nos seis relatórios (MM/IN,
+duas rotas F/B e Cutout), zero diferenças/erros. São 28 casos NCC ampliados
+e seis controles Isolation/Cutout repetidos, não 34 fontes/receitas distintas.
+Antes da correção: 26/34, com oito diferenças em offset e ISO/offset. A etapa
+intermediária com dois buffers nativos JTS ainda deixou quatro ISO/offset
+diferentes; não conta como entrega aprovada. O teste com arcos densos também
+exigiu portar o buffer ISO inicial para as regras GEOS.
+Artefatos públicos: `target/advanced-panelized-public-final-20261011`;
+log do host: `target/advanced-panelized-public-final-20261011.log`.
+Os probes `advanced-offset-geos-probe-*` são diagnósticos, não resultados do host.
+
+Projeto real, face F_Cu: **7 MATCH_SAMPLED + 1 ORACLE_ERROR**, sem divergência
+CAM/G-code ou contagem/ordem por fresa. O erro é `ncc-offset-reference`,
+ValueError original da lista de MultiPolygon sem ISO. ISO, ISO/Rest e ISO/offset
+passam; neste último, distância amostrada combinada ~2,49e-8 mm e delta de área
+~1,60e-6 mm², dentro dos critérios originais. O controle anterior desse caso
+era PARTIAL_DIFFERENCE, com distância ~0,00307 mm e delta ~0,02432 mm².
+Mesmo contando as 248 regiões não usinadas pelas duas implementações, os
+caminhos/ordem/programas de cada fresa coincidem pelos critérios. Isto não
+significa cobre completamente removido por essa receita. Relatório privado:
+`target/advanced-panelized-real-final-20261011/f-cu/report.json`.
+O host real passou native save/reopen, registro de furos/slots e ferramentas;
+fonte SHA-256 intacta.
+
+Resultado privado completo: **14 MATCH_SAMPLED + 1 DIFFERENT + 2 ORACLE_ERROR**
+em 17 casos. B_Cu teve seis matches, o mesmo erro original de offset sem ISO
+e uma diferença em `ncc-iso-offset-reference`; Cutout teve um match. Strict
+terminou com exit 1: os dois erros do legado e a divergência não contam como
+paridade. Resumo: `target/advanced-panelized-real-final-20261011/comparison-summary.json`.
+
+Na divergência B_Cu, os caminhos e G-code de cada fresa (ISO 0,1/0,3 e CLEAR
+0,5 mm), ordem e contagem de falhas passam. A área preparada ainda difere em
+**7,0222756e-5 mm²**, acima do critério relativo existente de 1e-8. Distância
+amostrada combinada dos caminhos ~3,40e-8 mm; 256 regiões não usinadas nas duas
+implementações. Isso não autoriza ignorar a área nem afirmar equivalência
+exata. A causa residual não foi estabelecida nesta rodada. Próxima investigação:
+localizar a diferença de área nessa receita B_Cu e isolar uma regressão pequena
+antes de alterar buffer/overlay ou repetir o oráculo privado demorado.
+Relatório: `target/advanced-panelized-real-final-20261011/b-cu/report.json`.
+
+Validação geral: build completo `target/advanced-main-flows-full-20261011.log`
+aprovado (1591 testes registrados, 1574 aprovados, 17 skips opcionais), mais
+55 testes auxiliares Python. A comparação numérica não certifica UI visual,
+segurança física ou receitas fora da matriz. Incremento ainda sem commit/push.
+
 ## Correção da margem zero e dos resíduos Rest
 
 Esta implementação sucede a matriz de `ab93fc18`. O histórico de reprovações

@@ -29,6 +29,36 @@ import org.junit.jupiter.api.Test;
 
 class NccGeneratorTest {
     @Test
+    void offsetUsesDefaultArcsAfterTheIsoEnvelopeRatherThanAddingRadii() {
+        for (double scale : List.of(1., 1/25.4)) {
+            Geometry copper = FACTORY.toGeometry(new Envelope(1*scale, 8*scale, 1*scale, 7*scale))
+                    .difference(FACTORY.createPoint(new Coordinate(4*scale, 4*scale)).buffer(scale, 64));
+            Geometry reference = FACTORY.toGeometry(new Envelope(0, 12*scale, 0, 10*scale));
+            String original = copper.toText();
+            for (double isoDiameter : List.of(0., .3*scale)) {
+                var params = new NccParameters(List.of(.5*scale), .4, 0, NccMethod.STANDARD,
+                        false, true, .1*scale, false, NccOrder.NONE, new NccBoundary.ReferenceGeometry(reference),
+                        isoDiameter == 0 ? List.of() : List.of(isoDiameter));
+                var result = NccGenerator.generate(scale == 1 ? "MM" : "IN", copper, params);
+                Geometry iso = isoDiameter == 0 ? copper : org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(
+                        copper, isoDiameter/2, new org.locationtech.jts.operation.buffer.BufferParameters(64));
+                Geometry expected = reference.difference(org.flatcam.cam.ncc.geosbuffer.GeosBufferOp.bufferOp(
+                        iso, .1*scale, new org.locationtech.jts.operation.buffer.BufferParameters(16)));
+                Geometry oldCombined = reference.difference(copper.buffer(isoDiameter/2 + .1*scale, 64));
+                assertEquals(0, result.clearingArea().symDifference(expected).getArea(), 1e-12*scale*scale);
+                // Independent Shapely 1.8.5.post1 / GEOS 3.10.3 golden on
+                // this public corner + hole source, with the two-stage recipe.
+                double pythonArea = isoDiameter == 0 ? 77.91302650949014 : 73.0705427867831;
+                assertEquals(pythonArea*scale*scale, result.clearingArea().getArea(), 1e-10*scale*scale);
+                assertTrue(result.clearingArea().symDifference(oldCombined).getArea() > 1e-8*scale*scale,
+                        "The public corner/hole fixture must actually distinguish the old preparation");
+                assertEquals(original, copper.toText());
+                assertEquals(0, result.totalFailedPolygonCount());
+            }
+        }
+    }
+
+    @Test
     void restBuffersTheOverlappingSweptPathsBeforePreparingTheNextTool() throws Exception {
         var clear = NccGenerator.class.getDeclaredMethod("clearArea",Geometry.class,double.class,
                 NccToolSettings.class,boolean.class,CancellationToken.class,java.util.function.DoubleConsumer.class);
