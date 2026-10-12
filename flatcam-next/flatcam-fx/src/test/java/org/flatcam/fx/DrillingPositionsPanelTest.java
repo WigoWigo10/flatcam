@@ -21,7 +21,7 @@ class DrillingPositionsPanelTest {
     private DrillGCodeToolPanel.SourceCandidate source(String name, boolean saved) {
         var image = new ExcellonParser().parse(List.of("M48", "METRIC", "T1C1.0", "%", "T1", "X10.0Y0.0", "M30"));
         var settings = saved ? new DrillCncSettings(GCodePreprocessor.DEFAULT,
-                new GCodeGenerator.DrillJobOptions(true, 15, .5, null, null).withPositions(20.0, 0.0, 5.0),
+                new GCodeGenerator.DrillJobOptions(true, 15, .5, null, null).withPositions(20.0, 0.0, 5.0).withOptimizedDrills(true),
                 List.of(1), DrillCncSettings.ToolOrder.NO) : null;
         return new DrillGCodeToolPanel.SourceCandidate(new TreeItem<>(name), image,
                 Map.of(1, new DrillGCodeParameters(3, 1, 100, 0, saved)), settings);
@@ -45,6 +45,7 @@ class DrillingPositionsPanelTest {
             generate(root); assertNotNull(result.get()); assertEquals(saved.cncSettings(), result.get().cncSettings());
             var combo = (ComboBox<DrillGCodeToolPanel.SourceCandidate>) root.lookup("#drill-source");
             combo.setValue(clean);
+            assertFalse(((CheckBox)root.lookup("#drill-optimize-order")).isSelected());
             assertEquals("None", field(root, "start-z").getText());
             assertEquals("None", field(root, "tool-change-xy").getText());
             combo.setValue(saved); ((Button) root.lookup("#drill-reset")).fire();

@@ -25,7 +25,7 @@ class DrillingPositionsPersistenceTest {
         var image = new ExcellonParser().parse(List.of("M48", units.equals("MM") ? "METRIC" : "INCH",
                 "T1C" + scale, "%", "T1", "X" + 10 * scale + "Y0.0", "M30"));
         var options = new GCodeGenerator.DrillJobOptions(true, 15 * scale, .5 * scale, 0.0, 0.0)
-                .withPositions(20 * scale, 0.0, 5 * scale);
+                .withPositions(20 * scale, 0.0, 5 * scale).withOptimizedDrills(true);
         if (exclusions) options = options.withExclusions(true, List.of(CncExclusionArea.of(
                 new GeometryFactory().toGeometry(new Envelope(4 * scale, 6 * scale, -scale, scale)), CncExclusionArea.Strategy.AROUND, 0)));
         var settings = new DrillCncSettings(GCodePreprocessor.DEFAULT, options, List.of(1), DrillCncSettings.ToolOrder.NO);

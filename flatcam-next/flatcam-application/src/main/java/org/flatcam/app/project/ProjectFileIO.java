@@ -304,7 +304,7 @@ public final class ProjectFileIO {
                 .put("toolOrder", settings.toolOrder().name()).put("selectedToolIds", new JSONArray(settings.selectedToolIds()))
                 .put("pauseForToolChange", options.pauseForToolChange()).put("toolChangeZ", options.toolChangeZ())
                 .put("endMoveZ", options.endMoveZ()).put("endMoveX", options.endMoveX()).put("endMoveY", options.endMoveY())
-                .put("rapidFeedRate", options.rapidFeedRate())
+                .put("rapidFeedRate", options.rapidFeedRate()).put("optimizeDrills",options.optimizeDrills())
                 .put("startZ", options.startZ()).put("toolChangeX", options.toolChangeX()).put("toolChangeY", options.toolChangeY())
                 .put("exclusionsEnabled", options.exclusionsEnabled())
                 .put("exclusions", new JSONArray(options.exclusions().stream().map(area -> new JSONObject()
@@ -326,7 +326,8 @@ public final class ProjectFileIO {
                             json.optDouble("rapidFeedRate", 0), readProbeParameters(json.optJSONObject("probing")),
                             json.has("exclusionsEnabled") && json.getBoolean("exclusionsEnabled"),
                             readCncExclusions(json.has("exclusions") ? json.getJSONArray("exclusions") : null),
-                            optionalDouble(json, "startZ"), optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY")),
+                            optionalDouble(json, "startZ"), optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"))
+                            .withOptimizedDrills(json.has("optimizeDrills") && json.getBoolean("optimizeDrills")),
                     selected, DrillCncSettings.ToolOrder.valueOf(json.getString("toolOrder")));
         } catch (RuntimeException invalid) {
             throw new IOException("Configuracao CNC de Drilling invalida; nenhum perfil alternativo foi aplicado.", invalid);
@@ -377,11 +378,15 @@ public final class ProjectFileIO {
                 .put("extraCut", p.extraCut()).put("extraCutLength", p.extraCutLength());
         value.put("offset", p.offset().name()).put("customOffset", p.customOffset());
         var positions = p.jobOptions();
+        var route=positions.routing();
         value.put("jobOptions", new JSONObject().put("startZ", positions.startZ()).put("endZ", positions.endZ())
                 .put("endX", positions.endX()).put("endY", positions.endY()).put("toolChangeZ", positions.toolChangeZ())
                 .put("toolChangeX", positions.toolChangeX()).put("toolChangeY", positions.toolChangeY())
                 .put("exclusionsEnabled",positions.exclusionsEnabled()).put("exclusions",new JSONArray(positions.exclusions().stream()
                         .map(area -> new JSONObject().put("wkt",area.wkt()).put("strategy",area.strategy().name()).put("overZ",area.overZ())).toList())));
+        value.getJSONObject("jobOptions").put("routing",new JSONObject().put("mode",route.mode().name())
+                .put("preserveDirection",route.preserveDirection()).put("innerFirst",route.innerFirst())
+                .put("boardAreas",new JSONArray(route.boardAreas())).put("boardMargin",route.boardMargin()));
         if (p.probing() != null) value.put("probing", probeToJson(p.probing()));
         return value;
     }
@@ -453,7 +458,15 @@ public final class ProjectFileIO {
         if (json == null) return org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC;
         return new org.flatcam.cam.gcode.GeometryJobOptions(optionalDouble(json, "startZ"), optionalDouble(json, "endZ"),
                 optionalDouble(json, "endX"), optionalDouble(json, "endY"), optionalDouble(json, "toolChangeZ"),
-                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),json.optBoolean("exclusionsEnabled",false),readCncExclusions(json.optJSONArray("exclusions")));
+                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),json.optBoolean("exclusionsEnabled",false),readCncExclusions(json.optJSONArray("exclusions")))
+                .withRouting(readRouting(json.optJSONObject("routing")));
+    }
+    private static org.flatcam.cam.gcode.CncRouting readRouting(JSONObject json) {
+        if(json==null)return org.flatcam.cam.gcode.CncRouting.LEGACY;
+        List<String> boards=new ArrayList<>(); JSONArray array=json.getJSONArray("boardAreas");
+        for(int i=0;i<array.length();i++) boards.add(array.getString(i));
+        return new org.flatcam.cam.gcode.CncRouting(org.flatcam.cam.gcode.CncRouting.Mode.valueOf(json.getString("mode")),
+                json.getBoolean("preserveDirection"),json.getBoolean("innerFirst"),boards,json.getDouble("boardMargin"));
     }
 
     private static List<org.flatcam.cam.gcode.CncExclusionArea> readCncExclusions(JSONArray array) {

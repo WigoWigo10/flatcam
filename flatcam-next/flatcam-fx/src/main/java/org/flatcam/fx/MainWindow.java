@@ -6961,6 +6961,8 @@ final class MainWindow implements TclFlatcamHost {
                 () -> toolsDatabaseTools(LegacyToolsDatabase::millingTools),
                 (polygon,onSelected,onCancelled) -> beginNccAreaSelection(entry.geometry(),polygon?NccToolPanel.AreaShape.POLYGON:NccToolPanel.AreaShape.RECTANGLE,onSelected,onCancelled),
                 shape -> plotAreaView.setEditorHighlight(shape,false),
+                geometryByItem.entrySet().stream().filter(e -> CncRoutingFields.isArea(e.getValue().geometry()))
+                        .map(e -> new CncRoutingFields.Reference(e.getKey().getValue(),e.getValue().units(),e.getValue().geometry())).toList(),
                 result -> { plotAreaView.cancelPlacement(); clearToolOverlays(); runGeometryCncGeneration(item,entry,result); },
                 () -> { plotAreaView.cancelPlacement(); clearToolOverlays(); closeToolPanel(); }));
         activeToolCleanup=this::clearToolOverlays;

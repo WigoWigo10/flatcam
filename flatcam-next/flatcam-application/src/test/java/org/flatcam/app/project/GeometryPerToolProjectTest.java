@@ -24,7 +24,9 @@ class GeometryPerToolProjectTest {
     @Test void distinctParametersAndNewFieldsSurviveNativeSaveReload() throws Exception {
         var p = new GeometryGCodeParameters(3,0.2,true,0.05,200,10000,true,600,null,80,true,0.5,true,0.1)
                 .withCompensation(ToolPathOffset.CUSTOM,-0.15)
-                .withJobOptions(new GeometryJobOptions(4.0,0.5,10.0,20.0,15.0,0.0,0.0));
+                .withJobOptions(new GeometryJobOptions(4.0,0.5,10.0,20.0,15.0,0.0,0.0).withRouting(
+                        new org.flatcam.cam.gcode.CncRouting(org.flatcam.cam.gcode.CncRouting.Mode.BOARDS,true,true,
+                                List.of("POLYGON ((0 0,10 0,10 10,0 10,0 0))"),.2)));
         var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0), new Coordinate(1,1)});
         var settings = new GeometryCncSettings(GCodePreprocessor.GRBL_11, null, Map.of(), Map.of(0,p));
         var entry = new ProjectFile.GeometryEntry("paths", "", "MM", path, true, List.of(new ToolGeometry(0.3,path)), null,null,true,p,settings);

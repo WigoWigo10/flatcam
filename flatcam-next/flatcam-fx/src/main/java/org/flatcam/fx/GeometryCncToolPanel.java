@@ -78,6 +78,12 @@ final class GeometryCncToolPanel {
                       GeometryGCodeParameters defaults,GeometryCncSettings settings,
                       Supplier<List<LegacyToolsDatabase.MillingTool>> database,CncExclusionEditor.AreaSelector areaSelector,
                       Consumer<Geometry> exclusionPreview,Consumer<Result> onGenerate,Runnable onClose) {
+        return build(units,combinedGeometry,sourceTools,defaults,settings,database,areaSelector,exclusionPreview,List.of(),onGenerate,onClose);
+    }
+    static Node build(String units,Geometry combinedGeometry,List<ToolGeometry> sourceTools,
+                      GeometryGCodeParameters defaults,GeometryCncSettings settings,
+                      Supplier<List<LegacyToolsDatabase.MillingTool>> database,CncExclusionEditor.AreaSelector areaSelector,
+                      Consumer<Geometry> exclusionPreview,List<CncRoutingFields.Reference> references,Consumer<Result> onGenerate,Runnable onClose) {
         List<ToolGeometry> tools = new java.util.ArrayList<>(sourceTools);
         boolean metric = "MM".equalsIgnoreCase(units);
         boolean multiTool = !tools.isEmpty();
@@ -250,6 +256,7 @@ final class GeometryCncToolPanel {
         grid.addRow(row, new Label("Preprocessor:"), preprocessor);
 
         GeometryJobOptions savedPositions = defaults == null ? GeometryJobOptions.AUTOMATIC : defaults.jobOptions();
+        CncRoutingFields routing=new CncRoutingFields(units,savedPositions.routing(),references);
         TextField startZ = optionalField("cnc-start-z", savedPositions.startZ());
         TextField endZ = optionalField("cnc-end-z", savedPositions.endZ());
         TextField endXY = xyField("cnc-end-xy", savedPositions.endX(), savedPositions.endY());
@@ -396,6 +403,7 @@ final class GeometryCncToolPanel {
                 GeometryJobOptions positions = new GeometryJobOptions(parseOptional(startZ, "Start Z"), parseOptional(endZ, "End Z"),
                         end[0], end[1], parseOptional(changeZ, "Tool change Z"), change[0], change[1]);
                 positions=exclusions.applyTo(positions);
+                positions=positions.withRouting(unsupportedPositions.get() ? org.flatcam.cam.gcode.CncRouting.LEGACY : routing.options());
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),
@@ -509,7 +517,8 @@ final class GeometryCncToolPanel {
             box.getChildren().addAll(modeHelp, applyAll);
         }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
-        box.getChildren().addAll(commonDb.view(), positionsPane,exclusions.view(), probe.view(), profileHelp, errorLabel, generateButton, closeButton);
+        routing.view().disableProperty().bind(unsupportedPositions);
+        box.getChildren().addAll(commonDb.view(), positionsPane,routing.view(),exclusions.view(), probe.view(), profileHelp, errorLabel, generateButton, closeButton);
         box.setPadding(new Insets(12));
         if (settings != null) preprocessor.setValue(settings.preprocessor());
         if (settings != null && !settings.jobDefaultsByTool().isEmpty()) {

@@ -374,6 +374,8 @@ final class DrillGCodeToolPanel {
         endMoveZ.setId("drill-end-z");
         endMoveXY.setId("drill-end-xy");
         endMoveXY.setPromptText("None ou X,Y");
+        CheckBox optimizeDrills=new CheckBox("Otimizar sequência dos furos por proximidade"); optimizeDrills.setId("drill-optimize-order");
+        ToolDescriptions.apply(optimizeDrills,"Ordem dos furos","Visita o próximo furo mais perto dentro de cada ferramenta, partindo da posição real após a troca. Não elimina furos repetidos nem muda profundidades. Não mistura ferramentas ou slots, não garante ótimo global e usa distância direta, não custo dos desvios Around/Over.");
         endMoveXY.setTooltip(new Tooltip("Posição final X,Y; None mantém o último furo. Use X;Y para duas coordenadas. "
                 + "Mantém pelo menos o Travel Z da última ferramenta durante o deslocamento, mesmo sem exclusões; "
                 + "só depois alcança End move Z no destino. Around/Over também protegem a rota.\n\nAtenção: "
@@ -517,7 +519,7 @@ final class DrillGCodeToolPanel {
                         mechanicalChange, changeZ, endZ, end[0], end[1],
                         parse(rapidFeed.getText(), "Feed rapids"),
                         probing.get() ? probe.parameters() : null).withPositions(
-                                optionalNumber(startZ.getText(), "Start Z"), change[0], change[1]));
+                                optionalNumber(startZ.getText(), "Start Z"), change[0], change[1])).withOptimizedDrills(optimizeDrills.isSelected());
                 options.validateExclusions(preprocessor.getValue());
                 options.validatePositions(preprocessor.getValue());
                 if ((options.exclusionsEnabled() || options.toolChangeX() != null)
@@ -568,13 +570,14 @@ final class DrillGCodeToolPanel {
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
                 selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
-                heading("Common Parameters"), common, commonDb.view(), probe.view(), exclusions.view(), errorLabel, generate, reset, close);
+                heading("Common Parameters"), common, optimizeDrills, commonDb.view(), probe.view(), exclusions.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         Runnable restoreCommon = () -> {
             commonDb.clear();
             SourceCandidate source = sourceCombo.getValue();
             boolean sourceMetric = "MM".equalsIgnoreCase(source.image().units());
             DrillCncSettings saved = source.cncSettings();
+            optimizeDrills.setSelected(saved != null && saved.options().optimizeDrills());
             cancelAreaSelection.run();
             exclusionPreview.accept(null);
             exclusions.restore(saved != null && saved.options().exclusionsEnabled(),
@@ -595,6 +598,7 @@ final class DrillGCodeToolPanel {
             rapidFeed.setText(saved == null ? "0" : Double.toString(saved.options().rapidFeedRate()));
             if (saved != null) {
                 if (saved.options().probing() != null) probe.restore(saved.options().probing());
+                optimizeDrills.setSelected(saved.options().optimizeDrills());
                 if (saved.toolOrder() == DrillCncSettings.ToolOrder.FORWARD) forwardOrder.setSelected(true);
                 else if (saved.toolOrder() == DrillCncSettings.ToolOrder.REVERSE) reverseOrder.setSelected(true);
                 table.getSelectionModel().clearSelection();

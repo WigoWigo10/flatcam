@@ -75,7 +75,12 @@ public final class GCodeGenerator {
                                   double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate,
                                   ProbeToolChangeParameters probing, boolean exclusionsEnabled,
                                   List<CncExclusionArea> exclusions, Double startZ,
-                                  Double toolChangeX, Double toolChangeY) {
+                                  Double toolChangeX, Double toolChangeY, boolean optimizeDrills) {
+        public DrillJobOptions(boolean pauseForToolChange,double toolChangeZ,double endMoveZ,Double endMoveX,Double endMoveY,
+                               double rapidFeedRate,ProbeToolChangeParameters probing,boolean exclusionsEnabled,List<CncExclusionArea> exclusions,
+                               Double startZ,Double toolChangeX,Double toolChangeY) {
+            this(pauseForToolChange,toolChangeZ,endMoveZ,endMoveX,endMoveY,rapidFeedRate,probing,exclusionsEnabled,exclusions,startZ,toolChangeX,toolChangeY,false);
+        }
         public DrillJobOptions(boolean pauseForToolChange, double toolChangeZ,
                                double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate,
                                ProbeToolChangeParameters probing, boolean exclusionsEnabled,
@@ -123,12 +128,15 @@ public final class GCodeGenerator {
 
         public DrillJobOptions withExclusions(boolean enabled, List<CncExclusionArea> areas) {
             return new DrillJobOptions(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY,
-                    rapidFeedRate, probing, enabled, areas, startZ, toolChangeX, toolChangeY);
+                    rapidFeedRate, probing, enabled, areas, startZ, toolChangeX, toolChangeY,optimizeDrills);
         }
 
         public DrillJobOptions withPositions(Double initialZ, Double changeX, Double changeY) {
             return new DrillJobOptions(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY,
-                    rapidFeedRate, probing, exclusionsEnabled, exclusions, initialZ, changeX, changeY);
+                    rapidFeedRate, probing, exclusionsEnabled, exclusions, initialZ, changeX, changeY,optimizeDrills);
+        }
+        public DrillJobOptions withOptimizedDrills(boolean value) {
+            return new DrillJobOptions(pauseForToolChange,toolChangeZ,endMoveZ,endMoveX,endMoveY,rapidFeedRate,probing,exclusionsEnabled,exclusions,startZ,toolChangeX,toolChangeY,value);
         }
 
         public void validatePositions(GCodePreprocessor profile) {
@@ -364,7 +372,9 @@ public final class GCodeGenerator {
             List<Double> depths = passDepths(params.effectiveDepth(),
                     params.multiDepth(), params.depthPerPass());
 
-            for (ExcellonImage.Drill drill : drillsByTool.getOrDefault(toolId, List.of())) {
+            List<ExcellonImage.Drill> orderedDrills=drillsByTool.getOrDefault(toolId,List.of());
+            if (options.optimizeDrills()) orderedDrills=nearestDrills(orderedDrills,lastX,lastY,cancellation);
+            for (ExcellonImage.Drill drill : orderedDrills) {
                 cancellation.throwIfCancellationRequested();
                 // A drill doesn't move laterally while cutting - camlib.py's own gcode_parse()
                 // fabricates a circle at the hole to represent the "cut" shape too.
@@ -836,8 +846,8 @@ public final class GCodeGenerator {
 
             double radius = tool.toolDiameter() / 2.0;
             lastToolRadius = radius;
-            for (Coordinate[] original : orderedByNearestNeighbor(
-                    compensatedPaths.get(toolIndex), lastX, lastY, cancellationToken)) {
+            for (Coordinate[] original : CncRouting.order(
+                    compensatedPaths.get(toolIndex), lastX, lastY, radius, positions.routing(), cancellationToken)) {
                 cancellationToken.throwIfCancellationRequested();
                 Coordinate[] coordinates = machining.extraCut() ? extraCut(original, machining.extraCutLength()) : original;
                 if (coordinates.length == 0) {
@@ -1060,6 +1070,18 @@ public final class GCodeGenerator {
     }
 
     /** [depthPerPass, 2*depthPerPass, ..., cutDepth] when multiDepth is on, else just [cutDepth]. */
+    private static List<ExcellonImage.Drill> nearestDrills(List<ExcellonImage.Drill> source,double x,double y,CancellationToken cancellation) {
+        List<ExcellonImage.Drill> remaining=new ArrayList<>(source),result=new ArrayList<>(source.size());
+        while(!remaining.isEmpty()) {
+            cancellation.throwIfCancellationRequested(); int best=0; double distance=Double.POSITIVE_INFINITY;
+            for(int i=0;i<remaining.size();i++) {
+                cancellation.throwIfCancellationRequested(); var drill=remaining.get(i); double d=Math.hypot(drill.x()-x,drill.y()-y);
+                if(d<distance) { best=i; distance=d; }
+            }
+            var drill=remaining.remove(best); result.add(drill); x=drill.x(); y=drill.y();
+        }
+        return result;
+    }
     private static List<Double> passDepths(double cutDepth, boolean multiDepth, double depthPerPass) {
         List<Double> depths = new ArrayList<>();
         if (!multiDepth) {
@@ -1165,7 +1187,7 @@ public final class GCodeGenerator {
         return orderedByNearestNeighbor(geometry, startX, startY, CancellationToken.none());
     }
 
-    private static List<Coordinate[]> orderedByNearestNeighbor(
+    static List<Coordinate[]> orderedByNearestNeighbor(
             Geometry geometry, double startX, double startY, CancellationToken cancellationToken) {
         List<Coordinate[]> remaining = new ArrayList<>();
         collectCoordinatePaths(geometry, remaining, cancellationToken);

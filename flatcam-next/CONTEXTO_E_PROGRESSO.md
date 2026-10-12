@@ -1,5 +1,17 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série 2/4: ordem dos trajetos — 2026-10-12
+
+Geometry CNC ganhou opções Original/Proximidade/Terminar cada placa por fresa,
+preservar direção e internos/fechados primeiro. Agrupamento exige uma Geometry
+de área da borda na mesma unidade/origem; captura WKT e recusa trajetos fora
+das caixas ou ambíguos. Drilling tem otimização opcional de furos por ferramenta,
+sem eliminar repetições. Defaults legados preservados; opções novas persistem
+em .fcnproj. Detalhes e limites em [CNC_ROUTING.md](CNC_ROUTING.md).
+Não há agrupamento automático por ilhas de cobre, troca de todas as fresas por
+placa, reconstrução de internos abertos, TSP global nem otimização conjunta de
+slots/rotas de exclusão. Novos controles têm ajuda; CAM/Plot fonte não são editados.
+
 ## Série 1/4: estacionamento final Drilling — 2026-10-12
 
 Drilling agora mantém max(Travel Z da última ferramenta, End Z) durante End XY,
