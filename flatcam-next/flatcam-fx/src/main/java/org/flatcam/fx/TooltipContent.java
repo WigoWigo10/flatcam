@@ -53,6 +53,7 @@ record TooltipContent(List<Span> spans) {
 
     /** Cells keep native tooltips because their text is refreshed as they are reused. */
     void installNative(javafx.scene.control.Tooltip tooltip, ThemeOption theme) {
+        TooltipTiming.configureNative(tooltip);
         TextFlow flow = new TextFlow();
         flow.setPrefWidth(330); flow.setMaxWidth(330); flow.setLineSpacing(2);
         renderInto(flow, theme);

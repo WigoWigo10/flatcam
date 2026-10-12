@@ -358,8 +358,10 @@ final class DrillGCodeToolPanel {
         TextField startZ = field("None");
         startZ.setId("drill-start-z");
         startZ.setPromptText("None ou altura");
-        startZ.setTooltip(new Tooltip("Altura inicial opcional, nas unidades da origem. None = Travel Z. "
-                + "Antes de mover em XY, o gerador retorna ao Travel Z. Roland e sondagem nao suportados neste port."));
+        startZ.setTooltip(new Tooltip("Altura Z inicial opcional. None usa Travel Z quando não há troca inicial; "
+                + "com troca, sobe diretamente para Tool change Z. Antes de furar, retorna ao Travel Z. "
+                + "Start Z não faz referenciamento.\n\nUnidades: unidade do objeto (mm ou in). "
+                + "Roland e sondagem não aceitam essas posições neste port."));
         TextField toolChangeXY = field("None");
         toolChangeXY.setId("drill-tool-change-xy");
         toolChangeXY.setPromptText("None ou X;Y");
@@ -372,7 +374,10 @@ final class DrillGCodeToolPanel {
         endMoveZ.setId("drill-end-z");
         endMoveXY.setId("drill-end-xy");
         endMoveXY.setPromptText("None ou X,Y");
-        endMoveXY.setTooltip(new Tooltip("O movimento XY final usa End move Z como altura; confirme que esta livre de obstaculos."));
+        endMoveXY.setTooltip(new Tooltip("Posição final X,Y; None mantém o último furo. Use X;Y para duas coordenadas. "
+                + "Sem exclusões, o XY final ocorre em End move Z. Com Around/Over, mantém pelo menos Travel Z "
+                + "durante o deslocamento e desce para End move Z no destino.\n\nAtenção: sem exclusões, "
+                + "não use End move Z abaixo da altura necessária para liberar obstáculos.\n\nUnidades: unidade do objeto (mm ou in)."));
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
         preprocessor.setId("drill-preprocessor");

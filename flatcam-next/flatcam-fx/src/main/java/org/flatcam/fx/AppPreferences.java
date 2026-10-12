@@ -51,6 +51,8 @@ final class AppPreferences {
     private AppPreferences() {
     }
 
+    static RecentFiles recentFiles() { return new RecentFiles(PREFS.node("recentFiles")); }
+
     static String loadToolsDatabasePath() { return PREFS.get("toolsDatabasePath", ""); }
 
     static void saveToolsDatabasePath(java.nio.file.Path path) {

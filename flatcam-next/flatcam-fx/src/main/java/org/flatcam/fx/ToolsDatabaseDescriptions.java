@@ -43,7 +43,7 @@ final class ToolsDatabaseDescriptions {
             case "feedrate" -> "Velocidade de avanço no plano X-Y enquanto a ferramenta está cortando. Informe um valor positivo em unidades do trabalho por minuto (mm/min ou in/min).";
             case "feedrate_z", "tools_drill_feedrate_z" -> "Velocidade de mergulho no eixo Z durante o corte ou a furação. Informe um valor positivo em unidades do trabalho por minuto (mm/min ou in/min).";
             case "feedrate_rapid", "tools_drill_feedrate_rapid" -> "Velocidade dos deslocamentos rápidos, em mm/min ou in/min, conforme a unidade do trabalho. Seu uso depende do pós-processador; alguns perfis de impressoras usam avanço explícito nos rápidos.";
-            case "spindlespeed", "tools_drill_spindlespeed" -> "Rotação do spindle em RPM. Zero omite os comandos de spindle nos perfis que permitem isso; perfis como Mach3 com sonda exigem RPM positivo ao gerar.";
+            case "spindlespeed", "tools_drill_spindlespeed" -> "Rotação do spindle em RPM. Zero não comanda a rotação nos perfis que permitem isso; a sequência de troca ainda pode emitir M5 para parar antes da pausa. Perfis como Mach3 com sonda exigem RPM positivo ao gerar.";
             case "dwell", "tools_drill_dwell" -> "Habilita uma pausa após ligar o spindle, para permitir que o motor alcance a rotação definida. Habilita o campo Dwell Time.";
             case "dwelltime", "tools_drill_dwelltime" -> "Duração da pausa após ligar o spindle, em segundos. Disponível quando Dwell está marcado; deve ser não negativa.";
             case "extracut" -> "Acrescenta um trecho de corte no encontro entre o início e o fim de um caminho fechado, para ajudar a completar o isolamento. Habilita Extra Cut Length.";

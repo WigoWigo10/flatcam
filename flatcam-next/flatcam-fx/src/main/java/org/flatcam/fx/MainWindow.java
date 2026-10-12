@@ -133,6 +133,7 @@ import org.flatcam.cam.gerber.GerberGeometryGenerator;
 import org.flatcam.cam.gerber.GerberExporter;
 import org.flatcam.cam.hpgl.HpglImporter;
 import org.flatcam.cam.pdf.PdfImporter;
+import org.flatcam.cam.pdf.PrintPdfExporter;
 import org.flatcam.cam.svg.FilmExporter;
 import org.flatcam.cam.svg.SvgExporter;
 import org.flatcam.cam.svg.SvgImporter;
@@ -295,6 +296,7 @@ final class MainWindow implements TclFlatcamHost {
     private final Set<TreeItem<String>> gerberFollowItems = new LinkedHashSet<>();
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
     private final Map<TreeItem<String>, Path> sourcePathByItem = new LinkedHashMap<>();
+    private final RecentFiles recentFiles;
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
@@ -736,7 +738,12 @@ final class MainWindow implements TclFlatcamHost {
     private boolean applyingPlotMove;
 
     MainWindow(JobExecutor jobExecutor) {
+        this(jobExecutor, AppPreferences.recentFiles());
+    }
+
+    MainWindow(JobExecutor jobExecutor, RecentFiles recentFiles) {
         this.jobExecutor = jobExecutor;
+        this.recentFiles = recentFiles;
         centerTabs.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) change -> {
             while (change.next()) for (Tab removed : change.getRemoved())
                 if (removed.getContent() instanceof CodeEditor code) code.close();
@@ -1699,11 +1706,15 @@ final class MainWindow implements TclFlatcamHost {
         backupMenu.getItems().addAll(
                 chromeItem("Importar preferencias", "backup_import24.png", this::importToolDefaults),
                 chromeItem("Exportar preferencias", "backup_export24.png", this::exportToolDefaults));
-        fileMenu.getItems().addAll(newMenu, openMenu, plannedItem("Recentes", "recent_files.png"),
+        MenuItem printPdf = tipped(chromeItem("Imprimir como PDF…", "pdf32.png", this::printSelectedPdf),
+                "Imprimir como PDF", "Gera uma página PDF vetorial com os objetos selecionados, em escala física 1:1. Não é uma captura da grade do Plot.\n\nAtalho: Ctrl+P. Ao imprimir, use Tamanho real / 100%.");
+        printPdf.setId("print-pdf-menu-item");
+        printPdf.setAccelerator(new javafx.scene.input.KeyCodeCombination(KeyCode.P, javafx.scene.input.KeyCombination.CONTROL_DOWN));
+        fileMenu.getItems().addAll(newMenu, openMenu, RecentFilesMenu.build(recentFiles,this::openRecent,this::legacyIcon),
                 new SeparatorMenuItem(), chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject),
                 plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
                 importMenu, exportMenu, scriptMenu, backupMenu,
-                plannedItem("Imprimir PDF", "pdf32.png"), new SeparatorMenuItem(),
+                printPdf, new SeparatorMenuItem(),
                 chromeItem("Sair", "power16.png", () -> {
                     if (!confirmToolsDatabaseClose()) return;
                     fluidTooltips.closeNow();
@@ -5676,6 +5687,77 @@ final class MainWindow implements TclFlatcamHost {
         });
     }
 
+    private record PrintCnc(CncJobEntry job, int travelColor, int cutColor) { }
+    private record PrintSelection(List<PrintPdfExporter.Layer> layers, List<PrintCnc> cncJobs) { }
+
+    /** Capture immutable object versions and ink on FX; never read controls from the PDF worker. */
+    private PrintSelection capturePrintSelection() {
+        List<PrintPdfExporter.Layer> layers = new ArrayList<>();
+        List<PrintCnc> cncJobs = new ArrayList<>();
+        for (TreeItem<String> item : selectedObjects()) {
+            GerberImage gerber = gerberByItem.get(item);
+            ExcellonImage excellon = excellonByItem.get(item);
+            GeometryEntry geometry = geometryByItem.get(item);
+            CncJobEntry cnc = cncJobByItem.get(item);
+            if (gerber != null) layers.add(new PrintPdfExporter.Layer(gerber.solidGeometry(),gerber.units(),printColor(item,GERBER_FILL),true));
+            else if (excellon != null) layers.add(new PrintPdfExporter.Layer(excellon.solidGeometry(),excellon.units(),printColor(item,DRILL_FILL),true));
+            else if (geometry != null) layers.add(new PrintPdfExporter.Layer(geometry.geometry(),geometry.units(),printColor(item,GEOMETRY_STROKE),!geometry.strokeOnly()));
+            else if (cnc != null) cncJobs.add(new PrintCnc(cnc,printColor(new CncTravelLayerKey(item),Color.GRAY),
+                    printColor(new CncCutLayerKey(item),Color.BLUE)));
+        }
+        return new PrintSelection(List.copyOf(layers),List.copyOf(cncJobs));
+    }
+
+    private int printColor(Object key, Color fallback) {
+        Color[] colors = plotAreaView.layerColors(key);
+        Color color = colors == null ? fallback : colors[plotAreaView.isLayerFilled(key) ? 0 : 1];
+        return ((int)Math.round(color.getRed()*255)<<16) | ((int)Math.round(color.getGreen()*255)<<8) | (int)Math.round(color.getBlue()*255);
+    }
+
+    private void printSelectedPdf() {
+        if (runningJob != null) { appendConsole("Ja existe uma operacao em andamento."); return; }
+        if (hasEditorChanges()) { appendConsole("Aplique ou descarte o rascunho do editor antes de imprimir os objetos."); return; }
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.isEmpty()) { appendConsole("Selecione um ou mais objetos para imprimir como PDF."); return; }
+        var options = new PrintPdfDialog(scene.getWindow(),selected.size()).showAndWait();
+        if (options.isEmpty()) return;
+        PrintSelection snapshot = capturePrintSelection();
+        File file = chooseExportFile("Imprimir como PDF",selected.getFirst(),".pdf",new FileChooser.ExtensionFilter("PDF","*.pdf"));
+        if (file == null) return;
+        Path destination = file.toPath();
+        if (!file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
+            // Do not silently change the destination after the chooser's overwrite confirmation.
+            appendConsole("Escolha um nome terminado em .pdf para imprimir."); return;
+        }
+        beginJob("Gerando PDF...");
+        JobHandle<Path> handle = jobExecutor.submit(context -> {
+            CancellationToken cancellation = context::isCancelled;
+            List<PrintPdfExporter.Layer> layers = new ArrayList<>(snapshot.layers());
+            for (PrintCnc source : snapshot.cncJobs()) {
+                GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(source.job().gcode(),cancellation,
+                        fraction -> context.reportProgress(Double.NaN,"Preparando CNC Job para PDF..."));
+                if (!parsed.plotAvailable()) throw new IllegalArgumentException("CNC Job sem prévia imprimível: " + parsed.warning());
+                if (parsed.travelGeometry()!=null) layers.add(new PrintPdfExporter.Layer(parsed.travelGeometry(),parsed.units(),source.travelColor(),true));
+                if (parsed.cutGeometry()!=null) layers.add(new PrintPdfExporter.Layer(parsed.cutGeometry(),parsed.units(),source.cutColor(),true));
+            }
+            PrintPdfExporter.write(layers,options.get(),destination,cancellation,
+                    fraction -> context.reportProgress(fraction,"Gerando PDF vetorial..."));
+            return destination;
+        },(fraction,message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
+        runningJob = handle;
+        handle.completion().whenComplete((saved,failure) -> Platform.runLater(() -> {
+            if (runningJob != handle) return;
+            try {
+                if (failure != null) reportJobError(failure,"Falha ao imprimir PDF: ");
+                else {
+                    AppPreferences.saveLastCamDirectory(saved.toAbsolutePath().getParent().toString());
+                    appendConsole("PDF salvo em " + saved + ". Ao imprimir, use Tamanho real / 100%.");
+                    updateProgress(1); setStatus("PDF salvo.",IDLE_COLOR);
+                }
+            } finally { onJobFinished(); }
+        }));
+    }
+
     /**
      * File > Exportar > DXF - app_Main.py's on_file_exportdxf. Python accepts only
      * Geometry objects; the outlines of Gerber and Excellon objects are allowed too.
@@ -7150,6 +7232,7 @@ final class MainWindow implements TclFlatcamHost {
         TextField nonCopperMargin = marginField();
         CheckBox nonCopperRounded = new CheckBox("Rounded");
         Button nonCopperButton = new Button("Generate Geometry");
+        ToolDescriptions.apply(nonCopperButton,"Gerar regiões sem cobre", "Cria uma Geometry com a área livre entre o cobre e a caixa delimitadora, usando Boundary Margin e Rounded. Não gera caminhos NCC nem G-code; a origem é preservada.\n\nUnidades: unidade do Gerber (mm ou in).");
         nonCopperButton.setGraphic(legacyIcon("geometry32.png", 18));
         nonCopperButton.setOnAction(e -> generateGerberUtility(item, image, "_noncopper",
                 nonCopperMargin, nonCopperRounded.isSelected(), true));
@@ -7159,6 +7242,7 @@ final class MainWindow implements TclFlatcamHost {
         TextField bboxMargin = marginField();
         CheckBox bboxRounded = new CheckBox("Rounded");
         Button bboxButton = new Button("Generate Geometry");
+        ToolDescriptions.apply(bboxButton,"Gerar caixa delimitadora", "Cria uma Geometry da caixa que envolve o Gerber, com Boundary Margin e cantos Rounded quando marcados. Não gera automaticamente recorte, pontes ou G-code; a origem é preservada.\n\nUnidades: unidade do Gerber (mm ou in).");
         bboxButton.setGraphic(legacyIcon("geometry32.png", 18));
         bboxButton.setOnAction(e -> generateGerberUtility(item, image, "_bbox",
                 bboxMargin, bboxRounded.isSelected(), false));
@@ -8624,6 +8708,23 @@ final class MainWindow implements TclFlatcamHost {
         }
     }
 
+    private void openRecent(RecentFiles.Entry entry) {
+        if (runningJob != null) { appendConsole("Ja existe uma operacao em andamento."); return; }
+        List<File> files = List.of(entry.path().toFile());
+        switch (entry.kind()) {
+            case PROJECT -> openProjectFromMenu(entry.path());
+            case GERBER -> openGerberQueue(files,0);
+            case EXCELLON -> openExcellonQueue(files,0);
+            case GCODE -> openGCodeQueue(files,0);
+            case SVG_GEOMETRY -> importDrawing(DrawingFormat.SVG,false,files);
+            case SVG_GERBER -> importDrawing(DrawingFormat.SVG,true,files);
+            case DXF_GEOMETRY -> importDrawing(DrawingFormat.DXF,false,files);
+            case DXF_GERBER -> importDrawing(DrawingFormat.DXF,true,files);
+            case HPGL -> importDrawing(DrawingFormat.HPGL,false,files);
+            case PDF -> importPdf(files);
+        }
+    }
+
     private void openGCode() {
         List<File> files = pickCamFiles("Abrir G-Code",
                 new FileChooser.ExtensionFilter("Programas CNC (G-code / ICP / HPGL / RML)", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
@@ -8696,6 +8797,7 @@ final class MainWindow implements TclFlatcamHost {
                 appendConsole(file.getName() + ": " + preview.warning());
             }
             appendConsole("G-code aberto: " + file.getName() + " (" + preview.lineCount() + " linhas).");
+            recentFiles.remember(RecentFiles.Kind.GCODE,file.toPath());
             openGCodeQueue(files, index + 1);
         })).exceptionally(error -> {
             Platform.runLater(() -> {
@@ -8743,6 +8845,7 @@ final class MainWindow implements TclFlatcamHost {
                             "Gerber OK: %d aperturas, area=%.4f, bounds=%s",
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
                     TreeItem<String> item = addGerberToProject(file, image);
+                    recentFiles.remember(RecentFiles.Kind.GERBER,file.toPath());
                     plotAreaView.fitToLayer(item);
                     openGerberQueue(files, index + 1);
                 }))
@@ -8801,6 +8904,7 @@ final class MainWindow implements TclFlatcamHost {
                             image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
                             Arrays.toString(image.bounds())));
                     TreeItem<String> item = addExcellonToProject(file, image);
+                    recentFiles.remember(RecentFiles.Kind.EXCELLON,file.toPath());
                     plotAreaView.fitToLayer(item);
                     openExcellonQueue(files, index + 1);
                 }))
@@ -8847,6 +8951,16 @@ final class MainWindow implements TclFlatcamHost {
         if (files.isEmpty()) {
             return;
         }
+        importDrawing(drawingFormat,asGerber,files);
+    }
+
+    private void importDrawing(DrawingFormat drawingFormat, boolean asGerber, List<File> files) {
+        String format = drawingFormat == DrawingFormat.HPGL ? "HPGL2" : drawingFormat.name();
+        RecentFiles.Kind historyKind = switch (drawingFormat) {
+            case SVG -> asGerber ? RecentFiles.Kind.SVG_GERBER : RecentFiles.Kind.SVG_GEOMETRY;
+            case DXF -> asGerber ? RecentFiles.Kind.DXF_GERBER : RecentFiles.Kind.DXF_GEOMETRY;
+            case HPGL -> RecentFiles.Kind.HPGL;
+        };
         boolean dxf = drawingFormat == DrawingFormat.DXF;
         DrawingReader reader = switch (drawingFormat) {
             case DXF -> (file, units, cancellation) -> {
@@ -8903,6 +9017,7 @@ final class MainWindow implements TclFlatcamHost {
                         appendConsole(format + " importado como Geometry: " + penName + " (caneta "
                                 + pen.getKey() + ", " + pen.getValue().getNumGeometries() + " caminhos)");
                     }
+                    recentFiles.remember(historyKind,drawing.file().toPath());
                     continue;
                 }
                 String name = uniqueDerivedName(fileName);
@@ -8912,6 +9027,7 @@ final class MainWindow implements TclFlatcamHost {
                         : addGeometryToProject(name, fileName, units, drawing.shapes(), true);
                 appendConsole(format + " importado como " + (asGerber ? "Gerber" : "Geometry") + ": " + name
                         + " (" + drawing.shapes().getNumGeometries() + " formas)");
+                recentFiles.remember(historyKind,drawing.file().toPath());
                 if (drawing.skippedText() > 0) {
                     appendConsole("  " + drawing.skippedText() + " texto(s) ignorado(s) - converta o texto em "
                             + switch (drawingFormat) {
@@ -8953,6 +9069,10 @@ final class MainWindow implements TclFlatcamHost {
         if (files.isEmpty()) {
             return;
         }
+        importPdf(files);
+    }
+
+    private void importPdf(List<File> files) {
         String units = plotAreaView.units();
         beginJob("Importando PDF...");
         JobHandle<List<ImportedPdf>> handle = jobExecutor.submit(context -> {
@@ -8982,6 +9102,8 @@ final class MainWindow implements TclFlatcamHost {
                     continue;
                 }
                 PdfImporter.Result result = pdf.result();
+                if (result.drills() != null || !result.layers().isEmpty())
+                    recentFiles.remember(RecentFiles.Kind.PDF,pdf.file().toPath());
                 if (result.drills() != null) {
                     String name = uniqueDerivedName(fileName + "_0");
                     last = addExcellonToProject(name, pdf.file().toPath(), result.drills());
@@ -9119,6 +9241,7 @@ final class MainWindow implements TclFlatcamHost {
         runningJob = handle;
         handle.completion().thenAccept(saved -> Platform.runLater(() -> {
             AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+            recentFiles.remember(RecentFiles.Kind.PROJECT,saved);
             appendConsole("Projeto salvo em " + saved);
             updateProgress(1);
             setStatus("Projeto salvo.", IDLE_COLOR);
@@ -9223,7 +9346,13 @@ final class MainWindow implements TclFlatcamHost {
         if (file == null) {
             return;
         }
+        openProjectFromMenu(file.toPath());
+    }
 
+    private void openProjectFromMenu(Path path) {
+        try { requireProjectReplacementAllowed(); }
+        catch (IllegalStateException blocked) { appendConsole(blocked.getMessage()); return; }
+        File file = path.toAbsolutePath().normalize().toFile();
         TclProjectState before = captureTclProjectState();
         beginJob("Abrindo projeto " + file.getName() + "...");
         JobHandle<LoadedProject> handle = jobExecutor.submit(context -> loadProject(file.toPath(), context),
@@ -9240,6 +9369,7 @@ final class MainWindow implements TclFlatcamHost {
                 if (hasEditorChanges()) throw new IllegalStateException("O editor foi alterado durante o carregamento.");
                 restoreProject(project, true);
                 reportOpenedProject(file.toPath(), project);
+                recentFiles.remember(RecentFiles.Kind.PROJECT,file.toPath());
                 AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                 updateProgress(1);
                 setStatus("Concluido.", IDLE_COLOR);

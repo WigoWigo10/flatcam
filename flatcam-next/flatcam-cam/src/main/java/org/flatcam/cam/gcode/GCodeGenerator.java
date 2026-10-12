@@ -202,8 +202,9 @@ public final class GCodeGenerator {
                 throw new IllegalArgumentException("Roland nao suporta dwell neste perfil; desative a espera.");
             if (preprocessor.requiresProbe()) options.probing().validateTravelZ(settingsByTool.get(id).safeZ());
         }
-        if (options.toolChangeX() != null && options.toolChangeZ() < ordered.stream()
-                .mapToDouble(id -> settingsByTool.get(id).safeZ()).max().orElse(0))
+        if ((options.toolChangeX() != null || !preprocessor.requiresProbe()
+                && (options.pauseForToolChange() || preprocessor.automaticToolSelection()))
+                && options.toolChangeZ() < ordered.stream().mapToDouble(id -> settingsByTool.get(id).safeZ()).max().orElse(0))
             throw new IllegalArgumentException("Tool change Z deve ser maior ou igual ao maior Travel Z das ferramentas.");
 
         Map<Integer, CncExclusionPlanner> planners = new java.util.HashMap<>();
@@ -247,8 +248,13 @@ public final class GCodeGenerator {
         gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         double initialZ = ordered.isEmpty() ? options.endMoveZ() : settingsByTool.get(ordered.get(0)).safeZ();
-        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.startZ() == null ? initialZ : options.startZ()));
-        if (options.startZ() != null && Double.compare(options.startZ(), initialZ) != 0)
+        boolean initialProfileChange = !ordered.isEmpty() && preprocessor.emitsToolNumber()
+                && !preprocessor.requiresProbe() && (options.pauseForToolChange() || preprocessor.automaticToolSelection());
+        // The change sequence already raises to its validated height before any XY.
+        // Do not descend to Travel Z first, then raise again before stopping to change.
+        if (!initialProfileChange || options.startZ() != null)
+            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.startZ() == null ? initialZ : options.startZ()));
+        if (!initialProfileChange && options.startZ() != null && Double.compare(options.startZ(), initialZ) != 0)
             line(gcode, "%s Z%s", preprocessor.rapid(), fmt(initialZ));
 
         List<Geometry> travelShapes = new ArrayList<>();
@@ -308,21 +314,32 @@ public final class GCodeGenerator {
                                 diameter != null ? diameter : 0, image.units(),
                                 preprocessor.requiresProbe() ? params.safeZ() : options.toolChangeZ(), params.feedRate()));
                     }
-                    if (options.toolChangeX() != null) line(gcode, "G90");
+                    if (!preprocessor.requiresProbe() && preprocessor != GCodePreprocessor.FX_PORTABLE) {
+                        line(gcode, "G90");
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
+                    } else if (options.toolChangeX() != null) line(gcode, "G90");
                     if (!preprocessor.requiresProbe() && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 } else if (Double.compare(previous.safeZ(), params.safeZ()) != 0) {
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
             } else if (preprocessor.emitsToolNumber()) {
-                if (options.toolChangeX() == null && options.pauseForToolChange()
-                        && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
+                // The controller may already have a running spindle when this file starts.
+                // Python's milling change sequence always stops it before the initial pause.
+                if (options.toolChangeX() == null && !preprocessor.requiresProbe()
+                        && (options.pauseForToolChange() || preprocessor.automaticToolSelection()))
+                    line(gcode, "%s", preprocessor.spindleOff());
+                if (options.toolChangeX() == null && (initialProfileChange || options.pauseForToolChange()
+                        && Double.compare(options.toolChangeZ(), params.safeZ()) != 0))
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
                 line(gcode, "%s", preprocessor.selectTool(toolId));
                 if (options.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     line(gcode, "%s", toolChangeCode(preprocessor, options.probing(), toolId, toolDiameter, image.units(),
                             preprocessor.requiresProbe() ? params.safeZ() : options.toolChangeZ(), params.feedRate()));
-                    if (options.toolChangeX() != null) line(gcode, "G90");
+                    if (!preprocessor.requiresProbe()) {
+                        line(gcode, "G90");
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(options.toolChangeZ()));
+                    }
                     if (!preprocessor.requiresProbe() && Double.compare(options.toolChangeZ(), params.safeZ()) != 0)
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
@@ -732,7 +749,9 @@ public final class GCodeGenerator {
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
         line(gcode, "G94");
-        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.startZ() == null ? params.safeZ() : positions.startZ()));
+        boolean initialProfileChange = changing && preprocessor.emitsToolNumber() && !preprocessor.requiresProbe();
+        if (!initialProfileChange || positions.startZ() != null)
+            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.startZ() == null ? params.safeZ() : positions.startZ()));
 
         List<Geometry> travelShapes = new ArrayList<>();
         Footprints cutShapes = new Footprints();
@@ -750,13 +769,16 @@ public final class GCodeGenerator {
             }
             GeometryGCodeParameters machining = parametersByTool.getOrDefault(toolIndex, params);
             List<Double> depths = depthsByTool.get(toolIndex);
-            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
             // Explicit positions also cover the initial portable tool, whose legacy default pauses only between tools.
             boolean changeHere = changing && (!firstTool || preprocessor.emitsToolNumber()
                     || positions.toolChangeZ() != null || positions.toolChangeX() != null);
+            if (!firstTool || !initialProfileChange)
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
             double changeZ = positions.toolChangeZ() == null ? clearance : positions.toolChangeZ();
             if (changeHere && !preprocessor.requiresProbe()) {
-                if (preprocessor.controlsSpindle(previousSpindle)) line(gcode, "%s", preprocessor.spindleOff());
+                if (preprocessor.controlsSpindle(previousSpindle)
+                        || firstTool && preprocessor != GCodePreprocessor.FX_PORTABLE)
+                    line(gcode, "%s", preprocessor.spindleOff());
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
                 if (positions.toolChangeX() != null) {
                     exclusionTravel(gcode,travelShapes,lastX,lastY,positions.toolChangeX(),positions.toolChangeY(),
@@ -792,6 +814,8 @@ public final class GCodeGenerator {
                 // M0/M6 may move Z or leave incremental mode; restore clearance before the next XY.
                 line(gcode, "G90");
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
+                if (Double.compare(changeZ,clearance) != 0)
+                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
             }
             firstTool = false;
             line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));

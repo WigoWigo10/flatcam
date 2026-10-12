@@ -34,7 +34,7 @@ import javafx.stage.WindowEvent;
 import javafx.util.Duration;
 
 /**
- * The application's tooltips: a short delay (almost none when moving between neighbouring controls), a fade and slide in,
+ * The application's tooltips: a deliberate hover delay, a shorter but nonzero delay between controls, a fade and slide in,
  * a glide from one control to the next while a tip is already open, and a fade out. A tip has an optional bold title and a
  * wrapped body, in the colours of the theme. Structured content can add bold spans, paragraphs and semantic colours
  * without changing how existing plain-text tips are displayed.
@@ -52,9 +52,6 @@ final class FluidTooltips {
     private static final String INSTALLED_KEY = "fx.tip.installed";
     private static final String SCENE_KEY = "fx.tip.handler";
 
-    private static final double SHOW_DELAY_MS = 450;
-    private static final double WARM_DELAY_MS = 60;
-    private static final long WARM_WINDOW_NANOS = 700_000_000L;
     private static final double FADE_IN_MS = 150;
     private static final double GLIDE_MS = 170;
     private static final double FADE_OUT_MS = 90;
@@ -120,9 +117,9 @@ final class FluidTooltips {
             enter(ownerOf(picked), false);
         });
         scene.addEventFilter(MouseEvent.MOUSE_EXITED, event -> enter(null, false));
-        scene.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> enter(null, false));
-        scene.addEventFilter(ScrollEvent.SCROLL, event -> enter(null, false));
-        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> enter(null, false));
+        scene.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> closeNow());
+        scene.addEventFilter(ScrollEvent.SCROLL, event -> closeNow());
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> closeNow());
     }
 
     /**
@@ -177,12 +174,19 @@ final class FluidTooltips {
                 enter(null, false);
             }
         });
-        node.addEventHandler(MouseEvent.MOUSE_PRESSED, event -> enter(null, false));
+        node.addEventHandler(MouseEvent.MOUSE_PRESSED, event -> closeNow());
     }
 
     /** The nearest node at or above {@code node} with a tip; a plain JavaFX tooltip is adopted on the way. */
     Node ownerOf(Node node) {
         for (Node current = node; current != null; current = current.getParent()) {
+            if (current instanceof Cell<?> cell && cell.getTooltip() != null
+                    && cell.getTooltip().getText() != null && !cell.getTooltip().getText().isBlank()) {
+                TooltipTiming.configureNative(cell.getTooltip());
+                // Cell content is reused/updated. Its native help takes priority over
+                // the table's generic tip; do not show two popups for one hover.
+                return null;
+            }
             if (current.getProperties().containsKey(TEXT_KEY)) {
                 return current;
             }
@@ -247,15 +251,11 @@ final class FluidTooltips {
             close();
             return;
         }
-        if (open) {
-            glideTo(node, beside);
-            return;
-        }
-        boolean warm = System.nanoTime() - lastClosedNanos < WARM_WINDOW_NANOS;
-        delay.setDuration(Duration.millis(warm ? WARM_DELAY_MS : SHOW_DELAY_MS));
+        delay.setDuration(TooltipTiming.delay(open, System.nanoTime() - lastClosedNanos));
         delay.setOnFinished(event -> {
             if (owner == node) {
-                openAt(node, beside);
+                if (open) glideTo(node, beside);
+                else openAt(node, beside);
             }
         });
         delay.playFromStart();
@@ -412,8 +412,12 @@ final class FluidTooltips {
         stopMotion();
         owner = null;
         open = false;
+        lastClosedNanos = Long.MIN_VALUE / 2;
         popup.hide();
     }
+
+    /** For tests: scheduled dwell, without waiting for a native window or wall-clock pulse. */
+    Duration pendingDelay() { return delay.getDuration(); }
 
     /** For tests: keep tips inside this area instead of the monitor of the node. */
     void setAreaForTests(Rectangle2D area) {

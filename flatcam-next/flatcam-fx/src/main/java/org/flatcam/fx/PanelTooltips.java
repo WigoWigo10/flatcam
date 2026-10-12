@@ -52,6 +52,12 @@ final class PanelTooltips {
                     tab.contentProperty().addListener((obs,was,content) -> install(content,context));
                 });
             });
+        } else if (root instanceof javafx.scene.control.Accordion accordion) {
+            List.copyOf(accordion.getPanes()).forEach(pane -> install(pane, context));
+            accordion.getPanes().addListener((ListChangeListener<TitledPane>) change -> {
+                while (change.next()) if (change.wasAdded())
+                    List.copyOf(change.getAddedSubList()).forEach(pane -> install(pane, context));
+            });
         } else if (root instanceof javafx.scene.control.ToolBar toolbar) {
             List.copyOf(toolbar.getItems()).forEach(child -> install(child, context));
             toolbar.getItems().addListener((ListChangeListener<Node>) change -> {
@@ -122,7 +128,8 @@ final class PanelTooltips {
     }
 
     private static boolean isValue(Node node) {
-        return node instanceof Pane || node instanceof Control && !(node instanceof Labeled)
+        return node instanceof CheckBox checkbox && (checkbox.getText() == null || checkbox.getText().isBlank())
+                || node instanceof Pane || node instanceof Control && !(node instanceof Labeled)
                 && !(node instanceof ScrollPane) && !(node instanceof TitledPane);
     }
 
@@ -210,12 +217,12 @@ final class PanelTooltips {
             case "focus/end z" -> "Altura de foco e de término no perfil laser. Não é a profundidade de fresagem." + LINEAR;
             case "feedrate z", "avanco z" -> "Velocidade de mergulho no eixo Z. Informe um valor positivo adequado à ferramenta e ao material." + FEED;
             case "feed rate", "avanco xy" -> "Velocidade de corte no plano X-Y. O avanço de mergulho e os rápidos podem ter ajustes próprios." + FEED;
-            case "spindle rpm" -> "Rotação do spindle em RPM. Zero omite comandos de spindle nos perfis que permitem isso; Mach3 com sonda exige rotação positiva.";
+            case "spindle rpm" -> "Rotação do spindle em RPM. Zero não comanda a rotação nos perfis que permitem isso; uma sequência de troca ainda pode emitir M5 para parar antes da pausa. Mach3 com sonda exige rotação positiva.";
             case "potencia s/pwm" -> "Valor inteiro S/PWM usado pelo perfil selecionado; não é necessariamente RPM. O intervalo permitido depende do pós-processador.";
             case "dwell" -> "Ativa uma espera após ligar o spindle para permitir que alcance a rotação configurada. O valor ao lado é o tempo em segundos.";
             case "offset z" -> "Compensação da ponta da broca: positivo aumenta a profundidade; negativo reduz. O corte resultante deve continuar abaixo da superfície." + LINEAR;
             case "tool change", "troca de ferramenta (conforme perfil)" -> "Ativa a sequência de troca de ferramenta compatível com o pós-processador. A troca manual pausa o programa; os perfis com sonda têm uma sequência própria.";
-            case "tool change z", "z de troca de ferramenta" -> "Altura para trocar a ferramenta, em relação à referência Z. Deve liberar a peça e permitir a troca com segurança." + LINEAR;
+            case "tool change z", "z de troca de ferramenta" -> "Altura para trocar a ferramenta, em relação à referência Z. Em Drilling e Geometry CNC sem sonda, deve ser pelo menos o maior Travel Z das ferramentas selecionadas, mesmo sem posição XY de troca. Confira a peça e suas fixações." + LINEAR;
             case "end move z" -> "Altura Z final do programa. O movimento X-Y final, quando informado, acontece nessa altura: confirme que está livre de obstáculos." + LINEAR;
             case "end move x,y", "xy de troca", "troca x,y" -> "Informe None para não deslocar em X-Y, ou duas coordenadas separadas por ponto e vírgula, por exemplo 10;20. Confirme que o percurso está livre." + LINEAR;
             case "probe z final (< 0)" -> "Limite Z negativo para procurar contato com G31.\n\nAtenção: confirme o sensor, a origem e o curso disponível antes de executar." + LINEAR;
@@ -241,6 +248,8 @@ final class PanelTooltips {
     }
 
     private static String contextual(String context, String name) {
+        if (context.equals("Geometry CNC Job") && name.equals("multi-depth"))
+            return "Divide a profundidade total em passes limitados pelo valor ao lado. No FX, retrai para Travel Z entre passes e conserva o sentido escolhido para o caminho; não alterna automaticamente como o Python.";
         if (List.of("NCC Tool", "Paint Tool").contains(context)) {
             switch (name) {
                 case "method", "metodo" : return "Método de preenchimento:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta métodos alternativos.";

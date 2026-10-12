@@ -24,6 +24,18 @@ import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 class PanelTooltipsTest {
+    @Test @EnabledOnOs(OS.WINDOWS)
+    void unlabeledPlotCheckboxReceivesItsCaptionHelpWithoutApplyingItToActionButtons() throws Exception {
+        fx(() -> {
+            Label plot = new Label("Plot:"); CheckBox checkbox = new CheckBox(); Button action = new Button("Outra ação");
+            HBox row = new HBox(plot,checkbox,action);
+            PanelTooltips.install(row,"Gerber Object");
+            assertNotNull(checkbox.getAccessibleHelp());
+            assertTrue(checkbox.getAccessibleHelp().contains("Exibe ou oculta"));
+            assertEquals(plot.getAccessibleHelp(),checkbox.getAccessibleHelp());
+            assertNull(action.getAccessibleHelp());
+        });
+    }
     @Test void updatedCutoutAndGeometryHelpDoesNotReuseWrongUnitsOrSigns() {
         String thin = PanelTooltips.help("Cutout Tool", "Tipo de gap:");
         assertTrue(thin.contains("Thin Depth")); assertTrue(thin.contains("CNC Job separadamente"));

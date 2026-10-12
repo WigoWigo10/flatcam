@@ -1,5 +1,74 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Consolidação em Git — 2026-10-12
+
+Parâmetros CNC, revisão de tooltips e Recentes/PDF incluídos juntos no commit
+de consolidação da branch `flatcam-next` (identificador no git log). Sem push.
+As notas abaixo de incremento local/sem commit registram o estado anterior
+a essa consolidação. Último build integral aprovado: 1626 registrados,
+1608 aprovados e 18 skips; ajuste final de tema do diálogo PDF validado depois
+em target/recent-print-final-ui-20261012.log. Strict CNC permanece reprovado,
+com diferenças explícitas; commit não significa fechamento dessas pendências.
+
+## Continuidade: Recentes e Imprimir como PDF — 2026-10-12
+
+Habilitados Arquivo > Recentes (projetos/arquivos, dez por lista, persistentes,
+tipo de importação preservado, limpeza independente) e Imprimir como PDF / Ctrl+P.
+PDF vetorial da seleção, escala física 1:1, MM/IN, cores ou preto/branco,
+orientação/papel/Bounds, recortes internos e worker com progresso/cancelamento.
+Não reduz/corta silenciosamente; não é captura do Plot nem impressão física.
+Histórico exclusivo FX, só ações de abrir/importar/salvar da interface, sem
+reescrever os recentes do Python. Prova PDF sintética abriu/renderizou no
+Poppler e PNG foi inspecionado. Testes de lógica/UI aprovados; detalhes,
+contratos, reprodução e limites em [RECENTES_E_PDF.md](RECENTES_E_PDF.md).
+Build completo aprovado: 1626 registrados, 1608 aprovados, 18 skips opcionais,
+zero falhas/erros; target/recent-print-full-20261012.log. Sem commit/push;
+preservadas alterações anteriores. As menções históricas abaixo a Imprimir PDF
+não portado estão superadas por este incremento. Falta teste manual dos menus,
+FileChooser e tamanho real em impressora.
+
+## Continuidade: tempo e revisão de tooltips — 2026-10-12
+
+Incremento local sem commit/push; preserva as alterações CNC anteriores.
+`TooltipTiming`: 1000 ms inicial e 300 ms entre dicas animadas, sem glide
+instantâneo; clique/tecla/rolagem fecham e reiniciam o atraso inicial.
+Células nativas têm 1000 ms inicial e mantêm duração/dinamismo do JavaFX;
+não exibem simultaneamente a ajuda genérica da tabela.
+Completada ajuda dos padrões das ferramentas em Preferências, Plot e ações
+Non-copper/BBox do Gerber e tabelas de créditos de Sobre. Atualizados textos
+RPM zero/M5, altura de troca, Start Z, Multi-Depth e estacionamento Drilling
+para o comportamento real. **Não houve correção de trajetória nesta entrega.**
+Auditoria ampliada: 1035 ocorrências com ajuda, inclusive os campos internos
+da Tools Database. `verify` aprovado, seguido de teste aprovado da travessia
+final do inventário. Logs: target/tooltip-review-full-20261012.log e
+target/tooltip-review-final-audit-20261012.log. Política, fontes, lacunas e
+limites em [TOOLTIPS.md](TOOLTIPS.md). Falta validação manual de hover/temas;
+testes verificam agendamento/conteúdo, não a latência física na janela.
+
+## Continuidade: parâmetros CNC contra Python — 2026-10-12
+
+Base `e76dacb8`, branch `flatcam-next`; incremento local sem commit/push.
+Novo `compare-cnc-parameters.ps1 -Strict` executa os geradores originais Drilling
+e Geometry + GRBL_11_no_M6, com leitor modal XYZ/F/S/T e auditoria independente
+dos parâmetros pedidos. 34 casos públicos MM/IN: 18 MATCH_EXECUTION, 8 diferenças
+de percurso, 6 de usinagem, 2 erros originais Python (Dwell zero), zero FX_ERROR;
+**strict 1**, não paridade total. As 34 saídas FX passam na auditoria dos pedidos.
+Correção de produção: M5 antes da troca inicial portável, Drilling restaura G90
+e altura após a pausa; Geometry restaura clearance antes do mergulho. Evita
+baixar/subir desnecessariamente antes da troca e rejeita Tool change Z baixo
+mesmo sem XY/exclusões. FX portable manual/sondagem conservam seus contratos.
+Diferenças restantes explícitas: Geometry alterna direção sem retração no Python,
+RPM zero e troca desligada têm semântica diferente, Start Z altera a primeira
+troca Python; Around/Over têm percursos diferentes. Não alterar o legado, esconder
+falhas ou copiar esses comportamentos sem uma política clara. Contrato e próximos
+limites em [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md). Sem backend GPU novo.
+Build integral final passou na repetição sem mudar código: 1603 registrados,
+1586 aprovados, 17 skips opcionais; 70 testes auxiliares Python aprovados. Uma
+rodada anterior falhou na limpeza JUnit (DirectoryNotEmptyException em TclLiveHostTest),
+sem asserção CNC falha e sem causa confirmada; ambos os logs ficam registrados.
+Log aprovado: target/cnc-parameters-full-retry-20261012.log. Relatório final:
+target/cnc-parameters-delivery-20261012/python/index.html (strict 1 esperado).
+
 ## Continuidade: ISO por membro original — 2026-10-11
 
 Incremento anterior commitado em `9eb77ff6`, branch `flatcam-next`, sem push.

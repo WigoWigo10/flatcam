@@ -292,6 +292,7 @@ final class PanelHelpCatalog {
         default -> null;
     }; }
     private static String object(String n) { return switch(n) {
+        case "plot" -> "Exibe ou oculta este objeto no Plot Area. Não exclui o objeto, altera sua geometria ou modifica o G-code.";
         case "isolation routing" -> ToolDescriptions.of("isolation").text();
         case "ncc tool" -> ToolDescriptions.of("ncc").text();
         case "cutout tool" -> ToolDescriptions.of("cutout").text();

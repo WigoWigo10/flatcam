@@ -1,5 +1,24 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Incremento posterior: Recentes e impressão PDF — 2026-10-12
+
+**C**: Recentes e Imprimir como PDF estão funcionais com testes derivados da
+leitura do Python e testes da UI FX. PDF sintético validado também por Poppler;
+isso não é comparação diferencial de todos os projetos contra o Python.
+Impressão vetorial da seleção em 1:1, papel/Bounds/orientação/cores, sem captura
+da grade. Histórico FX separado em projetos/arquivos, dez por lista. Contratos
+e diferenças deliberadas em [RECENTES_E_PDF.md](RECENTES_E_PDF.md).
+
+## Incremento posterior: CNC XYZ/F/S/T — 2026-10-12
+
+Drilling/Geometry passam a ter evidência **A parcial** de parâmetros executados,
+não apenas XY, no perfil GRBL_11_no_M6: 34 controles MM/IN, 18 MATCH_EXECUTION,
+8 diferenças de percurso, 6 de usinagem e 2 erros Python; strict reprovado.
+As 34 saídas FX passam na auditoria independente dos parâmetros solicitados.
+Esse corpus pequeno não eleva todos os preprocessadores/rasgos/painéis a A.
+As linhas C abaixo são históricas para a área não coberta; escopo e reprodução
+em [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 Revisão `a71294f1` + harness das ferramentas secundárias do FX (branch `flatcam-next`), checkout Python deste repositório. Complementa
 [PLANO_PARIDADE.md](PLANO_PARIDADE.md) (o que fazer) e [COMPARACAO_CAM.md](COMPARACAO_CAM.md)
 (histórico das comparações). Aqui fica **o que foi medido e com que evidência**.

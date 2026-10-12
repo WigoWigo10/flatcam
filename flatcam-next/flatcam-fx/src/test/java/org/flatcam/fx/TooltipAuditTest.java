@@ -81,6 +81,22 @@ class TooltipAuditTest {
                 : Proxy.newProxyInstance(types[i].getClassLoader(),new Class<?>[]{types[i]},(proxy,method,arguments)->null);
             var gerberEditor=(GerberEditToolPanel)constructor.newInstance(args);
             roots.put("Editor Gerber",gerberEditor.node());
+            var jobs = new org.flatcam.app.job.JobExecutor(1);
+            var window = new MainWindow(jobs);
+            var about = new AboutDialog(null,ThemeOption.CLASSIC_LIGHT,url -> {},text -> {});
+            var code = new CodeEditor("G21\nG90\n",CodeSyntax.Language.MACHINE,true);
+            try {
+                var preferences = MainWindow.class.getDeclaredMethod("buildPreferencesPanel"); preferences.setAccessible(true);
+                roots.put("Preferencias",(Node)preferences.invoke(window));
+                for (var entry : List.of(new Object[]{"Gerber Object","buildGerberPropertiesPanel",org.flatcam.cam.gerber.GerberImage.class,gerber},
+                        new Object[]{"Excellon Object","buildExcellonPropertiesPanel",org.flatcam.cam.excellon.ExcellonImage.class,excellon})) {
+                    var method = MainWindow.class.getDeclaredMethod((String)entry[1],javafx.scene.control.TreeItem.class,(Class<?>)entry[2]);
+                    method.setAccessible(true);
+                    roots.put((String)entry[0],(Node)method.invoke(window,new javafx.scene.control.TreeItem<>("Public fixture"),entry[3]));
+                }
+                roots.put("Tools Database",new ToolsDatabasePanel(jobs,()->null,path -> {},file -> Icons.fromResource(file,16)));
+                roots.put("Sobre",about.getDialogPane().getContent());
+                roots.put("Editor de código",code);
             for(var entry:roots.entrySet()) {
                 Node root=entry.getValue(); String context=entry.getKey().replace(" — barra", "");
                 PanelTooltips.install(root,context);
@@ -88,7 +104,9 @@ class TooltipAuditTest {
                 for (Node node : controls) {
                     if (!(node instanceof Control) || node instanceof javafx.scene.control.Label || node instanceof TitledPane
                             || node instanceof javafx.scene.control.Separator || node instanceof javafx.scene.control.ToolBar
-                            || node instanceof ScrollPane) continue;
+                            || node instanceof javafx.scene.control.Accordion || node instanceof javafx.scene.control.TabPane
+                            || node instanceof javafx.scene.control.SplitPane || node instanceof javafx.scene.control.ProgressIndicator
+                            || node instanceof javafx.scene.control.TextArea area && !area.isEditable() || node instanceof ScrollPane) continue;
                     String label = node instanceof Labeled l ? l.getText() : node.getId();
                     boolean covered = hasHelp(node);
                     report.add(context + " | " + node.getClass().getSimpleName() + " | " + label + " | " + (covered ? "HELP" : "MISSING"));
@@ -99,6 +117,7 @@ class TooltipAuditTest {
             assertTrue(report.size() > 200);
             assertEquals(List.of(), report.stream().filter(line -> line.endsWith("MISSING")).toList(),
                     "Actual panel controls without help; see target/tooltip-audit.txt");
+            } finally { code.close(); about.close(); window.disposeViewport(); jobs.shutdown(); }
             return null;
         });
         Platform.runLater(task); task.get(30,TimeUnit.SECONDS);
@@ -122,6 +141,9 @@ class TooltipAuditTest {
     private static void collect(Node root,List<Node> nodes) {
         if(root==null)return; nodes.add(root);
         if(root instanceof TitledPane p)collect(p.getContent(),nodes);
+        else if(root instanceof javafx.scene.control.Accordion p)List.copyOf(p.getPanes()).forEach(n -> collect(n,nodes));
+        else if(root instanceof javafx.scene.control.TabPane p)List.copyOf(p.getTabs()).forEach(tab -> collect(tab.getContent(),nodes));
+        else if(root instanceof javafx.scene.control.SplitPane p)List.copyOf(p.getItems()).forEach(n -> collect(n,nodes));
         else if(root instanceof ScrollPane p)collect(p.getContent(),nodes);
         else if(root instanceof javafx.scene.control.ToolBar p)List.copyOf(p.getItems()).forEach(n->collect(n,nodes));
         else if(root instanceof Pane p)List.copyOf(p.getChildren()).forEach(n->collect(n,nodes));

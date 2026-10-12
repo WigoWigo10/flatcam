@@ -166,6 +166,7 @@ final class AboutDialog extends Dialog<Void> {
     }
     private static TableView<List<String>> creditsTable(String resource, String id, String... headers) {
         TableView<List<String>> table = new TableView<>(); table.setId(id); table.setMinSize(0, 0);
+        ToolDescriptions.apply(table,"Créditos históricos", "Selecionar uma linha apenas destaca o registro. Não abre links nem envia e-mails; os contatos são dados históricos do checkout Python, não confirmação de suporte atual ao FX.");
         table.getItems().setAll(AboutInfo.credits(resource, headers.length));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         for (int index = 0; index < headers.length; index++) {

@@ -1,4 +1,76 @@
-# Revisão dos tooltips — 2026-10-07
+# Revisão dos tooltips
+
+## Atualização — 2026-10-12
+
+### Tempo de exibição
+
+Não existe um número universal para todos os aplicativos. O guia histórico
+da [Microsoft](https://learn.microsoft.com/en-us/windows/win32/uxguide/ctrl-tooltips-and-infotips)
+documenta 500 ms iniciais e 100 ms ao passar entre alvos; o
+[JavaFX 25](https://openjfx.io/javadoc/25/javafx.controls/javafx/scene/control/Tooltip.html)
+usa 1000 ms de atraso inicial. O próprio guia alerta que atrasos curtos demais
+podem tornar as dicas involuntárias e incômodas.
+
+Política centralizada em `TooltipTiming`, escolhida para o FX:
+
+- Primeiro hover: **1000 ms**, antes 450 ms.
+- Navegação entre dicas da apresentação animada: **300 ms**, antes 60 ms
+  ou deslocamento imediato quando uma dica já estava aberta. Os 300 ms são
+  uma escolha do FX, não uma exigência desses guias.
+- Após clique, tecla ou rolagem: a dica fecha e o próximo hover volta a 1000 ms.
+- Células nativas da árvore/tabelas: atraso inicial de 1000 ms, preservando
+  duração de leitura e comportamento de fechamento/reexibição do JavaFX.
+  A ajuda dinâmica da célula tem prioridade sobre a descrição geral da tabela,
+  evitando duas dicas sobrepostas e mantendo atualizações ao reutilizar a célula.
+
+Mantidas as animações, quebras de linha, negrito, cores por tema e accessibleHelp.
+Não foi acrescentada uma preferência persistida de duração nesta entrega.
+
+### Lacunas e descrições desatualizadas
+
+- Preferências / padrões das ferramentas: ajuda específica para cada campo,
+  suas unidades, opções, valor de fábrica e efeito de salvar/resetar. Alternar
+  mm/in não converte o rascunho; os valores são independentes. Salvar não altera
+  objetos nem painéis já abertos. Novos campos sem descrição reprovam o teste.
+- Gerber Object: checkbox Plot sem texto e ações Non-copper/BBox. Gerar uma
+  Geometry nessas ações não equivale a gerar NCC/Cutout ou G-code.
+- Sobre: tabelas de créditos e colaboradores; selecionar uma linha não abre
+  contato e os contatos históricos não são apresentados como suporte do FX.
+- CNC e Tools Database: RPM zero não elimina o M5 da sequência de troca;
+  altura de troca deve respeitar Travel Z mesmo sem XY. Start Z e Multi-Depth
+  descrevem a sequência atual do FX e as diferenças de retração do Python.
+- Drilling End XY: explicita o comportamento atual de estacionamento. Sem
+  exclusões, o XY final ocorre em End Z; com exclusões, usa altura protegida
+  antes de descer. **A trajetória não foi corrigida nesta revisão de tooltips**;
+  a descrição não deve prometer que uma altura baixa é segura.
+- Travessia de Accordions inclui conteúdo e painéis adicionados depois;
+  ajuda de legendas também chega a checkboxes sem texto, sem contaminar
+  botões de ação vizinhos.
+
+### Verificação e limites
+
+`TooltipAuditTest` agora também constrói Preferências, propriedades Gerber e
+Excellon, Tools Database (inclusive os campos dentro do SplitPane), Sobre e
+editor de código. Inventário final: **1035 ocorrências**, zero controles sem
+ajuda no cenário construído, em `flatcam-fx/target/tooltip-audit.txt`.
+São ocorrências, não 1035 textos únicos. Containers informativos, rótulos,
+separadores, blocos somente leitura e internals de skins não são lacunas.
+
+Build completo `verify` aprovado:
+`target/tooltip-review-full-20261012.log`. A ampliação final da travessia do
+inventário foi testada depois em `target/tooltip-review-final-audit-20261012.log`.
+Testes verificam agendamento de 1000/300 ms, retorno ao atraso inicial,
+prioridade/dinamismo de células nativas, conteúdo contextual e campos mm/in.
+Não medem a latência real do hover na janela nem cobrem todos os estados,
+menus nativos de arquivo e combinações possíveis de projetos/perfis.
+
+Roteiro manual: hover inicial, passagem entre botões, clique/rolagem/tecla,
+árvore/tabelas, campos desabilitados, alternância mm/in e os quatro temas.
+Preferências do usuário não foram salvas e nenhuma ação CAM foi executada
+pela auditoria. Alterações CNC anteriores permanecem separadas desta revisão;
+esta entrega foi incluída no commit de consolidação de 2026-10-12, sem push.
+
+## Histórico — 2026-10-07
 
 ## Resultado
 

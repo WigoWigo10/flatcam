@@ -8,7 +8,8 @@ package org.flatcam.cam.gcode;
  * @param safeZ               retract height above the work surface (positive)
  * @param drillDepth          how far below the surface to plunge (positive; written to G-code as negative Z)
  * @param feedRate            plunge/cut feed rate, units/minute
- * @param spindleSpeedRpm     spindle speed for M3 S...; 0 omits M3/M5 entirely (e.g. a manual/always-on spindle)
+ * @param spindleSpeedRpm     spindle speed for M3 S...; 0 omits automatic spindle start/end commands;
+ *                            a tool-change sequence may still stop the spindle explicitly before a pause
  * @param pauseForToolChange  insert M0 (and a comment naming the next tool) between tools
  * @param multiDepth          drill in repeated Z steps, retracting between passes
  * @param depthPerPass        maximum positive Z step when multiDepth is enabled

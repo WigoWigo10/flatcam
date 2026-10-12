@@ -37,6 +37,8 @@ final class ToolDefaultsPane {
         millimetres.setToggleGroup(units);
         inches.setToggleGroup(units);
         millimetres.setSelected(true);
+        ToolDescriptions.apply(millimetres, "Padrões em mm", "Edita os valores iniciais em milímetros. Os valores em polegadas são independentes; alternar não converte nem salva o rascunho.");
+        ToolDescriptions.apply(inches, "Padrões em in", "Edita os valores iniciais em polegadas. Os valores em milímetros são independentes; alternar não converte nem salva o rascunho.");
 
         Accordion groups = new Accordion();
         Label feedback = new Label();
@@ -59,6 +61,10 @@ final class ToolDefaultsPane {
                     Node editor = editor(setting, value, text -> pending.put(slot, text));
                     editor.setId("tool-default-" + setting.key().replace('.', '-'));
                     Label label = new Label(setting.label() + (setting.perUnit() ? " (" + (metric ? "mm" : "in") + ")" : "") + ":");
+                    String help = ToolDefaultsDescriptions.text(setting, metric);
+                    ToolDescriptions.apply(editor, setting.tool() + " — " + setting.label(), help);
+                    ToolDescriptions.apply(label, setting.label(), help);
+                    if (editor instanceof javafx.scene.control.Control control) label.setLabelFor(control);
                     grid.addRow(row++, label, editor);
                 }
                 TitledPane pane = new TitledPane(tool.getKey(), grid);
@@ -100,6 +106,9 @@ final class ToolDefaultsPane {
         confirmReset.setId("tool-defaults-reset-confirm");
         confirmReset.setVisible(false);
         confirmReset.setManaged(false);
+        ToolDescriptions.apply(save, "Salvar padrões", "Valida e salva os rascunhos desta seção. Valores inválidos continuam pendentes; os demais podem ser salvos. Não salva o projeto nem atualiza painéis já abertos.");
+        ToolDescriptions.apply(reset, "Restaurar fábrica", "Mostra uma segunda confirmação antes de remover todos os padrões personalizados desta seção. Não apaga objetos ou projetos.");
+        ToolDescriptions.apply(confirmReset, "Confirmar restauração", "Remove imediatamente os padrões personalizados de todas as ferramentas e descarta os rascunhos, em mm e in. Não altera configurações de tema ou objetos do projeto.");
         reset.setOnAction(event -> {
             confirmReset.setVisible(true);
             confirmReset.setManaged(true);

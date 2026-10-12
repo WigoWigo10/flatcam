@@ -1,5 +1,15 @@
 # Fluxos principais — critérios e validação
 
+## Incremento CNC XYZ/F/S/T — 2026-10-12
+
+Drilling e Geometry agora têm comparação inicial contra os geradores **originais**
+Python, além do antigo parser de cortes XY: 34 controles públicos MM/IN, GRBL sem
+M6. 18 execuções concordam; 8 têm diferenças de percurso, 6 de usinagem e 2 falham
+no legado. Strict continua reprovado. Foram corrigidos parada inicial do spindle,
+restauração de modo/altura após troca e validação de Tool change Z sem XY.
+Detalhes, limites e próxima política de multi-depth: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+Não cobre todos os perfis, rasgos, painéis, interface completa ou máquina real.
+
 ## Estado atual — 2026-10-11
 
 Receitas NCC panelizadas ampliadas: Lines/Rest, Combo, margem/offset e ISO
