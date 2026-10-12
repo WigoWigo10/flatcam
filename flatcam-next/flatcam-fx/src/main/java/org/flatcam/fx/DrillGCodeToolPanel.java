@@ -375,9 +375,9 @@ final class DrillGCodeToolPanel {
         endMoveXY.setId("drill-end-xy");
         endMoveXY.setPromptText("None ou X,Y");
         endMoveXY.setTooltip(new Tooltip("Posição final X,Y; None mantém o último furo. Use X;Y para duas coordenadas. "
-                + "Sem exclusões, o XY final ocorre em End move Z. Com Around/Over, mantém pelo menos Travel Z "
-                + "durante o deslocamento e desce para End move Z no destino.\n\nAtenção: sem exclusões, "
-                + "não use End move Z abaixo da altura necessária para liberar obstáculos.\n\nUnidades: unidade do objeto (mm ou in)."));
+                + "Mantém pelo menos o Travel Z da última ferramenta durante o deslocamento, mesmo sem exclusões; "
+                + "só depois alcança End move Z no destino. Around/Over também protegem a rota.\n\nAtenção: "
+                + "configure Travel Z acima dos obstáculos e confira o destino antes de escolher uma altura final baixa.\n\nUnidades: unidade do objeto (mm ou in)."));
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
         preprocessor.setId("drill-preprocessor");

@@ -411,7 +411,9 @@ public final class GCodeGenerator {
         if (previous != null && preprocessor.controlsSpindle(previous.spindleSpeedRpm())) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
-        double parkingZ = options.exclusionsEnabled() && options.endMoveX() != null && previous != null
+        // Never lower before a lateral parking move, with or without exclusions.
+        // The final height is reached only at the requested destination.
+        double parkingZ = options.endMoveX() != null && previous != null
                 ? Math.max(previous.safeZ(), options.endMoveZ()) : options.endMoveZ();
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(parkingZ));
         if (options.endMoveX() != null) {

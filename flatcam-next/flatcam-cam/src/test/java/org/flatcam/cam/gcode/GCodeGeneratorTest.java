@@ -235,7 +235,7 @@ class GCodeGeneratorTest {
         assertTrue(gcode.contains("G1 Z-0.7000 F150.0000"));
         assertTrue(gcode.contains("M3 S12000"));
         assertTrue(gcode.contains("G0 Z15.0000\nM0"));
-        assertTrue(gcode.contains("G0 Z0.5000\nG0 X10.0000 Y20.0000\nM30"));
+        assertTrue(gcode.contains("G0 Z2.0000\nG0 X10.0000 Y20.0000\nG0 Z0.5000\nM30"));
     }
 
     @Test

@@ -1,5 +1,15 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série 1/4: estacionamento final Drilling — 2026-10-12
+
+Drilling agora mantém max(Travel Z da última ferramenta, End Z) durante End XY,
+mesmo sem exclusões, e só depois atinge a altura final. Sem End XY, mantém o
+movimento Z final direto. Around/Over e validações existentes preservados.
+Regressões MM/IN, portable/GRBL, End Z alto/baixo, sem XY e várias ferramentas;
+tooltips atualizados. A folga ainda é parâmetro do usuário, não detecção de
+obstáculos físicos. Histórico de estacionamento baixo nos textos anteriores
+está superado por este incremento. Log: target/series-1-parking-20261012.log.
+
 ## Consolidação em Git — 2026-10-12
 
 Parâmetros CNC, revisão de tooltips e Recentes/PDF incluídos juntos no commit
