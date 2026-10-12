@@ -40,4 +40,18 @@ class AboutInfoTest {
         assertTrue(summary.contains(System.getProperty("os.arch")));
         assertTrue(summary.contains("não representa paridade completa"));
     }
+
+    @Test void readableSystemSummaryAndCopiedDiagnosticHaveDifferentLevelsOfDetail() {
+        var graphics = new GraphicsRuntimeInfo("com.sun.prism.d3d.D3DPipeline", "fixture", "GPU de teste",
+                "driver.dll — 1.2.3", "Prism #0", "Tela secundária");
+        String readable = AboutInfo.systemSummary(SystemHardwareInfo.unavailable(), graphics);
+        String diagnostic = AboutInfo.technicalSummary(SystemHardwareInfo.unavailable(), graphics);
+        assertTrue(readable.contains("Placa de vídeo em uso: GPU de teste"));
+        assertTrue(readable.contains("Tela da janela: Tela secundária"));
+        assertFalse(readable.contains("Prism")); assertFalse(readable.contains("driver.dll"));
+        assertTrue(diagnostic.startsWith(readable));
+        assertTrue(diagnostic.contains("Detalhes técnicos da renderização"));
+        assertTrue(diagnostic.contains("com.sun.prism.d3d.D3DPipeline"));
+        assertTrue(diagnostic.contains("driver.dll — 1.2.3"));
+    }
 }

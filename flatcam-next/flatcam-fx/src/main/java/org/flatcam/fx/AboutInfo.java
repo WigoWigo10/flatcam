@@ -39,6 +39,11 @@ final class AboutInfo {
     }
 
     static String technicalSummary(SystemHardwareInfo hardware, GraphicsRuntimeInfo graphics) {
+        return systemSummary(hardware, graphics)
+                + (graphics == null ? "" : "\n\nDetalhes técnicos da renderização\n" + graphics.summary());
+    }
+
+    static String systemSummary(SystemHardwareInfo hardware, GraphicsRuntimeInfo graphics) {
         Properties info = build();
         return "FlatCAM FX " + info.getProperty("appVersion", "versão não disponível") + " — em desenvolvimento\n"
                 + "Build (UTC): " + info.getProperty("buildTimeUtc", "não disponível") + "\n"
@@ -46,7 +51,7 @@ final class AboutInfo {
                 + "JavaFX: " + info.getProperty("javafxVersion", System.getProperty("javafx.runtime.version", "não disponível")) + "\n"
                 + "Sistema: " + System.getProperty("os.name") + " " + System.getProperty("os.version") + "\n"
                 + "Arquitetura: " + System.getProperty("os.arch") + "\n"
-                + "\n" + (graphics == null ? "Renderização JavaFX: consultando pipeline ativo…\n" : graphics.summary())
+                + "\n" + (graphics == null ? "Modo gráfico: consultando placa de vídeo e tela…\n" : graphics.friendlySummary())
                 + "\n" + (hardware == null ? "Hardware: consultando CPU e memória…\n" : hardware.summary())
                 + "\n"
                 + "Diagnósticos: " + (FlatCamLauncher.diagnosticDirectory() == null ? "indisponíveis nesta execução"

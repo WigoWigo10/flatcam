@@ -97,20 +97,26 @@ final class AboutDialog extends Dialog<Void> {
                 label("Os ícones vetoriais do FX também incluem o desenho de pasta do Feather Icons (MIT)."),
                 label("O FX usa OpenJFX, RichTextFX, JTS, org.json e ZXing. Componentes e recursos têm seus próprios avisos e licenças; "
                         + "a licença do aplicativo não substitui os termos dessas dependências."));
-        TextArea system = readOnly(AboutInfo.technicalSummary()); system.setId("about-system");
+        TextArea system = readOnly(AboutInfo.systemSummary(null, null)); system.setId("about-system");
+        TextArea graphicsDetails = readOnly("Consultando renderizador…"); graphicsDetails.setId("about-graphics-details");
+        graphicsDetails.setPrefRowCount(7);
+        var details = new javafx.scene.control.TitledPane("Detalhes técnicos da renderização", graphicsDetails);
+        details.setId("about-graphics-details-pane"); details.setExpanded(false);
+        VBox systemContent = new VBox(8, system, details); VBox.setVgrow(system, Priority.ALWAYS);
         tabs.getTabs().addAll(tab("Apresentação", scroll(presentation)), tab("Programadores", programmers),
-                tab("Tradutores", translators), tab("Licença", license), tab("Atribuições", scroll(attributions)), tab("Sistema", system));
+                tab("Tradutores", translators), tab("Licença", license), tab("Atribuições", scroll(attributions)), tab("Sistema", systemContent));
         for (Tab tab : tabs.getTabs()) if (tab.getContent() instanceof VBox box) box.setPadding(new Insets(12));
         VBox content = new VBox(12, header, tabs, feedback); content.setMinSize(0, 0);
         VBox.setVgrow(tabs, Priority.ALWAYS); pane.setContent(content);
         pane.getButtonTypes().addAll(COPY, new ButtonType("Fechar", ButtonBar.ButtonData.CANCEL_CLOSE));
         Button copyButton = (Button) pane.lookupButton(COPY);
-        ToolDescriptions.apply(copyButton,"Copiar diagnóstico", "Copia as informações da aba Sistema para compartilhar em um relato de erro.\n\nAtenção: confira caminhos e detalhes do computador antes de compartilhar.");
-        ToolDescriptions.apply(system,"Diagnóstico do sistema", "Resumo técnico do ambiente e do renderizador gráfico. A detecção pode indicar GPU ou renderização por software; não é um teste de desempenho.");
+        ToolDescriptions.apply(copyButton,"Copiar diagnóstico", "Copia as informações da aba Sistema, incluindo os detalhes técnicos recolhidos, para compartilhar em um relato de erro.\n\nAtenção: confira caminhos e detalhes do computador antes de compartilhar.");
+        ToolDescriptions.apply(system,"Informações do sistema", "Mostra a placa de vídeo em uso e a tela onde está a janela do aplicativo. Tela principal é a definida como principal pelo sistema; não significa necessariamente a tela 1.\n\nA detecção não é um teste de desempenho.");
+        ToolDescriptions.apply(details,"Detalhes da renderização", "Expanda para consultar os identificadores internos do renderizador, do adaptador e do driver. A ordem gráfica solicitada é uma preferência de inicialização, não uma confirmação do modo em uso.");
         copyButton.setGraphic(Icons.fromResource(theme.isDark() ? "dark/copy32.png" : "copy32.png", 16));
         copyButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             event.consume();
-            try { copy.accept(system.getText()); feedback.setText("Informações técnicas copiadas."); }
+            try { copy.accept(system.getText() + "\n\nDetalhes técnicos da renderização\n" + graphicsDetails.getText()); feedback.setText("Informações técnicas copiadas."); }
             catch (RuntimeException unavailable) { feedback.setText("Não foi possível copiar as informações."); }
         });
         setOnShowing(event -> {
@@ -119,7 +125,7 @@ final class AboutDialog extends Dialog<Void> {
                 var resource = getClass().getResource("icons/flatcam_icon32.png");
                 if (resource != null) stage.getIcons().setAll(new javafx.scene.image.Image(resource.toExternalForm()));
             }
-            loadSystemInfo(system, owner);
+            loadSystemInfo(system, graphicsDetails, owner);
         });
         setOnHidden(event -> systemGeneration++);
         // The dialog owns a scene even before showing; use it for correct initial styles and tests.
@@ -127,9 +133,10 @@ final class AboutDialog extends Dialog<Void> {
         FluidTooltips.install(this, "Sobre");
     }
 
-    private void loadSystemInfo(TextArea system, Window owner) {
+    private void loadSystemInfo(TextArea system, TextArea graphicsDetails, Window owner) {
         int generation = ++systemGeneration;
-        system.setText(AboutInfo.technicalSummary());
+        system.setText(AboutInfo.systemSummary(null, null));
+        graphicsDetails.setText("Consultando renderizador…");
         var hardware = new java.util.concurrent.CompletableFuture<SystemHardwareInfo>();
         Thread worker = new Thread(() -> {
             try { hardware.complete(SystemHardwareInfo.collect()); }
@@ -138,8 +145,10 @@ final class AboutDialog extends Dialog<Void> {
         worker.setDaemon(true); worker.start();
         hardware.completeOnTimeout(SystemHardwareInfo.unavailable(), 4, java.util.concurrent.TimeUnit.SECONDS)
                 .thenCombine(GraphicsRuntimeInfo.query(owner), (cpu, graphics) ->
-                AboutInfo.technicalSummary(cpu, graphics)).thenAccept(summary -> Platform.runLater(() -> {
-                    if (generation == systemGeneration && isShowing()) system.setText(summary);
+                List.of(AboutInfo.systemSummary(cpu, graphics), graphics.summary())).thenAccept(summary -> Platform.runLater(() -> {
+                    if (generation == systemGeneration && isShowing()) {
+                        system.setText(summary.get(0)); graphicsDetails.setText(summary.get(1));
+                    }
                 }));
     }
 

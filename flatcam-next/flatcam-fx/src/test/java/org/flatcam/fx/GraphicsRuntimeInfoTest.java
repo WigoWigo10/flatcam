@@ -32,6 +32,34 @@ class GraphicsRuntimeInfoTest {
         assertTrue(GraphicsRuntimeInfo.query(null).join().scope().contains("thread JavaFX"));
     }
 
+    @Test void friendlyHardwareSummaryKeepsInternalIdentifiersInDiagnosticsOnly() {
+        var info = new GraphicsRuntimeInfo("com.sun.prism.d3d.D3DPipeline", "Aceleração gráfica Direct3D (GPU)",
+                "Intel(R) Arc(TM) Graphics", "igd9trinity64.dll — 32.0.101.8991",
+                "Adaptador da janela principal (Prism #0, \\\\.\\DISPLAY1).",
+                GraphicsRuntimeInfo.screenLabel(true, 1706.6666667, 960, 1.5, 1.5));
+        String friendly = info.friendlySummary();
+        assertTrue(friendly.contains("acelerado pela placa de vídeo (Direct3D)"));
+        assertTrue(friendly.contains("Placa de vídeo em uso: Intel(R) Arc(TM) Graphics"));
+        assertTrue(friendly.contains("Tela principal — 2560 × 1440 pixels; escala da interface: 150%"));
+        assertFalse(friendly.contains("Prism")); assertFalse(friendly.contains("DISPLAY1"));
+        assertFalse(friendly.contains(".dll")); assertFalse(friendly.contains("solicitada"));
+        assertTrue(info.summary().contains(info.driver())); assertTrue(info.summary().contains(info.scope()));
+        assertTrue(info.summary().contains("não prova o modo ativo"));
+    }
+
+    @Test void friendlySoftwareAndUnknownSummariesDoNotClaimAnActiveGpu() {
+        var software = new GraphicsRuntimeInfo("com.sun.prism.sw.SWPipeline", "fixture", "GPU instalada",
+                "fixture", "fixture", "Tela secundária");
+        assertTrue(software.friendlySummary().contains("compatibilidade por software"));
+        assertTrue(software.friendlySummary().contains("CPU, sem aceleração da placa de vídeo"));
+        assertFalse(software.friendlySummary().contains("GPU instalada"));
+        assertTrue(GraphicsRuntimeInfo.unavailable("fixture").friendlySummary().contains("não foi possível identificar"));
+        assertEquals("Tela secundária — 1920 × 1080 pixels; escala da interface: 100%",
+                GraphicsRuntimeInfo.screenLabel(false, 1920, 1080, 1, 1));
+        assertEquals("Tela secundária — 2000 × 1800 pixels; escala da interface: 125% × 150%",
+                GraphicsRuntimeInfo.screenLabel(false, 1600, 1200, 1.25, 1.5));
+    }
+
     @Test @EnabledOnOs(OS.WINDOWS) void realOffscreenPrismQueryUsesRendererWithoutBlockingFx() throws Exception {
         var future = TerminalPanelTest.fx(() -> {
             new javafx.scene.canvas.Canvas(16, 16).snapshot(null, null);
@@ -39,6 +67,7 @@ class GraphicsRuntimeInfoTest {
         });
         var info = future.get(5, TimeUnit.SECONDS);
         assertTrue(info.pipeline().startsWith("com.sun.prism."), info.summary());
+        assertTrue(info.friendlySummary().contains("consulta sem janela"));
         if (info.pipeline().endsWith("D3DPipeline")) {
             assertFalse(info.adapter().contains("não identificada"), info.summary());
             assertTrue(info.scope().contains("offscreen"));

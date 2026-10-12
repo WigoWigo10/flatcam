@@ -49,8 +49,12 @@ class AboutDialogTest {
                 TextArea license = (TextArea) pane.lookup("#about-license"); assertFalse(license.isEditable());
                 assertEquals(AboutInfo.resource("LICENSE").replace("\r\n", "\n"), license.getText());
                 tabs.getSelectionModel().select(5); pane.applyCss(); pane.layout();
+                var detailsPane = (javafx.scene.control.TitledPane) pane.lookup("#about-graphics-details-pane");
+                assertFalse(detailsPane.isExpanded());
                 ((Button) pane.lookupButton(AboutDialog.COPY)).fire();
-                assertEquals(List.of(((TextArea) pane.lookup("#about-system")).getText()), copied);
+                assertEquals(List.of(copyText(pane)), copied);
+                detailsPane.setExpanded(true); pane.applyCss(); pane.layout();
+                assertTrue(pane.lookup("#about-graphics-details").getLayoutBounds().getWidth() > 0);
                 assertFalse(dialog.isShowing()); // the copy action does not invoke Dialog.show/close.
                 tabs.getSelectionModel().selectFirst(); pane.applyCss(); pane.layout();
                 var links = pane.lookupAll(".hyperlink").stream().map(node -> (Hyperlink) node).toList();
@@ -93,7 +97,8 @@ class AboutDialogTest {
             AboutDialog created = new AboutDialog(null, ThemeOption.CLASSIC_DARK, ignored -> { }, copied::add);
             var tabs = (TabPane) created.getDialogPane().lookup("#about-tabs");
             tabs.getSelectionModel().select(5);
-            TextArea system = (TextArea) tabs.getTabs().get(5).getContent();
+            created.getDialogPane().applyCss(); created.getDialogPane().layout();
+            TextArea system = (TextArea) created.getDialogPane().lookup("#about-system");
             system.textProperty().addListener((observable, oldText, text) -> {
                 if (text.contains("RAM física total:") && !text.contains("consultando")) ready.countDown();
             });
@@ -108,9 +113,13 @@ class AboutDialogTest {
                 assertTrue(system.getText().contains("CPU:"));
                 assertTrue(system.getText().contains("RAM física disponível:"));
                 assertTrue(system.getText().contains("Heap Java usado:"));
-                assertTrue(system.getText().contains("Pipeline Prism ativo: com.sun.prism."));
+                assertTrue(system.getText().contains("Modo gráfico:"));
+                assertTrue(system.getText().contains("Tela da janela:"));
+                assertFalse(system.getText().contains("com.sun.prism."));
+                assertTrue(((TextArea) dialog.getDialogPane().lookup("#about-graphics-details"))
+                        .getText().contains("Pipeline Prism ativo: com.sun.prism."));
                 ((Button) dialog.getDialogPane().lookupButton(AboutDialog.COPY)).fire();
-                assertEquals(List.of(system.getText()), copied); assertTrue(dialog.isShowing());
+                assertEquals(List.of(copyText(dialog.getDialogPane())), copied); assertTrue(dialog.isShowing());
                 if (Boolean.getBoolean("flatcam.tests.snapshots")) snapshot(dialog.getDialogPane(), "about-system-dark.png");
                 return null;
             });
@@ -128,11 +137,18 @@ class AboutDialogTest {
             var future = TerminalPanelTest.fx(() -> GraphicsRuntimeInfo.query(owner));
             var report = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
             assertTrue(report.pipeline().startsWith("com.sun.prism."), report.summary());
+            assertTrue(report.screen().matches("Tela (principal|secundária).*pixels.*escala da interface.*"), report.summary());
             if (report.pipeline().endsWith("D3DPipeline")) {
                 assertFalse(report.adapter().contains("não identificada"), report.summary());
                 assertTrue(report.scope().contains("janela principal"), report.summary());
             }
         } finally { TerminalPanelTest.fx(() -> { owner.close(); return null; }); }
+    }
+
+    private static String copyText(javafx.scene.control.DialogPane pane) {
+        return ((TextArea) pane.lookup("#about-system")).getText()
+                + "\n\nDetalhes técnicos da renderização\n"
+                + ((TextArea) pane.lookup("#about-graphics-details")).getText();
     }
 
     private static void snapshot(javafx.scene.Node node, String name) throws Exception {
