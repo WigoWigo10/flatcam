@@ -10,6 +10,20 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class CncRoutingFieldsTest {
+    @Test void continuousPassChoiceIsPublishedAndDirectionConflictIsReported() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            Geometry path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});
+            var result=new java.util.concurrent.atomic.AtomicReference<GeometryCncToolPanel.Result>();
+            var root=(javafx.scene.Parent)GeometryCncToolPanel.build("MM",path,List.of(),result::set,() -> {});
+            new javafx.scene.Scene(root); root.applyCss(); root.layout();
+            ((CheckBox)root.lookup("#cnc-multi-depth")).setSelected(true);
+            @SuppressWarnings("unchecked") var mode=(ComboBox<GeometryPassStrategy>)root.lookup("#cnc-pass-strategy");
+            mode.setValue(GeometryPassStrategy.CONTINUOUS_ALTERNATING); ((Button)root.lookup("#cnc-generate")).fire();
+            assertNotNull(result.get(),((Label)root.lookup("#cnc-error")).getText()); assertEquals(GeometryPassStrategy.CONTINUOUS_ALTERNATING,result.get().parameters().passStrategy());
+            result.set(null); ((CheckBox)root.lookup("#cnc-route-direction")).setSelected(true); ((Button)root.lookup("#cnc-generate")).fire();
+            assertNull(result.get()); assertTrue(((Label)root.lookup("#cnc-error")).getText().contains("Preservar direção")); return null;
+        });
+    }
     @Test void boardReferenceUnitsAndSavedSnapshotAreExplicit() throws Exception {
         TerminalPanelTest.fx(() -> {
             Geometry area=new GeometryFactory().toGeometry(new Envelope(0,10,0,10));

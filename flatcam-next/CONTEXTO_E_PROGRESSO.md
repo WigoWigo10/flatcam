@@ -1,5 +1,18 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série 3/4: passes contínuos explícitos — 2026-10-12
+
+Geometry CNC tem estratégia por fresa: retração/mesma direção (default) ou
+contínuo alternado; persistência/restauração nativa e Aplicar a todas. Geração
+mantém endpoint real, não faz rápido lateral enquanto a ferramenta está baixa
+entre passes, recusa conflito com Preservar direção/Extra Cut/sonda.
+Quatro controles contínuos novos MM/IN concordam com Python original. Corpus
+38: 22 equivalências, 8 diferenças de rota, 6 de usinagem (quatro são receitas
+do modo com retração, duas RPM zero), 2 erros Python e zero erros FX; strict 1.
+Não remover modos antigos ou erros para alegar paridade. Restantes e limites
+em [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md). Oráculo do incremento:
+target/series-3-cnc-20261012/python/index.html; testes: series-3-passes-20261012.log.
+
 ## Série 2/4: ordem dos trajetos — 2026-10-12
 
 Geometry CNC ganhou opções Original/Proximidade/Terminar cada placa por fresa,

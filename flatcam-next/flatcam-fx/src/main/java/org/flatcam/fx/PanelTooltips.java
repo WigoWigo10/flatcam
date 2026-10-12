@@ -249,7 +249,7 @@ final class PanelTooltips {
 
     private static String contextual(String context, String name) {
         if (context.equals("Geometry CNC Job") && name.equals("multi-depth"))
-            return "Divide a profundidade total em passes limitados pelo valor ao lado. No FX, retrai para Travel Z entre passes e conserva o sentido escolhido para o caminho; não alterna automaticamente como o Python.";
+            return "Divide a profundidade total em passes limitados pelo valor ao lado. Escolha a estratégia: retração com mesma direção ou contínuo alternado. Contínuo inverte a orientação, inclusive em LineStrings fechados; não é apropriado automaticamente para toda fresa/material.";
         if (List.of("NCC Tool", "Paint Tool").contains(context)) {
             switch (name) {
                 case "method", "metodo" : return "Método de preenchimento:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta métodos alternativos.";

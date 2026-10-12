@@ -12,6 +12,17 @@ import org.locationtech.jts.geom.*;
 
 class GeometryPerToolProjectTest {
     @TempDir Path dir;
+    @Test void continuousPassStrategySurvivesNativeSaveAndOldFilesKeepRetraction() throws Exception {
+        var p=new GeometryGCodeParameters(3,1,true,.4,100,1000,false).withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
+        var path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});
+        var project=new ProjectFile(List.of(),List.of(),List.of(new ProjectFile.GeometryEntry("paths","","MM",path,true,List.of(),null,null,true,p)),List.of());
+        Path file=dir.resolve("continuous.fcnproj"); ProjectFileIO.save(project,file);
+        assertEquals(p,ProjectFileIO.load(file).geometries().getFirst().cncDefaults());
+        var root=ProjectFileIO.parseRoot(java.nio.file.Files.readAllBytes(file));
+        root.getJSONObject("_java").getJSONArray("geometries").getJSONObject(0).getJSONObject("cncDefaults").remove("passStrategy");
+        ProjectFileIO.writeRoot(root,file,false);
+        assertEquals(GeometryPassStrategy.RETRACT_SAME_DIRECTION,ProjectFileIO.load(file).geometries().getFirst().cncDefaults().passStrategy());
+    }
     @Test void plainGeometryKeepsDiameterAndVProfileWithoutBecomingFixedMultigeo() throws Exception {
         var p = new GeometryGCodeParameters(2,0.1,false,1,100,0,false);
         var path = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0), new Coordinate(1,1)});

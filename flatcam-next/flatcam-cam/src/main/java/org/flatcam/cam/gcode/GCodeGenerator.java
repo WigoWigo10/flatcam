@@ -715,6 +715,8 @@ public final class GCodeGenerator {
             if (p.offset() != ToolPathOffset.PATH && (preprocessor.isLaser() || preprocessor.isPlotter()
                     || preprocessor.isRoland() || preprocessor.requiresProbe()))
                 throw new IllegalArgumentException("Offset exige perfil de fresagem sem sondagem.");
+            if (p.passStrategy()!=GeometryPassStrategy.RETRACT_SAME_DIRECTION && (preprocessor.isLaser() || preprocessor.isPlotter() || preprocessor.isRoland() || preprocessor.requiresProbe()))
+                throw new IllegalArgumentException("Estratégia de passes alternados exige fresagem sem sondagem.");
         }
         if (preprocessor.isPlotter()) {
             return generateHpglCncJob(units, tools, params, cancellationToken);
@@ -864,19 +866,26 @@ public final class GCodeGenerator {
                 lastX = last.x;
                 lastY = last.y;
 
-                for (double depth : depths) {
+                boolean continuous=machining.multiDepth() && machining.passStrategy()==GeometryPassStrategy.CONTINUOUS_ALTERNATING;
+                List<Double> pathDepths=continuous && coordinates.length==1 ? List.of(depths.getLast()) : depths;
+                Coordinate[] passCoordinates=coordinates;
+                for (int pass=0;pass<pathDepths.size();pass++) {
+                    double depth=pathDepths.get(pass);
                     cancellationToken.throwIfCancellationRequested();
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(machining.feedRateZ()));
-                    for (int p = 1; p < coordinates.length; p++) {
+                    for (int p = 1; p < passCoordinates.length; p++) {
                         cancellationToken.throwIfCancellationRequested();
-                        line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(coordinates[p].x, units),
-                                fmtCoordinate(coordinates[p].y, units), fmt(machining.feedRate()));
+                        line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(passCoordinates[p].x, units),
+                                fmtCoordinate(passCoordinates[p].y, units), fmt(machining.feedRate()));
                     }
-                    if (depth != depths.get(depths.size() - 1)) {
+                    Coordinate actualEnd=passCoordinates[passCoordinates.length-1]; lastX=actualEnd.x; lastY=actualEnd.y;
+                    if (pass+1<pathDepths.size() && !continuous) {
                         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
                         exclusionTravel(gcode,travelShapes,last.x,last.y,coordinates[0].x,coordinates[0].y,radius,
                                 clearance,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                     }
+                    // Python reverses LineStrings, even closed ones; no lateral rapid is emitted while down.
+                    if (continuous) passCoordinates=reversed(passCoordinates);
                 }
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
             }

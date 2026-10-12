@@ -13,7 +13,14 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
                                       boolean pauseForToolChange, double rapidFeedRate,
                                       ProbeToolChangeParameters probing, double feedRateZ,
                                       boolean dwell, double dwellSeconds, boolean extraCut, double extraCutLength,
-                                      ToolPathOffset offset, double customOffset, GeometryJobOptions jobOptions) {
+                                      ToolPathOffset offset, double customOffset, GeometryJobOptions jobOptions, GeometryPassStrategy passStrategy) {
+    public GeometryGCodeParameters(double safeZ,double cutDepth,boolean multiDepth,double depthPerPass,double feedRate,int spindleSpeedRpm,
+                                   boolean pauseForToolChange,double rapidFeedRate,ProbeToolChangeParameters probing,double feedRateZ,
+                                   boolean dwell,double dwellSeconds,boolean extraCut,double extraCutLength,
+                                   ToolPathOffset offset,double customOffset,GeometryJobOptions jobOptions) {
+        this(safeZ,cutDepth,multiDepth,depthPerPass,feedRate,spindleSpeedRpm,pauseForToolChange,rapidFeedRate,probing,feedRateZ,
+                dwell,dwellSeconds,extraCut,extraCutLength,offset,customOffset,jobOptions,GeometryPassStrategy.RETRACT_SAME_DIRECTION);
+    }
     public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                   double depthPerPass, double feedRate, int spindleSpeedRpm,
                                   boolean pauseForToolChange, double rapidFeedRate, ProbeToolChangeParameters probing,
@@ -25,17 +32,21 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
     public GeometryGCodeParameters withCompensation(ToolPathOffset mode, double distance) {
         return new GeometryGCodeParameters(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm,
                 pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
-                mode, distance, jobOptions);
+                mode, distance, jobOptions,passStrategy);
     }
     public GeometryGCodeParameters withJobOptions(GeometryJobOptions options) {
         return new GeometryGCodeParameters(safeZ, cutDepth, multiDepth, depthPerPass, feedRate, spindleSpeedRpm,
                 pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
-                offset, customOffset, options);
+                offset, customOffset, options,passStrategy);
     }
     public GeometryGCodeParameters withCutting(double depth, boolean multiple, double perPass) {
         return new GeometryGCodeParameters(safeZ, depth, multiple, perPass, feedRate, spindleSpeedRpm,
                 pauseForToolChange, rapidFeedRate, probing, feedRateZ, dwell, dwellSeconds, extraCut, extraCutLength,
-                offset, customOffset, jobOptions);
+                offset, customOffset, jobOptions,passStrategy);
+    }
+    public GeometryGCodeParameters withPassStrategy(GeometryPassStrategy strategy) {
+        return new GeometryGCodeParameters(safeZ,cutDepth,multiDepth,depthPerPass,feedRate,spindleSpeedRpm,pauseForToolChange,
+                rapidFeedRate,probing,feedRateZ,dwell,dwellSeconds,extraCut,extraCutLength,offset,customOffset,jobOptions,strategy);
     }
     public GeometryGCodeParameters(double safeZ, double cutDepth, boolean multiDepth,
                                   double depthPerPass, double feedRate, int spindleSpeedRpm,
@@ -57,6 +68,12 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
     public GeometryGCodeParameters {
         java.util.Objects.requireNonNull(offset, "offset");
         java.util.Objects.requireNonNull(jobOptions, "jobOptions");
+        java.util.Objects.requireNonNull(passStrategy,"passStrategy");
+        if(multiDepth && passStrategy==GeometryPassStrategy.CONTINUOUS_ALTERNATING) {
+            if(extraCut) throw new IllegalArgumentException("Passes contínuos alternados não aceitam Extra Cut neste incremento.");
+            if(jobOptions.routing().preserveDirection()) throw new IllegalArgumentException("Passes alternados invertem a direção: desmarque Preservar direção ou use retração entre passes.");
+            if(probing!=null) throw new IllegalArgumentException("Passes contínuos alternados não são habilitados para sondagem.");
+        }
         if (!Double.isFinite(customOffset)) throw new IllegalArgumentException("Custom Offset deve ser finito.");
         if (offset == ToolPathOffset.CUSTOM && customOffset == 0)
             throw new IllegalArgumentException("Custom Offset nao pode ser zero; use Path para manter os caminhos.");

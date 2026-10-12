@@ -377,6 +377,7 @@ public final class ProjectFileIO {
                 .put("dwell", p.dwell()).put("dwellSeconds", p.dwellSeconds())
                 .put("extraCut", p.extraCut()).put("extraCutLength", p.extraCutLength());
         value.put("offset", p.offset().name()).put("customOffset", p.customOffset());
+        value.put("passStrategy",p.passStrategy().name());
         var positions = p.jobOptions();
         var route=positions.routing();
         value.put("jobOptions", new JSONObject().put("startZ", positions.startZ()).put("endZ", positions.endZ())
@@ -451,7 +452,8 @@ public final class ProjectFileIO {
                 json.optBoolean("dwell", false), json.optDouble("dwellSeconds", 0),
                 json.optBoolean("extraCut", false), json.optDouble("extraCutLength", 0),
                 org.flatcam.cam.gcode.ToolPathOffset.fromLegacy(json.optString("offset", "Path")),
-                json.optDouble("customOffset", 0), readGeometryJobOptions(json.optJSONObject("jobOptions")));
+                json.optDouble("customOffset", 0), readGeometryJobOptions(json.optJSONObject("jobOptions")))
+                .withPassStrategy(org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(json.optString("passStrategy","RETRACT_SAME_DIRECTION")));
     }
 
     private static org.flatcam.cam.gcode.GeometryJobOptions readGeometryJobOptions(JSONObject json) {

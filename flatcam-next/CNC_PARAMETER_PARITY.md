@@ -1,5 +1,38 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Série 3/4: política explícita de passes — 2026-10-12
+
+Geometry CNC permite selecionar por ferramenta `RETRACT_SAME_DIRECTION`
+(default anterior) ou `CONTINUOUS_ALTERNATING`. A opção aparece junto de
+Multi-Depth, participa de Aplicar a todas e persiste no projeto nativo.
+Contínuo desce no ponto final e inverte as coordenadas para o próximo passe,
+inclusive em LineString fechado, sem um rápido lateral dentro do material.
+O endpoint efetivo, inclusive em número par de passes, alimenta a próxima rota.
+Ponto isolado usa apenas a profundidade final, como a rotina Python testada.
+Alternância não é otimização universal: troca direção Climb/Conventional.
+Preservar direção, Extra Cut e sonda são incompatíveis e recusados; laser,
+plotter e Roland não usam a nova política. Não simula segurança física.
+
+Corpus ampliado **38 casos**, mantendo todos os 34 anteriores e adicionando
+contínuo aberto/fechado × MM/IN. Python original repetido, sem alteração de
+fontes/tolerância: **22 MATCH_EXECUTION, 8 ROUTING_DIFFERENT,
+6 MACHINING_DIFFERENT, 2 ORACLE_ERROR, 0 FX_ERROR**. Os quatro controles novos
+contínuos concordam. As quatro receitas antigas com retração continuam
+divergindo por escolha explícita; não foram removidas para melhorar o placar.
+Strict permanece **1**, não foi relaxado e não significa paridade total.
+
+Restantes: Start Z versus altura explícita da primeira troca, Around/Over,
+RPM zero com troca desligada e erros Dwell zero do legado. Preservadas as
+políticas mais conservadoras do FX em vez de copiar movimentos/acionamentos
+sem autorização específica. Ainda falta ampliar o oráculo para várias
+geometrias/fresas, slots, casos reais e perfis; LinearRing/Polygon do Python
+não têm necessariamente a mesma alternância de um LineString fechado.
+Não houve harmonização de todas essas variantes nesta etapa.
+
+Regressões de modos, direção, endpoint par, profundidade de pontos,
+cancelamento, persistência e painel; logs target/series-3-passes-20261012.log.
+Oráculo: target/series-3-cnc-20261012/python/index.html (strict 1 esperado).
+
 ## Primeiro incremento — 2026-10-12
 
 Branch `flatcam-next`, base `e76dacb8`. Incluído no commit de consolidação

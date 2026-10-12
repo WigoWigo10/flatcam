@@ -35,11 +35,11 @@ class PythonCncParametersExportTest {
                     "selected-tool", "positions", "dwell", "zero-dwell", "spindle-off", "around", "over")) {
                 cases.put(drilling(units, scale, recipe));
             }
-            for (String recipe : List.of("single", "peck-open", "peck-closed", "positions", "dwell")) {
+            for (String recipe : List.of("single", "peck-open", "peck-closed", "positions", "dwell", "continuous-open", "continuous-closed")) {
                 cases.put(geometry(units, scale, recipe));
             }
         }
-        assertEquals(34, cases.length());
+        assertEquals(38, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
@@ -80,13 +80,14 @@ class PythonCncParametersExportTest {
     }
 
     private JSONObject geometry(String units, double s, String recipe) throws Exception {
-        var shape = new WKTReader().read(recipe.equals("peck-closed")
+        var shape = new WKTReader().read(recipe.endsWith("closed")
                 ? "LINESTRING (10 0, 12 0, 12 2, 10 2, 10 0)" : "LINESTRING (10 0, 12 0)");
         shape = org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(shape);
         var positions = new GeometryJobOptions(null, 5*s, null, null, 15*s, null, null);
         if (recipe.equals("positions")) positions = new GeometryJobOptions(12*s,5*s,25*s,2*s,15*s,-2*s,-3*s);
-        var p = new GeometryGCodeParameters(3*s, 1.1*s, recipe.startsWith("peck"), .4*s, 200*s, 10000,
+        var p = new GeometryGCodeParameters(3*s, 1.1*s, recipe.startsWith("peck") || recipe.startsWith("continuous"), .4*s, 200*s, 10000,
                 true, 1500*s, null, 75*s, recipe.equals("dwell"), .25, false, 0).withJobOptions(positions);
+        if(recipe.startsWith("continuous"))p=p.withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
         String code = GCodeGenerator.generateGeometryCncJob(units, List.of(new ToolGeometry(1*s,shape)),
                 p, Map.of(), CancellationToken.none(), GCodePreprocessor.GRBL_11_NO_M6).gcode();
         var params = new JSONObject().put("safeZ",p.safeZ()).put("depth",p.cutDepth()).put("multiDepth",p.multiDepth())
