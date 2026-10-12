@@ -31,6 +31,7 @@ class RecentPrintUiTest {
         var preferences=Preferences.userRoot().node("flatcam-fx-tests/flows-"+UUID.randomUUID());
         var history=new RecentFiles(preferences); var jobs=new org.flatcam.app.job.JobExecutor(1);
         MainWindow window=TerminalPanelTest.fx(() -> { var w=new MainWindow(jobs,history); w.createScene(); return w; });
+        TerminalPanelTest.fx(() -> { window.setProjectDecisionProvider(draft -> UnsavedChangesGuard.Choice.DISCARD); return null; });
         try {
             Path gerber=directory.resolve("board.gbr");
             Files.writeString(gerber,"%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,1.0*%\nD10*\nX0Y0D03*\nM02*\n");

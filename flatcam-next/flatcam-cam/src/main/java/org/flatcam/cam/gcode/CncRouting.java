@@ -27,8 +27,15 @@ public record CncRouting(Mode mode, boolean preserveDirection, boolean innerFirs
     }
     static List<Coordinate[]> order(Geometry geometry, double x, double y, double toolRadius,
                                     CncRouting options, CancellationToken cancellation) {
+        return order(geometry,x,y,toolRadius,options,cancellation,false);
+    }
+    static List<Coordinate[]> order(Geometry geometry,double x,double y,double toolRadius,
+                                    CncRouting options,CancellationToken cancellation,boolean endsAtEntry) {
+        cancellation.throwIfCancellationRequested();
+        boolean legacy=options.equals(LEGACY);
+        // The unchanged default delegates directly: do not duplicate all coordinate arrays.
+        if(legacy && !endsAtEntry)return GCodeGenerator.orderedByNearestNeighbor(geometry,x,y,cancellation);
         List<Coordinate[]> remaining=new ArrayList<>(); collect(geometry,remaining,cancellation);
-        if (options.equals(LEGACY)) return GCodeGenerator.orderedByNearestNeighbor(geometry,x,y,cancellation);
         if (options.mode()==Mode.SOURCE) return remaining;
         var factory=geometry.getFactory();
         List<Envelope> boxes=options.boardAreas().stream().map(CncRouting::board).map(p -> {
@@ -62,7 +69,7 @@ public record CncRouting(Mode mode, boolean preserveDirection, boolean innerFirs
                 cancellation.throwIfCancellationRequested();
                 if (active>=0 && groups.get(path)!=active) continue;
                 if (options.innerFirst() && blocked(path,remaining,rings,groups,options.mode()==Mode.BOARDS)) continue;
-                int count=closed(path) ? path.length-1 : options.preserveDirection() ? 1 : path.length==1 ? 1 : 2;
+                int count=closed(path) ? legacy ? 1 : path.length-1 : options.preserveDirection() ? 1 : path.length==1 ? 1 : 2;
                 for (int i=0;i<count;i++) {
                     int index=closed(path) ? i : i==0 ? 0 : path.length-1;
                     double d=Math.hypot(path[index].x-x,path[index].y-y);
@@ -73,11 +80,11 @@ public record CncRouting(Mode mode, boolean preserveDirection, boolean innerFirs
             remaining.remove(best);
             if (options.mode()==Mode.BOARDS) active=groups.get(best);
             Coordinate[] ordered=best;
-            if (closed(best)) {
+            if (closed(best) && !legacy) {
                 int n=best.length-1; ordered=new Coordinate[best.length];
                 for(int i=0;i<n;i++) ordered[i]=new Coordinate(best[(entry+i)%n]); ordered[n]=new Coordinate(ordered[0]);
             } else if (reverse) { ordered=new Coordinate[best.length]; for(int i=0;i<best.length;i++) ordered[i]=new Coordinate(best[best.length-1-i]); }
-            output.add(ordered); Coordinate end=ordered[ordered.length-1]; x=end.x; y=end.y;
+            output.add(ordered); Coordinate end=ordered[endsAtEntry ? 0 : ordered.length-1]; x=end.x; y=end.y;
         }
         return output;
     }

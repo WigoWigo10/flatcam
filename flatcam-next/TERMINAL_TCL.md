@@ -15,6 +15,11 @@ Também há ajuda específica para `join_geometry`/`join_geometries`,
 
 ## Abertura de projeto
 
+Atualização 2026-10-12: `open_project` recusa alterações não salvas. Salvar
+primeiro ou descartar explicitamente com `open_project {arquivo} -force true`
+(extensão FX). Force não ignora rascunhos, cancelamento ou validação de carga.
+Detalhes: [PROJETO_NAO_SALVO.md](PROJETO_NAO_SALVO.md).
+
 ```tcl
 open_project {C:/pasta com espacos/projeto.fcnproj}
 get_names

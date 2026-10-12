@@ -325,14 +325,15 @@ public class MainApp extends Application {
     }
 
     private void wireCloseHandler(Stage stage, MainWindow mainWindow) {
-        stage.setOnCloseRequest(e -> {
-            if (!mainWindow.confirmToolsDatabaseClose()) { e.consume(); return; }
+        Runnable close=() -> {
             AppPreferences.saveWindowSize(stage.getWidth(), stage.getHeight());
             AppPreferences.saveWindowScreen(mainWindow.currentScreenId(),
                     screenBounds(screenContainingMostOf(stage).getBounds()));
             mainWindow.saveSplitPositions();
             Platform.exit();
-        });
+        };
+        mainWindow.setApplicationClose(close);
+        stage.setOnCloseRequest(e -> { e.consume(); mainWindow.requestApplicationClose(); });
     }
 
     @Override

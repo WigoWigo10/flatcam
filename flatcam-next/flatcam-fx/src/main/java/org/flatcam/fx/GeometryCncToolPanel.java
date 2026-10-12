@@ -456,7 +456,7 @@ final class GeometryCncToolPanel {
                                 !roland.get() && Boolean.parseBoolean(s[9]), Boolean.parseBoolean(s[9]) && !roland.get() ? parseText(s[6], "Dwell") : 0,
                                 Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) ? parseText(s[7], "Extra Cut Length") : 0,
                                 ToolPathOffset.valueOf(s[11]), parseText(s[12], "Custom Offset"), positions)
-                                .withPassStrategy(org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(s[13]));
+                                .withPassStrategy(unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(s[13]));
                         preprocessor.getValue().validatePower(p.spindleSpeedRpm());
                         preprocessor.getValue().validateFeedRates(p.feedRate(), params.rapidFeedRate());
                         byTool.put(i, p);

@@ -20,6 +20,10 @@ class CncRoutingFieldsTest {
             @SuppressWarnings("unchecked") var mode=(ComboBox<GeometryPassStrategy>)root.lookup("#cnc-pass-strategy");
             mode.setValue(GeometryPassStrategy.CONTINUOUS_ALTERNATING); ((Button)root.lookup("#cnc-generate")).fire();
             assertNotNull(result.get(),((Label)root.lookup("#cnc-error")).getText()); assertEquals(GeometryPassStrategy.CONTINUOUS_ALTERNATING,result.get().parameters().passStrategy());
+            @SuppressWarnings("unchecked") var profile=(ComboBox<GCodePreprocessor>)root.lookup("#cnc-preprocessor");
+            profile.setValue(GCodePreprocessor.HPGL); ((Button)root.lookup("#cnc-generate")).fire();
+            assertEquals(GeometryPassStrategy.RETRACT_SAME_DIRECTION,result.get().parameters().passStrategy());
+            profile.setValue(GCodePreprocessor.FX_PORTABLE); assertEquals(GeometryPassStrategy.CONTINUOUS_ALTERNATING,mode.getValue());
             result.set(null); ((CheckBox)root.lookup("#cnc-route-direction")).setSelected(true); ((Button)root.lookup("#cnc-generate")).fire();
             assertNull(result.get()); assertTrue(((Label)root.lookup("#cnc-error")).getText().contains("Preservar direção")); return null;
         });

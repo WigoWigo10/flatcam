@@ -37,4 +37,10 @@ class GeometryPassStrategyTest {
         assertFalse(code.contains("Z-0.4000")); assertTrue(code.contains("Z-1.1000"));
         assertThrows(java.util.concurrent.CancellationException.class,() -> GCodeGenerator.generateGeometryCncJob("MM",point,p,1,() -> true));
     }
+    @Test void nearestOrderingUsesTheEntryEndpointAfterAnEvenNumberOfAlternatingPasses() throws Exception {
+        var paths=new WKTReader().read("MULTILINESTRING ((0 0,100 0),(5 5,6 5),(110 5,111 5))");
+        var p=base.withCutting(.8,true,.4).withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
+        String code=GCodeGenerator.generateGeometryCncJob("MM",paths,p,1,CancellationToken.none()).gcode();
+        assertTrue(code.indexOf("G0 X5.0000 Y5.0000")<code.indexOf("G0 X110.0000 Y5.0000"),code);
+    }
 }

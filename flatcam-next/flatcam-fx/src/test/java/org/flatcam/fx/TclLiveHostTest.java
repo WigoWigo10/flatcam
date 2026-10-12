@@ -257,7 +257,7 @@ class TclLiveHostTest {
         Path file = directory.resolve("complete project.fcnproj"); ProjectFileIO.save(fixture(directory), file);
         byte[] before = Files.readAllBytes(file);
         try (Session session = new Session()) {
-            session.geometry("old"); session.eval("open_project {" + file.toString().replace('\\', '/') + "}");
+            session.geometry("old"); session.eval("open_project {" + file.toString().replace('\\', '/') + "} -force true");
             assertEquals(List.of("copper", "drills", "route", "route_cnc"), session.host.objectNames());
             assertTrue(session.eval("export_gcode route_cnc").contains("G1 X20 Y40"));
             assertEquals(1, value(version(session, "route"), "tools", List.class).size());
@@ -310,7 +310,7 @@ class TclLiveHostTest {
         try (Session session = new Session()) {
             session.geometry("old"); Object previous = version(session, "old");
             for (Path file : List.of(bad, colour, directory.resolve("missing.fcnproj"))) {
-                assertThrows(Exception.class, () -> session.host.openProject(file));
+                assertThrows(Exception.class, () -> session.host.openProject(file,true));
                 assertEquals(List.of("old"), session.host.objectNames()); assertSame(previous, version(session, "old"));
             }
         }
@@ -326,7 +326,7 @@ class TclLiveHostTest {
                     public boolean isCancelled() { return cancelled.get(); }
                     public void reportProgress(double fraction, String message) { if (fraction >= cancelAt) cancelled.set(true); }
                 };
-                assertThrows(CancellationException.class, () -> TclExecution.run(context, () -> { session.host.openProject(file); return null; }));
+                assertThrows(CancellationException.class, () -> TclExecution.run(context, () -> { session.host.openProject(file,true); return null; }));
                 assertEquals(List.of("old"), session.host.objectNames());
             }
         }
@@ -357,7 +357,7 @@ class TclLiveHostTest {
                         } catch (Exception error) { throw new AssertionError(error); }
                     }
                 };
-                assertThrows(IllegalStateException.class, () -> TclExecution.run(context, () -> { session.host.openProject(file); return null; }), mutation);
+                assertThrows(IllegalStateException.class, () -> TclExecution.run(context, () -> { session.host.openProject(file,true); return null; }), mutation);
                 assertFalse(session.host.objectNames().contains("copper")); assertTrue(changed.get());
             }
         }
@@ -698,7 +698,7 @@ class TclLiveHostTest {
                 Path output = directory.resolve("saved with spaces." + extension);
                 session.eval("save_project " + quoted(output) + "; new_geometry after_save");
                 assertTrue(session.host.objectNames().contains("after_save"));
-                session.host.openProject(output);
+                session.host.openProject(output,true); // Explicitly discard the deliberately-created later edit.
                 assertEquals(List.of("copper", "drills", "route", "route_cnc"), session.host.objectNames());
                 assertFalse(visible(session, "copper")); assertFalse(visible(session, "route"));
                 assertTrue(visible(session, "drills")); assertTrue(visible(session, "route_cnc"));

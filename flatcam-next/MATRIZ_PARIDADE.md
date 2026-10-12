@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Série posterior: trajetos/passadas/proteção — 2026-10-12
+
+Corpus CNC passou de 34 para 38 controles públicos GRBL: 22 equivalências,
+8 diferenças de rota, 6 de usinagem, 2 erros Python; strict 1. Quatro casos
+novos contínuos aberto/fechado MM/IN concordam (**A nesse escopo**). Opções de
+roteamento e confirmações de dados têm testes FX (**C**), não comparação de
+toda a UI contra o Python. Não há certificação de máquina, todo o corpus privado
+repetido ou backend gráfico novo. Entregas, limites e prioridades em
+[SERIE_FLUXO_PRINCIPAL_20261012.md](SERIE_FLUXO_PRINCIPAL_20261012.md).
+
 ## Incremento posterior: Recentes e impressão PDF — 2026-10-12
 
 **C**: Recentes e Imprimir como PDF estão funcionais com testes derivados da

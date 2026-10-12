@@ -297,6 +297,12 @@ final class MainWindow implements TclFlatcamHost {
     /** Original file path for Gerber/Excellon items - what gets written to a saved project file. */
     private final Map<TreeItem<String>, Path> sourcePathByItem = new LinkedHashMap<>();
     private final RecentFiles recentFiles;
+    private final ProjectChangeTracker projectChanges=new ProjectChangeTracker();
+    private final UnsavedChangesGuard unsavedGuard=new UnsavedChangesGuard();
+    private java.util.function.Function<Boolean,UnsavedChangesGuard.Choice> projectDecision=this::askProjectDecision;
+    private java.util.function.Consumer<java.util.function.Consumer<Boolean>> guardedProjectSave=this::saveProject;
+    private Runnable applicationClose=Platform::exit;
+    private Path currentProjectFile;
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
 
@@ -871,6 +877,7 @@ final class MainWindow implements TclFlatcamHost {
         });
         currentTheme.applyTo(scene);
         plotAreaView.applyTheme(currentTheme);
+        if(!projectChanges.initialized() && allTclItems().isEmpty()) projectChanges.saved(projectStateStamp());
         return scene;
     }
 
@@ -1715,11 +1722,7 @@ final class MainWindow implements TclFlatcamHost {
                 plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
                 importMenu, exportMenu, scriptMenu, backupMenu,
                 printPdf, new SeparatorMenuItem(),
-                chromeItem("Sair", "power16.png", () -> {
-                    if (!confirmToolsDatabaseClose()) return;
-                    fluidTooltips.closeNow();
-                    Platform.exit();
-                }));
+                chromeItem("Sair", "power16.png", this::requestApplicationClose));
 
         Menu editMenu = new Menu("Editar");
         Menu conversionsMenu = new Menu("Converter");
@@ -7866,7 +7869,8 @@ final class MainWindow implements TclFlatcamHost {
             }
             TclExecution.progress("Projeto salvo.").report(1);
         } finally { Files.deleteIfExists(temporary); }
-        // Saving from Tcl deliberately does not change last-directory preferences or mark a later UI state as saved.
+        // Mark only the serialized version, never a later UI edit; do not alter last-directory preferences.
+        TclExecution.onFx(() -> { markProjectSaved(file,projectStateStamp(snapshot.before())); return null; });
     }
 
     private record TclProjectSave(ProjectFile project, TclProjectState before) { }
@@ -7975,9 +7979,14 @@ final class MainWindow implements TclFlatcamHost {
 
     @Override
     public void openProject(Path file) throws IOException, TclException {
+        openProject(file,false);
+    }
+    @Override
+    public void openProject(Path file,boolean discardUnsaved) throws IOException,TclException {
         requireWorkerCommand();
         TclProjectState before = TclExecution.onFx(() -> {
             requireProjectReplacementAllowed();
+            if(!discardUnsaved && hasUnsavedProjectChanges())throw new IllegalStateException("Projeto com alterações não salvas. Use save_project antes ou open_project -force true para descartar explicitamente.");
             return captureTclProjectState();
         });
         LoadedProject loaded = loadProject(file, new JobContext() {
@@ -7991,6 +8000,7 @@ final class MainWindow implements TclFlatcamHost {
             checkTclProjectState(before);
             restoreProject(loaded, false);
             reportOpenedProject(file, loaded);
+            markProjectSaved(file,projectStateStamp());
             return null;
         });
     }
@@ -8010,6 +8020,60 @@ final class MainWindow implements TclFlatcamHost {
         if (runningJob != null) throw new IllegalStateException("Ja existe uma operacao em andamento.");
         if (hasEditorChanges())
             throw new IllegalStateException("Aplique ou cancele as alteracoes do editor antes de abrir outro projeto.");
+    }
+
+    private ProjectChangeTracker.State projectStateStamp() { return projectStateStamp(captureTclProjectState()); }
+    private ProjectChangeTracker.State projectStateStamp(TclProjectState state) {
+        return new ProjectChangeTracker.State(state.epoch(),state.items().stream()
+                .map(i -> new ProjectChangeTracker.Item(i.item(),i.name(),i.version(),i.appearance())).toList(),state.settings());
+    }
+    boolean hasUnsavedProjectChanges() { return projectChanges.changed(projectStateStamp()); }
+    private void markProjectSaved(Path file,ProjectChangeTracker.State state) {
+        currentProjectFile=file.toAbsolutePath().normalize(); projectChanges.saved(state);
+    }
+    void setApplicationClose(Runnable close) { applicationClose=close; }
+    void setProjectDecisionProvider(java.util.function.Function<Boolean,UnsavedChangesGuard.Choice> provider) { projectDecision=provider; }
+    void setGuardedProjectSave(java.util.function.Consumer<java.util.function.Consumer<Boolean>> save) { guardedProjectSave=save; }
+
+    private UnsavedChangesGuard.Choice askProjectDecision(boolean drafts) {
+        // Headless hosts cannot open a modal window accidentally; their safe default is cancellation.
+        if(scene==null || scene.getWindow()==null)return UnsavedChangesGuard.Choice.CANCEL;
+        var dialog=new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(scene.getWindow()); dialog.setTitle(drafts ? "Rascunho não aplicado" : "Projeto não salvo"); dialog.setHeaderText(null);
+        dialog.setContentText(drafts ? "Há alterações no editor que ainda não foram aplicadas ao objeto. Volte ao editor para aplicá-las ou descarte o rascunho antes de continuar."
+                : "O projeto contém alterações não salvas. Deseja salvar antes de continuar?"+(currentProjectFile==null ? "" : "\n\nProjeto: "+currentProjectFile));
+        var save=new javafx.scene.control.ButtonType(drafts ? "Voltar e aplicar" : "Salvar projeto…",javafx.scene.control.ButtonBar.ButtonData.YES);
+        var discard=new javafx.scene.control.ButtonType(drafts ? "Descartar rascunho" : "Não salvar",javafx.scene.control.ButtonBar.ButtonData.NO);
+        dialog.getButtonTypes().setAll(save,discard,javafx.scene.control.ButtonType.CANCEL);
+        dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(save),"Salvar/aplicar",drafts ? "Volta sem sair: aplique o rascunho no editor e depois salve o projeto." : "Escolha o destino. Só continua se a gravação tiver sucesso e ainda representar o estado atual.");
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(discard),"Descartar",drafts ? "Descarta somente o rascunho do editor, mantendo o objeto antes da edição." : "Continua sem salvar as alterações deste projeto. Não exclui arquivos no disco.");
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.CANCEL),"Cancelar","Interrompe a abertura/saída; não descarta alterações nem grava arquivos.");
+        FluidTooltips.install(dialog,"Projeto não salvo");
+        var choice=dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL);
+        return choice==save ? UnsavedChangesGuard.Choice.SAVE : choice==discard ? UnsavedChangesGuard.Choice.DISCARD : UnsavedChangesGuard.Choice.CANCEL;
+    }
+    private void protectProjectTransition(Runnable proceed) {
+        if(runningJob!=null || terminalPanel!=null && terminalPanel.isBusy()) {
+            String message="Aguarde ou cancele a operação antes de abrir/fechar o projeto.";
+            appendConsole(message); setStatus(message,RUNNING_COLOR); return;
+        }
+        if(hasEditorChanges() && projectDecision.apply(true)!=UnsavedChangesGuard.Choice.DISCARD)return;
+        // Leaving an unchanged editor restores its temporary plot visibility before measuring project dirtiness.
+        gcodeEditor.cancel(); gerberEditor.cancel(); geometryEditor.cancel(); excellonEditor.cancel();
+        if(hasEditorChanges()) { appendConsole("O editor ainda está ocupado; aguarde antes de continuar."); return; }
+        unsavedGuard.protect(() -> hasUnsavedProjectChanges() || hasEditorChanges(),() -> projectDecision.apply(false),guardedProjectSave,proceed);
+    }
+    void requestClose(Runnable close) {
+        protectProjectTransition(() -> {
+            if(!confirmToolsDatabaseClose())return;
+            if(fluidTooltips!=null)fluidTooltips.closeNow(); close.run();
+        });
+    }
+    void requestApplicationClose() {
+        // The Stage can be recreated after a monitor/DPI change while Save is pending.
+        // Resolve its persistence/exit action at completion, not from the old Stage.
+        requestClose(() -> applicationClose.run());
     }
 
     private record TclAppearance(boolean visible, boolean filled, boolean multicolor, Color fill, Color stroke) { }
@@ -9194,16 +9258,22 @@ final class MainWindow implements TclFlatcamHost {
      * deleted.
      */
     private void saveProject() {
+        saveProject(ignored -> {});
+    }
+    private void saveProject(java.util.function.Consumer<Boolean> done) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
+            done.accept(false);
             return;
         }
         if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive()) {
             appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
+            done.accept(false);
             return;
         }
         ProjectFile project = snapshotProject();
+        ProjectChangeTracker.State before=projectStateStamp();
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar Projeto");
@@ -9211,16 +9281,25 @@ final class MainWindow implements TclFlatcamHost {
                 new FileChooser.ExtensionFilter("Projeto FlatCAM Python 8.994 (compatibilidade)", "*.FlatPrj"));
         // A project that came from the Python application is offered back in its own format first.
         if (currentPythonLegacy != null) chooser.setSelectedExtensionFilter(chooser.getExtensionFilters().get(1));
+        if(currentProjectFile!=null) {
+            chooser.setInitialFileName(currentProjectFile.getFileName().toString());
+            chooser.setSelectedExtensionFilter(chooser.getExtensionFilters().get(currentProjectFile.toString().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj") ? 1 : 0));
+        }
         String fallbackDir = Path.of("").toAbsolutePath().toString();
-        Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
+        Path lastDir = currentProjectFile!=null && Files.isDirectory(currentProjectFile.getParent())
+                ? currentProjectFile.getParent() : Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
             chooser.setInitialDirectory(lastDir.toFile());
         }
         File file = chooser.showSaveDialog(scene.getWindow());
         if (file == null) {
+            done.accept(false);
             return;
         }
         boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
+        if(!pythonFormat && !file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".fcnproj")) {
+            appendConsole("Escolha uma extensão .fcnproj ou .FlatPrj para salvar o projeto."); done.accept(false); return;
+        }
         if (pythonFormat) appendConsole(project.pythonLegacy() != null
                 ? "Salvando no formato Python 8.994: o que nao foi alterado no FX e mantido como estava no projeto original "
                         + "(preferencias, opcoes dos objetos, macros, scripts); recursos exclusivos do FX ficam so para o FX."
@@ -9241,20 +9320,22 @@ final class MainWindow implements TclFlatcamHost {
             statusLabel.setText(message);
         }));
         runningJob = handle;
-        handle.completion().thenAccept(saved -> Platform.runLater(() -> {
-            AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
-            recentFiles.remember(RecentFiles.Kind.PROJECT,saved);
-            appendConsole("Projeto salvo em " + saved);
-            updateProgress(1);
-            setStatus("Projeto salvo.", IDLE_COLOR);
-            onJobFinished();
-        })).exceptionally(error -> {
-            Platform.runLater(() -> {
-                reportJobError(error, "Falha ao salvar projeto: ");
-                onJobFinished();
-            });
-            return null;
-        });
+        handle.completion().whenComplete((saved,error) -> Platform.runLater(() -> {
+            boolean success=false;
+            try {
+                if(error!=null)reportJobError(error,"Falha ao salvar projeto: ");
+                else {
+                    markProjectSaved(saved,before);
+                    AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
+                    recentFiles.remember(RecentFiles.Kind.PROJECT,saved);
+                    appendConsole("Projeto salvo em "+saved); updateProgress(1); setStatus("Projeto salvo.",IDLE_COLOR);
+                    success=!hasUnsavedProjectChanges() && !hasEditorChanges();
+                    if(!success)appendConsole("Novas alterações durante o salvamento: a abertura/saída não continuará. Salve novamente.");
+                }
+            } catch(RuntimeException failure) { reportJobError(failure,"Falha ao concluir salvamento: "); }
+            finally { onJobFinished(); }
+            done.accept(success);
+        }));
     }
 
     /** Menu and Terminal snapshot only immutable session versions; serialization stays on the worker. */
@@ -9327,12 +9408,6 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
-        if (gcodeEditor.hasUnappliedChanges() || gerberEditor.hasUnappliedChanges()
-                || geometryEditor.hasUnappliedChanges() || excellonEditor.hasUnappliedChanges()) {
-            appendConsole("Aplique ou cancele as alteracoes do editor antes de abrir outro projeto.");
-            return;
-        }
-
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Abrir Projeto");
         chooser.getExtensionFilters().addAll(
@@ -9352,6 +9427,9 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openProjectFromMenu(Path path) {
+        protectProjectTransition(() -> loadProjectFromMenu(path));
+    }
+    private void loadProjectFromMenu(Path path) {
         try { requireProjectReplacementAllowed(); }
         catch (IllegalStateException blocked) { appendConsole(blocked.getMessage()); return; }
         File file = path.toAbsolutePath().normalize().toFile();
@@ -9371,6 +9449,7 @@ final class MainWindow implements TclFlatcamHost {
                 if (hasEditorChanges()) throw new IllegalStateException("O editor foi alterado durante o carregamento.");
                 restoreProject(project, true);
                 reportOpenedProject(file.toPath(), project);
+                markProjectSaved(file.toPath(),projectStateStamp());
                 recentFiles.remember(RecentFiles.Kind.PROJECT,file.toPath());
                 AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                 updateProgress(1);

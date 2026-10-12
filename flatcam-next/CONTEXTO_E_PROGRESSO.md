@@ -1,5 +1,31 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Entrega da série 1–4 — 2026-10-12
+
+Commits 1/2/3: c66b8b5f / e3961bfe / 9a774579; proteção de dados e revisão final
+no commit seguinte desta série, sem push. Build final aprovado em
+target/series-delivery-final-20261012.log: 1653 registrados do source atual,
+1635 aprovados, 18 skips, zero falhas/erros (excluídos reports de classes removidas).
+TooltipAudit: 1042 ocorrências com ajuda. Contínuo MM/IN abriu quatro equivalências
+novas; corpus 38 continua strict 1 (22 matches, 14 diferenças, 2 erros legado).
+Revisão final trata endpoint par do roteamento, evita cópia duplicada no caminho
+legado e usa a ação da janela atual na saída após Save/monitor/DPI.
+Análise consolidada do que ficou fora e próximos passos:
+[SERIE_FLUXO_PRINCIPAL_20261012.md](SERIE_FLUXO_PRINCIPAL_20261012.md).
+Não declarar a paridade total CNC/fluxos nem testes físicos concluídos.
+
+## Série 4/4: alterações não salvas — 2026-10-12
+
+Abertura por menu/Recentes e saída por janela/Sair têm Salvar/Não salvar/Cancelar;
+rascunhos pedem voltar/aplicar ou descarte explícito, sem gerar/aplicar sozinhos.
+Cancelamento de FileChooser, falha e edição durante save impedem continuar.
+Baseline compara versões/aparência/configurações sem serialização por pulso,
+com referências fracas para versões antigas. Operações em andamento bloqueiam
+transição. Terminal recusa dirty por padrão e tem open_project -force true
+como descarte explícito; validação/cancelamento/publicação tardia preservados.
+Save Tcl atualiza apenas a versão salva, sem alterar histórico/pastas.
+Contrato, testes e limites: [PROJETO_NAO_SALVO.md](PROJETO_NAO_SALVO.md).
+
 ## Série 3/4: passes contínuos explícitos — 2026-10-12
 
 Geometry CNC tem estratégia por fresa: retração/mesma direção (default) ou

@@ -849,7 +849,8 @@ public final class GCodeGenerator {
             double radius = tool.toolDiameter() / 2.0;
             lastToolRadius = radius;
             for (Coordinate[] original : CncRouting.order(
-                    compensatedPaths.get(toolIndex), lastX, lastY, radius, positions.routing(), cancellationToken)) {
+                    compensatedPaths.get(toolIndex), lastX, lastY, radius, positions.routing(), cancellationToken,
+                    machining.multiDepth() && machining.passStrategy()==GeometryPassStrategy.CONTINUOUS_ALTERNATING && depths.size()%2==0)) {
                 cancellationToken.throwIfCancellationRequested();
                 Coordinate[] coordinates = machining.extraCut() ? extraCut(original, machining.extraCutLength()) : original;
                 if (coordinates.length == 0) {

@@ -65,8 +65,8 @@ final class TclFlatcamCommands {
     static String help(String command) {
         return switch (command) {
             case "open_project" -> "open_project {C:/pasta/projeto.fcnproj}\n"
-                    + "Aceita .fcnproj e .FlatPrj. Substitui o projeto atual apos carregar; nao salva alteracoes. "
-                    + "Aplique/cancele rascunhos antes. Use / e chaves em caminhos Windows.";
+                    + "Aceita .fcnproj e .FlatPrj. Recusa alterações não salvas: use save_project antes, "
+                    + "ou open_project {arquivo} -force true para descartar explicitamente. Force não ignora rascunhos, validação, cancelamento ou alterações durante o carregamento. Use / e chaves em caminhos Windows.";
             case "save_project" -> "save_project {C:/pasta/projeto.fcnproj}\nsave_project {C:/pasta/projeto.FlatPrj}\n"
                     + "Formato pela extensao obrigatoria; substitui o destino depois de serializar. Feche os editores antes. "
                     + ".FlatPrj preserva apenas recursos representaveis no Python; mantenha tambem .fcnproj. "
@@ -117,9 +117,9 @@ final class TclFlatcamCommands {
     private void registerOpenProject(TclInterpreter interpreter) {
         interpreter.register("open_project", (interp, words) -> {
             TclArgs args = TclArgs.parse(words);
-            args.rejectUnknownOptions(java.util.Set.of());
+            args.rejectUnknownOptions(java.util.Set.of("force"));
             requirePositionals(args, 1, 1);
-            try { host.openProject(Path.of(args.positional(0))); }
+            try { host.openProject(Path.of(args.positional(0)),displayBoolean(args,"force",false)); }
             catch (IOException | java.nio.file.InvalidPathException error) {
                 throw new TclException("Could not open project: " + error.getMessage());
             }

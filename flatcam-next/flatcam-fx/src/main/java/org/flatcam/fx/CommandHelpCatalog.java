@@ -42,7 +42,7 @@ final class CommandHelpCatalog {
             case "Excluir Selecionados" -> "Remove os objetos selecionados do projeto; não apaga os arquivos de origem no disco.";
             case "Capturar estado agora" -> "Grava um diagnóstico do estado atual para investigar travamentos. O relatório pode conter caminhos e detalhes do ambiente; confira antes de compartilhar.";
             case "Abrir pasta desta sessao" -> "Abre a pasta de diagnóstico da sessão atual para consultar logs e capturas de estado.";
-            case "Salvar Projeto" -> "Salva os objetos e as configurações suportadas em .fcnproj. Um projeto Python importado não é sobrescrito como .FlatPrj.\n\nAtenção: confira o formato e o destino exibidos na janela de salvamento.";
+            case "Salvar Projeto" -> "Salva os objetos e configurações no formato escolhido: .fcnproj ou .FlatPrj compatível. Confirme formato e destino; recursos não representáveis no Python podem recusar a gravação.\n\nNa confirmação de saída/abertura, só continua após salvar com sucesso o estado atual; cancelar o destino ou falhar não descarta o projeto.";
             case "Copiar" -> "Cria cópias dos objetos selecionados no projeto. Não usa a área de transferência de texto.";
             case "Excluir", "Remover" -> "Remove os objetos selecionados do projeto. Não apaga seus arquivos de origem no disco.";
             case "Renomear" -> "Altera o nome do objeto no projeto, sem renomear o arquivo original.\n\nAtalho: F2 também inicia a renomeação na árvore.";
