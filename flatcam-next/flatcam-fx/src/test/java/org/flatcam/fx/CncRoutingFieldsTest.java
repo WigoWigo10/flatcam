@@ -10,6 +10,25 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class CncRoutingFieldsTest {
+    @Test void closedContinuousChoicePublishesAndAllowsPreservingDirection() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var f=new GeometryFactory();
+            var ring=f.createLinearRing(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0),new Coordinate(12,2),new Coordinate(10,2),new Coordinate(10,0)});
+            var defaults=new GeometryGCodeParameters(3,.6,true,.2,200,10000,true).withPassStrategy(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION);
+            var result=new java.util.concurrent.atomic.AtomicReference<GeometryCncToolPanel.Result>();
+            var root=(javafx.scene.Parent)GeometryCncToolPanel.build("MM",ring,List.of(),defaults,result::set,()->{});
+            new javafx.scene.Scene(root);root.applyCss();root.layout();
+            @SuppressWarnings("unchecked") var modes=(ComboBox<GeometryPassStrategy>)root.lookup("#cnc-pass-strategy");
+            assertEquals(3,modes.getItems().size());assertEquals(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION,modes.getValue());
+            assertTrue(modes.getConverter().toString(modes.getValue()).contains("fechados"));
+            ((CheckBox)root.lookup("#cnc-route-direction")).setSelected(true);
+            ((Button)root.lookup("#cnc-generate")).fire();
+            assertNotNull(result.get(),((Label)root.lookup("#cnc-error")).getText());
+            assertEquals(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION,result.get().parameters().passStrategy());
+            assertTrue(result.get().parameters().jobOptions().routing().preserveDirection());
+            return null;
+        });
+    }
     @Test void travelPolicyDefaultsRestoresPublishesAndCannotBeIgnoredInUnsupportedProfiles() throws Exception {
         TerminalPanelTest.fx(() -> {
             var path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});

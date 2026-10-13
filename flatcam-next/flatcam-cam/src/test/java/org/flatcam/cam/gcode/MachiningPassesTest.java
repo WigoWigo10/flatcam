@@ -22,14 +22,16 @@ class MachiningPassesTest {
         assertThrows(IllegalArgumentException.class, () -> MachiningPasses.count(1.0001, true, .0001));
         assertThrows(IllegalArgumentException.class, () -> MachiningPasses.count(1, true, Double.MIN_VALUE));
     }
-    @Test void generatorEmitsThreeFinalTraversalsNotFourWithBothPolicies() throws Exception {
+    @Test void generatorEmitsThreeFinalTraversalsNotFourWithAllPolicies() throws Exception {
         var path = new WKTReader().read("LINESTRING (10 0,12 0)");
         for (var strategy : GeometryPassStrategy.values()) {
+            var testedPath=strategy==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION
+                    ? new WKTReader().read("LINESTRING (10 0,12 0,12 2,10 2,10 0)") : path;
             var p = new GeometryGCodeParameters(3, .9, true, .3, 200, 10000, false)
                     .withPassStrategy(strategy);
-            String code = GCodeGenerator.generateGeometryCncJob("MM", path, p, .4, CancellationToken.none()).gcode();
+            String code = GCodeGenerator.generateGeometryCncJob("MM", testedPath, p, .4, CancellationToken.none()).gcode();
             assertEquals(3, code.lines().filter(line -> line.startsWith("G1 Z-")).count(), code);
-            assertEquals(3, code.lines().filter(line -> line.startsWith("G1 X")).count(), code);
+            assertEquals(3*(testedPath.getNumPoints()-1), code.lines().filter(line -> line.startsWith("G1 X")).count(), code);
             assertEquals(1, code.lines().filter(line -> line.startsWith("G1 Z-0.9000")).count(), code);
         }
     }

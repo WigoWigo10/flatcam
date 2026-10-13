@@ -1,5 +1,17 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Contornos tipados e furação múltipla — 2026-10-13
+
+Modo contínuo mesma direção para fechados, validação de abertos, persistência/
+UI: **C**. Corpus GRBL **92**: 49 equivalências, 19 diferenças de rota,
+22 de usinagem/ordem/operação, 2 erros Python, zero erros FX; strict 1.
+62 controles anteriores intactos; 14 equivalências adicionais (anéis, Polygon
+com furo, Point e múltiplos furos em ordem de origem × MM/IN). Auditor não
+deduplica furos/cortes e verifica todas as bordas/profundidades. **A apenas nos
+controles equivalentes**, não em todos os tipos/perfis/projetos. Rasgos FX são
+fresados; Python Drill slots cria furos sobrepostos: alternativa FX ainda falta.
+[CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Altura individual + passes contínuos — 2026-10-13
 
 Escolha explícita global/individual Geometry, persistência/restauração e revisão

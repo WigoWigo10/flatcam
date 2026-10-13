@@ -2,6 +2,7 @@
 import copy
 import unittest
 from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters, rapid_metrics
+from compare_cnc_python import geometry_source,geometry_paths,nearest_points,slot_oracle_case
 
 
 PROGRAM = """G21
@@ -37,6 +38,70 @@ def case():
 
 
 class CncReaderTest(unittest.TestCase):
+    def test_ring_type_is_explicit_and_cannot_be_forged_by_an_open_linestring(self):
+        tool={"wkt":"LINESTRING (10 0,12 0,12 2,10 2,10 0)","geometryType":"LinearRing"}
+        self.assertEqual("LinearRing",geometry_source(tool).geom_type)
+        tool["wkt"]="LINESTRING (10 0,12 0)"
+        with self.assertRaises(ValueError): geometry_source(tool)
+        tool["geometryType"]="Polygon"
+        with self.assertRaises(ValueError): geometry_source(tool)
+
+    def test_polygon_holes_and_wrong_edges_are_independently_audited(self):
+        from shapely import wkt
+        shape=wkt.loads("POLYGON ((10 0,12 0,12 2,10 2,10 0),(10.5 .5,11.5 .5,11.5 1.5,10.5 1.5,10.5 .5))")
+        paths=geometry_paths(shape); self.assertEqual(2,len(paths))
+        source=case(); source["operation"]="geometry"
+        source["tools"][0]["wkt"]=shape.wkt
+        source["tools"][0]["parameters"].update(depth=.4,multiDepth=False,feed=100)
+        def program(contours):
+            text="G21\nG90\nG94\nM5\nG0 Z15\nT1\nM0\nG0 Z3\nM3 S10000\nG4 P0.25\n"
+            for contour in contours:
+                points=list(contour.coords)
+                text+=f"G0 X{points[0][0]} Y{points[0][1]}\nG1 Z-0.4 F100\n"
+                for x,y in points[1:]: text+=f"G1 X{x} Y{y} F100\n"
+                text+="G0 Z3\n"
+            return text+"M5\nG0 Z5\nM30\n"
+        valid=program(paths)
+        self.assertEqual([],audit_parameters(source,read_program(valid)))
+        omitted=audit_parameters(source,read_program(program(paths[:1])))
+        self.assertIn("T1: missing source cut segments/depths",omitted)
+        changed=audit_parameters(source,read_program(valid.replace("G1 X12.0 Y0.0","G1 X13.0 Y0.0")))
+        self.assertIn("T1: XY cut segment/depth differs from the source paths",changed)
+
+    def test_duplicate_drill_visits_are_preserved_even_when_python_reorders(self):
+        source=case(); source["tools"][0]["points"]=[[10,0],[10,0]]
+        source["tools"][0]["parameters"].update(depth=.4,multiDepth=False)
+        header=PROGRAM.split("G1 Z-0.4 F100")[0]
+        cut="G1 Z-0.4 F100\nG0 Z3\n"
+        suffix="M5\nG0 Z5\nM30\n"
+        self.assertEqual([],audit_parameters(source,read_program(header+cut+cut+suffix),implementation="python"))
+        omitted=audit_parameters(source,read_program(header+cut+suffix),implementation="python")
+        self.assertIn("T1: drilled points/count differ from the selected holes",omitted)
+        self.assertEqual([[10,0],[10,0],[12,0],[14,0]],nearest_points([[14,0],[10,0],[12,0],[10,0]],[0,0]))
+
+    def test_point_final_depth_and_fx_peck_contract_are_distinguished(self):
+        source=case(); source["operation"]="geometry"
+        source["tools"][0]["wkt"]="POINT (10 0)"
+        source["tools"][0]["parameters"].update(feed=100,fxPassStrategy="CONTINUOUS_SAME_DIRECTION")
+        header=PROGRAM.split("G1 Z-0.4 F100")[0]
+        final=read_program(header+"G1 Z-1.1 F100\nG0 Z3\nM5\nG0 Z5\nM30\n")
+        self.assertEqual([],audit_parameters(source,final,implementation="fx"))
+        self.assertEqual([],audit_parameters(source,final,implementation="python"))
+        source["tools"][0]["parameters"]["fxPassStrategy"]="RETRACT_SAME_DIRECTION"
+        self.assertIn("T1: depths/count differ from the requested passes",audit_parameters(source,final,implementation="fx"))
+
+    def test_original_slot_conversion_is_a_drill_chain_and_does_not_change_the_case(self):
+        from pathlib import Path
+        source=case(); tool=source["tools"][0]
+        tool.update(diameter=1,points=[],slots=[[[10,0],[12,0]]])
+        source["job"].update(pythonSlotOverlap=25,pythonSlotLastHole=True)
+        before=copy.deepcopy(source)
+        converted=slot_oracle_case(source,Path(__file__).resolve().parents[2])
+        self.assertEqual([[10,0],[10.75,0],[11.5,0],[12,0]],converted["tools"][0]["points"])
+        self.assertEqual([],converted["tools"][0]["slots"]); self.assertEqual(before,source)
+        source["job"]["pythonSlotOverlap"]=100
+        with self.assertRaises(ValueError): slot_oracle_case(source,Path(__file__).resolve().parents[2])
+
     def test_rapid_metrics_use_emitted_movements_not_cut_distance_or_time(self):
         parsed={"events":[{"kind":"rapid","from":[0,0,3],"to":[3,4,3]},
                           {"kind":"rapid","from":[3,4,3],"to":[3,4,7]},

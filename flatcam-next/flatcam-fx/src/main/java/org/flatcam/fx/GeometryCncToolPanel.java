@@ -126,10 +126,10 @@ final class GeometryCncToolPanel {
         passStrategy.setValue(defaults==null ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : defaults.passStrategy());
         passStrategy.setId("cnc-pass-strategy");
         passStrategy.setConverter(new StringConverter<>() {
-            public String toString(org.flatcam.cam.gcode.GeometryPassStrategy value) { return value==org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION ? "Retrair; mesma direção" : "Contínuo; direção alternada"; }
+            public String toString(org.flatcam.cam.gcode.GeometryPassStrategy value) { return value==org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION ? "Retrair; mesma direção" : value==org.flatcam.cam.gcode.GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION ? "Contínuo; mesma direção (fechados)" : "Contínuo; direção alternada"; }
             public org.flatcam.cam.gcode.GeometryPassStrategy fromString(String text) { throw new UnsupportedOperationException(); }
         });
-        ToolDescriptions.apply(passStrategy,"Passes em profundidade","Retrair mantém a direção de cada passe e retorna ao início acima da peça. Contínuo desce no fim de cada passe e percorre o caminho ao contrário, inclusive LineStrings fechados, sem retração intermediária.\n\nAtenção: a alternância troca Climb/Conventional; não aceita Preservar direção, Extra Cut ou sonda. Ponto isolado usa apenas a profundidade final. Valide material, fresa e remoção de cavacos antes de usar.");
+        ToolDescriptions.apply(passStrategy,"Passes em profundidade","Retrair mantém a direção e retorna ao início acima da peça. Contínuo alternado inverte o caminho entre passes, inclusive LineStrings fechados. Contínuo na mesma direção repete contornos fechados sem levantar, como os anéis do Python; recusa caminhos abertos.\n\nAtenção: alternar troca Climb/Conventional e não aceita Preservar direção. Ambos os modos contínuos recusam Extra Cut/sonda e usam somente a profundidade final em pontos isolados. Valide material, fresa e remoção de cavacos.");
         TextField depthPerPassField = new TextField(defaults == null ? ToolDefaults.text("geometry.depthperpass", metric)
                 : Double.toString(defaults.depthPerPass()));
         depthPerPassField.setId("cnc-depth-per-pass");

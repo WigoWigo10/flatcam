@@ -1,5 +1,75 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Tipos de contorno, múltiplos furos e rasgos — 2026-10-13
+
+Novo modo explícito Geometry **Contínuo; mesma direção (fechados)**:
+`CONTINUOUS_SAME_DIRECTION`. Repete contornos fechados no mesmo sentido, sem
+retração intermediária, como `LinearRing` no Python. Não altera os dois modos
+anteriores nem o default. Caminhos abertos são recusados antes de produzir o
+CNC Job; valida o caminho depois da compensação. Pontos usam somente o Z final.
+Preservar direção é permitido; Extra Cut/sonda continuam incompatíveis com
+passes contínuos. Não alternar um anel implicitamente só por estar fechado:
+o Python alterna LineStrings (mesmo fechados), mas não LinearRings.
+
+Cobertura: `GeometryClosedPassStrategyTest` (anel/polígono/LineString fechado,
+furos internos, sem lift intermediário, validação de abertos/mistos, compensação,
+cancelamento e pontos); persistência de enum e tipo LinearRing no nativo;
+seletor/restauração e revisão. A regressão `.9/.3` agora testa todos os três modos
+com uma forma válida para cada um, mantendo três passes e todas as travessias.
+A primeira rodada completa encontrou que o teste antigo iterava todos os enums
+usando um caminho aberto; o teste foi ampliado com um contorno fechado para o
+novo modo, não foi removida a verificação. Logs preservados em
+`target/cnc-typed-pass-core-20261013.log` e `target/cnc-typed-full-20261013.log`.
+
+Corpus GRBL ampliado de **62 a 92** controles, todos os anteriores mantidos:
+anéis single/contínuo/alternado, Polygon com furo single/contínuo, Point
+single/contínuo/retraído, LineString fechado mesma direção; quatro receitas
+de vários furos (incluindo duplicados, peck, duas ferramentas, ordem origem/
+proximidade); slots single/peck. Cada receita em MM/IN. WKT padrão + tipo
+explícito reconstrói LinearRing no oráculo, sem convertê-lo silenciosamente em
+LineString. Audita bordas, buracos, profundidades e multiplicidade de segmentos,
+além das verificações anteriores. Não aceita um contorno errado com a mesma
+quantidade de linhas. 25 testes auxiliares Python aprovados.
+
+Resultado final: **49 MATCH_EXECUTION, 19 ROUTING_DIFFERENT,
+22 MACHINING_DIFFERENT, 2 ORACLE_ERROR, 0 FX_ERROR**. Os 62 controles anteriores
+mantêm suas classificações; todos os 92 FX sem problemas nos parâmetros.
+Quatorze equivalências adicionais: seis receitas de Geometry × MM/IN
+(anel single/contínuo, Polygon single/contínuo, Point single/contínuo) e
+furação múltipla em ordem de origem × MM/IN. Strict permanece **1**.
+Relatório: `target/cnc-typed-final-oracle-20261013/python/index.html`.
+
+As diferenças adicionais NÃO significam contornos/furos perdidos:
+
+- Alternar anéis, repetir LineString fechado sem alternar ou peck em Point são
+  escolhas explícitas FX diferentes dos comportamentos Python. O tipo e a
+  direção realmente executada são comparados, sem normalizar para esconder isso.
+- Furação por proximidade FX versus OR-Tools Basic original Python: ambas
+  visitam todos os furos/passadas, inclusive repetidos, mas ordem diferente é
+  `MACHINING_DIFFERENT`, pois a assinatura mantém cortes ordenados. No exemplo
+  MM, FX faz 14 mm de rápidos XY, Python 22 mm. Não copiar uma ordem pior para
+  elevar o placar; não é prova de tempo melhor em todos os projetos.
+- **Rasgos são uma lacuna funcional distinta:** FX fresa o segmento de ponta
+  a ponta. Python Drilling usa **Drill slots** para converter o rasgo em cadeia
+  de furos sobrepostos. O comparador executa o corpo original
+  `ToolDrilling.process_slot_as_drills` (25% de sobreposição e último furo
+  ativado nestes controles) e o gerador Excellon original. O relatório explicita
+  `operationDifference` e os pontos convertidos. São operações diferentes,
+  não equivalência aprovada nem erro do oráculo. Falta oferecer essa alternativa
+  de furação de rasgos no FX sem remover sua fresagem atual.
+
+O auditor Python verifica a multiplicidade de visitas independente da ordem
+que seu otimizador escolhe; o auditor FX verifica a ordem solicitada (origem ou
+nearest). A comparação ordenada de cortes/eventos e o strict não foram relaxados.
+Fontes originais (incluindo ToolDrilling) têm SHA-256 antes/depois da rodada;
+nenhum algoritmo legado ou tolerância foi alterado.
+
+Build integral aprovado em `target/cnc-typed-full-retry-20261013.log`:
+1712 registrados, 1694 aprovados, 18 opcionais ignorados, zero falhas/erros
+(somente relatórios com fontes atuais). Auditoria de tooltips: 1099 ocorrências,
+zero MISSING. Rodada diferencial final feita após o build confirmou os números.
+Não houve teste físico nem validação manual de todos os projetos/painéis.
+
 ## Travel Z individual explícito, passes e RPM zero — 2026-10-13
 
 Geometry → CNC, **Posições e troca de ferramenta → Política de Travel Z**:

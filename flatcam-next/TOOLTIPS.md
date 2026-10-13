@@ -1,5 +1,13 @@
 # Revisão dos tooltips
 
+## Passes contínuos fechados — 2026-10-13
+
+Estratégia de passes distingue retração, alternância e contínuo na mesma
+direção para contornos fechados; explica recusa de abertos, pontos em Z final,
+Preservar direção e incompatibilidades Extra Cut/sonda. Revisão reflete a
+estratégia correta. Tempo e apresentação centralizados não mudaram.
+Auditoria após build: 1099 ocorrências, zero MISSING no cenário construído.
+
 ## Altura individual e RPM zero — 2026-10-13
 
 Novo seletor **Política de Travel Z** explica global/individual, altura comum

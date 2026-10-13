@@ -58,10 +58,11 @@ final class CncPreflight {
                         + (travelPolicy==GeometryTravelClearance.PER_TOOL ? "; usa o Travel Z desta fresa" : "; usa o maior Travel Z do trabalho")
                         + " (configurado nesta fresa: " + number(p.safeZ()) + ")", i, "cnc-safe-z"));
             details.add(value("Passes", cutting ? passes(depth, p.multiDepth(), p.depthPerPass())
-                    + (p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING ? "; pontos isolados usam somente a profundidade final" : "")
+                    + (p.multiDepth() && p.passStrategy() != GeometryPassStrategy.RETRACT_SAME_DIRECTION ? "; pontos isolados usam somente a profundidade final" : "")
                     : "Sem passes de fresagem", i, "cnc-multi-depth"));
             details.add(value("Estratégia", p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING && p.multiDepth()
-                    ? "Contínua, direção alternada" : cutting ? "Retração; mesma direção" : "Não se aplica", i, "cnc-pass-strategy"));
+                    ? "Contínua, direção alternada" : cutting && p.multiDepth() && p.passStrategy()==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION
+                    ? "Contínua, mesma direção (contornos fechados)" : cutting ? "Retração; mesma direção" : "Não se aplica", i, "cnc-pass-strategy"));
             if (profile == GCodePreprocessor.Z_LASER) details.add(value("Foco / posição Z", number(p.safeZ()), i, "cnc-safe-z"));
             details.add(value("Dwell", !p.dwell() ? "Desativado" : profile.controlsSpindle(p.spindleSpeedRpm())
                     ? number(p.dwellSeconds()) + " s" : "Inativo: spindle não comandado pelo perfil", i, "cnc-dwell"));
@@ -78,6 +79,8 @@ final class CncPreflight {
                         + "Confira acionamento/parada manuais; trocas ativadas podem pará-lo antes da pausa.", target(i, "cnc-power")));
             if (!empty && cutting && p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING)
                 issues.add(new Issue(false, "T" + (i + 1) + ": passes alternados invertem o sentido de corte entre profundidades.", target(i, "cnc-pass-strategy")));
+            if (!empty && cutting && p.multiDepth() && p.passStrategy()==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION)
+                issues.add(new Issue(false,"T"+(i+1)+": passes contínuos na mesma direção exigem contornos fechados ou pontos; o gerador recusa caminhos abertos.",target(i,"cnc-pass-strategy")));
             if (!empty && p.offset() != ToolPathOffset.PATH)
                 issues.add(new Issue(false, "T" + (i + 1) + ": haverá compensação adicional. Isolation/NCC/Cutout podem já ter compensado o raio da fresa.", target(i, "cnc-offset")));
         }

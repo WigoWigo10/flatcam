@@ -69,10 +69,10 @@ public record GeometryGCodeParameters(double safeZ, double cutDepth, boolean mul
         java.util.Objects.requireNonNull(offset, "offset");
         java.util.Objects.requireNonNull(jobOptions, "jobOptions");
         java.util.Objects.requireNonNull(passStrategy,"passStrategy");
-        if(multiDepth && passStrategy==GeometryPassStrategy.CONTINUOUS_ALTERNATING) {
-            if(extraCut) throw new IllegalArgumentException("Passes contínuos alternados não aceitam Extra Cut neste incremento.");
-            if(jobOptions.routing().preserveDirection()) throw new IllegalArgumentException("Passes alternados invertem a direção: desmarque Preservar direção ou use retração entre passes.");
-            if(probing!=null) throw new IllegalArgumentException("Passes contínuos alternados não são habilitados para sondagem.");
+        if(multiDepth && passStrategy!=GeometryPassStrategy.RETRACT_SAME_DIRECTION) {
+            if(extraCut) throw new IllegalArgumentException("Passes contínuos não aceitam Extra Cut neste incremento.");
+            if(passStrategy==GeometryPassStrategy.CONTINUOUS_ALTERNATING && jobOptions.routing().preserveDirection()) throw new IllegalArgumentException("Passes alternados invertem a direção: desmarque Preservar direção ou use retração entre passes.");
+            if(probing!=null) throw new IllegalArgumentException("Passes contínuos não são habilitados para sondagem.");
         }
         if (!Double.isFinite(customOffset)) throw new IllegalArgumentException("Custom Offset deve ser finito.");
         if (offset == ToolPathOffset.CUSTOM && customOffset == 0)

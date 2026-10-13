@@ -70,7 +70,7 @@ class GeometryTravelClearanceTest {
     }
 
     @Test void individualPolicyUsesEachToolHeightForPathsAndPassReturnsButKeepsChangeHeight() {
-        for (String units:List.of("MM","IN")) for (var strategy:GeometryPassStrategy.values()) {
+        for (String units:List.of("MM","IN")) for (var strategy:List.of(GeometryPassStrategy.RETRACT_SAME_DIRECTION,GeometryPassStrategy.CONTINUOUS_ALTERNATING)) {
             double s=units.equals("IN") ? 1/25.4 : 1;
             var base=parameters(3,s,true,true,strategy).withJobOptions(parameters(3,s,true,true,strategy).jobOptions()
                     .withTravelClearance(GeometryTravelClearance.PER_TOOL));

@@ -12,6 +12,13 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class CncPreflightTest {
+    @Test void closedContinuousReviewDoesNotClaimThatDirectionAlternates() {
+        var base=params(3,.6,200,75,10000).withPassStrategy(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION);
+        var report=CncPreflight.geometry("Ring","MM",new GeometryCncToolPanel.Result(List.of(new ToolGeometry(1,path())),base,Map.of(),GCodePreprocessor.GRBL_11_NO_M6,Map.of()));
+        assertTrue(report.tools().getFirst().details().stream().anyMatch(value->value.label().equals("Estratégia")&&value.text().contains("mesma direção (contornos fechados)")));
+        assertTrue(report.issues().stream().anyMatch(issue->issue.text().contains("exigem contornos fechados")));
+        assertFalse(report.issues().stream().anyMatch(issue->issue.text().contains("invertem o sentido")));
+    }
     static final GeometryFactory FACTORY = new GeometryFactory();
     static Geometry path() { return FACTORY.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(12, 0)}); }
     static GeometryGCodeParameters params(double z, double depth, double feed, double feedZ, int rpm) {

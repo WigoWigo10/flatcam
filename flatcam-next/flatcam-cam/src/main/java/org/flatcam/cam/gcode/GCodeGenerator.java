@@ -744,6 +744,12 @@ public final class GCodeGenerator {
             depthsByTool.add(passDepths(depth, machining.multiDepth(), machining.depthPerPass()));
             compensatedPaths.add(GeometryPathCompensation.apply(tool.geometry(),
                     machining.offset().distance(tool.toolDiameter(), machining.customOffset()), cancellationToken));
+            if (machining.multiDepth() && machining.passStrategy()==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION) {
+                List<Coordinate[]> paths=new ArrayList<>();
+                collectCoordinatePaths(compensatedPaths.getLast(),paths,cancellationToken);
+                if (paths.stream().anyMatch(path -> path.length>1 && !path[0].equals2D(path[path.length-1])))
+                    throw new IllegalArgumentException("Passes contínuos na mesma direção exigem contornos fechados ou pontos; use alternados ou retração para caminhos abertos.");
+            }
             if (positions.exclusionsEnabled() && !tool.geometry().isEmpty()) {
                 List<Coordinate[]> paths=new ArrayList<>();
                 collectCoordinatePaths(compensatedPaths.getLast(),paths,cancellationToken);
@@ -876,7 +882,7 @@ public final class GCodeGenerator {
                 lastX = last.x;
                 lastY = last.y;
 
-                boolean continuous=machining.multiDepth() && machining.passStrategy()==GeometryPassStrategy.CONTINUOUS_ALTERNATING;
+                boolean continuous=machining.multiDepth() && machining.passStrategy()!=GeometryPassStrategy.RETRACT_SAME_DIRECTION;
                 List<Double> pathDepths=continuous && coordinates.length==1 ? List.of(depths.getLast()) : depths;
                 Coordinate[] passCoordinates=coordinates;
                 for (int pass=0;pass<pathDepths.size();pass++) {
@@ -898,7 +904,7 @@ public final class GCodeGenerator {
                                 toolTravelZ,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                     }
                     // Python reverses LineStrings, even closed ones; no lateral rapid is emitted while down.
-                    if (continuous) passCoordinates=reversed(passCoordinates);
+                    if (continuous && machining.passStrategy()==GeometryPassStrategy.CONTINUOUS_ALTERNATING) passCoordinates=reversed(passCoordinates);
                 }
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(toolTravelZ));
             }

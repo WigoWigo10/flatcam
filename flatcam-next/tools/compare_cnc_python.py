@@ -181,6 +181,54 @@ def rapid_metrics(parsed):
             "xyMoves":sum(event["from"][:2] != event["to"][:2] for event in rapid)}
 
 
+def geometry_source(tool):
+    from shapely import wkt
+    from shapely.geometry import LinearRing
+    shape=wkt.loads(tool["wkt"])
+    kind=tool.get("geometryType",shape.geom_type)
+    if kind=="LinearRing":
+        if shape.geom_type!="LineString" or not shape.is_ring:
+            raise ValueError("LinearRing fixture must be a closed simple LineString")
+        return LinearRing(shape.coords)
+    if kind!=shape.geom_type:
+        raise ValueError("Geometry type does not match fixture WKT")
+    return shape
+
+
+def geometry_paths(shape):
+    if shape.geom_type=="Polygon":
+        return [shape.exterior,*shape.interiors]
+    if shape.geom_type in ("LineString","LinearRing","Point"):
+        return [shape]
+    if shape.geom_type in ("MultiLineString","MultiPolygon","GeometryCollection"):
+        return [path for part in shape.geoms for path in geometry_paths(part)]
+    raise ValueError("Unsupported CNC fixture geometry")
+
+
+def nearest_points(points,start):
+    remaining=list(points); result=[]
+    while remaining:
+        index=min(range(len(remaining)),key=lambda i:math.dist(start,remaining[i]))
+        start=remaining.pop(index); result.append(start)
+    return result
+
+
+def audit_segments(expected,events,issues,identifier):
+    # Keep multiplicity and depth: traversing the same edge twice is not one cut.
+    remaining=list(expected)
+    for event in events:
+        a,b=event["from"],event["to"]
+        match=next((i for i,(start,end,z) in enumerate(remaining) if equivalent(a[2],z) and equivalent(b[2],z)
+                    and ((equivalent(a[:2],start) and equivalent(b[:2],end))
+                         or (equivalent(a[:2],end) and equivalent(b[:2],start)))),None)
+        if match is None:
+            issues.append(f"T{identifier}: XY cut segment/depth differs from the source paths")
+        else:
+            remaining.pop(match)
+    if remaining:
+        issues.append(f"T{identifier}: missing source cut segments/depths")
+
+
 def audit_parameters(case, parsed, *, implementation=None):
     """Check the requested settings independently; two equally wrong outputs are not a match."""
     issues = []
@@ -194,24 +242,31 @@ def audit_parameters(case, parsed, *, implementation=None):
     selected = {tool["id"] for tool in tools}
     if any(event["tool"] not in selected for event in parsed["cuts"]):
         issues.append("Cut with an unselected tool")
+    last_point=[0,0]
     for tool in tools:
         p = tool["parameters"]
         linear_paths = None
         if case["operation"] == "geometry" and "wkt" in tool:
-            from shapely import wkt
-            shape = wkt.loads(tool["wkt"])
-            if shape.geom_type == "LineString":
-                linear_paths = [shape]
-            elif shape.geom_type == "MultiLineString":
-                linear_paths = list(shape.geoms)
+            linear_paths = geometry_paths(geometry_source(tool))
         depth = p["depth"] + p.get("offsetZ",0)
         step = p["depthPerPass"] if p["multiDepth"] else depth
         count = math.ceil(depth / step - 1e-12)
         expected_depths = [-min(i*step,depth) for i in range(1,count+1)]
         plunges = [event for event in parsed["cuts"] if event["tool"] == tool["id"]
                    and event["from"][:2] == event["to"][:2] and event["to"][2] < event["from"][2]]
-        expected = expected_depths * (len(tool["points"]) if case["operation"] == "drilling"
-                                     else len(linear_paths) if linear_paths is not None else 1)
+        ordered=tool.get("points",[])
+        if case["operation"]=="drilling":
+            if job.get("changeX") is not None: last_point=[job["changeX"],job["changeY"]]
+            if implementation=="fx" and job.get("fxDrillOrder")=="NEAREST": ordered=nearest_points(ordered,last_point)
+            visits=list(ordered)+[slot[0] for slot in tool.get("slots",[])]
+            if tool.get("slots"): last_point=tool["slots"][-1][1]
+            elif ordered: last_point=ordered[-1]
+            expected=expected_depths*len(visits)
+        elif linear_paths is not None:
+            expected=[z for path in linear_paths for z in
+                      ([expected_depths[-1]] if path.geom_type=="Point" and (implementation=="python" or
+                       p.get("fxPassStrategy","RETRACT_SAME_DIRECTION")!="RETRACT_SAME_DIRECTION") else expected_depths)]
+        else: expected=expected_depths
         if not equivalent([event["to"][2] for event in plunges],expected):
             issues.append(f"T{tool['id']}: depths/count differ from the requested passes")
         for event in parsed["cuts"]:
@@ -231,17 +286,34 @@ def audit_parameters(case, parsed, *, implementation=None):
         if not equivalent(dwells,expected_dwells):
             issues.append(f"T{tool['id']}: dwell differs from the requested duration/count")
         if case["operation"] == "drilling":
-            expected_points = [point for point in tool["points"] for _ in expected_depths]
-            if not equivalent([event["to"][:2] for event in plunges],expected_points):
+            expected_points = [point for point in visits for _ in expected_depths]
+            actual_points=[event["to"][:2] for event in plunges]
+            if implementation=="python":
+                # Python B chooses its own order. Audit every requested visit; full
+                # execution/machining comparison STILL requires the same ordered events.
+                remaining=list(expected_points)
+                for point in actual_points:
+                    index=next((i for i,pnt in enumerate(remaining) if equivalent(point,pnt)),None)
+                    if index is None: remaining.append(None); break
+                    remaining.pop(index)
+                correct=not remaining and len(actual_points)==len(expected_points)
+            else: correct=equivalent(actual_points,expected_points)
+            if not correct:
                 issues.append(f"T{tool['id']}: drilled points/count differ from the selected holes")
+            expected_edges=[(slot[0],slot[1],z) for slot in tool.get("slots",[]) for z in expected_depths]
+            xy_cuts=[event for event in parsed["cuts"] if event["tool"]==tool["id"] and event["from"][:2]!=event["to"][:2]]
+            audit_segments(expected_edges,xy_cuts,issues,tool["id"])
         elif linear_paths is not None:
             # These public fixtures are uncompensated linear paths. Count XY cutting
             # traversals as well as plunges: an extra pass at the SAME rounded Z can
             # have no Z movement and otherwise escape the depth-only audit.
             xy_cuts = [event for event in parsed["cuts"] if event["tool"] == tool["id"]
                        and event["from"][:2] != event["to"][:2] and event["to"][2] < 0]
-            if len(xy_cuts) != sum(len(path.coords)-1 for path in linear_paths) * count:
+            if len(xy_cuts) != sum(len(path.coords)-1 for path in linear_paths if path.geom_type!="Point") * count:
                 issues.append(f"T{tool['id']}: XY cutting traversal count differs from the requested passes")
+            expected_edges=[(list(a[:2]),list(b[:2]),z) for path in linear_paths if path.geom_type!="Point"
+                            for a,b in zip(list(path.coords),list(path.coords)[1:]) for z in expected_depths]
+            audit_segments(expected_edges,xy_cuts,issues,tool["id"])
     pauses = [event for event in parsed["events"] if event["kind"] == "pause"]
     if len(pauses) != (len(tools) if job["toolChange"] else 0):
         issues.append("Tool-change pause count differs from the requested setting")
@@ -369,7 +441,7 @@ def python_program(case, root, app, camlib):
             for tool in case["tools"]:
                 p = tool["parameters"]
                 tools[tool["id"]] = dict(tooldia=tool["diameter"], offset="Path", offset_value=0,
-                    solid_geometry=[wkt.loads(tool["wkt"])], data=dict(
+                    solid_geometry=[geometry_source(tool)], data=dict(
                         optimization_type="B", search_time="R", ppname_g=profile,
                         cutz=-p["depth"], multidepth=p["multiDepth"], depthperpass=p["depthPerPass"],
                         travelz=p["safeZ"], feedrate=p["feed"], feedrate_z=p["feedZ"], feedrate_rapid=1500,
@@ -390,7 +462,7 @@ def python_program(case, root, app, camlib):
             tool = case["tools"][0]
             p = tool["parameters"]
             geo = camlib.Geometry()
-            geo.solid_geometry = [wkt.loads(tool["wkt"])]
+            geo.solid_geometry = [geometry_source(tool)]
             generated = cnc.generate_from_geometry_2(geo,append=False,tooldia=tool["diameter"],
                 z_cut=-p["depth"],z_move=p["safeZ"],feedrate=p["feed"],feedrate_z=p["feedZ"],feedrate_rapid=1500,
                 spindlespeed=p["rpm"],dwell=p["dwell"],dwelltime=p["dwellSeconds"],multidepth=p["multiDepth"],
@@ -410,6 +482,30 @@ def python_program(case, root, app, camlib):
 
 def xy(job, prefix):
     return "" if job[prefix+"X"] is None else f"{job[prefix+'X']}, {job[prefix+'Y']}"
+
+
+def slot_oracle_case(case,root):
+    """Original Python Drill slots conversion, not a fake mill or copied algorithm."""
+    if not any(tool.get("slots") for tool in case["tools"]): return case
+    from copy import deepcopy
+    from shapely.geometry import Point,LineString
+    source=root/"appTools/ToolDrilling.py"
+    tree=ast.parse(source.read_text(encoding="utf-8"))
+    cls=next(node for node in tree.body if isinstance(node,ast.ClassDef) and node.name=="ToolDrilling")
+    method=next(node for node in cls.body if isinstance(node,ast.FunctionDef) and node.name=="process_slot_as_drills")
+    method.decorator_list=[] # Static method invoked as a standalone original body.
+    namespace={"LineString":LineString}
+    exec(compile(ast.Module(body=[method],type_ignores=[]),str(source),"exec"),namespace)
+    copied=deepcopy(case)
+    overlap=case["job"]["pythonSlotOverlap"]
+    if not 0<=overlap<100: raise ValueError("Invalid slot drilling overlap")
+    for tool in copied["tools"]:
+        spacing=tool["diameter"]*(1-overlap/100)
+        for a,b in tool.get("slots",[]):
+            points=namespace["process_slot_as_drills"]((Point(*a),Point(*b)),spacing,case["job"]["pythonSlotLastHole"])
+            tool["points"].extend([[point.x,point.y] for point in points])
+        tool["slots"]=[]
+    return copied
 
 
 def run(args):
@@ -434,7 +530,7 @@ def run(args):
     if args.output.exists():
         raise ValueError("Use a fresh report directory")
     args.output.mkdir(parents=True)
-    sources = ("camlib.py","appCommon/Common.py","preprocessors/GRBL_11_no_M6.py")
+    sources = ("camlib.py","appCommon/Common.py","preprocessors/GRBL_11_no_M6.py","appTools/ToolDrilling.py")
     hashes = {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in sources}
     report = {"schema":1,**dependency_metadata(),"profile":export["profile"],"cases":[],
               "legacySourceSha256":hashes,"oracle":"Original CNCjob generators, OR-Tools Basic optimizer, GRBL preprocessor and exclusion routing",
@@ -455,10 +551,14 @@ def run(args):
             result.update(status="FX_ERROR",error=str(error))
         else:
             try:
-                program = python_program(case,root,app,camlib)
+                oracle_case=slot_oracle_case(case,root)
+                if oracle_case is not case:
+                    result["operationDifference"]="FX mills slots end-to-end; Python Drill slots drills overlapping point chains. Not equivalent operations."
+                    result["pythonSlotPoints"]={str(tool["id"]):tool["points"] for tool in oracle_case["tools"]}
+                program = python_program(oracle_case,root,app,camlib)
                 (args.output/(case["id"]+".python.nc")).write_text(program,encoding="utf-8")
                 python = read_program(program)
-                result["pythonParameterIssues"] = audit_parameters(case,python)
+                result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:
                 result.update(status="ORACLE_ERROR",error=str(error))
             else:
@@ -472,6 +572,10 @@ def run(args):
                     firstExecutionDifference=first_difference(fx["events"],python["events"]),
                     firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)),
                     rapidMetrics={"fx":rapid_metrics(fx),"python":rapid_metrics(python)})
+                if not machining and case["operation"]=="drilling" and not any(tool.get("slots") for tool in case["tools"]) \
+                        and any(len(tool.get("points",[]))>1 for tool in case["tools"]) \
+                        and not result["fxParameterIssues"] and not result["pythonParameterIssues"]:
+                    result["orderingDifference"]="Both pass requested hole multiplicity, depths and feeds; ordered cutting events differ. Strict comparison is unchanged."
                 (args.output/(case["id"]+".trace.json")).write_text(json.dumps({"fx":fx,"python":python},indent=2),encoding="utf-8")
         report["cases"].append(result)
     if hashes != {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in sources}:

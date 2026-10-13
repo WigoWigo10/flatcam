@@ -12,6 +12,18 @@ import org.locationtech.jts.geom.*;
 
 class GeometryPerToolProjectTest {
     @TempDir Path dir;
+    @Test void continuousSameDirectionAndRingTypeSurviveNativeSave() throws Exception {
+        var f=new GeometryFactory();
+        var ring=f.createLinearRing(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0),new Coordinate(12,2),new Coordinate(10,2),new Coordinate(10,0)});
+        var p=new GeometryGCodeParameters(3,.6,true,.2,200,10000,true).withPassStrategy(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION);
+        var tools=List.of(new ToolGeometry(1,ring));
+        var project=new ProjectFile(List.of(),List.of(),List.of(new ProjectFile.GeometryEntry("ring","","MM",ring,true,tools,null,null,true,p)),List.of());
+        var file=dir.resolve("same-direction.fcnproj"); ProjectFileIO.save(project,file);
+        var loaded=ProjectFileIO.load(file).geometries().getFirst();
+        assertEquals(p,loaded.cncDefaults()); assertInstanceOf(LinearRing.class,loaded.tools().getFirst().geometry());
+        assertEquals(GCodeGenerator.generateGeometryCncJob("MM",tools,p).gcode(),
+                GCodeGenerator.generateGeometryCncJob("MM",loaded.tools(),loaded.cncDefaults()).gcode());
+    }
     @Test void travelClearanceRoundtripsAndAbsentOldKeysKeepTheConservativeDefault() throws Exception {
         var path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});
         var p=new GeometryGCodeParameters(3,.6,true,.2,200,10000,true).withJobOptions(

@@ -1,5 +1,25 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Passes fechados, múltiplos furos e lacuna Drill slots — 2026-10-13
+
+Altura individual commitada em `5f3daab5`, sem push. Incremento seguinte:
+CONTINUOUS_SAME_DIRECTION opcional em Geometry, contornos fechados/pontos;
+recusa abertos, mantém sentido e permite Preservar direção, sem Extra Cut/sonda.
+Não substitui retração (default) nem alternância. Tipos de anel/Polygon/Point
+foram comparados contra geradores originais; auditor valida bordas/buracos,
+passadas e furos repetidos. Corpus GRBL 92, 49 equivalências, 19 diferenças de
+rota, 22 de usinagem/ordem/operação, 2 erros Python, zero FX; strict 1.
+Todos os 62 controles anteriores intactos. Nearest FX pode visitar na ordem
+mais curta no exemplo, mas não copia a ordem Basic Python para aumentar placar.
+
+Próxima lacuna concreta: opção Drill slots. O FX atual fresa rasgos; o Python
+transforma rasgos em furos sobrepostos com overlap/último furo configuráveis.
+O harness executa a conversão original + Excellon original e registra essa
+diferença, não como igualdade. Preservar fresagem atual e acrescentar escolha
+explícita; validar quantidade/profundidades, raio/exclusões, cancelamento,
+progresso, persistência e UI antes de declarar paridade desse fluxo.
+Evidências/limites: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Altura Geometry individual explícita — 2026-10-13
 
 Over validado commitado em `2899bee5`, sem push. Incremento seguinte adiciona

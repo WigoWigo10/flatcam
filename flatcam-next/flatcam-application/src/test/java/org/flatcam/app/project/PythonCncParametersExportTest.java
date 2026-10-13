@@ -45,8 +45,12 @@ class PythonCncParametersExportTest {
             cases.put(multitoolGeometry(units, scale, true, true));
             for (boolean continuous:List.of(false,true)) for (boolean separated:List.of(false,true))
                 cases.put(multitoolGeometry(units,scale,continuous,separated,GeometryTravelClearance.PER_TOOL));
+            for (String recipe:List.of("ring-single","ring-continuous","ring-alternating","polygon-single","polygon-continuous",
+                    "point-single","point-continuous","point-retract","closed-line-same")) cases.put(typedGeometry(units,scale,recipe));
+            for (String recipe:List.of("source","nearest","peck-nearest","two-tools-nearest","slot-single","slot-peck"))
+                cases.put(multipleDrills(units,scale,recipe));
         }
-        assertEquals(62, cases.length());
+        assertEquals(92, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
@@ -167,8 +171,59 @@ class PythonCncParametersExportTest {
                 .put("tools", tools).put("job", job);
     }
     private static Object nullable(Double value) { return value == null ? JSONObject.NULL : value; }
+    private JSONObject typedGeometry(String units,double s,String recipe) throws Exception {
+        var reader=new WKTReader();
+        var shell=factory.createLinearRing(reader.read("LINESTRING (10 0,20 0,20 10,10 10,10 0)").getCoordinates());
+        org.locationtech.jts.geom.Geometry shape=recipe.startsWith("point") ? factory.createPoint(new org.locationtech.jts.geom.Coordinate(10,0))
+                : recipe.startsWith("polygon") ? factory.createPolygon(shell,new org.locationtech.jts.geom.LinearRing[]{
+                    factory.createLinearRing(reader.read("LINESTRING (13 3,17 3,17 7,13 7,13 3)").getCoordinates())})
+                : recipe.startsWith("closed-line") ? factory.createLineString(shell.getCoordinates()) : shell;
+        shape=org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(shape);
+        boolean multiple=!recipe.endsWith("single");
+        var strategy=recipe.endsWith("alternating") ? GeometryPassStrategy.CONTINUOUS_ALTERNATING
+                : recipe.endsWith("retract") || !multiple ? GeometryPassStrategy.RETRACT_SAME_DIRECTION : GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION;
+        var positions=new GeometryJobOptions(null,5*s,null,null,15*s,null,null);
+        var p=new GeometryGCodeParameters(3*s,.6*s,multiple,.2*s,200*s,10000,true,1500*s,null,75*s,false,0,false,0)
+                .withJobOptions(positions).withPassStrategy(strategy);
+        String code=GCodeGenerator.generateGeometryCncJob(units,List.of(new ToolGeometry(s,shape)),p,Map.of(),CancellationToken.none(),GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        // Standard WKT plus an explicit type: do not silently turn a ring into a LineString in the oracle.
+        var wktShape=shape instanceof org.locationtech.jts.geom.LinearRing ? factory.createLineString(shape.getCoordinates()) : shape;
+        var params=new JSONObject().put("safeZ",p.safeZ()).put("depth",p.cutDepth()).put("multiDepth",multiple)
+                .put("depthPerPass",p.depthPerPass()).put("feed",p.feedRate()).put("feedZ",p.feedRateZ()).put("rpm",p.spindleSpeedRpm())
+                .put("dwell",false).put("dwellSeconds",0).put("fxPassStrategy",strategy.name());
+        var tool=new JSONObject().put("id",1).put("diameter",s).put("wkt",new WKTWriter().write(wktShape))
+                .put("geometryType",shape.getGeometryType()).put("parameters",params);
+        var job=new JSONObject().put("toolChange",true).put("toolChangeZ",15*s).put("endZ",5*s).put("startZ",JSONObject.NULL)
+                .put("endX",JSONObject.NULL).put("endY",JSONObject.NULL).put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL).put("exclusions",new JSONArray());
+        return base(units,recipe,"geometry",code).put("tools",new JSONArray().put(tool)).put("job",job);
+    }
+    private JSONObject multipleDrills(String units,double s,String recipe) {
+        boolean slot=recipe.startsWith("slot"); boolean two=recipe.equals("two-tools-nearest");
+        boolean peck=recipe.equals("peck-nearest") || recipe.equals("slot-peck");
+        boolean optimize=recipe.endsWith("nearest");
+        var first=new DrillGCodeParameters(3*s,1.1*s,100*s,10000,true,peck,.4*s,false,0,0);
+        var second=new DrillGCodeParameters(4*s,1.3*s,75*s,12000,true,true,.5*s,false,0,0);
+        var drills=new java.util.ArrayList<ExcellonImage.Drill>();
+        if (!slot) for (double x:new double[]{14,10,12,10}) drills.add(new ExcellonImage.Drill(1,x*s,0));
+        if (two) for (double x:new double[]{30,24,26}) drills.add(new ExcellonImage.Drill(2,x*s,0));
+        var slots=slot ? List.of(new ExcellonImage.Slot(1,10*s,0,12*s,0)) : List.<ExcellonImage.Slot>of();
+        var image=ExcellonImage.of(units,Map.of(1,s,2,2*s),drills,slots,factory.createPolygon());
+        var options=new GCodeGenerator.DrillJobOptions(true,15*s,5*s,null,null).withOptimizedDrills(optimize);
+        String code=GCodeGenerator.generateDrillCncJob(image,Map.of(1,first,2,second),two ? List.of(1,2) : List.of(1),options,GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        var tools=new JSONArray();
+        for (int id:two ? List.of(1,2) : List.of(1)) {
+            var points=new JSONArray(); for (var drill:drills) if (drill.toolId()==id) points.put(new JSONArray().put(drill.x()).put(drill.y()));
+            var slotPairs=new JSONArray(); for (var path:slots) if (path.toolId()==id) slotPairs.put(new JSONArray()
+                    .put(new JSONArray().put(path.x1()).put(path.y1())).put(new JSONArray().put(path.x2()).put(path.y2())));
+            tools.put(new JSONObject().put("id",id).put("diameter",id*s).put("points",points).put("slots",slotPairs)
+                    .put("parameters",drillParameters(id==1 ? first : second)));
+        }
+        var job=job(options).put("fxDrillOrder",optimize ? "NEAREST" : "SOURCE");
+        if (slot) job.put("pythonSlotOverlap",25).put("pythonSlotLastHole",true);
+        return base(units,"multiple-"+recipe,"drilling",code).put("tools",tools).put("job",job);
+    }
     private static JSONObject drillParameters(DrillGCodeParameters p) {
-        return new JSONObject().put("safeZ",p.safeZ()).put("depth",p.drillDepth()).put("feedZ",p.feedRate())
+        return new JSONObject().put("safeZ",p.safeZ()).put("depth",p.drillDepth()).put("feedZ",p.feedRate()).put("feed",p.feedRate())
                 .put("rpm",p.spindleSpeedRpm()).put("multiDepth",p.multiDepth()).put("depthPerPass",p.depthPerPass())
                 .put("dwell",p.dwell()).put("dwellSeconds",p.dwellSeconds()).put("offsetZ",p.offsetZ());
     }

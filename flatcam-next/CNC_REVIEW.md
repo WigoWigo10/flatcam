@@ -1,5 +1,13 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Incremento posterior: passes contínuos fechados
+
+Estratégia exibe também **Contínua, mesma direção (contornos fechados)**.
+Resumo/tooltip explicam a restrição de caminhos abertos; não acusa alternância
+Climb/Conventional nesse modo. A validação geométrica ocorre no worker antes de
+gravar, inclusive após compensação. Pontos usam Z final nos modos contínuos.
+Corpus e limites: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Incremento posterior: política de altura e acionamento manual
 
 Geometry permite escolher altura global (padrão) ou individual por fresa.
