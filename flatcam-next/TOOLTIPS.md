@@ -1,5 +1,13 @@
 # Revisão dos tooltips
 
+## Altura individual e RPM zero — 2026-10-13
+
+Novo seletor **Política de Travel Z** explica global/individual, altura comum
+de troca e limite da prévia. End Z explica a última fresa ativa conforme a
+política; RPM/potência e resumo explicam acionamento/parada manuais em zero,
+sem prometer M5 final ou simular macros. Inventário atual: **1099 ocorrências,
+zero MISSING**, sem mudar tempo/formatação. [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Over segmentado e altura de troca — 2026-10-13
 
 Strategy/Over Z descrevem transições na entrada/saída da região ampliada e

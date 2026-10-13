@@ -187,6 +187,9 @@ def audit_parameters(case, parsed, *, implementation=None):
     if parsed["units"] != case["units"]:
         issues.append("Units differ from the source")
     job = case["job"]
+    fx_clearance = job.get("fxTravelClearance","JOB_MAXIMUM")
+    if implementation == "fx" and fx_clearance not in ("JOB_MAXIMUM","PER_TOOL"):
+        raise ValueError("Unknown FX Travel Z policy")
     tools = case["tools"]
     selected = {tool["id"] for tool in tools}
     if any(event["tool"] not in selected for event in parsed["cuts"]):
@@ -220,6 +223,9 @@ def audit_parameters(case, parsed, *, implementation=None):
                 issues.append(f"T{tool['id']}: executed feed differs from the requested feed")
             if p["rpm"] > 0 and (event["spindle"] != 3 or event["rpm"] != p["rpm"]):
                 issues.append(f"T{tool['id']}: requested spindle is not running at the requested RPM")
+        if implementation == "fx" and p["rpm"] == 0 and any(event["kind"] == "spindle"
+                and event["tool"] == tool["id"] and event["direction"] != 0 for event in parsed["events"]):
+            issues.append(f"T{tool['id']}: RPM zero must not command a spindle start in FX")
         expected_dwells = [p["dwellSeconds"]] if p["dwell"] else []
         dwells = [event["seconds"] for event in parsed["events"] if event["kind"] == "dwell" and event["tool"] == tool["id"]]
         if not equivalent(dwells,expected_dwells):
@@ -250,7 +256,7 @@ def audit_parameters(case, parsed, *, implementation=None):
             p = next((tool["parameters"] for tool in tools if tool["id"] == event["tool"]),tools[0]["parameters"])
             if min(event["from"][2],event["to"][2]) < p["safeZ"]-.000051:
                 issues.append("Rapid XY below the selected tool's requested Travel Z")
-            if implementation == "fx" and case["operation"] == "geometry":
+            if implementation == "fx" and case["operation"] == "geometry" and fx_clearance == "JOB_MAXIMUM":
                 clearance = max(tool["parameters"]["safeZ"] for tool in tools)
                 if min(event["from"][2],event["to"][2]) < clearance-.000051:
                     issues.append("Rapid XY below FX job-wide maximum Travel Z")
@@ -443,7 +449,8 @@ def run(args):
             fx = read_program(case["gcode"])
             result["fxParameterIssues"] = audit_parameters(case,fx,implementation="fx")
             if case["operation"] == "geometry":
-                result["travelPolicies"] = {"fx":"job-wide maximum Travel Z", "python":"per-tool Travel Z"}
+                result["travelPolicies"] = {"fx":"per-tool Travel Z" if case["job"].get("fxTravelClearance")=="PER_TOOL"
+                                            else "job-wide maximum Travel Z", "python":"per-tool Travel Z"}
         except Exception as error:
             result.update(status="FX_ERROR",error=str(error))
         else:

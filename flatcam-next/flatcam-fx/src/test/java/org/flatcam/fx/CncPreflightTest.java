@@ -40,6 +40,20 @@ class CncPreflightTest {
         assertTrue(report.issues().stream().anyMatch(issue -> issue.text().contains("Estacionamento XY em Z 4")));
         assertTrue(report.issues().stream().anyMatch(issue -> issue.text().contains("Cobertura não calculada")));
     }
+    @Test void individualTravelReviewReportsEffectiveHeightsAndLastActiveParking() {
+        var original=geometry();
+        var options=original.parameters().jobOptions().withTravelClearance(GeometryTravelClearance.PER_TOOL);
+        var first=params(4,.3,200,70,10000).withJobOptions(options);
+        var second=params(3,.55,150,50,12000).withJobOptions(options);
+        var report=CncPreflight.geometry("Board","MM",new GeometryCncToolPanel.Result(original.tools(),first,Map.of(),
+                original.preprocessor(),Map.of(1,second)));
+        assertTrue(report.tools().getFirst().details().stream().anyMatch(value -> value.label().equals("Retração / Travel Z efetivo")&&value.text().startsWith("4 mm")));
+        assertTrue(report.tools().get(1).details().stream().anyMatch(value -> value.label().equals("Retração / Travel Z efetivo")&&value.text().startsWith("3 mm")));
+        assertTrue(report.common().stream().anyMatch(value -> value.label().equals("Política de Travel Z")
+                &&value.target().field().equals("cnc-travel-clearance")&&value.text().contains("cada ferramenta")));
+        assertTrue(report.issues().stream().anyMatch(issue -> issue.text().contains("Estacionamento XY em Z 3")));
+        assertTrue(report.issues().stream().anyMatch(issue -> issue.text().startsWith("Travel Z individual")&&!issue.blocking()));
+    }
     @Test void vTipUsesTheCalculatedDepthNotTheUnusedDraftAndInchValuesAreNotConvertedTwice() {
         var p = params(.1, .02, 4, 2, 10000);
         var tip = new VTipSettings(.001, 60);
@@ -61,6 +75,7 @@ class CncPreflightTest {
         var inactive = CncPreflight.geometry("Board", "MM", new GeometryCncToolPanel.Result(List.of(result.tools().getFirst()),
                 spindleOff, Map.of(), result.preprocessor(), Map.of()));
         assertTrue(inactive.tools().getFirst().details().stream().anyMatch(value -> value.label().equals("Dwell") && value.text().startsWith("Inativo")));
+        assertTrue(inactive.issues().stream().anyMatch(issue -> issue.text().contains("RPM zero")&&issue.text().contains("parada final")));
     }
     static DrillGCodeToolPanel.Result drilling() {
         var image = ExcellonImage.of("MM", Map.of(2, .8, 7, 1.2, 11, 1.5),

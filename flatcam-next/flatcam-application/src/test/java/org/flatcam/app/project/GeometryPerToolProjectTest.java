@@ -12,6 +12,37 @@ import org.locationtech.jts.geom.*;
 
 class GeometryPerToolProjectTest {
     @TempDir Path dir;
+    @Test void travelClearanceRoundtripsAndAbsentOldKeysKeepTheConservativeDefault() throws Exception {
+        var path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});
+        var p=new GeometryGCodeParameters(3,.6,true,.2,200,10000,true).withJobOptions(
+                new GeometryJobOptions(null,.5,20.,0.,15.,null,null).withTravelClearance(GeometryTravelClearance.PER_TOOL))
+                .withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
+        var entry=new ProjectFile.GeometryEntry("paths","","MM",path,true,List.of(new ToolGeometry(.4,path)),null,null,true,p);
+        var project=new ProjectFile(List.of(),List.of(),List.of(entry),List.of());
+        for (boolean compressed:List.of(false,true)) {
+            var file=dir.resolve("travel-"+compressed+".fcnproj");
+            ProjectFileIO.save(project,file,compressed);
+            var loaded=ProjectFileIO.load(file).geometries().getFirst();
+            assertEquals(p,loaded.cncDefaults());
+            assertEquals(GCodeGenerator.generateGeometryCncJob("MM",entry.tools(),p).gcode(),
+                    GCodeGenerator.generateGeometryCncJob("MM",loaded.tools(),loaded.cncDefaults()).gcode());
+        }
+        var file=dir.resolve("old-travel.fcnproj"); ProjectFileIO.save(project,file);
+        var root=ProjectFileIO.parseRoot(java.nio.file.Files.readAllBytes(file));
+        var options=root.getJSONObject("_java").getJSONArray("geometries").getJSONObject(0).getJSONObject("cncDefaults").getJSONObject("jobOptions");
+        options.put("travelClearance","unknown"); ProjectFileIO.writeRoot(root,file,false);
+        assertThrows(java.io.IOException.class,()->ProjectFileIO.load(file));
+        options.remove("travelClearance"); ProjectFileIO.writeRoot(root,file,false);
+        assertEquals(GeometryTravelClearance.JOB_MAXIMUM,ProjectFileIO.load(file).geometries().getFirst().cncDefaults().jobOptions().travelClearance());
+    }
+    @Test void databasePositionSuggestionsPreserveRoutingAndTravelPolicy() {
+        var routing=new CncRouting(CncRouting.Mode.NEAREST,true,false,List.of(),0);
+        var base=GeometryJobOptions.AUTOMATIC.withRouting(routing).withTravelClearance(GeometryTravelClearance.PER_TOOL);
+        var suggestions=new CncJobDefaults(Map.of(CncJobDefaults.Field.END_Z,"5"));
+        var merged=suggestions.positions(base);
+        assertEquals(5.,merged.endZ()); assertEquals(routing,merged.routing());
+        assertEquals(GeometryTravelClearance.PER_TOOL,merged.travelClearance());
+    }
     @Test void continuousPassStrategySurvivesNativeSaveAndOldFilesKeepRetraction() throws Exception {
         var p=new GeometryGCodeParameters(3,1,true,.4,100,1000,false).withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
         var path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});

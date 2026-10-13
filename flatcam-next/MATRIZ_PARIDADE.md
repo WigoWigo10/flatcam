@@ -1,5 +1,17 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Altura individual + passes contínuos — 2026-10-13
+
+Escolha explícita global/individual Geometry, persistência/restauração e revisão
+por fresa: **C**. Oito controles GRBL de duas fresas (single/contínuo,
+trajeto único/separado, MM/IN) com modo individual concordam na execução:
+**A somente nesses controles**. Corpus total **62**, 35 equivalências,
+19 diferenças de rota, 6 de usinagem, 2 erros Python, zero erros FX; strict 1.
+Os 54 controles anteriores permanecem com suas classificações. Default global
+e RPM zero manual preservados; testes impedem partida automática no trecho
+zero, sem promessa de parada manual/macros. Não é paridade de todos os tipos
+de paths/perfis/máquinas. [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Over por trecho e limites do legado — 2026-10-13
 
 Over segmentado em Geometry/Drilling, sobreposição pela maior altura, testes

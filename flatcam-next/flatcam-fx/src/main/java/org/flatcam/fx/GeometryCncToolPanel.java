@@ -177,6 +177,8 @@ final class GeometryCncToolPanel {
                 FXCollections.observableArrayList(GCodePreprocessor.geometryProfiles()));
         preprocessor.setId("cnc-preprocessor");
         spindleField.setId("cnc-power");
+        ToolDescriptions.apply(spindleField,"Spindle / potência do perfil",
+                "Em fresagem comum, RPM positivo comanda a partida na velocidade solicitada. RPM zero deixa o acionamento e a parada sob controle manual: não envia uma partida automática e não garante a parada final. Trocas ativadas podem parar o spindle antes da pausa.\n\nZero não significa desligar o spindle. Confira o G-code e o procedimento da máquina. Em laser/PWM, este campo representa potência e segue as regras do perfil escolhido.");
         rapidFeedField.setId("cnc-rapid-feed");
         cutDepthField.setId("cnc-cut-depth");
         safeZField.setId("cnc-safe-z");
@@ -267,6 +269,12 @@ final class GeometryCncToolPanel {
         grid.addRow(row, new Label("Preprocessor:"), preprocessor);
 
         GeometryJobOptions savedPositions = defaults == null ? GeometryJobOptions.AUTOMATIC : defaults.jobOptions();
+        var travelClearance = new ComboBox<org.flatcam.cam.gcode.GeometryTravelClearance>(
+                FXCollections.observableArrayList(org.flatcam.cam.gcode.GeometryTravelClearance.values()));
+        travelClearance.setId("cnc-travel-clearance"); travelClearance.setValue(savedPositions.travelClearance());
+        travelClearance.setMaxWidth(Double.MAX_VALUE); travelClearance.setMinWidth(0);
+        ToolDescriptions.apply(travelClearance,"Altura dos deslocamentos XY",
+                "Maior Travel Z do trabalho: padrão conservador, usa a maior altura em todos os trajetos.\n\nTravel Z de cada ferramenta: usa a altura configurada em cada fresa, como no fluxo Geometry Python; vale também entre passes e no estacionamento da última fresa. Confira cada altura e a fixação antes de escolher.\n\nTool change Z continua comum e deve ser pelo menos o maior Travel Z. Exclusões Over nunca baixam da altura efetiva. Não simula haste, cabeçote ou segurança física.");
         CncRoutingFields routing=new CncRoutingFields(units,savedPositions.routing(),references);
         TextField startZ = optionalField("cnc-start-z", savedPositions.startZ());
         TextField endZ = optionalField("cnc-end-z", savedPositions.endZ());
@@ -274,7 +282,7 @@ final class GeometryCncToolPanel {
         TextField changeZ = optionalField("cnc-change-z", savedPositions.toolChangeZ());
         TextField changeXY = xyField("cnc-change-xy", savedPositions.toolChangeX(), savedPositions.toolChangeY());
         startZ.setTooltip(new Tooltip("Start Z: movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z exibido ao gerar; aceita zero ou valor positivo.\n\nAntes de deslocar em XY, o FX retrai para a altura de segurança. Start Z não faz referenciamento nem confirma que a ferramenta está livre.\n\nUnidades: unidade do objeto (mm ou in)."));
-        endZ.setTooltip(new Tooltip("End Z: altura final depois de desligar o spindle. Vazio/None usa o maior Travel Z.\n\nSe End Z for menor que Travel Z, o movimento End X,Y ocorre primeiro em altura segura; so depois desce para End Z. Confirme que o destino esta livre."));
+        endZ.setTooltip(new Tooltip("End Z: altura final depois de desligar o spindle. Vazio/None usa o Travel Z efetivo da última fresa: maior altura do trabalho no padrão, ou sua própria altura no modo por ferramenta.\n\nSe End Z for menor que essa altura, o movimento End X,Y ocorre primeiro em altura segura; só depois desce para End Z. Confirme que o destino está livre."));
         endXY.setTooltip(new Tooltip("Posição final X,Y. Vazio/None mantém a posição do último corte. Use 10.5;20.5 ou, com vírgula decimal, 10,5;20,5.\n\nO FX desloca em altura segura antes de descer para End Z. O movimento aparece na prévia.\n\nUnidades: unidade do objeto (mm ou in)."));
         changeZ.setTooltip(new Tooltip("Tool change Z: altura usada antes da troca. Vazio/None usa o maior Travel Z.\n\nDeve ser pelo menos o maior Travel Z das ferramentas. So e aplicada quando a troca esta ativa ou o perfil seleciona ferramentas automaticamente."));
         changeXY.setTooltip(new Tooltip("Tool change X,Y: posição para a troca, inclusive a primeira, quando ativada. Vazio/None troca na posição atual. Use 10.5;20.5 ou 10,5;20,5.\n\nO FX retrai antes de XY e M0/M6.\n\nAtenção: confira grampos e a macro da máquina; a prévia não simula movimentos internos de uma macro M6.\n\nUnidades: unidade do objeto (mm ou in)."));
@@ -285,6 +293,7 @@ final class GeometryCncToolPanel {
         positionGrid.addRow(2, new Label("End X,Y:"), endXY);
         positionGrid.addRow(3, new Label("Tool change Z:"), changeZ);
         positionGrid.addRow(4, new Label("Tool change X,Y:"), changeXY);
+        positionGrid.addRow(5, new Label("Política de Travel Z:"), travelClearance);
         positionGrid.disableProperty().bind(unsupportedPositions);
         changeZ.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> !pauseCheck.isSelected() && !preprocessor.getValue().automaticToolSelection(), pauseCheck.selectedProperty(), preprocessor.valueProperty()));
@@ -416,6 +425,7 @@ final class GeometryCncToolPanel {
                         end[0], end[1], parseOptional(changeZ, "Tool change Z"), change[0], change[1]);
                 positions=exclusions.applyTo(positions);
                 positions=positions.withRouting(unsupportedPositions.get() ? org.flatcam.cam.gcode.CncRouting.LEGACY : routing.options());
+                positions=positions.withTravelClearance(travelClearance.getValue());
                 GeometryGCodeParameters params = new GeometryGCodeParameters(
                         safeZ, cutDepth, multiDepth, depthPerPass, feed, spindle,
                         preprocessor.getValue().supportsManualToolChange() && pauseCheck.isSelected(),

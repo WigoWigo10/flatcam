@@ -113,6 +113,7 @@ public record CncJobDefaults(Map<Field, String> values) {
         var end = xy(values, Field.END_XY, base.endX(), base.endY());
         var change = xy(values, Field.CHANGE_XY, base.toolChangeX(), base.toolChangeY());
         return new GeometryJobOptions(scalar(values, Field.START_Z, base.startZ()), scalar(values, Field.END_Z, base.endZ()), end[0], end[1],
-                scalar(values, Field.CHANGE_Z, base.toolChangeZ()), change[0], change[1], base.exclusionsEnabled(), base.exclusions());
+                scalar(values, Field.CHANGE_Z, base.toolChangeZ()), change[0], change[1], base.exclusionsEnabled(), base.exclusions(),
+                base.routing(),base.travelClearance());
     }
 }

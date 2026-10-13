@@ -143,8 +143,23 @@ class CncReaderTest(unittest.TestCase):
         parsed = read_program(PROGRAM)
         self.assertNotIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,parsed))
         self.assertIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,parsed,implementation="fx"))
+        source["job"]["fxTravelClearance"]="PER_TOOL"
+        self.assertNotIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,parsed,implementation="fx"))
+        source["job"]["fxTravelClearance"]="JOB_MAXIMUM"
         raised = read_program(PROGRAM.replace("G0 Z3\nM3","G0 Z4\nM3",1))
         self.assertNotIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,raised,implementation="fx"))
+
+    def test_zero_rpm_fx_contract_and_unknown_travel_policy_are_not_silently_accepted(self):
+        source=case()
+        source["tools"][0]["parameters"]["rpm"]=0
+        # No automatic start is allowed even if the controller sees no S word.
+        unexpected=read_program(PROGRAM.replace("M3 S10000","M3"))
+        self.assertIn("T1: RPM zero must not command a spindle start in FX",audit_parameters(source,unexpected,implementation="fx"))
+        manual=read_program(PROGRAM.replace("M3 S10000\n",""))
+        self.assertNotIn("T1: RPM zero must not command a spindle start in FX",audit_parameters(source,manual,implementation="fx"))
+        source["job"]["fxTravelClearance"]="unknown"
+        with self.assertRaises(ValueError):
+            audit_parameters(source,manual,implementation="fx")
 
     def test_separate_linear_paths_require_all_plunges_and_traversals(self):
         source = case()

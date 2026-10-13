@@ -1,5 +1,13 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Incremento posterior: política de altura e acionamento manual
+
+Geometry permite escolher altura global (padrão) ou individual por fresa.
+Resumo mostra política, alturas efetivas e estacionamento da última fresa
+ativa, com link para `cnc-travel-clearance`. RPM zero explicita acionamento/
+parada manuais e que não garante M5 final. Limites e oito controles diferenciais
+novos equivalentes: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Incremento posterior: Over e Start Z
 
 Novo aviso distingue Start Z da altura da primeira troca, com link para Tool

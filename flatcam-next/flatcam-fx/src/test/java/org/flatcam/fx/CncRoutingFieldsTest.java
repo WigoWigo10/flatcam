@@ -10,6 +10,28 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class CncRoutingFieldsTest {
+    @Test void travelPolicyDefaultsRestoresPublishesAndCannotBeIgnoredInUnsupportedProfiles() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});
+            var result=new java.util.concurrent.atomic.AtomicReference<GeometryCncToolPanel.Result>();
+            var defaults=new GeometryGCodeParameters(3,.6,true,.2,200,10000,true).withJobOptions(
+                    GeometryJobOptions.AUTOMATIC.withTravelClearance(GeometryTravelClearance.PER_TOOL));
+            var root=(javafx.scene.Parent)GeometryCncToolPanel.build("MM",path,List.of(),defaults,result::set,()->{});
+            new javafx.scene.Scene(root); root.applyCss(); root.layout();
+            @SuppressWarnings("unchecked") var policy=(ComboBox<GeometryTravelClearance>)root.lookup("#cnc-travel-clearance");
+            assertEquals(GeometryTravelClearance.PER_TOOL,policy.getValue()); assertFalse(policy.getAccessibleHelp().isBlank());
+            ((Button)root.lookup("#cnc-generate")).fire();
+            assertNotNull(result.get(),((Label)root.lookup("#cnc-error")).getText());
+            assertEquals(GeometryTravelClearance.PER_TOOL,result.get().parameters().jobOptions().travelClearance());
+            @SuppressWarnings("unchecked") var pp=(ComboBox<GCodePreprocessor>)root.lookup("#cnc-preprocessor");
+            result.set(null); pp.setValue(GCodePreprocessor.HPGL); ((Button)root.lookup("#cnc-generate")).fire();
+            assertTrue(policy.isDisabled()); assertNull(result.get()); assertFalse(((Label)root.lookup("#cnc-error")).getText().isBlank());
+            pp.setValue(GCodePreprocessor.FX_PORTABLE); policy.setValue(GeometryTravelClearance.JOB_MAXIMUM);
+            ((Button)root.lookup("#cnc-generate")).fire(); assertNotNull(result.get());
+            assertEquals(GeometryTravelClearance.JOB_MAXIMUM,result.get().parameters().jobOptions().travelClearance());
+            return null;
+        });
+    }
     @Test void continuousPassChoiceIsPublishedAndDirectionConflictIsReported() throws Exception {
         TerminalPanelTest.fx(() -> {
             Geometry path=new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(10,0),new Coordinate(12,0)});

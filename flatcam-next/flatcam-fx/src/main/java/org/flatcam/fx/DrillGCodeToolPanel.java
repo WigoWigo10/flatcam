@@ -209,6 +209,8 @@ final class DrillGCodeToolPanel {
         TextField feedZ = field(ToolDefaults.text("drilling.feedz", metric));
         TextField spindle = field(ToolDefaults.text("drilling.spindle", metric));
         spindle.setId("drill-power");
+        ToolDescriptions.apply(spindle,"Spindle / potência do perfil",
+                "RPM positivo comanda a partida na velocidade solicitada. RPM zero deixa o acionamento e a parada sob controle manual: não envia uma partida automática e não garante a parada final. Trocas ativadas podem parar o spindle antes da pausa.\n\nZero não significa desligar o spindle. Confira o G-code e o procedimento da máquina. Perfis PWM usam sua própria faixa de potência.");
         TextField dwellTime = field(ToolDefaults.text("drilling.dwelltime", metric));
         TextField offsetZ = field(ToolDefaults.text("drilling.offsetz", metric));
         cutZ.setId("drill-cut-z"); depthPerPass.setId("drill-depth-per-pass"); travelZ.setId("drill-travel-z");

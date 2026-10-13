@@ -764,8 +764,14 @@ public final class GCodeGenerator {
         gcode.append(preprocessor.initialization());
         line(gcode, "G94");
         boolean initialProfileChange = changing && preprocessor.emitsToolNumber() && !preprocessor.requiresProbe();
+        double initialTravelZ=params.safeZ();
+        if (positions.travelClearance()==GeometryTravelClearance.PER_TOOL) {
+            for (int i=0;i<tools.size();i++) if (!tools.get(i).geometry().isEmpty()) {
+                initialTravelZ=parametersByTool.getOrDefault(i,params).safeZ(); break;
+            }
+        }
         if (!initialProfileChange || positions.startZ() != null)
-            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.startZ() == null ? params.safeZ() : positions.startZ()));
+            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.startZ() == null ? initialTravelZ : positions.startZ()));
 
         List<Geometry> travelShapes = new ArrayList<>();
         Footprints cutShapes = new Footprints();
@@ -774,6 +780,7 @@ public final class GCodeGenerator {
         boolean firstTool = true;
         int previousSpindle = 0;
         double lastToolRadius = tools.getFirst().toolDiameter() / 2;
+        double lastTravelZ = clearance;
 
         for (int toolIndex = 0; toolIndex < tools.size(); toolIndex++) {
             ToolGeometry tool = tools.get(toolIndex);
@@ -782,12 +789,14 @@ public final class GCodeGenerator {
                 continue;
             }
             GeometryGCodeParameters machining = parametersByTool.getOrDefault(toolIndex, params);
+            double toolTravelZ = positions.travelClearance().effective(machining.safeZ(),clearance);
+            lastTravelZ = toolTravelZ;
             List<Double> depths = depthsByTool.get(toolIndex);
             // Explicit positions also cover the initial portable tool, whose legacy default pauses only between tools.
             boolean changeHere = changing && (!firstTool || preprocessor.emitsToolNumber()
                     || positions.toolChangeZ() != null || positions.toolChangeX() != null);
-            if (!firstTool || !initialProfileChange)
-                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+            if ((!firstTool || !initialProfileChange) && (!changeHere || preprocessor.requiresProbe()))
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(toolTravelZ));
             double changeZ = positions.toolChangeZ() == null ? clearance : positions.toolChangeZ();
             if (changeHere && !preprocessor.requiresProbe()) {
                 if (preprocessor.controlsSpindle(previousSpindle)
@@ -828,8 +837,8 @@ public final class GCodeGenerator {
                 // M0/M6 may move Z or leave incremental mode; restore clearance before the next XY.
                 line(gcode, "G90");
                 line(gcode, "%s Z%s", preprocessor.rapid(), fmt(changeZ));
-                if (Double.compare(changeZ,clearance) != 0)
-                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+                if (Double.compare(changeZ,toolTravelZ) != 0)
+                    line(gcode, "%s Z%s", preprocessor.rapid(), fmt(toolTravelZ));
             }
             firstTool = false;
             line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
@@ -863,7 +872,7 @@ public final class GCodeGenerator {
                 }
                 Coordinate last = coordinates[coordinates.length - 1];
                 exclusionTravel(gcode,travelShapes,lastX,lastY,coordinates[0].x,coordinates[0].y,radius,
-                        clearance,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
+                        toolTravelZ,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                 lastX = last.x;
                 lastY = last.y;
 
@@ -881,29 +890,29 @@ public final class GCodeGenerator {
                     }
                     Coordinate actualEnd=passCoordinates[passCoordinates.length-1]; lastX=actualEnd.x; lastY=actualEnd.y;
                     if (pass+1<pathDepths.size() && !continuous) {
-                        // The next XY uses the job-wide clearance, not this tool's lower setting.
+                        // Retract to the explicitly selected effective clearance before the next XY.
                         // Without exclusions, exclusionTravel only emits XY: the modal Z must
                         // already be correct for both a pass return and a separate next path.
-                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(toolTravelZ));
                         exclusionTravel(gcode,travelShapes,last.x,last.y,coordinates[0].x,coordinates[0].y,radius,
-                                clearance,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
+                                toolTravelZ,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                     }
                     // Python reverses LineStrings, even closed ones; no lateral rapid is emitted while down.
                     if (continuous) passCoordinates=reversed(passCoordinates);
                 }
-                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(toolTravelZ));
             }
         }
 
         if (preprocessor.controlsSpindle(previousSpindle)) {
             line(gcode, "%s", preprocessor.spindleOff());
         }
-        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
+        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(lastTravelZ));
         if (positions.endX() != null) {
             // Never lower to a small End Z before a lateral parking move.
-            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(Math.max(clearance, positions.endZ() == null ? clearance : positions.endZ())));
+            line(gcode, "%s Z%s", preprocessor.rapid(), fmt(Math.max(lastTravelZ, positions.endZ() == null ? lastTravelZ : positions.endZ())));
             exclusionTravel(gcode,travelShapes,lastX,lastY,positions.endX(),positions.endY(),lastToolRadius,
-                    Math.max(clearance,positions.endZ()==null?clearance:positions.endZ()),preprocessor,plannerFor.apply(lastToolRadius*2), units);
+                    Math.max(lastTravelZ,positions.endZ()==null?lastTravelZ:positions.endZ()),preprocessor,plannerFor.apply(lastToolRadius*2), units);
         }
         if (positions.endZ() != null) line(gcode, "%s Z%s", preprocessor.rapid(), fmt(positions.endZ()));
         cancellationToken.throwIfCancellationRequested();

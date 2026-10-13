@@ -1,5 +1,70 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Travel Z individual explícito, passes e RPM zero — 2026-10-13
+
+Geometry → CNC, **Posições e troca de ferramenta → Política de Travel Z**:
+**Maior Travel Z do trabalho** continua o padrão; **Travel Z de cada ferramenta**
+é uma escolha explícita para fresagem comum, correspondente à altura individual
+do fluxo Python testado. Usa a altura da fresa depois da troca, entre trajetos e
+retornos de passes. Estacionamento e End Z automático usam a última fresa ativa;
+End Z abaixo dessa altura só é atingido depois de End X,Y. Ferramentas vazias
+não substituem a altura final. Troca continua comum, validada contra o maior
+Travel Z do trabalho; Over mantém seu piso/alturas de exclusão. Laser/HPGL/Roland/
+sondagem recusam a opção não padrão, não a ignoram ao gerar.
+
+Não se redefine silenciosamente um projeto antigo. `GeometryTravelClearance`
+persiste em `jobOptions.travelClearance` no nativo JSON/XZ; ausente = JOB_MAXIMUM,
+valor desconhecido = erro de leitura. Helpers de exclusão/roteamento preservam
+a escolha. Aplicar sugestões comuns da DB também preserva política e roteamento
+(este último era perdido ao reconstruir posições). O painel restaura a escolha;
+o resumo distingue valor configurado, efetivo por fresa e estacionamento.
+Regravação real pelo Python e novo argumento Tcl ainda não foram validados;
+não presumir preservação da extensão privada após regravar pelo legado.
+
+Passes contínuos alternados já existiam: seguem opção por fresa, não novo default.
+Foram combinados com altura individual e trajetos separados no oráculo. Retração
+conserva direção; contínuo alterna e não aceita preservar direção/Extra Cut/sonda.
+Não copiar a alternância de todas as variantes Polygon/LinearRing como se fossem
+LineStrings: esses tipos ainda exigem corpus dedicado.
+
+RPM zero continua **acionamento/parada manuais**, sem partida automática. Testes
+Geometry/Drilling com troca ligada/desligada e com fresa anterior em RPM positivo
+garantem ausência de M3/M4 automático no trecho zero. Isso não significa enviar
+M5 final nem simular partida manual/macros. Aviso/tooltip agora explicitam a
+ausência de garantia de parada final. Auditor FX recusa partida automática em
+RPM zero. O Python emite M3 sem S e, no caso sem troca, pausa mesmo com troca
+desligada: diferenças mantidas, não copiadas para elevar equivalências.
+
+Corpus ampliado para **62 controles**, mantendo os 54 anteriores. Oito novos:
+duas fresas, trajetória única/separada, single/contínuo, MM/IN, altura individual
+explicitamente selecionada. **Todos os oito MATCH_EXECUTION** e auditorias de
+parâmetros aprovadas. Total: **35 MATCH_EXECUTION, 19 ROUTING_DIFFERENT,
+6 MACHINING_DIFFERENT, 2 ORACLE_ERROR, 0 FX_ERROR**; strict **1**, sem relaxamento.
+As 54 classificações anteriores foram preservadas. Os modos conservadores
+antigos continuam no corpus, não foram substituídos pelos modos compatíveis.
+Relatório final: `target/cnc-travel-policy-final-oracle-20261013/python/index.html`.
+
+Testes `GeometryTravelClearanceTest`, `SpindleZeroContractTest`,
+`GeometryPerToolProjectTest`, `CncRoutingFieldsTest`, `CncPreflightTest` e
+`TooltipAuditTest`: Z modal realmente emitido, alturas/pausas, parking, vazios,
+compatibilidade de construtores/arquivos, perfil inválido e retorno ao painel.
+20 testes auxiliares do auditor Python aprovados. Logs direcionados:
+`target/cnc-travel-policy-core-20261013.log` e
+`target/cnc-travel-policy-ui-retry-20261013.log`. A primeira tentativa de UI
+verificava Tooltip nativo, mas a ajuda central usa propriedades/accessibleHelp;
+a asserção foi corrigida para o contrato real, não foi removida a ajuda.
+
+Pendências: decisões sobre Start Z/primeira troca e precisão de diâmetros IN,
+variantes de passes Polygon/LinearRing/pontos, outras fresas/perfis/projetos,
+Tcl explícito e validação visual/física manual. A diferença Around mais longo
+e omissão de altura Over sobreposta do Python não devem ser reproduzidas.
+
+Build completo aprovado em `target/cnc-travel-policy-full-20261013.log`:
+1705 testes registrados, 1687 aprovados, 18 opcionais ignorados, zero
+falhas/erros (somente relatórios com fonte atual). Tooltips: 1099 ocorrências,
+zero MISSING no cenário construído. Nova rodada diferencial após o build
+confirmou os mesmos números, sem alterar fontes Python nem tolerâncias.
+
 ## Over segmentado, Around e primeira troca — 2026-10-13
 
 `CncExclusionPlanner.travelLegs` divide a rota nas entradas/saídas das áreas

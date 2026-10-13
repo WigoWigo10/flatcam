@@ -31,11 +31,15 @@ final class CncPreflight {
         boolean cutting = !profile.isLaser() && !profile.isPlotter();
         double clearance = Math.max(base.safeZ(), result.parametersByTool().values().stream()
                 .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(base.safeZ()));
+        var travelPolicy=base.jobOptions().travelClearance();
+        double lastTravelZ=clearance;
         var activeDiameters = new java.util.HashSet<Double>();
         for (int i = 0; i < result.tools().size(); i++) {
             var tool = result.tools().get(i);
             var p = result.parametersByTool().getOrDefault(i, base);
             boolean empty = tool.geometry().isEmpty();
+            double effectiveTravel=travelPolicy.effective(p.safeZ(),clearance);
+            if (!empty) lastTravelZ=effectiveTravel;
             if (!empty) activeDiameters.add(tool.toolDiameter());
             double depth = p.cutDepth();
             var details = new ArrayList<Value>();
@@ -50,8 +54,9 @@ final class CncPreflight {
             }
             details.add(value("Profundidade efetiva", cutting ? number(-depth) + " " + unit(units) : "Não se aplica ao corte neste perfil", i, "cnc-cut-depth"));
             if (cutting && !profile.requiresProbe() && !profile.isRoland())
-                details.add(value("Retração / Travel Z efetivo", number(clearance) + " " + unit(units)
-                        + "; usa o maior Travel Z do trabalho (configurado nesta fresa: " + number(p.safeZ()) + ")", i, "cnc-safe-z"));
+                details.add(value("Retração / Travel Z efetivo", number(effectiveTravel) + " " + unit(units)
+                        + (travelPolicy==GeometryTravelClearance.PER_TOOL ? "; usa o Travel Z desta fresa" : "; usa o maior Travel Z do trabalho")
+                        + " (configurado nesta fresa: " + number(p.safeZ()) + ")", i, "cnc-safe-z"));
             details.add(value("Passes", cutting ? passes(depth, p.multiDepth(), p.depthPerPass())
                     + (p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING ? "; pontos isolados usam somente a profundidade final" : "")
                     : "Sem passes de fresagem", i, "cnc-multi-depth"));
@@ -69,7 +74,8 @@ final class CncPreflight {
                     profile.isPlotter() || profile.isRoland() ? "—" : number(p.spindleSpeedRpm()), details));
             if (empty) issues.add(new Issue(false, "T" + (i + 1) + " não tem trajetos e não produzirá cortes.", target(i, "cnc-tools")));
             if (!empty && cutting && p.spindleSpeedRpm() == 0 && !profile.isRoland())
-                issues.add(new Issue(false, "T" + (i + 1) + ": RPM zero não liga automaticamente o spindle. Confira o acionamento.", target(i, "cnc-power")));
+                issues.add(new Issue(false, "T" + (i + 1) + ": RPM zero não liga automaticamente o spindle nem garante a parada final. "
+                        + "Confira acionamento/parada manuais; trocas ativadas podem pará-lo antes da pausa.", target(i, "cnc-power")));
             if (!empty && cutting && p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING)
                 issues.add(new Issue(false, "T" + (i + 1) + ": passes alternados invertem o sentido de corte entre profundidades.", target(i, "cnc-pass-strategy")));
             if (!empty && p.offset() != ToolPathOffset.PATH)
@@ -83,8 +89,10 @@ final class CncPreflight {
                 : base.pauseForToolChange() ? "Ativada" : "Desativada", -1, "cnc-tool-change"));
         if (cutting) {
             positions(common, "cnc", pos.startZ(), pos.toolChangeZ() == null ? clearance : pos.toolChangeZ(),
-                    pos.toolChangeX(), pos.toolChangeY(), pos.endZ() == null ? clearance : pos.endZ(), pos.endX(), pos.endY());
-            common.add(value("Altura dos deslocamentos XY", number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-safe-z"));
+                    pos.toolChangeX(), pos.toolChangeY(), pos.endZ() == null ? lastTravelZ : pos.endZ(), pos.endX(), pos.endY());
+            common.add(value("Política de Travel Z",travelPolicy.toString(),-1,"cnc-travel-clearance"));
+            common.add(value("Altura dos deslocamentos XY",travelPolicy==GeometryTravelClearance.PER_TOOL ? "Individual: confira o valor efetivo de cada fresa"
+                    : number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-travel-clearance"));
         } else common.add(value("Posições de fresagem", "Não se aplicam a este perfil; Z_laser usa somente seu foco Z", -1, "cnc-preprocessor"));
         if (profile.requiresProbe() && base.probing() != null) probe(common, base.probing());
         startChangeNotice(issues,pos.startZ(),pos.toolChangeZ()==null ? clearance : pos.toolChangeZ(),
@@ -95,8 +103,10 @@ final class CncPreflight {
         }, -1, "cnc-route-mode"));
         common.add(value("Exclusões", pos.exclusionsEnabled() ? pos.exclusions().size() + " área(s) protegida(s)" : "Desativadas", -1, "cnc-exclusions-pane"));
         rapid(common, profile, base.rapidFeedRate(), units, "cnc-rapid-feed");
-        if (pos.endX() != null && pos.endZ() != null && pos.endZ() < clearance)
-            issues.add(new Issue(false, "Estacionamento XY em Z " + number(clearance) + "; só depois desce para End Z " + number(pos.endZ()) + ".", target(-1, "cnc-end-z")));
+        if (travelPolicy==GeometryTravelClearance.PER_TOOL)
+            issues.add(new Issue(false,"Travel Z individual pode ser menor que o de outras fresas. Confira cada altura e fixação; a troca ainda usa a altura comum validada.",target(-1,"cnc-travel-clearance")));
+        if (pos.endX() != null && pos.endZ() != null && pos.endZ() < lastTravelZ)
+            issues.add(new Issue(false, "Estacionamento XY em Z " + number(lastTravelZ) + "; só depois desce para End Z " + number(pos.endZ()) + ".", target(-1, "cnc-end-z")));
         issues.add(new Issue(false, "Cobertura não calculada: Geometry contém trajetos, não uma área-alvo. Esta revisão não identifica todas as regiões não usinadas.", null));
         limitations(issues, profile);
         return new Report(source, "Geometry → CNC", unit(units), profile.label(), rows, common, issues);
@@ -124,7 +134,8 @@ final class CncPreflight {
             if (count[0] + count[1] == 0) issues.add(new Issue(false, "T" + id + " não contém furos nem rasgos.", target(id, "drill-tools")));
             if (count[1] > 0) issues.add(new Issue(false, "T" + id + ": rasgos são fresados ao longo do eixo; confirme a ferramenta e o avanço lateral. Não é apenas mergulho de broca.", target(id, "drill-feed-z")));
             if (p.spindleSpeedRpm() == 0 && !profile.isRoland())
-                issues.add(new Issue(false, "T" + id + ": RPM zero não liga automaticamente o spindle.", target(id, "drill-power")));
+                issues.add(new Issue(false, "T" + id + ": RPM zero não liga automaticamente o spindle nem garante a parada final. "
+                        + "Confira acionamento/parada manuais; trocas ativadas podem pará-lo antes da pausa.", target(id, "drill-power")));
         }
         var selected = java.util.Set.copyOf(result.orderedToolIds());
         int omitted = counts.entrySet().stream().filter(entry -> !selected.contains(entry.getKey()))

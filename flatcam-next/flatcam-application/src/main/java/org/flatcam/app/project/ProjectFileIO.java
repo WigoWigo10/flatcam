@@ -382,6 +382,7 @@ public final class ProjectFileIO {
         var positions = p.jobOptions();
         var route=positions.routing();
         value.put("jobOptions", new JSONObject().put("startZ", positions.startZ()).put("endZ", positions.endZ())
+                .put("travelClearance",positions.travelClearance().name())
                 .put("endX", positions.endX()).put("endY", positions.endY()).put("toolChangeZ", positions.toolChangeZ())
                 .put("toolChangeX", positions.toolChangeX()).put("toolChangeY", positions.toolChangeY())
                 .put("exclusionsEnabled",positions.exclusionsEnabled()).put("exclusions",new JSONArray(positions.exclusions().stream()
@@ -489,7 +490,8 @@ public final class ProjectFileIO {
         return new org.flatcam.cam.gcode.GeometryJobOptions(optionalDouble(json, "startZ"), optionalDouble(json, "endZ"),
                 optionalDouble(json, "endX"), optionalDouble(json, "endY"), optionalDouble(json, "toolChangeZ"),
                 optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),json.optBoolean("exclusionsEnabled",false),readCncExclusions(json.optJSONArray("exclusions")))
-                .withRouting(readRouting(json.optJSONObject("routing")));
+                .withRouting(readRouting(json.optJSONObject("routing")))
+                .withTravelClearance(org.flatcam.cam.gcode.GeometryTravelClearance.valueOf(json.optString("travelClearance","JOB_MAXIMUM")));
     }
     private static org.flatcam.cam.gcode.CncRouting readRouting(JSONObject json) {
         if(json==null)return org.flatcam.cam.gcode.CncRouting.LEGACY;

@@ -1,5 +1,23 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Altura Geometry individual explícita — 2026-10-13
+
+Over validado commitado em `2899bee5`, sem push. Incremento seguinte adiciona
+Política de Travel Z em Geometry/posições: JOB_MAXIMUM padrão preservado,
+PER_TOOL opcional com persistência nativa e revisão de alturas efetivas.
+Troca ainda validada pelo máximo; estacionamento usa última fresa ativa.
+Helpers/DB preservam política e roteamento. Perfis não fresagem recusam a
+opção, não a ignoram. Passes contínuos existentes foram testados junto dela.
+RPM zero continua manual; tests/auditor não permitem partida automática,
+tooltip e resumo explicam que não garante parada final.
+
+Corpus GRBL 62: 35 equivalências, 19 diferenças de rota, 6 de usinagem,
+2 erros Python, zero erros FX; strict 1. Oito controles individuais novos
+concordam, 54 anteriores intactos. Não copiar bugs do legado para melhorar
+placar. Ainda falta corpus Polygon/LinearRing/pontos/perfis reais, opção Tcl,
+interop desse novo metadado após regravação Python e teste manual/físico.
+Contrato/evidências: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Revisão CNC, resíduos NCC e Over — 2026-10-13
 
 Commits anteriores desta sequência: `ad504532` revisão Geometry/Drilling e
