@@ -173,7 +173,7 @@ def first_difference(a, b):
     return None
 
 
-def audit_parameters(case, parsed):
+def audit_parameters(case, parsed, *, implementation=None):
     """Check the requested settings independently; two equally wrong outputs are not a match."""
     issues = []
     if parsed["units"] != case["units"]:
@@ -185,13 +185,22 @@ def audit_parameters(case, parsed):
         issues.append("Cut with an unselected tool")
     for tool in tools:
         p = tool["parameters"]
+        linear_paths = None
+        if case["operation"] == "geometry" and "wkt" in tool:
+            from shapely import wkt
+            shape = wkt.loads(tool["wkt"])
+            if shape.geom_type == "LineString":
+                linear_paths = [shape]
+            elif shape.geom_type == "MultiLineString":
+                linear_paths = list(shape.geoms)
         depth = p["depth"] + p.get("offsetZ",0)
         step = p["depthPerPass"] if p["multiDepth"] else depth
         count = math.ceil(depth / step - 1e-12)
         expected_depths = [-min(i*step,depth) for i in range(1,count+1)]
         plunges = [event for event in parsed["cuts"] if event["tool"] == tool["id"]
                    and event["from"][:2] == event["to"][:2] and event["to"][2] < event["from"][2]]
-        expected = expected_depths * (len(tool["points"]) if case["operation"] == "drilling" else 1)
+        expected = expected_depths * (len(tool["points"]) if case["operation"] == "drilling"
+                                     else len(linear_paths) if linear_paths is not None else 1)
         if not equivalent([event["to"][2] for event in plunges],expected):
             issues.append(f"T{tool['id']}: depths/count differ from the requested passes")
         for event in parsed["cuts"]:
@@ -211,17 +220,14 @@ def audit_parameters(case, parsed):
             expected_points = [point for point in tool["points"] for _ in expected_depths]
             if not equivalent([event["to"][:2] for event in plunges],expected_points):
                 issues.append(f"T{tool['id']}: drilled points/count differ from the selected holes")
-        elif "wkt" in tool:
-            from shapely import wkt
-            shape = wkt.loads(tool["wkt"])
-            # These public fixtures are uncompensated LineStrings. Count XY cutting
+        elif linear_paths is not None:
+            # These public fixtures are uncompensated linear paths. Count XY cutting
             # traversals as well as plunges: an extra pass at the SAME rounded Z can
             # have no Z movement and otherwise escape the depth-only audit.
-            if shape.geom_type == "LineString":
-                xy_cuts = [event for event in parsed["cuts"] if event["tool"] == tool["id"]
-                           and event["from"][:2] != event["to"][:2] and event["to"][2] < 0]
-                if len(xy_cuts) != (len(shape.coords)-1) * count:
-                    issues.append(f"T{tool['id']}: XY cutting traversal count differs from the requested passes")
+            xy_cuts = [event for event in parsed["cuts"] if event["tool"] == tool["id"]
+                       and event["from"][:2] != event["to"][:2] and event["to"][2] < 0]
+            if len(xy_cuts) != sum(len(path.coords)-1 for path in linear_paths) * count:
+                issues.append(f"T{tool['id']}: XY cutting traversal count differs from the requested passes")
     pauses = [event for event in parsed["events"] if event["kind"] == "pause"]
     if len(pauses) != (len(tools) if job["toolChange"] else 0):
         issues.append("Tool-change pause count differs from the requested setting")
@@ -236,6 +242,10 @@ def audit_parameters(case, parsed):
             p = next((tool["parameters"] for tool in tools if tool["id"] == event["tool"]),tools[0]["parameters"])
             if min(event["from"][2],event["to"][2]) < p["safeZ"]-.000051:
                 issues.append("Rapid XY below the selected tool's requested Travel Z")
+            if implementation == "fx" and case["operation"] == "geometry":
+                clearance = max(tool["parameters"]["safeZ"] for tool in tools)
+                if min(event["from"][2],event["to"][2]) < clearance-.000051:
+                    issues.append("Rapid XY below FX job-wide maximum Travel Z")
     if not equivalent(parsed["end"][2],job["endZ"]):
         issues.append("End Z differs from the requested height")
     if job["endX"] is not None and not equivalent(parsed["end"][:2],[job["endX"],job["endY"]]):
@@ -423,7 +433,9 @@ def run(args):
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
                 raise ValueError("Unsupported units/operation")
             fx = read_program(case["gcode"])
-            result["fxParameterIssues"] = audit_parameters(case,fx)
+            result["fxParameterIssues"] = audit_parameters(case,fx,implementation="fx")
+            if case["operation"] == "geometry":
+                result["travelPolicies"] = {"fx":"job-wide maximum Travel Z", "python":"per-tool Travel Z"}
         except Exception as error:
             result.update(status="FX_ERROR",error=str(error))
         else:

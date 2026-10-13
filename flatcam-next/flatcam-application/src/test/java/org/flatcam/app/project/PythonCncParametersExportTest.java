@@ -40,8 +40,10 @@ class PythonCncParametersExportTest {
             }
             cases.put(multitoolGeometry(units, scale, false));
             cases.put(multitoolGeometry(units, scale, true));
+            cases.put(multitoolGeometry(units, scale, false, true));
+            cases.put(multitoolGeometry(units, scale, true, true));
         }
-        assertEquals(42, cases.length());
+        assertEquals(46, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
@@ -108,10 +110,16 @@ class PythonCncParametersExportTest {
                 .put("operation",operation).put("units",units).put("gcode",code);
     }
     private JSONObject multitoolGeometry(String units, double s, boolean continuous) throws Exception {
+        return multitoolGeometry(units, s, continuous, false);
+    }
+    private JSONObject multitoolGeometry(String units, double s, boolean continuous, boolean separatedPaths) throws Exception {
         var shapeA = factory.createLineString(new org.locationtech.jts.geom.Coordinate[]{
                 new org.locationtech.jts.geom.Coordinate(10*s, 0), new org.locationtech.jts.geom.Coordinate(12*s, 0)});
         var shapeB = factory.createLineString(new org.locationtech.jts.geom.Coordinate[]{
                 new org.locationtech.jts.geom.Coordinate(20*s, 2*s), new org.locationtech.jts.geom.Coordinate(22*s, 2*s)});
+        org.locationtech.jts.geom.Geometry firstPaths = separatedPaths ? factory.createMultiLineString(
+                new org.locationtech.jts.geom.LineString[]{shapeA, factory.createLineString(new org.locationtech.jts.geom.Coordinate[]{
+                        new org.locationtech.jts.geom.Coordinate(14*s,0),new org.locationtech.jts.geom.Coordinate(16*s,0)})}) : shapeA;
         var positions = new GeometryJobOptions(null, 5*s, 25*s, 2*s, 15*s, -2*s, -3*s);
         var first = new GeometryGCodeParameters(3*s, .6*s, continuous, .2*s, 200*s, 10000, true,
                 1500*s, null, 75*s, true, .25, false, 0).withJobOptions(positions);
@@ -122,10 +130,10 @@ class PythonCncParametersExportTest {
             second = second.withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
         }
         String code = GCodeGenerator.generateGeometryCncJob(units,
-                List.of(new ToolGeometry(.4*s, shapeA), new ToolGeometry(.8*s, shapeB)), first,
+                List.of(new ToolGeometry(.4*s, firstPaths), new ToolGeometry(.8*s, shapeB)), first,
                 Map.of(), Map.of(1, second), CancellationToken.none(), GCodePreprocessor.GRBL_11_NO_M6).gcode();
         var tools = new JSONArray();
-        var settings = List.of(first, second); var paths = List.of(shapeA, shapeB);
+        var settings = List.of(first, second); var paths = List.of(firstPaths, shapeB);
         for (int i = 0; i < 2; i++) {
             var p = settings.get(i);
             tools.put(new JSONObject().put("id", i + 1).put("diameter", (i == 0 ? .4 : .8)*s)
@@ -137,7 +145,7 @@ class PythonCncParametersExportTest {
         var job = new JSONObject().put("toolChange", true).put("toolChangeZ", 15*s).put("endZ", 5*s)
                 .put("startZ", JSONObject.NULL).put("endX", 25*s).put("endY", 2*s)
                 .put("changeX", -2*s).put("changeY", -3*s).put("exclusions", new JSONArray());
-        return base(units, continuous ? "multitool-continuous" : "multitool-single", "geometry", code)
+        return base(units, (separatedPaths ? "multipath-" : "multitool-") + (continuous ? "continuous" : "single"), "geometry", code)
                 .put("tools", tools).put("job", job);
     }
     private static Object nullable(Double value) { return value == null ? JSONObject.NULL : value; }

@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Altura dos rápidos Geometry — 2026-10-13
+
+**C**: corrigido Z modal abaixo da altura global anunciada entre trajetos e
+passadas, com regressões MM/IN e perfis de fresagem; revisão informa a altura
+efetiva por fresa. Corpus diferencial ampliado para **46**: 22 equivalências,
+16 diferenças de rota, 6 de usinagem, 2 erros Python e zero erros FX; strict 1.
+Os quatro controles novos concordam na usinagem, mas não nas rotas. Mantida
+a política global FX, distinta da individual Python; não é paridade completa
+nem certificação física. [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Cobertura nominal NCC — 2026-10-13
 
 **C**: área-alvo de NCC/Rest preservada no FX, mapa nominal de resíduos por
@@ -14,7 +24,7 @@ O corpus GRBL não mudou e suas divergências continuam. Contrato e pendências:
 
 Revisão GUI antes do FileChooser em Geometry e Drilling, com navegação por
 fresa, cancelamento, unidades, valores efetivos e avisos: **C**, com testes FX.
-Não há mapa de resíduos/não usinado nem certificação de segurança da máquina.
+Nesse incremento ainda não havia o mapa NCC posterior; não há certificação de segurança da máquina.
 Corpus GRBL ampliado a **42**, preservando os 38 anteriores: 22 equivalências,
 12 diferenças de rota, 6 de usinagem, 2 erros Python, zero erros FX; strict 1.
 Quatro controles novos multigeo concordam na usinagem, **não** na execução

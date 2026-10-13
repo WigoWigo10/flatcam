@@ -644,8 +644,8 @@ public final class GCodeGenerator {
      * Machining) into a single CNC Job with embedded tool-change sections,
      * matching Python's own {@code mtool_gen_cncjob}: ONE G-code file, each
      * tool's section concatenated in the order given, not one CNC Job per
-     * tool. Every tool shares the same {@code params} (see
-     * GeometryGCodeParameters's own doc for why).
+     * tool. Job positions and clearance are common; machining parameters
+     * can be overridden by tool in the full overload.
      */
     public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
                                                        GeometryGCodeParameters params) {
@@ -881,14 +881,17 @@ public final class GCodeGenerator {
                     }
                     Coordinate actualEnd=passCoordinates[passCoordinates.length-1]; lastX=actualEnd.x; lastY=actualEnd.y;
                     if (pass+1<pathDepths.size() && !continuous) {
-                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
+                        // The next XY uses the job-wide clearance, not this tool's lower setting.
+                        // Without exclusions, exclusionTravel only emits XY: the modal Z must
+                        // already be correct for both a pass return and a separate next path.
+                        line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
                         exclusionTravel(gcode,travelShapes,last.x,last.y,coordinates[0].x,coordinates[0].y,radius,
                                 clearance,preprocessor,plannerFor.apply(tool.toolDiameter()), units);
                     }
                     // Python reverses LineStrings, even closed ones; no lateral rapid is emitted while down.
                     if (continuous) passCoordinates=reversed(passCoordinates);
                 }
-                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(machining.safeZ()));
+                line(gcode, "%s Z%s", preprocessor.rapid(), fmt(clearance));
             }
         }
 

@@ -123,6 +123,38 @@ class CncReaderTest(unittest.TestCase):
         audit_parameters(source,read_program(PROGRAM))
         self.assertEqual(before,source)
 
+    def test_fx_job_clearance_is_audited_separately_from_the_legacy_policy(self):
+        source = case()
+        source["operation"] = "geometry"
+        source["tools"][0]["wkt"] = "LINESTRING (10 0,12 0)"
+        source["tools"][0]["parameters"]["feed"] = 100
+        # A second selected tool has a higher Travel Z. At T1, Z3 satisfies
+        # its individual setting but violates the FX job-wide Z4 contract.
+        second = copy.deepcopy(source["tools"][0])
+        second["id"] = 2
+        second["parameters"]["safeZ"] = 4
+        source["tools"].append(second)
+        parsed = read_program(PROGRAM)
+        self.assertNotIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,parsed))
+        self.assertIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,parsed,implementation="fx"))
+        raised = read_program(PROGRAM.replace("G0 Z3\nM3","G0 Z4\nM3",1))
+        self.assertNotIn("Rapid XY below FX job-wide maximum Travel Z",audit_parameters(source,raised,implementation="fx"))
+
+    def test_separate_linear_paths_require_all_plunges_and_traversals(self):
+        source = case()
+        source["operation"] = "geometry"
+        tool = source["tools"][0]
+        tool["wkt"] = "MULTILINESTRING ((10 0,12 0),(14 0,16 0))"
+        tool["parameters"].update(depth=.4,multiDepth=False,feed=100)
+        first = "G1 Z-0.4 F100\nG1 X12 Y0 F100\nG0 Z3\n"
+        second = "G0 X14 Y0\nG1 Z-0.4 F100\nG1 X16 Y0 F100\nG0 Z3\n"
+        header = PROGRAM.split("G1 Z-0.4 F100")[0]
+        suffix = "M5\nG0 Z5\nM30\n"
+        self.assertEqual([],audit_parameters(source,read_program(header+first+second+suffix)))
+        incomplete = audit_parameters(source,read_program(header+first+suffix))
+        self.assertIn("T1: depths/count differ from the requested passes",incomplete)
+        self.assertIn("T1: XY cutting traversal count differs from the requested passes",incomplete)
+
     def test_exclusion_audit_checks_executed_z_not_only_the_xy_preview(self):
         source = case()
         source["tools"][0]["diameter"] = 1

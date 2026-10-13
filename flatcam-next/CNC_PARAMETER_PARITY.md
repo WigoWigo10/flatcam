@@ -1,5 +1,48 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Altura global entre trajetos/passadas — 2026-10-13
+
+A investigação das rotas encontrou um defeito FX que a prévia 2D não mostrava:
+o trabalho anunciava o maior Travel Z das ferramentas como altura comum,
+mas retraía ao Travel Z individual entre trajetos/passadas. Sem exclusões,
+o helper de viagem emite só XY, portanto podia deslocar em Z3 mesmo com altura
+comum Z4. As duas retrações agora emitem a altura global. O resumo distingue
+Travel Z configurado de **Retração / Travel Z efetivo**, sem alterar valores,
+profundidades, feeds, spindle ou direção dos passes.
+
+`GeometryTravelClearanceTest` lê o Z modal emitido e reproduziu o defeito antes
+da correção (quatro testes falhando em `target/cnc-clearance-before-20261013.log`).
+Depois passaram, incluindo MM/IN, retorno entre passes, trajetos separados,
+contínuo, troca ligada/desligada, segunda fresa mais baixa e estacionamento com
+End Z baixo. Regressões dos geradores/troca/exclusões também passaram em
+`target/cnc-clearance-targeted-20261013.log`.
+
+Corpus GRBL ampliado para **46 controles**, mantendo os 42 anteriores. Os
+quatro novos usam duas fresas e MultiLineString separado, single/contínuo ×
+MM/IN. O auditor conta mergulhos e travessias de todos os caminhos; audita
+também o contrato global do FX, separadamente da política individual Python.
+18 testes auxiliares do leitor/auditor aprovados. Fontes Python e tolerâncias
+não foram alteradas.
+
+Resultado: **22 MATCH_EXECUTION, 16 ROUTING_DIFFERENT, 6 MACHINING_DIFFERENT,
+2 ORACLE_ERROR, 0 FX_ERROR**; todas as 46 saídas FX sem problemas na auditoria
+dos parâmetros. Os quatro novos concordam na assinatura de usinagem, mas não
+nos deslocamentos. Relatório: `target/cnc-clearance-oracle-20261013/python/index.html`.
+Strict permanece **1**. A quantidade de diferenças de rota cresceu porque
+há quatro controles adicionais, não porque equivalências anteriores regrediram.
+
+O FX mantém a altura global conservadora; Python usa Travel Z individual.
+Não foi reduzida silenciosamente a altura global para igualar seus G-codes.
+Start Z versus altura da troca, Around/Over, passes com retração e RPM zero
+continuam diferenças registradas; ainda exigem decisões explícitas de política.
+Nenhuma prévia ou auditoria limitada substitui validação física/teste a seco.
+
+Build completo aprovado em `target/cnc-clearance-full-20261013.log`:
+1688 testes registrados, 1670 aprovados, 18 opcionais ignorados, zero
+falhas/erros (somente relatórios com fontes atuais). Auditoria de tooltips:
+1096 ocorrências, zero MISSING. Confirmadas as mesmas classificações para
+todos os 42 controles anteriores.
+
 ## Duas fresas e revisão GUI — 2026-10-13
 
 Corpus ampliado para **42** controles, sem remover os 38 anteriores. Quatro
@@ -14,8 +57,9 @@ controles novos concordam na usinagem e nos parâmetros, mas não nas rotas.
 Relatório: `target/cnc-review-oracle-fixed-20261013/python/index.html`.
 
 Geometry e Drilling têm revisão por fresa antes do FileChooser, com links para
-campos e avisos explícitos. Não calcula mapa de cobertura/não usinado nem
-simula segurança física; exportações de CNC Job existente/Terminal não mudam.
+campos e avisos explícitos. O mapa posterior está limitado ao NCC com área-alvo
+preservada ([CNC_COVERAGE.md](CNC_COVERAGE.md)); não simula segurança física.
+Exportações de CNC Job existente/Terminal não mudam.
 Contrato e limites: [CNC_REVIEW.md](CNC_REVIEW.md).
 
 ## Série 3/4: política explícita de passes — 2026-10-12

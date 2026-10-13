@@ -1,5 +1,13 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Incremento posterior: Travel Z efetivo
+
+O detalhe por fresa distingue o Travel Z configurado da retração/altura XY
+efetiva, que usa o maior Travel Z do trabalho. O gerador agora respeita essa
+altura também entre trajetos e retornos de passes, mesmo sem exclusões. A
+prévia 2D sozinha não detectava a inconsistência. Regressões e comparação de
+46 controles GRBL: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Incremento posterior: cobertura nominal NCC
 
 Novos NCC conservam a área-alvo global e individual por CLEAR. O resumo oferece

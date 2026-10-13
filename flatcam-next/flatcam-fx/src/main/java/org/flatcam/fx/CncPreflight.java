@@ -29,12 +29,12 @@ final class CncPreflight {
         var profile = result.preprocessor();
         var base = result.parameters();
         boolean cutting = !profile.isLaser() && !profile.isPlotter();
-        double clearance = base.safeZ();
+        double clearance = Math.max(base.safeZ(), result.parametersByTool().values().stream()
+                .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(base.safeZ()));
         var activeDiameters = new java.util.HashSet<Double>();
         for (int i = 0; i < result.tools().size(); i++) {
             var tool = result.tools().get(i);
             var p = result.parametersByTool().getOrDefault(i, base);
-            clearance = Math.max(clearance, p.safeZ());
             boolean empty = tool.geometry().isEmpty();
             if (!empty) activeDiameters.add(tool.toolDiameter());
             double depth = p.cutDepth();
@@ -49,6 +49,9 @@ final class CncPreflight {
                 }
             }
             details.add(value("Profundidade efetiva", cutting ? number(-depth) + " " + unit(units) : "Não se aplica ao corte neste perfil", i, "cnc-cut-depth"));
+            if (cutting && !profile.requiresProbe() && !profile.isRoland())
+                details.add(value("Retração / Travel Z efetivo", number(clearance) + " " + unit(units)
+                        + "; usa o maior Travel Z do trabalho (configurado nesta fresa: " + number(p.safeZ()) + ")", i, "cnc-safe-z"));
             details.add(value("Passes", cutting ? passes(depth, p.multiDepth(), p.depthPerPass())
                     + (p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING ? "; pontos isolados usam somente a profundidade final" : "")
                     : "Sem passes de fresagem", i, "cnc-multi-depth"));

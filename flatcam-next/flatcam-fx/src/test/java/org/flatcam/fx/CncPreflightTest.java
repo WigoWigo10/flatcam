@@ -32,6 +32,9 @@ class CncPreflightTest {
         assertEquals("150", tool.feedXY()); assertEquals("50", tool.feedZ()); assertEquals("12000", tool.power());
         assertTrue(tool.details().stream().anyMatch(value -> value.text().contains("3 passe(s)")));
         assertTrue(report.common().stream().anyMatch(value -> value.label().equals("Altura dos deslocamentos XY") && value.text().startsWith("4 ")));
+        assertTrue(report.tools().getFirst().details().stream().anyMatch(value -> value.label().equals("Retração / Travel Z efetivo")
+                && value.text().startsWith("4 mm") && value.text().contains("nesta fresa: 3")
+                && value.target().equals(new CncPreflight.Target(0,"cnc-safe-z"))));
         assertTrue(report.common().stream().anyMatch(value -> value.label().equals("Tool change X,Y") && value.text().equals("-2; -3")));
         assertTrue(report.common().stream().anyMatch(value -> value.label().equals("Avanço rápido") && value.text().contains("controlador")));
         assertTrue(report.issues().stream().anyMatch(issue -> issue.text().contains("Estacionamento XY em Z 4")));
