@@ -1,5 +1,21 @@
 # Áreas de exclusão CNC (Geometry e Drilling)
 
+## Incremento Over por trecho — 2026-10-13
+
+Over agora muda Z nas entradas/saídas da região ampliada, em vez de fazer
+todo o deslocamento na maior altura. Áreas sobrepostas são combinadas: a
+altura de cada trecho é o máximo de Travel Z e dos Over Z que o protegem.
+Não depende da ordem das áreas e não desce prematuramente dentro de outra.
+Troca, retornos de passes e estacionamento usam o mesmo emissor de segmentos.
+Formato salvo, raio + margem e recusa de cortes/origem/destino não mudaram.
+
+Testes de geometria e do XYZ realmente emitido cobrem MM/IN, sobreposição,
+áreas separadas, furos internos do polígono, Around misturado, viagem reversa,
+Travel Z maior que Over Z, geração Drilling/Geometry e quatro perfis de fresagem.
+No Python original, dois novos controles de sobreposição passam abaixo da
+segunda altura solicitada. O FX não reproduz esse comportamento. Relatório e
+limites de paridade: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 No painel Geometry → CNC Job, abra **Áreas de exclusão CNC**. Desenhe retângulo
 ou polígono no plot (Esc cancela), ou informe um retângulo por coordenadas.
 Selecione uma linha para editar Strategy/Over Z e clique Aplicar estratégia.
@@ -17,7 +33,8 @@ com destaque, edição de Strategy/Over Z e exclusão da área. Os botões usam 
 ícones originais e acompanham o tema.
 
 Ao gerar, **Around** desvia os movimentos entre furos/slots em XY; **Over** sobe
-antes de atravessar e só volta a Travel Z no destino. A validação inclui a
+antes de entrar na região ampliada e pode voltar a Travel Z depois de sair.
+A validação inclui a
 saída inicial, retornos entre passes de slots, mudanças de ferramenta e
 estacionamento final. No estacionamento, não baixa para End move Z abaixo de
 Travel Z antes do deslocamento XY. Sem Tool change X,Y, a troca continua na
@@ -81,9 +98,10 @@ igualdade de rotas/ordem com o legado nem validação física.
 
 - **Around**: menor rota do grafo de visibilidade em XY, contornando a união das
   regiões. Mantém altura segura, inclusive retornos entre passes, troca e fim.
-- **Over**: sobe antes de XY para o maior Over Z necessário em todo o deslocamento;
-  nunca baixa Travel Z. Só retorna à altura segura no destino fora da exclusão.
-  É mais conservador que o Python, que pode subir somente perto da entrada.
+- **Over**: sobe na borda de entrada ampliada pelo raio e margem e pode retornar
+  à altura segura depois da saída; nunca baixa de Travel Z. Em sobreposição,
+  considera a maior altura ainda necessária naquele trecho. Não copia a omissão
+  de uma segunda área sobreposta observada no Python original.
 - As regiões são ampliadas pelo raio da ferramenta + 0,1 mm (ou equivalente em in),
   como o legado. Em Geometry, troca com posição explícita usa o maior diâmetro
   no trajeto; em Drilling, usa a broca instalada no trajeto e ambas no destino.
@@ -96,7 +114,8 @@ exclusões ativas. Nada é ignorado ao mudar de perfil. Prévia XY contém os de
 não é visualização 3D da altura Over Z e não simula movimentos internos de macros.
 
 Limites: até 100 áreas, 512 pontos por polígono e 510 vértices combinados no grafo
-quando um desvio for necessário. Cancelamento, falha ou rota inexistente não gera
+quando um desvio for necessário; até 8192 estações por segmento Over.
+Cancelamento, falha ou rota inexistente não gera
 arquivo parcial. Uma operação JTS em andamento ainda não é interrompida de imediato.
 
 Não modela haste, cabeçote, limites da máquina ou a altura real dos grampos. Over Z

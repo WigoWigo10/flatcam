@@ -43,7 +43,7 @@ class CncExclusionTest {
         assertTrue(job.travelGeometry().getEnvelopeInternal().getMinY()<-.5 || job.travelGeometry().getEnvelopeInternal().getMaxY()>2);
         String overCode=GCodeGenerator.generateGeometryCncJob("MM",tools,p.withJobOptions(options.withExclusions(true,
                 List.of(area(4,6,-1,1,CncExclusionArea.Strategy.OVER,20))))).gcode();
-        assertTrue(overCode.contains("G0 Z20.0000\nG0 X10.0000 Y0.0000\nG0 Z3.0000"),overCode);
+        assertTrue(overCode.contains("G0 X3.4000 Y0.0000\nG0 Z20.0000\nG0 X6.6000 Y0.0000\nG0 Z3.0000\nG0 X10.0000 Y0.0000"),overCode);
         assertTrue(overCode.lastIndexOf("Z0.5000")>overCode.lastIndexOf("X0.0000 Y0.0000"));
         assertThrows(IllegalArgumentException.class,()->GCodeGenerator.generateGeometryCncJob("MM",tools,
                 p.withJobOptions(new GeometryJobOptions(null,null,5.0,0.0,null,null,null).withExclusions(true,List.of(around)))));

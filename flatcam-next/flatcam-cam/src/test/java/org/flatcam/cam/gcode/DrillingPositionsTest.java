@@ -54,7 +54,7 @@ class DrillingPositionsTest {
         var area = CncExclusionArea.of(factory.toGeometry(new Envelope(4, 6, -1, 1)), strategy, 25);
         var job = generate(options().withPositions(20.0, 0.0, 0.0).withExclusions(true, List.of(area)));
         if (strategy == CncExclusionArea.Strategy.AROUND) assertFalse(job.travelGeometry().intersects(area.geometry()));
-        else assertTrue(job.gcode().contains("G0 Z25.0000\nG0 X0.0000 Y0.0000\nG0 Z15.0000\nM0"), job.gcode());
+        else assertTrue(job.gcode().contains("G0 X6.6000 Y0.0000\nG0 Z25.0000\nG0 X3.4000 Y0.0000\nG0 Z15.0000\nG0 X0.0000 Y0.0000\nM0"), job.gcode());
     }
 
     @Test void moveAwayWithOldDrillBeforeInstallingAWiderTool() {
@@ -113,6 +113,6 @@ class DrillingPositionsTest {
         assertTrue(code.contains("G20\n"), code);
         assertTrue(code.contains("G94\nG0 Z0.8000\nG0 Z0.1200"), code);
         assertTrue(code.contains("G0 Z0.6000\nG0 X0.000000 Y0.200000"), code);
-        assertTrue(code.contains("G0 Z1.0000\nG0 X1.000000 Y0.000000\nG0 Z0.1200"), code);
+        assertTrue(code.contains("G0 X0.380315 Y0.123937\nG0 Z1.0000\nG0 X0.623937 Y0.075213\nG0 Z0.1200\nG0 X1.000000 Y0.000000"), code);
     }
 }

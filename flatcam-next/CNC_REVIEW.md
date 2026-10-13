@@ -1,5 +1,12 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Incremento posterior: Over e Start Z
+
+Novo aviso distingue Start Z da altura da primeira troca, com link para Tool
+change Z. Over explica subida/descida fora da região ampliada e altura máxima
+por trecho quando áreas se sobrepõem. Tooltips de Strategy e Over Z atualizados.
+Mudança do gerador e comparação: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Incremento posterior: Travel Z efetivo
 
 O detalhe por fresa distingue o Travel Z configurado da retração/altura XY

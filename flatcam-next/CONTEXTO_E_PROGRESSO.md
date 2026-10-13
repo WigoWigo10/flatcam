@@ -1,5 +1,26 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Revisão CNC, resíduos NCC e Over — 2026-10-13
+
+Commits anteriores desta sequência: `ad504532` revisão Geometry/Drilling e
+correção de passes `.9/.3`; `048411f0` cobertura nominal NCC por fresa/final;
+`90634c15` Travel Z global efetivo entre caminhos/passadas. Sem push.
+O incremento seguinte muda Over para segmentos na entrada/saída ampliada,
+com máximo das alturas sobrepostas. Formato salvo e validações mantidos;
+prévia 2D não simula alturas físicas. Revisão/tooltip distinguem Start Z da
+primeira altura de troca e explicam Over.
+
+Comparação atual: 54 controles GRBL, 27 equivalências, 19 diferenças de rota,
+6 de usinagem, 2 erros Python e zero erros FX; strict continua 1. Over MM
+anterior agora concorda; quatro novos controles são equivalentes. Auditor acusa
+Over Python abaixo da segunda altura em sobreposição MM/IN. Around do exemplo
+é mais longo no legado. Não copiar esses comportamentos ou relaxar tolerância.
+Pendências: políticas explícitas Travel Z global/individual, passes/direção,
+spindle zero, perfis/corpus real e revisão em exportações de CNC Job/Terminal.
+Mapa NCC só funciona com alvo conservado; transformar/panelizar invalida alvo.
+Detalhes/evidências: [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md),
+[CNC_COVERAGE.md](CNC_COVERAGE.md) e [CNC_REVIEW.md](CNC_REVIEW.md).
+
 ## Entrega da série 1–4 — 2026-10-12
 
 Commits 1/2/3: c66b8b5f / e3961bfe / 9a774579; proteção de dados e revisão final

@@ -1,7 +1,7 @@
 """Pure reader/audit regressions: no Qt, Python application or private fixture."""
 import copy
 import unittest
-from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters
+from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters, rapid_metrics
 
 
 PROGRAM = """G21
@@ -37,6 +37,12 @@ def case():
 
 
 class CncReaderTest(unittest.TestCase):
+    def test_rapid_metrics_use_emitted_movements_not_cut_distance_or_time(self):
+        parsed={"events":[{"kind":"rapid","from":[0,0,3],"to":[3,4,3]},
+                          {"kind":"rapid","from":[3,4,3],"to":[3,4,7]},
+                          {"kind":"linear","from":[3,4,7],"to":[100,4,-1]}]}
+        self.assertEqual({"xyDistance":5,"zDistance":4,"xyMoves":1},rapid_metrics(parsed))
+
     def test_modal_feed_and_depths_match_requested_parameters(self):
         parsed = read_program(PROGRAM)
         self.assertEqual(3,len(parsed["cuts"]))

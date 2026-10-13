@@ -43,11 +43,11 @@ class DrillingExclusionTest {
         assertTrue(job.gcode().lastIndexOf("G0 Z0.5000") > job.gcode().lastIndexOf("G0 X0.0000 Y0.0000"));
     }
 
-    @Test void overRaisesBeforeXyUsesMaximumHeightAndRestoresSafeZOnlyAtDestination() {
+    @Test void overRaisesBeforeEachAreaAndRestoresSafeZAfterItsBufferedExit() {
         var job = generate(holes(), options(area(4, 6, -1, 1, CncExclusionArea.Strategy.OVER, 8),
                 area(7, 8, -1, 1, CncExclusionArea.Strategy.OVER, 12)));
-        assertTrue(job.gcode().contains("G0 Z12.0000\nG0 X10.0000 Y0.0000\nG0 Z3.0000\nG1 Z-1.0000"), job.gcode());
-        assertTrue(job.gcode().contains("G0 Z12.0000\nG0 X0.0000 Y0.0000\nG0 Z3.0000\nG0 Z0.5000"), job.gcode());
+        assertTrue(job.gcode().contains("G0 X3.4000 Y0.0000\nG0 Z8.0000\nG0 X6.4000 Y0.0000\nG0 Z12.0000\nG0 X8.6000 Y0.0000\nG0 Z3.0000\nG0 X10.0000 Y0.0000\nG1 Z-1.0000"), job.gcode());
+        assertTrue(job.gcode().contains("G0 X8.6000 Y0.0000\nG0 Z12.0000\nG0 X6.4000 Y0.0000\nG0 Z8.0000\nG0 X3.4000 Y0.0000\nG0 Z3.0000\nG0 X0.0000 Y0.0000\nG0 Z0.5000"), job.gcode());
     }
 
     @Test void overNeverLowersTravelHeightAndMissingEndXyNeedsNoParkingRoute() {

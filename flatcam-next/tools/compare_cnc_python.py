@@ -173,6 +173,14 @@ def first_difference(a, b):
     return None
 
 
+def rapid_metrics(parsed):
+    """Executed source-unit distances, not an estimated time or a safety score."""
+    rapid = [event for event in parsed["events"] if event["kind"] == "rapid"]
+    return {"xyDistance":sum(math.dist(event["from"][:2],event["to"][:2]) for event in rapid),
+            "zDistance":sum(abs(event["to"][2]-event["from"][2]) for event in rapid),
+            "xyMoves":sum(event["from"][:2] != event["to"][:2] for event in rapid)}
+
+
 def audit_parameters(case, parsed, *, implementation=None):
     """Check the requested settings independently; two equally wrong outputs are not a match."""
     issues = []
@@ -455,7 +463,8 @@ def run(args):
                     fxCutCount=len(fx["cuts"]),pythonCutCount=len(python["cuts"]),
                     fxExplicitTermination=fx["explicitTermination"],pythonExplicitTermination=python["explicitTermination"],
                     firstExecutionDifference=first_difference(fx["events"],python["events"]),
-                    firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)))
+                    firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)),
+                    rapidMetrics={"fx":rapid_metrics(fx),"python":rapid_metrics(python)})
                 (args.output/(case["id"]+".trace.json")).write_text(json.dumps({"fx":fx,"python":python},indent=2),encoding="utf-8")
         report["cases"].append(result)
     if hashes != {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in sources}:

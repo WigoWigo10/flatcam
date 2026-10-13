@@ -5,10 +5,13 @@ import org.flatcam.cam.CancellationToken;
 import org.locationtech.jts.geom.*;
 import org.locationtech.jts.operation.buffer.*;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
+import org.locationtech.jts.operation.overlayng.OverlayNG;
 
 /** Conservative visibility routing for XY rapids. Does not model machine macros or fixtures in 3D. */
 public final class CncExclusionPlanner {
     public record Travel(List<Coordinate> points,double z) { public Travel { points=List.copyOf(points); } }
+    /** One XY segment at an absolute Z. Change Z at from, before moving to to. */
+    public record TravelLeg(Coordinate from, Coordinate to, double z) { }
     private record Obstacle(Geometry geometry,CncExclusionArea.Strategy strategy,double overZ) { }
     private final GeometryFactory factory=new GeometryFactory();
     private final List<Obstacle> obstacles;
@@ -51,6 +54,56 @@ public final class CncExclusionPlanner {
                 z=Math.max(z,obstacle.overZ());
         }
         return new Travel(points,z);
+    }
+
+    /**
+     * Around keeps the visibility route. Over raises/lowers outside the cutter's
+     * footprint, at buffered entry/exit boundaries, never below safeZ. Overlapping
+     * areas use their maximum height on each interval, regardless of list order.
+     * travel() remains the conservative single-height API for existing callers.
+     */
+    public List<TravelLeg> travelLegs(Coordinate start, Coordinate end, double safeZ) {
+        if (!Double.isFinite(safeZ) || safeZ < 0)
+            throw new IllegalArgumentException("Altura de deslocamento invalida.");
+        List<Coordinate> path = travel(start,end,safeZ).points();
+        List<TravelLeg> result = new ArrayList<>();
+        for (int i=1; i<path.size(); i++) {
+            cancellation.throwIfCancellationRequested();
+            var segment = new LineSegment(path.get(i-1),path.get(i));
+            if (segment.getLength()==0) { result.add(new TravelLeg(segment.p0,segment.p1,safeZ)); continue; }
+            Geometry line = factory.createLineString(new Coordinate[]{segment.p0,segment.p1});
+            var breaks = new TreeSet<Double>(List.of(0.0,1.0));
+            var crossing = new ArrayList<Obstacle>();
+            for (var obstacle:obstacles) {
+                cancellation.throwIfCancellationRequested();
+                if (obstacle.strategy()!=CncExclusionArea.Strategy.OVER || obstacle.overZ()<=safeZ
+                        || !line.getEnvelopeInternal().intersects(obstacle.geometry().getEnvelopeInternal())) continue;
+                Geometry intersection = OverlayNGRobust.overlay(line,obstacle.geometry(),OverlayNG.INTERSECTION);
+                if (intersection.isEmpty()) continue;
+                crossing.add(obstacle);
+                for (Coordinate point:intersection.getCoordinates()) breaks.add(segment.segmentFraction(point));
+                if (breaks.size()>8192) throw new IllegalArgumentException("Exclusoes Over complexas demais; simplifique as areas.");
+            }
+            var stations = new ArrayList<>(breaks);
+            TravelLeg pending = null;
+            for (int k=1; k<stations.size(); k++) {
+                cancellation.throwIfCancellationRequested();
+                double a=stations.get(k-1), b=stations.get(k);
+                if (a==b) continue;
+                Geometry middle = factory.createPoint(segment.pointAlong(a+(b-a)/2));
+                double z=safeZ;
+                for (var obstacle:crossing) if (obstacle.geometry().covers(middle)) z=Math.max(z,obstacle.overZ());
+                Coordinate destination=segment.pointAlong(b);
+                if (pending!=null && Double.compare(pending.z(),z)==0)
+                    pending=new TravelLeg(pending.from(),destination,z);
+                else {
+                    if (pending!=null) result.add(pending);
+                    pending=new TravelLeg(segment.pointAlong(a),destination,z);
+                }
+            }
+            if (pending!=null) result.add(pending);
+        }
+        return List.copyOf(result);
     }
     private boolean visible(Coordinate a,Coordinate b) {
         if (a.equals2D(b) || around.isEmpty()) return true;

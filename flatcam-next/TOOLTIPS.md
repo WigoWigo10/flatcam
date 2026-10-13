@@ -1,5 +1,13 @@
 # Revisão dos tooltips
 
+## Over segmentado e altura de troca — 2026-10-13
+
+Strategy/Over Z descrevem transições na entrada/saída da região ampliada e
+maior altura por trecho em sobreposição, sem baixar de Travel Z. A revisão
+explica Start Z versus Tool change Z, com link para o campo correto. Inventário
+atual: **1097 ocorrências, zero MISSING** no cenário construído; política de
+tempo/formatação inalterada. [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Cobertura NCC — 2026-10-13
 
 A auditoria inclui o botão **Ver cobertura no Plot** e os controles do painel

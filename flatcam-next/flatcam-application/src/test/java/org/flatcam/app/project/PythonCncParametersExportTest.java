@@ -32,10 +32,11 @@ class PythonCncParametersExportTest {
         for (String units : List.of("MM", "IN")) {
             double scale = units.equals("IN") ? 1 / 25.4 : 1;
             for (String recipe : List.of("single", "peck", "offset", "negative-offset", "two-tools",
-                    "selected-tool", "positions", "dwell", "zero-dwell", "spindle-off", "around", "over")) {
+                    "selected-tool", "positions", "dwell", "zero-dwell", "spindle-off", "around", "over",
+                    "over-rounded-diameter", "over-separated", "over-overlap")) {
                 cases.put(drilling(units, scale, recipe));
             }
-            for (String recipe : List.of("single", "peck-open", "peck-closed", "positions", "dwell", "continuous-open", "continuous-closed")) {
+            for (String recipe : List.of("single", "peck-open", "peck-closed", "positions", "dwell", "continuous-open", "continuous-closed", "over")) {
                 cases.put(geometry(units, scale, recipe));
             }
             cases.put(multitoolGeometry(units, scale, false));
@@ -43,7 +44,7 @@ class PythonCncParametersExportTest {
             cases.put(multitoolGeometry(units, scale, false, true));
             cases.put(multitoolGeometry(units, scale, true, true));
         }
-        assertEquals(46, cases.length());
+        assertEquals(54, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
@@ -61,7 +62,8 @@ class PythonCncParametersExportTest {
                 recipe.equals("dwell") ? .25 : 0,
                 recipe.equals("offset") ? .2*s : recipe.equals("negative-offset") ? -.2*s : 0);
         var second = new DrillGCodeParameters(4*s, 1.3*s, 75*s, 12000, change, true, .5*s, true, .5, .1*s);
-        var image = ExcellonImage.of(units, Map.of(1, 1*s, 2, 2*s),
+        double firstDiameter=recipe.equals("over-rounded-diameter") ? Math.rint(s*10000)/10000 : s;
+        var image = ExcellonImage.of(units, Map.of(1, firstDiameter, 2, 2*s),
                 List.of(new ExcellonImage.Drill(1, 10*s, 0), new ExcellonImage.Drill(2, 20*s, 0)),
                 List.of(), factory.createPolygon());
         List<Integer> order = recipe.equals("selected-tool") ? List.of(2) : two ? List.of(1, 2) : List.of(1);
@@ -70,9 +72,13 @@ class PythonCncParametersExportTest {
         var options = new GCodeGenerator.DrillJobOptions(change, 15*s, 5*s, null, null);
         if (recipe.equals("positions")) options = new GCodeGenerator.DrillJobOptions(true, 15*s, 5*s, 25*s, 2*s)
                 .withPositions(12*s, -2*s, -3*s);
-        if (recipe.equals("around") || recipe.equals("over")) options = options.withExclusions(true,
+        if (recipe.equals("around") || recipe.startsWith("over")) options = options.withExclusions(true,
                 List.of(CncExclusionArea.of(factory.toGeometry(new Envelope(4*s, 6*s, -s, s)),
                         recipe.equals("around") ? CncExclusionArea.Strategy.AROUND : CncExclusionArea.Strategy.OVER, 8*s)));
+        if (recipe.equals("over-separated") || recipe.equals("over-overlap")) options=options.withExclusions(true,List.of(
+                CncExclusionArea.of(factory.toGeometry(new Envelope(4*s,6*s,-s,s)),CncExclusionArea.Strategy.OVER,8*s),
+                CncExclusionArea.of(factory.toGeometry(new Envelope((recipe.equals("over-overlap") ? 5 : 8)*s,
+                        (recipe.equals("over-overlap") ? 7 : 9)*s,-s,s)),CncExclusionArea.Strategy.OVER,12*s)));
         String code = GCodeGenerator.generateDrillCncJob(image, settings, order, options,
                 GCodePreprocessor.GRBL_11_NO_M6).gcode();
         assertFalse(code.isBlank());
@@ -89,6 +95,8 @@ class PythonCncParametersExportTest {
         shape = org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(shape);
         var positions = new GeometryJobOptions(null, 5*s, null, null, 15*s, null, null);
         if (recipe.equals("positions")) positions = new GeometryJobOptions(12*s,5*s,25*s,2*s,15*s,-2*s,-3*s);
+        if (recipe.equals("over")) positions=positions.withExclusions(true,List.of(CncExclusionArea.of(
+                factory.toGeometry(new Envelope(4*s,6*s,-s,s)),CncExclusionArea.Strategy.OVER,8*s)));
         var p = new GeometryGCodeParameters(3*s, 1.1*s, recipe.startsWith("peck") || recipe.startsWith("continuous"), .4*s, 200*s, 10000,
                 true, 1500*s, null, 75*s, recipe.equals("dwell"), .25, false, 0).withJobOptions(positions);
         if(recipe.startsWith("continuous"))p=p.withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
@@ -97,10 +105,13 @@ class PythonCncParametersExportTest {
         var params = new JSONObject().put("safeZ",p.safeZ()).put("depth",p.cutDepth()).put("multiDepth",p.multiDepth())
                 .put("depthPerPass",p.depthPerPass()).put("feed",p.feedRate()).put("feedZ",p.feedRateZ())
                 .put("rpm",p.spindleSpeedRpm()).put("dwell",p.dwell()).put("dwellSeconds",p.dwellSeconds());
+        var areas=new JSONArray();
+        for (var area:positions.exclusions()) areas.put(new JSONObject().put("wkt",area.wkt())
+                .put("strategy",area.strategy().name().toLowerCase(java.util.Locale.ROOT)).put("overZ",area.overZ()));
         var job = new JSONObject().put("toolChange",true).put("toolChangeZ",15*s).put("endZ",5*s)
                 .put("startZ",nullable(positions.startZ())).put("endX",nullable(positions.endX()))
                 .put("endY",nullable(positions.endY())).put("changeX",nullable(positions.toolChangeX()))
-                .put("changeY",nullable(positions.toolChangeY())).put("exclusions",new JSONArray());
+                .put("changeY",nullable(positions.toolChangeY())).put("exclusions",areas);
         return base(units,recipe,"geometry",code).put("tools",new JSONArray().put(new JSONObject().put("id",1)
                 .put("diameter",1*s).put("wkt",new WKTWriter().write(shape)).put("parameters",params))).put("job",job);
     }

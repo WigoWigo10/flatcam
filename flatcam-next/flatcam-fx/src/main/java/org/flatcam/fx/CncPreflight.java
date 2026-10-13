@@ -87,6 +87,9 @@ final class CncPreflight {
             common.add(value("Altura dos deslocamentos XY", number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-safe-z"));
         } else common.add(value("Posições de fresagem", "Não se aplicam a este perfil; Z_laser usa somente seu foco Z", -1, "cnc-preprocessor"));
         if (profile.requiresProbe() && base.probing() != null) probe(common, base.probing());
+        startChangeNotice(issues,pos.startZ(),pos.toolChangeZ()==null ? clearance : pos.toolChangeZ(),
+                base.pauseForToolChange() || profile.automaticToolSelection(),profile,"cnc");
+        exclusionNotice(issues,pos.exclusionsEnabled(),pos.exclusions());
         common.add(value("Ordem dos trajetos", switch (pos.routing().mode()) {
             case SOURCE -> "Ordem de origem"; case NEAREST -> "Proximidade"; case BOARDS -> "Agrupar por placa";
         }, -1, "cnc-route-mode"));
@@ -133,6 +136,9 @@ final class CncPreflight {
         positions(common, "drill", options.startZ(), options.toolChangeZ(), options.toolChangeX(), options.toolChangeY(),
                 options.endMoveZ(), options.endMoveX(), options.endMoveY());
         if (profile.requiresProbe() && options.probing() != null) probe(common, options.probing());
+        startChangeNotice(issues,options.startZ(),options.toolChangeZ(),
+                options.pauseForToolChange() || profile.automaticToolSelection(),profile,"drill");
+        exclusionNotice(issues,options.exclusionsEnabled(),options.exclusions());
         common.add(value("Ordem dos furos", options.optimizeDrills() ? "Proximidade, por ferramenta" : "Ordem de origem", -1, "drill-optimize-order"));
         common.add(value("Exclusões", options.exclusionsEnabled() ? options.exclusions().size() + " área(s) protegida(s)" : "Desativadas", -1, "cnc-exclusions-pane"));
         rapid(common, profile, options.rapidFeedRate(), image.units(), "drill-rapid-feed");
@@ -152,6 +158,18 @@ final class CncPreflight {
         return new Report(result.source().item().getValue(), "Excellon → CNC", unit(image.units()), profile.label(), rows, common, issues);
     }
 
+    private static void startChangeNotice(List<Issue> issues, Double start, double change, boolean enabled,
+                                          GCodePreprocessor profile, String prefix) {
+        if (enabled && !profile.requiresProbe() && start!=null && Double.compare(start,change)!=0)
+            issues.add(new Issue(false,"Start Z " + number(start) + " é apenas o movimento inicial; a troca usa Tool change Z "
+                    + number(change) + ", inclusive na primeira ferramenta. Start Z não substitui a altura de troca.",
+                    target(-1,prefix.equals("drill") ? "probe-change-z" : "cnc-change-z")));
+    }
+    private static void exclusionNotice(List<Issue> issues, boolean enabled, List<CncExclusionArea> areas) {
+        if (enabled && areas.stream().anyMatch(area -> area.strategy()==CncExclusionArea.Strategy.OVER))
+            issues.add(new Issue(false,"Over sobe antes de entrar e desce depois de sair da região ampliada pelo raio e margem. "
+                    + "Áreas sobrepostas usam a maior altura necessária no trecho; nunca desce abaixo do Travel Z efetivo.",target(-1,"cnc-exclusions-pane")));
+    }
     private static void positions(List<Value> values, String prefix, Double start, double change, Double changeX,
                                   Double changeY, double end, Double endX, Double endY) {
         values.add(value("Start Z", start == null ? "Automático" : number(start), -1, prefix + "-start-z"));

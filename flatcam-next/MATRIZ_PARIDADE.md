@@ -1,5 +1,16 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Over por trecho e limites do legado — 2026-10-13
+
+Over segmentado em Geometry/Drilling, sobreposição pela maior altura, testes
+do XYZ emitido MM/IN/quatro perfis e avisos de revisão: **C**. Comparação GRBL
+ampliada a **54**: 27 equivalências, 19 diferenças de rota, 6 de usinagem,
+2 erros Python, zero erros FX; strict 1. Uma diferença anterior (Over MM) foi
+fechada; quatro equivalências adicionais são controles novos. Não se copiam
+Start Z no lugar da altura de troca, Around mais longo ou omissão de altura
+em sobreposição do Python. IN com diâmetro completo ainda diverge por sua
+precisão prévia. [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Altura dos rápidos Geometry — 2026-10-13
 
 **C**: corrigido Z modal abaixo da altura global anunciada entre trajetos e

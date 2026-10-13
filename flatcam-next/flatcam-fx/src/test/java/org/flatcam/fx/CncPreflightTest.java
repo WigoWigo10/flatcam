@@ -104,4 +104,24 @@ class CncPreflightTest {
         assertTrue(laser.tools().getFirst().details().stream().anyMatch(value -> value.label().equals("Foco / posição Z") && value.text().equals("3")));
         assertFalse(laser.common().stream().anyMatch(value -> value.label().equals("End Z")));
     }
+    @Test void startHeightDoesNotMasqueradeAsTheFirstChangeHeightAndOverExplainsItsTransitions() {
+        var area=CncExclusionArea.of(FACTORY.toGeometry(new Envelope(4,6,-1,1)),CncExclusionArea.Strategy.OVER,8);
+        var positions=new GeometryJobOptions(12.,5.,null,null,15.,null,null).withExclusions(true,List.of(area));
+        var base=params(3,.3,100,50,10000).withJobOptions(positions);
+        var result=new GeometryCncToolPanel.Result(List.of(new ToolGeometry(.4,path())),base,Map.of(),GCodePreprocessor.GRBL_11_NO_M6,Map.of());
+        var report=CncPreflight.geometry("Board","MM",result);
+        assertTrue(report.issues().stream().anyMatch(issue -> issue.text().startsWith("Start Z 12")
+                && issue.text().contains("Tool change Z 15") && issue.target().field().equals("cnc-change-z") && !issue.blocking()));
+        assertTrue(report.issues().stream().anyMatch(issue -> issue.text().startsWith("Over sobe")
+                && issue.target().field().equals("cnc-exclusions-pane")));
+        var drill=drilling();
+        var options=drill.options().withPositions(12.,null,null).withExclusions(true,List.of(area));
+        var reviewed=CncPreflight.drilling(new DrillGCodeToolPanel.Result(drill.source(),drill.settingsByTool(),
+                drill.orderedToolIds(),options,drill.preprocessor(),drill.toolOrder()));
+        assertTrue(reviewed.issues().stream().anyMatch(issue -> issue.text().startsWith("Start Z 12")
+                && issue.target().field().equals("probe-change-z") && !issue.blocking()));
+        var same=params(3,.3,100,50,10000).withJobOptions(new GeometryJobOptions(15.,5.,null,null,15.,null,null));
+        var equal=CncPreflight.geometry("Board","MM",new GeometryCncToolPanel.Result(result.tools(),same,Map.of(),result.preprocessor(),Map.of()));
+        assertFalse(equal.issues().stream().anyMatch(issue -> issue.text().startsWith("Start Z")));
+    }
 }

@@ -1,5 +1,64 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Over segmentado, Around e primeira troca — 2026-10-13
+
+`CncExclusionPlanner.travelLegs` divide a rota nas entradas/saídas das áreas
+Over ampliadas pelo raio + 0,1 mm equivalente. O emissor troca Z antes de
+percorrer cada segmento, sem baixar de Travel Z. Em sobreposição, usa o máximo
+das alturas presentes no trecho; áreas baixas não criam descidas/segmentos
+desnecessários. Around conserva sua rota de visibilidade. A API `travel`
+anterior permanece disponível como plano conservador de altura única; os dois
+geradores CNC agora emitem o plano por trechos. Não muda o formato salvo.
+
+Os sete testes `CncOverTravelTest` verificam os segmentos e o XYZ realmente
+emitido: MM/IN, sobreposição, separação, furos internos, reverso, Around misto,
+cancelamento, Z seguro alto, Drilling/Geometry e quatro perfis de fresagem.
+Quatro asserções antigas exigiam subir desde a origem e descer só no destino;
+foram substituídas pela sequência exata de entrada/subida/saída/descida, sem
+remover validação de altura, troca ou unidades. Primeira tentativa registrada
+em `target/cnc-over-first-20261013.log`; validações direcionadas aprovadas em
+`target/cnc-over-targeted-20261013.log` e `target/cnc-over-emitted-20261013.log`.
+Tooltips e revisão antes de salvar explicam as transições.
+
+Corpus ampliado para **54 controles**, mantendo os 46 anteriores. Adicionados:
+Drilling Over com diâmetro representável em quatro casas, duas áreas separadas
+e duas sobrepostas; Geometry Over; todos em MM/IN. O relatório inclui distâncias
+XY/Z dos rápidos realmente emitidos, não estimativas de tempo/segurança.
+19 testes auxiliares Python aprovados. Fontes originais e tolerâncias intocadas.
+
+Resultado: **27 MATCH_EXECUTION, 19 ROUTING_DIFFERENT, 6 MACHINING_DIFFERENT,
+2 ORACLE_ERROR, 0 FX_ERROR**; 54 saídas FX sem problemas na auditoria de
+parâmetros. `drilling-over-mm` passou de diferença de rota a execução equivalente;
+as outras 45 classificações anteriores não regrediram. Quatro equivalências
+adicionais vêm dos controles novos, incluindo Over IN com diâmetro representável.
+Relatório: `target/cnc-over-expanded-20261013/python/index.html`; strict **1**.
+
+Diferenças investigadas e mantidas explicitamente:
+
+- **Start Z versus troca:** o Python GRBL usa Start Z na primeira pausa, mesmo
+  quando difere de Tool change Z. O FX conserva a altura de troca solicitada;
+  novo aviso com link para esse campo explica a distinção. Não é copiado como bug.
+- **Around:** no controle público MM, Python percorre 13,9153 mm de rápidos XY,
+  FX 10,7153 mm, ambos sem infringir a auditoria de exclusão. Não se alonga a rota
+  FX só para imitar o legado. Não é prova de melhor tempo em qualquer projeto.
+- **Over IN com diâmetro completo:** Python arredonda `1/25,4` para `0,0394`
+  antes de ampliar a exclusão. A entrada emitida `0,1338` difere do FX `0,133858`
+  além do limite original de arredondamento. Não truncar a ferramenta do FX nem
+  ampliar a tolerância para esconder essa diferença.
+- **Over sobreposto:** nos dois novos controles MM/IN, Python cruza a segunda
+  região abaixo de seu Over Z. O auditor acusa isso; a assinatura de corte
+  concorda, mas o deslocamento não é aprovado. FX usa a maior altura necessária.
+
+Ainda faltam decisões explícitas para compatibilidade de Travel Z individual
+versus global, passes retraídos/alternados e spindle zero, ampliar trajetos reais
+e outros perfis. Análise nominal 2D e auditoria XYZ limitada não validam haste,
+cabeçote, grampos reais, macros, limites físicos ou máquina. Teste a seco necessário.
+
+Build completo aprovado: `target/cnc-over-full-20261013.log`, 1696 testes
+registrados, 1678 aprovados, 18 opcionais ignorados, zero falhas/erros, contando
+somente fontes atuais. Tooltips: 1097 ocorrências, zero MISSING no cenário
+construído. Não houve teste físico nem interação manual com a máquina.
+
 ## Altura global entre trajetos/passadas — 2026-10-13
 
 A investigação das rotas encontrou um defeito FX que a prévia 2D não mostrava:

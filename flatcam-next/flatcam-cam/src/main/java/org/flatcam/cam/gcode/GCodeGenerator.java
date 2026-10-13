@@ -913,21 +913,23 @@ public final class GCodeGenerator {
                 travelFootprint(travelShapes), cutShapes.result());
     }
 
-    /** Append up to one additional circuit to a closed path; never extend open paths. */
+    /** Emit checked XY legs, changing Z outside each buffered Over footprint. */
     private static void exclusionTravel(StringBuilder code,List<Geometry> preview,double sx,double sy,double ex,double ey,
             double radius,double safeZ,GCodePreprocessor profile,CncExclusionPlanner planner,String units) {
         if(planner==null) {
             if(!profile.requiresProbe()) addTravel(preview,sx,sy,ex,ey,radius);
             line(code,"%s X%s Y%s",profile.rapid(),fmtCoordinate(ex, units),fmtCoordinate(ey, units)); return;
         }
-        var travel=planner.travel(new Coordinate(sx,sy),new Coordinate(ex,ey),safeZ);
-        line(code,"%s Z%s",profile.rapid(),fmt(travel.z()));
-        for(int i=1;i<travel.points().size();i++) {
-            var from=travel.points().get(i-1); var to=travel.points().get(i);
+        var legs=planner.travelLegs(new Coordinate(sx,sy),new Coordinate(ex,ey),safeZ);
+        double z=safeZ;
+        line(code,"%s Z%s",profile.rapid(),fmt(z));
+        for(var leg:legs) {
+            if (Double.compare(z,leg.z())!=0) { z=leg.z(); line(code,"%s Z%s",profile.rapid(),fmt(z)); }
+            var from=leg.from(); var to=leg.to();
             addTravel(preview,from.x,from.y,to.x,to.y,radius);
             line(code,"%s X%s Y%s",profile.rapid(),fmtCoordinate(to.x, units),fmtCoordinate(to.y, units));
         }
-        if(travel.z()!=safeZ) line(code,"%s Z%s",profile.rapid(),fmt(safeZ));
+        if(Double.compare(z,safeZ)!=0) line(code,"%s Z%s",profile.rapid(),fmt(safeZ));
     }
 
     private static Coordinate[] extraCut(Coordinate[] path, double length) {
