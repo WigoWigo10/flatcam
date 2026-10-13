@@ -1,5 +1,23 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Duas fresas e revisão GUI — 2026-10-13
+
+Corpus ampliado para **42** controles, sem remover os 38 anteriores. Quatro
+novos casos multigeo (single/contínuo × MM/IN) chamam a rotina original Python
+`geometry_tool_gcode_gen`. A comparação descobriu e corrigiu uma passada extra
+FX em `.9/.3`; a auditoria passou a contar travessias XY, além dos mergulhos.
+Contagem de passes agora é compartilhada entre resumo GUI e gerador.
+
+Resultado final: **22 MATCH_EXECUTION, 12 ROUTING_DIFFERENT,
+6 MACHINING_DIFFERENT, 2 ORACLE_ERROR, 0 FX_ERROR**; strict **1**. Os quatro
+controles novos concordam na usinagem e nos parâmetros, mas não nas rotas.
+Relatório: `target/cnc-review-oracle-fixed-20261013/python/index.html`.
+
+Geometry e Drilling têm revisão por fresa antes do FileChooser, com links para
+campos e avisos explícitos. Não calcula mapa de cobertura/não usinado nem
+simula segurança física; exportações de CNC Job existente/Terminal não mudam.
+Contrato e limites: [CNC_REVIEW.md](CNC_REVIEW.md).
+
 ## Série 3/4: política explícita de passes — 2026-10-12
 
 Geometry CNC permite selecionar por ferramenta `RETRACT_SAME_DIRECTION`

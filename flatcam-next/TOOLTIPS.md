@@ -1,5 +1,14 @@
 # Revisão dos tooltips
 
+## Revisão CNC — 2026-10-13
+
+A auditoria também constrói os resumos Geometry e Drilling, incluindo links
+por fresa, parâmetros comuns e botões Continuar/Voltar. Inventário atual:
+**1090 ocorrências, zero MISSING** no cenário construído. Os novos controles
+usam a política central de tempo e formatação; não houve alteração no atraso.
+Isso não substitui visitar todos os estados no aplicativo real. Contrato e
+pendências de cobertura/usinagem: [CNC_REVIEW.md](CNC_REVIEW.md).
+
 ## Atualização — 2026-10-12
 
 ### Tempo de exibição

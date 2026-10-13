@@ -86,6 +86,19 @@ class CncReaderTest(unittest.TestCase):
         self.assertTrue(equivalent(changed,changed))
         self.assertTrue(audit_parameters(case(),changed))
 
+    def test_an_extra_xy_pass_at_the_same_final_z_is_detected(self):
+        source = case()
+        source["operation"] = "geometry"
+        source["tools"][0]["wkt"] = "LINESTRING (10 0,12 0)"
+        source["tools"][0]["parameters"]["feed"] = 100
+        program = PROGRAM.replace("G1 Z-0.4 F100", "G1 Z-0.4 F100\nG1 X12 Y0 F100")
+        program = program.replace("G1 Z-0.8 F100", "G0 X10 Y0\nG1 Z-0.8 F100\nG1 X12 Y0 F100")
+        program = program.replace("G1 Z-1.1 F100", "G0 X10 Y0\nG1 Z-1.1 F100\nG1 X12 Y0 F100")
+        self.assertEqual([], audit_parameters(source, read_program(program)))
+        extra = program.replace("G1 X12 Y0 F100\nG0 Z3\nM5", "G1 X12 Y0 F100\nG1 X10 Y0 F100\nG0 Z3\nM5")
+        self.assertIn("T1: XY cutting traversal count differs from the requested passes",
+                      audit_parameters(source, read_program(extra)))
+
     def test_extra_safe_travel_is_not_full_execution_equivalence(self):
         baseline = read_program(PROGRAM)
         changed = read_program(PROGRAM.replace("G0 Z15","G0 Z3\nG0 Z15",1))

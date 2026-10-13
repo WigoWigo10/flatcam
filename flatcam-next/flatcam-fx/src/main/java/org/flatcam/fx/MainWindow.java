@@ -6212,6 +6212,7 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole("Ja existe uma operacao em andamento.");
             return;
         }
+        if (!confirmCncReview(CncPreflight.drilling(result))) return;
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de furacao");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
@@ -6978,6 +6979,8 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
 
+        if (!confirmCncReview(CncPreflight.geometry(item.getValue(), entry.units(), result))) return;
+
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de Geometry");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
@@ -6994,6 +6997,25 @@ final class MainWindow implements TclFlatcamHost {
         }
 
         startGeometryCncGeneration(item, entry, result, outFile.toPath());
+    }
+
+    private boolean confirmCncReview(CncPreflight.Report report) {
+        Node panel = toolTab.getContent();
+        long epoch = tclProjectEpoch;
+        var decision = new CncReviewDialog(scene.getWindow(), currentTheme, report).showAndWait().orElse(null);
+        if (decision == null) return false;
+        if (epoch != tclProjectEpoch || panel != toolTab.getContent() || runningJob != null) {
+            appendConsole("Projeto/painel alterado durante a revisao CNC. Revise novamente os parametros.");
+            return false;
+        }
+        if (decision.edit() != null) {
+            setSidebarVisible(true); leftTabs.getSelectionModel().select(toolTab);
+            Platform.runLater(() -> {
+                if (panel == toolTab.getContent() && !CncReviewNavigation.focus(panel, decision.edit()))
+                    appendConsole("Campo indisponivel neste perfil: " + decision.edit().field());
+            });
+        }
+        return decision.proceed() && report.canContinue();
     }
 
     private void preserveSingleJobDefaults(TreeItem<String> item, org.flatcam.app.project.CncJobDefaults defaults) {

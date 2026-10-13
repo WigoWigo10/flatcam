@@ -84,6 +84,10 @@ class TooltipAuditTest {
             var jobs = new org.flatcam.app.job.JobExecutor(1);
             var window = new MainWindow(jobs);
             var about = new AboutDialog(null,ThemeOption.CLASSIC_LIGHT,url -> {},text -> {});
+            var cncReview = new CncReviewDialog(null, ThemeOption.CLASSIC_LIGHT,
+                    CncPreflight.geometry("Public fixture", "MM", CncPreflightTest.geometry()));
+            var drillReview = new CncReviewDialog(null, ThemeOption.CLASSIC_LIGHT,
+                    CncPreflight.drilling(CncPreflightTest.drilling()));
             var code = new CodeEditor("G21\nG90\n",CodeSyntax.Language.MACHINE,true);
             try {
                 var preferences = MainWindow.class.getDeclaredMethod("buildPreferencesPanel"); preferences.setAccessible(true);
@@ -96,6 +100,13 @@ class TooltipAuditTest {
                 }
                 roots.put("Tools Database",new ToolsDatabasePanel(jobs,()->null,path -> {},file -> Icons.fromResource(file,16)));
                 roots.put("Sobre",about.getDialogPane().getContent());
+                roots.put("Revisão CNC Geometry", cncReview.getDialogPane().getContent());
+                roots.put("Revisão CNC Drilling", drillReview.getDialogPane().getContent());
+                for (String kind : List.of("Geometry", "Drilling")) {
+                    var dialog = kind.equals("Geometry") ? cncReview : drillReview;
+                    roots.put("Revisão CNC " + kind + " continuar", dialog.getDialogPane().lookupButton(CncReviewDialog.CONTINUE));
+                    roots.put("Revisão CNC " + kind + " voltar", dialog.getDialogPane().lookupButton(dialog.getDialogPane().getButtonTypes().getLast()));
+                }
                 roots.put("Editor de código",code);
             for(var entry:roots.entrySet()) {
                 Node root=entry.getValue(); String context=entry.getKey().replace(" — barra", "");
@@ -117,7 +128,7 @@ class TooltipAuditTest {
             assertTrue(report.size() > 200);
             assertEquals(List.of(), report.stream().filter(line -> line.endsWith("MISSING")).toList(),
                     "Actual panel controls without help; see target/tooltip-audit.txt");
-            } finally { code.close(); about.close(); window.disposeViewport(); jobs.shutdown(); }
+            } finally { code.close(); about.close(); cncReview.close(); drillReview.close(); window.disposeViewport(); jobs.shutdown(); }
             return null;
         });
         Platform.runLater(task); task.get(30,TimeUnit.SECONDS);

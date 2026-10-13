@@ -132,6 +132,7 @@ final class GeometryCncToolPanel {
         ToolDescriptions.apply(passStrategy,"Passes em profundidade","Retrair mantém a direção de cada passe e retorna ao início acima da peça. Contínuo desce no fim de cada passe e percorre o caminho ao contrário, inclusive LineStrings fechados, sem retração intermediária.\n\nAtenção: a alternância troca Climb/Conventional; não aceita Preservar direção, Extra Cut ou sonda. Ponto isolado usa apenas a profundidade final. Valide material, fresa e remoção de cavacos antes de usar.");
         TextField depthPerPassField = new TextField(defaults == null ? ToolDefaults.text("geometry.depthperpass", metric)
                 : Double.toString(defaults.depthPerPass()));
+        depthPerPassField.setId("cnc-depth-per-pass");
         depthPerPassField.disableProperty().bind(multiDepthCb.selectedProperty().not());
         TextField feedField = new TextField(defaults == null ? ToolDefaults.text("geometry.feedrate", metric)
                 : Double.toString(defaults.feedRate()));
@@ -541,6 +542,11 @@ final class GeometryCncToolPanel {
             settings.jobDefaultsByTool().forEach((id, suggestion) -> imported.put(id + 1, suggestion));
             commonDb.replaceAll(imported);
         }
+        CncReviewNavigation.install(box, index -> {
+            if (multiTool && index >= 0 && index < toolTable.getItems().size()) {
+                toolTable.getSelectionModel().clearAndSelect(index); toolTable.scrollTo(index);
+            }
+        });
         return box;
     }
 

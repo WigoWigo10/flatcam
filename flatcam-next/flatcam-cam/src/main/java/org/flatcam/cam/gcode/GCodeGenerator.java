@@ -1093,23 +1093,7 @@ public final class GCodeGenerator {
         return result;
     }
     private static List<Double> passDepths(double cutDepth, boolean multiDepth, double depthPerPass) {
-        List<Double> depths = new ArrayList<>();
-        if (!multiDepth) {
-            depths.add(cutDepth);
-            return depths;
-        }
-        double depth = depthPerPass;
-        while (depth < cutDepth) {
-            if (depths.size() >= 10_000)
-                throw new IllegalArgumentException("Depth per pass would require over 10000 passes");
-            depths.add(depth);
-            double next = depth + depthPerPass;
-            if (next <= depth)
-                throw new IllegalArgumentException("Depth per pass is too small to advance Z");
-            depth = next;
-        }
-        depths.add(cutDepth);
-        return depths;
+        return MachiningPasses.depths(cutDepth, multiDepth, depthPerPass);
     }
 
     private static void addTravel(List<Geometry> travelShapes, double fromX, double fromY, double toX, double toY, double radius) {

@@ -211,6 +211,17 @@ def audit_parameters(case, parsed):
             expected_points = [point for point in tool["points"] for _ in expected_depths]
             if not equivalent([event["to"][:2] for event in plunges],expected_points):
                 issues.append(f"T{tool['id']}: drilled points/count differ from the selected holes")
+        elif "wkt" in tool:
+            from shapely import wkt
+            shape = wkt.loads(tool["wkt"])
+            # These public fixtures are uncompensated LineStrings. Count XY cutting
+            # traversals as well as plunges: an extra pass at the SAME rounded Z can
+            # have no Z movement and otherwise escape the depth-only audit.
+            if shape.geom_type == "LineString":
+                xy_cuts = [event for event in parsed["cuts"] if event["tool"] == tool["id"]
+                           and event["from"][:2] != event["to"][:2] and event["to"][2] < 0]
+                if len(xy_cuts) != (len(shape.coords)-1) * count:
+                    issues.append(f"T{tool['id']}: XY cutting traversal count differs from the requested passes")
     pauses = [event for event in parsed["events"] if event["kind"] == "pause"]
     if len(pauses) != (len(tools) if job["toolChange"] else 0):
         issues.append("Tool-change pause count differs from the requested setting")
@@ -328,9 +339,30 @@ def python_program(case, root, app, camlib):
                 result += code
                 start += header
             result = start + result
+        elif len(case["tools"]) > 1:
+            # The GUI's multigeo routine, not a concatenation of finished single-tool programs.
+            tools = {}
+            for tool in case["tools"]:
+                p = tool["parameters"]
+                tools[tool["id"]] = dict(tooldia=tool["diameter"], offset="Path", offset_value=0,
+                    solid_geometry=[wkt.loads(tool["wkt"])], data=dict(
+                        optimization_type="B", search_time="R", ppname_g=profile,
+                        cutz=-p["depth"], multidepth=p["multiDepth"], depthperpass=p["depthPerPass"],
+                        travelz=p["safeZ"], feedrate=p["feed"], feedrate_z=p["feedZ"], feedrate_rapid=1500,
+                        spindlespeed=p["rpm"], spindledir="CW", dwell=p["dwell"], dwelltime=p["dwellSeconds"],
+                        startz=job["startZ"], endz=job["endZ"], endxy=xy(job,"end"),
+                        toolchangez=job["toolChangeZ"], toolchangexy=xy(job,"change"), extracut=False, extracut_length=0))
+            result, start = "", ""
+            for index, tool in enumerate(case["tools"]):
+                generated = cnc.geometry_tool_gcode_gen(tool["id"], tools, first_pt=(0,0), tolerance=0,
+                    is_first=index == 0, is_last=index == len(case["tools"])-1, toolchange=job["toolChange"])
+                if generated == "fail":
+                    raise ValueError("Original multigeo generator returned fail")
+                code, header = generated
+                result += code
+                start += header
+            result = start + result
         else:
-            if len(case["tools"]) != 1:
-                raise ValueError("Geometry oracle currently covers one tool per job")
             tool = case["tools"][0]
             p = tool["parameters"]
             geo = camlib.Geometry()

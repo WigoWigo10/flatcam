@@ -141,6 +141,11 @@ final class DrillGCodeToolPanel {
 
         TableView<ToolRow> table = new TableView<>();
         table.setId("drill-tools");
+        var reviewSelection = new java.util.concurrent.atomic.AtomicReference<java.util.Set<Integer>>();
+        boolean[] selectingForReview = {false};
+        Label reviewNotice = new Label(); reviewNotice.setId("drill-review-notice"); reviewNotice.setWrapText(true);
+        reviewNotice.visibleProperty().bind(reviewNotice.textProperty().isNotEmpty());
+        reviewNotice.managedProperty().bind(reviewNotice.visibleProperty());
         table.setMinWidth(0);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -206,7 +211,10 @@ final class DrillGCodeToolPanel {
         spindle.setId("drill-power");
         TextField dwellTime = field(ToolDefaults.text("drilling.dwelltime", metric));
         TextField offsetZ = field(ToolDefaults.text("drilling.offsetz", metric));
+        cutZ.setId("drill-cut-z"); depthPerPass.setId("drill-depth-per-pass"); travelZ.setId("drill-travel-z");
+        feedZ.setId("drill-feed-z"); dwellTime.setId("drill-dwell-time"); offsetZ.setId("drill-offset-z");
         CheckBox multiDepth = new CheckBox("Multi-Depth");
+        multiDepth.setId("drill-multi-depth");
         CheckBox dwell = new CheckBox("Dwell");
         dwell.setId("drill-dwell");
         multiDepth.setTooltip(new Tooltip("Desce em etapas e retrai entre passes."));
@@ -236,7 +244,10 @@ final class DrillGCodeToolPanel {
             loading[0] = false;
         };
         table.getSelectionModel().getSelectedItems().addListener(
-                (javafx.collections.ListChangeListener<ToolRow>) change -> loadSelection.run());
+                (javafx.collections.ListChangeListener<ToolRow>) change -> {
+                    if (!selectingForReview[0]) { reviewSelection.set(null); reviewNotice.setText(""); }
+                    loadSelection.run();
+                });
         loadSelection.run();
         bindDraft(cutZ, table, loading, (row, value) -> row.cutZ = value);
         bindDraft(travelZ, table, loading, (row, value) -> row.travelZ = value);
@@ -484,6 +495,16 @@ final class DrillGCodeToolPanel {
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
             try {
+                var originalSelection = reviewSelection.getAndSet(null);
+                reviewNotice.setText("");
+                if (originalSelection != null) {
+                    selectingForReview[0] = true;
+                    try {
+                        table.getSelectionModel().clearSelection();
+                        for (int i = 0; i < table.getItems().size(); i++)
+                            if (originalSelection.contains(table.getItems().get(i).id)) table.getSelectionModel().select(i);
+                    } finally { selectingForReview[0] = false; }
+                }
                 commonDb.assertResolved();
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
                 preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
@@ -569,7 +590,7 @@ final class DrillGCodeToolPanel {
         title.getStyleClass().add("tool-title");
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
-                selectedTitle, perTool, machiningNote, applyAll, feedback, new Separator(),
+                selectedTitle, reviewNotice, perTool, machiningNote, applyAll, feedback, new Separator(),
                 heading("Common Parameters"), common, optimizeDrills, commonDb.view(), probe.view(), exclusions.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         Runnable restoreCommon = () -> {
@@ -614,6 +635,20 @@ final class DrillGCodeToolPanel {
         };
         sourceCombo.valueProperty().addListener((observable, oldValue, value) -> { if (value != null) restoreCommon.run(); });
         restoreCommon.run();
+        CncReviewNavigation.install(box, id -> {
+            for (int index = 0; index < table.getItems().size(); index++) {
+                if (table.getItems().get(index).id == id) {
+                    reviewSelection.compareAndSet(null, table.getSelectionModel().getSelectedItems().stream()
+                            .map(row -> row.id).collect(java.util.stream.Collectors.toSet()));
+                    reviewNotice.setText("Revisão: editando T" + id + ". A próxima geração manterá as "
+                            + reviewSelection.get().size() + " ferramenta(s) revisadas. Alterar a seleção na tabela substitui esse conjunto.");
+                    selectingForReview[0] = true;
+                    try { table.getSelectionModel().clearAndSelect(index); table.scrollTo(index); }
+                    finally { selectingForReview[0] = false; }
+                    break;
+                }
+            }
+        });
         return box;
     }
 

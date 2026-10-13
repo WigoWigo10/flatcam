@@ -38,8 +38,10 @@ class PythonCncParametersExportTest {
             for (String recipe : List.of("single", "peck-open", "peck-closed", "positions", "dwell", "continuous-open", "continuous-closed")) {
                 cases.put(geometry(units, scale, recipe));
             }
+            cases.put(multitoolGeometry(units, scale, false));
+            cases.put(multitoolGeometry(units, scale, true));
         }
-        assertEquals(38, cases.length());
+        assertEquals(42, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
@@ -104,6 +106,39 @@ class PythonCncParametersExportTest {
     private static JSONObject base(String units,String recipe,String operation,String code) {
         return new JSONObject().put("id",operation+"-"+recipe+"-"+units.toLowerCase(java.util.Locale.ROOT))
                 .put("operation",operation).put("units",units).put("gcode",code);
+    }
+    private JSONObject multitoolGeometry(String units, double s, boolean continuous) throws Exception {
+        var shapeA = factory.createLineString(new org.locationtech.jts.geom.Coordinate[]{
+                new org.locationtech.jts.geom.Coordinate(10*s, 0), new org.locationtech.jts.geom.Coordinate(12*s, 0)});
+        var shapeB = factory.createLineString(new org.locationtech.jts.geom.Coordinate[]{
+                new org.locationtech.jts.geom.Coordinate(20*s, 2*s), new org.locationtech.jts.geom.Coordinate(22*s, 2*s)});
+        var positions = new GeometryJobOptions(null, 5*s, 25*s, 2*s, 15*s, -2*s, -3*s);
+        var first = new GeometryGCodeParameters(3*s, .6*s, continuous, .2*s, 200*s, 10000, true,
+                1500*s, null, 75*s, true, .25, false, 0).withJobOptions(positions);
+        var second = new GeometryGCodeParameters(4*s, .9*s, continuous, .3*s, 140*s, 12000, true,
+                1500*s, null, 50*s, true, .5, false, 0).withJobOptions(positions);
+        if (continuous) {
+            first = first.withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
+            second = second.withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
+        }
+        String code = GCodeGenerator.generateGeometryCncJob(units,
+                List.of(new ToolGeometry(.4*s, shapeA), new ToolGeometry(.8*s, shapeB)), first,
+                Map.of(), Map.of(1, second), CancellationToken.none(), GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        var tools = new JSONArray();
+        var settings = List.of(first, second); var paths = List.of(shapeA, shapeB);
+        for (int i = 0; i < 2; i++) {
+            var p = settings.get(i);
+            tools.put(new JSONObject().put("id", i + 1).put("diameter", (i == 0 ? .4 : .8)*s)
+                    .put("wkt", new WKTWriter().write(paths.get(i))).put("parameters", new JSONObject()
+                            .put("safeZ", p.safeZ()).put("depth", p.cutDepth()).put("multiDepth", p.multiDepth())
+                            .put("depthPerPass", p.depthPerPass()).put("feed", p.feedRate()).put("feedZ", p.feedRateZ())
+                            .put("rpm", p.spindleSpeedRpm()).put("dwell", p.dwell()).put("dwellSeconds", p.dwellSeconds())));
+        }
+        var job = new JSONObject().put("toolChange", true).put("toolChangeZ", 15*s).put("endZ", 5*s)
+                .put("startZ", JSONObject.NULL).put("endX", 25*s).put("endY", 2*s)
+                .put("changeX", -2*s).put("changeY", -3*s).put("exclusions", new JSONArray());
+        return base(units, continuous ? "multitool-continuous" : "multitool-single", "geometry", code)
+                .put("tools", tools).put("job", job);
     }
     private static Object nullable(Double value) { return value == null ? JSONObject.NULL : value; }
     private static JSONObject drillParameters(DrillGCodeParameters p) {

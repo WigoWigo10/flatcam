@@ -1,5 +1,17 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Revisão CNC e duas fresas — 2026-10-13
+
+Revisão GUI antes do FileChooser em Geometry e Drilling, com navegação por
+fresa, cancelamento, unidades, valores efetivos e avisos: **C**, com testes FX.
+Não há mapa de resíduos/não usinado nem certificação de segurança da máquina.
+Corpus GRBL ampliado a **42**, preservando os 38 anteriores: 22 equivalências,
+12 diferenças de rota, 6 de usinagem, 2 erros Python, zero erros FX; strict 1.
+Quatro controles novos multigeo concordam na usinagem, **não** na execução
+completa. Foi corrigido um passe redundante por soma binária no FX; isso não
+eleva outras receitas/perfis a A. Evidências e pendências em
+[CNC_REVIEW.md](CNC_REVIEW.md) e [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Série posterior: trajetos/passadas/proteção — 2026-10-12
 
 Corpus CNC passou de 34 para 38 controles públicos GRBL: 22 equivalências,
