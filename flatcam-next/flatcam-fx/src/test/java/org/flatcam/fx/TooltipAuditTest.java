@@ -85,7 +85,7 @@ class TooltipAuditTest {
             var window = new MainWindow(jobs);
             var about = new AboutDialog(null,ThemeOption.CLASSIC_LIGHT,url -> {},text -> {});
             var cncReview = new CncReviewDialog(null, ThemeOption.CLASSIC_LIGHT,
-                    CncPreflight.geometry("Public fixture", "MM", CncPreflightTest.geometry()));
+                    CncPreflight.geometry("Public fixture", "MM", CncPreflightTest.geometry()), true);
             var drillReview = new CncReviewDialog(null, ThemeOption.CLASSIC_LIGHT,
                     CncPreflight.drilling(CncPreflightTest.drilling()));
             var code = new CodeEditor("G21\nG90\n",CodeSyntax.Language.MACHINE,true);
@@ -102,6 +102,8 @@ class TooltipAuditTest {
                 roots.put("Sobre",about.getDialogPane().getContent());
                 roots.put("Revisão CNC Geometry", cncReview.getDialogPane().getContent());
                 roots.put("Revisão CNC Drilling", drillReview.getDialogPane().getContent());
+                roots.put("Mapa de cobertura", new CncCoveragePanel("Public fixture", "MM", CncPreflightTest.geometry().tools(), value -> {}, () -> {}, () -> {}));
+                roots.put("Revisão CNC mapa", cncReview.getDialogPane().lookupButton(CncReviewDialog.COVERAGE));
                 for (String kind : List.of("Geometry", "Drilling")) {
                     var dialog = kind.equals("Geometry") ? cncReview : drillReview;
                     roots.put("Revisão CNC " + kind + " continuar", dialog.getDialogPane().lookupButton(CncReviewDialog.CONTINUE));

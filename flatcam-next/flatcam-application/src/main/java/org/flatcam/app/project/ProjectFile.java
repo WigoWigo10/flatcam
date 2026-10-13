@@ -118,8 +118,17 @@ public record ProjectFile(
     public record GeometryEntry(String name, String sourceName, String units, Geometry geometry,
                                 boolean strokeOnly, List<ToolGeometry> tools,
                                 String fillColorWeb, String strokeColorWeb, boolean visible,
-                                GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings) {
+                                GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings,
+                                org.flatcam.cam.gcode.MachiningTarget machiningTarget) {
+        public GeometryEntry(String name, String sourceName, String units, Geometry geometry,
+                             boolean strokeOnly, List<ToolGeometry> tools, String fillColorWeb, String strokeColorWeb,
+                             boolean visible, GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings) {
+            this(name, sourceName, units, geometry, strokeOnly, tools, fillColorWeb, strokeColorWeb, visible, cncDefaults, cncSettings, null);
+        }
         public GeometryEntry {
+            if (machiningTarget != null && (!machiningTarget.units().equals(units)
+                    || machiningTarget.toolAreas().keySet().stream().anyMatch(id -> id >= tools.size())))
+                throw new IllegalArgumentException("Area-alvo sem ferramenta/unidade correspondente.");
             if (cncSettings != null && cncSettings.jobDefaultsByTool().keySet().stream()
                     .anyMatch(id -> id >= Math.max(1, tools.size())))
                 throw new IllegalArgumentException("Configuracao comum CNC sem ferramenta correspondente.");

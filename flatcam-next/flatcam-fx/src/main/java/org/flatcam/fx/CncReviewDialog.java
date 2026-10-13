@@ -11,9 +11,13 @@ import javafx.stage.Window;
 final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
     record Decision(boolean proceed, CncPreflight.Target edit) { }
     static final ButtonType CONTINUE = new ButtonType("Continuar e escolher arquivo…", ButtonBar.ButtonData.OK_DONE);
+    static final ButtonType COVERAGE = new ButtonType("Ver cobertura no Plot", ButtonBar.ButtonData.LEFT);
     private final GridPane toolDetails = new GridPane();
 
     CncReviewDialog(Window owner, ThemeOption theme, CncPreflight.Report report) {
+        this(owner, theme, report, false);
+    }
+    CncReviewDialog(Window owner, ThemeOption theme, CncPreflight.Report report, boolean coverageAvailable) {
         setTitle("Revisar CNC antes de salvar"); setHeaderText(null); setResizable(true);
         if (owner != null) initOwner(owner);
         var pane = getDialogPane(); pane.setId("cnc-review-dialog"); pane.setPrefSize(900, 650); pane.setMinSize(460, 360);
@@ -54,6 +58,8 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         VBox notices = new VBox(7);
         for (var issue : report.issues()) {
             String text = (issue.blocking() ? "Erro: " : "Aviso: ") + issue.text();
+            if (coverageAvailable && issue.text().startsWith("Cobertura não calculada"))
+                text = "Área-alvo NCC disponível: use Ver cobertura no Plot para calcular os resíduos nominais por fresa, sem salvar G-code.";
             if (issue.target() == null) notices.getChildren().add(label(text));
             else {
                 Hyperlink link = editLink(new CncPreflight.Value(text, "Revisar…", issue.target()));
@@ -73,10 +79,15 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         ScrollPane scroll = new ScrollPane(body); scroll.setFitToWidth(true); scroll.setMinSize(0, 0); pane.setContent(scroll);
         var back = new ButtonType("Voltar ao painel", ButtonBar.ButtonData.CANCEL_CLOSE);
         pane.getButtonTypes().addAll(CONTINUE, back);
+        if (coverageAvailable) {
+            pane.getButtonTypes().addFirst(COVERAGE);
+            ToolDescriptions.apply(pane.lookupButton(COVERAGE), "Resíduos de usinagem", "Calcula em segundo plano a área-alvo NCC menos a faixa nominal varrida pelas fresas, com a compensação configurada. Mostra o restante por fresa e acumulado no Plot. Não simula Z, material ou a máquina e não grava G-code.");
+        }
         pane.lookupButton(CONTINUE).setDisable(!report.canContinue());
         ToolDescriptions.apply(pane.lookupButton(CONTINUE), "Escolher o destino", "Abre o seletor de arquivo. Só depois da escolha o G-code será calculado e salvo em segundo plano. Erros de configuração impedem continuar; avisos não são certificação de segurança.");
         ToolDescriptions.apply(pane.lookupButton(back), "Voltar sem salvar", "Fecha a revisão, preservando os parâmetros no painel. Não grava nem substitui arquivos.");
-        setResultConverter(button -> button == CONTINUE ? new Decision(true, null) : null);
+        setResultConverter(button -> button == CONTINUE ? new Decision(true, null)
+                : button == COVERAGE ? new Decision(false, new CncPreflight.Target(-1, "__coverage")) : null);
         theme.applyTo(pane.getScene()); FluidTooltips.install(this, "Revisão CNC");
     }
 

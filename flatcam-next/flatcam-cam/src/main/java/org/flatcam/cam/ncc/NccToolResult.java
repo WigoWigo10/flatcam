@@ -10,7 +10,10 @@ import org.locationtech.jts.geom.Geometry;
  * available for the next smaller tool.
  */
 public record NccToolResult(double toolDiameter, Geometry geometry, int failedPolygonCount,
-                            NccOperation operation) {
+                            NccOperation operation, Geometry targetArea) {
+    public NccToolResult(double toolDiameter, Geometry geometry, int failedPolygonCount, NccOperation operation) {
+        this(toolDiameter, geometry, failedPolygonCount, operation, null);
+    }
     public NccToolResult(double toolDiameter, Geometry geometry, int failedPolygonCount) {
         this(toolDiameter, geometry, failedPolygonCount, NccOperation.CLEAR);
     }

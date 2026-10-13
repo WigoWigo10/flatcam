@@ -373,6 +373,7 @@ final class PlotAreaView extends StackPane {
     private static final Color EDITOR_CONTENT_FILL_COLOR = Color.web("#00B4FF99");
     private static final Color EDITOR_CONTENT_STROKE_COLOR = Color.web("#0078B4");
     private boolean editorHighlightStrokeOnly;
+    private boolean coverageResidualHighlight;
     /** Density-mode keys of the editor overlays (they are not entries of {@link #layers}). */
     private static final Object HIGHLIGHT_KEY = "editor-highlight";
     private static final Object REFERENCE_KEY = "editor-reference";
@@ -838,11 +839,18 @@ final class PlotAreaView extends StackPane {
     }
 
     void setEditorHighlight(Geometry geometry, boolean strokeOnly) {
+        coverageResidualHighlight = false;
         if (geometry != editorHighlightGeometry) {
             forgetOverlay(HIGHLIGHT_KEY);
         }
         editorHighlightGeometry = geometry;
         editorHighlightStrokeOnly = strokeOnly;
+        drawEditorHighlight();
+    }
+
+    void setCoverageResidual(Geometry geometry) {
+        if (geometry != editorHighlightGeometry) forgetOverlay(HIGHLIGHT_KEY);
+        editorHighlightGeometry = geometry; editorHighlightStrokeOnly = false; coverageResidualHighlight = true;
         drawEditorHighlight();
     }
 
@@ -2026,8 +2034,9 @@ final class PlotAreaView extends StackPane {
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
             gc.clip();
+            Color ink = coverageResidualHighlight ? Color.web(palette.background().getBrightness() < .5 ? "#FFAA33" : "#C95100") : EDITOR_HIGHLIGHT_COLOR;
             drawOverlay(gc, HIGHLIGHT_KEY, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
-                    EDITOR_HIGHLIGHT_COLOR, EDITOR_HIGHLIGHT_COLOR, true, LayerCategory.OVERLAY, true, false),
+                    ink, ink, true, LayerCategory.OVERLAY, true, false),
                     viewBounds, contentWidth, contentHeight);
             gc.restore();
         }

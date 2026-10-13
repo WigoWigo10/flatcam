@@ -241,7 +241,11 @@ final class MainWindow implements TclFlatcamHost {
     /** {@code tools} is empty for a plain single-purpose Geometry (no tool association); see NccToolPanel's doc. */
     private record GeometryEntry(String sourceName, String units, Geometry geometry,
                                  boolean strokeOnly, List<ToolGeometry> tools,
-                                 GeometryGCodeParameters cncDefaults) {
+                                 GeometryGCodeParameters cncDefaults, org.flatcam.cam.gcode.MachiningTarget machiningTarget) {
+        private GeometryEntry(String sourceName, String units, Geometry geometry,
+                              boolean strokeOnly, List<ToolGeometry> tools, GeometryGCodeParameters cncDefaults) {
+            this(sourceName, units, geometry, strokeOnly, tools, cncDefaults, null);
+        }
         private GeometryEntry(String sourceName, String units, Geometry geometry,
                               boolean strokeOnly, List<ToolGeometry> tools) {
             this(sourceName, units, geometry, strokeOnly, tools, null);
@@ -6615,7 +6619,7 @@ final class MainWindow implements TclFlatcamHost {
         var defaults = new GeometryGCodeParameters(metric ? 3 : .1, metric ? .1 : .004,
                 false, metric ? .05 : .002, metric ? 300 : 12, 10000, entry.tools().size() > 1);
         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
-                entry.strokeOnly(), entry.tools(), defaults));
+                entry.strokeOnly(), entry.tools(), defaults, entry.machiningTarget()));
         geometryCncSettingsByItem.put(item, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null, tips, parameters,
                 org.flatcam.cam.geometry.ToolProfile.C1, jobDefaults));
         appendConsole("Parametros de corte/V-Tip e configuracoes comuns explicitas da DB preservados. Confira unidades e resolva conflitos no CNC; offset Path evita compensacao dupla.");
@@ -6736,7 +6740,8 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     /** One tool's contribution plus, optionally, the NCC-wide diameter-validity check - see NccToolPanel.Result. */
-    private record NccJobOutcome(NccResult result, OptionalDouble minCopperClearance) {
+    private record NccJobOutcome(NccResult result, OptionalDouble minCopperClearance,
+                                 org.flatcam.cam.gcode.MachiningTarget target) {
     }
 
     /** NCC accepts a Gerber or Geometry source and produces an intermediate Geometry object. */
@@ -6892,7 +6897,16 @@ final class MainWindow implements TclFlatcamHost {
                     context::isCancelled,
                     fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing..."));
             context.checkCancelled();
-            return new NccJobOutcome(result, minClearance);
+            var ordered = result.toolResults().stream().filter(tool -> !tool.isEmpty())
+                    .map(tool -> new ToolGeometry(tool.toolDiameter(), tool.geometry())).toList();
+            var areas = new LinkedHashMap<Integer, Geometry>(); int index = 0;
+            for (var tool : result.toolResults()) if (!tool.isEmpty()) {
+                if (tool.operation() == NccOperation.CLEAR && tool.targetArea() != null) areas.put(index, tool.targetArea());
+                index++;
+            }
+            var target = areas.isEmpty() ? null : new org.flatcam.cam.gcode.MachiningTarget("NCC", units,
+                    result.clearingArea(), areas, org.flatcam.cam.gcode.MachiningTarget.signature(ordered, context::isCancelled));
+            return new NccJobOutcome(result, minClearance, target);
         }, camProgress(before));
         runningJob = handle;
 
@@ -6939,6 +6953,9 @@ final class MainWindow implements TclFlatcamHost {
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 result.geometry(), true, tools);
                         applyCamMachining(generated, panelResult.machining());
+                        var created = geometryByItem.get(generated);
+                        geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), created.geometry(),
+                                created.strokeOnly(), created.tools(), created.cncDefaults(), outcome.target()));
                         appendConsole(String.format(
                                 "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
                                 result.pathCount(), result.totalLength(), result.toolResults().size(),
@@ -6960,8 +6977,16 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
-        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(), entry.tools(),
-                entry.cncDefaults(), geometryCncSettingsByItem.get(item),
+        generateGeometryCncJob(item, entry, null);
+    }
+
+    private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry, GeometryCncToolPanel.Result draft) {
+        GeometryCncSettings settings = draft == null ? geometryCncSettingsByItem.get(item)
+                : new GeometryCncSettings(draft.preprocessor(), entry.tools().isEmpty() ? draft.tools().getFirst().toolDiameter() : null,
+                        draft.vTools(), draft.parametersByTool(), draft.tools().getFirst().toolProfile());
+        openToolPanel("Geometry CNC Job", GeometryCncToolPanel.build(entry.units(), entry.geometry(),
+                draft == null || entry.tools().isEmpty() ? entry.tools() : draft.tools(),
+                draft == null ? entry.cncDefaults() : draft.parameters(), settings,
                 () -> toolsDatabaseTools(LegacyToolsDatabase::millingTools),
                 (polygon,onSelected,onCancelled) -> beginNccAreaSelection(entry.geometry(),polygon?NccToolPanel.AreaShape.POLYGON:NccToolPanel.AreaShape.RECTANGLE,onSelected,onCancelled),
                 shape -> plotAreaView.setEditorHighlight(shape,false),
@@ -6979,7 +7004,8 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
 
-        if (!confirmCncReview(CncPreflight.geometry(item.getValue(), entry.units(), result))) return;
+        if (!confirmCncReview(CncPreflight.geometry(item.getValue(), entry.units(), result),
+                entry.machiningTarget() == null ? null : () -> showCncCoverage(item, entry, result))) return;
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de Geometry");
@@ -7000,15 +7026,19 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private boolean confirmCncReview(CncPreflight.Report report) {
+        return confirmCncReview(report, null);
+    }
+    private boolean confirmCncReview(CncPreflight.Report report, Runnable coverage) {
         Node panel = toolTab.getContent();
         long epoch = tclProjectEpoch;
-        var decision = new CncReviewDialog(scene.getWindow(), currentTheme, report).showAndWait().orElse(null);
+        var decision = new CncReviewDialog(scene.getWindow(), currentTheme, report, coverage != null).showAndWait().orElse(null);
         if (decision == null) return false;
         if (epoch != tclProjectEpoch || panel != toolTab.getContent() || runningJob != null) {
             appendConsole("Projeto/painel alterado durante a revisao CNC. Revise novamente os parametros.");
             return false;
         }
         if (decision.edit() != null) {
+            if ("__coverage".equals(decision.edit().field()) && coverage != null) { coverage.run(); return false; }
             setSidebarVisible(true); leftTabs.getSelectionModel().select(toolTab);
             Platform.runLater(() -> {
                 if (panel == toolTab.getContent() && !CncReviewNavigation.focus(panel, decision.edit()))
@@ -7016,6 +7046,44 @@ final class MainWindow implements TclFlatcamHost {
             });
         }
         return decision.proceed() && report.canContinue();
+    }
+
+    private void showCncCoverage(TreeItem<String> item, GeometryEntry entry, GeometryCncToolPanel.Result draft) {
+        if (entry.machiningTarget() == null || geometryByItem.get(item) != entry || runningJob != null)
+            throw new IllegalStateException("Origem/área-alvo mudou; reabra o CNC.");
+        if (draft.preprocessor().isLaser() || draft.preprocessor().isPlotter() || draft.preprocessor().requiresProbe())
+            throw new IllegalArgumentException("Cobertura NCC exige perfil de fresagem sem sondagem.");
+        var owned = new java.util.concurrent.atomic.AtomicReference<JobHandle<?>>();
+        var panel = new CncCoveragePanel(item.getValue(), entry.units(), draft.tools(), plotAreaView::setCoverageResidual,
+                () -> {
+                    if (geometryByItem.get(item) == entry) generateGeometryCncJob(item, entry, draft);
+                    else { appendConsole("Origem alterada: reabra o CNC para revisar."); closeToolPanel(); }
+                }, () -> { var handle = owned.get(); if (handle != null) handle.cancel(); });
+        openToolPanel("Cobertura NCC", panel);
+        var before = captureCamGeneration(item, entry.geometry(), null, null);
+        beginJob("Calculando resíduos nominais NCC..."); activeCamGeneration = before;
+        var handle = jobExecutor.submit(context -> org.flatcam.cam.gcode.MachiningCoverage.calculate(entry.machiningTarget(),
+                entry.units(), draft.tools(), draft.parameters(), draft.parametersByTool(), context::isCancelled,
+                fraction -> context.reportProgress(fraction, "Calculando resíduos nominais por fresa...")), camProgress(before));
+        owned.set(handle); runningJob = handle;
+        activeToolCleanup = () -> { handle.cancel(); clearToolOverlays(); };
+        handle.completion().thenAccept(value -> Platform.runLater(() -> {
+            if (runningJob != handle) return;
+            if (toolTab.getContent() != before.panel()) { onJobFinished(); return; }
+            try {
+                if (acceptCamGeneration(before, handle) && toolTab.getContent() == before.panel()) {
+                    panel.complete(value); setStatus("Cobertura nominal calculada.", IDLE_COLOR);
+                } else panel.failed("Origem/painel alterado; análise descartada. Reabra o CNC.");
+            } catch (CancellationException cancelled) { panel.failed("Cálculo cancelado. Parâmetros preservados."); }
+            finally { if (runningJob == handle) onJobFinished(); }
+        })).exceptionally(error -> {
+            Platform.runLater(() -> {
+                if (runningJob != handle) return;
+                if (toolTab.getContent() == before.panel()) panel.failed(isCancellation(error) ? "Cálculo cancelado. Parâmetros preservados."
+                        : "Não foi possível avaliar a cobertura: " + (error.getCause() == null ? error.getMessage() : error.getCause().getMessage()));
+                reportJobError(error, "Análise de cobertura: "); onJobFinished();
+            }); return null;
+        });
     }
 
     private void preserveSingleJobDefaults(TreeItem<String> item, org.flatcam.app.project.CncJobDefaults defaults) {
@@ -7053,7 +7121,7 @@ final class MainWindow implements TclFlatcamHost {
                         validate.run();
                         CncJobResult job = generated.job();
                         geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
-                                entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters()));
+                                entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters(), entry.machiningTarget()));
                         geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
                                 entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
                                 result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
@@ -9395,7 +9463,7 @@ final class MainWindow implements TclFlatcamHost {
                     geometry.units(), geometry.geometry(), geometry.strokeOnly(), geometry.tools(),
                     colors != null ? colors[0].toString() : null,
                     colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item),
-                    geometry.cncDefaults(), geometryCncSettingsByItem.get(item)));
+                    geometry.cncDefaults(), geometryCncSettingsByItem.get(item), geometry.machiningTarget()));
         }
         ProjectFile.PythonLegacy legacy = currentPythonLegacy;
         if (legacy != null) {
@@ -9591,6 +9659,11 @@ final class MainWindow implements TclFlatcamHost {
                         loaded.units(), loaded.geometry(), loaded.strokeOnly(), loaded.tools(),
                         loaded.cncDefaults());
                 if (loaded.cncSettings() != null) geometryCncSettingsByItem.put(item, loaded.cncSettings());
+                if (loaded.machiningTarget() != null) {
+                    var entry = geometryByItem.get(item);
+                    geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
+                            entry.strokeOnly(), entry.tools(), entry.cncDefaults(), loaded.machiningTarget()));
+                }
                 rememberPythonOrigin(item, "geometry");
                 if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
                     plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),

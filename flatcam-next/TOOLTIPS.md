@@ -1,5 +1,12 @@
 # Revisão dos tooltips
 
+## Cobertura NCC — 2026-10-13
+
+A auditoria inclui o botão **Ver cobertura no Plot** e os controles do painel
+de resíduos. Inventário atualizado: **1096 ocorrências, zero MISSING** no
+cenário construído. Tempo e formatação seguem a política central existente.
+Escopo e limites: [CNC_COVERAGE.md](CNC_COVERAGE.md).
+
 ## Revisão CNC — 2026-10-13
 
 A auditoria também constrói os resumos Geometry e Drilling, incluindo links

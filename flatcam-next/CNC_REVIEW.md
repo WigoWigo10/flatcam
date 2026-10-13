@@ -1,5 +1,13 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Incremento posterior: cobertura nominal NCC
+
+Novos NCC conservam a área-alvo global e individual por CLEAR. O resumo oferece
+**Ver cobertura no Plot**, calculado em segundo plano, com resíduos individuais,
+acumulados e final em laranja. Voltar mantém os parâmetros revisados. Registros
+antigos/genéricos continuam sem alvo e sem inferência de cobertura. Contrato,
+invalidação e testes: [CNC_COVERAGE.md](CNC_COVERAGE.md).
+
 ## Fluxo da interface
 
 Geometry → CNC e Drilling agora abrem **Revisar CNC antes de salvar** entre
@@ -43,11 +51,11 @@ de abrir a revisão. A geração também mantém suas próprias validações.
 
 ## Limites que continuam
 
-A revisão não calcula ou destaca um mapa de regiões não usinadas. Geometry
-armazena trajetos e pode ter perdido a área-alvo da operação CAM; sem essa
-referência não é correto declarar cobertura total. O diálogo informa
-**Cobertura não calculada**. Para NCC/Rest, ainda falta transportar/persistir a
-área-alvo e os resíduos e oferecer sobreposição por fresa no Plot.
+O mapa nominal está disponível para NCC novos com referência preservada, não
+para toda Geometry. Objetos antigos/genéricos podem ter perdido a área-alvo;
+sem ela não é correto declarar cobertura total. O diálogo mantém
+**Cobertura não calculada** nesses casos. Transporte de alvos em transformações
+e outros CAM continua pendente; o mapa não simula remoção física de material.
 
 O Plot é uma prévia 2D: não simula remoção de material, grampos, limites da
 máquina, sensores, G92 ou movimentos internos de macros M6. A revisão não é

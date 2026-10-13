@@ -164,6 +164,7 @@ public final class ProjectFileIO {
                         .put("wkt", wktWriter.write(tool.geometry())));
             }
             geometryJson.put("tools", tools);
+            if (entry.machiningTarget() != null) geometryJson.put("machiningTarget", targetToJson(entry.machiningTarget()));
             geometries.put(geometryJson);
         }
         javaExtra.put("geometries", geometries);
@@ -434,12 +435,39 @@ public final class ProjectFileIO {
                         List.copyOf(tools), value.optString("fillColor", null),
                         value.optString("strokeColor", null), value.optBoolean("visible", true),
                         readGeometryCncDefaults(value.optJSONObject("cncDefaults")),
-                        readGeometrySettings(optionalObject(value, "cncSettings"))));
+                        readGeometrySettings(optionalObject(value, "cncSettings")),
+                        readTarget(optionalObject(value, "machiningTarget"))));
             }
         } catch (ParseException | JSONException | IllegalArgumentException invalid) {
             throw new IOException("Invalid embedded Geometry object", invalid);
         }
         return result;
+    }
+
+    static JSONObject targetToJson(org.flatcam.cam.gcode.MachiningTarget target) {
+        var writer = new WKTWriter(); var areas = new JSONArray(); var references = new JSONObject();
+        var known = new java.util.IdentityHashMap<org.locationtech.jts.geom.Geometry, Integer>();
+        java.util.function.Function<org.locationtech.jts.geom.Geometry, Integer> reference = area ->
+                known.computeIfAbsent(area, value -> { int index = areas.length(); areas.put(writer.write(value)); return index; });
+        int global = reference.apply(target.area());
+        target.toolAreas().forEach((id, area) -> references.put(id.toString(), reference.apply(area)));
+        return new JSONObject().put("operation", target.operation()).put("units", target.units())
+                .put("areas", areas).put("areaRef", global).put("toolAreaRefs", references).put("pathSignature", target.pathSignature());
+    }
+    static org.flatcam.cam.gcode.MachiningTarget readTarget(JSONObject json) throws ParseException {
+        if (json == null) return null;
+        var reader = new WKTReader(); var areas = new LinkedHashMap<Integer, org.locationtech.jts.geom.Geometry>();
+        JSONObject toolAreas = json.getJSONObject("toolAreaRefs"); JSONArray encoded = json.getJSONArray("areas");
+        if (toolAreas.length() > 1000 || encoded.length() > 1001) throw new IllegalArgumentException("Too many machining targets");
+        var decoded = new ArrayList<org.locationtech.jts.geom.Geometry>();
+        for (int i = 0; i < encoded.length(); i++) decoded.add(reader.read(encoded.getString(i)));
+        for (String id : toolAreas.keySet()) areas.put(Integer.parseInt(id), targetAreaAt(decoded, toolAreas.getInt(id)));
+        return new org.flatcam.cam.gcode.MachiningTarget(json.getString("operation"), json.getString("units"),
+                targetAreaAt(decoded, json.getInt("areaRef")), areas, json.getString("pathSignature"));
+    }
+    private static org.locationtech.jts.geom.Geometry targetAreaAt(List<org.locationtech.jts.geom.Geometry> areas, int index) {
+        if (index < 0 || index >= areas.size()) throw new IllegalArgumentException("Invalid machining area reference");
+        return areas.get(index);
     }
 
     private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject json) {

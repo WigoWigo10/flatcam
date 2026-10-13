@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Cobertura nominal NCC — 2026-10-13
+
+**C**: área-alvo de NCC/Rest preservada no FX, mapa nominal de resíduos por
+fresa/acumulado/final no Plot e retorno aos parâmetros, com testes de cálculo,
+persistência MM/IN, UI e pixels nos quatro temas. Não é simulação física,
+cobertura de todo CAM nem comparação diferencial com o Python. Edições e
+transformações invalidam a referência; objetos antigos precisam regenerar NCC.
+O corpus GRBL não mudou e suas divergências continuam. Contrato e pendências:
+[CNC_COVERAGE.md](CNC_COVERAGE.md).
+
 ## Revisão CNC e duas fresas — 2026-10-13
 
 Revisão GUI antes do FileChooser em Geometry e Drilling, com navegação por
