@@ -1,5 +1,22 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Contraste de Connect, Margin e controles equivalentes — 2026-10-13
+
+Reproduzido Connect com Text preto nos dois temas escuros: o skin Modena
+colore o nó Text independentemente de text-fill do CheckBox/RadioButton.
+As duas folhas de componentes agora aplicam a paleta ao texto renderizado,
+mantendo a cor atenuada legível nos estados desabilitados. Rótulos comuns
+dos painéis clássicos recebem a paleta sem depender da árvore da sidebar;
+títulos/erros preservam cores semânticas. Spinner desabilitado em propriedades
+não acumula opacidade sobre o editor. Sem mudanças na lógica Connect/margem.
+
+PanelTextContrastTest verifica contraste efetivo mínimo 4,5:1 (com opacidade),
+quatro temas, alternância de tema/habilitação, painéis de ferramentas/objetos
+e o NCC real (Margin, ambos os Connect, Rest e seleção múltipla).
+23 testes de contraste/tema/tabela/NCC passaram; capturas sintéticas dos temas
+escuros conferidas. Log: target/panel-text-contrast-regressions.log.
+Incremento anterior de passes fechados commitado em c4b9facd; sem push.
+
 ## Passes fechados, múltiplos furos e lacuna Drill slots — 2026-10-13
 
 Altura individual commitada em `5f3daab5`, sem push. Incremento seguinte:

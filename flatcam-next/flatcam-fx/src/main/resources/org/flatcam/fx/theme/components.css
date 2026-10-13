@@ -625,6 +625,23 @@
     -fx-prompt-text-fill: -fc-muted-text;
 }
 
+/* Modena's check/radio skin colours its Text node independently of text-fill.
+ * Use our palette explicitly, including panels hosted outside the sidebar TabPane. */
+.tool-panel .check-box,
+.tool-panel .radio-button,
+.object-panel .check-box,
+.object-panel .radio-button {
+    -fx-text-fill: -fc-panel-text;
+}
+
+/* Set the rendered caption, not only the Labeled control's text-fill. */
+.tool-panel .check-box .text,
+.tool-panel .radio-button .text,
+.object-panel .check-box .text,
+.object-panel .radio-button .text {
+    -fx-fill: -fc-panel-text;
+}
+
 /* Disabled inputs stay readable on dark palettes: the base theme fades them with opacity on top of an already
  * muted colour, which made their text and prompt almost vanish. Keep full opacity and mark them by colour. */
 .tool-panel .text-field:disabled,
@@ -632,6 +649,7 @@
 .tool-panel .combo-box-base:disabled,
 .tool-panel .spinner:disabled,
 .object-panel .text-field:disabled,
+.object-panel .spinner:disabled,
 .object-panel .combo-box-base:disabled {
     -fx-opacity: 1;
     -fx-background-color: -fc-surface;
