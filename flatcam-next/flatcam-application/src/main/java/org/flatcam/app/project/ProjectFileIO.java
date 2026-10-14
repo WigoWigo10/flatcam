@@ -288,7 +288,9 @@ public final class ProjectFileIO {
                     .put("pauseForToolChange", value.pauseForToolChange())
                     .put("multiDepth", value.multiDepth()).put("depthPerPass", value.depthPerPass())
                     .put("dwell", value.dwell()).put("dwellSeconds", value.dwellSeconds())
-                    .put("offsetZ", value.offsetZ()));
+                    .put("offsetZ", value.offsetZ())
+                    .put("drillSlots", value.slots().enabled()).put("slotOverlap", value.slots().overlapPercent())
+                    .put("slotLastHole", value.slots().addLastHole()));
         }
         return result;
     }
@@ -405,7 +407,9 @@ public final class ProjectFileIO {
                     value.getDouble("feedRate"), value.getInt("spindleSpeedRpm"),
                     value.getBoolean("pauseForToolChange"), value.getBoolean("multiDepth"),
                     value.getDouble("depthPerPass"), value.getBoolean("dwell"),
-                    value.getDouble("dwellSeconds"), value.getDouble("offsetZ")));
+                    value.getDouble("dwellSeconds"), value.getDouble("offsetZ"),
+                    new org.flatcam.cam.gcode.DrillSlotParameters(value.optBoolean("drillSlots", false),
+                            value.optDouble("slotOverlap", 0), value.optBoolean("slotLastHole", true))));
         }
         return Map.copyOf(result);
     }

@@ -484,7 +484,7 @@ def xy(job, prefix):
     return "" if job[prefix+"X"] is None else f"{job[prefix+'X']}, {job[prefix+'Y']}"
 
 
-def slot_oracle_case(case,root):
+def slot_oracle_case(case,root,*,enabled_only=False):
     """Original Python Drill slots conversion, not a fake mill or copied algorithm."""
     if not any(tool.get("slots") for tool in case["tools"]): return case
     from copy import deepcopy
@@ -497,12 +497,18 @@ def slot_oracle_case(case,root):
     namespace={"LineString":LineString}
     exec(compile(ast.Module(body=[method],type_ignores=[]),str(source),"exec"),namespace)
     copied=deepcopy(case)
-    overlap=case["job"]["pythonSlotOverlap"]
-    if not 0<=overlap<100: raise ValueError("Invalid slot drilling overlap")
     for tool in copied["tools"]:
+        p=tool.get("parameters",{})
+        if enabled_only and not p.get("fxSlotDrilling",False): continue
+        # Old milling fixtures intentionally compare different operations; new explicit chains
+        # use their per-tool settings. The expected positions come from the ORIGINAL Python body.
+        overlap=p.get("slotOverlap",0) if p.get("fxSlotDrilling",False) else case["job"].get("pythonSlotOverlap",0)
+        last=p.get("slotLastHole",True) if p.get("fxSlotDrilling",False) else case["job"].get("pythonSlotLastHole",True)
+        if not 0<=overlap<100: raise ValueError("Invalid slot drilling overlap")
         spacing=tool["diameter"]*(1-overlap/100)
+        if not math.isfinite(spacing) or spacing<=0: raise ValueError("Invalid slot drilling diameter/spacing")
         for a,b in tool.get("slots",[]):
-            points=namespace["process_slot_as_drills"]((Point(*a),Point(*b)),spacing,case["job"]["pythonSlotLastHole"])
+            points=namespace["process_slot_as_drills"]((Point(*a),Point(*b)),spacing,last)
             tool["points"].extend([[point.x,point.y] for point in points])
         tool["slots"]=[]
     return copied
@@ -543,7 +549,7 @@ def run(args):
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
                 raise ValueError("Unsupported units/operation")
             fx = read_program(case["gcode"])
-            result["fxParameterIssues"] = audit_parameters(case,fx,implementation="fx")
+            result["fxParameterIssues"] = audit_parameters(slot_oracle_case(case,root,enabled_only=True),fx,implementation="fx")
             if case["operation"] == "geometry":
                 result["travelPolicies"] = {"fx":"per-tool Travel Z" if case["job"].get("fxTravelClearance")=="PER_TOOL"
                                             else "job-wide maximum Travel Z", "python":"per-tool Travel Z"}
@@ -552,7 +558,7 @@ def run(args):
         else:
             try:
                 oracle_case=slot_oracle_case(case,root)
-                if oracle_case is not case:
+                if any(tool.get("slots") and not tool.get("parameters",{}).get("fxSlotDrilling",False) for tool in case["tools"]):
                     result["operationDifference"]="FX mills slots end-to-end; Python Drill slots drills overlapping point chains. Not equivalent operations."
                     result["pythonSlotPoints"]={str(tool["id"]):tool["points"] for tool in oracle_case["tools"]}
                 program = python_program(oracle_case,root,app,camlib)
@@ -572,8 +578,8 @@ def run(args):
                     firstExecutionDifference=first_difference(fx["events"],python["events"]),
                     firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)),
                     rapidMetrics={"fx":rapid_metrics(fx),"python":rapid_metrics(python)})
-                if not machining and case["operation"]=="drilling" and not any(tool.get("slots") for tool in case["tools"]) \
-                        and any(len(tool.get("points",[]))>1 for tool in case["tools"]) \
+                if not machining and case["operation"]=="drilling" and not any(tool.get("slots") and not tool.get("parameters",{}).get("fxSlotDrilling",False) for tool in case["tools"]) \
+                        and any(len(tool.get("points",[]))>1 for tool in oracle_case["tools"]) \
                         and not result["fxParameterIssues"] and not result["pythonParameterIssues"]:
                     result["orderingDifference"]="Both pass requested hole multiplicity, depths and feeds; ordered cutting events differ. Strict comparison is unchanged."
                 (args.output/(case["id"]+".trace.json")).write_text(json.dumps({"fx":fx,"python":python},indent=2),encoding="utf-8")

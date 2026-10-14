@@ -1,5 +1,14 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Incremento posterior: Drill slots — 2026-10-14
+
+Detalhes por broca mostram operação dos rasgos (furos sobrepostos ou fresagem),
+overlap e último furo. Aviso para Drill slots explica que círculos podem deixar
+material e não equivalem à fresagem integral; link abre `drill-slots`.
+Não mantém o aviso de corte lateral quando a ferramenta vai apenas mergulhar.
+Os números Furos / rasgos no resumo são da origem, não o total convertido;
+conversão/validação final ocorre no worker antes de gravar. Prévia continua 2D.
+
 ## Incremento posterior: passes contínuos fechados
 
 Estratégia exibe também **Contínua, mesma direção (contornos fechados)**.

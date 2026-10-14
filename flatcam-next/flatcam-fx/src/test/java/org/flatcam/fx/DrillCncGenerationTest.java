@@ -22,6 +22,20 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class DrillCncGenerationTest {
+    @Test void convertedSlotsCanCancelDuringPreparationWithoutTouchingTheExistingFile() throws Exception {
+        Path output = directory.resolve("slots.nc"); Files.writeString(output,"original");
+        var image = ExcellonImage.of("MM",Map.of(1,.001),List.of(),
+                List.of(new ExcellonImage.Slot(1,10,0,20,0)),factory.createPolygon());
+        var params = new DrillGCodeParameters(3,1,100,0,false).withSlots(new DrillSlotParameters(true,0,true));
+        var cancelled = new AtomicBoolean();
+        assertThrows(CancellationException.class, () -> DrillCncGeneration.generate(image,Map.of(1,params),List.of(1),
+                new GCodeGenerator.DrillJobOptions(false,15,5,null,null),GCodePreprocessor.GRBL_11_NO_M6,output,
+                context(cancelled,(fraction,phase) -> { if (fraction>0 && fraction<.08) cancelled.set(true); }),
+                () -> fail("must not publish cancelled conversion")));
+        assertEquals("original",Files.readString(output)); noTemporaries();
+        assertEquals(1,image.totalSlots()); assertEquals(0,image.totalDrills());
+    }
+
     @TempDir Path directory;
     private final GeometryFactory factory = new GeometryFactory();
     private ExcellonImage image(double x) {

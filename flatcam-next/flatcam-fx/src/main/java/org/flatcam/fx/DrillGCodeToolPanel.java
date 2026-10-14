@@ -71,6 +71,9 @@ final class DrillGCodeToolPanel {
         boolean dwell;
         String dwellTime;
         String offsetZ;
+        boolean drillSlots;
+        String slotOverlap = "0.0";
+        boolean slotLastHole = true;
 
         ToolRow(int id, double diameter, int drills, int slots, boolean metric) {
             this.id = id;
@@ -98,7 +101,9 @@ final class DrillGCodeToolPanel {
                     roland ? 0 : parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange,
                     multiDepth, multiDepth ? parse(depthPerPass, "Depth per pass (Tool " + id + ")") : 0,
                     !roland && dwell, !roland && dwell ? parse(dwellTime, "Dwell time (Tool " + id + ")") : 0,
-                    parse(offsetZ, "Offset Z (Tool " + id + ")"));
+                    parse(offsetZ, "Offset Z (Tool " + id + ")"),
+                    new org.flatcam.cam.gcode.DrillSlotParameters(drillSlots,
+                            parse(slotOverlap, "Drill slots overlap (Tool " + id + ")"), slotLastHole));
         }
 
         void applyDatabaseTool(LegacyToolsDatabase.DrillTool tool) {
@@ -115,6 +120,9 @@ final class DrillGCodeToolPanel {
             dwell = values.dwell();
             dwellTime = Double.toString(values.dwellSeconds());
             offsetZ = Double.toString(values.offsetZ());
+            drillSlots = values.slots().enabled();
+            slotOverlap = Double.toString(values.slots().overlapPercent());
+            slotLastHole = values.slots().addLastHole();
         }
     }
 
@@ -222,6 +230,17 @@ final class DrillGCodeToolPanel {
         multiDepth.setTooltip(new Tooltip("Desce em etapas e retrai entre passes."));
         dwell.setTooltip(new Tooltip("Espera apos ligar o spindle antes de furar."));
         offsetZ.setTooltip(new Tooltip("Valor positivo aumenta a profundidade; negativo reduz."));
+        CheckBox drillSlots = new CheckBox("Drill slots — furar rasgos");
+        drillSlots.setId("drill-slots");
+        TextField slotOverlap = field("0.0"); slotOverlap.setId("drill-slot-overlap");
+        CheckBox slotLastHole = new CheckBox("Último furo no fim do rasgo");
+        slotLastHole.setId("drill-slot-last-hole");
+        ToolDescriptions.apply(drillSlots, "Furar rasgos por ferramenta",
+                "Ativado: converte os rasgos desta ferramenta em uma sequência de furos sobrepostos, como Drill slots no Python. Usa o diâmetro real do Excellon.\n\nDesativado: preserva a fresagem lateral ao longo do rasgo. Não altera o arquivo de origem; confira se a ferramenta admite a operação escolhida.");
+        ToolDescriptions.apply(slotOverlap, "Sobreposição dos furos (%)",
+                "Passo entre centros = diâmetro × (1 − sobreposição / 100). Aceita 0 até menos de 100%. Pertence a cada ferramenta; não muda a sobreposição de NCC/Paint.\n\nSobreposição alta gera muitos furos. Há limite de um milhão de furos convertidos por tarefa para evitar esgotar memória. O trabalho pode ser cancelado.");
+        ToolDescriptions.apply(slotLastHole, "Furo final do rasgo",
+                "Adiciona um furo no ponto final quando a distância até o último centro é pelo menos um décimo do passo, como no Python. Desativado: para no último centro intermediário.\n\nA sequência de círculos não é equivalente a fresar o contorno: pode deixar material entre furos. Confira a prévia 2D e o processo físico.");
         boolean[] loading = {false};
         Runnable loadSelection = () -> {
             List<ToolRow> selected = table.getSelectionModel().getSelectedItems();
@@ -243,6 +262,9 @@ final class DrillGCodeToolPanel {
                     ? row.dwellTime : "");
             offsetZ.setText(selected.stream().allMatch(tool -> tool.offsetZ.equals(row.offsetZ))
                     ? row.offsetZ : "");
+            drillSlots.setSelected(selected.stream().allMatch(tool -> tool.drillSlots));
+            slotOverlap.setText(selected.stream().allMatch(tool -> tool.slotOverlap.equals(row.slotOverlap)) ? row.slotOverlap : "");
+            slotLastHole.setSelected(selected.stream().allMatch(tool -> tool.slotLastHole));
             loading[0] = false;
         };
         table.getSelectionModel().getSelectedItems().addListener(
@@ -258,6 +280,13 @@ final class DrillGCodeToolPanel {
         bindDraft(depthPerPass, table, loading, (row, value) -> row.depthPerPass = value);
         bindDraft(dwellTime, table, loading, (row, value) -> row.dwellTime = value);
         bindDraft(offsetZ, table, loading, (row, value) -> row.offsetZ = value);
+        bindDraft(slotOverlap, table, loading, (row, value) -> row.slotOverlap = value);
+        drillSlots.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loading[0]) List.copyOf(table.getSelectionModel().getSelectedItems()).forEach(row -> row.drillSlots = value);
+        });
+        slotLastHole.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loading[0]) List.copyOf(table.getSelectionModel().getSelectedItems()).forEach(row -> row.slotLastHole = value);
+        });
         multiDepth.selectedProperty().addListener((observable, oldValue, value) -> {
             if (!loading[0]) List.copyOf(table.getSelectionModel().getSelectedItems())
                     .forEach(row -> row.multiDepth = value);
@@ -275,6 +304,9 @@ final class DrillGCodeToolPanel {
         depthPerPass.disableProperty().bind(noneSelected.or(multiDepth.selectedProperty().not()));
         dwellTime.disableProperty().bind(noneSelected.or(dwell.selectedProperty().not()));
         offsetZ.disableProperty().bind(noneSelected);
+        drillSlots.disableProperty().bind(noneSelected);
+        slotOverlap.disableProperty().bind(noneSelected.or(drillSlots.selectedProperty().not()));
+        slotLastHole.disableProperty().bind(noneSelected.or(drillSlots.selectedProperty().not()));
 
         GridPane perTool = new GridPane();
         perTool.setHgap(8);
@@ -287,6 +319,9 @@ final class DrillGCodeToolPanel {
         perTool.addRow(4, spindleLabel, spindle);
         perTool.addRow(5, dwell, dwellTime);
         perTool.addRow(6, new Label("Offset Z:"), offsetZ);
+        perTool.addRow(7, drillSlots);
+        perTool.addRow(8, new Label("Drill slots overlap (%):"), slotOverlap);
+        perTool.addRow(9, slotLastHole);
         Label machiningNote = new Label("Dwell espera apos iniciar o spindle; Offset Z altera Cut Z.");
         machiningNote.setWrapText(true);
         machiningNote.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
@@ -354,6 +389,9 @@ final class DrillGCodeToolPanel {
                     row.dwell = source.dwell;
                     row.dwellTime = source.dwellTime;
                     row.offsetZ = source.offsetZ;
+                    row.drillSlots = source.drillSlots;
+                    row.slotOverlap = source.slotOverlap;
+                    row.slotLastHole = source.slotLastHole;
                 }
                 feedback.setText("Parametros copiados para todas as ferramentas.");
             } catch (RuntimeException error) { feedback.setText(error.getMessage()); }
@@ -388,7 +426,7 @@ final class DrillGCodeToolPanel {
         endMoveXY.setId("drill-end-xy");
         endMoveXY.setPromptText("None ou X,Y");
         CheckBox optimizeDrills=new CheckBox("Otimizar sequência dos furos por proximidade"); optimizeDrills.setId("drill-optimize-order");
-        ToolDescriptions.apply(optimizeDrills,"Ordem dos furos","Visita o próximo furo mais perto dentro de cada ferramenta, partindo da posição real após a troca. Não elimina furos repetidos nem muda profundidades. Não mistura ferramentas ou slots, não garante ótimo global e usa distância direta, não custo dos desvios Around/Over.");
+        ToolDescriptions.apply(optimizeDrills,"Ordem dos furos","Visita o próximo furo mais perto dentro de cada ferramenta, partindo da posição real após a troca. Inclui os furos convertidos por Drill slots; não reordena rasgos fresados. Não elimina furos repetidos nem muda profundidades. Não mistura ferramentas, não garante ótimo global e usa distância direta, não custo dos desvios Around/Over.");
         endMoveXY.setTooltip(new Tooltip("Posição final X,Y; None mantém o último furo. Use X;Y para duas coordenadas. "
                 + "Mantém pelo menos o Travel Z da última ferramenta durante o deslocamento, mesmo sem exclusões; "
                 + "só depois alcança End move Z no destino. Around/Over também protegem a rota.\n\nAtenção: "

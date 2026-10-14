@@ -358,7 +358,9 @@ public final class LegacyToolsDatabase {
                         data.optDouble("tools_drill_depthperpass", 0.7),
                         data.optBoolean("tools_drill_dwell", false),
                         data.optDouble("tools_drill_dwelltime", 1.0),
-                        data.optDouble("tools_drill_offset", 0));
+                        data.optDouble("tools_drill_offset", 0),
+                        new org.flatcam.cam.gcode.DrillSlotParameters(data.optBoolean("tools_drill_drill_slots", false),
+                                data.optDouble("tools_drill_drill_overlap", 0), data.optBoolean("tools_drill_last_drill", true)));
                 tools.add(new DrillTool(entry.optString("name", "Tool " + id), diameter,
                         toleranceMin, toleranceMax, parameters, CncJobDefaults.fromLegacy(data, true)));
             } catch (RuntimeException error) {

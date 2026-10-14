@@ -47,10 +47,11 @@ class PythonCncParametersExportTest {
                 cases.put(multitoolGeometry(units,scale,continuous,separated,GeometryTravelClearance.PER_TOOL));
             for (String recipe:List.of("ring-single","ring-continuous","ring-alternating","polygon-single","polygon-continuous",
                     "point-single","point-continuous","point-retract","closed-line-same")) cases.put(typedGeometry(units,scale,recipe));
-            for (String recipe:List.of("source","nearest","peck-nearest","two-tools-nearest","slot-single","slot-peck"))
+            for (String recipe:List.of("source","nearest","peck-nearest","two-tools-nearest","slot-single","slot-peck",
+                    "slot-chain-single","slot-chain-peck","slot-chain-no-last","slot-chain-zero-overlap","slot-chain-nearest","slot-chain-dwell"))
                 cases.put(multipleDrills(units,scale,recipe));
         }
-        assertEquals(92, cases.length());
+        assertEquals(104, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
@@ -199,9 +200,11 @@ class PythonCncParametersExportTest {
     }
     private JSONObject multipleDrills(String units,double s,String recipe) {
         boolean slot=recipe.startsWith("slot"); boolean two=recipe.equals("two-tools-nearest");
-        boolean peck=recipe.equals("peck-nearest") || recipe.equals("slot-peck");
+        boolean peck=recipe.contains("peck");
         boolean optimize=recipe.endsWith("nearest");
-        var first=new DrillGCodeParameters(3*s,1.1*s,100*s,10000,true,peck,.4*s,false,0,0);
+        var first=new DrillGCodeParameters(3*s,1.1*s,100*s,10000,true,peck,.4*s,recipe.endsWith("dwell"),.5,0);
+        if (recipe.contains("chain")) first=first.withSlots(new org.flatcam.cam.gcode.DrillSlotParameters(true,
+                recipe.endsWith("zero-overlap") ? 0 : 25, !recipe.endsWith("no-last")));
         var second=new DrillGCodeParameters(4*s,1.3*s,75*s,12000,true,true,.5*s,false,0,0);
         var drills=new java.util.ArrayList<ExcellonImage.Drill>();
         if (!slot) for (double x:new double[]{14,10,12,10}) drills.add(new ExcellonImage.Drill(1,x*s,0));
@@ -225,7 +228,8 @@ class PythonCncParametersExportTest {
     private static JSONObject drillParameters(DrillGCodeParameters p) {
         return new JSONObject().put("safeZ",p.safeZ()).put("depth",p.drillDepth()).put("feedZ",p.feedRate()).put("feed",p.feedRate())
                 .put("rpm",p.spindleSpeedRpm()).put("multiDepth",p.multiDepth()).put("depthPerPass",p.depthPerPass())
-                .put("dwell",p.dwell()).put("dwellSeconds",p.dwellSeconds()).put("offsetZ",p.offsetZ());
+                .put("dwell",p.dwell()).put("dwellSeconds",p.dwellSeconds()).put("offsetZ",p.offsetZ())
+                .put("fxSlotDrilling",p.slots().enabled()).put("slotOverlap",p.slots().overlapPercent()).put("slotLastHole",p.slots().addLastHole());
     }
     private static JSONObject job(GCodeGenerator.DrillJobOptions p) {
         var exclusions = new JSONArray();

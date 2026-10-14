@@ -90,6 +90,32 @@ class CncReaderTest(unittest.TestCase):
         source["tools"][0]["parameters"]["fxPassStrategy"]="RETRACT_SAME_DIRECTION"
         self.assertIn("T1: depths/count differ from the requested passes",audit_parameters(source,final,implementation="fx"))
 
+    def test_explicit_per_tool_slot_settings_do_not_convert_milling_tools_in_fx_audit(self):
+        from pathlib import Path
+        source=case()
+        tool=source["tools"][0]
+        tool.update(points=[],slots=[[[10,0],[12,0]]],diameter=1)
+        tool["parameters"].update(fxSlotDrilling=True,slotOverlap=25,slotLastHole=False)
+        other=copy.deepcopy(tool); other["id"]=2; other["parameters"]["fxSlotDrilling"]=False
+        source["tools"].append(other)
+        converted=slot_oracle_case(source,Path(__file__).resolve().parents[2],enabled_only=True)
+        self.assertEqual([[10,0],[10.75,0],[11.5,0]],converted["tools"][0]["points"])
+        self.assertEqual([],converted["tools"][0]["slots"])
+        self.assertEqual([],converted["tools"][1]["points"])
+        self.assertEqual(other["slots"],converted["tools"][1]["slots"])
+        self.assertNotEqual(source,converted)
+        self.assertEqual(1,len(source["tools"][0]["slots"]))
+
+    def test_original_diagonal_slot_can_stop_early_on_exact_within_predicate(self):
+        from pathlib import Path
+        source=case(); tool=source["tools"][0]
+        source["job"].update(pythonSlotOverlap=0,pythonSlotLastHole=True)
+        tool.update(points=[],slots=[[[3,4],[0,0]]],diameter=1)
+        converted=slot_oracle_case(source,Path(__file__).resolve().parents[2])
+        # Locked Shapely 1.8.5.post1 / GEOS 3.10.3 oracle: do not hide its numerical
+        # early-stop defect or change the legacy body to make it match FX's six centres.
+        self.assertEqual([[3,4],[0,0]],converted["tools"][0]["points"])
+
     def test_original_slot_conversion_is_a_drill_chain_and_does_not_change_the_case(self):
         from pathlib import Path
         source=case(); tool=source["tools"][0]

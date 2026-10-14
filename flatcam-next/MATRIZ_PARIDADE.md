@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Drill slots — 2026-10-14
+
+Furar rasgos por sobreposição/último furo, por ferramenta, preservando fresagem
+desativada: **C** (core, painel/revisão, worker/cancelamento, codecs e DB).
+Corpus GRBL 104: mesmos 49 equivalentes; 12 casos novos concordam em centros,
+multiplicidade/profundidade/avanços, mas a ordem de corte difere (**não A**).
+92 classificações anteriores intactas. O percentual global não é inferido
+desse corpus; app Python real/manual/máquina e outros perfis permanecem limites.
+[CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+
 ## Contornos tipados e furação múltipla — 2026-10-13
 
 Modo contínuo mesma direção para fechados, validação de abertos, persistência/

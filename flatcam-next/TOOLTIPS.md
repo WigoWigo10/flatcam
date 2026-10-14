@@ -1,5 +1,14 @@
 # Revisão dos tooltips
 
+## Drill slots — 2026-10-14
+
+Drilling tem ajuda explícita para ativar furos sobrepostos por ferramenta,
+passo por diâmetro/sobreposição, limite de quantidade ajustável futuramente,
+regra de último furo e possibilidade de material residual. Desativado preserva
+fresagem lateral. Ordem por proximidade agora informa que inclui centros
+convertidos, mas não reordena rasgos fresados. Revisão diferencia as operações.
+Inventário: 1104 ocorrências, zero `MISSING` na rodada completa.
+
 ## Passes contínuos fechados — 2026-10-13
 
 Estratégia de passes distingue retração, alternância e contínuo na mesma

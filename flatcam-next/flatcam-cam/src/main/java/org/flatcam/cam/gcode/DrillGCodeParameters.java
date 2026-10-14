@@ -16,6 +16,7 @@ package org.flatcam.cam.gcode;
  * @param dwell               pause after starting the spindle for this tool
  * @param dwellSeconds        G4 P duration, in seconds
  * @param offsetZ             signed extra depth; positive values drill deeper, matching Python's Offset Z
+ * @param slots               optional per-tool overlapping drill chain; milling remains the backward-compatible default
  */
 public record DrillGCodeParameters(
         double safeZ,
@@ -27,8 +28,20 @@ public record DrillGCodeParameters(
         double depthPerPass,
         boolean dwell,
         double dwellSeconds,
-        double offsetZ
+        double offsetZ,
+        DrillSlotParameters slots
 ) {
+    public DrillGCodeParameters(double safeZ, double drillDepth, double feedRate, int spindleSpeedRpm,
+                                boolean pauseForToolChange, boolean multiDepth, double depthPerPass,
+                                boolean dwell, double dwellSeconds, double offsetZ) {
+        this(safeZ, drillDepth, feedRate, spindleSpeedRpm, pauseForToolChange, multiDepth, depthPerPass,
+                dwell, dwellSeconds, offsetZ, DrillSlotParameters.milling());
+    }
+
+    public DrillGCodeParameters withSlots(DrillSlotParameters value) {
+        return new DrillGCodeParameters(safeZ, drillDepth, feedRate, spindleSpeedRpm, pauseForToolChange,
+                multiDepth, depthPerPass, dwell, dwellSeconds, offsetZ, value);
+    }
     public DrillGCodeParameters(double safeZ, double drillDepth, double feedRate,
                                 int spindleSpeedRpm, boolean pauseForToolChange) {
         this(safeZ, drillDepth, feedRate, spindleSpeedRpm, pauseForToolChange,
@@ -36,6 +49,7 @@ public record DrillGCodeParameters(
     }
 
     public DrillGCodeParameters {
+        java.util.Objects.requireNonNull(slots, "slots");
         if (!Double.isFinite(safeZ) || safeZ <= 0) {
             throw new IllegalArgumentException("safeZ must be positive (retract height above the surface): " + safeZ);
         }

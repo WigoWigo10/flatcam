@@ -270,7 +270,9 @@ public final class PythonProjectIO {
                         data.optDouble("tools_drill_depthperpass", 0),
                         data.optBoolean("tools_drill_dwell", false),
                         data.optDouble("tools_drill_dwelltime", 0),
-                        data.optDouble("tools_drill_offset", 0)));
+                        data.optDouble("tools_drill_offset", 0),
+                        new org.flatcam.cam.gcode.DrillSlotParameters(data.optBoolean("tools_drill_drill_slots", false),
+                                data.optDouble("tools_drill_drill_overlap", 0), data.optBoolean("tools_drill_last_drill", true))));
             } catch (RuntimeException invalid) {
                 // Invalid optional CAM defaults must not discard the drills themselves.
             }

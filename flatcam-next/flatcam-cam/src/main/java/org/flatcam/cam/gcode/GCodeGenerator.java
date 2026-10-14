@@ -216,6 +216,38 @@ public final class GCodeGenerator {
             throw new IllegalArgumentException("Tool change Z deve ser maior ou igual ao maior Travel Z das ferramentas.");
 
         Map<Integer, CncExclusionPlanner> planners = new java.util.HashMap<>();
+        // Resolve only selected tools, append to existing holes, and reuse the normal drilling pipeline
+        // (peck, nearest order, footprints, exclusions and cancellation). Never mutate the source image.
+        long convertedSlots = ordered.stream().filter(id -> settingsByTool.get(id).slots().enabled())
+                .mapToLong(id -> slotsByTool.getOrDefault(id, List.of()).size()).sum();
+        if (convertedSlots > 0) {
+            ProgressCallback requestedProgress = progress;
+            requestedProgress.report(0);
+            long doneSlots = 0;
+            long[] generatedHoles = {0};
+            for (int id : ordered) {
+                DrillSlotParameters slotSettings = settingsByTool.get(id).slots();
+                if (!slotSettings.enabled()) continue;
+                List<ExcellonImage.Slot> slots = slotsByTool.getOrDefault(id, List.of());
+                if (slots.isEmpty()) continue;
+                Double diameter = image.toolDiameters().get(id);
+                if (diameter == null) throw new IllegalArgumentException("Drill slots exige diâmetro real para T" + id + ".");
+                List<ExcellonImage.Drill> holes = new ArrayList<>(drillsByTool.getOrDefault(id, List.of()));
+                for (var slot : slots) {
+                    long before = doneSlots;
+                    slotSettings.emit(slot, diameter, cancellation,
+                            fraction -> requestedProgress.report(0.1 * (before + fraction) / convertedSlots), hole -> {
+                                if (++generatedHoles[0] > DrillSlotParameters.MAX_HOLES)
+                                    throw new IllegalArgumentException("Drill slots excede o limite total de furos gerados nesta tarefa.");
+                                holes.add(hole);
+                            });
+                    doneSlots++;
+                }
+                drillsByTool.put(id, holes);
+                slotsByTool.remove(id);
+            }
+            progress = fraction -> requestedProgress.report(0.1 + 0.9 * fraction);
+        }
         long featureCount = ordered.stream().mapToLong(id -> drillsByTool.getOrDefault(id, List.of()).size()
                 + slotsByTool.getOrDefault(id, List.of()).size()).sum();
         long completed = 0;

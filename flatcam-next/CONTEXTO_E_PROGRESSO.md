@@ -1,5 +1,30 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Drill slots — 2026-10-14
+
+Contraste commitado em `a3bfa7d5`. Nova lacuna implementada: Drilling converte
+rasgos em furos sobrepostos opcionalmente, por ferramenta. Fresagem anterior
+mantida por padrão; overlap <100%, último furo, diâmetro real obrigatório.
+Reutiliza peck, seleção, proximidade, exclusões por raio, footprint, preview,
+progresso e cancelamento do worker. Limite de um milhão de centros convertidos
+por tarefa/rasgo, ajustável futuramente. Arquivo/fonte não mudam no cancelamento.
+Native JSON/XZ e chaves Python/DB preservam os parâmetros; UI e revisão têm
+tooltips/avisos para material residual e broca versus fresagem.
+
+Corpus 104, 49 equivalentes completos, zero erro FX; 12 novos controles têm
+centros/multiplicidade/profundidade/avanços corretos, mas ordem Python diferente.
+92 status anteriores intactos; strict 1 continua significativo. Não chamar
+furos de cápsula fresada nem copiar rotas mais longas só pelo placar.
+Detalhes/limites/evidência em [CNC_PARAMETER_PARITY.md](CNC_PARAMETER_PARITY.md).
+Próxima verificação útil: projeto público com esses novos parâmetros regravado
+no aplicativo Python real, depois conferir o G-code/rotas por broca. Não houve
+validação física, nem alteração dos projetos privados/preferências do usuário.
+Verify completo passou: 1710 testes, 18 skips opcionais, zero falhas/erros
+(1728 registros, incluindo 20 de test-support); 27 testes Python auxiliares
+passaram. Primeira rodada falhou na limpeza TempDir de dois testes Tcl; segunda
+passou sem alterar/suprimir testes. Logs `target/drill-slots-full*-20261014.log`.
+Inventário de tooltips: 1104, zero faltantes. Alterações ainda sem commit.
+
 ## Contraste de Connect, Margin e controles equivalentes — 2026-10-13
 
 Reproduzido Connect com Text preto nos dois temas escuros: o skin Modena

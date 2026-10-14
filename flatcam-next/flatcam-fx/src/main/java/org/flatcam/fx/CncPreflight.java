@@ -131,11 +131,16 @@ final class CncPreflight {
                     value("Profundidade efetiva", number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z + Offset Z)", id, "drill-cut-z"),
                     value("Offset Z", number(p.offsetZ()), id, "drill-offset-z"),
                     value("Passes", passes(p.effectiveDepth(), p.multiDepth(), p.depthPerPass()), id, "drill-multi-depth"),
-                    value("Dwell", p.dwell() ? number(p.dwellSeconds()) + " s" : "Desativado", id, "drill-dwell-time"));
+                    value("Dwell", p.dwell() ? number(p.dwellSeconds()) + " s" : "Desativado", id, "drill-dwell-time"),
+                    value("Operação dos rasgos", p.slots().enabled() ? "Drill slots: furos sobrepostos" : "Fresagem lateral", id, "drill-slots"),
+                    value("Sobreposição / último furo", number(p.slots().overlapPercent()) + "% / "
+                            + (p.slots().addLastHole() ? "Ativado" : "Desativado"), id, "drill-slot-overlap"));
             rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? " (vazia)" : ""), number(image.toolDiameters().get(id)), number(-p.effectiveDepth()),
                     number(p.safeZ()), "—", number(p.feedRate()), profile.isRoland() ? "—" : number(p.spindleSpeedRpm()), details));
             if (count[0] + count[1] == 0) issues.add(new Issue(false, "T" + id + " não contém furos nem rasgos.", target(id, "drill-tools")));
-            if (count[1] > 0) issues.add(new Issue(false, "T" + id + ": rasgos são fresados ao longo do eixo; confirme a ferramenta e o avanço lateral. Não é apenas mergulho de broca.", target(id, "drill-feed-z")));
+            if (count[1] > 0) issues.add(new Issue(false, p.slots().enabled()
+                    ? "T" + id + ": Drill slots converte rasgos em furos. A sequência pode deixar material entre círculos; não equivale à fresagem integral. Confira a prévia e a adequação da broca."
+                    : "T" + id + ": rasgos são fresados ao longo do eixo; confirme a ferramenta e o avanço lateral. Não é apenas mergulho de broca.", target(id, "drill-slots")));
             if (p.spindleSpeedRpm() == 0 && !profile.isRoland())
                 issues.add(new Issue(false, "T" + id + ": RPM zero não liga automaticamente o spindle nem garante a parada final. "
                         + "Confira acionamento/parada manuais; trocas ativadas podem pará-lo antes da pausa.", target(id, "drill-power")));

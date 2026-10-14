@@ -95,7 +95,9 @@ public final class PythonProjectWriter {
                             .put("tools_drill_travelz",p.safeZ()).put("tools_drill_feedrate_z",p.feedRate())
                             .put("tools_drill_spindlespeed",p.spindleSpeedRpm()).put("tools_drill_multidepth",p.multiDepth())
                             .put("tools_drill_depthperpass",p.depthPerPass()).put("tools_drill_dwell",p.dwell())
-                            .put("tools_drill_dwelltime",p.dwellSeconds()).put("tools_drill_offset",p.offsetZ());
+                            .put("tools_drill_dwelltime",p.dwellSeconds()).put("tools_drill_offset",p.offsetZ())
+                            .put("tools_drill_drill_slots",p.slots().enabled()).put("tools_drill_drill_overlap",p.slots().overlapPercent())
+                            .put("tools_drill_last_drill",p.slots().addLastHole());
                     // Explicit ordinary positions require their common settings in legacy keys too.
                     // Do not broaden the existing probe/machine-specific exporter here.
                     if (entry.cncSettings() != null && (entry.cncSettings().options().startZ() != null

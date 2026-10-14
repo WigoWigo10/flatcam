@@ -1,5 +1,65 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Drill slots: alternativa explícita à fresagem — 2026-10-14
+
+Drilling oferece **Drill slots — furar rasgos**, sobreposição (0 ≤ valor < 100%)
+e último furo, por ferramenta. Desativado mantém a fresagem lateral anterior.
+Ativado acrescenta centros interpolados aos furos da ferramenta, sem deduplicar,
+usando passo `diâmetro × (1 − sobreposição/100)` e a regra Python para último
+centro (distância ≥ passo/10). Rasgo degenerado gera um centro; conversão exige
+diâmetro real positivo. A fonte Excellon não muda. Furos convertidos usam peck,
+offset/profundidade, seleção/ordem de ferramenta, proximidade opcional e as
+mesmas exclusões por raio/rotas dos furos existentes. Prévia mostra círculos,
+não uma cápsula fresada. Não comprova remoção integral nem segurança física.
+
+Parâmetros persistidos no nativo JSON/XZ, snapshot FX de `.FlatPrj` e chaves
+Python `tools_drill_drill_slots`, `tools_drill_drill_overlap`,
+`tools_drill_last_drill`; importação Python/Tools Database reconhece as chaves.
+Ausência das novas chaves nativas mantém fresagem. Restos de material entre
+furos e diferença entre broca/fresa são avisados no tooltip/resumo.
+
+Conversão roda no worker, com progresso/cancelamento antes da publicação
+atômica. Limite preventivo: um milhão de furos convertidos por tarefa e rasgo;
+**ajustável futuramente**, não uma tolerância geométrica. Recusa explosão de
+quantidade, 100%/NaN/diâmetro inválido, sem substituir o arquivo escolhido.
+
+Corpus GRBL **104**: 49 MATCH_EXECUTION, 19 ROUTING_DIFFERENT,
+34 MACHINING_DIFFERENT, 2 ORACLE_ERROR, zero FX_ERROR. Os 92 status anteriores
+ficaram iguais. Os 12 novos controles (MM/IN, passe único/peck, último furo,
+zero overlap, proximidade e dwell) passam auditoria de centros/multiplicidade,
+profundidades e avanços nos dois geradores, mas diferem na **ordem dos cortes**;
+strict continua reprovado, sem ampliar tolerância. No exemplo simples MM,
+FX percorre 12 mm de rápidos XY contra 13,25 mm do Python. Não copiar uma ordem
+mais longa para aumentar o placar. O auditor obtém os centros esperados do
+**corpo original** `ToolDrilling.process_slot_as_drills`, não do algoritmo FX.
+Os quatro controles antigos de rasgos fresados continuam marcando operações
+diferentes; ativar Drill slots não redefine retroativamente esses casos.
+
+Evidência: `target/drill-slots-oracle-20261014/python-reviewed/index.html`;
+`DrillSlotsTest`, `DrillSlotsPersistenceTest`, `DrillSlotsPanelTest` e teste de
+cancelamento do worker. O round-trip do aplicativo Python real após regravar
+esses novos parâmetros ainda não foi executado; testes aqui são de codecs e
+geradores. A UI Python pode aplicar overlap/último furo do controle comum;
+valores distintos por ferramenta no FX não provam a mesma geração no legado.
+
+Outro limite observado ao inspecionar o conversor original: com diâmetro 1,
+overlap 0 e rasgo diagonal `(3,4) → (0,0)`, Python/GEOS 3.10.3 retorna só início
+e fim; o `within(LineString)` rejeita o primeiro centro interpolado por precisão
+numérica. FX mantém os seis centros do passo unitário, cobertos no teste do
+core. Não reproduzir a perda de furos do legado. Os 12 controles de comparação
+novos são horizontais; não abrangem essa divergência diagonal nem todo Excellon.
+
+27 testes auxiliares do leitor/auditor Python passaram, incluindo controle
+individual de rasgos/último furo e registro da divergência diagonal. Fontes
+Python/GEOS do oráculo permanecem intactas (SHA-256 conferido pelo harness).
+
+Build completo `verify` aprovado: 1728 registrados, **1710 passaram**, 18 skips
+opcionais e zero falhas/erros, incluindo test-support. Log final:
+`target/drill-slots-full-retry-20261014.log`. Primeira rodada teve dois erros
+de limpeza `@TempDir` em TclLiveHostTest (arquivo em uso/DirectoryNotEmpty),
+não falhas de asserção; nenhum teste foi alterado/suprimido para a repetição.
+Log inicial preservado em `target/drill-slots-full-20261014.log`.
+
 ## Tipos de contorno, múltiplos furos e rasgos — 2026-10-13
 
 Novo modo explícito Geometry **Contínuo; mesma direção (fechados)**:
