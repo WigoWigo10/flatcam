@@ -48,6 +48,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
@@ -856,6 +857,15 @@ final class MainWindow implements TclFlatcamHost {
                     && !anyObjectEditorActive() && !plotAreaView.isEditorActive()
                     && projectTree.getEditingItem() == null) {
                 selectAllObjects();
+                event.consume();
+            } else if ((event.getCode() == KeyCode.O || event.getCode() == KeyCode.J)
+                    && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
+                    && !anyObjectEditorActive() && !plotAreaView.isEditorActive()
+                    && projectTree.getEditingItem() == null) {
+                if (event.getCode() == KeyCode.J) { if (!event.isShiftDown()) askJumpToLocation(); }
+                else if (event.isShiftDown()) moveSelectionToOrigin();
+                else beginSetOrigin();
                 event.consume();
             } else if (event.getCode() == KeyCode.G && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
@@ -1819,9 +1829,13 @@ final class MainWindow implements TclFlatcamHost {
                 new SeparatorMenuItem(),
                 plannedItem("Medir Distancia", "distance32.png"),
                 plannedItem("Distancia Minima", "distance_min32.png"),
-                plannedItem("Definir Origem", "origin32.png"),
-                plannedItem("Mover para Origem", "origin2_32.png"),
-                plannedItem("Ir para Localizacao", "jump_to16.png"),
+                tipped(chromeItem("Definir Origem", "origin32.png", this::beginSetOrigin), "Definir Origem",
+                        "Clique no Plot: todos os objetos são deslocados para que o ponto clicado vire (0,0). "
+                        + "Usa o snap da grade quando ativo. Esc cancela. Projetos com CNC Job são recusados.\n\nAtalho: O."),
+                tipped(chromeItem("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin), "Mover para Origem",
+                        "Desloca os objetos selecionados para que o canto inferior esquerdo do conjunto fique em (0,0).\n\nAtalho: Shift+O."),
+                tipped(chromeItem("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation), "Ir para Localização",
+                        "Centraliza a vista num ponto X,Y absoluto, ou relativo à última posição do cursor no Plot.\n\nAtalho: J."),
                 plannedItem("Localizar no Objeto", "locate32.png"),
                 new SeparatorMenuItem(),
                 plannedItem("Alternar Unidades", "toggle_units32.png"),
@@ -2069,9 +2083,9 @@ final class MainWindow implements TclFlatcamHost {
                 new Separator(),
                 chromeButton("Medir Distancia", "distance32.png", null),
                 chromeButton("Distancia Minima", "distance_min32.png", null),
-                chromeButton("Definir Origem", "origin32.png", null),
-                chromeButton("Mover para Origem", "origin2_32.png", null),
-                chromeButton("Ir para Localizacao", "jump_to16.png", null),
+                chromeButton("Definir Origem", "origin32.png", this::beginSetOrigin),
+                chromeButton("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin),
+                chromeButton("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation),
                 chromeButton("Localizar no Objeto", "locate32.png", null));
         toolbarGroup(bar, TOOLBAR_VIEW, true,
                 chromeButton("Replotar", "replot32.png", this::replotAllObjects),
@@ -2985,6 +2999,152 @@ final class MainWindow implements TclFlatcamHost {
         if (applied > 0) {
             appendConsole(applied + " objeto(s) transformado(s).");
             showProperties(projectTree.getSelectionModel().getSelectedItem());
+        }
+    }
+
+    // ---- Origin and location (Python Edit > Set Origin / Move to Origin / Jump to) ----
+
+    /** Python on_set_origin: the next plot click becomes (0,0) for every object in the project. */
+    private void beginSetOrigin() {
+        String refusal = setOriginRefusal(allProjectObjects());
+        if (refusal != null) { appendConsole(refusal); return; }
+        setStatus("Clique no Plot para definir a origem (Esc cancela)...", RUNNING_COLOR);
+        beginPointPick(point -> {
+            if (point == null) { setStatus("Definir origem cancelado.", IDLE_COLOR); return; }
+            setOrigin(point.x, point.y);
+        });
+    }
+
+    private String setOriginRefusal(List<TreeItem<String>> objects) {
+        if (runningJob != null) return "Ja existe uma operacao em andamento.";
+        if (anyObjectEditorActive()) return "Conclua ou cancele o editor antes de mover objetos.";
+        if (objects.isEmpty()) return "Nenhum objeto no projeto.";
+        if (objects.stream().anyMatch(cncJobByItem::containsKey))
+            return "Definir origem desloca todos os objetos, e um CNC Job nao pode ser deslocado sem reescrever "
+                    + "seu G-code. Exclua ou exporte os CNC Jobs antes.";
+        return null;
+    }
+
+    /** Python on_set_zero_click: every object is offset by (-x, -y), then the view is fitted again. */
+    boolean setOrigin(double x, double y) {
+        List<TreeItem<String>> objects = allProjectObjects();
+        String refusal = setOriginRefusal(objects);
+        if (refusal != null) { appendConsole(refusal); return false; }
+        if (!Double.isFinite(x) || !Double.isFinite(y)) { appendConsole("Origem invalida."); return false; }
+        offsetObjects(objects, -x, -y);
+        plotAreaView.fitAllVisible();
+        appendConsole(String.format(java.util.Locale.ROOT, "Origem definida em (%.4f, %.4f).", x, y));
+        setStatus("Origem definida.", IDLE_COLOR);
+        return true;
+    }
+
+    /** Python on_move2origin: the selection's lower-left corner moves to (0,0). */
+    boolean moveSelectionToOrigin() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.isEmpty()) { appendConsole("Selecione ao menos um objeto para mover para a origem."); return false; }
+        if (runningJob != null) { appendConsole("Ja existe uma operacao em andamento."); return false; }
+        if (anyObjectEditorActive()) { appendConsole("Conclua ou cancele o editor antes de mover objetos."); return false; }
+        if (selected.stream().anyMatch(cncJobByItem::containsKey)) {
+            appendConsole("CNC Job nao pode ser movido sem reescrever seu G-code; remova-o da selecao.");
+            return false;
+        }
+        double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
+        for (TreeItem<String> item : selected) {
+            double[] bounds = objectBounds(item);
+            if (bounds == null) continue;
+            minX = Math.min(minX, bounds[0]);
+            minY = Math.min(minY, bounds[1]);
+        }
+        if (!Double.isFinite(minX) || !Double.isFinite(minY)) {
+            appendConsole("Os objetos selecionados estao vazios; nada a mover.");
+            return false;
+        }
+        if (minX == 0 && minY == 0) { appendConsole("A selecao ja esta na origem."); return true; }
+        offsetObjects(selected, -minX, -minY);
+        appendConsole(String.format(java.util.Locale.ROOT, "%d objeto(s) movido(s) para a origem (deslocamento %.4f, %.4f).",
+                selected.size(), -minX, -minY));
+        return true;
+    }
+
+    private void offsetObjects(List<TreeItem<String>> items, double dx, double dy) {
+        TransformOp op = new TransformOp.Offset(dx, dy);
+        plotAreaView.beginBatchUpdate();
+        try {
+            for (TreeItem<String> item : items) applyTransformToItem(item, op);
+        } finally {
+            plotAreaView.endBatchUpdate();
+        }
+        TreeItem<String> shown = projectTree.getSelectionModel().getSelectedItem();
+        if (shown != null) showProperties(shown);
+    }
+
+    private double[] objectBounds(TreeItem<String> item) {
+        Geometry geometry = gerberByItem.containsKey(item) ? gerberByItem.get(item).solidGeometry()
+                : excellonByItem.containsKey(item) ? excellonByItem.get(item).solidGeometry()
+                : geometryByItem.containsKey(item) ? geometryByItem.get(item).geometry() : null;
+        if (geometry == null || geometry.isEmpty()) return null;
+        Envelope env = geometry.getEnvelopeInternal();
+        return new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()};
+    }
+
+    /** Python on_jump_to: centers the view on an absolute point, or one relative to the last pointer position. */
+    void jumpTo(double x, double y, boolean relative) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) throw new IllegalArgumentException("Coordenadas invalidas.");
+        double[] base = relative ? plotAreaView.lastPointerWorld() : new double[]{0, 0};
+        double targetX = base[0] + x, targetY = base[1] + y;
+        plotAreaView.centerOn(targetX, targetY);
+        setStatus(String.format(java.util.Locale.ROOT, "Vista centralizada em (%.4f, %.4f).", targetX, targetY), IDLE_COLOR);
+    }
+
+    private void askJumpToLocation() {
+        var dialog = new javafx.scene.control.Dialog<double[]>();
+        if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
+        dialog.setTitle("Ir para Localizacao");
+        dialog.setHeaderText(null);
+        TextField coordinates = new TextField();
+        coordinates.setPromptText("X,Y");
+        coordinates.setId("jump-coordinates");
+        RadioButton absolute = new RadioButton("Absoluto");
+        RadioButton relative = new RadioButton("Relativo ao cursor");
+        ToggleGroup reference = new ToggleGroup();
+        absolute.setToggleGroup(reference); relative.setToggleGroup(reference);
+        absolute.setSelected(!"rel".equals(AppPreferences.loadText("jump.reference")));
+        relative.setSelected(!absolute.isSelected());
+        Label error = new Label();
+        error.getStyleClass().add("error-label");
+        VBox content = new VBox(8, new Label("Digite as coordenadas no formato X,Y:"), coordinates,
+                new HBox(12, absolute, relative), error);
+        content.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().setAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (scene != null) dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        Node ok = dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.OK);
+        ok.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            if (parseXY(coordinates.getText()) == null) {
+                error.setText("Use dois numeros finitos: X,Y (parenteses opcionais).");
+                event.consume();
+            }
+        });
+        dialog.setResultConverter(button -> button == javafx.scene.control.ButtonType.OK ? parseXY(coordinates.getText()) : null);
+        javafx.application.Platform.runLater(coordinates::requestFocus);
+        dialog.showAndWait().ifPresent(xy -> {
+            AppPreferences.saveText("jump.reference", relative.isSelected() ? "rel" : "abs");
+            jumpTo(xy[0], xy[1], relative.isSelected());
+        });
+    }
+
+    /** "x,y" or "(x,y)" with two finite numbers; no expression evaluation (Python uses eval). */
+    static double[] parseXY(String text) {
+        if (text == null) return null;
+        String value = text.trim();
+        if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1);
+        String[] parts = value.split(",", -1);
+        if (parts.length != 2) return null;
+        try {
+            double x = Double.parseDouble(parts[0].trim()), y = Double.parseDouble(parts[1].trim());
+            return Double.isFinite(x) && Double.isFinite(y) ? new double[]{x, y} : null;
+        } catch (NumberFormatException invalid) {
+            return null;
         }
     }
 

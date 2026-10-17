@@ -394,6 +394,9 @@ final class PlotAreaView extends StackPane {
     private double lastDragScreenY;
     private double referenceWorldX;
     private double referenceWorldY;
+    private double lastPointerWorldX;
+    private double lastPointerWorldY;
+    private boolean pointerSeen;
     private boolean gridSnapEnabled = true;
     private boolean gridVisible = true;
     private double gridStepX = 1.0;
@@ -1709,6 +1712,21 @@ final class PlotAreaView extends StackPane {
         }
         updatePlacement(event.getX(), event.getY());
         updateCoordLabel(event.getX(), event.getY());
+        if (insidePlot(event.getX(), event.getY())) {
+            double[] world = snappedWorld(event.getX(), event.getY());
+            lastPointerWorldX = world[0];
+            lastPointerWorldY = world[1];
+            pointerSeen = true;
+        }
+    }
+
+    /** Last (snapped) pointer position over the plot - the view center if the pointer has not been there yet. */
+    double[] lastPointerWorld() {
+        return pointerSeen ? new double[]{lastPointerWorldX, lastPointerWorldY} : new double[]{viewCenterX, viewCenterY};
+    }
+
+    double[] viewCenter() {
+        return new double[]{viewCenterX, viewCenterY};
     }
 
     private void updatePlacement(double screenX, double screenY) {

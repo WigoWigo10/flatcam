@@ -330,9 +330,16 @@ Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta séri
 - Arquivo > Scripting: Novo, Abrir e Executar Script (também na toolbar Shell), com
   editor Tcl em aba e execução pelo Terminal. Ver [TERMINAL_TCL.md](TERMINAL_TCL.md).
 
+- Editar > Definir Origem (clique no Plot com snap; atalho O), Mover para Origem
+  (canto inferior esquerdo da seleção; Shift+O) e Ir para Localização (X,Y absoluto
+  ou relativo ao cursor; J), também na toolbar. Diferenças deliberadas: projetos com
+  CNC Job recusam Definir Origem e CNC Jobs não são movidos (deslocar só a prévia sem
+  reescrever o G-code seria enganoso — mesma política das transformações); coordenadas
+  sem `eval`; Ir para centraliza a vista, sem mover o cursor do sistema. Quatro
+  regressões FX.
+
 Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Medir Distância,
-Distância Mínima, Definir Origem, Mover para Origem, Ir para Localização,
-Localizar no Objeto, Alternar Unidades e itens de Ajuda (online, bookmarks,
+Distância Mínima, Localizar no Objeto, Alternar Unidades e itens de Ajuda (online, bookmarks,
 atalhos, como usar, reportar problema).
 
 ### 7. Completar preferências e automação
