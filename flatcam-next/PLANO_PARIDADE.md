@@ -321,8 +321,13 @@ Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta séri
   ignorando campos de texto, editores e posicionamento (não como aceleradores de
   menu, que disparariam ao digitar). Três regressões FX.
 
-Restantes: Novo Projeto, Novo Geometry/Excellon/Document, Abrir Configuração,
-Salvar Projeto Como, Scripting (Novo/Abrir/Executar Script), Medir Distância,
+- Arquivo > Novo Projeto (Ctrl+N) com a proteção de projeto não salvo, e Salvar
+  Projeto Como (Ctrl+Shift+S). Salvar Projeto (Ctrl+S) agora grava direto no
+  `.fcnproj` atual, como `on_file_saveproject`; `.FlatPrj` importado ou projeto sem
+  arquivo continuam perguntando o destino. Duas regressões FX. Ver
+  [PROJETO_NAO_SALVO.md](PROJETO_NAO_SALVO.md).
+
+Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Scripting (Novo/Abrir/Executar Script), Medir Distância,
 Distância Mínima, Definir Origem, Mover para Origem, Ir para Localização,
 Localizar no Objeto, Alternar Unidades e itens de Ajuda (online, bookmarks,
 atalhos, como usar, reportar problema).

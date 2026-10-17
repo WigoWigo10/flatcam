@@ -835,6 +835,13 @@ final class MainWindow implements TclFlatcamHost {
                 if (handled) {
                     event.consume();
                 }
+            } else if (event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && (event.getCode() == KeyCode.S || event.getCode() == KeyCode.N && !event.isShiftDown())
+                    && !gcodeEditor.isActive() && !plotAreaView.isPlacementActive()) {
+                if (event.getCode() == KeyCode.N) newProject();
+                else if (event.isShiftDown()) saveProjectAs();
+                else saveProject();
+                event.consume();
             } else if ((event.getCode() == KeyCode.EQUALS || event.getCode() == KeyCode.ADD
                     || event.getCode() == KeyCode.MINUS || event.getCode() == KeyCode.SUBTRACT)
                     && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
@@ -1691,7 +1698,9 @@ final class MainWindow implements TclFlatcamHost {
         Menu newMenu = new Menu("Novo");
         setLegacyMenuIcon(newMenu, "new_file32.png");
         newMenu.getItems().addAll(
-                plannedItem("Novo Projeto", "new_file32.png"),
+                tipped(chromeItem("Novo Projeto", "new_file32.png", this::newProject), "Novo Projeto",
+                        "Fecha todos os objetos e começa um projeto vazio. Com alterações não salvas, pergunta antes "
+                        + "(Salvar / Não salvar / Cancelar). Preferências e o Terminal são mantidos.\n\nAtalho: Ctrl+N."),
                 plannedItem("Geometry", "geometry32.png"),
                 plannedItem("Excellon", "drill32.png"),
                 plannedItem("Document", "notebook32.png"));
@@ -1736,8 +1745,13 @@ final class MainWindow implements TclFlatcamHost {
         printPdf.setId("print-pdf-menu-item");
         printPdf.setAccelerator(new javafx.scene.input.KeyCodeCombination(KeyCode.P, javafx.scene.input.KeyCombination.CONTROL_DOWN));
         fileMenu.getItems().addAll(newMenu, openMenu, RecentFilesMenu.build(recentFiles,this::openRecent,this::legacyIcon),
-                new SeparatorMenuItem(), chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject),
-                plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
+                new SeparatorMenuItem(),
+                tipped(chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject), "Salvar Projeto",
+                        "Grava no arquivo .fcnproj atual sem perguntar; sem arquivo ou com projeto Python .FlatPrj, "
+                        + "pergunta o destino (o original Python nunca é substituído em silêncio).\n\nAtalho: Ctrl+S."),
+                tipped(chromeItem("Salvar Projeto Como...", "save_as.png", this::saveProjectAs), "Salvar Projeto Como",
+                        "Sempre pergunta destino e formato (.fcnproj ou .FlatPrj).\n\nAtalho: Ctrl+Shift+S."),
+                new SeparatorMenuItem(),
                 importMenu, exportMenu, scriptMenu, backupMenu,
                 printPdf, new SeparatorMenuItem(),
                 chromeItem("Sair", "power16.png", this::requestApplicationClose));
@@ -9470,7 +9484,42 @@ final class MainWindow implements TclFlatcamHost {
     private void saveProject() {
         saveProject(ignored -> {});
     }
+
+    private void saveProjectAs() {
+        saveProjectAs(ignored -> {});
+    }
+
+    /**
+     * Python on_file_saveproject: save straight to the current project file, else Save As. Only an FX
+     * {@code .fcnproj} is rewritten silently; an imported Python {@code .FlatPrj} (or no file yet) asks for
+     * the destination, so Ctrl+S never replaces a Python original behind the user's back.
+     */
     private void saveProject(java.util.function.Consumer<Boolean> done) {
+        Path current = currentProjectFile;
+        if (current == null || !current.toString().toLowerCase(java.util.Locale.ROOT).endsWith(".fcnproj")
+                || current.getParent() == null || !Files.isDirectory(current.getParent())) {
+            saveProjectAs(done);
+            return;
+        }
+        if (!projectSaveAllowed()) { done.accept(false); return; }
+        writeProject(current.toFile(), snapshotProject(), projectStateStamp(), done);
+    }
+
+    private boolean projectSaveAllowed() {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return false;
+        }
+        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
+                || excellonEditor.isActive()) {
+            appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
+            return false;
+        }
+        return true;
+    }
+
+    /** Python on_file_saveprojectas: always asks for the destination and format. */
+    private void saveProjectAs(java.util.function.Consumer<Boolean> done) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
             done.accept(false);
@@ -9510,6 +9559,12 @@ final class MainWindow implements TclFlatcamHost {
         if(!pythonFormat && !file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".fcnproj")) {
             appendConsole("Escolha uma extensão .fcnproj ou .FlatPrj para salvar o projeto."); done.accept(false); return;
         }
+        writeProject(file, project, before, done);
+    }
+
+    private void writeProject(File file, ProjectFile project, ProjectChangeTracker.State before,
+                              java.util.function.Consumer<Boolean> done) {
+        boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
         if (pythonFormat) appendConsole(project.pythonLegacy() != null
                 ? "Salvando no formato Python 8.994: o que nao foi alterado no FX e mantido como estava no projeto original "
                         + "(preferencias, opcoes dos objetos, macros, scripts); recursos exclusivos do FX ficam so para o FX."
@@ -9849,6 +9904,22 @@ final class MainWindow implements TclFlatcamHost {
 
     private void clearProject() {
         clearProject(true);
+    }
+
+    /**
+     * Python File > New Project (on_file_new_click): same Save/Don't save/Cancel protection as opening a
+     * project, then every object leaves the session and the project file is forgotten. Preferences, the
+     * Terminal's variables and window layout are kept, as Python keeps its Tcl interpreter.
+     */
+    private void newProject() {
+        protectProjectTransition(() -> {
+            closeToolPanel();
+            clearProject();
+            currentProjectFile = null;
+            projectChanges.saved(projectStateStamp());
+            appendConsole("Novo projeto criado.");
+            setStatus("Novo projeto criado.", IDLE_COLOR);
+        });
     }
 
     private void clearProject(boolean cancelTerminal) {
