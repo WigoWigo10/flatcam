@@ -353,6 +353,11 @@ Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta séri
   padrão que o Python anexa); Document continua pendente, pois o FX não tem o tipo de
   objeto Document. Uma regressão FX (editores e ida-e-volta .fcnproj/.FlatPrj).
 
+- Ajuda > Lista de Atalhos: aba com os atalhos de teclado/mouse que o FX realmente
+  trata (cena, árvore, Plot, inspeção CNC, editores, código, Terminal, Tools Database).
+  As letras de ferramentas dos editores do Python ainda não existem no FX e não são
+  listadas. Uma regressão FX.
+
 Restantes: Novo Document, Abrir Configuração, Alternar Unidades e itens de Ajuda (online, bookmarks,
 atalhos, como usar, reportar problema).
 

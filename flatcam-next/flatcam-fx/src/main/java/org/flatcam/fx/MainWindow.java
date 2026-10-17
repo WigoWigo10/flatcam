@@ -1989,7 +1989,8 @@ final class MainWindow implements TclFlatcamHost {
         helpMenu.getItems().addAll(
                 plannedItem("Ajuda Online", "help.png"),
                 plannedItem("Bookmarks", "bookmarks32.png"),
-                plannedItem("Lista de Atalhos", "shortcuts24.png"),
+                tipped(chromeItem("Lista de Atalhos", "shortcuts24.png", this::openShortcutList), "Lista de Atalhos",
+                        "Abre uma aba com os atalhos de teclado e mouse que o FlatCAM FX implementa."),
                 plannedItem("Como Usar", "videohelp24.png"),
                 plannedItem("Reportar Problema", "bug32.png"),
                 new SeparatorMenuItem(),
@@ -8222,6 +8223,11 @@ final class MainWindow implements TclFlatcamHost {
         Tab tab = new Tab(title, content.get());
         centerTabs.getTabs().add(tab);
         centerTabs.getSelectionModel().select(tab);
+    }
+
+    /** Python Help > Shortcuts List: a tab in the plot area, not a dialog. */
+    void openShortcutList() {
+        openAuxiliaryTab("Lista de Atalhos", ShortcutListPanel::new);
     }
 
     private void openPreferences() {
