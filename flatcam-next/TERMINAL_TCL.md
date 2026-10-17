@@ -434,3 +434,32 @@ não é benchmark de desempenho nem validação física CNC.
 zero falhas/erros, com limpeza TempDir normal. Probes do launcher existente,
 com o build atualizado, aprovados em D3D/Intel Arc e software forçado; verificam
 renderização offscreen, não a fluidez da exportação de projetos densos.
+
+### Incremento: drillcncjob — 2026-10-17
+
+`drillcncjob {furos} -drillz -1.7 -travelz 2 -feedrate_z 300` gera um CNC Job de
+furação a partir de um Excellon (porta de `TclCommandDrillcncjob.py`), pelo mesmo
+gerador da ferramenta Drilling, no worker, com cancelamento e publicação validada
+(origem/projeto inalterados). Ferramentas em ordem crescente de diâmetro, como o
+`generate_from_excellon_by_tool(order='fwd')` do Python; só ferramentas com furos
+ou slots entram. `-drilled_dias` seleciona diâmetros (comparados a quatro casas,
+ou com `-diatol` em %, como `math.isclose(rel_tol)`); diâmetro inexistente é erro.
+
+Aceita todas as flags do Python: `-dpp`, `-spindlespeed`, `-toolchangez`,
+`-toolchangexy`, `-startz`, `-endz`, `-endxy`, `-dwelltime`, `-feedrate_rapid`, `-pp`,
+`-opt_type`, `-diatol`, `-muted`, `-outname`. Diferenças deliberadas:
+
+- `-drillz` (negativo), `-travelz` e `-feedrate_z` são obrigatórios: o Python cairia
+  nas Preferências globais, que este Terminal não lê. Sem `-endz`, usa `-travelz`.
+- Troca de ferramenta somente com `-toolchangez`, como o Python quando a opção é dada;
+  sem ela não usa o padrão de Preferências do Python.
+- `-pp` aceita o nome do perfil Python (`GRBL_11`, `default`, `Marlin`...) ou o nome
+  FX; padrão FX portable. Perfis laser/plotter são recusados pelo gerador.
+- `-opt_type B|M|T` aplica a ordem por proximidade do FX dentro de cada ferramenta,
+  não OR-Tools/TSP; outros valores são recusados. `-muted` não silencia erros.
+- Pontos `x,y`/`(x,y)` sem `eval`.
+
+Regressões: três de argumentos (`TclFlatcamCommandsTest`) e uma com o host real
+(`TclLiveHostTest`: ordem por diâmetro no G-code, seleção por diâmetro, diâmetro
+inexistente e origem não Excellon recusados). Sem comparação diferencial do G-code
+de furação contra o Python (Drilling continua nível C na matriz).

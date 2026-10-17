@@ -4,6 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -231,6 +234,17 @@ class TclFlatcamCommandsTest {
             order.add(outname);
             kinds.put(outname, Kind.CNC_JOB);
             gcodeByName.put(outname, "G21\nG1 X0 Y0\nM30\n");
+            return outname;
+        }
+
+        final List<TclDrillRequest> drillCalls = new ArrayList<>();
+
+        @Override
+        public String drillcncjob(String sourceName, String outname, TclDrillRequest request) throws TclException {
+            if (!order.contains(sourceName)) throw new TclException("Object not found: " + sourceName);
+            drillCalls.add(request);
+            order.add(outname);
+            kinds.put(outname, Kind.CNC_JOB);
             return outname;
         }
 
@@ -852,5 +866,67 @@ class TclFlatcamCommandsTest {
         host.failWrite = true;
         assertTrue(assertThrows(TclException.class, () -> interp.eval("export_svg geo out.svg; new_geometry late")).getMessage().contains("disk full"));
         assertTrue(host.svgExports.isEmpty()); assertTrue(host.order.isEmpty());
+    }
+
+    @Test
+    void drillcncjobRequiresDepthTravelAndFeedAndNormalizesTheDepth() throws TclException {
+        FakeHost host = new FakeHost();
+        TclInterpreter interpreter = withCommands(host);
+        host.order.add("drills");
+        assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -travelz 2 -feedrate_z 300"));
+        assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -drillz -1 -feedrate_z 300"));
+        assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -drillz -1 -travelz 2"));
+        assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -drillz 1 -travelz 2 -feedrate_z 300"));
+        assertEquals("", interpreter.eval("drillcncjob drills -drillz -1.5 -travelz 2 -feedrate_z 300"));
+        TclDrillRequest request = host.drillCalls.get(0);
+        assertEquals(1.5, request.drillDepth(), 1e-12);
+        assertTrue(request.drilledDiameters().isEmpty());
+        assertNull(request.diameterTolerance());
+        assertFalse(request.toolChange());
+        assertFalse(request.multiDepth());
+        assertEquals(2.0, request.endZ(), 1e-12);
+        assertEquals(org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE, request.preprocessor());
+        assertTrue(host.order.contains("drills_cnc"));
+    }
+
+    @Test
+    void drillcncjobParsesToolSelectionToolchangeAndProfile() throws TclException {
+        FakeHost host = new FakeHost();
+        TclInterpreter interpreter = withCommands(host);
+        host.order.add("drills");
+        interpreter.eval("drillcncjob drills -drillz -1.7 -dpp 0.5 -travelz 2 -feedrate_z 800 -drilled_dias 0.8,1.0 "
+                + "-diatol 5 -toolchangez 30 -toolchangexy 3,4 -startz 10 -endz 22 -endxy (1,2) -dwelltime 0.5 "
+                + "-spindlespeed 12000 -feedrate_rapid 1500 -pp GRBL_11 -opt_type T -muted 1 -outname job");
+        TclDrillRequest request = host.drillCalls.get(0);
+        assertEquals(List.of(0.8, 1.0), request.drilledDiameters());
+        assertEquals(0.05, request.diameterTolerance(), 1e-12);
+        assertTrue(request.multiDepth());
+        assertEquals(0.5, request.depthPerPass(), 1e-12);
+        assertTrue(request.toolChange());
+        assertEquals(30.0, request.toolChangeZ(), 1e-12);
+        assertArrayEquals(new double[]{3, 4}, request.toolChangeXY());
+        assertEquals(10.0, request.startZ(), 1e-12);
+        assertEquals(22.0, request.endZ(), 1e-12);
+        assertArrayEquals(new double[]{1, 2}, request.endXY());
+        assertTrue(request.dwell());
+        assertEquals(12000, request.spindleSpeed());
+        assertEquals(1500.0, request.rapidFeedRate(), 1e-12);
+        assertEquals(org.flatcam.cam.gcode.GCodePreprocessor.GRBL_11, request.preprocessor());
+        assertTrue(host.order.contains("job"));
+    }
+
+    @Test
+    void drillcncjobRejectsUnknownProfilesOptimizationsAndBadDiameters() {
+        FakeHost host = new FakeHost();
+        TclInterpreter interpreter = withCommands(host);
+        host.order.add("drills");
+        String base = "drillcncjob drills -drillz -1 -travelz 2 -feedrate_z 300 ";
+        assertThrows(TclException.class, () -> interpreter.eval(base + "-pp nonexistent"));
+        assertThrows(TclException.class, () -> interpreter.eval(base + "-opt_type X"));
+        assertThrows(TclException.class, () -> interpreter.eval(base + "-drilled_dias 0.8,-1"));
+        assertThrows(TclException.class, () -> interpreter.eval(base + "-endxy 1"));
+        assertThrows(TclException.class, () -> interpreter.eval(base + "-toolchangez 0"));
+        assertTrue(host.drillCalls.isEmpty());
+        assertNotNull(TclFlatcamCommands.help("drillcncjob"));
     }
 }

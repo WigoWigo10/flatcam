@@ -8595,6 +8595,40 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     @Override
+    public String drillcncjob(String sourceName, String outname, TclDrillRequest request) throws TclException {
+        TclSource source = tclSource(sourceName);
+        if (source.kind() != Kind.EXCELLON)
+            throw new TclException("Expected an Excellon object, got: " + sourceName);
+        ExcellonImage image = (ExcellonImage) source.version();
+        List<Integer> ordered = TclDrillTools.select(image, request.drilledDiameters(), request.diameterTolerance());
+        if (ordered.isEmpty()) throw new TclException("The Excellon object has no drills or slots to drill: " + sourceName);
+        CncJobResult job;
+        try {
+            DrillGCodeParameters params = new DrillGCodeParameters(request.travelZ(), request.drillDepth(),
+                    request.feedRateZ(), request.spindleSpeed(), request.toolChange(), request.multiDepth(),
+                    request.depthPerPass(), request.dwell(), request.dwellSeconds(), 0);
+            Map<Integer, DrillGCodeParameters> byTool = new LinkedHashMap<>();
+            ordered.forEach(id -> byTool.put(id, params));
+            double[] change = request.toolChangeXY(), end = request.endXY();
+            GCodeGenerator.DrillJobOptions options = new GCodeGenerator.DrillJobOptions(request.toolChange(),
+                    request.toolChangeZ(), request.endZ(), end == null ? null : end[0], end == null ? null : end[1],
+                    request.rapidFeedRate(), null, false, List.of(), request.startZ(),
+                    change == null ? null : change[0], change == null ? null : change[1], request.optimizeDrills());
+            TclExecution.phase("Gerando furacao...");
+            job = GCodeGenerator.generateDrillCncJob(image, byTool, ordered, options, request.preprocessor(),
+                    TclExecution.cancellation(), TclExecution.progress("Gerando furacao..."));
+        } catch (IllegalArgumentException invalid) { throw new TclException(invalid.getMessage()); }
+        CncJobResult generated = job;
+        return TclExecution.onFx(() -> {
+            checkTclSource(source);
+            String actual = uniqueDerivedName(outname);
+            addCncJobToProject(actual, sourceName, Path.of(actual), generated.gcode(),
+                    generated.travelGeometry(), generated.cutGeometry());
+            return actual;
+        });
+    }
+
+    @Override
     public String exportGcode(String cncJobName, String preamble, String postamble) throws TclException {
         TclSource source = tclSource(cncJobName);
         if (source.kind() != Kind.CNC_JOB) {

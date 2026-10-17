@@ -129,6 +129,32 @@ class TclLiveHostTest {
         }
     }
 
+    @Test void drillcncjobDrillsSelectedToolsInAscendingDiameterOrder(@TempDir Path directory) throws Exception {
+        try (Session session = new Session()) {
+            Path drill = directory.resolve("two-tools.drl");
+            Files.writeString(drill, "M48\nMETRIC,TZ\nT01C1.0\nT02C0.8\n%\nT01\nX010000Y010000\n"
+                    + "T02\nX020000Y020000\nX030000Y030000\nM30\n");
+            assertEquals("drills", session.host.openExcellon(drill, "drills"));
+            session.eval("drillcncjob drills -drillz -1.5 -travelz 2 -feedrate_z 300");
+            assertEquals(TclFlatcamHost.Kind.CNC_JOB, session.host.find("drills_cnc").orElseThrow().kind());
+            String gcode = session.eval("export_gcode drills_cnc");
+            assertTrue(gcode.contains("Z-1.5"), gcode);
+            int small = gcode.indexOf("X20"), large = gcode.indexOf("X10");
+            assertTrue(small >= 0 && large >= 0 && small < large, "0.8 mm tool must be drilled before 1.0 mm:\n" + gcode);
+
+            session.eval("drillcncjob drills -drillz -1.5 -travelz 2 -feedrate_z 300 -drilled_dias 1.0 -outname only_big");
+            String only = session.eval("export_gcode only_big");
+            assertTrue(only.contains("X10"), only);
+            assertFalse(only.contains("X20") || only.contains("X30"), only);
+
+            assertThrows(TclException.class, () -> session.eval(
+                    "drillcncjob drills -drillz -1.5 -travelz 2 -feedrate_z 300 -drilled_dias 0.5"));
+            session.geometry("path");
+            assertThrows(TclException.class, () -> session.eval("drillcncjob path -drillz -1 -travelz 2 -feedrate_z 300"));
+            assertEquals(4, session.host.objectNames().size());
+        }
+    }
+
     @Test void signedCutDepthProducesNegativeZInActualGcode(@TempDir Path directory) throws Exception {
         try (Session session = new Session()) {
             session.geometry("path");
