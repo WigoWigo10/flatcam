@@ -463,3 +463,21 @@ Regressões: três de argumentos (`TclFlatcamCommandsTest`) e uma com o host rea
 (`TclLiveHostTest`: ordem por diâmetro no G-code, seleção por diâmetro, diâmetro
 inexistente e origem não Excellon recusados). Sem comparação diferencial do G-code
 de furação contra o Python (Drilling continua nível C na matriz).
+
+## Scripts (Arquivo > Scripting) — 2026-10-17
+
+- **Novo Script** abre uma aba de editor com o modelo do Python (`new_script_object`).
+- **Abrir Script...** abre um ou mais `.FlatScript`/`.tcl`/`.txt` no editor, sem executar;
+  reabrir o mesmo arquivo seleciona a aba existente.
+- **Executar Script...** lê o arquivo e o executa no Terminal (abre a aba Terminal),
+  como `on_filerunscript`. Também na toolbar Shell.
+- O editor tem realce Tcl (comentários `#`, `$variáveis`, `-opções`, números, strings,
+  chaves/colchetes), **Executar**, **Salvar** e **Salvar como…** (gravação via
+  temporário + rename). Fechar uma aba alterada pede confirmação.
+
+Diferenças deliberadas: o texto é executado como **um** script pelo dialeto do FX, com
+o worker/cancelamento do Terminal; o Run Code do Python envia linha a linha e trata
+uma linha com erro como comando multilinha incompleto — aqui o primeiro erro para a
+execução. Script é um arquivo numa aba, não um objeto do projeto: não é salvo dentro
+do `.fcnproj`/`.FlatPrj` (no Python é um `ScriptObject`). Quatro regressões FX em
+`ScriptingTest` e uma de realce em `CodeSyntaxTest`.

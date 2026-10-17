@@ -757,6 +757,7 @@ final class MainWindow implements TclFlatcamHost {
         centerTabs.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) change -> {
             while (change.next()) for (Tab removed : change.getRemoved())
                 if (removed.getContent() instanceof CodeEditor code) code.close();
+                else if (removed.getContent() instanceof ScriptEditorPanel script) script.close();
         });
     }
 
@@ -1732,9 +1733,13 @@ final class MainWindow implements TclFlatcamHost {
         Menu scriptMenu = new Menu("Scripting");
         setLegacyMenuIcon(scriptMenu, "script16.png");
         scriptMenu.getItems().addAll(
-                plannedItem("Novo Script", "script_new24.png"),
-                plannedItem("Abrir Script", "open_script32.png"),
-                plannedItem("Executar Script", "script16.png"));
+                tipped(chromeItem("Novo Script", "script_new24.png", this::newScript), "Novo Script",
+                        "Abre um script Tcl novo no editor, com o modelo do FlatCAM Python. Executar envia o texto ao Terminal."),
+                tipped(chromeItem("Abrir Script...", "open_script32.png", this::openScripts), "Abrir Script",
+                        "Abre um ou mais arquivos .FlatScript/.tcl/.txt no editor de scripts, sem executá-los."),
+                tipped(chromeItem("Executar Script...", "script16.png", this::runScriptFile), "Executar Script",
+                        "Escolhe um arquivo de script e o executa no Terminal Tcl (dialeto reduzido do FX), "
+                        + "como Arquivo > Run Script do Python."));
         Menu backupMenu = new Menu("Backup");
         setLegacyMenuIcon(backupMenu, "backup24.png");
         backupMenu.getItems().addAll(
@@ -2076,9 +2081,9 @@ final class MainWindow implements TclFlatcamHost {
                 chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject));
         toolbarGroup(bar, TOOLBAR_SHELL, true,
                 chromeButton("Linha de Comando", "shell32.png", this::openTerminal),
-                chromeButton("Novo Script", "script_new24.png", null),
-                chromeButton("Abrir Script", "open_script32.png", null),
-                chromeButton("Executar Script", "script16.png", null));
+                chromeButton("Novo Script", "script_new24.png", this::newScript),
+                chromeButton("Abrir Script", "open_script32.png", this::openScripts),
+                chromeButton("Executar Script", "script16.png", this::runScriptFile));
         applyToolbarView();
         return bar;
     }
@@ -8864,6 +8869,124 @@ final class MainWindow implements TclFlatcamHost {
         if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive() || gcodeEditor.isActive())
             throw new IllegalStateException("Conclua a operacao e feche os editores antes de exportar pelo Terminal.");
+    }
+
+    // ---- Scripting (Python File > Scripting: New / Open / Run Script) ----
+
+    private static final String SCRIPT_DIRECTORY_KEY = "scripting.lastDirectory";
+
+    private FileChooser scriptChooser(String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Script Tcl FlatCAM", "*.FlatScript", "*.tcl", "*.TCL", "*.txt", "*.TXT"),
+                new FileChooser.ExtensionFilter("Todos os arquivos", "*.*"));
+        String remembered = AppPreferences.loadText(SCRIPT_DIRECTORY_KEY);
+        if (remembered != null && !remembered.isBlank() && Files.isDirectory(Path.of(remembered)))
+            chooser.setInitialDirectory(Path.of(remembered).toFile());
+        return chooser;
+    }
+
+    private void rememberScriptDirectory(Path file) {
+        Path parent = file.toAbsolutePath().getParent();
+        if (parent != null) AppPreferences.saveText(SCRIPT_DIRECTORY_KEY, parent.toString());
+    }
+
+    /** Python on_filenewscript: a new script in the editor, with the Python template. */
+    void newScript() {
+        openScriptTab(ScriptEditorPanel.NEW_SCRIPT_TEMPLATE, null);
+    }
+
+    private void openScripts() {
+        List<File> files = scriptChooser("Abrir Script Tcl").showOpenMultipleDialog(scene.getWindow());
+        if (files == null) return;
+        for (File file : files) openScript(file.toPath());
+    }
+
+    /** Python on_fileopenscript: the file opens in the editor and is not executed. */
+    void openScript(Path file) {
+        Path absolute = file.toAbsolutePath();
+        for (Tab tab : centerTabs.getTabs()) {
+            if (tab.getContent() instanceof ScriptEditorPanel panel && absolute.equals(panel.file())) {
+                centerTabs.getSelectionModel().select(tab);
+                return;
+            }
+        }
+        try {
+            String text = Files.readString(file, java.nio.charset.StandardCharsets.UTF_8);
+            rememberScriptDirectory(file);
+            openScriptTab(text, absolute);
+        } catch (IOException | RuntimeException error) {
+            appendConsole("Falha ao abrir o script " + file + ": " + error.getMessage());
+        }
+    }
+
+    private void runScriptFile() {
+        File file = scriptChooser("Executar Script Tcl").showOpenDialog(scene.getWindow());
+        if (file != null) runScriptFile(file.toPath());
+    }
+
+    /** Python on_filerunscript: read the file, show the Terminal and run it there. */
+    boolean runScriptFile(Path file) {
+        String text;
+        try { text = Files.readString(file, java.nio.charset.StandardCharsets.UTF_8); }
+        catch (IOException | RuntimeException error) {
+            appendConsole("Falha ao ler o script " + file + ": " + error.getMessage());
+            return false;
+        }
+        rememberScriptDirectory(file);
+        return runInTerminal(text, file.getFileName().toString());
+    }
+
+    private boolean runInTerminal(String script, String label) {
+        openTerminal();
+        if (!terminalPanel.runScript(script, label)) {
+            appendConsole("O Terminal ainda está executando outro script; aguarde ou cancele antes de executar " + label + ".");
+            return false;
+        }
+        return true;
+    }
+
+    private void openScriptTab(String text, Path file) {
+        ScriptEditorPanel panel = new ScriptEditorPanel(text, file, new ScriptEditorPanel.Host() {
+            @Override public boolean run(String script, String label) { return runInTerminal(script, label); }
+            @Override public Path chooseSaveTarget(Path suggested) {
+                FileChooser chooser = scriptChooser("Salvar Script Tcl");
+                chooser.setInitialFileName(suggested == null ? "new_script.FlatScript" : suggested.getFileName().toString());
+                File chosen = chooser.showSaveDialog(scene.getWindow());
+                if (chosen == null) return null;
+                rememberScriptDirectory(chosen.toPath());
+                return chosen.toPath();
+            }
+            @Override public void log(String message) { appendConsole(message); }
+        });
+        Tab tab = new Tab();
+        tab.getStyleClass().add("script-editor-tab");
+        tab.setGraphic(legacyIcon("script16.png", 16));
+        tab.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(panel::title, panel.dirtyProperty()));
+        tab.setContent(panel);
+        tab.setOnCloseRequest(event -> {
+            if (panel.isDirty() && !scriptDiscardDecision.test(panel)) event.consume();
+        });
+        centerTabs.getTabs().add(tab);
+        centerTabs.getSelectionModel().select(tab);
+        panel.focusCode();
+    }
+
+    private java.util.function.Predicate<ScriptEditorPanel> scriptDiscardDecision = this::askDiscardScript;
+    void setScriptDiscardDecision(java.util.function.Predicate<ScriptEditorPanel> decision) { scriptDiscardDecision = decision; }
+
+    private boolean askDiscardScript(ScriptEditorPanel panel) {
+        if (scene == null || scene.getWindow() == null) return false;
+        var dialog = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(scene.getWindow());
+        dialog.setTitle("Script não salvo");
+        dialog.setHeaderText(null);
+        dialog.setContentText("O script \"" + panel.title().replace(" *", "") + "\" tem alterações não salvas. Fechar e descartá-las?");
+        var discard = new javafx.scene.control.ButtonType("Descartar", javafx.scene.control.ButtonBar.ButtonData.NO);
+        dialog.getButtonTypes().setAll(discard, javafx.scene.control.ButtonType.CANCEL);
+        dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        return dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == discard;
     }
 
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */

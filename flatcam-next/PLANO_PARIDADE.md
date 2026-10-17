@@ -327,7 +327,10 @@ Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta séri
   arquivo continuam perguntando o destino. Duas regressões FX. Ver
   [PROJETO_NAO_SALVO.md](PROJETO_NAO_SALVO.md).
 
-Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Scripting (Novo/Abrir/Executar Script), Medir Distância,
+- Arquivo > Scripting: Novo, Abrir e Executar Script (também na toolbar Shell), com
+  editor Tcl em aba e execução pelo Terminal. Ver [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Medir Distância,
 Distância Mínima, Definir Origem, Mover para Origem, Ir para Localização,
 Localizar no Objeto, Alternar Unidades e itens de Ajuda (online, bookmarks,
 atalhos, como usar, reportar problema).

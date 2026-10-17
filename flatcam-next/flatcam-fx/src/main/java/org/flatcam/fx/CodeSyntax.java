@@ -9,7 +9,7 @@ import org.fxmisc.richtext.model.StyleSpansBuilder;
 /** Presentation-only lexical colours: never validates or executes machine code. */
 final class CodeSyntax {
     enum Language {
-        MACHINE("G-code / CNC"), GERBER("Gerber"), EXCELLON("Excellon"), GEOMETRY("Geometry / WKT");
+        MACHINE("G-code / CNC"), GERBER("Gerber"), EXCELLON("Excellon"), GEOMETRY("Geometry / WKT"), TCL("Script Tcl");
         final String label;
         Language(String label) { this.label = label; }
     }
@@ -24,10 +24,31 @@ final class CodeSyntax {
     private static final Pattern WKT = Pattern.compile(TOKENS.pattern().replace("\\([^)]*\\)?|", ""));
     private CodeSyntax() { }
 
+    /** FlatCAM script: whole-line # comments, strings, $variables, -options, numbers, commands, braces. */
+    private static final Pattern TCL_TOKENS = Pattern.compile(
+            "(?<comment>^\\s*#.*)|(?<string>\"(?:[^\"\\\\]|\\\\.)*\"?)"
+            + "|(?<variable>\\$\\{[^}]*\\}?|\\$[A-Za-z_0-9:]+)|(?<option>(?<![\\w.])-[A-Za-z_][A-Za-z_0-9]*)"
+            + "|(?<number>[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[Ee][+-]?\\d+)?)"
+            + "|(?<keyword>[A-Za-z_][A-Za-z_0-9]*)|(?<punctuation>[{}\\[\\];])");
+
+    private static StyleSpans<Collection<String>> highlightTcl(String line) {
+        var builder = new StyleSpansBuilder<Collection<String>>();
+        var matcher = TCL_TOKENS.matcher(line); int last = 0;
+        while (matcher.find()) {
+            builder.add(List.of(), matcher.start() - last);
+            String kind = matcher.group("comment") != null ? "comment" : matcher.group("string") != null ? "string"
+                    : matcher.group("variable") != null ? "axis" : matcher.group("option") != null ? "command"
+                    : matcher.group("number") != null ? "number" : matcher.group("keyword") != null ? "keyword" : "punctuation";
+            builder.add(List.of("code-" + kind), matcher.end() - matcher.start()); last = matcher.end();
+        }
+        builder.add(List.of(), line.length() - last); return builder.create();
+    }
+
     static StyleSpans<Collection<String>> highlight(String line, Language language) {
         var builder = new StyleSpansBuilder<Collection<String>>();
         // Pathological lines stay visible/editable without thousands of styled segments.
         if (line.length() > 8192) { builder.add(List.of(), line.length()); return builder.create(); }
+        if (language == Language.TCL) return highlightTcl(line);
         if (language == Language.GERBER && line.stripLeading().startsWith("G04")) {
             builder.add(List.of("code-comment"), line.length()); return builder.create();
         }
