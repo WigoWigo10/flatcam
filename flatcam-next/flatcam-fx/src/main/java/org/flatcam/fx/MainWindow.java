@@ -835,6 +835,20 @@ final class MainWindow implements TclFlatcamHost {
                 if (handled) {
                     event.consume();
                 }
+            } else if ((event.getCode() == KeyCode.EQUALS || event.getCode() == KeyCode.ADD
+                    || event.getCode() == KeyCode.MINUS || event.getCode() == KeyCode.SUBTRACT)
+                    && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
+                    && projectTree.getEditingItem() == null) {
+                boolean in = event.getCode() == KeyCode.EQUALS || event.getCode() == KeyCode.ADD;
+                plotAreaView.zoomBy(in ? MENU_ZOOM_RATIO : 1 / MENU_ZOOM_RATIO);
+                event.consume();
+            } else if (event.getCode() == KeyCode.A && event.isControlDown() && !event.isAltDown()
+                    && !event.isMetaDown() && !event.isShiftDown() && !isTextInputTarget(event.getTarget())
+                    && !anyObjectEditorActive() && !plotAreaView.isEditorActive()
+                    && projectTree.getEditingItem() == null) {
+                selectAllObjects();
+                event.consume();
             } else if (event.getCode() == KeyCode.G && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
                     && !isTextInputTarget(event.getTarget())) {
@@ -1875,10 +1889,16 @@ final class MainWindow implements TclFlatcamHost {
 
         Menu viewMenu = new Menu("Exibir");
         viewMenu.getItems().addAll(
-                plannedItem("Replotar Tudo", "replot32.png"),
-                plannedItem("Limpar Plot", "clear_plot32.png"),
-                plannedItem("Aproximar", "zoom_in32.png"),
-                plannedItem("Afastar", "zoom_out32.png"),
+                tipped(chromeItem("Replotar Tudo", "replot32.png", this::replotAllObjects), "Replotar Tudo",
+                        "Redesenha todos os objetos ativos (inclusive depois de Limpar Plot) e enquadra a vista. "
+                        + "Não altera o estado Plot de cada objeto."),
+                tipped(chromeItem("Limpar Plot", "clear_plot32.png", this::clearAllPlots), "Limpar Plot",
+                        "Retira os desenhos do Plot sem desmarcar o Plot de cada objeto, como no Python. "
+                        + "Replotar Tudo, reativar ou alterar um objeto o desenha de novo."),
+                tipped(chromeItem("Aproximar", "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)), "Aproximar",
+                        "Aproxima 1,5× em torno do centro da vista.\n\nAtalho: = (com o foco fora de campos de texto)."),
+                tipped(chromeItem("Afastar", "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)), "Afastar",
+                        "Afasta 1,5× em torno do centro da vista.\n\nAtalho: - (com o foco fora de campos de texto)."),
                 chromeItem("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
                 new SeparatorMenuItem(),
                 chromeItem("Snap na grade", "grid32.png", () -> statusControls.toggleGrid()),
@@ -1892,8 +1912,10 @@ final class MainWindow implements TclFlatcamHost {
 
         Menu objectsMenu = new Menu("Objetos");
         objectsMenu.getItems().addAll(
-                plannedItem("Selecionar Todos", "select_all.png"),
-                plannedItem("Desmarcar Todos", "deselect_all32.png"),
+                tipped(chromeItem("Selecionar Todos", "select_all.png", this::selectAllObjects), "Selecionar Todos",
+                        "Seleciona todos os objetos do projeto.\n\nAtalho: Ctrl+A (fora de campos de texto e editores)."),
+                tipped(chromeItem("Desmarcar Todos", "deselect_all32.png", this::deselectAllObjects), "Desmarcar Todos",
+                        "Limpa a seleção de objetos do projeto."),
                 new SeparatorMenuItem(),
                 chromeItem("Copiar Selecionados", "copy32.png", this::copySelectedObjects),
                 chromeItem("Excluir Selecionados", "trash32.png", this::deleteSelectedObjects));
@@ -2033,10 +2055,10 @@ final class MainWindow implements TclFlatcamHost {
                 chromeButton("Ir para Localizacao", "jump_to16.png", null),
                 chromeButton("Localizar no Objeto", "locate32.png", null));
         toolbarGroup(bar, TOOLBAR_VIEW, true,
-                chromeButton("Replotar", "replot32.png", null),
-                chromeButton("Limpar Plot", "clear_plot32.png", null),
-                chromeButton("Aproximar", "zoom_in32.png", null),
-                chromeButton("Afastar", "zoom_out32.png", null),
+                chromeButton("Replotar", "replot32.png", this::replotAllObjects),
+                chromeButton("Limpar Plot", "clear_plot32.png", this::clearAllPlots),
+                chromeButton("Aproximar", "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)),
+                chromeButton("Afastar", "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)),
                 chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject));
         toolbarGroup(bar, TOOLBAR_SHELL, true,
                 chromeButton("Linha de Comando", "shell32.png", this::openTerminal),
@@ -5048,6 +5070,70 @@ final class MainWindow implements TclFlatcamHost {
         return plotAreaView.isLayerVisible(item);
     }
 
+    /** Visible and not taken off the canvas by Limpar Plot (Python keeps the Plot state through clear_plots). */
+    private boolean isObjectDrawn(TreeItem<String> item) {
+        if (!isObjectVisible(item)) return false;
+        if (cncJobByItem.containsKey(item))
+            return !(plotAreaView.isLayerCleared(new CncTravelLayerKey(item)) && plotAreaView.isLayerCleared(new CncCutLayerKey(item)));
+        return !plotAreaView.isLayerCleared(item);
+    }
+
+    private List<TreeItem<String>> allProjectObjects() {
+        List<TreeItem<String>> all = new ArrayList<>();
+        all.addAll(gerberByItem.keySet());
+        all.addAll(excellonByItem.keySet());
+        all.addAll(geometryByItem.keySet());
+        all.addAll(cncJobByItem.keySet());
+        return all;
+    }
+
+    /** Python View > Replot (plot_all with fit_view): redraw every enabled object, then fit the view. */
+    private void replotAllObjects() {
+        plotAreaView.replotAll();
+        cncJobByItem.keySet().forEach(this::refreshCncAnnotations);
+        refreshPlotSelectionOutline();
+        plotAreaView.fitAllVisible();
+    }
+
+    /** Python Clear Plot: shapes leave the canvas, each object's Plot checkbox is unchanged. */
+    private void clearAllPlots() {
+        plotAreaView.clearPlots();
+        cncJobByItem.keySet().forEach(this::refreshCncAnnotations);
+        refreshPlotSelectionOutline();
+    }
+
+    /** Python View > Zoom In/Out step: {@code global_zoom_ratio}, 1.5 by default. */
+    static final double MENU_ZOOM_RATIO = 1.5;
+
+    /** Python Ctrl+A on_selectall: every project object becomes selected. */
+    private void selectAllObjects() {
+        if (anyObjectEditorActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de selecionar todos os objetos.");
+            return;
+        }
+        List<TreeItem<String>> objects = allProjectObjects();
+        var model = projectTree.getSelectionModel();
+        model.clearSelection();
+        int[] rows = objects.stream().mapToInt(this::rowForPlotObject).filter(row -> row >= 0).sorted().toArray();
+        if (rows.length == 0) {
+            appendConsole("Nenhum objeto no projeto para selecionar.");
+            return;
+        }
+        model.selectIndices(rows[0], java.util.Arrays.copyOfRange(rows, 1, rows.length));
+    }
+
+    private void deselectAllObjects() {
+        if (anyObjectEditorActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de desmarcar os objetos.");
+            return;
+        }
+        projectTree.getSelectionModel().clearSelection();
+    }
+
+    private boolean anyObjectEditorActive() {
+        return gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive() || gcodeEditor.isActive();
+    }
+
     private boolean cncLayerVisible(TreeItem<String> item, boolean travel) {
         CncJobEntry entry = cncJobByItem.get(item);
         if (entry == null) return false;
@@ -6107,8 +6193,8 @@ final class MainWindow implements TclFlatcamHost {
         CncAnnotationKey key = new CncAnnotationKey(item);
         CncJobEntry entry = cncJobByItem.get(item);
         boolean showArrows = entry != null && entry.stats() != null && !cncArrowsOff.contains(item)
-                && isObjectVisible(item);
-        boolean routeVisible = entry != null && entry.stats() != null && isObjectVisible(item);
+                && isObjectDrawn(item);
+        boolean routeVisible = entry != null && entry.stats() != null && isObjectDrawn(item);
         plotAreaView.setSteps(key, routeVisible ? entry.stats().steps() : List.of(),
                 routeVisible ? entry.stats().pathMarks() : List.of(),
                 routeVisible ? entry.previewStrokeWidth() : 0, routeVisible ? entry.stats().units() : "MM");
@@ -6116,7 +6202,7 @@ final class MainWindow implements TclFlatcamHost {
                 .map(a -> new PlotAreaView.Arrow(a.x(), a.y(), a.dx(), a.dy(), a.length()))
                 .toList());
         if (entry == null || entry.stats() == null || entry.stats().pathMarks().isEmpty()
-                || cncAnnotationsOff.contains(item) || !isObjectVisible(item)) {
+                || cncAnnotationsOff.contains(item) || !isObjectDrawn(item)) {
             plotAreaView.setAnnotations(key, List.of());
             return;
         }

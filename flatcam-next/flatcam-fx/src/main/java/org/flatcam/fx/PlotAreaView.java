@@ -324,6 +324,12 @@ final class PlotAreaView extends StackPane {
     private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
+    /**
+     * Python's {@code clear_plots}: shapes removed from the canvas while every object keeps its own
+     * Plot state ({@link #isLayerVisible} is unchanged). Re-adding, re-enabling or {@link #replotAll}
+     * draws a layer again, as Python's {@code obj.plot()} does.
+     */
+    private final java.util.Set<Object> clearedKeys = new java.util.HashSet<>();
     private final Map<Object, LodGeometry> lodLayers = new LinkedHashMap<>();
     private static final boolean DENSITY_ASYNC = !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.async"));
     private record IndexKey(Object layer, int kind) { }
@@ -722,6 +728,7 @@ final class PlotAreaView extends StackPane {
         boolean filled = existing == null || existing.filled();
         boolean multicolor = existing != null && existing.multicolor();
         layers.put(key, new RenderLayer(geometry, strokeOnly, fillColor, strokeColor, visible, category, filled, multicolor));
+        clearedKeys.remove(key);
         lodLayers.remove(key);
         // Keep the previous normal index only for reusing unchanged immutable part metrics.
         indexCache.invalidate(new IndexKey(key, 0));
@@ -869,6 +876,7 @@ final class PlotAreaView extends StackPane {
             cancelPlacement();
         }
         layers.remove(key);
+        clearedKeys.remove(key);
         lodLayers.remove(key);
         indexCache.forget(new IndexKey(key, 0));
         indexCache.forget(new IndexKey(key, 1));
@@ -884,6 +892,7 @@ final class PlotAreaView extends StackPane {
         if (layer != null) {
             layers.put(key, new RenderLayer(layer.geometry(), layer.strokeOnly(), layer.fillColor(), layer.strokeColor(),
                     visible, layer.category(), layer.filled(), layer.multicolor()));
+            if (visible) clearedKeys.remove(key);
             redraw();
         }
     }
@@ -938,10 +947,44 @@ final class PlotAreaView extends StackPane {
         return layer != null && layer.multicolor();
     }
 
+    /** Python's Clear Plot: every current layer leaves the canvas; Plot states and view are kept. */
+    void clearPlots() {
+        cancelPlacement();
+        clearedKeys.addAll(layers.keySet());
+        redraw();
+    }
+
+    /** Redraws every layer that {@link #clearPlots} took off the canvas (Python's {@code plot_all} redraw). */
+    void replotAll() {
+        clearedKeys.clear();
+        redraw();
+    }
+
+    boolean isLayerCleared(Object key) {
+        return clearedKeys.contains(key);
+    }
+
+    /**
+     * Zooms about the view center by {@code factor} (above 1 magnifies) - Python's View > Zoom In/Out,
+     * which use {@code global_zoom_ratio} (1.5 by default) instead of the mouse wheel's smaller step.
+     */
+    void zoomBy(double factor) {
+        if (!Double.isFinite(factor) || factor <= 0) throw new IllegalArgumentException("Zoom factor must be positive");
+        double newScale = clamp(scale * factor);
+        if (newScale == scale) return;
+        scale = newScale;
+        requestInteractionRedraw();
+    }
+
+    double zoomScale() {
+        return scale;
+    }
+
     void clearLayers() {
         cancelPlacement();
         clearToolPreviewContents();
         layers.clear();
+        clearedKeys.clear();
         lodLayers.clear();
         indexCache.clear();
         densityRenderer.clear();
@@ -1073,7 +1116,7 @@ final class PlotAreaView extends StackPane {
             }
             for (Map.Entry<Object, RenderLayer> entry : layers.entrySet()) {
                 RenderLayer layer = entry.getValue();
-                if (layer.category() == category && layer.visible()
+                if (layer.category() == category && layer.visible() && !clearedKeys.contains(entry.getKey())
                         && layer.geometry() != null && !layer.geometry().isEmpty()) {
                     result.add(new SelectableLayer(entry.getKey(), layer.geometry()));
                 }
@@ -1181,7 +1224,8 @@ final class PlotAreaView extends StackPane {
         List<RenderLayer> preview = new ArrayList<>();
         for (Object key : keys) {
             RenderLayer layer = layers.get(key);
-            if (layer == null || !layer.visible() || layer.geometry() == null || layer.geometry().isEmpty()) {
+            if (layer == null || !layer.visible() || clearedKeys.contains(key)
+                    || layer.geometry() == null || layer.geometry().isEmpty()) {
                 return false;
             }
             preview.add(layer);
@@ -1835,7 +1879,8 @@ final class PlotAreaView extends StackPane {
                 LodGeometry lod = lodLayers.get(entry.getKey());
                 boolean lodActive = useCenterlineLod(layer, lod, scale);
                 Geometry drawnGeometry = lodActive ? lod.centerlines() : layer.geometry();
-                if (layer.category() == category && layer.visible() && drawnGeometry != null) {
+                if (layer.category() == category && layer.visible() && drawnGeometry != null
+                        && !clearedKeys.contains(entry.getKey())) {
                     long layerStart = profiling ? System.nanoTime() : 0;
                     PlotDrawableIndex index = drawableIndex(entry.getKey(), drawnGeometry, lodActive);
                     // Never fall back to a massive unindexed traversal while preparation is pending.

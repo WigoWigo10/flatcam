@@ -310,6 +310,23 @@ Sete regressões exercitam árvore/células reais, com controle positivo do gati
 nativo. Install: 983 registrados, 972 aprovados, 11 opcionais ignorados, zero
 falhas/erros. Validar manualmente o clique físico e foco do campo de edição.
 
+**Comandos de menu/toolbar ainda em stub — série iniciada em 2026-10-17.**
+Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta série:
+
+- Exibir > Replotar Tudo, Limpar Plot, Aproximar, Afastar (menu e toolbar View) e
+  Objetos > Selecionar Todos/Desmarcar Todos. Limpar Plot segue `clear_plots` do
+  Python: retira os desenhos sem desmarcar o Plot de cada objeto; reativar, alterar
+  ou Replotar desenha de novo. Replotar = `plot_all(fit_view=True)`. Zoom 1,5×
+  pelo centro (`global_zoom_ratio`); atalhos `=`/`-` e Ctrl+A no filtro de cena,
+  ignorando campos de texto, editores e posicionamento (não como aceleradores de
+  menu, que disparariam ao digitar). Três regressões FX.
+
+Restantes: Novo Projeto, Novo Geometry/Excellon/Document, Abrir Configuração,
+Salvar Projeto Como, Scripting (Novo/Abrir/Executar Script), Medir Distância,
+Distância Mínima, Definir Origem, Mover para Origem, Ir para Localização,
+Localizar no Objeto, Alternar Unidades e itens de Ajuda (online, bookmarks,
+atalhos, como usar, reportar problema).
+
 ### 7. Completar preferências e automação
 
 **Áreas de código em 2026-10-05:** Editor G-code e Ver Fonte usam componente
