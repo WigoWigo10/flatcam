@@ -347,7 +347,13 @@ Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta séri
   valor anterior). Corrigido no caminho um bug de ordem de limpeza ao trocar entre as
   duas ferramentas. Duas regressões FX.
 
-Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Alternar Unidades e itens de Ajuda (online, bookmarks,
+- Arquivo > Novo > Geometry/Excellon: objetos vazios `new_geo`/`new_exc` (sufixo se o
+  nome existir) nas unidades atuais, já selecionados para Editar Objeto, como
+  `new_geometry_object`/`new_excellon_object`. A Geometry nova é simples (sem a fresa
+  padrão que o Python anexa); Document continua pendente, pois o FX não tem o tipo de
+  objeto Document. Uma regressão FX (editores e ida-e-volta .fcnproj/.FlatPrj).
+
+Restantes: Novo Document, Abrir Configuração, Alternar Unidades e itens de Ajuda (online, bookmarks,
 atalhos, como usar, reportar problema).
 
 ### 7. Completar preferências e automação

@@ -1718,8 +1718,10 @@ final class MainWindow implements TclFlatcamHost {
                 tipped(chromeItem("Novo Projeto", "new_file32.png", this::newProject), "Novo Projeto",
                         "Fecha todos os objetos e começa um projeto vazio. Com alterações não salvas, pergunta antes "
                         + "(Salvar / Não salvar / Cancelar). Preferências e o Terminal são mantidos.\n\nAtalho: Ctrl+N."),
-                plannedItem("Geometry", "geometry32.png"),
-                plannedItem("Excellon", "drill32.png"),
+                tipped(chromeItem("Geometry", "geometry32.png", this::newEmptyGeometryObject), "Nova Geometry",
+                        "Cria uma Geometry vazia (new_geo) nas unidades atuais e a seleciona; use Editar Objeto para desenhar."),
+                tipped(chromeItem("Excellon", "drill32.png", this::newEmptyExcellonObject), "Novo Excellon",
+                        "Cria um Excellon vazio (new_exc) nas unidades atuais e o seleciona; use Editar Objeto para adicionar furos."),
                 plannedItem("Document", "notebook32.png"));
         Menu openMenu = new Menu("Abrir");
         setLegacyMenuIcon(openMenu, "folder32.png");
@@ -3140,6 +3142,32 @@ final class MainWindow implements TclFlatcamHost {
             AppPreferences.saveText("jump.reference", relative.isSelected() ? "rel" : "abs");
             jumpTo(xy[0], xy[1], relative.isSelected());
         });
+    }
+
+    // ---- File > New > Geometry / Excellon (Python AppObject.new_geometry_object / new_excellon_object) ----
+
+    /** An empty Geometry named new_geo (suffixed if taken), selected so it can be edited right away. */
+    TreeItem<String> newEmptyGeometryObject() {
+        TreeItem<String> item = addGeometryToProject(uniqueDerivedName("new_geo"), "", currentDisplayUnits().toUpperCase(java.util.Locale.ROOT),
+                CNC_GEOMETRY_FACTORY.createGeometryCollection(), false);
+        selectOnly(item);
+        appendConsole("Geometry vazia criada: " + item.getValue() + ".");
+        return item;
+    }
+
+    /** An empty Excellon named new_exc (suffixed if taken), selected so it can be edited right away. */
+    TreeItem<String> newEmptyExcellonObject() {
+        ExcellonImage image = ExcellonImage.of(currentDisplayUnits().toUpperCase(java.util.Locale.ROOT), Map.of(),
+                List.of(), List.of(), CNC_GEOMETRY_FACTORY.createGeometryCollection());
+        TreeItem<String> item = addExcellonToProject(uniqueDerivedName("new_exc"), null, image);
+        selectOnly(item);
+        appendConsole("Excellon vazio criado: " + item.getValue() + ".");
+        return item;
+    }
+
+    private void selectOnly(TreeItem<String> item) {
+        int row = rowForPlotObject(item);
+        if (row >= 0) projectTree.getSelectionModel().clearAndSelect(row);
     }
 
     // ---- Measurement (Python ToolDistance / ToolDistanceMin) and Locate in Object ----
