@@ -858,12 +858,18 @@ final class MainWindow implements TclFlatcamHost {
                     && projectTree.getEditingItem() == null) {
                 selectAllObjects();
                 event.consume();
+            } else if (event.getCode() == KeyCode.M && !event.isAltDown() && !event.isMetaDown()
+                    && (event.isControlDown() != event.isShiftDown())
+                    && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
+                    && !anyObjectEditorActive() && !plotAreaView.isEditorActive()) {
+                if (event.isControlDown()) openMeasureTool(); else openMinimumDistanceTool();
+                event.consume();
             } else if ((event.getCode() == KeyCode.O || event.getCode() == KeyCode.J)
                     && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
                     && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
                     && !anyObjectEditorActive() && !plotAreaView.isEditorActive()
                     && projectTree.getEditingItem() == null) {
-                if (event.getCode() == KeyCode.J) { if (!event.isShiftDown()) askJumpToLocation(); }
+                if (event.getCode() == KeyCode.J) { if (event.isShiftDown()) askLocateInObject(); else askJumpToLocation(); }
                 else if (event.isShiftDown()) moveSelectionToOrigin();
                 else beginSetOrigin();
                 event.consume();
@@ -1827,8 +1833,10 @@ final class MainWindow implements TclFlatcamHost {
                 chromeItem("Excluir", "trash32.png", this::deleteSelectedObjects),
                 conversionsMenu, joinMenu,
                 new SeparatorMenuItem(),
-                plannedItem("Medir Distancia", "distance32.png"),
-                plannedItem("Distancia Minima", "distance_min32.png"),
+                tipped(chromeItem("Medir Distancia", "distance32.png", this::openMeasureTool), "Medir Distância",
+                        "Clique em dois pontos do Plot: mostra Dx, Dy, ângulo e distância.\n\nAtalho: Ctrl+M."),
+                tipped(chromeItem("Distancia Minima", "distance_min32.png", this::openMinimumDistanceTool), "Distância Mínima",
+                        "Menor distância entre os dois objetos selecionados, com os pontos mais próximos e o ponto médio.\n\nAtalho: Shift+M."),
                 tipped(chromeItem("Definir Origem", "origin32.png", this::beginSetOrigin), "Definir Origem",
                         "Clique no Plot: todos os objetos são deslocados para que o ponto clicado vire (0,0). "
                         + "Usa o snap da grade quando ativo. Esc cancela. Projetos com CNC Job são recusados.\n\nAtalho: O."),
@@ -1836,7 +1844,8 @@ final class MainWindow implements TclFlatcamHost {
                         "Desloca os objetos selecionados para que o canto inferior esquerdo do conjunto fique em (0,0).\n\nAtalho: Shift+O."),
                 tipped(chromeItem("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation), "Ir para Localização",
                         "Centraliza a vista num ponto X,Y absoluto, ou relativo à última posição do cursor no Plot.\n\nAtalho: J."),
-                plannedItem("Localizar no Objeto", "locate32.png"),
+                tipped(chromeItem("Localizar no Objeto", "locate32.png", this::askLocateInObject), "Localizar no Objeto",
+                        "Centraliza a vista num canto ou no centro do objeto selecionado.\n\nAtalho: Shift+J."),
                 new SeparatorMenuItem(),
                 plannedItem("Alternar Unidades", "toggle_units32.png"),
                 chromeItem("Preferencias", "settings18.png", this::openPreferences));
@@ -2081,12 +2090,12 @@ final class MainWindow implements TclFlatcamHost {
                 chromeButton("Copiar", "copy_file32.png", this::copySelectedObjects),
                 chromeButton("Excluir", "trash32.png", this::deleteSelectedObjects),
                 new Separator(),
-                chromeButton("Medir Distancia", "distance32.png", null),
-                chromeButton("Distancia Minima", "distance_min32.png", null),
+                chromeButton("Medir Distancia", "distance32.png", this::openMeasureTool),
+                chromeButton("Distancia Minima", "distance_min32.png", this::openMinimumDistanceTool),
                 chromeButton("Definir Origem", "origin32.png", this::beginSetOrigin),
                 chromeButton("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin),
                 chromeButton("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation),
-                chromeButton("Localizar no Objeto", "locate32.png", null));
+                chromeButton("Localizar no Objeto", "locate32.png", this::askLocateInObject));
         toolbarGroup(bar, TOOLBAR_VIEW, true,
                 chromeButton("Replotar", "replot32.png", this::replotAllObjects),
                 chromeButton("Limpar Plot", "clear_plot32.png", this::clearAllPlots),
@@ -3130,6 +3139,149 @@ final class MainWindow implements TclFlatcamHost {
         dialog.showAndWait().ifPresent(xy -> {
             AppPreferences.saveText("jump.reference", relative.isSelected() ? "rel" : "abs");
             jumpTo(xy[0], xy[1], relative.isSelected());
+        });
+    }
+
+    // ---- Measurement (Python ToolDistance / ToolDistanceMin) and Locate in Object ----
+
+    private MeasurementToolPanel measurePanel;
+
+    /** Python Distance Tool: two plot clicks, results in the Tool tab, the line drawn as a highlight. */
+    void openMeasureTool() {
+        MeasurementToolPanel panel = new MeasurementToolPanel(false, currentDisplayUnits(), this::startMeasurement,
+                xy -> jumpTo(xy[0], xy[1], false), this::closeToolPanel);
+        openToolPanel("Medir Distancia", panel); // releases the previous tool before this one becomes current
+        measurePanel = panel;
+        activeToolCleanup = () -> { clearToolOverlays(); if (measurePanel == panel) measurePanel = null; };
+        startMeasurement();
+    }
+
+    private void startMeasurement() {
+        MeasurementToolPanel panel = measurePanel;
+        if (panel == null) return;
+        panel.clear();
+        plotAreaView.setEditorHighlight(null, false);
+        panel.showMessage("Clique no ponto INICIAL...");
+        setStatus("Medir distancia: clique no ponto inicial (Esc cancela).", RUNNING_COLOR);
+        beginPointPick(first -> {
+            if (first == null || measurePanel != panel) { setStatus("Medicao cancelada.", IDLE_COLOR); return; }
+            panel.showStart(first.x, first.y);
+            setStatus("Medir distancia: clique no ponto final (Esc cancela).", RUNNING_COLOR);
+            beginPointPick(second -> {
+                if (second == null || measurePanel != panel) { setStatus("Medicao cancelada.", IDLE_COLOR); return; }
+                finishMeasurement(panel, new MeasurementToolPanel.Measurement(first.x, first.y, second.x, second.y));
+            });
+        });
+    }
+
+    private void finishMeasurement(MeasurementToolPanel panel, MeasurementToolPanel.Measurement measurement) {
+        panel.showResult(measurement);
+        if (measurement.distance() > 0) {
+            plotAreaView.setEditorHighlight(CNC_GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                    new Coordinate(measurement.x1(), measurement.y1()), new Coordinate(measurement.x2(), measurement.y2())}), true);
+        }
+        String summary = panel.summary(measurement);
+        appendConsole(summary);
+        setStatus(summary, IDLE_COLOR);
+    }
+
+    /** Python Minimum Distance Tool: exactly two selected objects, nearest points of their geometry. */
+    void openMinimumDistanceTool() {
+        MeasurementToolPanel panel = new MeasurementToolPanel(true, currentDisplayUnits(), this::measureMinimumDistance,
+                xy -> jumpTo(xy[0], xy[1], false), this::closeToolPanel);
+        openToolPanel("Distancia Minima", panel); // releases the previous tool before this one becomes current
+        measurePanel = panel;
+        activeToolCleanup = () -> { clearToolOverlays(); if (measurePanel == panel) measurePanel = null; };
+        measureMinimumDistance();
+    }
+
+    MeasurementToolPanel.Measurement measureMinimumDistance() {
+        MeasurementToolPanel panel = measurePanel;
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.size() != 2) {
+            String text = "Selecione exatamente dois objetos. Selecionados agora: " + selected.size() + ".";
+            if (panel != null) { panel.clear(); panel.showMessage(text); }
+            appendConsole(text);
+            plotAreaView.setEditorHighlight(null, false);
+            return null;
+        }
+        Geometry first = measurableGeometry(selected.get(0)), second = measurableGeometry(selected.get(1));
+        if (first == null || second == null) {
+            String text = "Um dos objetos selecionados nao tem geometria para medir.";
+            if (panel != null) { panel.clear(); panel.showMessage(text); }
+            appendConsole(text);
+            return null;
+        }
+        MeasurementToolPanel.Measurement measurement = MeasurementToolPanel.nearest(first, second);
+        if (panel != null) panel.showResult(measurement);
+        plotAreaView.setEditorHighlight(measurement.distance() > 0 ? CNC_GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(measurement.x1(), measurement.y1()), new Coordinate(measurement.x2(), measurement.y2())}) : null, true);
+        String text = measurement.distance() == 0
+                ? "Os objetos se intersectam ou se tocam."
+                : (panel != null ? panel.summary(measurement) : "Distancia minima " + MeasurementToolPanel.number(measurement.distance()));
+        appendConsole(text);
+        setStatus(text, IDLE_COLOR);
+        return measurement;
+    }
+
+    private Geometry measurableGeometry(TreeItem<String> item) {
+        Geometry geometry = gerberByItem.containsKey(item) ? gerberByItem.get(item).solidGeometry()
+                : excellonByItem.containsKey(item) ? excellonByItem.get(item).solidGeometry()
+                : geometryByItem.containsKey(item) ? geometryByItem.get(item).geometry()
+                : cncJobByItem.containsKey(item) ? cncJobByItem.get(item).cutGeometry() : null;
+        return geometry == null || geometry.isEmpty() ? null : geometry;
+    }
+
+    private String currentDisplayUnits() {
+        String text = unitsLabel == null ? "" : unitsLabel.getText().replace("[", "").replace("]", "").trim();
+        return text.isEmpty() ? "mm" : text;
+    }
+
+    enum LocatePoint { BOTTOM_LEFT, TOP_LEFT, BOTTOM_RIGHT, TOP_RIGHT, CENTER }
+
+    /** Python on_locate: one corner or the center of the selected object's bounds, centered in the view. */
+    double[] locateInObject(TreeItem<String> item, LocatePoint where) {
+        Geometry geometry = item == null ? null : measurableGeometry(item);
+        if (geometry == null) return null;
+        Envelope b = geometry.getEnvelopeInternal();
+        double[] point = switch (where) {
+            case BOTTOM_LEFT -> new double[]{b.getMinX(), b.getMinY()};
+            case TOP_LEFT -> new double[]{b.getMinX(), b.getMaxY()};
+            case BOTTOM_RIGHT -> new double[]{b.getMaxX(), b.getMinY()};
+            case TOP_RIGHT -> new double[]{b.getMaxX(), b.getMaxY()};
+            case CENTER -> new double[]{b.getMinX() + b.getWidth() / 2, b.getMinY() + b.getHeight() / 2};
+        };
+        jumpTo(point[0], point[1], false);
+        return point;
+    }
+
+    private void askLocateInObject() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        if (item == null || !isProjectObject(item)) { appendConsole("Nenhum objeto selecionado."); return; }
+        var dialog = new javafx.scene.control.Dialog<LocatePoint>();
+        if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
+        dialog.setTitle("Localizar no Objeto");
+        dialog.setHeaderText(null);
+        ToggleGroup group = new ToggleGroup();
+        VBox options = new VBox(6);
+        LocatePoint remembered;
+        try { remembered = LocatePoint.valueOf(AppPreferences.loadText("locate.point")); }
+        catch (RuntimeException absent) { remembered = LocatePoint.BOTTOM_LEFT; }
+        String[] labels = {"Inferior esquerdo", "Superior esquerdo", "Inferior direito", "Superior direito", "Centro"};
+        for (LocatePoint point : LocatePoint.values()) {
+            RadioButton radio = new RadioButton(labels[point.ordinal()]);
+            radio.setUserData(point); radio.setToggleGroup(group); radio.setSelected(point == remembered);
+            options.getChildren().add(radio);
+        }
+        options.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(options);
+        dialog.getDialogPane().getButtonTypes().setAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (scene != null) dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        dialog.setResultConverter(button -> button == javafx.scene.control.ButtonType.OK && group.getSelectedToggle() != null
+                ? (LocatePoint) group.getSelectedToggle().getUserData() : null);
+        dialog.showAndWait().ifPresent(point -> {
+            AppPreferences.saveText("locate.point", point.name());
+            if (locateInObject(item, point) == null) appendConsole("O objeto selecionado esta vazio.");
         });
     }
 

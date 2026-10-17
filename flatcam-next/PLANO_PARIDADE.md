@@ -338,8 +338,16 @@ Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta séri
   sem `eval`; Ir para centraliza a vista, sem mover o cursor do sistema. Quatro
   regressões FX.
 
-Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Medir Distância,
-Distância Mínima, Localizar no Objeto, Alternar Unidades e itens de Ajuda (online, bookmarks,
+- Editar > Medir Distância (dois cliques no Plot, Ctrl+M), Distância Mínima entre dois
+  objetos selecionados (pontos mais próximos e ponto médio, Shift+M) e Localizar no
+  Objeto (cantos/centro, Shift+J), também na toolbar, com resultados no painel
+  Ferramenta e a linha medida destacada no Plot. Fórmulas iguais às das ferramentas
+  Python (atan2 em [0,360) na medição; atan(dy/dx) na mínima). Diferenças: sem a opção
+  "Snap to center" dos editores; par vertical na mínima mostra 90° (o Python mantém o
+  valor anterior). Corrigido no caminho um bug de ordem de limpeza ao trocar entre as
+  duas ferramentas. Duas regressões FX.
+
+Restantes: Novo Geometry/Excellon/Document, Abrir Configuração, Alternar Unidades e itens de Ajuda (online, bookmarks,
 atalhos, como usar, reportar problema).
 
 ### 7. Completar preferências e automação
