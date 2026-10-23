@@ -578,6 +578,9 @@ def python_program(case, root, app, camlib):
                        "xmin":0,"ymin":0,"xmax":30,"ymax":10,"tool_dia":case["tools"][0]["diameter"],
                        "Tools_in_use":[[str(t["id"]),t["diameter"],len(t.get("points",[]))] for t in case["tools"]]}
         if case["operation"] == "drilling":
+            # ToolDrilling.job_init initializes these before excellon_tool_gcode_gen.
+            # Match the real GUI setup, not a line_xyz-specific missing-attribute shim.
+            cnc.oldx, cnc.oldy = ((job["changeX"], job["changeY"]) if job.get("changeX") is not None else (0.0, 0.0))
             tools = {}
             for tool in case["tools"]:
                 p = tool["parameters"]

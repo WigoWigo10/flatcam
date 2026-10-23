@@ -29,7 +29,7 @@ public enum GCodePreprocessor {
     ISEL_CNC("ISEL_CNC (mm, M06/M01)", true, true, false),
     TOOLCHANGE_MANUAL("Toolchange_Manual (ajuste em Z0)", true, false, true),
     TOOLCHANGE_CUSTOM("Toolchange_Custom (macro M6)", true, true, true),
-    LINE_XYZ("line_xyz (XYZ em cada movimento)", true, true, false),
+    LINE_XYZ("line_xyz (XYZ explicitos)", true, true, false),
     ISEL_ICP_CNC("ISEL_ICP_CNC (mm, formato ICP)", false, false, false),
     HPGL("hpgl (plotter, canetas)", false, false, false),
     ROLAND_MDX_20("Roland_MDX_20 (mm, RML-1)", false, false, false),
@@ -106,8 +106,9 @@ public enum GCodePreprocessor {
                     + "Confira a origem Z e a altura livre; nao e sondagem automatica.";
             case TOOLCHANGE_CUSTOM -> "Troca pela macro M6 configurada na maquina, sem M0 adicional. "
                     + "Ative troca de ferramenta para emitir M6; confira a macro antes de executar.";
-            case LINE_XYZ -> "G00/G01 com XYZ explicitos em cada movimento; troca Tn/M6/M0. "
-                    + "Preserva X e Y distintos, inclusive na troca.";
+            case LINE_XYZ -> "G00/G01 com XYZ explicitos quando os eixos ja foram estabelecidos; troca Tn/M6/M0. "
+                    + "A subida inicial e a restauracao de Z apos M6 nao inventam X/Y. "
+                    + "Preserva X e Y distintos; a macro M6 nao e simulada. Confira se o controlador aceita esse preambulo vertical.";
             case ISEL_ICP_CNC -> "Formato ICP em mm: FASTABS/MOVEABS em micrometros, VEL em micrometros/s, "
                     + "GETTOOL automatico. Termina na altura/XY escolhidos, sem WPCLEAR ou retorno a Z0.";
             case HPGL -> "Plotter: IN/PU/PD/PA/SP, passo 0,025 mm. Sem Z, spindle ou velocidade programada. "
@@ -242,7 +243,7 @@ public enum GCodePreprocessor {
     public String finish(StringBuilder program, double rapidFeedRate, String units, CancellationToken cancellation) {
         cancellation.throwIfCancellationRequested();
         program.append(ending());
-        if (this == LINE_XYZ) return ControllerProgramCodec.explicitXyz(program.toString());
+        if (this == LINE_XYZ) return ControllerProgramCodec.explicitXyz(program.toString(), cancellation);
         if (this == ISEL_ICP_CNC) return ControllerProgramCodec.encodeIcp(program.toString());
         if (isRoland()) return RolandProgramCodec.encode(program.toString(), rapidFeedRate, cancellation);
         if (!usesRapidFeed()) return program.toString();

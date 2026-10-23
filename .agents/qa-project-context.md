@@ -47,8 +47,10 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 Established task requirement: keep strict CNC comparisons honest, preserve
 source files on failure/cancellation, and verify relevant regressions plus
 full Maven build. Global coverage/flakiness/time budgets are unknown, not agreed
-numeric goals. Last baseline `4fcc2a3a`: 1732 Java passes, 18 optional skips,
-35 Python auxiliary passes (logs referenced in MARLIN_PARITY.md).
+numeric goals. Last committed baseline `a1fa7204`: 1737 Java passes,
+18 optional skips, 36 Python auxiliary passes (logs referenced in
+ISEL_PARITY.md). The uncommitted line_xyz investigation is recorded separately
+in LINE_XYZ_PARITY.md; never count legacy generator errors as parity.
 
 ## Risk Areas
 
@@ -58,6 +60,10 @@ numeric goals. Last baseline `4fcc2a3a`: 1732 Java passes, 18 optional skips,
   CNC_SIX_STEP_REVIEW.md; `.FlatPrj` has explicit restrictions.
 - Worker cancellation/stale publication: existing MainCamFlow and export tests
   protect user edits and files. Physical safety is not certified by a preview.
+- Windows temporary cleanup: the line_xyz full verify hit a JUnit
+  DirectoryNotEmptyException after a passing Tcl save test; the directory was
+  absent later and the isolated test passed. Root cause is not confirmed.
+  Preserve failing logs and do not silently relax cleanup assertions/retries.
 Incident rates, quantitative likelihood and risk scores are unknown.
 
 ## Team

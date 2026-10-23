@@ -1,5 +1,14 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## line_xyz: subida vertical e investigação no app real — 2026-10-23
+
+FX não acrescenta mais X/Y zero à subida inicial nem repete X/Y anteriores
+após macro M6. Conversão final cooperativa com cancelamento; o perfil explicita
+XYZ quando conhecidos e avisa sobre o preâmbulo vertical. Aplicativo Python
+real confirmou `end_xy` ausente em MM/IN, Y=X na troca e saída parcial mesmo
+com erro. Corpus segue 104 ORACLE_ERROR, zero FX_ERROR e zero problemas nos
+parâmetros FX; strict não aprovado. [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md).
+
 ## ISEL_CNC: contrato Remote e milissegundos — 2026-10-23
 
 Corrigida emissão de Dwell (0,25 s→G4 P250), M30 após estacionamento e faixa

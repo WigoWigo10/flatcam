@@ -1,5 +1,22 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## line_xyz: coordenadas desconhecidas e Python real — 2026-10-23
+
+ISEL commitado em `a1fa7204`. Próxima etapa corrige conversão XYZ do FX:
+subida inicial e restauração após M6 não inventam/reutilizam X/Y; cancelamento
+é consultado durante a conversão. Regressões comprovadas red/green/red/green,
+dez repetições por caso. Prévia continua sem simular a macro física.
+Python real isolado confirmou erros de cabeçalho `end_xy`, Y=X na troca e
+dwell zero, inclusive criação de textos parciais. Nada foi corrigido nos
+fontes Python para fazer o ensaio passar. Corpus 104: zero FX_ERROR e nenhum
+desvio de parâmetros FX, 104 ORACLE_ERROR, strict reprovado. GRBL inalterado.
+Detalhes/artefatos/comandos em [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md).
+Verify integral final aprovado: 1770 passaram, 18 skips opcionais, zero
+falhas/erros (1788 registros, incluindo repetições); 48 auxiliares Python.
+Primeiro verify teve erro intermitente de limpeza JUnit em teste Tcl, não
+ocultado: logs e causa ainda não confirmada registrados na revisão.
+Esta etapa ainda sem commit/push. Próximo: ampliar ensaio do ISEL_ICP_CNC.
+
 ## ISEL Remote: unidades de Dwell e parada — 2026-10-23
 
 Marlin commitado em `4fcc2a3a`. ISEL_CNC corrige Dwell s→ms, termina com M30
@@ -17,7 +34,7 @@ zero falhas/erros; 36 auxiliares Python passaram. Log final:
 `target/isel-contract-full-final-20261023.log`. Primeira rodada completa achou
 uma expectativa antiga de segundos em todos os perfis; preservada no log
 `target/isel-contract-full-20261023.log`, corrigida com asserções mais exatas.
-ISEL ainda sem commit/push; nenhum ensaio físico. Próximo: line_xyz original.
+ISEL posteriormente commitado em `a1fa7204`; nenhum ensaio físico.
 
 ## Contrato Marlin e modos G0 — 2026-10-23
 

@@ -210,6 +210,9 @@ final class CncPreflight {
         values.add(value("Contact Z / referência G92", number(probe.contactZ()), -1, "probe-contact-z"));
     }
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
+        if (profile == GCodePreprocessor.LINE_XYZ) {
+            issues.add(new Issue(false, "line_xyz: a subida inicial e a restauracao de Z apos M6 mantem X/Y atuais. XYZ sao explicitados quando conhecidos; confirme que o controlador aceita o preambulo vertical. A macro M6 nao e simulada.", null));
+        }
         if (profile == GCodePreprocessor.ISEL_CNC) {
             issues.add(new Issue(false, "ISEL CNC: o perfil usa mm, G71/G94 e T1–T128. Os tempos Dwell configurados em segundos são convertidos para milissegundos no G-code.", null));
             issues.add(new Issue(false, "ISEL Remote DIN/ISO: M01 é parada com interação do operador. Em outros controladores confirme se a parada é opcional e está habilitada; não presuma que M01 sempre terá o mesmo comportamento.", null));

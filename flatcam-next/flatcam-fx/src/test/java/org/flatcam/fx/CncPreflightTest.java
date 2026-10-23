@@ -149,6 +149,13 @@ class CncPreflightTest {
         assertTrue(laser.tools().getFirst().details().stream().anyMatch(value -> value.label().equals("Foco / posição Z") && value.text().equals("3")));
         assertFalse(laser.common().stream().anyMatch(value -> value.label().equals("End Z")));
     }
+    @Test void lineXyzExplainsVerticalBootstrapAndUnknownMacroPosition() {
+        var report = CncPreflight.geometry("Board", "MM", new GeometryCncToolPanel.Result(
+                List.of(new ToolGeometry(.4, path())), params(3, .3, 100, 50, 10000), Map.of(),
+                GCodePreprocessor.LINE_XYZ, Map.of()));
+        assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking()
+                && issue.text().contains("preambulo vertical") && issue.text().contains("M6")));
+    }
     @Test void startHeightDoesNotMasqueradeAsTheFirstChangeHeightAndOverExplainsItsTransitions() {
         var area=CncExclusionArea.of(FACTORY.toGeometry(new Envelope(4,6,-1,1)),CncExclusionArea.Strategy.OVER,8);
         var positions=new GeometryJobOptions(12.,5.,null,null,15.,null,null).withExclusions(true,List.of(area));

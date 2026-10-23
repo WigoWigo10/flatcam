@@ -21,10 +21,10 @@ class ControllerProgramCodecTest {
     }
 
     @Test
-    void lineXyzPreservesDistinctCoordinatesAndWritesEveryAxisOnEveryMove() {
+    void lineXyzPreservesDistinctCoordinatesAndExpandsEstablishedAxes() {
         String input = "G21\nG90\nG00 Z2\nG00 X3 Y7\nG01 Z-1 F100\nG01 X8 Y9 F100\nG00 Z2\n";
         String output = ControllerProgramCodec.explicitXyz(input);
-        assertEquals("G21\nG90\nG00 X0.0000 Y0.0000 Z2.0000\nG00 X3.0000 Y7.0000 Z2.0000\n"
+        assertEquals("G21\nG90\nG00 Z2.0000\nG00 X3.0000 Y7.0000 Z2.0000\n"
                 + "G01 X3.0000 Y7.0000 Z-1.0000 F100.0000\nG01 X8.0000 Y9.0000 Z-1.0000 F100.0000\n"
                 + "G00 X8.0000 Y9.0000 Z2.0000\n", output);
         assertNull(parse(output).warning());

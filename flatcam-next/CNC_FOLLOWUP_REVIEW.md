@@ -1,5 +1,10 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Revisão line_xyz: [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md) confirma no app
+Python real o erro `end_xy` e a troca Y=X. FX corrigiu XY inventados na subida
+e reutilizados após M6, com cancelamento na conversão. O strict mantém os
+104 erros originais, sem promovê-los a equivalência.
+
 Revisão posterior: Marlin foi commitado em `4fcc2a3a`; ISEL Remote teve correção
 de Dwell para ms, término M30 e modelo de M01 atualizado conforme documentação
 do fabricante. As conclusões históricas abaixo sobre M01 opcional universal

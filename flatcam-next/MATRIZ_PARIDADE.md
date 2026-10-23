@@ -1,5 +1,13 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## line_xyz — contrato de coordenadas e app real — 2026-10-23
+
+Subida inicial/restauração pós-M6 sem XY inventados e conversão cancelável:
+**C**. Python real isolado confirmou erro de cabeçalho, Y=X na troca e texto
+parcial apesar de erros. 104 ORACLE_ERROR / zero FX_ERROR, sem equivalência
+global A; controlador precisa aceitar preâmbulo vertical. Sem validação física.
+Detalhes: [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md).
+
 ## ISEL_CNC Remote — 2026-10-23
 
 Dwell corrigido para ms, M30 após estacionamento, faixa T1–T128 e semântica
