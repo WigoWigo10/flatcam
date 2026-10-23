@@ -210,6 +210,10 @@ final class CncPreflight {
         values.add(value("Contact Z / referência G92", number(probe.contactZ()), -1, "probe-contact-z"));
     }
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
+        if (profile == GCodePreprocessor.ISEL_ICP_CNC) {
+            issues.add(new Issue(false, "ISEL ICP: somente mm; coordenadas em micrometros, VEL/FASTVEL em micrometros por segundo e WAIT em milissegundos. Valores sao truncados para inteiros, sem aumentar a precisao do controlador.", null));
+            issues.add(new Issue(false, "ISEL ICP: GETTOOL executa a troca automatica mesmo sem pausa manual. Confirme a macro, o referenciamento e as alturas; a previa nao simula essa troca nem o tempo dos rapidos. O estacionamento preserva a origem, sem WPCLEAR.", null));
+        }
         if (profile == GCodePreprocessor.LINE_XYZ) {
             issues.add(new Issue(false, "line_xyz: a subida inicial e a restauracao de Z apos M6 mantem X/Y atuais. XYZ sao explicitados quando conhecidos; confirme que o controlador aceita o preambulo vertical. A macro M6 nao e simulada.", null));
         }

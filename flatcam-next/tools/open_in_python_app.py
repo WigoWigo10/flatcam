@@ -109,7 +109,8 @@ def probe_cnc_profile(fc, qapp, profile, directory, messages):
             job = fc.collection.get_by_name(outname)
             program = getattr(job, "source_file", "") if job is not None else ""
             if program:
-                (directory / (name + ".nc")).write_text(program, encoding="utf-8")
+                extension = ".imf" if profile == "ISEL_ICP_CNC" else ".nc"
+                (directory / (name + extension)).write_text(program, encoding="utf-8")
             case_errors = errors[before_errors:] + application_errors(messages[before_messages:])
             results.append(dict(case=name, objectCreated=job is not None, programBytes=len(program.encode("utf-8")),
                                 errors=case_errors, exception=failure,
@@ -130,7 +131,7 @@ def main():
                         help="Explicit isolated app unit preference before opening; legacy set_ui overwrites object units from defaults")
     parser.add_argument("--new-empty-geometry", action="store_true",
                         help="Control run: also create a blank Geometry with the application's own command")
-    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default"),
+    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default", "ISEL_ICP_CNC"),
                         help="Generate public synthetic Geometry through the real app, without opening a project")
     parser.add_argument("--probe-output", type=Path, help="Fresh directory for diagnostic CNC programs")
     args = parser.parse_args()

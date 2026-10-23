@@ -58,8 +58,20 @@ final class ControllerProgramCodec {
     }
 
     static String encodeIcp(String program) {
-        StringBuilder result = new StringBuilder("IMF_PBL flatcam\n");
-        for (String raw : program.lines().toList()) {
+        return encodeIcp(program, 1500, CancellationToken.none());
+    }
+
+    static String encodeIcp(String program, double rapidFeed, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
+        if (!Double.isFinite(rapidFeed) || rapidFeed <= 0)
+            throw new IllegalArgumentException("Feed rapido ICP deve ser positivo e finito.");
+        int rapid = scaled(rapidFeed, 1000.0 / 60);
+        if (rapid <= 0) throw new IllegalArgumentException("Feed rapido ICP abaixo de 1 micrometro/s.");
+        StringBuilder result = new StringBuilder("IMF_PBL flatcam\nFASTVEL " + rapid + "\n");
+        var lines = program.lines().iterator();
+        while (lines.hasNext()) {
+            cancellation.throwIfCancellationRequested();
+            String raw = lines.next();
             String line = raw.trim();
             if (line.isEmpty()) continue;
             if (line.startsWith(";") || line.startsWith("(")) {
@@ -102,6 +114,7 @@ final class ControllerProgramCodec {
                 } else throw new IllegalArgumentException("Comando nao suportado para ICP: " + line);
             } else throw new IllegalArgumentException("Comando nao suportado para ICP: " + line);
         }
+        cancellation.throwIfCancellationRequested();
         // Do not clear the work origin or force Z0/X0/Y0 as Python does: retain the selected safe end move.
         return result.append("PROGEND\n").toString();
     }
@@ -142,6 +155,9 @@ final class ControllerProgramCodec {
                         result.append('\n');
                     }
                     case "VEL" -> result.append('F').append(GCodeGenerator.fmt(integer(argument, index, true) * 60.0 / 1000)).append('\n');
+                    // Rapid speed does not replace the separate MOVEABS velocity. The
+                    // XY preview does not simulate rapid timing; the execution reader does.
+                    case "FASTVEL" -> result.append("; ICP FASTVEL ").append(integer(argument, index, true)).append('\n');
                     case "WAIT" -> result.append("G4 P").append(GCodeGenerator.fmt(integer(argument, index, false) / 1000.0)).append('\n');
                     case "GETTOOL" -> result.append('T').append(integer(argument, index, false)).append('\n');
                     case "SPINDLE" -> {
@@ -165,6 +181,7 @@ final class ControllerProgramCodec {
             if (index % 256 == 0 || index == lines.size() - 1) progress.report((index + 1.0) / lines.size());
         }
         if (!header) throw new IllegalArgumentException("Cabecalho ICP ausente");
+        if (!ended) throw new IllegalArgumentException("PROGEND ausente: programa ICP incompleto");
         progress.report(1);
         return result.toString();
     }

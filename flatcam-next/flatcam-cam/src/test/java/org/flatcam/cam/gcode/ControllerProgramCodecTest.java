@@ -80,7 +80,7 @@ class ControllerProgramCodecTest {
 
     @Test
     void nativeIcpEncodingMatchesPythonUnitsForCoordinatesVelocityAndWait() {
-        assertEquals("IMF_PBL flatcam\n; Preprocessor: ISEL_ICP_CNC\nSPINDLE OFF\n"
+        assertEquals("IMF_PBL flatcam\nFASTVEL 25000\n; Preprocessor: ISEL_ICP_CNC\nSPINDLE OFF\n"
                         + "FASTABS Z2000\nGETTOOL 2\nSPINDLE CW RPM12000\nWAIT 500\n"
                         + "FASTABS X3000 Y7000\nVEL 2000\nMOVEABS Z-500\nVEL 2000\n"
                         + "MOVEABS X6000 Y7000\nSPINDLE OFF\nFASTABS Z2000\nPROGEND\n",

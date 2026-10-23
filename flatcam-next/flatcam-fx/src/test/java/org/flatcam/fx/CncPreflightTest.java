@@ -156,6 +156,14 @@ class CncPreflightTest {
         assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking()
                 && issue.text().contains("preambulo vertical") && issue.text().contains("M6")));
     }
+    @Test void icpExplainsIntegerResolutionAutomaticMacroAndRapidTimingLimits() {
+        var report = CncPreflight.geometry("Board", "MM", new GeometryCncToolPanel.Result(
+                List.of(new ToolGeometry(.4, path())), params(3, .3, 100, 50, 10000), Map.of(),
+                GCodePreprocessor.ISEL_ICP_CNC, Map.of()));
+        assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking() && issue.text().contains("FASTVEL")));
+        assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking() && issue.text().contains("GETTOOL")
+                && issue.text().contains("WPCLEAR")));
+    }
     @Test void startHeightDoesNotMasqueradeAsTheFirstChangeHeightAndOverExplainsItsTransitions() {
         var area=CncExclusionArea.of(FACTORY.toGeometry(new Envelope(4,6,-1,1)),CncExclusionArea.Strategy.OVER,8);
         var positions=new GeometryJobOptions(12.,5.,null,null,15.,null,null).withExclusions(true,List.of(area));

@@ -15,10 +15,11 @@ import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace, MethodType
+from icp_execution import read_icp, UnsupportedIcp
 
 
 WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
-SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC")
+SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC")
 
 
 def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared", marlin_fixed_rapid_feed=None,
@@ -37,6 +38,9 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
         raise ValueError("Fixed Marlin G0 requires a positive feed in source units")
     if marlin_rapid_mode != "fixed" and marlin_fixed_rapid_feed is not None:
         raise ValueError("Fixed G0 feed is only valid in fixed mode")
+    if profile == "ISEL_ICP_CNC":
+        if marlin_rapid_mode != "shared": raise ValueError("Marlin modes do not apply to ICP")
+        return read_icp(program)
     xyz = [0.0, 0.0, 0.0]
     feed = None
     rapid_feed = None  # VARIABLE_G0_FEEDRATE initial firmware default is deliberately unknown.
@@ -339,6 +343,30 @@ def rapid_metrics(parsed):
             "xyMoves":sum(event["from"][:2] != event["to"][:2] for event in rapid)}
 
 
+def icp_quantization_review(case, parsed):
+    """Separate expected integer feed resolution from unexpected output; never changes strict/audit tolerance."""
+    tools = {}
+    for tool in case["tools"]:
+        p = tool["parameters"]
+        rates = {}
+        for field in ("feed", "feedZ"):
+            if field not in p: continue
+            requested = p[field]
+            # FX serializes the generated F word to four decimals before encoding ICP.
+            ticks = math.trunc(float(f"{requested:.4f}") * (1000.0 / 60))
+            effective = ticks * 60 / 1000
+            rates[field] = dict(requested=requested, nativeMicrometersPerSecond=ticks,
+                                effectiveMillimetersPerMinute=effective, delta=effective-requested)
+        unexpected = []
+        for event in parsed["cuts"]:
+            if event["tool"] != tool["id"]: continue
+            field = "feedZ" if event["from"][:2] == event["to"][:2] else "feed"
+            if field not in rates or event["feed"] != rates[field]["effectiveMillimetersPerMinute"]:
+                unexpected.append(event)
+        tools[str(tool["id"])] = dict(rates=rates, unexpectedCutFeedCount=len(unexpected), samples=unexpected[:3])
+    return dict(tools=tools, limits="Diagnostic only. Raw requested-parameter audit and strict equivalence are unchanged; integer resolution is not machine accuracy.")
+
+
 def geometry_source(tool):
     from shapely import wkt
     from shapely.geometry import LinearRing
@@ -472,12 +500,13 @@ def audit_parameters(case, parsed, *, implementation=None):
             expected_edges=[(list(a[:2]),list(b[:2]),z) for path in linear_paths if path.geom_type!="Point"
                             for a,b in zip(list(path.coords),list(path.coords)[1:]) for z in expected_depths]
             audit_segments(expected_edges,xy_cuts,issues,tool["id"])
-    pause_kind = "iselStop" if case.get("profile") == "ISEL_CNC" else "pause"
+    icp = case.get("profile") == "ISEL_ICP_CNC"
+    pause_kind = "nativeChange" if icp else "iselStop" if case.get("profile") == "ISEL_CNC" else "pause"
     pauses = [event for event in parsed["events"] if event["kind"] == pause_kind and event.get("active",True)]
     if case.get("profile")=="ISEL_CNC" and job["toolChange"] and any(
             e["kind"]=="iselStop" and not e["active"] for e in parsed["events"]):
         issues.append("ISEL M01 is disabled in the selected controller model; requested pause is not active")
-    if len(pauses) != (len(tools) if job["toolChange"] else 0):
+    if len(pauses) != (len(tools) if job["toolChange"] or icp else 0):
         issues.append("Tool-change pause count differs from the requested setting")
     if any(not event["spindleStopped"] for event in pauses):
         issues.append("Tool-change pause without an explicit preceding spindle stop")
@@ -486,6 +515,8 @@ def audit_parameters(case, parsed, *, implementation=None):
     if job.get("changeX") is not None and any(not equivalent(event["at"][:2],[job["changeX"],job["changeY"]]) for event in pauses):
         issues.append("Tool-change pause XY differs from the requested position")
     for event in parsed["events"]:
+        if icp and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
+            issues.append("ICP rapid feed differs from the requested Feed rapids (or FASTVEL is undeclared)")
         if case.get("profile") == "Marlin" and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
             issues.append("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)")
         if event["kind"] == "rapid" and event["from"][:2] != event["to"][:2]:
@@ -498,6 +529,8 @@ def audit_parameters(case, parsed, *, implementation=None):
                     issues.append("Rapid XY below FX job-wide maximum Travel Z")
     if not equivalent(parsed["end"][2],job["endZ"]):
         issues.append("End Z differs from the requested height")
+    if icp and parsed["icpControls"]["finalSpindleCommand"] != 0:
+        issues.append("ICP spindle was not explicitly stopped before PROGEND")
     if job["endX"] is not None and not equivalent(parsed["end"][:2],[job["endX"],job["endY"]]):
         issues.append("End XY differs from the requested position")
     if job["startZ"] is not None and not any(event["kind"] == "rapid" and equivalent(event["to"][2],job["startZ"])
@@ -727,10 +760,14 @@ def run(args):
                   "rapidMode":rapid_mode, "fixedRapidMillimetersPerMinute":fixed_rapid_mm,
                   "assumptions":"CNC-configured Cartesian firmware, spindle S in RPM, compatible Tn/M6 and M0, INCH_MODE_SUPPORT for IN. No firmware/controller or physical simulation. Variable G0 initial feed is unknown until declared."},
               "iselConfiguration":None if profile!="ISEL_CNC" else {"m01Mode":args.isel_m01_mode,"dwellWordUnits":"milliseconds","toolRange":"T1..T128","reference":"ISEL Remote DIN/ISO interpreter, February 2025"},
+              "icpConfiguration":None if profile!="ISEL_ICP_CNC" else {"units":"MM only", "coordinates":"integer micrometers", "velocities":"integer micrometers/second", "wait":"integer milliseconds", "rounding":"truncation toward zero", "parameterAudit":"Unrounded requests retained; quantization differences are reported, never hidden by increasing tolerance", "unsupported":"WPCLEAR/reference changes fail closed; captured prefix is diagnostic ONLY"},
               "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL: G71=MM, G4 P in milliseconds, M01 operator stop by default (Remote); optional stop modes require explicit selection. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
+    if profile=="ISEL_ICP_CNC":
+        report["scope"]="Public MM ICP programs: integer micrometers, VEL/FASTVEL in integer micrometers/s, WAIT in ms. Initial commanded XYZ assumed zero. GETTOOL is an opaque automatic change; WPCLEAR/reference changes fail closed, prefix evidence is NOT full execution equivalence. Unrounded parameter requests and existing comparison tolerance are retained; quantization differences remain visible. No GUI/controller/physical certification."
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
-        (args.output/(case["id"]+".fx.nc")).write_text(case["gcode"],encoding="utf-8")
+        extension = "imf" if profile=="ISEL_ICP_CNC" else "nc"
+        (args.output/(case["id"]+".fx."+extension)).write_text(case["gcode"],encoding="utf-8")
         try:
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
                 raise ValueError("Unsupported units/operation")
@@ -740,7 +777,11 @@ def run(args):
             fx = read_program(case["gcode"],profile,**reader_options)
             if profile=="Marlin": result["fxMarlinControls"]=fx["marlinControls"]
             if profile=="ISEL_CNC": result["fxIselControls"]=fx["iselControls"]
+            if profile=="ISEL_ICP_CNC":
+                result["fxIcpControls"]=fx["icpControls"]
+                (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
             result["fxParameterIssues"] = audit_parameters(slot_oracle_case(case,root,enabled_only=True),fx,implementation="fx")
+            if profile=="ISEL_ICP_CNC": result["fxIcpQuantizationReview"]=icp_quantization_review(case,fx)
             if case["operation"] == "geometry":
                 result["travelPolicies"] = {"fx":"per-tool Travel Z" if case["job"].get("fxTravelClearance")=="PER_TOOL"
                                             else "job-wide maximum Travel Z", "python":"per-tool Travel Z"}
@@ -753,13 +794,19 @@ def run(args):
                     result["operationDifference"]="FX mills slots end-to-end; Python Drill slots drills overlapping point chains. Not equivalent operations."
                     result["pythonSlotPoints"]={str(tool["id"]):tool["points"] for tool in oracle_case["tools"]}
                 program = python_program(oracle_case,root,app,camlib)
-                (args.output/(case["id"]+".python.nc")).write_text(program,encoding="utf-8")
+                (args.output/(case["id"]+".python."+extension)).write_text(program,encoding="utf-8")
                 python = read_program(program,profile,**reader_options)
                 if profile=="Marlin": result["pythonMarlinControls"]=python["marlinControls"]
                 if profile=="ISEL_CNC": result["pythonIselControls"]=python["iselControls"]
+                if profile=="ISEL_ICP_CNC": result["pythonIcpControls"]=python["icpControls"]
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:
                 result.update(status="ORACLE_ERROR",error=str(error))
+                if isinstance(error,UnsupportedIcp):
+                    result["pythonIcpPrefix"]={"diagnosticOnly":True,"cutCount":len(error.prefix["cuts"]),
+                                               "controls":error.prefix["icpControls"],
+                                               "cutDifferenceByTool":cut_difference_by_tool(fx,error.prefix)}
+                    (args.output/(case["id"]+".python-prefix.json")).write_text(json.dumps(error.prefix,indent=2),encoding="utf-8")
             else:
                 full = (equivalent(fx["events"],python["events"]) and equivalent(fx["end"],python["end"])
                         and fx["units"] == python["units"] and not result["fxParameterIssues"] and not result["pythonParameterIssues"])
@@ -788,7 +835,8 @@ def run(args):
     for case in report["cases"]:
         identifier = case["id"]
         links = " ".join(f'<a href="{identifier}.{suffix}">{label}</a>' for suffix,label in
-                         (("fx.nc","FX"),("python.nc","Python"),("trace.json","XYZ trace"))
+                         (("fx."+extension,"FX"),("python."+extension,"Python"),("trace.json","XYZ trace"),
+                          ("fx.trace.json","FX native trace"),("python-prefix.json","Python prefix (NOT parity)"))
                          if (args.output/(identifier+"."+suffix)).is_file())
         rows += "<tr><td>"+html.escape(identifier)+"<br>"+links+"</td><td>"+case["status"]+"</td><td><pre>"+html.escape(json.dumps(case,indent=2))+"</pre></td></tr>"
     (args.output/"index.html").write_text('<!doctype html><meta charset="utf-8"><title>CNC XYZ comparison</title>'

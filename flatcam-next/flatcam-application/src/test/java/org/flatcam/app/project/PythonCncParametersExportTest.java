@@ -31,7 +31,7 @@ class PythonCncParametersExportTest {
     @Test void exportsMetricAndInchMachiningCases() throws Exception {
         var cases = new JSONArray();
         for (String units : List.of("MM", "IN")) {
-            if (profile == GCodePreprocessor.ISEL_CNC && units.equals("IN")) continue; // explicit profile constraint, not a skipped failure
+            if (metricOnly() && units.equals("IN")) continue; // explicit profile constraint, not a skipped failure
             double scale = units.equals("IN") ? 1 / 25.4 : 1;
             for (String recipe : List.of("single", "peck", "offset", "negative-offset", "two-tools",
                     "selected-tool", "positions", "dwell", "zero-dwell", "spindle-off", "around", "over",
@@ -53,7 +53,7 @@ class PythonCncParametersExportTest {
                     "slot-chain-single","slot-chain-peck","slot-chain-no-last","slot-chain-zero-overlap","slot-chain-nearest","slot-chain-dwell"))
                 cases.put(multipleDrills(units,scale,recipe));
         }
-        assertEquals(profile == GCodePreprocessor.ISEL_CNC ? 52 : 104, cases.length());
+        assertEquals(metricOnly() ? 52 : 104, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", switch(profile) {
             case GRBL_11_NO_M6 -> "GRBL_11_no_M6";
             case GRBL_11 -> "grbl_11";
@@ -62,16 +62,19 @@ class PythonCncParametersExportTest {
             case MARLIN -> "Marlin";
             case LINE_XYZ -> "line_xyz";
             case ISEL_CNC -> "ISEL_CNC";
+            case ISEL_ICP_CNC -> "ISEL_ICP_CNC";
             default -> throw new IllegalArgumentException("Perfil ainda fora do leitor XYZ comparativo");
         })
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
-                .put("excludedUnitCases",profile == GCodePreprocessor.ISEL_CNC
-                        ? new JSONArray().put("IN: ISEL_CNC FX supports MM only; not counted as equivalence") : new JSONArray())
+                .put("excludedUnitCases",metricOnly()
+                        ? new JSONArray().put("IN: " + profile + " FX supports MM only; not counted as equivalence") : new JSONArray())
                 .put("cases", cases);
         Path directory = Path.of(System.getProperty("flatcam.cnc.comparison.output", temporary.toString()));
         Files.createDirectories(directory);
         Files.writeString(directory.resolve("fx-cnc.json"), output.toString(2), StandardCharsets.UTF_8);
     }
+
+    private boolean metricOnly() { return profile == GCodePreprocessor.ISEL_CNC || profile == GCodePreprocessor.ISEL_ICP_CNC; }
 
     private JSONObject drilling(String units, double s, String recipe) {
         boolean two = recipe.equals("two-tools") || recipe.equals("selected-tool");

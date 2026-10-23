@@ -1,5 +1,15 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## ISEL_ICP_CNC: leitor nativo e Feed rapids — 2026-10-23
+
+FX passa a emitir FASTVEL, respeita cancelamento durante a conversão e recusa
+prévia nativa sem PROGEND. Comparador independente cobre 52 MM, declara IN
+excluído e mantém quantização visível: 48 programas têm diferença entre avanço
+solicitado e inteiro representável, zero desvios do truncamento declarado.
+51 saídas Python têm WPCLEAR fora do modelo de referências e uma falha Dwell
+zero: strict segue 52 ORACLE_ERROR/zero FX_ERROR, não equivalência completa.
+Detalhes em [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md).
+
 ## line_xyz: subida vertical e investigação no app real — 2026-10-23
 
 FX não acrescenta mais X/Y zero à subida inicial nem repete X/Y anteriores

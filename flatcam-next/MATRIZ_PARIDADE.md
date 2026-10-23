@@ -1,5 +1,13 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## ISEL_ICP_CNC nativo — 2026-10-23
+
+FASTVEL, conversão cancelável, PROGEND obrigatório na prévia e leitor próprio:
+**C**, não A. 52 MM sem erro de leitura FX, mas 48 avisos de resolução inteira
+de avanço mantidos. Strict 52 ORACLE_ERROR: 51 limites de referência WPCLEAR,
+uma falha Dwell zero. Prefixos por ferramenta não provam execução completa;
+sem GUI/máquina certificada. [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md).
+
 ## line_xyz — contrato de coordenadas e app real — 2026-10-23
 
 Subida inicial/restauração pós-M6 sem XY inventados e conversão cancelável:

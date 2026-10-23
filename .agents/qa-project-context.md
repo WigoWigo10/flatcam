@@ -47,10 +47,11 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 Established task requirement: keep strict CNC comparisons honest, preserve
 source files on failure/cancellation, and verify relevant regressions plus
 full Maven build. Global coverage/flakiness/time budgets are unknown, not agreed
-numeric goals. Last committed baseline `a1fa7204`: 1737 Java passes,
-18 optional skips, 36 Python auxiliary passes (logs referenced in
-ISEL_PARITY.md). The uncommitted line_xyz investigation is recorded separately
-in LINE_XYZ_PARITY.md; never count legacy generator errors as parity.
+numeric goals. Last committed baseline `09486037`: 1770 Java passes
+(including explicit regression repetitions), 18 optional skips, 48 Python
+auxiliary passes (logs referenced in LINE_XYZ_PARITY.md). The uncommitted ICP
+investigation is recorded in ISEL_ICP_PARITY.md; distinguish unsupported
+reference changes from actual legacy crashes, and never count either as parity.
 
 ## Risk Areas
 

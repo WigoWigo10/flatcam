@@ -43,6 +43,13 @@ class ProfileProbeTest(unittest.TestCase):
                 probe_cnc_profile(self.app(), Mock(), "line_xyz", Path(folder), [])
             self.assertEqual("original", marker.read_text(encoding="utf-8"))
 
+    def test_native_icp_artifacts_are_not_labeled_as_conventional_gcode(self):
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "programs"
+            probe_cnc_profile(self.app(), Mock(), "ISEL_ICP_CNC", output, [])
+            self.assertEqual(4, len(list(output.glob("*.imf"))))
+            self.assertFalse(list(output.glob("*.nc")))
+
 
 if __name__ == "__main__":
     unittest.main()

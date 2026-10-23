@@ -110,7 +110,8 @@ public enum GCodePreprocessor {
                     + "A subida inicial e a restauracao de Z apos M6 nao inventam X/Y. "
                     + "Preserva X e Y distintos; a macro M6 nao e simulada. Confira se o controlador aceita esse preambulo vertical.";
             case ISEL_ICP_CNC -> "Formato ICP em mm: FASTABS/MOVEABS em micrometros, VEL em micrometros/s, "
-                    + "GETTOOL automatico. Termina na altura/XY escolhidos, sem WPCLEAR ou retorno a Z0.";
+                    + "FASTVEL define os rapidos. Coordenadas, velocidades e espera sao truncadas para inteiros nativos. "
+                    + "GETTOOL automatico (macro nao simulada). Termina na altura/XY escolhidos, sem WPCLEAR ou retorno a Z0.";
             case HPGL -> "Plotter: IN/PU/PD/PA/SP, passo 0,025 mm. Sem Z, spindle ou velocidade programada. "
                     + "Uma passagem por caminho; canetas numeradas pela ordem das ferramentas. Limites fora da faixa sao recusados.";
             case ROLAND_MDX_20 -> "RML-1: somente MM e uma ferramenta por arquivo. Motor !MC1/!MC0, sem RPM. "
@@ -244,7 +245,12 @@ public enum GCodePreprocessor {
         cancellation.throwIfCancellationRequested();
         program.append(ending());
         if (this == LINE_XYZ) return ControllerProgramCodec.explicitXyz(program.toString(), cancellation);
-        if (this == ISEL_ICP_CNC) return ControllerProgramCodec.encodeIcp(program.toString());
+        if (this == ISEL_ICP_CNC) {
+            unitsCode(units);
+            if (!Double.isFinite(rapidFeedRate) || rapidFeedRate < 0)
+                throw new IllegalArgumentException("Feed rapido ICP invalido.");
+            return ControllerProgramCodec.encodeIcp(program.toString(), rapidFeedRate > 0 ? rapidFeedRate : 1500, cancellation);
+        }
         if (isRoland()) return RolandProgramCodec.encode(program.toString(), rapidFeedRate, cancellation);
         if (!usesRapidFeed()) return program.toString();
         double rate = rapidFeedRate > 0 ? rapidFeedRate : ("MM".equalsIgnoreCase(units) ? 1500 : 1500 / 25.4);

@@ -1,5 +1,10 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+ICP nativo ampliado em [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md): FASTVEL e
+cancelamento corrigidos, prévia exige PROGEND, leitor independente conserva
+quantização e recusa referência WPCLEAR não modelada. Não confundir 51 limites
+do leitor com erros reais do Python; somente um caso falha no Dwell zero.
+
 Revisão line_xyz: [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md) confirma no app
 Python real o erro `end_xy` e a troca Y=X. FX corrigiu XY inventados na subida
 e reutilizados após M6, com cancelamento na conversão. O strict mantém os

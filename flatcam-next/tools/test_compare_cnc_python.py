@@ -4,6 +4,7 @@ import unittest
 from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters, rapid_metrics
 from compare_cnc_python import geometry_source,geometry_paths,nearest_points,slot_oracle_case
 from compare_cnc_python import cut_difference_by_tool, toolpath_review
+from compare_cnc_python import icp_quantization_review
 
 
 PROGRAM = """G21
@@ -43,6 +44,22 @@ def rewrite_rapid_feeds(program, feed):
 
 
 class CncReaderTest(unittest.TestCase):
+    def test_icp_native_reader_and_quantization_diagnostic_do_not_relax_raw_audit(self):
+        program="IMF_PBL test\nFASTVEL 25000\nSPINDLE OFF\nFASTABS Z15000\nGETTOOL 1\n"
+        program+="FASTABS Z3000\nSPINDLE CW RPM10000\nFASTABS X10000 Y0\nVEL 1666\nMOVEABS Z-1100\n"
+        program+="SPINDLE OFF\nFASTABS Z5000\nPROGEND\n"
+        parsed=read_program(program,"ISEL_ICP_CNC")
+        source=case(); source["profile"]="ISEL_ICP_CNC"; source["job"]["rapidFeed"]=1500
+        source["tools"][0]["parameters"].update(multiDepth=False,dwell=False)
+        self.assertIn("T1: executed feed differs from the requested feed",audit_parameters(source,parsed,implementation="fx"))
+        review=icp_quantization_review(source,parsed)["tools"]["1"]
+        self.assertEqual(0,review["unexpectedCutFeedCount"])
+        self.assertEqual(1666,review["rates"]["feedZ"]["nativeMicrometersPerSecond"])
+        self.assertEqual(99.96,review["rates"]["feedZ"]["effectiveMillimetersPerMinute"])
+        changed=read_program(program.replace("VEL 1666","VEL 1500"),"ISEL_ICP_CNC")
+        self.assertEqual(1,icp_quantization_review(source,changed)["tools"]["1"]["unexpectedCutFeedCount"])
+        with self.assertRaises(ValueError): read_program(program,"ISEL_ICP_CNC",marlin_rapid_mode="variable")
+
     def test_marlin_firmware_feed_modes_do_not_share_the_same_modal_state(self):
         # Marlin 2.1.2.5 G0_G1.cpp: variable mode restores OLD G1 feed;
         # fixed mode restores the NEW F but executes G0 at the compiled rate.

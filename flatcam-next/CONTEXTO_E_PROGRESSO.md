@@ -1,5 +1,21 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## ISEL_ICP_CNC: velocidades e fim nativo — 2026-10-23
+
+line_xyz commitado em `09486037`. ICP passa a emitir Feed rapids via FASTVEL,
+checar cancelamento durante conversão e recusar arquivo nativo sem PROGEND.
+Leitor independente modela unidades inteiras, velocidades separadas e GETTOOL
+opaco. 52 MM: zero erros FX; strict reprovado por 51 WPCLEAR fora do modelo de
+referência e uma falha Python real de Dwell zero. Não chamar os 51 de crashes.
+48 avisos FX de avanço são quantização frente ao solicitado, sem desvio do
+truncamento declarado e sem relaxar tolerância. App Python real isolado
+confirmou finalização nativa e a falha Dwell zero, fontes preservados.
+Regressões red/green/red/green dez vezes por caso; 55 auxiliares Python.
+Evidências/limites em [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md).
+Verify integral aprovado: 1804 passaram, 18 skips opcionais (1822 registros,
+incluindo repetições), zero falhas/erros. Log `target/icp-full-20261023.log`.
+Etapa ICP ainda sem commit/push; macros e referenciais físicos não simulados.
+
 ## line_xyz: coordenadas desconhecidas e Python real — 2026-10-23
 
 ISEL commitado em `a1fa7204`. Próxima etapa corrige conversão XYZ do FX:
@@ -15,7 +31,7 @@ Verify integral final aprovado: 1770 passaram, 18 skips opcionais, zero
 falhas/erros (1788 registros, incluindo repetições); 48 auxiliares Python.
 Primeiro verify teve erro intermitente de limpeza JUnit em teste Tcl, não
 ocultado: logs e causa ainda não confirmada registrados na revisão.
-Esta etapa ainda sem commit/push. Próximo: ampliar ensaio do ISEL_ICP_CNC.
+Etapa posteriormente commitada em `09486037`; ICP ampliado na seção acima.
 
 ## ISEL Remote: unidades de Dwell e parada — 2026-10-23
 
