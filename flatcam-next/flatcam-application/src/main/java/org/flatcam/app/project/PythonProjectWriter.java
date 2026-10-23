@@ -20,6 +20,7 @@ public final class PythonProjectWriter {
     public static void save(ProjectFile project, Path path) throws IOException { save(project, path, true); }
 
     public static void save(ProjectFile project, Path path, boolean compressed) throws IOException {
+        validateDrillingRoundtrip(project);
         JSONObject root = toRoot(project);
         ProjectFile.PythonLegacy legacy = project.pythonLegacy();
         if (legacy != null) {
@@ -36,6 +37,25 @@ public final class PythonProjectWriter {
                     legacy.objectOrigins());
         }
         ProjectFileIO.writeRoot(root, path, compressed);
+    }
+
+    private static void validateDrillingRoundtrip(ProjectFile project) throws IOException {
+        ProjectFile original = null;
+        boolean globallyDifferent = project.excellons().stream().flatMap(e -> e.drillDefaults().values().stream()).distinct().count() > 1
+                || project.excellons().stream().map(ProjectFile.ExcellonEntry::cncSettings).filter(java.util.Objects::nonNull)
+                    .map(s -> List.of(s.preprocessor(),s.options(),s.toolOrder())).distinct().count()>1;
+        for (var entry : project.excellons()) {
+            if (!globallyDifferent) continue;
+            var legacy = project.pythonLegacy();
+            if (legacy != null && original == null) original = PythonProjectIO.decode(legacy.original());
+            String origin = legacy == null ? null : legacy.objectOrigins() == null ? entry.name()
+                    : legacy.objectOrigins().get(ProjectFile.PythonLegacy.key("excellon",entry.name()));
+            boolean unchanged = original != null && origin != null && original.excellons().stream()
+                    .anyMatch(old -> old.name().equals(origin) && old.drillDefaults().equals(entry.drillDefaults())
+                            && java.util.Objects.equals(old.cncSettings(),entry.cncSettings()));
+            if (!unchanged) throw new IOException("O Python substitui parâmetros individuais de Drilling pelas opções comuns ao abrir. "
+                    + "Ferramentas com ajustes diferentes exigem .fcnproj ou arquivos separados; exportação recusada sem perder parâmetros. Objeto: " + entry.name());
+        }
     }
 
     /** The project as a FlatCAM Python root object, from what the FX models alone. */
@@ -96,15 +116,22 @@ public final class PythonProjectWriter {
                             .put("tools_drill_spindlespeed",p.spindleSpeedRpm()).put("tools_drill_multidepth",p.multiDepth())
                             .put("tools_drill_depthperpass",p.depthPerPass()).put("tools_drill_dwell",p.dwell())
                             .put("tools_drill_dwelltime",p.dwellSeconds()).put("tools_drill_offset",p.offsetZ())
+                            .put("tools_drill_toolchange",p.pauseForToolChange())
                             .put("tools_drill_drill_slots",p.slots().enabled()).put("tools_drill_drill_overlap",p.slots().overlapPercent())
                             .put("tools_drill_last_drill",p.slots().addLastHole());
+                    if (p != null && entry.drillDefaults().values().stream().distinct().count() == 1) {
+                        JSONObject data = tool.getJSONObject("data");
+                        for (String key : data.keySet()) if (key.startsWith("tools_drill_")) options.put(key,data.get(key));
+                        if (project.excellons().stream().flatMap(e -> e.drillDefaults().values().stream()).distinct().count() == 1)
+                            for (String key : data.keySet()) if (key.startsWith("tools_drill_")) root.getJSONObject("options").put(key,data.get(key));
+                    }
                     // Explicit ordinary positions require their common settings in legacy keys too.
                     // Do not broaden the existing probe/machine-specific exporter here.
-                    if (entry.cncSettings() != null && (entry.cncSettings().options().startZ() != null
-                            || entry.cncSettings().options().toolChangeX() != null)) {
+                    if (entry.cncSettings() != null) {
                         var settings = entry.cncSettings();
                         var moves = settings.options();
                         JSONObject data = tool.getJSONObject("data");
+                        data.put("tools_drill_tool_order",switch(settings.toolOrder()) { case NO -> "no"; case FORWARD -> "fwd"; case REVERSE -> "rev"; });
                         data.put("tools_drill_startz", moves.startZ() == null ? JSONObject.NULL : moves.startZ())
                                 .put("tools_drill_toolchangexy", legacyXY(moves.toolChangeX(), moves.toolChangeY()))
                                 .put("tools_drill_toolchange", moves.pauseForToolChange())
@@ -114,8 +141,10 @@ public final class PythonProjectWriter {
                                 .put("tools_drill_feedrate_rapid", moves.rapidFeedRate())
                                 .put("tools_drill_ppname_e", pythonProfile(settings.preprocessor()));
                         for (String key : List.of("tools_drill_startz", "tools_drill_toolchangexy", "tools_drill_toolchange",
-                                "tools_drill_toolchangez", "tools_drill_endz", "tools_drill_endxy", "tools_drill_feedrate_rapid", "tools_drill_ppname_e"))
+                                "tools_drill_toolchangez", "tools_drill_endz", "tools_drill_endxy", "tools_drill_feedrate_rapid", "tools_drill_ppname_e","tools_drill_tool_order"))
                             options.put(key, data.get(key));
+                        if (project.excellons().stream().flatMap(e -> e.drillDefaults().values().stream()).distinct().count() == 1)
+                            for (String key : data.keySet()) if (key.startsWith("tools_drill_")) root.getJSONObject("options").put(key,data.get(key));
                     }
                 }
             }

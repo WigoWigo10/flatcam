@@ -164,7 +164,8 @@ final class TerminalPanel extends BorderPane {
         long id = ++executionId;
         idle = new CompletableFuture<>();
         running = jobs.submit(context -> TclExecution.run(context,
-                () -> interpreter.eval(command, context::isCancelled)),
+                () -> interpreter.eval(command, context::isCancelled),
+                message -> Platform.runLater(() -> { if (id==executionId) appendLine(message); })),
                 (fraction, message) -> reportProgress(new Progress(id, fraction, message)));
         running.completion().whenComplete((result, failure) -> Platform.runLater(() -> {
             if (id != executionId) return;

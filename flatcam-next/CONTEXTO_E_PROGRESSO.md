@@ -1,5 +1,39 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série das seis lacunas CNC — 2026-10-14
+
+Drill slots anterior commitado em `b467b9bd`. Percorridos os seis pontos em série:
+round-trip real dos novos parâmetros (com correção de exportação/importação),
+rasgos em painéis MM/IN com duas ferramentas e Over/Around, diagnóstico de
+cortes/ordem por ferramenta, quatro perfis XYZ no comparador, revisão de CNC
+existente/Terminal e transporte de cobertura conhecida + Paint.
+
+Descoberta real: o Python Excellon copia opções globais ao objeto e dados de
+todas as ferramentas ao abrir. Exportação agora espelha os ajustes uniformes
+também no objeto/global; combinações novas/alteradas incompatíveis são recusadas
+sem tocar o destino. Legado inalterado ainda preservável. Formato nativo guarda
+valores individuais. IN exige preferência inicial Python IN; o harness torna
+esta precondição explícita, sem alterar preferências reais. FX reabre os arquivos
+regravados, recupera ajustes/perfil/posições e regenera os programas dos controles.
+
+Cada perfil (GRBL_11_NO_M6, GRBL_11, DEFAULT, DEFAULT_NO_M6): corpus 104,
+49 execuções iguais, 19 rotas diferentes, 34 cortes/ordem/operação diferentes,
+dois erros Python, zero FX e zero problemas na auditoria de parâmetros FX.
+Strict permanece reprovado. Não certificar M6 interno/sonda/laser/outros dialetos.
+
+Salvar como CNC usa revisão assíncrona, estatísticas/texto reais, diálogo e
+publicação atômica com guard de versão/cancelamento. Terminal imprime revisão
+separada (sem contaminar retorno G-code). Alvos NCC/PAINT acompanham affine,
+cópia e panelização; escala recalcula cobertura com diâmetro real inalterado.
+Buffer/edição arbitrária e alvos ausentes continuam sem cobertura inferida.
+
+Verify completo: 1737 registros, 1719 aprovados, 18 skips opcionais, zero
+falhas/erros; ajuste final de UI/cobertura aprovado em testes específicos.
+28 auxiliares Python aprovados. Evidências/limites completos e próximas ações:
+[CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md). Novas alterações sem commit/push.
+Próximos: testar novo diálogo/FileChooser manualmente; famílias fora do leitor;
+seleções/otimizações exclusivas FX no legado; exportadores soltos e alvos genéricos.
+
 ## Drill slots — 2026-10-14
 
 Contraste commitado em `a3bfa7d5`. Nova lacuna implementada: Drilling converte

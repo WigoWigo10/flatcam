@@ -1,5 +1,16 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Série CNC: seis lacunas — 2026-10-14
+
+Round-trip real de Drill slots com parâmetros uniformes e preferência de unidade
+correta, importação de perfil/posições comuns, testes de panel/diagonal/exclusões,
+diagnóstico por ferramenta, quatro perfis XYZ, revisão de exportação existente/
+Tcl, transporte de alvos e Paint: **C**, com evidência comparativa apenas nos
+controles aprovados. Outros dialetos, GUI/máquina e alvos ausentes não ficam A.
+As restrições de `.FlatPrj` agora protegem contra a sobrescrita que o próprio
+Python faz em dados Drilling diferentes; nativo mantém esses valores.
+Escopo, evidências e limites: [CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md).
+
 ## Drill slots — 2026-10-14
 
 Furar rasgos por sobreposição/último furo, por ferramenta, preservando fresagem

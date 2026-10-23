@@ -162,6 +162,29 @@ def machining_signature(parsed):
     return result
 
 
+def cut_difference_by_tool(fx, python):
+    """Diagnosis only: NEVER changes strict/ordered equivalence or permits missing/reversed cuts."""
+    a=[event for event in machining_signature(fx) if "to" in event]
+    b=[event for event in machining_signature(python) if "to" in event]
+    result={}
+    for tool in sorted({event["tool"] for event in a+b}):
+        left=[event for event in a if event["tool"]==tool]
+        right=[event for event in b if event["tool"]==tool]
+        if equivalent(left,right): category="ORDERED_CUTS_MATCH"
+        else:
+            remaining=list(right)
+            for event in left:
+                index=next((i for i,other in enumerate(remaining) if equivalent(event,other)),None)
+                if index is None: break
+                remaining.pop(index)
+            else:
+                if not remaining:
+                    result[str(tool)]="SAME_CUTS_DIFFERENT_ORDER"; continue
+            category="CUTS_OR_PARAMETERS_DIFFER"
+        result[str(tool)]=category
+    return result
+
+
 def first_difference(a, b):
     for index, (left, right) in enumerate(zip(a,b)):
         if not equivalent(left,right):
@@ -402,7 +425,7 @@ def python_program(case, root, app, camlib):
     errors = ErrorCapture()
     app.log = logging.getLogger("flatcam.cnc.oracle")
     app.log.addHandler(errors)
-    profile = "GRBL_11_no_M6"
+    profile = case.get("profile","GRBL_11_no_M6")
     try:
         cnc = camlib.CNCjob(units=case["units"],pp_geometry_name=profile,pp_excellon_name=profile)
         cnc.coords_decimals = 4
@@ -522,26 +545,29 @@ def run(args):
     import camlib
     from parser_baseline import install_stub_app
     from preprocessors.default import default
-    from preprocessors.GRBL_11_no_M6 import GRBL_11_no_M6
     from compare_cam_python import dependency_metadata
     app = install_stub_app()
     camlib.log.setLevel(logging.WARNING)
-    app.preprocessors = {"default":default(),"GRBL_11_no_M6":GRBL_11_no_M6()}
     export = json.loads(args.fx_export.read_text(encoding="utf-8-sig"))
-    if export["schema"] != 1 or export["profile"] != "GRBL_11_no_M6":
+    if export["schema"] != 1 or export["profile"] not in ("GRBL_11_no_M6","grbl_11","default","Default_no_M6"):
         raise ValueError("Unsupported CNC corpus")
+    import importlib
+    profile=export["profile"]
+    selected=getattr(importlib.import_module("preprocessors."+profile),profile)()
+    app.preprocessors={"default":default(),profile:selected}
+    for case in export["cases"]: case["profile"]=profile
     ids = [case["id"] for case in export["cases"]]
     if not ids or len(set(ids)) != len(ids) or any(not re.fullmatch(r"[a-z0-9-]{1,80}",identifier) for identifier in ids):
         raise ValueError("Missing/invalid/duplicate cases")
     if args.output.exists():
         raise ValueError("Use a fresh report directory")
     args.output.mkdir(parents=True)
-    sources = ("camlib.py","appCommon/Common.py","preprocessors/GRBL_11_no_M6.py","appTools/ToolDrilling.py")
+    sources = ("camlib.py","appCommon/Common.py","preprocessors/"+profile+".py","appTools/ToolDrilling.py")
     hashes = {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in sources}
     report = {"schema":1,**dependency_metadata(),"profile":export["profile"],"cases":[],
-              "legacySourceSha256":hashes,"oracle":"Original CNCjob generators, OR-Tools Basic optimizer, GRBL preprocessor and exclusion routing",
+              "legacySourceSha256":hashes,"oracle":"Original CNCjob generators, OR-Tools Basic optimizer, selected preprocessor and exclusion routing",
               "coordinateToleranceInSourceUnits":.000051,"pythonFeedDecimals":4,"pythonCoordinateDecimals":4,
-              "scope":"Public synthetic cases; initial XYZ assumed zero; only the explicit GRBL G0/G1 subset. No GUI/physical certification. Strict requires full execution, not machining-only agreement."}
+              "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
         (args.output/(case["id"]+".fx.nc")).write_text(case["gcode"],encoding="utf-8")
@@ -578,6 +604,7 @@ def run(args):
                     firstExecutionDifference=first_difference(fx["events"],python["events"]),
                     firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)),
                     rapidMetrics={"fx":rapid_metrics(fx),"python":rapid_metrics(python)})
+                result["cutDifferenceByTool"] = cut_difference_by_tool(fx,python)
                 if not machining and case["operation"]=="drilling" and not any(tool.get("slots") and not tool.get("parameters",{}).get("fxSlotDrilling",False) for tool in case["tools"]) \
                         and any(len(tool.get("points",[]))>1 for tool in oracle_case["tools"]) \
                         and not result["fxParameterIssues"] and not result["pythonParameterIssues"]:

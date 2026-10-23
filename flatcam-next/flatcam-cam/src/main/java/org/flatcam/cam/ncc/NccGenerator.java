@@ -225,7 +225,7 @@ public final class NccGenerator {
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
                     : clearArea(areaForTool, diameter, settings, false, cancellation,
                             fraction -> progress.report((index + fraction) / tools.size()));
-            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR));
+            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR,areaForTool));
             if (!result.geometry().isEmpty()) {
                 combinedPaths.add(result.geometry());
             }

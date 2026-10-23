@@ -69,6 +69,16 @@ class TerminalPanelTest {
             assertTrue(session.text().contains("\n6\n"));
         }
     }
+    @Test void reviewNoticesStaySeparateFromTheReturnedGcode() throws Exception {
+        try (Session session=new Session()) {
+            fx(()->{ session.panel.interpreter().register("review_program",(interp,args)->{
+                TclExecution.notice("[REVISÃO CNC] exemplo"); return "G21\nM30";
+            }); return null; });
+            session.submit("review_program");
+            assertTrue(session.text().contains("[REVISÃO CNC] exemplo"));
+            assertTrue(session.text().endsWith("G21\nM30\n"));
+        }
+    }
 
     @Test void anUndefinedCommandShowsAnErrorLineInsteadOfThrowing() throws Exception {
         try (Session session = new Session()) {

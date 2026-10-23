@@ -2982,7 +2982,10 @@ final class MainWindow implements TclFlatcamHost {
 
     /** What a panelize job hands back to the UI thread: exactly one of the three objects is set. */
     private record PanelizeOutcome(GerberImage gerber, ExcellonImage excellon, GeometryJoin.Joined geometry,
-                                   String units) {
+                                   String units, org.flatcam.cam.gcode.MachiningTarget target) {
+        private PanelizeOutcome(GerberImage gerber,ExcellonImage excellon,GeometryJoin.Joined geometry,String units) {
+            this(gerber,excellon,geometry,units,null);
+        }
     }
 
     private static String withoutExtension(String name) {
@@ -4396,8 +4399,9 @@ final class MainWindow implements TclFlatcamHost {
                     outcomes.add(new PanelizeOutcome(null, Panelize.excellon(excellon, request.layout(), context::isCancelled, progress), null, excellon.units()));
                 } else {
                     GeometryEntry geometry = (GeometryEntry) input.version();
-                    outcomes.add(new PanelizeOutcome(null, null, Panelize.geometry(geometry.units(), geometry.geometry(),
-                            geometry.strokeOnly(), geometry.tools(), request.layout(), context::isCancelled, progress), geometry.units()));
+                    var joined=Panelize.geometry(geometry.units(),geometry.geometry(),geometry.strokeOnly(),geometry.tools(),request.layout(),context::isCancelled,progress);
+                    var target=geometry.machiningTarget()==null ? null : geometry.machiningTarget().panelized(request.layout(),geometry.tools(),joined.tools(),context::isCancelled);
+                    outcomes.add(new PanelizeOutcome(null,null,joined,geometry.units(),target));
                 }
             }
             context.checkCancelled(); return List.copyOf(outcomes);
@@ -4447,6 +4451,10 @@ final class MainWindow implements TclFlatcamHost {
             GeometryJoin.Joined joined = outcome.geometry();
             created = addGeometryToProject(name, input.name(), outcome.units(), joined.geometry(),
                     joined.strokeOnly(), joined.tools(), input.version() instanceof GeometryEntry entry ? entry.cncDefaults() : null);
+            if (outcome.target()!=null) {
+                var entry=geometryByItem.get(created);
+                geometryByItem.put(created,new GeometryEntry(entry.sourceName(),entry.units(),entry.geometry(),entry.strokeOnly(),entry.tools(),entry.cncDefaults(),outcome.target()));
+            }
             if (input.version() instanceof GeometryEntry && geometryCncSettingsByItem.containsKey(input.item()))
                 geometryCncSettingsByItem.put(created, geometryCncSettingsByItem.get(input.item()));
         }
@@ -4545,15 +4553,24 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
         beginJob("Pintando poligonos...");
-        JobHandle<NccResult> handle = jobExecutor.submit(context -> NccGenerator.paint(units, polygons, params,
-                context::isCancelled, fraction -> context.reportProgress(fraction, "Pintando poligonos...")),
+        JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
+            var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,"Pintando poligonos..."));
+            var paths=result.toolResults().stream().filter(tool -> !tool.isEmpty()).map(tool -> new ToolGeometry(tool.toolDiameter(),tool.geometry())).toList();
+            var areas=new LinkedHashMap<Integer,Geometry>(); int index=0;
+            for (var tool:result.toolResults()) if (!tool.isEmpty()) { if (tool.targetArea()!=null) areas.put(index,tool.targetArea().copy()); index++; }
+            var target=areas.isEmpty() ? null : new org.flatcam.cam.gcode.MachiningTarget("PAINT",units,result.clearingArea().copy(),areas,
+                    org.flatcam.cam.gcode.MachiningTarget.signature(paths,context::isCancelled));
+            return new NccJobOutcome(result,OptionalDouble.empty(),target);
+        },
                 (fraction, message) -> Platform.runLater(() -> {
                     updateProgress(fraction);
                     statusLabel.setText(message);
                 }));
         runningJob = handle;
         handle.completion()
-                .thenAccept(result -> Platform.runLater(() -> {
+                .thenAccept(outcome -> Platform.runLater(() -> {
+                    if (runningJob!=handle) return;
+                    var result=outcome.result();
                     if (result.isEmpty()) {
                         appendConsole("Paint nao gerou caminhos. A ferramenta pode ser grande demais para os poligonos.");
                         setStatus("Sem caminhos.", ERROR_COLOR);
@@ -4565,6 +4582,8 @@ final class MainWindow implements TclFlatcamHost {
                                 .toList();
                         TreeItem<String> generated = addGeometryToProject(uniqueDerivedName(item.getValue() + "_paint"),
                                 item.getValue(), units, result.geometry(), true, tools);
+                        var entry=geometryByItem.get(generated);
+                        geometryByItem.put(generated,new GeometryEntry(entry.sourceName(),entry.units(),entry.geometry(),entry.strokeOnly(),entry.tools(),entry.cncDefaults(),outcome.target()));
                         appendConsole(String.format(java.util.Locale.ROOT,
                                 "Paint: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d.",
                                 result.pathCount(), result.totalLength(), tools.size(),
@@ -4893,7 +4912,8 @@ final class MainWindow implements TclFlatcamHost {
         } else if (geometry != null) {
             List<ToolGeometry> newTools = geometry.tools().stream().map(t -> t.transformed(op)).toList();
             GeometryEntry transformed = new GeometryEntry(geometry.sourceName(), geometry.units(),
-                    op.apply(geometry.geometry()), geometry.strokeOnly(), newTools, geometry.cncDefaults());
+                    op.apply(geometry.geometry()), geometry.strokeOnly(), newTools, geometry.cncDefaults(),
+                    geometry.machiningTarget()==null ? null : geometry.machiningTarget().transformed(op,geometry.tools(),newTools,org.flatcam.cam.CancellationToken.none()));
             geometryByItem.put(item, transformed);
             plotAreaView.updateLayerGeometry(item, transformed.geometry());
         } else {
@@ -5524,6 +5544,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void saveObjectAs(TreeItem<String> item) {
         CncJobEntry cncJob = cncJobByItem.get(item);
+        if (cncJob!=null) { reviewExistingCncAndSave(item,cncJob); return; }
         GeometryEntry geometry = geometryByItem.get(item);
         GerberImage gerber = gerberByItem.get(item);
         ExcellonImage excellon = excellonByItem.get(item);
@@ -5594,6 +5615,59 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole("Falha ao salvar " + target + ": " + e.getMessage());
             setStatus("Falhou.", ERROR_COLOR);
         }
+    }
+
+    private void reviewExistingCncAndSave(TreeItem<String> item, CncJobEntry entry) {
+        if (runningJob!=null || terminalPanel!=null && terminalPanel.isBusy()) {
+            appendConsole("Aguarde a operação atual antes de revisar/exportar CNC."); return;
+        }
+        long epoch=tclProjectEpoch;
+        beginJob("Revisando programa CNC existente...");
+        var handle=jobExecutor.submit(context -> CncExportReview.create(item.getValue(),entry.gcode(),entry.stats(),
+                context::isCancelled,fraction -> context.reportProgress(fraction,"Revisando programa CNC...")),
+                (fraction,message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
+        runningJob=handle;
+        handle.completion().whenComplete((report,error) -> Platform.runLater(() -> {
+            if (runningJob!=handle) return;
+            onJobFinished();
+            if (error!=null) { reportJobError(error,"Falha na revisão CNC: "); return; }
+            updateProgress(1); setStatus("Revisão CNC pronta.",IDLE_COLOR);
+            if (tclProjectEpoch!=epoch || cncJobByItem.get(item)!=entry) {
+                appendConsole("CNC Job alterado; revisão descartada."); return;
+            }
+            var decision=new CncReviewDialog(scene.getWindow(),currentTheme,report).showAndWait().orElse(null);
+            if (decision==null || !decision.proceed() || tclProjectEpoch!=epoch || cncJobByItem.get(item)!=entry) return;
+            FileChooser chooser=new FileChooser(); chooser.setTitle("Salvar CNC Job revisado");
+            String extension=GCodeToolpathParser.isIcpProgram(entry.gcode()) ? ".imf" : GCodeToolpathParser.isHpglProgram(entry.gcode()) ? ".plt"
+                    : GCodeToolpathParser.isRolandProgram(entry.gcode()) ? ".rml" : ".nc";
+            chooser.setInitialFileName(item.getValue().matches("(?i).*\\.(nc|gcode|tap|imf|plt|hpgl|hpg|rml|prn)$") ? item.getValue() : item.getValue()+extension);
+            chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programas CNC","*.nc","*.gcode","*.tap","*.imf","*.plt","*.rml"));
+            File selected=chooser.showSaveDialog(scene.getWindow()); if (selected==null) return;
+            Path destination=selected.toPath().toAbsolutePath();
+            beginJob("Salvando CNC Job revisado...");
+            var saving=jobExecutor.submit(context -> TclExecution.run(context,() -> {
+                Path temporary=Files.createTempFile(destination.getParent(),".flatcam-cnc-export-",".tmp");
+                try {
+                    Files.writeString(temporary,entry.gcode()); TclExecution.cancellation().throwIfCancellationRequested();
+                    TclExecution.onFx(() -> {
+                        if (tclProjectEpoch!=epoch || cncJobByItem.get(item)!=entry)
+                            throw new IllegalStateException("CNC Job alterado; arquivo anterior preservado.");
+                        return null;
+                    });
+                    TclExecution.cancellation().throwIfCancellationRequested();
+                    try { Files.move(temporary,destination,StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE); }
+                    catch (java.nio.file.AtomicMoveNotSupportedException unsupported) { Files.move(temporary,destination,StandardCopyOption.REPLACE_EXISTING); }
+                    return destination;
+                } finally { Files.deleteIfExists(temporary); }
+            }),null);
+            runningJob=saving;
+            saving.completion().whenComplete((saved,failure) -> Platform.runLater(() -> {
+                if (runningJob!=saving) return;
+                onJobFinished();
+                if (failure!=null) reportJobError(failure,"Falha ao salvar CNC: ");
+                else { AppPreferences.saveLastCamDirectory(saved.getParent().toString()); appendConsole("CNC revisado salvo em "+saved); updateProgress(1); setStatus("Concluído.",IDLE_COLOR); }
+            }));
+        }));
     }
 
     /**
@@ -5924,6 +5998,11 @@ final class MainWindow implements TclFlatcamHost {
         } else if (geometry != null) {
             copyItem = addGeometryToProject(copyName, geometry.sourceName(), geometry.units(),
                     geometry.geometry().copy(), geometry.strokeOnly(), geometry.tools(), geometry.cncDefaults());
+            if (geometry.machiningTarget()!=null) {
+                var copy=geometryByItem.get(copyItem);
+                geometryByItem.put(copyItem,new GeometryEntry(copy.sourceName(),copy.units(),copy.geometry(),copy.strokeOnly(),copy.tools(),copy.cncDefaults(),
+                        geometry.machiningTarget().transformed(new TransformOp.Offset(0,0),geometry.tools(),copy.tools(),org.flatcam.cam.CancellationToken.none())));
+            }
             if (geometryCncSettingsByItem.containsKey(sourceItem))
                 geometryCncSettingsByItem.put(copyItem, geometryCncSettingsByItem.get(sourceItem));
             copyLayerAppearance(sourceItem, copyItem);
@@ -7005,7 +7084,8 @@ final class MainWindow implements TclFlatcamHost {
         }
 
         if (!confirmCncReview(CncPreflight.geometry(item.getValue(), entry.units(), result),
-                entry.machiningTarget() == null ? null : () -> showCncCoverage(item, entry, result))) return;
+                entry.machiningTarget() == null || result.preprocessor().isLaser() || result.preprocessor().isPlotter() || result.preprocessor().requiresProbe()
+                        ? null : () -> showCncCoverage(item, entry, result))) return;
 
         FileChooser chooser = new FileChooser();
         chooser.setTitle("Salvar G-code de Geometry");
@@ -7052,14 +7132,14 @@ final class MainWindow implements TclFlatcamHost {
         if (entry.machiningTarget() == null || geometryByItem.get(item) != entry || runningJob != null)
             throw new IllegalStateException("Origem/área-alvo mudou; reabra o CNC.");
         if (draft.preprocessor().isLaser() || draft.preprocessor().isPlotter() || draft.preprocessor().requiresProbe())
-            throw new IllegalArgumentException("Cobertura NCC exige perfil de fresagem sem sondagem.");
+            throw new IllegalArgumentException("Cobertura CAM exige perfil de fresagem sem sondagem.");
         var owned = new java.util.concurrent.atomic.AtomicReference<JobHandle<?>>();
         var panel = new CncCoveragePanel(item.getValue(), entry.units(), draft.tools(), plotAreaView::setCoverageResidual,
                 () -> {
                     if (geometryByItem.get(item) == entry) generateGeometryCncJob(item, entry, draft);
                     else { appendConsole("Origem alterada: reabra o CNC para revisar."); closeToolPanel(); }
                 }, () -> { var handle = owned.get(); if (handle != null) handle.cancel(); });
-        openToolPanel("Cobertura NCC", panel);
+        openToolPanel("Cobertura "+entry.machiningTarget().operation(), panel);
         var before = captureCamGeneration(item, entry.geometry(), null, null);
         beginJob("Calculando resíduos nominais NCC..."); activeCamGeneration = before;
         var handle = jobExecutor.submit(context -> org.flatcam.cam.gcode.MachiningCoverage.calculate(entry.machiningTarget(),
@@ -8254,7 +8334,8 @@ final class MainWindow implements TclFlatcamHost {
                 ToolGeometry result = tool.transformed(op); checkFiniteGeometry(result.geometry()); tools.add(result);
             }
             transformed = new GeometryEntry(entry.sourceName(), entry.units(), geometry,
-                    entry.strokeOnly(), List.copyOf(tools), entry.cncDefaults());
+                    entry.strokeOnly(), List.copyOf(tools), entry.cncDefaults(),
+                    entry.machiningTarget()==null ? null : entry.machiningTarget().transformed(op,entry.tools(),tools,TclExecution.cancellation()));
         }
         TclExecution.cancellation().throwIfCancellationRequested();
         TclExecution.onFx(() -> {
@@ -8596,17 +8677,24 @@ final class MainWindow implements TclFlatcamHost {
 
     @Override
     public String exportGcode(String cncJobName, String preamble, String postamble) throws TclException {
+        requireWorkerCommand();
         TclSource source = tclSource(cncJobName);
         if (source.kind() != Kind.CNC_JOB) {
             throw new TclException("Expected CNCjob, got: " + cncJobName);
         }
         TclExecution.cancellation().throwIfCancellationRequested();
-        return preamble + source.gcode() + postamble;
+        String text=preamble+source.gcode()+postamble;
+        var report=CncExportReview.create(cncJobName,text,null,TclExecution.cancellation(),TclExecution.progress("Revisando G-code..."));
+        TclExecution.notice(CncExportReview.terminalText(report));
+        if (!report.canContinue()) throw new TclException("Revisão CNC recusou a exportação.");
+        TclExecution.onFx(() -> { checkTclSource(source); return null; });
+        return text;
     }
 
     @Override
     public void writeGcode(String cncJobName, Path outputFile, String preamble, String postamble)
             throws TclException, IOException {
+        TclSource source=tclSource(cncJobName);
         String gcode = exportGcode(cncJobName, preamble, postamble);
         TclExecution.phase("Salvando G-code...");
         Path destination = outputFile.toAbsolutePath();
@@ -8614,6 +8702,7 @@ final class MainWindow implements TclFlatcamHost {
         try {
             Files.writeString(temporary, gcode);
             TclExecution.cancellation().throwIfCancellationRequested();
+            TclExecution.onFx(() -> { checkTclSource(source); return null; });
             try {
                 Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
             } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {

@@ -1,5 +1,17 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Série de seis lacunas — 2026-10-14
+
+Comparador ampliado com `-Profile GRBL_11_NO_M6|GRBL_11|DEFAULT|DEFAULT_NO_M6`
+e diagnóstico de cortes por ferramenta, sem substituir a equivalência ordenada.
+104 controles por perfil, cada um 49/19/34/2/0 (execução igual/rota diferente/
+usinagem diferente/erro Py/erro FX); auditoria FX sem problemas de parâmetros.
+M6 explícito é modelado, movimentos internos da macro não. 28 auxiliares passam.
+Round-trip real descobriu/corrigiu sobrescrita de ajustes pelo Python e tornou
+explícitas suas restrições. Cobertura conhecida transportada/PAINT e revisão de
+exportações existentes integradas. [CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md)
+documenta todos os ensaios, novas restrições e o que ainda não foi validado.
+
 ## Drill slots: alternativa explícita à fresagem — 2026-10-14
 
 Drilling oferece **Drill slots — furar rasgos**, sobreposição (0 ≤ valor < 100%)

@@ -15,16 +15,24 @@ import org.flatcam.cam.ProgressCallback;
 
 /** Worker-scoped context; never blocks the FX thread waiting for a worker. */
 final class TclExecution {
-    private record Context(CancellationToken cancellation, ProgressListener progress) { }
+    private record Context(CancellationToken cancellation, ProgressListener progress, java.util.function.Consumer<String> notice) { }
     private static final ThreadLocal<Context> CURRENT = new ThreadLocal<>();
 
     private TclExecution() { }
 
     static <T> T run(JobContext job, Callable<T> action) throws Exception {
+        return run(job,action,null);
+    }
+    static <T> T run(JobContext job, Callable<T> action, java.util.function.Consumer<String> notice) throws Exception {
         Context previous = CURRENT.get();
-        CURRENT.set(new Context(job::isCancelled, job::reportProgress));
+        CURRENT.set(new Context(job::isCancelled, job::reportProgress,notice));
         try { return action.call(); }
         finally { if (previous == null) CURRENT.remove(); else CURRENT.set(previous); }
+    }
+    static void notice(String message) {
+        Context context=CURRENT.get();
+        if (context!=null && context.notice()!=null) context.notice().accept(message);
+        else phase(message);
     }
 
     static CancellationToken cancellation() {

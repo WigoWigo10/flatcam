@@ -67,6 +67,8 @@ def main():
     parser.add_argument("--resave", type=Path, help="Where the Python application saves the project it opened")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument("--initial-units", choices=("MM", "IN"),
+                        help="Explicit isolated app unit preference before opening; legacy set_ui overwrites object units from defaults")
     parser.add_argument("--new-empty-geometry", action="store_true",
                         help="Control run: also create a blank Geometry with the application's own command")
     args = parser.parse_args()
@@ -158,6 +160,11 @@ def main():
         finish(3)
 
     fc = App(qapp=qapp)
+    report["initialUnitPreference"] = fc.defaults["units"]
+    if args.initial_units:
+        fc.defaults["units"] = args.initial_units
+        fc.options["units"] = args.initial_units
+        report["initialUnitPreference"] = args.initial_units
     QtCore.QTimer.singleShot(int(args.timeout * 1000), timed_out)
     QtCore.QTimer.singleShot(1500, run)
     qapp.exec_()

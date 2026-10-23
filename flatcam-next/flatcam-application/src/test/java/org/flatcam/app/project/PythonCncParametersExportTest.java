@@ -24,6 +24,7 @@ import org.locationtech.jts.io.WKTWriter;
 
 /** Public fixtures only. The Python side regenerates code, not expected G-code strings. */
 class PythonCncParametersExportTest {
+    private final GCodePreprocessor profile=GCodePreprocessor.valueOf(System.getProperty("flatcam.cnc.comparison.profile","GRBL_11_NO_M6"));
     @TempDir Path temporary;
     private final GeometryFactory factory = new GeometryFactory();
 
@@ -52,7 +53,13 @@ class PythonCncParametersExportTest {
                 cases.put(multipleDrills(units,scale,recipe));
         }
         assertEquals(104, cases.length());
-        var output = new JSONObject().put("schema", 1).put("profile", "GRBL_11_no_M6")
+        var output = new JSONObject().put("schema", 1).put("profile", switch(profile) {
+            case GRBL_11_NO_M6 -> "GRBL_11_no_M6";
+            case GRBL_11 -> "grbl_11";
+            case DEFAULT -> "default";
+            case DEFAULT_NO_M6 -> "Default_no_M6";
+            default -> throw new IllegalArgumentException("Perfil ainda fora do leitor XYZ comparativo");
+        })
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("cases", cases);
         Path directory = Path.of(System.getProperty("flatcam.cnc.comparison.output", temporary.toString()));
@@ -87,7 +94,7 @@ class PythonCncParametersExportTest {
                 CncExclusionArea.of(factory.toGeometry(new Envelope((recipe.equals("over-overlap") ? 5 : 8)*s,
                         (recipe.equals("over-overlap") ? 7 : 9)*s,-s,s)),CncExclusionArea.Strategy.OVER,12*s)));
         String code = GCodeGenerator.generateDrillCncJob(image, settings, order, options,
-                GCodePreprocessor.GRBL_11_NO_M6).gcode();
+                profile).gcode();
         assertFalse(code.isBlank());
         var tools = new JSONArray();
         for (int id : order) tools.put(new JSONObject().put("id", id).put("diameter", image.toolDiameters().get(id))
@@ -108,7 +115,7 @@ class PythonCncParametersExportTest {
                 true, 1500*s, null, 75*s, recipe.equals("dwell"), .25, false, 0).withJobOptions(positions);
         if(recipe.startsWith("continuous"))p=p.withPassStrategy(GeometryPassStrategy.CONTINUOUS_ALTERNATING);
         String code = GCodeGenerator.generateGeometryCncJob(units, List.of(new ToolGeometry(1*s,shape)),
-                p, Map.of(), CancellationToken.none(), GCodePreprocessor.GRBL_11_NO_M6).gcode();
+                p, Map.of(), CancellationToken.none(), profile).gcode();
         var params = new JSONObject().put("safeZ",p.safeZ()).put("depth",p.cutDepth()).put("multiDepth",p.multiDepth())
                 .put("depthPerPass",p.depthPerPass()).put("feed",p.feedRate()).put("feedZ",p.feedRateZ())
                 .put("rpm",p.spindleSpeedRpm()).put("dwell",p.dwell()).put("dwellSeconds",p.dwellSeconds());
@@ -152,7 +159,7 @@ class PythonCncParametersExportTest {
         }
         String code = GCodeGenerator.generateGeometryCncJob(units,
                 List.of(new ToolGeometry(.4*s, firstPaths), new ToolGeometry(.8*s, shapeB)), first,
-                Map.of(), Map.of(1, second), CancellationToken.none(), GCodePreprocessor.GRBL_11_NO_M6).gcode();
+                Map.of(), Map.of(1, second), CancellationToken.none(), profile).gcode();
         var tools = new JSONArray();
         var settings = List.of(first, second); var paths = List.of(firstPaths, shapeB);
         for (int i = 0; i < 2; i++) {
@@ -186,7 +193,7 @@ class PythonCncParametersExportTest {
         var positions=new GeometryJobOptions(null,5*s,null,null,15*s,null,null);
         var p=new GeometryGCodeParameters(3*s,.6*s,multiple,.2*s,200*s,10000,true,1500*s,null,75*s,false,0,false,0)
                 .withJobOptions(positions).withPassStrategy(strategy);
-        String code=GCodeGenerator.generateGeometryCncJob(units,List.of(new ToolGeometry(s,shape)),p,Map.of(),CancellationToken.none(),GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        String code=GCodeGenerator.generateGeometryCncJob(units,List.of(new ToolGeometry(s,shape)),p,Map.of(),CancellationToken.none(),profile).gcode();
         // Standard WKT plus an explicit type: do not silently turn a ring into a LineString in the oracle.
         var wktShape=shape instanceof org.locationtech.jts.geom.LinearRing ? factory.createLineString(shape.getCoordinates()) : shape;
         var params=new JSONObject().put("safeZ",p.safeZ()).put("depth",p.cutDepth()).put("multiDepth",multiple)
@@ -212,7 +219,7 @@ class PythonCncParametersExportTest {
         var slots=slot ? List.of(new ExcellonImage.Slot(1,10*s,0,12*s,0)) : List.<ExcellonImage.Slot>of();
         var image=ExcellonImage.of(units,Map.of(1,s,2,2*s),drills,slots,factory.createPolygon());
         var options=new GCodeGenerator.DrillJobOptions(true,15*s,5*s,null,null).withOptimizedDrills(optimize);
-        String code=GCodeGenerator.generateDrillCncJob(image,Map.of(1,first,2,second),two ? List.of(1,2) : List.of(1),options,GCodePreprocessor.GRBL_11_NO_M6).gcode();
+        String code=GCodeGenerator.generateDrillCncJob(image,Map.of(1,first,2,second),two ? List.of(1,2) : List.of(1),options,profile).gcode();
         var tools=new JSONArray();
         for (int id:two ? List.of(1,2) : List.of(1)) {
             var points=new JSONArray(); for (var drill:drills) if (drill.toolId()==id) points.put(new JSONArray().put(drill.x()).put(drill.y()));

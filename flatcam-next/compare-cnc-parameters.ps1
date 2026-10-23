@@ -2,6 +2,8 @@ param(
     [string]$Python,
     [string]$DependencyPath,
     [string]$OutputDirectory,
+    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6')]
+    [string]$Profile = 'GRBL_11_NO_M6',
     [switch]$Strict
 )
 
@@ -45,6 +47,7 @@ try {
     try {
         Write-Host 'Exportando casos publicos CNC XYZ em MM e IN...'
         $buildArgs = @('-q','-pl','flatcam-application','-am','-Dtest=PythonCncParametersExportTest',
+            ('-Dflatcam.cnc.comparison.profile=' + $Profile),
             '-Dsurefire.failIfNoSpecifiedTests=false',('-Dflatcam.cnc.comparison.output=' + $OutputDirectory),
             'test','-l',(Join-Path $OutputDirectory 'export.log'))
         $code = Invoke-CncNative (Join-Path $comparisonRoot 'mvnw.cmd') $buildArgs (Join-Path $OutputDirectory 'maven-launcher.log')

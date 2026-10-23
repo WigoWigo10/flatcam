@@ -26,7 +26,7 @@ final class CncCoveragePanel extends VBox {
                      Runnable onBack, Runnable onCancel) {
         super(8); this.highlight = highlight; this.units = units; setPadding(new javafx.geometry.Insets(12));
         setId("cnc-coverage-panel"); setMinWidth(0);
-        var title = new Label("Cobertura NCC — " + source); title.setWrapText(true); title.getStyleClass().add("tool-title");
+        var title = new Label("Cobertura CAM — " + source); title.setWrapText(true); title.getStyleClass().add("tool-title");
         status.setId("cnc-coverage-status"); status.setWrapText(true);
         table.setId("cnc-coverage-tools"); table.setMinWidth(0); table.setPrefHeight(Math.min(200, 32 + tools.size() * 28));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
@@ -47,7 +47,7 @@ final class CncCoveragePanel extends VBox {
         cancel.setId("cnc-coverage-cancel"); cancel.setMaxWidth(Double.MAX_VALUE); cancel.setOnAction(event -> onCancel.run());
         cancel.visibleProperty().bind(cancel.disableProperty().not()); cancel.managedProperty().bind(cancel.visibleProperty());
         Label limits = new Label("Áreas em " + squareUnit() + ". Laranja mostra o restante nominal, não uma simulação da peça. "
-                + "Após esta fresa inclui as anteriores; Somente esta fresa compara com seu alvo NCC (em Rest, o alvo pode já ser residual). "
+                + "Após esta fresa inclui as anteriores; Somente esta fresa compara com seu alvo CAM (em Rest, o alvo pode já ser residual). "
                 + "Ferramentas ISO não têm alvo individual de limpeza. Não valida Z, grampos, material, exclusões ou a máquina."); limits.setWrapText(true);
         getChildren().addAll(title, status, table, scope, finalResidue, limits, cancel, back);
         ToolDescriptions.apply(table, "Resíduos por fresa", "Selecione uma linha para destacar o restante no Plot. Restante da fresa é seu alvo menos seu próprio corte; o acumulado usa todas as fresas até essa linha. ISO pode contribuir ao acumulado sem ter um alvo individual de limpeza.");

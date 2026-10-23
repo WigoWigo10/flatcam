@@ -3,6 +3,7 @@ import copy
 import unittest
 from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters, rapid_metrics
 from compare_cnc_python import geometry_source,geometry_paths,nearest_points,slot_oracle_case
+from compare_cnc_python import cut_difference_by_tool
 
 
 PROGRAM = """G21
@@ -105,6 +106,14 @@ class CncReaderTest(unittest.TestCase):
         self.assertEqual(other["slots"],converted["tools"][1]["slots"])
         self.assertNotEqual(source,converted)
         self.assertEqual(1,len(source["tools"][0]["slots"]))
+
+    def test_cut_order_diagnosis_does_not_hide_a_missing_pass_or_direction_change(self):
+        first=read_program(PROGRAM)
+        reordered=copy.deepcopy(first); reordered["cuts"]=list(reversed(first["cuts"]))
+        self.assertEqual("SAME_CUTS_DIFFERENT_ORDER",cut_difference_by_tool(first,reordered)["1"])
+        self.assertFalse(equivalent(first,reordered))
+        reordered["cuts"].pop()
+        self.assertEqual("CUTS_OR_PARAMETERS_DIFFER",cut_difference_by_tool(first,reordered)["1"])
 
     def test_original_diagonal_slot_can_stop_early_on_exact_within_predicate(self):
         from pathlib import Path
