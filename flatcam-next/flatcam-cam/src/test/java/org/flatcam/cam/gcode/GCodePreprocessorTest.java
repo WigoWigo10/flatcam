@@ -198,19 +198,21 @@ class GCodePreprocessorTest {
         var parsed = parse(code);
         assertNull(parsed.warning(), code);
         assertEquals(7, parsed.cutCenterlines().getLength(), 1e-9);
-        assertFalse(code.contains("M30"));
         if (profile == GCodePreprocessor.ISEL_CNC) {
+            assertTrue(code.endsWith("M30\n"));
             assertTrue(code.contains("G71\nG90"));
             assertFalse(code.contains("G21"));
             assertEquals(2, code.lines().filter(line -> line.equals("M06")).count());
             assertEquals(2, code.lines().filter(line -> line.equals("M01")).count());
             assertFalse(code.contains("\nM0\n"));
         } else if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL) {
+            assertFalse(code.contains("M30"));
             assertEquals(6, code.lines().filter(line -> line.equals("M0")).count());
             assertEquals(2, code.lines().filter(line -> line.equals("G01 Z0 F100.0000")).count());
             assertFalse(code.contains("\nM6\n"));
             assertTrue(code.contains("G00 Z2.0000\n(Aperte"));
         } else {
+            assertFalse(code.contains("M30"));
             assertEquals(2, code.lines().filter(line -> line.equals("M6")).count());
             assertFalse(code.contains("\nM0\n"));
             assertTrue(code.contains("T1\nM6"));

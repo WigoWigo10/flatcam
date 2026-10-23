@@ -398,7 +398,7 @@ public final class GCodeGenerator {
                 line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
             }
             if (params.dwell()) {
-                line(gcode, "G4 P%s", fmt(params.dwellSeconds()));
+                line(gcode, "%s", preprocessor.dwellCode(params.dwellSeconds()));
             }
 
             List<Double> depths = passDepths(params.effectiveDepth(),
@@ -890,7 +890,7 @@ public final class GCodeGenerator {
             previousSpindle = machining.spindleSpeedRpm();
             if (preprocessor.controlsSpindle(previousSpindle)) {
                 line(gcode, "%s S%d", preprocessor.spindleOn(), previousSpindle);
-                if (machining.dwell()) line(gcode, "G4 P%s", fmt(machining.dwellSeconds()));
+                if (machining.dwell()) line(gcode, "%s", preprocessor.dwellCode(machining.dwellSeconds()));
             }
 
             double radius = tool.toolDiameter() / 2.0;

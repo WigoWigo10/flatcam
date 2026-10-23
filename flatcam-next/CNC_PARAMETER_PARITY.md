@@ -1,5 +1,12 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## ISEL_CNC: contrato Remote e milissegundos — 2026-10-23
+
+Corrigida emissão de Dwell (0,25 s→G4 P250), M30 após estacionamento e faixa
+T1–T128. M01 Remote é parada com interação; variantes opcionais são condição
+explícita no comparador. Novos resultados 0/22/29/1/0 em 52 MM; diferenças de
+dwell frente ao Python não foram normalizadas. [ISEL_PARITY.md](ISEL_PARITY.md).
+
 ## Marlin: validade do dialeto e configuração G0 — 2026-10-23
 
 G94 removido da saída MARLIN, M400 final após estacionamento. Leitor diferencia

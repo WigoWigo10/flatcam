@@ -21,10 +21,15 @@ WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
 SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC")
 
 
-def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared", marlin_fixed_rapid_feed=None):
+def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared", marlin_fixed_rapid_feed=None,
+                 isel_m01_mode="remote"):
     """Profile-scoped modal subset; retain cuts, pauses, synchronization and feeds."""
     if profile not in SUPPORTED_PROFILES:
         raise ValueError("Profile outside the XYZ comparison reader")
+    if isel_m01_mode not in ("remote","optional-enabled","optional-disabled"):
+        raise ValueError("Unknown ISEL M01 semantics")
+    if profile != "ISEL_CNC" and isel_m01_mode != "remote":
+        raise ValueError("ISEL M01 configuration requires ISEL_CNC")
     if marlin_rapid_mode not in ("shared", "variable", "fixed"):
         raise ValueError("Unknown Marlin G0 feed configuration")
     if marlin_rapid_mode == "fixed" and (marlin_fixed_rapid_feed is None
@@ -109,7 +114,7 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                 # Fixed mode restores the NEW modal feed (including this block's F), not the old one.
         if "T" in values:
             selected = values["T"]
-            if selected != int(selected) or selected < 1:
+            if selected != int(selected) or selected < 1 or profile == "ISEL_CNC" and selected > 128:
                 raise ValueError("Invalid tool number")
             if tool != int(selected):
                 tool = int(selected)
@@ -126,16 +131,29 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                     events.append({"kind": "spindle", "tool": tool, "direction": spindle,
                                    "rpm": rpm if spindle else 0})
             elif code in (0, 6):
+                if profile == "ISEL_CNC" and code == 0:
+                    raise ValueError("ISEL M00 abort semantics are outside this reader; not a portable pause")
+                if profile == "ISEL_CNC" and code == 6 and tool == 0:
+                    raise ValueError("ISEL M06 requires an explicit tool T1..T128")
                 events.append({"kind": "pause" if code == 0 else "change", "tool": tool, "at": xyz.copy(),
                                "spindleStopped": spindle_stopped})
             elif code == 1 and profile == "ISEL_CNC":
                 if len(words) != 1:
-                    raise ValueError("M01 must be a standalone optional stop")
-                events.append({"kind":"optionalPause", "tool":tool, "at":xyz.copy(), "spindleStopped":spindle_stopped})
+                    raise ValueError("M01 must be a standalone ISEL stop")
+                events.append({"kind":"iselStop", "tool":tool, "at":xyz.copy(), "spindleStopped":spindle_stopped,
+                               "behavior":isel_m01_mode, "active":isel_m01_mode!="optional-disabled"})
             elif code in (2, 30):
+                if profile == "ISEL_CNC" and code == 2:
+                    raise ValueError("ISEL M02 abort semantics are outside this reader; use explicit M30 end")
                 if any(k in values for k in "XYZFP"):
                     raise ValueError("Motion/dwell on a termination block")
                 terminated = True
+                if profile == "ISEL_CNC":
+                    if spindle != 0:
+                        spindle=0
+                        events.append({"kind":"spindle","tool":tool,"direction":0,"rpm":0})
+                    spindle_stopped=True
+                    events.append({"kind":"programEnd","code":30,"tool":tool,"at":xyz.copy()})
             elif code == 400 and profile == "Marlin":
                 if len(words) != 1:
                     raise ValueError("M400 must be a standalone synchronization block")
@@ -145,7 +163,7 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
         if dwell:
             if "P" not in values or values["P"] < 0 or any(k in values for k in "XYZ"):
                 raise ValueError("Invalid/unsupported dwell")
-            events.append({"kind": "dwell", "tool": tool, "seconds": values["P"]})
+            events.append({"kind": "dwell", "tool": tool, "seconds": values["P"]/(1000 if profile=="ISEL_CNC" else 1)})
         elif "P" in values:
             raise ValueError("P without dwell")
         if any(k in values for k in "XYZ"):
@@ -173,6 +191,11 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
             "finalSpindleCommand":spindle,
             "rapidMode":marlin_rapid_mode,
             "limits":"M400 drains modeled planner moves, not spindle coast-down. Tn/M6 compatibility is a precondition, not simulated firmware support."}
+    if profile == "ISEL_CNC":
+        parsed["iselControls"]={"m01Mode":isel_m01_mode,"dwellWordUnits":"milliseconds",
+            "toolChanges":[e for e in events if e["kind"] in ("tool","change","iselStop")],
+            "explicitProgramEnd":terminated,"finalSpindleCommand":spindle,
+            "limits":"Remote DIN/ISO stop semantics by default; optional-stop alternatives are explicit assumptions. Internal M06 movements are NOT simulated."}
     return parsed
 
 
@@ -449,8 +472,11 @@ def audit_parameters(case, parsed, *, implementation=None):
             expected_edges=[(list(a[:2]),list(b[:2]),z) for path in linear_paths if path.geom_type!="Point"
                             for a,b in zip(list(path.coords),list(path.coords)[1:]) for z in expected_depths]
             audit_segments(expected_edges,xy_cuts,issues,tool["id"])
-    pause_kind = "optionalPause" if case.get("profile") == "ISEL_CNC" else "pause"
-    pauses = [event for event in parsed["events"] if event["kind"] == pause_kind]
+    pause_kind = "iselStop" if case.get("profile") == "ISEL_CNC" else "pause"
+    pauses = [event for event in parsed["events"] if event["kind"] == pause_kind and event.get("active",True)]
+    if case.get("profile")=="ISEL_CNC" and job["toolChange"] and any(
+            e["kind"]=="iselStop" and not e["active"] for e in parsed["events"]):
+        issues.append("ISEL M01 is disabled in the selected controller model; requested pause is not active")
     if len(pauses) != (len(tools) if job["toolChange"] else 0):
         issues.append("Tool-change pause count differs from the requested setting")
     if any(not event["spindleStopped"] for event in pauses):
@@ -669,6 +695,8 @@ def run(args):
         raise ValueError("Unsupported CNC corpus")
     import importlib
     profile=export["profile"]
+    if profile!="ISEL_CNC" and args.isel_m01_mode!="remote":
+        raise ValueError("--isel-m01-mode requires ISEL_CNC")
     rapid_mode=args.marlin_rapid_mode
     fixed_rapid_mm=args.marlin_fixed_rapid_mm
     if profile != "Marlin" and (rapid_mode != "shared" or fixed_rapid_mm is not None):
@@ -695,7 +723,8 @@ def run(args):
               "marlinConfiguration":None if profile!="Marlin" else {
                   "rapidMode":rapid_mode, "fixedRapidMillimetersPerMinute":fixed_rapid_mm,
                   "assumptions":"CNC-configured Cartesian firmware, spindle S in RPM, compatible Tn/M6 and M0, INCH_MODE_SUPPORT for IN. No firmware/controller or physical simulation. Variable G0 initial feed is unknown until declared."},
-              "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL G71 means MM; M01 is a distinct OPTIONAL stop event, not proof the machine will pause. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
+              "iselConfiguration":None if profile!="ISEL_CNC" else {"m01Mode":args.isel_m01_mode,"dwellWordUnits":"milliseconds","toolRange":"T1..T128","reference":"ISEL Remote DIN/ISO interpreter, February 2025"},
+              "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL: G71=MM, G4 P in milliseconds, M01 operator stop by default (Remote); optional stop modes require explicit selection. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
         (args.output/(case["id"]+".fx.nc")).write_text(case["gcode"],encoding="utf-8")
@@ -704,8 +733,10 @@ def run(args):
                 raise ValueError("Unsupported units/operation")
             reader_options = {} if profile!="Marlin" else {"marlin_rapid_mode":rapid_mode,
                 "marlin_fixed_rapid_feed":None if fixed_rapid_mm is None else fixed_rapid_mm/(25.4 if case["units"]=="IN" else 1)}
+            if profile=="ISEL_CNC": reader_options["isel_m01_mode"]=args.isel_m01_mode
             fx = read_program(case["gcode"],profile,**reader_options)
             if profile=="Marlin": result["fxMarlinControls"]=fx["marlinControls"]
+            if profile=="ISEL_CNC": result["fxIselControls"]=fx["iselControls"]
             result["fxParameterIssues"] = audit_parameters(slot_oracle_case(case,root,enabled_only=True),fx,implementation="fx")
             if case["operation"] == "geometry":
                 result["travelPolicies"] = {"fx":"per-tool Travel Z" if case["job"].get("fxTravelClearance")=="PER_TOOL"
@@ -722,6 +753,7 @@ def run(args):
                 (args.output/(case["id"]+".python.nc")).write_text(program,encoding="utf-8")
                 python = read_program(program,profile,**reader_options)
                 if profile=="Marlin": result["pythonMarlinControls"]=python["marlinControls"]
+                if profile=="ISEL_CNC": result["pythonIselControls"]=python["iselControls"]
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:
                 result.update(status="ORACLE_ERROR",error=str(error))
@@ -771,4 +803,5 @@ if __name__ == "__main__":
     parser.add_argument("--strict",action="store_true")
     parser.add_argument("--marlin-rapid-mode",choices=("shared","variable","fixed"),default="shared")
     parser.add_argument("--marlin-fixed-rapid-mm",type=float)
+    parser.add_argument("--isel-m01-mode",choices=("remote","optional-enabled","optional-disabled"),default="remote")
     sys.exit(run(parser.parse_args()))

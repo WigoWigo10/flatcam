@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## ISEL_CNC Remote — 2026-10-23
+
+Dwell corrigido para ms, M30 após estacionamento, faixa T1–T128 e semântica
+de M01 explícita no leitor: **C**, não equivalência global A. Corpus MM 52:
+0/22/29/1/0. Remote e variante opcional habilitada sem problemas auditados FX;
+opcional desabilitada acusa pausa ausente. A caracterização histórica de M01
+como opcional universal foi corrigida conforme o manual Remote. IN e macros
+físicas não foram validados. [ISEL_PARITY.md](ISEL_PARITY.md).
+
 ## Marlin CNC — revisão de configuração — 2026-10-23
 
 Sem G94 na saída, M400 após estacionamento, avisos de configuração e leitor

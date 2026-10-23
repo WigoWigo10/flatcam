@@ -99,8 +99,9 @@ public enum GCodePreprocessor {
             case Z_LASER -> "Laser M03/M5; Focus Z e aplicado no inicio de cada ferramenta, com feixe desligado.";
             case MARLIN_LASER_FAN_PIN -> "Laser FAN: M106 S1-255; M400/M107 antes dos deslocamentos.";
             case MARLIN_LASER_SPINDLE_PIN -> "Laser SPINDLE: M3/M5; M400 antes de desligar e deslocar.";
-            case ISEL_CNC -> "ISEL CNC: somente mm, G71 e troca M06/M01. M01 e parada opcional: "
-                    + "ative essa funcao no controlador para a troca manual.";
+            case ISEL_CNC -> "ISEL CNC: somente mm, G71, ferramentas T1–T128 e troca M06/M01. "
+                    + "No Remote DIN/ISO, M01 requer interação do operador; em outros controladores confirme a semântica da parada. "
+                    + "Dwell é convertido de segundos para milissegundos. M30 termina após o estacionamento; macros M06 não são simuladas.";
             case TOOLCHANGE_MANUAL -> "Troca manual com tres M0 e movimento G01 ate Z0 para ajustar a ferramenta. "
                     + "Confira a origem Z e a altura livre; nao e sondagem automatica.";
             case TOOLCHANGE_CUSTOM -> "Troca pela macro M6 configurada na maquina, sem M0 adicional. "
@@ -157,20 +158,23 @@ public enum GCodePreprocessor {
         return switch (this) {
             case BERTA_CNC -> "(Berta)\nM111\nM30\n(Berta)\n";
             case MARLIN -> "M400\n"; // Include final parking moves in the completion barrier.
+            case ISEL_CNC -> "M30\n";
             case REPETIER, GRBL_LASER, Z_LASER,
                     MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN,
-                    ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20,
+                    TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20,
                     TOOLCHANGE_PROBE_MACH3 -> "";
             default -> "M30\n";
         };
     }
 
     public String selectTool(int number) {
+        validateToolNumber(number);
         // Tn is an extruder selection on Repetier, not the milling tool identifier.
         return this == REPETIER ? comment("Ferramenta T" + number) : "T" + number;
     }
 
     public String pauseForTool(int number, double diameter, String units) {
+        validateToolNumber(number);
         if (requiresProbe()) throw new IllegalArgumentException("Mach3 com sonda exige parametros explicitos de probing.");
         if (this == TOOLCHANGE_MANUAL) throw new IllegalArgumentException(
                 "Troca manual exige altura de retorno e feed para o movimento ate Z0.");
@@ -306,6 +310,19 @@ public enum GCodePreprocessor {
 
     /** Marlin uses native units/min; its command dispatcher has no G94 handler. */
     public boolean usesG94() { return this != MARLIN; }
+
+    private void validateToolNumber(int number) {
+        if (this == ISEL_CNC && (number < 1 || number > 128))
+            throw new IllegalArgumentException("ISEL CNC exige ferramentas numeradas de T1 a T128.");
+    }
+
+    /** Public UI time is seconds; Remote DIN/ISO G4 uses milliseconds. */
+    public String dwellCode(double seconds) {
+        double controllerTime = this == ISEL_CNC ? seconds * 1000 : seconds;
+        if (!Double.isFinite(controllerTime) || controllerTime < 0)
+            throw new IllegalArgumentException("Dwell fora do intervalo representável pelo perfil.");
+        return "G4 P" + GCodeGenerator.fmt(controllerTime);
+    }
 
     public String toolChangeMessage(int toolNumber, double diameter, String units) {
         return comment(String.format(Locale.ROOT,

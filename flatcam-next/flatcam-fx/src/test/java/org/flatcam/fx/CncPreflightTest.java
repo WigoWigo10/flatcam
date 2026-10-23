@@ -12,6 +12,15 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class CncPreflightTest {
+    @Test void iselReviewDistinguishesRemoteStopDwellUnitsAndToolChangeMacros() {
+        var result=geometry();
+        var report=CncPreflight.geometry("ISEL","MM",new GeometryCncToolPanel.Result(result.tools(),result.parameters(),
+                result.vTools(),GCodePreprocessor.ISEL_CNC,result.parametersByTool()));
+        assertTrue(report.canContinue());
+        for(String token:List.of("milissegundos","M01","Remote","M30","T1–T128","macro"))
+            assertTrue(report.issues().stream().anyMatch(i->i.text().contains(token)),token);
+        assertFalse(CncPreflight.geometry("GRBL","MM",result).issues().stream().anyMatch(i->i.text().contains("ISEL")));
+    }
     @Test void marlinReviewExplainsFirmwarePreconditionsWithoutClaimingPhysicalRpmOrRapidSpeed() {
         var original=geometry();
         var geometryReport=CncPreflight.geometry("Marlin","MM",new GeometryCncToolPanel.Result(

@@ -1,5 +1,11 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Revisão posterior: Marlin foi commitado em `4fcc2a3a`; ISEL Remote teve correção
+de Dwell para ms, término M30 e modelo de M01 atualizado conforme documentação
+do fabricante. As conclusões históricas abaixo sobre M01 opcional universal
+foram substituídas por [ISEL_PARITY.md](ISEL_PARITY.md). O relato anterior de
+Marlin também foi refinado por configuração em [MARLIN_PARITY.md](MARLIN_PARITY.md).
+
 ## 1. Investigação por ferramenta — 2026-10-23
 
 Comparador agora publica `toolpathReview`: contagem de cortes dirigidos sem

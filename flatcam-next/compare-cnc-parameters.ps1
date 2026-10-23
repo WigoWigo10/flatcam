@@ -7,6 +7,8 @@ param(
     [ValidateSet('shared','variable','fixed')]
     [string]$MarlinRapidMode = 'shared',
     [double]$MarlinFixedRapidMm = 0,
+    [ValidateSet('remote','optional-enabled','optional-disabled')]
+    [string]$IselM01Mode = 'remote',
     [switch]$Strict
 )
 
@@ -26,6 +28,9 @@ function Invoke-CncNative([string]$Executable, [string[]]$Arguments, [string]$Lo
 }
 
 try {
+    if ($Profile -ne 'ISEL_CNC' -and $IselM01Mode -ne 'remote') {
+        throw 'IselM01Mode exige -Profile ISEL_CNC.'
+    }
     if ($Profile -ne 'MARLIN' -and ($MarlinRapidMode -ne 'shared' -or $MarlinFixedRapidMm -ne 0)) {
         throw 'As opcoes MarlinRapidMode/MarlinFixedRapidMm exigem -Profile MARLIN.'
     }
@@ -66,6 +71,7 @@ try {
             '--fx-export',(Join-Path $OutputDirectory 'fx-cnc.json'),'--output',(Join-Path $OutputDirectory 'python'))
         if ($DependencyPath) { $oracleArgs += @('--dependency-path',$DependencyPath) }
         if ($Strict) { $oracleArgs += '--strict' }
+        if ($Profile -eq 'ISEL_CNC') { $oracleArgs += @('--isel-m01-mode',$IselM01Mode) }
         if ($Profile -eq 'MARLIN') {
             $oracleArgs += @('--marlin-rapid-mode',$MarlinRapidMode)
             if ($MarlinRapidMode -eq 'fixed') {

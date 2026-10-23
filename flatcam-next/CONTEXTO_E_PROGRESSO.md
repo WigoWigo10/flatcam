@@ -1,5 +1,24 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## ISEL Remote: unidades de Dwell e parada — 2026-10-23
+
+Marlin commitado em `4fcc2a3a`. ISEL_CNC corrige Dwell s→ms, termina com M30
+após estacionamento e recusa T fora de 1–128. Alturas/XY de troca FX mantidos.
+Manual Remote DIN/ISO não descreve M01 como simples chave opcional: ensaio
+agora explicita Remote / optional-enabled / optional-disabled; o último acusa
+a pausa solicitada que não seria executada. Base MM apenas, sem simular M06.
+Corpus 52 por modo: 0/22/29/1/0. FX sem problemas nos modos Remote/enabled;
+disabled é incompatível com as pausas solicitadas, não é promovido a paridade.
+Regressão do dwell falhou antes, passou depois, falhou com a conversão retirada
+e passou dez vezes restaurada. Detalhes em [ISEL_PARITY.md](ISEL_PARITY.md).
+Contexto central de QA registrado em `../.agents/qa-project-context.md`.
+Verify final aprovado: 1737 passaram, 18 opcionais ignorados (1755 registros),
+zero falhas/erros; 36 auxiliares Python passaram. Log final:
+`target/isel-contract-full-final-20261023.log`. Primeira rodada completa achou
+uma expectativa antiga de segundos em todos os perfis; preservada no log
+`target/isel-contract-full-20261023.log`, corrigida com asserções mais exatas.
+ISEL ainda sem commit/push; nenhum ensaio físico. Próximo: line_xyz original.
+
 ## Contrato Marlin e modos G0 — 2026-10-23
 
 Série anterior commitada até `45771879`. Revisão Marlin remove G94 do perfil

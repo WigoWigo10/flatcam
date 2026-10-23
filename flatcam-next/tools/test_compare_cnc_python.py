@@ -76,19 +76,45 @@ class CncReaderTest(unittest.TestCase):
         self.assertFalse(unsynced["marlinControls"]["finalMovementBarrier"])
         self.assertFalse(equivalent(fixed["events"],unsynced["events"]))
 
-    def test_isel_g71_and_optional_stop_are_explicit_and_profile_scoped(self):
-        program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n")
+    def test_isel_g71_and_operator_stop_are_explicit_and_profile_scoped(self):
+        program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n").replace("G4 P0.25","G4 P250")
         parsed=read_program(program,"ISEL_CNC")
         self.assertEqual("MM",parsed["units"])
-        self.assertEqual(1,sum(e["kind"]=="optionalPause" for e in parsed["events"]))
+        self.assertEqual(1,sum(e["kind"]=="iselStop" for e in parsed["events"]))
+        self.assertEqual("remote",parsed["iselControls"]["m01Mode"])
         source=case();source["profile"]="ISEL_CNC"
         self.assertEqual([],audit_parameters(source,parsed))
-        forced=read_program(program.replace("M01\n","M0\n"),"ISEL_CNC")
-        self.assertFalse(equivalent(parsed["events"],forced["events"]))
-        self.assertIn("Tool-change pause count differs from the requested setting",audit_parameters(source,forced))
+        optional=read_program(program,"ISEL_CNC",isel_m01_mode="optional-enabled")
+        self.assertFalse(equivalent(parsed["events"],optional["events"]))
+        disabled=read_program(program,"ISEL_CNC",isel_m01_mode="optional-disabled")
+        self.assertIn("Tool-change pause count differs from the requested setting",audit_parameters(source,disabled))
+        self.assertIn("ISEL M01 is disabled in the selected controller model; requested pause is not active",audit_parameters(source,disabled))
+        with self.assertRaises(ValueError): read_program(program.replace("M01\n","M00\n"),"ISEL_CNC")
         with self.assertRaises(ValueError): read_program(program)
         with self.assertRaises(ValueError): read_program(program.replace("G71","G20"),"ISEL_CNC")
         with self.assertRaises(ValueError): read_program(program.replace("M01","M01 G0 X0"),"ISEL_CNC")
+
+    def test_isel_dwell_milliseconds_tool_limits_and_explicit_end_cannot_be_normalized_away(self):
+        program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n").replace("G4 P0.25","G4 P250")
+        source=case();source["profile"]="ISEL_CNC"
+        correct=read_program(program,"ISEL_CNC")
+        wrong=read_program(program.replace("G4 P250","G4 P0.25"),"ISEL_CNC")
+        self.assertEqual(.25,next(e["seconds"] for e in correct["events"] if e["kind"]=="dwell"))
+        self.assertEqual(.00025,next(e["seconds"] for e in wrong["events"] if e["kind"]=="dwell"))
+        self.assertIn("T1: dwell differs from the requested duration/count",audit_parameters(source,wrong))
+        self.assertFalse(equivalent(correct["events"],wrong["events"]))
+        self.assertTrue(correct["iselControls"]["explicitProgramEnd"])
+        self.assertEqual("programEnd",correct["events"][-1]["kind"])
+        no_end=read_program(program.replace("M30\n",""),"ISEL_CNC")
+        self.assertFalse(no_end["iselControls"]["explicitProgramEnd"])
+        self.assertFalse(equivalent(correct["events"],no_end["events"]))
+        # Remote M30 switches the spindle off; M02 does not have those semantics.
+        end=read_program(program.replace("G0 Z3\nM5\nG0 Z5","G0 Z3\nG0 Z5"),"ISEL_CNC")
+        self.assertEqual(0,end["iselControls"]["finalSpindleCommand"])
+        self.assertTrue(read_program(program.replace("T1\n","T128\n"),"ISEL_CNC")["cuts"])
+        for altered in (program.replace("T1\n","T129\n"),program.replace("T1\n","M06\n"),program.replace("M30","M02")):
+            with self.assertRaises(ValueError): read_program(altered,"ISEL_CNC")
+        with self.assertRaises(ValueError): read_program(PROGRAM,isel_m01_mode="optional-disabled")
 
     def test_marlin_profile_retains_barriers_and_rapid_feed_without_forging_g94(self):
         program=PROGRAM.replace("G94\n","").replace("M5\n","M400\nM5\n")

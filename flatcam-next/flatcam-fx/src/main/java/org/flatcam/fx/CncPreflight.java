@@ -210,6 +210,11 @@ final class CncPreflight {
         values.add(value("Contact Z / referência G92", number(probe.contactZ()), -1, "probe-contact-z"));
     }
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
+        if (profile == GCodePreprocessor.ISEL_CNC) {
+            issues.add(new Issue(false, "ISEL CNC: o perfil usa mm, G71/G94 e T1–T128. Os tempos Dwell configurados em segundos são convertidos para milissegundos no G-code.", null));
+            issues.add(new Issue(false, "ISEL Remote DIN/ISO: M01 é parada com interação do operador. Em outros controladores confirme se a parada é opcional e está habilitada; não presuma que M01 sempre terá o mesmo comportamento.", null));
+            issues.add(new Issue(false, "ISEL CNC: alturas/XY de troca são emitidos antes de M06 e Z é restaurado depois. A macro de troca e o referenciamento físico não são simulados. M30 termina após o estacionamento final.", null));
+        }
         if (profile == GCodePreprocessor.MARLIN) {
             issues.add(new Issue(false, "Marlin: confirme SPINDLE_FEATURE e CUTTER_POWER_UNIT=RPM. O valor S só representa RPM nessa configuração.", null));
             issues.add(new Issue(false, "Marlin: Tn pode selecionar extrusores; Tn/M6 exigem configuração ou macro compatível com CNC. M0 depende do suporte de pausa; IN exige INCH_MODE_SUPPORT.", null));
