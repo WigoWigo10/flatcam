@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Marlin CNC — revisão de configuração — 2026-10-23
+
+Sem G94 na saída, M400 após estacionamento, avisos de configuração e leitor
+G0 shared/variable/fixed: **C**. Auditoria FX sem problemas em 104 controles
+MM/IN por modo; strict segue 0/68/34/2/0, não A global. Omissão de F no legado
+depende da configuração: em fixed=1500 mm/min ficam oito programas Python
+com avisos, não 102. Tn/M6/M0, S em RPM e IN exigem configuração compatível;
+não há certificação de firmware ou máquina. [MARLIN_PARITY.md](MARLIN_PARITY.md).
+
 ## Trajetos, exportações e perfis — 2026-10-23
 
 Diagnóstico por fresa ampliado sem relaxar strict. Rascunhos, Calibration e

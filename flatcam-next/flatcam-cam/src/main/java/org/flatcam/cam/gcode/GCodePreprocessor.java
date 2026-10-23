@@ -90,8 +90,10 @@ public enum GCodePreprocessor {
         return switch (this) {
             case REPETIER -> "Saida FAN M106/M107 (0-255). Troca usa M84 e @pause: requer Repetier-Host; "
                     + "M84 libera motores e pode exigir novo referenciamento.";
-            case MARLIN -> "Fresagem: M3/M5 e M400 antes de parar. M6 segue o perfil Python; "
-                    + "confira suporte no firmware. Feed rapids limita os movimentos G0.";
+            case MARLIN -> "Fresagem: M3/M5, com S em RPM somente se CUTTER_POWER_UNIT=RPM. "
+                    + "Tn/M6 seguem o legado e exigem configuração/macro compatível; M0 exige suporte de pausa. "
+                    + "G0 recebe F, mas G0_FEEDRATE fixo no firmware pode ignorá-lo. IN exige INCH_MODE_SUPPORT. "
+                    + "M400 aguarda os movimentos, não a parada física do spindle.";
             case BERTA_CNC -> "Inicializacao Berta: G91.1, G64 P0.03, M110, G54; termina com M111/M30.";
             case GRBL_LASER -> "Laser M03/M5 por caminho, sem mergulho Z. Potencia S deve respeitar o controlador.";
             case Z_LASER -> "Laser M03/M5; Focus Z e aplicado no inicio de cada ferramenta, com feixe desligado.";
@@ -154,7 +156,8 @@ public enum GCodePreprocessor {
     public String ending() {
         return switch (this) {
             case BERTA_CNC -> "(Berta)\nM111\nM30\n(Berta)\n";
-            case MARLIN, REPETIER, GRBL_LASER, Z_LASER,
+            case MARLIN -> "M400\n"; // Include final parking moves in the completion barrier.
+            case REPETIER, GRBL_LASER, Z_LASER,
                     MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN,
                     ISEL_CNC, TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20,
                     TOOLCHANGE_PROBE_MACH3 -> "";
@@ -300,6 +303,9 @@ public enum GCodePreprocessor {
     public boolean usesG17() {
         return grbl;
     }
+
+    /** Marlin uses native units/min; its command dispatcher has no G94 handler. */
+    public boolean usesG94() { return this != MARLIN; }
 
     public String toolChangeMessage(int toolNumber, double diameter, String units) {
         return comment(String.format(Locale.ROOT,

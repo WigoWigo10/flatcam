@@ -21,12 +21,20 @@ WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
 SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC")
 
 
-def read_program(program, profile="GRBL_11_no_M6"):
+def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared", marlin_fixed_rapid_feed=None):
     """Profile-scoped modal subset; retain cuts, pauses, synchronization and feeds."""
     if profile not in SUPPORTED_PROFILES:
         raise ValueError("Profile outside the XYZ comparison reader")
+    if marlin_rapid_mode not in ("shared", "variable", "fixed"):
+        raise ValueError("Unknown Marlin G0 feed configuration")
+    if marlin_rapid_mode == "fixed" and (marlin_fixed_rapid_feed is None
+            or not math.isfinite(marlin_fixed_rapid_feed) or marlin_fixed_rapid_feed <= 0):
+        raise ValueError("Fixed Marlin G0 requires a positive feed in source units")
+    if marlin_rapid_mode != "fixed" and marlin_fixed_rapid_feed is not None:
+        raise ValueError("Fixed G0 feed is only valid in fixed mode")
     xyz = [0.0, 0.0, 0.0]
     feed = None
+    rapid_feed = None  # VARIABLE_G0_FEEDRATE initial firmware default is deliberately unknown.
     rpm = 0.0
     spindle = 0
     tool = 0
@@ -55,6 +63,7 @@ def read_program(program, profile="GRBL_11_no_M6"):
         values = {key: float(value) for key, value in words if key not in "GM"}
         if any(not math.isfinite(value) for value in values.values()):
             raise ValueError("Nonfinite G-code value")
+        previous_feed = feed
         if "F" in values:
             feed = values["F"]
             if feed <= 0:
@@ -84,9 +93,20 @@ def read_program(program, profile="GRBL_11_no_M6"):
             elif code == 90:
                 absolute = True
             elif code == 94:
+                if profile == "Marlin":
+                    raise ValueError("G94 is outside the modeled Marlin command set")
                 feed_per_minute = True
             elif code != 17:
                 raise ValueError(f"Unsupported G{value} on line {number}")
+        movement_feed = feed
+        if profile == "Marlin" and motion == 0:
+            if marlin_rapid_mode == "variable":
+                if "F" in values: rapid_feed = values["F"]
+                movement_feed = rapid_feed
+                feed = previous_feed  # G0 saves/restores G1 modal feed in this firmware configuration.
+            elif marlin_rapid_mode == "fixed":
+                movement_feed = marlin_fixed_rapid_feed
+                # Fixed mode restores the NEW modal feed (including this block's F), not the old one.
         if "T" in values:
             selected = values["T"]
             if selected != int(selected) or selected < 1:
@@ -136,7 +156,7 @@ def read_program(program, profile="GRBL_11_no_M6"):
                 if motion == 1 and (feed is None or not feed_per_minute):
                     raise ValueError("Linear motion without feed/G94")
                 event = {"kind": "rapid" if motion == 0 else "linear", "tool": tool,
-                         "from": xyz.copy(), "to": end, "feed": feed if motion == 1 or profile == "Marlin" else None,
+                         "from": xyz.copy(), "to": end, "feed": movement_feed if motion == 1 or profile == "Marlin" else None,
                          "spindle": spindle, "rpm": rpm if spindle else 0}
                 events.append(event)
                 if motion == 1 and min(xyz[2], end[2]) < 0:
@@ -144,7 +164,16 @@ def read_program(program, profile="GRBL_11_no_M6"):
             xyz = end
     if units is None or not cuts:
         raise ValueError("Program lacks explicit units or cutting motion")
-    return {"events": events, "cuts": cuts, "end": xyz, "units": units, "explicitTermination": terminated}
+    parsed = {"events": events, "cuts": cuts, "end": xyz, "units": units, "explicitTermination": terminated}
+    if profile == "Marlin":
+        parsed["marlinControls"] = {
+            "synchronizationPoints":[e["at"] for e in events if e["kind"]=="synchronize"],
+            "finalMovementBarrier":bool(events and events[-1]["kind"]=="synchronize"),
+            "toolChanges":[e for e in events if e["kind"] in ("tool","change","pause")],
+            "finalSpindleCommand":spindle,
+            "rapidMode":marlin_rapid_mode,
+            "limits":"M400 drains modeled planner moves, not spindle coast-down. Tn/M6 compatibility is a precondition, not simulated firmware support."}
+    return parsed
 
 
 def equivalent(a, b, tolerance=0.000051):
@@ -640,6 +669,14 @@ def run(args):
         raise ValueError("Unsupported CNC corpus")
     import importlib
     profile=export["profile"]
+    rapid_mode=args.marlin_rapid_mode
+    fixed_rapid_mm=args.marlin_fixed_rapid_mm
+    if profile != "Marlin" and (rapid_mode != "shared" or fixed_rapid_mm is not None):
+        raise ValueError("Marlin reader configuration requires the Marlin profile")
+    if rapid_mode == "fixed" and (fixed_rapid_mm is None or not math.isfinite(fixed_rapid_mm) or fixed_rapid_mm <= 0):
+        raise ValueError("Fixed Marlin G0 requires --marlin-fixed-rapid-mm positive and finite")
+    if rapid_mode != "fixed" and fixed_rapid_mm is not None:
+        raise ValueError("--marlin-fixed-rapid-mm is only accepted with fixed mode")
     selected=getattr(importlib.import_module("preprocessors."+profile),profile)()
     app.preprocessors={"default":default(),profile:selected}
     for case in export["cases"]: case["profile"]=profile
@@ -655,6 +692,9 @@ def run(args):
               "legacySourceSha256":hashes,"oracle":"Original CNCjob generators, OR-Tools Basic optimizer, selected preprocessor and exclusion routing",
               "coordinateToleranceInSourceUnits":.000051,"pythonFeedDecimals":4,"pythonCoordinateDecimals":4,
               "excludedUnitCases":export.get("excludedUnitCases",[]),
+              "marlinConfiguration":None if profile!="Marlin" else {
+                  "rapidMode":rapid_mode, "fixedRapidMillimetersPerMinute":fixed_rapid_mm,
+                  "assumptions":"CNC-configured Cartesian firmware, spindle S in RPM, compatible Tn/M6 and M0, INCH_MODE_SUPPORT for IN. No firmware/controller or physical simulation. Variable G0 initial feed is unknown until declared."},
               "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL G71 means MM; M01 is a distinct OPTIONAL stop event, not proof the machine will pause. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
@@ -662,7 +702,10 @@ def run(args):
         try:
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
                 raise ValueError("Unsupported units/operation")
-            fx = read_program(case["gcode"],profile)
+            reader_options = {} if profile!="Marlin" else {"marlin_rapid_mode":rapid_mode,
+                "marlin_fixed_rapid_feed":None if fixed_rapid_mm is None else fixed_rapid_mm/(25.4 if case["units"]=="IN" else 1)}
+            fx = read_program(case["gcode"],profile,**reader_options)
+            if profile=="Marlin": result["fxMarlinControls"]=fx["marlinControls"]
             result["fxParameterIssues"] = audit_parameters(slot_oracle_case(case,root,enabled_only=True),fx,implementation="fx")
             if case["operation"] == "geometry":
                 result["travelPolicies"] = {"fx":"per-tool Travel Z" if case["job"].get("fxTravelClearance")=="PER_TOOL"
@@ -677,7 +720,8 @@ def run(args):
                     result["pythonSlotPoints"]={str(tool["id"]):tool["points"] for tool in oracle_case["tools"]}
                 program = python_program(oracle_case,root,app,camlib)
                 (args.output/(case["id"]+".python.nc")).write_text(program,encoding="utf-8")
-                python = read_program(program,profile)
+                python = read_program(program,profile,**reader_options)
+                if profile=="Marlin": result["pythonMarlinControls"]=python["marlinControls"]
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:
                 result.update(status="ORACLE_ERROR",error=str(error))
@@ -725,4 +769,6 @@ if __name__ == "__main__":
     parser.add_argument("--output",type=Path,required=True)
     parser.add_argument("--dependency-path",type=Path)
     parser.add_argument("--strict",action="store_true")
+    parser.add_argument("--marlin-rapid-mode",choices=("shared","variable","fixed"),default="shared")
+    parser.add_argument("--marlin-fixed-rapid-mm",type=float)
     sys.exit(run(parser.parse_args()))

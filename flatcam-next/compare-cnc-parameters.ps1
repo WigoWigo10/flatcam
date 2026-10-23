@@ -4,6 +4,9 @@ param(
     [string]$OutputDirectory,
     [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC')]
     [string]$Profile = 'GRBL_11_NO_M6',
+    [ValidateSet('shared','variable','fixed')]
+    [string]$MarlinRapidMode = 'shared',
+    [double]$MarlinFixedRapidMm = 0,
     [switch]$Strict
 )
 
@@ -23,6 +26,13 @@ function Invoke-CncNative([string]$Executable, [string[]]$Arguments, [string]$Lo
 }
 
 try {
+    if ($Profile -ne 'MARLIN' -and ($MarlinRapidMode -ne 'shared' -or $MarlinFixedRapidMm -ne 0)) {
+        throw 'As opcoes MarlinRapidMode/MarlinFixedRapidMm exigem -Profile MARLIN.'
+    }
+    if (($MarlinRapidMode -eq 'fixed' -and ($MarlinFixedRapidMm -le 0 -or [double]::IsNaN($MarlinFixedRapidMm) -or [double]::IsInfinity($MarlinFixedRapidMm))) -or
+        ($MarlinRapidMode -ne 'fixed' -and $MarlinFixedRapidMm -ne 0)) {
+        throw 'Modo fixed exige -MarlinFixedRapidMm positivo e finito; outros modos nao aceitam esse valor.'
+    }
     if (-not $Python) { $Python = Join-Path $comparisonRoot 'target/oracle-py311/Scripts/python.exe' }
     if (-not (Test-Path -LiteralPath $Python -PathType Leaf)) {
         throw 'Informe -Python ou prepare target/oracle-py311 conforme COMPARACAO_CAM.md. Nao sao instaladas dependencias.'
@@ -56,6 +66,12 @@ try {
             '--fx-export',(Join-Path $OutputDirectory 'fx-cnc.json'),'--output',(Join-Path $OutputDirectory 'python'))
         if ($DependencyPath) { $oracleArgs += @('--dependency-path',$DependencyPath) }
         if ($Strict) { $oracleArgs += '--strict' }
+        if ($Profile -eq 'MARLIN') {
+            $oracleArgs += @('--marlin-rapid-mode',$MarlinRapidMode)
+            if ($MarlinRapidMode -eq 'fixed') {
+                $oracleArgs += @('--marlin-fixed-rapid-mm',$MarlinFixedRapidMm.ToString([Globalization.CultureInfo]::InvariantCulture))
+            }
+        }
         Write-Host 'Comparando movimentos XYZ, feed, spindle, pausas e ferramentas com o Python original...'
         $code = Invoke-CncNative $Python $oracleArgs (Join-Path $OutputDirectory 'comparison.log')
         if ($code -notin @(0,1) -or -not (Test-Path -LiteralPath (Join-Path $OutputDirectory 'python/report.json'))) {

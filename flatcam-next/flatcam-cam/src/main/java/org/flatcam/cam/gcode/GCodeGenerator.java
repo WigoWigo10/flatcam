@@ -286,7 +286,7 @@ public final class GCodeGenerator {
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
-        line(gcode, "G94");
+        if (preprocessor.usesG94()) line(gcode, "G94");
         double initialZ = ordered.isEmpty() ? options.endMoveZ() : settingsByTool.get(ordered.get(0)).safeZ();
         boolean initialProfileChange = !ordered.isEmpty() && preprocessor.emitsToolNumber()
                 && !preprocessor.requiresProbe() && (options.pauseForToolChange() || preprocessor.automaticToolSelection());
@@ -523,7 +523,7 @@ public final class GCodeGenerator {
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
-        line(gcode, "G94");
+        if (preprocessor.usesG94()) line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
@@ -603,7 +603,7 @@ public final class GCodeGenerator {
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
-        line(gcode, "G94");
+        if (preprocessor.usesG94()) line(gcode, "G94");
         line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
         if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
             line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
@@ -800,7 +800,7 @@ public final class GCodeGenerator {
         line(gcode, "G90");
         if (preprocessor.usesG17()) line(gcode, "G17");
         gcode.append(preprocessor.initialization());
-        line(gcode, "G94");
+        if (preprocessor.usesG94()) line(gcode, "G94");
         boolean initialProfileChange = changing && preprocessor.emitsToolNumber() && !preprocessor.requiresProbe();
         double initialTravelZ=params.safeZ();
         if (positions.travelClearance()==GeometryTravelClearance.PER_TOOL) {

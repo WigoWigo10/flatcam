@@ -1,5 +1,13 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Marlin: validade do dialeto e configuração G0 — 2026-10-23
+
+G94 removido da saída MARLIN, M400 final após estacionamento. Leitor diferencia
+G0 shared/variable/fixed, com condição de firmware explícita. As rodadas dos
+104 controles por modo continuam 0/68/34/2/0, sem problemas nos parâmetros FX.
+Em fixed=1500 mm/min, a omissão de F no legado não implica avanço diferente;
+o aviso anterior de 102 programas vale para shared/variable. Ver [MARLIN_PARITY.md](MARLIN_PARITY.md).
+
 ## Comparação adicional de perfis — 2026-10-23
 
 Harness aceita também MARLIN, LINE_XYZ e ISEL_CNC. Marlin modela M400 e feed

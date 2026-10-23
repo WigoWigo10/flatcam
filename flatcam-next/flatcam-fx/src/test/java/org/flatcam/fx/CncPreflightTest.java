@@ -12,6 +12,20 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class CncPreflightTest {
+    @Test void marlinReviewExplainsFirmwarePreconditionsWithoutClaimingPhysicalRpmOrRapidSpeed() {
+        var original=geometry();
+        var geometryReport=CncPreflight.geometry("Marlin","MM",new GeometryCncToolPanel.Result(
+                original.tools(),original.parameters(),original.vTools(),GCodePreprocessor.MARLIN,original.parametersByTool()));
+        var drill=drilling();
+        var drillReport=CncPreflight.drilling(new DrillGCodeToolPanel.Result(drill.source(),drill.settingsByTool(),
+                drill.orderedToolIds(),drill.options(),GCodePreprocessor.MARLIN,drill.toolOrder()));
+        for(var report:List.of(geometryReport,drillReport)) {
+            assertTrue(report.canContinue());
+            for(String setting:List.of("CUTTER_POWER_UNIT=RPM","Tn/M6","G0_FEEDRATE","INCH_MODE_SUPPORT","parada física"))
+                assertTrue(report.issues().stream().anyMatch(issue->issue.text().contains(setting)),setting);
+        }
+        assertFalse(CncPreflight.geometry("GRBL","MM",original).issues().stream().anyMatch(i->i.text().contains("G0_FEEDRATE")));
+    }
     @Test void closedContinuousReviewDoesNotClaimThatDirectionAlternates() {
         var base=params(3,.6,200,75,10000).withPassStrategy(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION);
         var report=CncPreflight.geometry("Ring","MM",new GeometryCncToolPanel.Result(List.of(new ToolGeometry(1,path())),base,Map.of(),GCodePreprocessor.GRBL_11_NO_M6,Map.of()));

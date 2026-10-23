@@ -43,6 +43,39 @@ def rewrite_rapid_feeds(program, feed):
 
 
 class CncReaderTest(unittest.TestCase):
+    def test_marlin_firmware_feed_modes_do_not_share_the_same_modal_state(self):
+        # Marlin 2.1.2.5 G0_G1.cpp: variable mode restores OLD G1 feed;
+        # fixed mode restores the NEW F but executes G0 at the compiled rate.
+        program="G21\nG90\nG1 F100\nG0 Z3 F900\nG0 X10\nG1 Z-1\nM5\nG0 Z3 F900\nM400\n"
+        shared=read_program(program,"Marlin")
+        variable=read_program(program,"Marlin",marlin_rapid_mode="variable")
+        fixed=read_program(program,"Marlin",marlin_rapid_mode="fixed",marlin_fixed_rapid_feed=1200)
+        self.assertEqual(900,shared["cuts"][0]["feed"])
+        self.assertEqual(100,variable["cuts"][0]["feed"])
+        self.assertEqual(900,fixed["cuts"][0]["feed"])
+        self.assertTrue(all(e["feed"]==1200 for e in fixed["events"] if e["kind"]=="rapid"))
+        self.assertTrue(variable["marlinControls"]["finalMovementBarrier"])
+        self.assertEqual([10,0,3],variable["marlinControls"]["synchronizationPoints"][-1])
+        self.assertEqual(0,variable["marlinControls"]["finalSpindleCommand"])
+        missing=read_program(program.replace("G0 Z3 F900","G0 Z3",1),"Marlin",marlin_rapid_mode="variable")
+        self.assertIsNone(next(e["feed"] for e in missing["events"] if e["kind"]=="rapid"))
+        with self.assertRaises(ValueError): read_program(program,"Marlin",marlin_rapid_mode="fixed")
+        with self.assertRaises(ValueError): read_program(program,"Marlin",marlin_rapid_mode="unknown")
+        with self.assertRaises(ValueError): read_program(program,"Marlin",marlin_fixed_rapid_feed=900)
+        with self.assertRaises(ValueError): read_program(program.replace("G90","G90\nG94"),"Marlin")
+
+    def test_marlin_fixed_rapid_mismatch_and_missing_completion_barrier_are_visible(self):
+        source=case(); source["profile"]="Marlin";source["job"]["rapidFeed"]=1500
+        program=rewrite_rapid_feeds(PROGRAM.replace("G94\n",""),1500)+"M400\n"
+        # Termination cannot be followed by a fake completion command.
+        with self.assertRaises(ValueError): read_program(program,"Marlin")
+        program=program.replace("M30\n","")
+        fixed=read_program(program,"Marlin",marlin_rapid_mode="fixed",marlin_fixed_rapid_feed=900)
+        self.assertIn("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)",audit_parameters(source,fixed))
+        unsynced=read_program(program.replace("M400\n",""),"Marlin",marlin_rapid_mode="fixed",marlin_fixed_rapid_feed=900)
+        self.assertFalse(unsynced["marlinControls"]["finalMovementBarrier"])
+        self.assertFalse(equivalent(fixed["events"],unsynced["events"]))
+
     def test_isel_g71_and_optional_stop_are_explicit_and_profile_scoped(self):
         program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n")
         parsed=read_program(program,"ISEL_CNC")

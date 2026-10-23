@@ -210,6 +210,11 @@ final class CncPreflight {
         values.add(value("Contact Z / referência G92", number(probe.contactZ()), -1, "probe-contact-z"));
     }
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
+        if (profile == GCodePreprocessor.MARLIN) {
+            issues.add(new Issue(false, "Marlin: confirme SPINDLE_FEATURE e CUTTER_POWER_UNIT=RPM. O valor S só representa RPM nessa configuração.", null));
+            issues.add(new Issue(false, "Marlin: Tn pode selecionar extrusores; Tn/M6 exigem configuração ou macro compatível com CNC. M0 depende do suporte de pausa; IN exige INCH_MODE_SUPPORT.", null));
+            issues.add(new Issue(false, "Marlin: cada G0 recebe Feed rapids, mas G0_FEEDRATE fixo pode ignorar F. M400 espera os movimentos do planejador, não confirma parada física do spindle.", null));
+        }
         issues.add(new Issue(false, profile.requiresProbe()
                 ? "A prévia de sondagem não simula G31, contato, G92 ou macros de troca. Não valida a segurança da máquina."
                 : "A prévia é 2D: não simula remoção de material, grampos, limites da máquina nem movimentos de macros M6.", null));

@@ -1,5 +1,20 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Contrato Marlin e modos G0 — 2026-10-23
+
+Série anterior commitada até `45771879`. Revisão Marlin remove G94 do perfil
+de fresagem/furação, acrescenta M400 após estacionamento final e explicita
+pré-condições de RPM/Tn/M6/M0/IN na revisão. Comparador agora diferencia feed
+compartilhado, variável e fixo conforme configuração do firmware. Omissão de F
+no Python não é defeito universal: em fixed=1500 a quantidade de programas
+Python com avisos cai de 102 para apenas oito. FX sem problemas
+auditados nos 104 controles de cada modo, mas strict permanece reprovado:
+0/68/34/2/0. Não confundir correção do ensaio com aumento de paridade.
+Referências, comandos, evidências e limites em [MARLIN_PARITY.md](MARLIN_PARITY.md).
+Verify integral passou: 1732 aprovados, 18 opcionais ignorados (1750 registros),
+zero falhas/erros; 35 auxiliares Python passaram. GRBL manteve 49/19/34/2/0.
+Alterações desta etapa ainda sem commit/push; nenhuma validação física.
+
 ## Série trajetos/exportações/perfis — 2026-10-23
 
 Seis lacunas anteriores commitadas em `faa27fb2`. Etapa 1 investigada:
