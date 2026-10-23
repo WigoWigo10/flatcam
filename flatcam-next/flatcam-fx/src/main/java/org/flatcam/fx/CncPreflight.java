@@ -53,6 +53,9 @@ final class CncPreflight {
                 }
             }
             details.add(value("Profundidade efetiva", cutting ? number(-depth) + " " + unit(units) : "Não se aplica ao corte neste perfil", i, "cnc-cut-depth"));
+            if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL && base.pauseForToolChange() && !empty)
+                details.add(value("Ajuste manual em Z0", "Feed Z " + number(p.feedRateZ()) + " " + unit(units)
+                        + "/min; spindle parado; não é sondagem", i, "cnc-feed-z"));
             if (cutting && !profile.requiresProbe() && !profile.isRoland())
                 details.add(value("Retração / Travel Z efetivo", number(effectiveTravel) + " " + unit(units)
                         + (travelPolicy==GeometryTravelClearance.PER_TOOL ? "; usa o Travel Z desta fresa" : "; usa o maior Travel Z do trabalho")
@@ -127,14 +130,17 @@ final class CncPreflight {
         for (int id : result.orderedToolIds()) {
             var p = result.settingsByTool().get(id);
             int[] count = counts.getOrDefault(id, new int[2]);
-            var details = List.of(value("Furos / rasgos", count[0] + " / " + count[1], id, "drill-tools"),
+            var details = new ArrayList<>(List.of(value("Furos / rasgos", count[0] + " / " + count[1], id, "drill-tools"),
                     value("Profundidade efetiva", number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z + Offset Z)", id, "drill-cut-z"),
                     value("Offset Z", number(p.offsetZ()), id, "drill-offset-z"),
                     value("Passes", passes(p.effectiveDepth(), p.multiDepth(), p.depthPerPass()), id, "drill-multi-depth"),
                     value("Dwell", p.dwell() ? number(p.dwellSeconds()) + " s" : "Desativado", id, "drill-dwell-time"),
                     value("Operação dos rasgos", p.slots().enabled() ? "Drill slots: furos sobrepostos" : "Fresagem lateral", id, "drill-slots"),
                     value("Sobreposição / último furo", number(p.slots().overlapPercent()) + "% / "
-                            + (p.slots().addLastHole() ? "Ativado" : "Desativado"), id, "drill-slot-overlap"));
+                            + (p.slots().addLastHole() ? "Ativado" : "Desativado"), id, "drill-slot-overlap")));
+            if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL && result.options().pauseForToolChange() && count[0]+count[1]>0)
+                details.add(value("Ajuste manual em Z0", "Feed Z " + number(p.feedRate()) + " " + unit(image.units())
+                        + "/min; spindle parado; não é sondagem", id, "drill-feed-z"));
             rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? " (vazia)" : ""), number(image.toolDiameters().get(id)), number(-p.effectiveDepth()),
                     number(p.safeZ()), "—", number(p.feedRate()), profile.isRoland() ? "—" : number(p.spindleSpeedRpm()), details));
             if (count[0] + count[1] == 0) issues.add(new Issue(false, "T" + id + " não contém furos nem rasgos.", target(id, "drill-tools")));
@@ -210,6 +216,13 @@ final class CncPreflight {
         values.add(value("Contact Z / referência G92", number(probe.contactZ()), -1, "probe-contact-z"));
     }
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
+        if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL) {
+            issues.add(new Issue(false, "Troca manual: três pausas M0 por ferramenta. Entre elas há um movimento comandado até Z0 usando o Feed Z da fresa e retorno ao Tool change Z; G90 é restaurado antes dos movimentos verticais. Não é sondagem nem detecção automática de contato.", null));
+            issues.add(new Issue(false, "Confirme o zero de peça, a posição XY e a altura livre antes de continuar cada pausa. Movimentos do operador e mudanças de origem/unidades não são simulados.", null));
+        }
+        if (profile == GCodePreprocessor.TOOLCHANGE_CUSTOM) {
+            issues.add(new Issue(false, "Troca Custom: Tn/M6 quando a troca está ativada, sem M0 adicional. A altura e o XY são comandados antes da macro; depois, G90 e Z são restaurados antes do próximo XY. A macro, a seleção física da ferramenta e mudanças de origem não são simuladas.", null));
+        }
         if (profile == GCodePreprocessor.ISEL_ICP_CNC) {
             issues.add(new Issue(false, "ISEL ICP: somente mm; coordenadas em micrometros, VEL/FASTVEL em micrometros por segundo e WAIT em milissegundos. Valores sao truncados para inteiros, sem aumentar a precisao do controlador.", null));
             issues.add(new Issue(false, "ISEL ICP: GETTOOL executa a troca automatica mesmo sem pausa manual. Confirme a macro, o referenciamento e as alturas; a previa nao simula essa troca nem o tempo dos rapidos. O estacionamento preserva a origem, sem WPCLEAR.", null));

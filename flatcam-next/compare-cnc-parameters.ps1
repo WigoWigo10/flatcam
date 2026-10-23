@@ -2,7 +2,7 @@ param(
     [string]$Python,
     [string]$DependencyPath,
     [string]$OutputDirectory,
-    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC','ISEL_ICP_CNC')]
+    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC','ISEL_ICP_CNC','TOOLCHANGE_MANUAL','TOOLCHANGE_CUSTOM')]
     [string]$Profile = 'GRBL_11_NO_M6',
     [ValidateSet('shared','variable','fixed')]
     [string]$MarlinRapidMode = 'shared',

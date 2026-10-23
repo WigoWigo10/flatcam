@@ -19,7 +19,11 @@ from icp_execution import read_icp, UnsupportedIcp
 
 
 WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
-SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC")
+SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom")
+
+
+class UnmodeledToolSelection(ValueError):
+    """A controller macro may choose a tool, but that cannot be inferred from source settings."""
 
 
 def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared", marlin_fixed_rapid_feed=None,
@@ -135,6 +139,8 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                     events.append({"kind": "spindle", "tool": tool, "direction": spindle,
                                    "rpm": rpm if spindle else 0})
             elif code in (0, 6):
+                if profile == "Toolchange_Custom" and code == 6 and tool == 0:
+                    raise UnmodeledToolSelection("Custom M6 without explicit Tn: selected tool depends on an opaque controller macro")
                 if profile == "ISEL_CNC" and code == 0:
                     raise ValueError("ISEL M00 abort semantics are outside this reader; not a portable pause")
                 if profile == "ISEL_CNC" and code == 6 and tool == 0:
@@ -182,6 +188,8 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                          "spindle": spindle, "rpm": rpm if spindle else 0}
                 events.append(event)
                 if motion == 1 and min(xyz[2], end[2]) < 0:
+                    if profile == "Toolchange_Custom" and tool == 0:
+                        raise UnmodeledToolSelection("Custom cutting motion without explicit Tn: installed tool is not modeled")
                     cuts.append(event)
             xyz = end
     if units is None or not cuts:
@@ -200,7 +208,65 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
             "toolChanges":[e for e in events if e["kind"] in ("tool","change","iselStop")],
             "explicitProgramEnd":terminated,"finalSpindleCommand":spindle,
             "limits":"Remote DIN/ISO stop semantics by default; optional-stop alternatives are explicit assumptions. Internal M06 movements are NOT simulated."}
+    if profile in ("Toolchange_Manual", "Toolchange_Custom"):
+        parsed["toolChangeControls"] = toolchange_controls(events, profile)
     return parsed
+
+
+def toolchange_controls(events, profile):
+    cycles = []
+    if profile == "Toolchange_Custom":
+        cycles = [dict(tool=e["tool"], macro=e) for e in events if e["kind"] == "change"]
+    else:
+        pauses = [(i,e) for i,e in enumerate(events) if e["kind"] == "pause"]
+        for index in range(0,len(pauses),3):
+            group=pauses[index:index+3]
+            cycles.append(dict(tool=group[0][1]["tool"], pauses=[e for _,e in group],
+                adjustment=[] if len(group)<2 else [e for e in events[group[0][0]+1:group[1][0]] if e["kind"] in ("rapid","linear")],
+                retract=[] if len(group)<3 else [e for e in events[group[1][0]+1:group[2][0]] if e["kind"] in ("rapid","linear")]))
+    return dict(cycles=cycles, limits="Commanded state only. Operator jogs, contact, origin changes and M6 internals are not simulated. Manual Z0 is not probing.")
+
+
+def audit_toolchange_profiles(case, parsed):
+    """Audit three distinct manual phases or an opaque custom M6, never one generic pause."""
+    issues=[]
+    profile=case["profile"]; job=case["job"]
+    active=job["toolChange"]
+    wanted=case["tools"] if active else []
+    cycles=parsed["toolChangeControls"]["cycles"]
+    if len(cycles)!=len(wanted): issues.append("Profile tool-change cycle count differs from the requested setting")
+    if profile=="Toolchange_Custom" and any(e["kind"]=="pause" for e in parsed["events"]):
+        issues.append("Custom tool change unexpectedly adds an M0 pause")
+    if profile=="Toolchange_Manual" and any(e["kind"]=="change" for e in parsed["events"]):
+        issues.append("Manual tool change unexpectedly invokes an M6 macro")
+    for cycle,tool in zip(cycles,wanted):
+        identifier=tool["id"]
+        if cycle["tool"]!=identifier: issues.append(f"T{identifier}: tool-change selection/order differs")
+        if profile=="Toolchange_Custom":
+            positions=[cycle["macro"]]
+        else:
+            positions=cycle["pauses"]
+            if len(positions)!=3 or any(e["tool"]!=identifier for e in positions):
+                issues.append(f"T{identifier}: manual cycle must have three ordered pauses for this tool")
+            if not equivalent([e["at"][2] for e in positions],[job["toolChangeZ"],0,job["toolChangeZ"]]):
+                issues.append(f"T{identifier}: manual pause heights differ from change Z / zero / change Z")
+            adjustment=cycle["adjustment"]
+            if len(adjustment)!=1 or adjustment[0]["kind"]!="linear" or adjustment[0]["to"][2]!=0 \
+                    or adjustment[0]["from"][:2]!=adjustment[0]["to"][:2] or adjustment[0]["spindle"]!=0:
+                issues.append(f"T{identifier}: manual Z0 adjustment is not one stopped-spindle vertical G1")
+            elif not equivalent(adjustment[0]["feed"],tool["parameters"]["feedZ"]):
+                issues.append(f"T{identifier}: manual Z0 adjustment feed differs from this tool's Feed Z")
+            retract=cycle["retract"]
+            if len(retract)!=1 or retract[0]["kind"]!="rapid" or not equivalent(retract[0]["to"][2],job["toolChangeZ"]) \
+                    or retract[0]["from"][:2]!=retract[0]["to"][:2]:
+                issues.append(f"T{identifier}: manual return is not one vertical rapid to Change Z")
+        if any(not e["spindleStopped"] for e in positions):
+            issues.append(f"T{identifier}: tool change lacks an explicit spindle stop")
+        if profile=="Toolchange_Custom" and any(not equivalent(e["at"][2],job["toolChangeZ"]) for e in positions):
+            issues.append(f"T{identifier}: M6 command height differs from Change Z")
+        if job.get("changeX") is not None and any(not equivalent(e["at"][:2],[job["changeX"],job["changeY"]]) for e in positions):
+            issues.append(f"T{identifier}: tool-change XY differs from the requested position")
+    return issues
 
 
 def equivalent(a, b, tolerance=0.000051):
@@ -506,14 +572,17 @@ def audit_parameters(case, parsed, *, implementation=None):
     if case.get("profile")=="ISEL_CNC" and job["toolChange"] and any(
             e["kind"]=="iselStop" and not e["active"] for e in parsed["events"]):
         issues.append("ISEL M01 is disabled in the selected controller model; requested pause is not active")
-    if len(pauses) != (len(tools) if job["toolChange"] or icp else 0):
-        issues.append("Tool-change pause count differs from the requested setting")
-    if any(not event["spindleStopped"] for event in pauses):
-        issues.append("Tool-change pause without an explicit preceding spindle stop")
-    if any(not equivalent(event["at"][2],job["toolChangeZ"]) for event in pauses):
-        issues.append("Tool-change pause Z differs from the requested height")
-    if job.get("changeX") is not None and any(not equivalent(event["at"][:2],[job["changeX"],job["changeY"]]) for event in pauses):
-        issues.append("Tool-change pause XY differs from the requested position")
+    if case.get("profile") in ("Toolchange_Manual","Toolchange_Custom"):
+        issues.extend(audit_toolchange_profiles(case,parsed))
+    else:
+        if len(pauses) != (len(tools) if job["toolChange"] or icp else 0):
+            issues.append("Tool-change pause count differs from the requested setting")
+        if any(not event["spindleStopped"] for event in pauses):
+            issues.append("Tool-change pause without an explicit preceding spindle stop")
+        if any(not equivalent(event["at"][2],job["toolChangeZ"]) for event in pauses):
+            issues.append("Tool-change pause Z differs from the requested height")
+        if job.get("changeX") is not None and any(not equivalent(event["at"][:2],[job["changeX"],job["changeY"]]) for event in pauses):
+            issues.append("Tool-change pause XY differs from the requested position")
     for event in parsed["events"]:
         if icp and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
             issues.append("ICP rapid feed differs from the requested Feed rapids (or FASTVEL is undeclared)")
@@ -761,6 +830,7 @@ def run(args):
                   "assumptions":"CNC-configured Cartesian firmware, spindle S in RPM, compatible Tn/M6 and M0, INCH_MODE_SUPPORT for IN. No firmware/controller or physical simulation. Variable G0 initial feed is unknown until declared."},
               "iselConfiguration":None if profile!="ISEL_CNC" else {"m01Mode":args.isel_m01_mode,"dwellWordUnits":"milliseconds","toolRange":"T1..T128","reference":"ISEL Remote DIN/ISO interpreter, February 2025"},
               "icpConfiguration":None if profile!="ISEL_ICP_CNC" else {"units":"MM only", "coordinates":"integer micrometers", "velocities":"integer micrometers/second", "wait":"integer milliseconds", "rounding":"truncation toward zero", "parameterAudit":"Unrounded requests retained; quantization differences are reported, never hidden by increasing tolerance", "unsupported":"WPCLEAR/reference changes fail closed; captured prefix is diagnostic ONLY"},
+              "toolChangeConfiguration":None if profile not in ("Toolchange_Manual","Toolchange_Custom") else {"manual":"Three ordered M0 pauses; adjustment at stopped spindle to Z0 using per-tool Feed Z; return to Change Z", "custom":"Selected tool Tn and opaque M6, no extra M0; commanded change position audited", "limits":"Operator actions/contact, macro motion and changed work offsets are not simulated"},
               "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL: G71=MM, G4 P in milliseconds, M01 operator stop by default (Remote); optional stop modes require explicit selection. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
     if profile=="ISEL_ICP_CNC":
         report["scope"]="Public MM ICP programs: integer micrometers, VEL/FASTVEL in integer micrometers/s, WAIT in ms. Initial commanded XYZ assumed zero. GETTOOL is an opaque automatic change; WPCLEAR/reference changes fail closed, prefix evidence is NOT full execution equivalence. Unrounded parameter requests and existing comparison tolerance are retained; quantization differences remain visible. No GUI/controller/physical certification."
@@ -777,6 +847,9 @@ def run(args):
             fx = read_program(case["gcode"],profile,**reader_options)
             if profile=="Marlin": result["fxMarlinControls"]=fx["marlinControls"]
             if profile=="ISEL_CNC": result["fxIselControls"]=fx["iselControls"]
+            if "toolChangeControls" in fx: result["fxToolChangeControls"]=fx["toolChangeControls"]
+            if "toolChangeControls" in fx:
+                (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
             if profile=="ISEL_ICP_CNC":
                 result["fxIcpControls"]=fx["icpControls"]
                 (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
@@ -798,10 +871,12 @@ def run(args):
                 python = read_program(program,profile,**reader_options)
                 if profile=="Marlin": result["pythonMarlinControls"]=python["marlinControls"]
                 if profile=="ISEL_CNC": result["pythonIselControls"]=python["iselControls"]
+                if "toolChangeControls" in python: result["pythonToolChangeControls"]=python["toolChangeControls"]
                 if profile=="ISEL_ICP_CNC": result["pythonIcpControls"]=python["icpControls"]
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:
                 result.update(status="ORACLE_ERROR",error=str(error))
+                if isinstance(error,UnmodeledToolSelection): result["oracleErrorKind"]="UNMODELED_TOOL_SELECTION_NOT_A_PYTHON_CRASH"
                 if isinstance(error,UnsupportedIcp):
                     result["pythonIcpPrefix"]={"diagnosticOnly":True,"cutCount":len(error.prefix["cuts"]),
                                                "controls":error.prefix["icpControls"],
@@ -836,7 +911,7 @@ def run(args):
         identifier = case["id"]
         links = " ".join(f'<a href="{identifier}.{suffix}">{label}</a>' for suffix,label in
                          (("fx."+extension,"FX"),("python."+extension,"Python"),("trace.json","XYZ trace"),
-                          ("fx.trace.json","FX native trace"),("python-prefix.json","Python prefix (NOT parity)"))
+                          ("fx.trace.json","FX trace"),("python-prefix.json","Python prefix (NOT parity)"))
                          if (args.output/(identifier+"."+suffix)).is_file())
         rows += "<tr><td>"+html.escape(identifier)+"<br>"+links+"</td><td>"+case["status"]+"</td><td><pre>"+html.escape(json.dumps(case,indent=2))+"</pre></td></tr>"
     (args.output/"index.html").write_text('<!doctype html><meta charset="utf-8"><title>CNC XYZ comparison</title>'

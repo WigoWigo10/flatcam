@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Troca Manual/Custom — 2026-10-23
+
+Feed Z por ferramenta no ajuste manual, G90 entre pausas, resumo e auditoria
+de fases/macros: **C**, não A global. Manual 20/48/34/2/0; Custom 0/0/0/104/0
+(102 seleções de ferramenta opacas, dois Dwell zero). FX sem desvios auditados.
+App Python isolado confirmou sequências, não interação GUI/máquina.
+Campo vazio no ensaio agora é `""`, diferente de None no legado.
+[TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md).
+
 ## ISEL_ICP_CNC nativo — 2026-10-23
 
 FASTVEL, conversão cancelável, PROGEND obrigatório na prévia e leitor próprio:

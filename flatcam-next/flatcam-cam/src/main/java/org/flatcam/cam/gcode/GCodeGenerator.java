@@ -858,18 +858,18 @@ public final class GCodeGenerator {
                     } else {
                         line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                         line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
-                                tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, params.feedRate()));
+                                tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, machining.feedRateZ()));
                     }
                 }
             } else if (preprocessor.emitsToolNumber()) {
                 line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
                     line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
-                            tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, params.feedRate()));
+                            tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, machining.feedRateZ()));
                 }
             } else if (changeHere) {
                 line(gcode, "%s", toolChangeCode(preprocessor, null, toolIndex + 1,
-                        tool.toolDiameter(), units, changeZ, params.feedRate()));
+                        tool.toolDiameter(), units, changeZ, machining.feedRateZ()));
             }
             if (changeHere && !preprocessor.requiresProbe()) {
                 // M0/M6 may move Z or leave incremental mode; restore clearance before the next XY.

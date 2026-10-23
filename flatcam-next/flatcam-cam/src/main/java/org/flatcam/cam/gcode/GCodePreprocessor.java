@@ -102,7 +102,8 @@ public enum GCodePreprocessor {
             case ISEL_CNC -> "ISEL CNC: somente mm, G71, ferramentas T1–T128 e troca M06/M01. "
                     + "No Remote DIN/ISO, M01 requer interação do operador; em outros controladores confirme a semântica da parada. "
                     + "Dwell é convertido de segundos para milissegundos. M30 termina após o estacionamento; macros M06 não são simuladas.";
-            case TOOLCHANGE_MANUAL -> "Troca manual com tres M0 e movimento G01 ate Z0 para ajustar a ferramenta. "
+            case TOOLCHANGE_MANUAL -> "Troca manual com tres M0 e movimento G01 ate Z0 usando Feed Z da ferramenta. "
+                    + "G90 restaurado entre as pausas e movimentos verticais. "
                     + "Confira a origem Z e a altura livre; nao e sondagem automatica.";
             case TOOLCHANGE_CUSTOM -> "Troca pela macro M6 configurada na maquina, sem M0 adicional. "
                     + "Ative troca de ferramenta para emitir M6; confira a macro antes de executar.";
@@ -205,9 +206,9 @@ public enum GCodePreprocessor {
         if (this != TOOLCHANGE_MANUAL) return pauseForTool(number, diameter, units);
         if (!Double.isFinite(returnZ) || returnZ <= 0 || !Double.isFinite(feedRate) || feedRate <= 0)
             throw new IllegalArgumentException("Altura de retorno e feed da troca manual devem ser positivos.");
-        return "M05\n" + toolChangeMessage(number, diameter, units) + "\nM0\nG01 Z0 F"
+        return "M05\n" + toolChangeMessage(number, diameter, units) + "\nM0\nG90\nG01 Z0 F"
                 + GCodeGenerator.fmt(feedRate) + "\n"
-                + comment("Ajuste T" + number + " para tocar o material e aperte levemente") + "\nM0\nG00 Z"
+                + comment("Ajuste T" + number + " para tocar o material e aperte levemente") + "\nM0\nG90\nG00 Z"
                 + GCodeGenerator.fmt(returnZ) + "\n"
                 + comment("Aperte a ferramenta com seguranca antes de continuar") + "\nM0";
     }

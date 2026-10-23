@@ -1,5 +1,11 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Troca Manual/Custom ampliada em [TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md):
+avanço de ajuste manual corrigido para Z por ferramenta, G90 antes de mover
+após pausas, auditoria de três fases e macro explícita. Custom sem Tn no legado
+é seleção não resolvida, não 102 crashes. O diagnóstico real usa `""` para
+campo XY vazio; None pode cair em outro caminho inválido do Python.
+
 ICP nativo ampliado em [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md): FASTVEL e
 cancelamento corrigidos, prévia exige PROGEND, leitor independente conserva
 quantização e recusa referência WPCLEAR não modelada. Não confundir 51 limites

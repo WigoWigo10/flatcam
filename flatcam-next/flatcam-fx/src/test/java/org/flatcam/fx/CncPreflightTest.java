@@ -43,6 +43,22 @@ class CncPreflightTest {
         assertFalse(report.issues().stream().anyMatch(issue->issue.text().contains("invertem o sentido")));
     }
     static final GeometryFactory FACTORY = new GeometryFactory();
+    @Test void manualReviewShowsTheActualPerToolAdjustmentFeedsAndCustomExplainsItsMacro() {
+        var original=geometry();
+        var manual=CncPreflight.geometry("Board","MM",new GeometryCncToolPanel.Result(original.tools(),original.parameters(),
+                original.vTools(),GCodePreprocessor.TOOLCHANGE_MANUAL,original.parametersByTool()));
+        for(var tool:manual.tools()) assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Ajuste manual em Z0")
+                && v.text().contains("Feed Z "+tool.feedZ()) && v.target().field().equals("cnc-feed-z")));
+        assertTrue(manual.issues().stream().anyMatch(i->!i.blocking() && i.text().contains("três pausas M0") && i.text().contains("G90")));
+        var drill=drilling();
+        var drillReport=CncPreflight.drilling(new DrillGCodeToolPanel.Result(drill.source(),drill.settingsByTool(),drill.orderedToolIds(),
+                drill.options(),GCodePreprocessor.TOOLCHANGE_MANUAL,drill.toolOrder()));
+        for(var tool:drillReport.tools()) assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Ajuste manual em Z0")
+                && v.text().contains("Feed Z "+tool.feedZ()) && v.target().field().equals("drill-feed-z")));
+        var custom=CncPreflight.geometry("Board","MM",new GeometryCncToolPanel.Result(original.tools(),original.parameters(),
+                original.vTools(),GCodePreprocessor.TOOLCHANGE_CUSTOM,original.parametersByTool()));
+        assertTrue(custom.issues().stream().anyMatch(i->!i.blocking() && i.text().contains("Tn/M6") && i.text().contains("sem M0 adicional")));
+    }
     static Geometry path() { return FACTORY.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(12, 0)}); }
     static GeometryGCodeParameters params(double z, double depth, double feed, double feedZ, int rpm) {
         return new GeometryGCodeParameters(z, depth, true, .2, feed, rpm, true, 1500, null, feedZ, true, .5, false, 0);

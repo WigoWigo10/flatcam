@@ -18,7 +18,8 @@ class ProfileProbeTest(unittest.TestCase):
                 logger.error("Exception occurred within a preprocessor: missing end_xy")
         geometry.generatecncjob = generate
         app = SimpleNamespace(log=logger, app_obj=SimpleNamespace(new_object=lambda *a, **k: geometry),
-                              collection=SimpleNamespace(get_by_name=lambda name: SimpleNamespace(source_file="G90\nG0 Z3\n")))
+                              collection=SimpleNamespace(get_by_name=lambda name: SimpleNamespace(source_file="G90\nG0 Z3\n")),
+                              probeGeometry=geometry)
         return app
 
     def test_swallowed_preprocessor_errors_fail_even_with_nonempty_programs(self):
@@ -49,6 +50,15 @@ class ProfileProbeTest(unittest.TestCase):
             probe_cnc_profile(self.app(), Mock(), "ISEL_ICP_CNC", output, [])
             self.assertEqual(4, len(list(output.glob("*.imf"))))
             self.assertFalse(list(output.glob("*.nc")))
+
+    def test_empty_xy_uses_the_real_blank_field_representation_not_none(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = self.app()
+            app.probeGeometry.generatecncjob = Mock()
+            probe_cnc_profile(app, Mock(), "Toolchange_Custom", Path(folder) / "programs", [])
+            calls = app.probeGeometry.generatecncjob.call_args_list
+            self.assertEqual("", calls[2].kwargs["toolchangexy"])
+            self.assertEqual([11,17], calls[1].kwargs["toolchangexy"])
 
 
 if __name__ == "__main__":

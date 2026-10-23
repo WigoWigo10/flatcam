@@ -63,6 +63,8 @@ class PythonCncParametersExportTest {
             case LINE_XYZ -> "line_xyz";
             case ISEL_CNC -> "ISEL_CNC";
             case ISEL_ICP_CNC -> "ISEL_ICP_CNC";
+            case TOOLCHANGE_MANUAL -> "Toolchange_Manual";
+            case TOOLCHANGE_CUSTOM -> "Toolchange_Custom";
             default -> throw new IllegalArgumentException("Perfil ainda fora do leitor XYZ comparativo");
         })
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")

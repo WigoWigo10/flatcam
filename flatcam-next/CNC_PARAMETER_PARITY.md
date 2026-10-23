@@ -1,5 +1,15 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Troca Manual/Custom — 2026-10-23
+
+Geometry Manual corrigida para usar Feed Z da ferramenta no ajuste em Z0,
+com G90 entre pausas/movimentos verticais. Comparador distingue três fases
+manuais e macro Custom opaca. Manual 20/48/34/2/0; Custom 0/0/0/104/0:
+102 limites de seleção implícita e dois erros Dwell zero, não 104 crashes.
+FX sem desvios auditados em 104 receitas por perfil. App real isolado confirma
+as sequências; ensaio agora representa campo XY vazio como `""`, não None.
+Detalhes em [TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md).
+
 ## ISEL_ICP_CNC: leitor nativo e Feed rapids — 2026-10-23
 
 FX passa a emitir FASTVEL, respeita cancelamento durante a conversão e recusa

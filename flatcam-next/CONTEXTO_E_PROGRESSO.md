@@ -1,5 +1,19 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Troca Manual/Custom — 2026-10-23
+
+ICP commitado em `4552cf00`. Manual Geometry agora usa Feed Z por ferramenta
+no ajuste em Z0 e reemite G90 antes dos movimentos entre pausas. Resumo CNC
+mostra avanço real/avisos; Custom continua Tn/M6 sem M0 extra, macro não simulada.
+104 controles por perfil: Manual 20/48/34/2/0; Custom 0/0/0/104/0, com 102
+seleções implícitas não modeladas e dois erros reais Dwell zero. Nenhum desvio
+auditado FX. Não chamar os 102 limites Custom de crashes ou defeitos físicos.
+App real isolado confirmou; ensaio corrigiu campo XY vazio de None para `""`.
+Regressões red/green/red/green; 62 auxiliares Python aprovados. Detalhes em
+[TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md). Esta etapa ainda sem commit/push.
+Verify integral aprovado: 1829 passaram, 18 skips opcionais (1847 registros,
+incluindo repetições), zero falhas/erros. Log `target/toolchange-full-20261023.log`.
+
 ## ISEL_ICP_CNC: velocidades e fim nativo — 2026-10-23
 
 line_xyz commitado em `09486037`. ICP passa a emitir Feed rapids via FASTVEL,
@@ -14,7 +28,7 @@ Regressões red/green/red/green dez vezes por caso; 55 auxiliares Python.
 Evidências/limites em [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md).
 Verify integral aprovado: 1804 passaram, 18 skips opcionais (1822 registros,
 incluindo repetições), zero falhas/erros. Log `target/icp-full-20261023.log`.
-Etapa ICP ainda sem commit/push; macros e referenciais físicos não simulados.
+Etapa ICP posteriormente commitada em `4552cf00`; macros e referenciais físicos não simulados.
 
 ## line_xyz: coordenadas desconhecidas e Python real — 2026-10-23
 

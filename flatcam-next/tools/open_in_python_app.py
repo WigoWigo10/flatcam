@@ -95,12 +95,15 @@ def probe_cnc_profile(fc, qapp, profile, directory, messages):
             try:
                 # generatecncjob has legacy truthiness fallbacks: configure the actual
                 # isolated object's options too, rather than hiding a zero/False request.
-                geometry.options.update(toolchange=change, toolchangexy=change_xy,
+                requested_xy = "" if change_xy is None else change_xy
+                # The real entry point distinguishes an empty coordinate field from
+                # Python None (which its fallback can turn into the string "None").
+                geometry.options.update(toolchange=change, toolchangexy=requested_xy,
                                         dwell=dwell, dwelltime=seconds)
                 geometry.generatecncjob(outname=outname, dia=.4, offset=0,
                     z_cut=-.5, z_move=3, feedrate=100, feedrate_z=50, feedrate_rapid=1500,
                     spindlespeed=12000, dwell=dwell, dwelltime=seconds, multidepth=False,
-                    dpp=.5, toolchange=change, toolchangez=15, toolchangexy=change_xy,
+                    dpp=.5, toolchange=change, toolchangez=15, toolchangexy=requested_xy,
                     extracut=False, extracut_length=0, startz=12, endz=5,
                     endxy=[23, 29], pp=profile, use_thread=False, plot=False)
                 qapp.processEvents()
@@ -131,7 +134,7 @@ def main():
                         help="Explicit isolated app unit preference before opening; legacy set_ui overwrites object units from defaults")
     parser.add_argument("--new-empty-geometry", action="store_true",
                         help="Control run: also create a blank Geometry with the application's own command")
-    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default", "ISEL_ICP_CNC"),
+    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom"),
                         help="Generate public synthetic Geometry through the real app, without opening a project")
     parser.add_argument("--probe-output", type=Path, help="Fresh directory for diagnostic CNC programs")
     args = parser.parse_args()

@@ -1,5 +1,11 @@
 # line_xyz: coordenadas estabelecidas e falhas do legado
 
+Esclarecimento posterior do ensaio (troca Manual/Custom, 2026-10-23): o campo
+XY vazio agora é passado como `""`, não Python None. O erro de tipo histórico
+descrito abaixo para posição corrente depende daquela entrada None e não
+prova que o campo realmente vazio falhe da mesma forma. Não afeta a evidência
+independente de `end_xy` ausente/Y=X. Ver [TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md).
+
 Revisão de 2026-10-23, base `a1fa7204`, Windows / Java 25.0.4.1 e Python
 3.11.1, Shapely 1.8.5.post1 / GEOS 3.10.3. Etapa anterior ISEL commitada em
 `a1fa7204`; alterações desta revisão ainda sem commit/push.
