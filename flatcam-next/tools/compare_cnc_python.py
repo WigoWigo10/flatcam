@@ -196,6 +196,73 @@ def first_difference(a, b):
     return None
 
 
+def unmatched_cuts(left, right):
+    """Multiplicity-aware evidence, not a relaxed equivalence rule."""
+    remaining = list(right)
+    unmatched = []
+    for event in left:
+        index = next((i for i, other in enumerate(remaining) if equivalent(event, other)), None)
+        if index is None:
+            unmatched.append(event)
+        else:
+            remaining.pop(index)
+    return unmatched, remaining
+
+
+def toolpath_review(case, fx, python, fx_issues, python_issues):
+    """Expose actual emitted differences per tool without attributing intent or safety.
+
+    Reverse matching is diagnostic ONLY, limited to full XYZ lateral cuts. A
+    reversed edge is never an execution/cutting match. Plunge origins deliberately
+    have only XY in machining_signature and cannot be reversed as lateral cuts.
+    """
+    signatures = [[e for e in machining_signature(p) if "to" in e] for p in (fx, python)]
+    categories = cut_difference_by_tool(fx, python)
+    reviews = {}
+    for tool in case["tools"]:
+        identifier = tool["id"]
+        cuts = [[e for e in signature if e["tool"] == identifier] for signature in signatures]
+        left, right = unmatched_cuts(*cuts)
+        reversed_remaining = list(right)
+        reversed_count = 0
+        for event in left:
+            if len(event["from"]) != 3 or event["from"][:2] == event["to"][:2]:
+                continue
+            reversed_event = {**event, "from": event["to"], "to": event["from"]}
+            index = next((i for i, other in enumerate(reversed_remaining)
+                          if equivalent(reversed_event, other)), None)
+            if index is not None:
+                reversed_count += 1
+                reversed_remaining.pop(index)
+        metrics = {}
+        for name, parsed, selected in zip(("fx", "python"), (fx, python), cuts):
+            rapid = [e for e in parsed["events"] if e["kind"] == "rapid" and e["tool"] == identifier]
+            lateral = [e for e in rapid if e["from"][:2] != e["to"][:2]]
+            metrics[name] = {
+                "cutCount": len(selected),
+                "deepestZ": min((e["to"][2] for e in selected), default=None),
+                "feeds": sorted({e["feed"] for e in selected}),
+                "spindleStates": [list(state) for state in sorted({(e["spindle"], e["rpm"]) for e in selected})],
+                **rapid_metrics({"events": rapid}),
+                "lowestRapidXY_Z": min((min(e["from"][2], e["to"][2]) for e in lateral), default=None),
+            }
+        reviews[str(identifier)] = {
+            "cutComparison": categories.get(str(identifier), "NO_MODELED_CUTS"),
+            "metrics": metrics,
+            "unmatchedDirectedCuts": {"fx": len(left), "python": len(right)},
+            "oppositeDirectionPairs": reversed_count,
+            "unmatchedSamples": {"fx": left[:3], "python": right[:3]},
+            "requested": tool["parameters"],
+            "parameterIssues": {name: [issue for issue in issues if issue.startswith(f"T{identifier}:")]
+                                for name, issues in (("fx", fx_issues), ("python", python_issues))},
+        }
+    return {"tools": reviews,
+            "jobIssues": {name: [issue for issue in issues if not re.match(r"T\d+:", issue)]
+                          for name, issues in (("fx", fx_issues), ("python", python_issues))},
+            "limits": "Source-unit distances, not time. Samples limited to three cuts per side; counts retain all repeated passes. "
+                      "Opposite direction, same cuts in another order and unsupported commands are NOT parity or physical safety."}
+
+
 def rapid_metrics(parsed):
     """Executed source-unit distances, not an estimated time or a safety score."""
     rapid = [event for event in parsed["events"] if event["kind"] == "rapid"]
@@ -605,6 +672,7 @@ def run(args):
                     firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)),
                     rapidMetrics={"fx":rapid_metrics(fx),"python":rapid_metrics(python)})
                 result["cutDifferenceByTool"] = cut_difference_by_tool(fx,python)
+                result["toolpathReview"] = toolpath_review(case,fx,python,result["fxParameterIssues"],result["pythonParameterIssues"])
                 if not machining and case["operation"]=="drilling" and not any(tool.get("slots") and not tool.get("parameters",{}).get("fxSlotDrilling",False) for tool in case["tools"]) \
                         and any(len(tool.get("points",[]))>1 for tool in oracle_case["tools"]) \
                         and not result["fxParameterIssues"] and not result["pythonParameterIssues"]:

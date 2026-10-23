@@ -1,5 +1,15 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série trajetos/exportações/perfis — 2026-10-23
+
+Seis lacunas anteriores commitadas em `faa27fb2`. Etapa 1 investigada:
+relatório CNC agora mostra cortes sem correspondência/sentido inverso e
+distâncias/alturas de rápidos por ferramenta, sem relaxar strict. Nos 104
+controles DEFAULT_NO_M6 não houve problema novo nos parâmetros FX; diferenças
+de ordem, estratégia de passes e operação foram mantidas explícitas. 30 testes
+auxiliares passam. Evidência e limites em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+Seguem revisão dos exportadores restantes e perfis adicionais, em série.
+
 ## Série das seis lacunas CNC — 2026-10-14
 
 Drill slots anterior commitado em `b467b9bd`. Percorridos os seis pontos em série:

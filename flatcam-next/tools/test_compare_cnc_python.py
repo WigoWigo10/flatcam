@@ -3,7 +3,7 @@ import copy
 import unittest
 from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters, rapid_metrics
 from compare_cnc_python import geometry_source,geometry_paths,nearest_points,slot_oracle_case
-from compare_cnc_python import cut_difference_by_tool
+from compare_cnc_python import cut_difference_by_tool, toolpath_review
 
 
 PROGRAM = """G21
@@ -39,6 +39,40 @@ def case():
 
 
 class CncReaderTest(unittest.TestCase):
+    def test_tool_review_keeps_reversed_edges_repeated_passes_and_state_changes_different(self):
+        source = case()
+        first = read_program(PROGRAM)
+        edge = {"kind":"linear", "tool":1, "from":[10,0,-.4], "to":[12,0,-.4],
+                "feed":100, "spindle":3, "rpm":10000}
+        first["cuts"].extend([edge, copy.deepcopy(edge)])
+        other = copy.deepcopy(first)
+        for cut in other["cuts"][-2:]: cut["from"],cut["to"] = cut["to"],cut["from"]
+        review = toolpath_review(source,first,other,[],["T1: changed", "Job issue"])
+        tool = review["tools"]["1"]
+        self.assertEqual("CUTS_OR_PARAMETERS_DIFFER",tool["cutComparison"])
+        self.assertEqual(2,tool["oppositeDirectionPairs"])
+        self.assertEqual({"fx":2,"python":2},tool["unmatchedDirectedCuts"])
+        self.assertEqual(["T1: changed"],tool["parameterIssues"]["python"])
+        self.assertEqual(["Job issue"],review["jobIssues"]["python"])
+        other["cuts"][-1]["feed"] = 99
+        tool = toolpath_review(source,first,other,[],[])["tools"]["1"]
+        self.assertEqual(1,tool["oppositeDirectionPairs"])
+        self.assertEqual(2,tool["unmatchedDirectedCuts"]["fx"])
+        self.assertFalse(equivalent(machining_signature(first),machining_signature(other)))
+
+    def test_tool_review_order_only_does_not_erase_clearance_or_missing_plunges(self):
+        first = read_program(PROGRAM)
+        other = copy.deepcopy(first); other["cuts"].reverse()
+        tool = toolpath_review(case(),first,other,[],[])["tools"]["1"]
+        self.assertEqual("SAME_CUTS_DIFFERENT_ORDER",tool["cutComparison"])
+        self.assertEqual({"fx":0,"python":0},tool["unmatchedDirectedCuts"])
+        self.assertEqual(3,tool["metrics"]["fx"]["lowestRapidXY_Z"])
+        self.assertEqual(-1.1,tool["metrics"]["fx"]["deepestZ"])
+        other["cuts"].pop()
+        tool = toolpath_review(case(),first,other,[],[])["tools"]["1"]
+        self.assertEqual(1,tool["unmatchedDirectedCuts"]["fx"])
+        self.assertEqual(0,tool["oppositeDirectionPairs"])
+
     def test_ring_type_is_explicit_and_cannot_be_forged_by_an_open_linestring(self):
         tool={"wkt":"LINESTRING (10 0,12 0,12 2,10 2,10 0)","geometryType":"LinearRing"}
         self.assertEqual("LinearRing",geometry_source(tool).geom_type)
