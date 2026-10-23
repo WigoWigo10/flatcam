@@ -1,5 +1,17 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Rascunhos e programas auxiliares — 2026-10-23
+
+Editor G-code, Calibration e SolderPaste agora compartilham o fluxo assíncrono
+de revisão/publicação com Salvar como de CNC Job. O destino é escolhido após
+a revisão; origem/época são revalidadas e o texto analisado é o texto salvo.
+Recusa/cancelamento antes de publicar preserva o arquivo anterior. SolderPaste
+gera programa/prévia no worker com cancelamento durante a ordenação/emissão.
+Avisos distinguem dispensação e calibração de fresagem; o relatório não inventa
+feed/Travel Z constantes. Ensaios de fluxo usam decisão/destino injetados;
+seletor/diálogo nativos e máquina ainda não foram validados manualmente.
+Detalhes em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+
 ## Programa existente e cobertura transportada — 2026-10-14
 
 Salvar como de CNC Job passa por revisão assíncrona antes do FileChooser e

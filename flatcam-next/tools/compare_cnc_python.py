@@ -1,6 +1,6 @@
 """Compare executed XYZ/F/S/T state with the ORIGINAL Python CNC generators.
 
-This is a deliberately narrow GRBL milling reader, not a machine simulator.
+This is a deliberately narrow, profile-aware XYZ milling reader, not a machine simulator.
 Unknown commands, swallowed preprocessor errors and missing cuts fail closed.
 The oracle's generators/optimizers/preprocessor/exclusion routing are not patched.
 """
@@ -18,10 +18,13 @@ from types import SimpleNamespace, MethodType
 
 
 WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
+SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC")
 
 
-def read_program(program):
-    """Modal GRBL subset; retain repeated cuts, dwell, tool and spindle state."""
+def read_program(program, profile="GRBL_11_no_M6"):
+    """Profile-scoped modal subset; retain cuts, pauses, synchronization and feeds."""
+    if profile not in SUPPORTED_PROFILES:
+        raise ValueError("Profile outside the XYZ comparison reader")
     xyz = [0.0, 0.0, 0.0]
     feed = None
     rpm = 0.0
@@ -30,7 +33,9 @@ def read_program(program):
     motion = None
     units = None
     absolute = False
-    feed_per_minute = False
+    # Marlin's emitted dialect has native units/min and no G94 in its original
+    # header. This is an explicit profile assumption, not an inserted command.
+    feed_per_minute = profile == "Marlin"
     events, cuts = [], []
     terminated = False
     spindle_stopped = False
@@ -67,7 +72,9 @@ def read_program(program):
                 motion = int(code)
             elif code == 4:
                 dwell = True
-            elif code in (20, 21):
+            elif code in (20, 21) or code == 71 and profile == "ISEL_CNC":
+                if profile == "ISEL_CNC" and code == 20:
+                    raise ValueError("ISEL_CNC comparison supports MM only")
                 selected = "IN" if code == 20 else "MM"
                 if units is not None and selected != units:
                     raise ValueError("Unit change inside the program is outside this reader's scope")
@@ -101,10 +108,18 @@ def read_program(program):
             elif code in (0, 6):
                 events.append({"kind": "pause" if code == 0 else "change", "tool": tool, "at": xyz.copy(),
                                "spindleStopped": spindle_stopped})
+            elif code == 1 and profile == "ISEL_CNC":
+                if len(words) != 1:
+                    raise ValueError("M01 must be a standalone optional stop")
+                events.append({"kind":"optionalPause", "tool":tool, "at":xyz.copy(), "spindleStopped":spindle_stopped})
             elif code in (2, 30):
                 if any(k in values for k in "XYZFP"):
                     raise ValueError("Motion/dwell on a termination block")
                 terminated = True
+            elif code == 400 and profile == "Marlin":
+                if len(words) != 1:
+                    raise ValueError("M400 must be a standalone synchronization block")
+                events.append({"kind":"synchronize", "tool":tool, "at":xyz.copy()})
             else:
                 raise ValueError(f"Unsupported M{value} on line {number}")
         if dwell:
@@ -121,7 +136,7 @@ def read_program(program):
                 if motion == 1 and (feed is None or not feed_per_minute):
                     raise ValueError("Linear motion without feed/G94")
                 event = {"kind": "rapid" if motion == 0 else "linear", "tool": tool,
-                         "from": xyz.copy(), "to": end, "feed": feed if motion == 1 else None,
+                         "from": xyz.copy(), "to": end, "feed": feed if motion == 1 or profile == "Marlin" else None,
                          "spindle": spindle, "rpm": rpm if spindle else 0}
                 events.append(event)
                 if motion == 1 and min(xyz[2], end[2]) < 0:
@@ -245,6 +260,7 @@ def toolpath_review(case, fx, python, fx_issues, python_issues):
                 "spindleStates": [list(state) for state in sorted({(e["spindle"], e["rpm"]) for e in selected})],
                 **rapid_metrics({"events": rapid}),
                 "lowestRapidXY_Z": min((min(e["from"][2], e["to"][2]) for e in lateral), default=None),
+                "declaredRapidFeeds": sorted({e["feed"] for e in rapid if e["feed"] is not None}),
             }
         reviews[str(identifier)] = {
             "cutComparison": categories.get(str(identifier), "NO_MODELED_CUTS"),
@@ -404,7 +420,8 @@ def audit_parameters(case, parsed, *, implementation=None):
             expected_edges=[(list(a[:2]),list(b[:2]),z) for path in linear_paths if path.geom_type!="Point"
                             for a,b in zip(list(path.coords),list(path.coords)[1:]) for z in expected_depths]
             audit_segments(expected_edges,xy_cuts,issues,tool["id"])
-    pauses = [event for event in parsed["events"] if event["kind"] == "pause"]
+    pause_kind = "optionalPause" if case.get("profile") == "ISEL_CNC" else "pause"
+    pauses = [event for event in parsed["events"] if event["kind"] == pause_kind]
     if len(pauses) != (len(tools) if job["toolChange"] else 0):
         issues.append("Tool-change pause count differs from the requested setting")
     if any(not event["spindleStopped"] for event in pauses):
@@ -414,6 +431,8 @@ def audit_parameters(case, parsed, *, implementation=None):
     if job.get("changeX") is not None and any(not equivalent(event["at"][:2],[job["changeX"],job["changeY"]]) for event in pauses):
         issues.append("Tool-change pause XY differs from the requested position")
     for event in parsed["events"]:
+        if case.get("profile") == "Marlin" and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
+            issues.append("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)")
         if event["kind"] == "rapid" and event["from"][:2] != event["to"][:2]:
             p = next((tool["parameters"] for tool in tools if tool["id"] == event["tool"]),tools[0]["parameters"])
             if min(event["from"][2],event["to"][2]) < p["safeZ"]-.000051:
@@ -485,6 +504,7 @@ def python_program(case, root, app, camlib):
     from shapely.geometry import Point
     from shapely import wkt
     job = case["job"]
+    rapid_feed = job.get("rapidFeed",1500)  # compatibility with historical four-profile exports
     app.defaults["units"] = case["units"]
     app.defaults["geometry_f_plunge"] = True
     app.dec_format = lambda value, decimals: float(f"{value:.{decimals}f}")
@@ -509,7 +529,7 @@ def python_program(case, root, app, camlib):
                 data = dict(tools_drill_cutz=-p["depth"],tools_drill_multidepth=p["multiDepth"],
                     tools_drill_depthperpass=p["depthPerPass"],tools_drill_travelz=p["safeZ"],
                     tools_drill_f_plunge=True,tools_drill_f_retract=True,tools_drill_feedrate_z=p["feedZ"],
-                    tools_drill_feedrate_rapid=1500,tools_drill_spindlespeed=p["rpm"],tools_drill_dwell=p["dwell"],
+                    tools_drill_feedrate_rapid=rapid_feed,tools_drill_spindlespeed=p["rpm"],tools_drill_dwell=p["dwell"],
                     tools_drill_dwelltime=p["dwellSeconds"],tools_drill_spindledir="CW",tools_drill_offset=p["offsetZ"],
                     tools_drill_toolchangez=job["toolChangeZ"],tools_drill_toolchangexy=xy(job,"change"),
                     tools_drill_startz=job["startZ"],tools_drill_endz=job["endZ"],tools_drill_endxy=xy(job,"end"),
@@ -534,7 +554,7 @@ def python_program(case, root, app, camlib):
                     solid_geometry=[geometry_source(tool)], data=dict(
                         optimization_type="B", search_time="R", ppname_g=profile,
                         cutz=-p["depth"], multidepth=p["multiDepth"], depthperpass=p["depthPerPass"],
-                        travelz=p["safeZ"], feedrate=p["feed"], feedrate_z=p["feedZ"], feedrate_rapid=1500,
+                        travelz=p["safeZ"], feedrate=p["feed"], feedrate_z=p["feedZ"], feedrate_rapid=rapid_feed,
                         spindlespeed=p["rpm"], spindledir="CW", dwell=p["dwell"], dwelltime=p["dwellSeconds"],
                         startz=job["startZ"], endz=job["endZ"], endxy=xy(job,"end"),
                         toolchangez=job["toolChangeZ"], toolchangexy=xy(job,"change"), extracut=False, extracut_length=0))
@@ -554,7 +574,7 @@ def python_program(case, root, app, camlib):
             geo = camlib.Geometry()
             geo.solid_geometry = [geometry_source(tool)]
             generated = cnc.generate_from_geometry_2(geo,append=False,tooldia=tool["diameter"],
-                z_cut=-p["depth"],z_move=p["safeZ"],feedrate=p["feed"],feedrate_z=p["feedZ"],feedrate_rapid=1500,
+                z_cut=-p["depth"],z_move=p["safeZ"],feedrate=p["feed"],feedrate_z=p["feedZ"],feedrate_rapid=rapid_feed,
                 spindlespeed=p["rpm"],dwell=p["dwell"],dwelltime=p["dwellSeconds"],multidepth=p["multiDepth"],
                 depthpercut=p["depthPerPass"],toolchange=job["toolChange"],toolchangez=job["toolChangeZ"],
                 toolchangexy=xy(job,"change"),startz=job["startZ"],endz=job["endZ"],endxy=xy(job,"end"),
@@ -616,7 +636,7 @@ def run(args):
     app = install_stub_app()
     camlib.log.setLevel(logging.WARNING)
     export = json.loads(args.fx_export.read_text(encoding="utf-8-sig"))
-    if export["schema"] != 1 or export["profile"] not in ("GRBL_11_no_M6","grbl_11","default","Default_no_M6"):
+    if export["schema"] != 1 or export["profile"] not in SUPPORTED_PROFILES:
         raise ValueError("Unsupported CNC corpus")
     import importlib
     profile=export["profile"]
@@ -634,14 +654,15 @@ def run(args):
     report = {"schema":1,**dependency_metadata(),"profile":export["profile"],"cases":[],
               "legacySourceSha256":hashes,"oracle":"Original CNCjob generators, OR-Tools Basic optimizer, selected preprocessor and exclusion routing",
               "coordinateToleranceInSourceUnits":.000051,"pythonFeedDecimals":4,"pythonCoordinateDecimals":4,
-              "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
+              "excludedUnitCases":export.get("excludedUnitCases",[]),
+              "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL G71 means MM; M01 is a distinct OPTIONAL stop event, not proof the machine will pause. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
         (args.output/(case["id"]+".fx.nc")).write_text(case["gcode"],encoding="utf-8")
         try:
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
                 raise ValueError("Unsupported units/operation")
-            fx = read_program(case["gcode"])
+            fx = read_program(case["gcode"],profile)
             result["fxParameterIssues"] = audit_parameters(slot_oracle_case(case,root,enabled_only=True),fx,implementation="fx")
             if case["operation"] == "geometry":
                 result["travelPolicies"] = {"fx":"per-tool Travel Z" if case["job"].get("fxTravelClearance")=="PER_TOOL"
@@ -656,7 +677,7 @@ def run(args):
                     result["pythonSlotPoints"]={str(tool["id"]):tool["points"] for tool in oracle_case["tools"]}
                 program = python_program(oracle_case,root,app,camlib)
                 (args.output/(case["id"]+".python.nc")).write_text(program,encoding="utf-8")
-                python = read_program(program)
+                python = read_program(program,profile)
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:
                 result.update(status="ORACLE_ERROR",error=str(error))

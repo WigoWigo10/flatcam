@@ -1,5 +1,14 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Comparação adicional de perfis — 2026-10-23
+
+Harness aceita também MARLIN, LINE_XYZ e ISEL_CNC. Marlin modela M400 e feed
+dos rápidos; ISEL MM modela G71 e M01 opcional. Nenhum problema nos parâmetros
+solicitados ao FX nestes controles, mas NÃO há equivalência completa nesses
+novos perfis. line_xyz original falha em todos os 104 controles; não conta
+como paridade. GRBL mantém 49/19/34/2/0. Diagnóstico por fresa, resultados e
+restrições em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+
 ## Série de seis lacunas — 2026-10-14
 
 Comparador ampliado com `-Profile GRBL_11_NO_M6|GRBL_11|DEFAULT|DEFAULT_NO_M6`

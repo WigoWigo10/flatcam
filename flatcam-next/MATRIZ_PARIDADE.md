@@ -1,5 +1,16 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Trajetos, exportações e perfis — 2026-10-23
+
+Diagnóstico por fresa ampliado sem relaxar strict. Rascunhos, Calibration e
+SolderPaste agora passam por revisão/worker/publicação protegida: **C**, não
+validação física. Comparador inclui Marlin (MM/IN), ISEL_CNC (somente MM) e
+line_xyz além dos quatro perfis anteriores. Nenhum erro de parâmetros FX no
+corpus; novos perfis NÃO atingem equivalência completa. line_xyz Python falha
+nos 104 controles, portanto não recebe A. M400, G0/F e M01 opcional são eventos
+explícitos; não se simulam macros. Evidências, diferenças e limites em
+[CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+
 ## Série CNC: seis lacunas — 2026-10-14
 
 Round-trip real de Drill slots com parâmetros uniformes e preferência de unidade

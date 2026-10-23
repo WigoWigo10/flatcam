@@ -61,7 +61,68 @@ e TclLiveHostTest. 111 passaram, um skip opcional, zero falhas/erros em
 e não gravam preferências reais. Diálogo/seletor nativos ainda exigem teste
 visual manual; testes não simulam a máquina.
 
-## Próxima etapa desta série
+## 3. Mais pós-processadores no comparador — 2026-10-23
 
-3. Comparação com mais pós-processadores, modelando comandos adicionais
-   explicitamente; comandos não suportados devem continuar recusados.
+`compare-cnc-parameters.ps1 -Profile` acrescenta MARLIN, LINE_XYZ e ISEL_CNC aos
+quatro perfis anteriores. Continua executando as classes originais Python com
+SHA-256 conferido antes/depois, sem corrigir algoritmos ou esconder exceções.
+
+- Marlin: o leitor assume explicitamente unidades/minuto nativas (o cabeçalho
+  legado não emite G94). M400 é evento de sincronização, não linha ignorada.
+  O feed de G0 é registrado/comparado e auditado contra Feed rapids solicitado.
+  Falta de feed ou valor errado é acusado; não é normalizado para concordar.
+- ISEL_CNC: G71 significa MM, M01 é evento de parada **opcional** distinto de
+  M0. Isso não garante que o controlador parará. M6 permanece evento opaco,
+  sem simular movimentos internos da macro. FX recusa IN, e as 52 receitas IN
+  excluídas são declaradas no relatório, não contadas como equivalências.
+- line_xyz: eixos explicitamente iguais não criam movimentos fictícios;
+  deslocamento simultâneo/posição errada continua visível. A classe original
+  falha neste ensaio com `end_xy` ausente, coordenadas não definidas e dwell
+  zero. Os 104 ORACLE_ERROR não são aprovação, nem justificativa para alterar
+  o código legado. O perfil permanece uma limitação comparativa conhecida.
+
+O corpus agora exporta Feed rapids efetivo nas unidades de origem. Zero na
+configuração FX significa automático (1500 mm/min ou equivalente em IN), não
+F0. A primeira rodada Marlin detectou essa falha do próprio harness: ao passar
+zero ao Python gerava F0. Corrigida apenas a configuração enviada pelo ensaio,
+não o preprocessor/algoritmo; rodada inicial preservada em `target/cnc-marlin-20261023`.
+
+Resultados finais (execução igual / rota diferente / usinagem diferente /
+erro Python / erro FX):
+
+| Perfil | Casos | Resultados | Auditoria de parâmetros FX |
+| --- | ---: | --- | --- |
+| MARLIN | 104 MM/IN | 0 / 68 / 34 / 2 / 0 | Sem problemas |
+| ISEL_CNC | 52 MM | 0 / 34 / 17 / 1 / 0 | Sem problemas |
+| LINE_XYZ | 104 MM/IN | 0 / 0 / 0 / 104 / 0 | Sem problemas; sem comparação válida Py |
+| GRBL_11_NO_M6 (regressão) | 104 MM/IN | 49 / 19 / 34 / 2 / 0 | Sem problemas |
+
+Marlin Python emite alguns rápidos de troca sem Feed rapids (os 102 programas
+que puderam ser lidos têm ao menos um feed divergente/ausente); FX emite o
+feed em todos os G0 modelados. Também há diferenças M400 e falhas anteriores
+de troca/Over. ISEL Python não posiciona a troca nas alturas/XY solicitadas
+neste corpus. Não copiar as falhas para aumentar MATCH_EXECUTION.
+
+Artefatos em `target/cnc-marlin-effective-20261023/python`,
+`target/cnc-isel-20261023/python`, `target/cnc-line-xyz-20261023/python` e
+`target/cnc-grbl-regression-20261023/python`. Todos strict exit 1 esperado;
+nenhuma tolerância ou regra de equivalência foi relaxada. 33 regressões Python
+passam, incluindo M400/feed, G71/M01, eixos simultâneos e comandos fora do perfil.
+Laser/FAN, Repetier, Berta, ICP/HPGL/Roland e sonda continuam fora deste leitor;
+o suporte de geração já existente não significa validação por este ensaio.
+
+## Limites remanescentes
+
+Testar os diálogos/seletor nativos visualmente; ensaiar receitas/projetos mais
+variados; validar demais famílias de controladores; investigar line_xyz no
+aplicativo Python real antes de decidir como compará-lo. Não houve ensaio
+físico, mudança em projetos privados/preferências reais nem push.
+
+## Fechamento da série
+
+Etapas 1 e 2 commitadas respectivamente em `11f1ab93` e `e46df638` antes de
+iniciar a seguinte. Verify completo final aprovado: 1745 registros, 1727
+passaram, 18 skips opcionais, zero falhas/erros. Log:
+`target/cnc-three-step-full-20261023.log`. 33 regressões Python também passam.
+Comparadores diferenciais strict seguem reprovados pelas diferenças descritas;
+build verde não transforma essas diferenças em equivalência aprovada.

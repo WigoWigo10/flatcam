@@ -31,6 +31,7 @@ class PythonCncParametersExportTest {
     @Test void exportsMetricAndInchMachiningCases() throws Exception {
         var cases = new JSONArray();
         for (String units : List.of("MM", "IN")) {
+            if (profile == GCodePreprocessor.ISEL_CNC && units.equals("IN")) continue; // explicit profile constraint, not a skipped failure
             double scale = units.equals("IN") ? 1 / 25.4 : 1;
             for (String recipe : List.of("single", "peck", "offset", "negative-offset", "two-tools",
                     "selected-tool", "positions", "dwell", "zero-dwell", "spindle-off", "around", "over",
@@ -52,15 +53,20 @@ class PythonCncParametersExportTest {
                     "slot-chain-single","slot-chain-peck","slot-chain-no-last","slot-chain-zero-overlap","slot-chain-nearest","slot-chain-dwell"))
                 cases.put(multipleDrills(units,scale,recipe));
         }
-        assertEquals(104, cases.length());
+        assertEquals(profile == GCodePreprocessor.ISEL_CNC ? 52 : 104, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", switch(profile) {
             case GRBL_11_NO_M6 -> "GRBL_11_no_M6";
             case GRBL_11 -> "grbl_11";
             case DEFAULT -> "default";
             case DEFAULT_NO_M6 -> "Default_no_M6";
+            case MARLIN -> "Marlin";
+            case LINE_XYZ -> "line_xyz";
+            case ISEL_CNC -> "ISEL_CNC";
             default -> throw new IllegalArgumentException("Perfil ainda fora do leitor XYZ comparativo");
         })
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
+                .put("excludedUnitCases",profile == GCodePreprocessor.ISEL_CNC
+                        ? new JSONArray().put("IN: ISEL_CNC FX supports MM only; not counted as equivalence") : new JSONArray())
                 .put("cases", cases);
         Path directory = Path.of(System.getProperty("flatcam.cnc.comparison.output", temporary.toString()));
         Files.createDirectories(directory);
@@ -100,7 +106,7 @@ class PythonCncParametersExportTest {
         for (int id : order) tools.put(new JSONObject().put("id", id).put("diameter", image.toolDiameters().get(id))
                 .put("points", new JSONArray().put(new JSONArray().put(id*10*s).put(0)))
                 .put("parameters", drillParameters(settings.get(id))));
-        return base(units, recipe, "drilling", code).put("tools", tools).put("job", job(options));
+        return base(units, recipe, "drilling", code).put("tools", tools).put("job", job(options,units));
     }
 
     private JSONObject geometry(String units, double s, String recipe) throws Exception {
@@ -123,6 +129,7 @@ class PythonCncParametersExportTest {
         for (var area:positions.exclusions()) areas.put(new JSONObject().put("wkt",area.wkt())
                 .put("strategy",area.strategy().name().toLowerCase(java.util.Locale.ROOT)).put("overZ",area.overZ()));
         var job = new JSONObject().put("toolChange",true).put("toolChangeZ",15*s).put("endZ",5*s)
+                .put("rapidFeed",p.rapidFeedRate())
                 .put("startZ",nullable(positions.startZ())).put("endX",nullable(positions.endX()))
                 .put("endY",nullable(positions.endY())).put("changeX",nullable(positions.toolChangeX()))
                 .put("changeY",nullable(positions.toolChangeY())).put("exclusions",areas);
@@ -171,6 +178,7 @@ class PythonCncParametersExportTest {
                             .put("rpm", p.spindleSpeedRpm()).put("dwell", p.dwell()).put("dwellSeconds", p.dwellSeconds())));
         }
         var job = new JSONObject().put("toolChange", true).put("toolChangeZ", 15*s).put("endZ", 5*s)
+                .put("rapidFeed",first.rapidFeedRate())
                 .put("fxTravelClearance",policy.name())
                 .put("startZ", JSONObject.NULL).put("endX", 25*s).put("endY", 2*s)
                 .put("changeX", -2*s).put("changeY", -3*s).put("exclusions", new JSONArray());
@@ -202,6 +210,7 @@ class PythonCncParametersExportTest {
         var tool=new JSONObject().put("id",1).put("diameter",s).put("wkt",new WKTWriter().write(wktShape))
                 .put("geometryType",shape.getGeometryType()).put("parameters",params);
         var job=new JSONObject().put("toolChange",true).put("toolChangeZ",15*s).put("endZ",5*s).put("startZ",JSONObject.NULL)
+                .put("rapidFeed",p.rapidFeedRate())
                 .put("endX",JSONObject.NULL).put("endY",JSONObject.NULL).put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL).put("exclusions",new JSONArray());
         return base(units,recipe,"geometry",code).put("tools",new JSONArray().put(tool)).put("job",job);
     }
@@ -228,7 +237,7 @@ class PythonCncParametersExportTest {
             tools.put(new JSONObject().put("id",id).put("diameter",id*s).put("points",points).put("slots",slotPairs)
                     .put("parameters",drillParameters(id==1 ? first : second)));
         }
-        var job=job(options).put("fxDrillOrder",optimize ? "NEAREST" : "SOURCE");
+        var job=job(options,units).put("fxDrillOrder",optimize ? "NEAREST" : "SOURCE");
         if (slot) job.put("pythonSlotOverlap",25).put("pythonSlotLastHole",true);
         return base(units,"multiple-"+recipe,"drilling",code).put("tools",tools).put("job",job);
     }
@@ -238,11 +247,12 @@ class PythonCncParametersExportTest {
                 .put("dwell",p.dwell()).put("dwellSeconds",p.dwellSeconds()).put("offsetZ",p.offsetZ())
                 .put("fxSlotDrilling",p.slots().enabled()).put("slotOverlap",p.slots().overlapPercent()).put("slotLastHole",p.slots().addLastHole());
     }
-    private static JSONObject job(GCodeGenerator.DrillJobOptions p) {
+    private static JSONObject job(GCodeGenerator.DrillJobOptions p,String units) {
         var exclusions = new JSONArray();
         for (var area : p.exclusions()) exclusions.put(new JSONObject().put("wkt",new WKTWriter().write(area.geometry()))
                 .put("strategy",area.strategy().name().toLowerCase(java.util.Locale.ROOT)).put("overZ",area.overZ()));
         return new JSONObject().put("toolChange",p.pauseForToolChange()).put("toolChangeZ",p.toolChangeZ())
+                .put("rapidFeed",p.rapidFeedRate()>0 ? p.rapidFeedRate() : units.equals("IN") ? 1500/25.4 : 1500)
                 .put("endZ",p.endMoveZ()).put("endX",nullable(p.endMoveX())).put("endY",nullable(p.endMoveY()))
                 .put("startZ",nullable(p.startZ())).put("changeX",nullable(p.toolChangeX())).put("changeY",nullable(p.toolChangeY()))
                 .put("exclusions",exclusions);

@@ -38,7 +38,50 @@ def case():
         "job":{"toolChange":True,"toolChangeZ":15,"endZ":5,"endX":None,"endY":None,"startZ":None}}
 
 
+def rewrite_rapid_feeds(program, feed):
+    return "\n".join(line+f" F{feed}" if line.startswith("G0 ") else line for line in program.splitlines())+"\n"
+
+
 class CncReaderTest(unittest.TestCase):
+    def test_isel_g71_and_optional_stop_are_explicit_and_profile_scoped(self):
+        program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n")
+        parsed=read_program(program,"ISEL_CNC")
+        self.assertEqual("MM",parsed["units"])
+        self.assertEqual(1,sum(e["kind"]=="optionalPause" for e in parsed["events"]))
+        source=case();source["profile"]="ISEL_CNC"
+        self.assertEqual([],audit_parameters(source,parsed))
+        forced=read_program(program.replace("M01\n","M0\n"),"ISEL_CNC")
+        self.assertFalse(equivalent(parsed["events"],forced["events"]))
+        self.assertIn("Tool-change pause count differs from the requested setting",audit_parameters(source,forced))
+        with self.assertRaises(ValueError): read_program(program)
+        with self.assertRaises(ValueError): read_program(program.replace("G71","G20"),"ISEL_CNC")
+        with self.assertRaises(ValueError): read_program(program.replace("M01","M01 G0 X0"),"ISEL_CNC")
+
+    def test_marlin_profile_retains_barriers_and_rapid_feed_without_forging_g94(self):
+        program=PROGRAM.replace("G94\n","").replace("M5\n","M400\nM5\n")
+        program=rewrite_rapid_feeds(program,1500)
+        parsed=read_program(program,"Marlin")
+        self.assertEqual(2,sum(e["kind"]=="synchronize" for e in parsed["events"]))
+        self.assertTrue(all(e["feed"]==1500 for e in parsed["events"] if e["kind"]=="rapid"))
+        source=case(); source["profile"]="Marlin"; source["job"]["rapidFeed"]=1500
+        self.assertEqual([],audit_parameters(source,parsed))
+        changed=read_program(program.replace("G0 X10 Y0 F1500","G0 X10 Y0 F1400"),"Marlin")
+        self.assertIn("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)",audit_parameters(source,changed))
+        self.assertFalse(equivalent(parsed["events"],read_program(program.replace("M400\n","",1),"Marlin")["events"]))
+        with self.assertRaises(ValueError): read_program(program)  # not a GRBL command
+        with self.assertRaises(ValueError): read_program(program.replace("M400","M400 M5",1),"Marlin")
+        with self.assertRaises(ValueError): read_program(program,"Repetier")
+
+    def test_explicit_xyz_never_hides_simultaneous_rapid_or_wrong_toolchange_y(self):
+        original=read_program(PROGRAM,"line_xyz")
+        # Specifying unchanged axes must not create extra moves or hide a real change.
+        explicit=read_program(PROGRAM.replace("G0 X10 Y0","G0 X10 Y0 Z3"),"line_xyz")
+        self.assertTrue(equivalent(original,explicit))
+        diagonal=read_program(PROGRAM.replace("G0 Z15","G0 X2 Y2 Z15",1),"line_xyz")
+        self.assertFalse(equivalent(original,diagonal))
+        self.assertIn("Rapid XY below the selected tool's requested Travel Z",audit_parameters(case(),diagonal))
+        with self.assertRaises(ValueError): read_program(PROGRAM.replace("G94\n",""),"line_xyz")
+
     def test_tool_review_keeps_reversed_edges_repeated_passes_and_state_changes_different(self):
         source = case()
         first = read_program(PROGRAM)

@@ -11,7 +11,15 @@ auxiliares passam. Evidência e limites em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP
 Etapa 2: rascunhos/Calibration/SolderPaste e CNC existente compartilham revisão
 assíncrona e publicação protegida. Paste gera/ordena fora da UI e aceita
 cancelamento; avisos específicos distinguem calibração/dispensação de fresagem.
-111 testes passaram, um opcional ignorado. Segue ampliação de perfis, em série.
+111 testes passaram, um opcional ignorado. Etapa 3 acrescenta Marlin, ISEL MM e
+line_xyz ao comparador. Nenhum problema auditado nos parâmetros FX; novas
+divergências legadas de rápidos/troca são explícitas e line_xyz original falha
+nos 104 controles. GRBL mantém os resultados anteriores. 33 auxiliares Python
+passam. Não declarar equivalência total dos novos perfis nem corrigir fontes
+do legado para melhorar o placar. Resultados completos no documento da série.
+Verify final aprovado: 1727 passaram, 18 opcionais ignorados, zero falhas/erros
+(1745 registros); log `target/cnc-three-step-full-20261023.log`. Etapas anteriores
+commitadas em `11f1ab93` e `e46df638`; sem push.
 
 ## Série das seis lacunas CNC — 2026-10-14
 
