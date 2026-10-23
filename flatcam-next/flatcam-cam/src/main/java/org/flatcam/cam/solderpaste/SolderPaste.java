@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
@@ -153,6 +154,12 @@ public final class SolderPaste {
 
     /** G-code of every nozzle, one after the other, each with the header and tool change of Paste_1. */
     public static Program generateGCode(List<ToolGeometry> tools, Parameters p, String units, double[] bounds) {
+        return generateGCode(tools, p, units, bounds, CancellationToken.none());
+    }
+
+    public static Program generateGCode(List<ToolGeometry> tools, Parameters p, String units, double[] bounds,
+            CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
         if (tools.isEmpty()) {
             throw new IllegalArgumentException("Nao ha dados de ferramenta na geometria de pasta");
         }
@@ -160,9 +167,10 @@ public final class SolderPaste {
         List<LineString> ordered = new ArrayList<>();
         int toolNumber = 0;
         for (ToolGeometry tool : tools) {
+            cancellation.throwIfCancellationRequested();
             toolNumber++;
             List<LineString> paths = new ArrayList<>();
-            flatten(tool.geometry(), paths);
+            flatten(tool.geometry(), paths, cancellation);
             if (paths.isEmpty()) {
                 continue;
             }
@@ -172,10 +180,12 @@ public final class SolderPaste {
             double[] current = {0, 0};
             List<LineString> remaining = new ArrayList<>(paths);
             while (!remaining.isEmpty()) {
+                cancellation.throwIfCancellationRequested();
                 int best = 0;
                 boolean reverse = false;
                 double bestDistance = Double.MAX_VALUE;
                 for (int i = 0; i < remaining.size(); i++) {
+                    cancellation.throwIfCancellationRequested();
                     Coordinate first = remaining.get(i).getCoordinateN(0);
                     Coordinate last = remaining.get(i).getCoordinateN(remaining.get(i).getNumPoints() - 1);
                     double toFirst = Math.hypot(first.x - current[0], first.y - current[1]);
@@ -197,7 +207,7 @@ public final class SolderPaste {
                     path = path.reverse();
                 }
                 ordered.add(path);
-                dispense(gcode, path, p);
+                dispense(gcode, path, p, cancellation);
                 Coordinate end = path.getCoordinateN(path.getNumPoints() - 1);
                 current = new double[] {end.x, end.y};
             }
@@ -210,8 +220,9 @@ public final class SolderPaste {
         return new Program(gcode.toString(), ordered);
     }
 
-    private static void flatten(Geometry geometry, List<LineString> paths) {
+    private static void flatten(Geometry geometry, List<LineString> paths, CancellationToken cancellation) {
         for (int i = 0; i < geometry.getNumGeometries(); i++) {
+            cancellation.throwIfCancellationRequested();
             Geometry part = geometry.getGeometryN(i);
             if (part instanceof LineString line) {
                 if (!line.isEmpty() && line.getNumPoints() >= 2) {
@@ -220,7 +231,7 @@ public final class SolderPaste {
             } else if (part instanceof Polygon polygon) {
                 paths.add(polygon.getExteriorRing());
             } else if (part != geometry) {
-                flatten(part, paths);
+                flatten(part, paths, cancellation);
             }
         }
     }
@@ -260,7 +271,7 @@ public final class SolderPaste {
         out.append("G00 Z").append(f4(p.zToolchange())).append('\n');
     }
 
-    private static void dispense(StringBuilder out, LineString path, Parameters p) {
+    private static void dispense(StringBuilder out, LineString path, Parameters p, CancellationToken cancellation) {
         Coordinate first = path.getCoordinateN(0);
         out.append("G00 X").append(f4(first.x)).append(" Y").append(f4(first.y)).append('\n');
         out.append("G00 Z").append(f4(p.zTravel())).append('\n');
@@ -272,6 +283,7 @@ public final class SolderPaste {
         out.append("G01 Z").append(f4(p.zDispense())).append('\n');
         out.append("G01 F").append(f2(p.feedXY())).append('\n');
         for (int i = 1; i < path.getNumPoints(); i++) {
+            cancellation.throwIfCancellationRequested();
             Coordinate c = path.getCoordinateN(i);
             out.append("G01 X").append(f4(c.x)).append(" Y").append(f4(c.y)).append('\n');
         }

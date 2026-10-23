@@ -17,7 +17,7 @@ Relatório: `target/cnc-path-review-20261023/index.html`.
 
 Conferência dos casos diferentes, repetidos em MM/IN:
 
-- Dez receitas de Drilling por unidade (incluindo duas ferramentas e cadeias
+- Nove receitas de Drilling por unidade (incluindo duas ferramentas e cadeias
   de rasgos) têm os mesmos cortes dirigidos, mas em outra ordem. Não copiar
   a ordem Python só para melhorar o placar; os deslocamentos são mensurados.
 - Quatro receitas Geometry por unidade têm segmentos em sentidos opostos:
@@ -36,8 +36,32 @@ prova para todos os projetos, otimização global nem segurança de máquina.
 30 regressões auxiliares Python passaram, incluindo sentido oposto, mudança
 de feed, passe perdido, ordem diferente e evidência de altura dos rápidos.
 
-## Próximas etapas desta série
+## 2. Revisão dos exportadores restantes — 2026-10-23
 
-2. Revisão antes de salvar rascunhos, Calibration e SolderPaste.
+Rascunho do editor, Calibration, SolderPaste e Salvar como CNC Job agora usam
+o mesmo fluxo: preparar/analisar em worker, revisar na UI, escolher destino,
+revalidar origem/época e publicar o texto exato via temporário/rename atômico
+quando suportado. Cancelar/recusar antes da publicação preserva o destino.
+Salvar rascunho não aplica alterações ao CNC Job. Falhas da prévia posterior
+não são relatadas como perda do arquivo que já foi salvo.
+
+SolderPaste também gera programa e prepara geometria visual em worker, com
+cancelamento cooperativo na seleção de caminhos e emissão. Nenhum CNC Job é
+inserido antes de salvar. Mudança da Geometry impede publicar uma prévia velha.
+Calibration avisa sobre pontos/origem/altura; Paste_1 avisa que M3/M4 comandam
+dispensação/reversão, não fresagem. A tabela de programas existentes mostra
+"Z mínimo (prévia)", não promete Cut Z validado nem infere feeds constantes.
+Prévia indisponível continua aviso explícito, não certificado de segurança.
+
+Regressões: CncReviewedFileTest, MainReviewedExportTest (inclui entrada real do
+editor, recusa e origem alterada durante análise/seletor), SolderPasteTest,
+CalibrationTest, CncExportReviewTest, GCodeEditorControllerTest, TerminalPanelTest
+e TclLiveHostTest. 111 passaram, um skip opcional, zero falhas/erros em
+`target/cnc-export-followup-final2.log`. Testes de fluxo injetam decisão/destino
+e não gravam preferências reais. Diálogo/seletor nativos ainda exigem teste
+visual manual; testes não simulam a máquina.
+
+## Próxima etapa desta série
+
 3. Comparação com mais pós-processadores, modelando comandos adicionais
    explicitamente; comandos não suportados devem continuar recusados.

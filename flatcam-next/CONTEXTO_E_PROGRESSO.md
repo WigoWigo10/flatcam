@@ -8,7 +8,10 @@ distâncias/alturas de rápidos por ferramenta, sem relaxar strict. Nos 104
 controles DEFAULT_NO_M6 não houve problema novo nos parâmetros FX; diferenças
 de ordem, estratégia de passes e operação foram mantidas explícitas. 30 testes
 auxiliares passam. Evidência e limites em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
-Seguem revisão dos exportadores restantes e perfis adicionais, em série.
+Etapa 2: rascunhos/Calibration/SolderPaste e CNC existente compartilham revisão
+assíncrona e publicação protegida. Paste gera/ordena fora da UI e aceita
+cancelamento; avisos específicos distinguem calibração/dispensação de fresagem.
+111 testes passaram, um opcional ignorado. Segue ampliação de perfis, em série.
 
 ## Série das seis lacunas CNC — 2026-10-14
 

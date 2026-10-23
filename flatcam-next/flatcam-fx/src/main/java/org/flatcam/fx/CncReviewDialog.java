@@ -36,12 +36,14 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         column(table, "Ferramenta", CncPreflight.Tool::name);
         column(table, "Diâmetro", CncPreflight.Tool::diameter);
-        column(table, "Cut Z efetivo", CncPreflight.Tool::cutZ);
+        column(table, editable ? "Cut Z efetivo" : "Z mínimo (prévia)", CncPreflight.Tool::cutZ);
         column(table, "Travel Z", CncPreflight.Tool::travelZ);
         column(table, "Avanço XY", CncPreflight.Tool::feedXY);
         column(table, "Avanço Z", CncPreflight.Tool::feedZ);
         column(table, "RPM / potência", CncPreflight.Tool::power);
-        ToolDescriptions.apply(table, "Parâmetros por ferramenta", "A ordem é a enviada ao gerador. Cut Z efetivo inclui Offset Z na furação e a profundidade calculada para a ponta V. Valores — não se aplicam ao perfil. Selecione uma linha para revisar seus detalhes.");
+        ToolDescriptions.apply(table, "Parâmetros por ferramenta", editable
+                ? "A ordem é a enviada ao gerador. Cut Z efetivo inclui Offset Z na furação e a profundidade calculada para a ponta V. Valores — não se aplicam ao perfil. Selecione uma linha para revisar seus detalhes."
+                : "Dados extraídos do texto ou da prévia disponível. Z mínimo não é profundidade de usinagem validada. Consultar código indica valores variáveis ou não inferidos; nenhum rascunho CAM substitui o programa exportado.");
         table.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             toolDetails.getChildren().clear();
             if (selected != null) {

@@ -12,6 +12,18 @@ import org.locationtech.jts.io.WKTReader;
 
 class SolderPasteTest {
 
+    @Test void generationCancelsDuringPathOrderingWithoutChangingTools() throws Exception {
+        var generated=SolderPaste.generateGeometry(mask(),List.of(.3),"MM");
+        var original=generated.tools().getFirst().geometry().copy();
+        var polls=new java.util.concurrent.atomic.AtomicInteger();
+        assertThrows(java.util.concurrent.CancellationException.class,()->SolderPaste.generateGCode(
+                generated.tools(),SolderPaste.defaults(),"MM",new double[]{0,0,11,1},()->polls.incrementAndGet()>5));
+        assertTrue(polls.get()>5);
+        assertTrue(original.equalsExact(generated.tools().getFirst().geometry()));
+        assertEquals(SolderPaste.generateGCode(generated.tools(),SolderPaste.defaults(),"MM",null).gcode(),
+                SolderPaste.generateGCode(generated.tools(),SolderPaste.defaults(),"MM",null,org.flatcam.cam.CancellationToken.none()).gcode());
+    }
+
     private static Geometry wkt(String text) throws ParseException {
         return new WKTReader().read(text);
     }
