@@ -1,5 +1,14 @@
 # Laser — geração e comparação por perfil
 
+## Parâmetros por grupo — 2026-10-24
+
+Avanço/potência individuais nos quatro perfis; foco individual em Z_laser e
+Marlin, com transições desligadas na maior altura ativa. GRBL simples exige
+foco comum. Painel, resumo, persistência e junção preservam os ajustes.
+32 receitas/perfil: GRBL 0/32/0/0/0 e outros três 0/0/32/0/0; zero problemas
+auditados FX. Restrições históricas abaixo a todos os parâmetros individuais
+foram substituídas somente nesse escopo. [LASER_GROUPS.md](LASER_GROUPS.md).
+
 ## Atualização — 2026-10-24
 
 End Z/XY comuns agora são aceitos no backend/painel e aparecem no resumo.

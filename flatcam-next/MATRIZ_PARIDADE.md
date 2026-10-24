@@ -1,5 +1,16 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Laser por grupo — 2026-10-24
+
+Avanço/potência e foco Z_laser/Marlin individuais, com transições, revisão e
+persistência testadas: **C**, não A global. GRBL simples mantém foco comum.
+32 receitas/perfil, sem problemas nos parâmetros FX; GRBL 0/32/0/0/0 e demais
+0/0/32/0/0. Strict reprovado, sem simulação de feixe ou controlador físico.
+[LASER_GROUPS.md](LASER_GROUPS.md) substitui a pendência genérica de parâmetros
+individuais abaixo nesse escopo; Multi-Depth/Dwell/Extra Cut não foram habilitados.
+Verify final: 1861 aprovações Java/18 skips opcionais e 151 auxiliares Python,
+zero falhas/erros. Aparência em janela e máquina não validadas nesta rodada.
+
 ## Perfis nativos, sonda e laser — 2026-10-24
 
 Roland e HPGL com leitores/auditoria independentes: **C**, não A global.

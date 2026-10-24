@@ -59,6 +59,8 @@ class GeometryCncToolPanelTest {
             assertNull(submitted.get());
             assertTrue(error.getText().contains("255"));
             power.setText("128");
+            // Power is now individual: explicitly update both source groups.
+            ((Button)root.lookup("#cnc-apply-all")).fire();
             generate.fire();
             assertNotNull(submitted.get(), error.getText());
             assertFalse(submitted.get().parameters().multiDepth());

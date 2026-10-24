@@ -1,5 +1,9 @@
 # Roland, HPGL, sondagem e posições laser — 2026-10-24
 
+Atualização posterior: [LASER_GROUPS.md](LASER_GROUPS.md) implementa avanço/
+potência e foco Z_laser/Marlin por grupo, ampliando o corpus para 32/perfil.
+As restrições e próximos passos sobre esse tema abaixo são históricos.
+
 Continuação das cinco etapas pedidas, sobre `ef1cefdb`, branch `flatcam-next`.
 Etapa consolidada em commit, sem push. Fontes originais Python e
 projetos privados preservados. Os relatórios são comparações de comandos,

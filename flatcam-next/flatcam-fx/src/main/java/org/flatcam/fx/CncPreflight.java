@@ -31,6 +31,9 @@ final class CncPreflight {
         boolean cutting = !profile.isLaser() && !profile.isPlotter();
         double clearance = Math.max(base.safeZ(), result.parametersByTool().values().stream()
                 .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(base.safeZ()));
+        if (profile.isLaser()) clearance = java.util.stream.IntStream.range(0,result.tools().size())
+                .filter(i -> !result.tools().get(i).geometry().isEmpty())
+                .mapToDouble(i -> result.parametersByTool().getOrDefault(i,base).safeZ()).max().orElse(base.safeZ());
         var travelPolicy=base.jobOptions().travelClearance();
         double lastTravelZ=clearance;
         var activeDiameters = new java.util.HashSet<Double>();
@@ -38,7 +41,7 @@ final class CncPreflight {
             var tool = result.tools().get(i);
             var p = result.parametersByTool().getOrDefault(i, base);
             boolean empty = tool.geometry().isEmpty();
-            double effectiveTravel=travelPolicy.effective(p.safeZ(),clearance);
+            double effectiveTravel=profile.isLaser() ? p.safeZ() : travelPolicy.effective(p.safeZ(),clearance);
             if (!empty) lastTravelZ=effectiveTravel;
             if (!empty) activeDiameters.add(tool.toolDiameter());
             double depth = p.cutDepth();
@@ -74,8 +77,8 @@ final class CncPreflight {
             details.add(value("Compensação", p.offset() + (p.offset() == ToolPathOffset.CUSTOM ? " (" + number(p.customOffset()) + ")" : ""), i, "cnc-offset"));
             details.add(value("Extra Cut", profile.isLaser() ? "Não suportado neste perfil" : p.extraCut() ? number(p.extraCutLength()) + " " + unit(units) : "Desativado", i, "cnc-extra-length"));
             details.add(value("Trajetos", empty ? "Nenhum: esta ferramenta será omitida" : "Associados à ferramenta " + (i + 1), i, "cnc-tools"));
-            rows.add(new Tool(i, "T" + (i + 1) + (empty ? " (vazia)" : ""), number(tool.toolDiameter()),
-                    cutting ? number(-depth) : "—", cutting || profile == GCodePreprocessor.Z_LASER ? number(p.safeZ()) : "—",
+            rows.add(new Tool(i, (profile.isLaser() ? "Grupo " : "T") + (i + 1) + (empty ? " (vazia)" : ""), number(tool.toolDiameter()),
+                    cutting ? number(-depth) : "—", cutting || profile.isLaser() && profile != GCodePreprocessor.GRBL_LASER ? number(p.safeZ()) : "—",
                     profile.isPlotter() ? "—" : number(p.feedRate()), cutting ? number(p.feedRateZ()) : "—",
                     profile.isPlotter() || profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
             if (empty) issues.add(new Issue(false, "T" + (i + 1) + " não tem trajetos e não produzirá cortes.", target(i, "cnc-tools")));
@@ -102,9 +105,14 @@ final class CncPreflight {
             common.add(value("Altura dos deslocamentos XY",travelPolicy==GeometryTravelClearance.PER_TOOL ? "Individual: confira o valor efetivo de cada fresa"
                     : number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-travel-clearance"));
         } else if (profile.isLaser()) {
-            double end=pos.endZ()==null ? base.safeZ() : pos.endZ();
+            double end=pos.endZ()==null ? lastTravelZ : pos.endZ();
             common.add(value("Z final (laser desligado)", number(end) + " " + unit(units), -1, "cnc-end-z"));
-            common.add(value("End X,Y (laser desligado)",xy(pos.endX(),pos.endY())+"; deslocamento em Z "+number(Math.max(base.safeZ(),end))+" "+unit(units), -1,"cnc-end-xy"));
+            common.add(value("End X,Y (laser desligado)",xy(pos.endX(),pos.endY())+"; deslocamento em Z "+number(Math.max(clearance,end))+" "+unit(units), -1,"cnc-end-xy"));
+            common.add(value("Parâmetros por grupo", "Avanço e potência individuais; foco individual em Z_laser/Marlin. Feed rapids e posições finais comuns. Não há troca mecânica.", -1, "cnc-tools"));
+            if(profile!=GCodePreprocessor.GRBL_LASER)
+                common.add(value("Altura XY entre grupos",number(clearance)+" "+unit(units)+" (maior foco dos grupos com trajetos; potência desligada)",-1,"cnc-safe-z"));
+            try { GCodeGenerator.validateLaserGroups(profile,base,result.parametersByTool()); }
+            catch(IllegalArgumentException ex) { issues.add(new Issue(true,ex.getMessage(),target(-1,"cnc-tools"))); }
             common.add(value("Posições laser", "Z_laser e Marlin laser posicionam o foco Z; GRBL_laser simples não altera Z antes dos trajetos. End XY ocorre com potência desligada antes de descer para End Z. Start Z e troca mecânica continuam indisponíveis.", -1, "cnc-preprocessor"));
         } else common.add(value("Posições de fresagem", "Não se aplicam a este perfil", -1, "cnc-preprocessor"));
         if (profile.requiresProbe() && base.probing() != null) probe(common, base.probing());
@@ -118,8 +126,9 @@ final class CncPreflight {
         rapid(common, profile, base.rapidFeedRate(), units, "cnc-rapid-feed");
         if (travelPolicy==GeometryTravelClearance.PER_TOOL)
             issues.add(new Issue(false,"Travel Z individual pode ser menor que o de outras fresas. Confira cada altura e fixação; a troca ainda usa a altura comum validada.",target(-1,"cnc-travel-clearance")));
-        if (pos.endX() != null && pos.endZ() != null && pos.endZ() < lastTravelZ)
-            issues.add(new Issue(false, "Estacionamento XY em Z " + number(lastTravelZ) + "; só depois desce para End Z " + number(pos.endZ()) + ".", target(-1, "cnc-end-z")));
+        double parkingZ=profile.isLaser() ? clearance : lastTravelZ;
+        if (pos.endX() != null && pos.endZ() != null && pos.endZ() < parkingZ)
+            issues.add(new Issue(false, "Estacionamento XY em Z " + number(parkingZ) + "; só depois desce para End Z " + number(pos.endZ()) + ".", target(-1, "cnc-end-z")));
         issues.add(new Issue(false, "Cobertura não calculada: Geometry contém trajetos, não uma área-alvo. Esta revisão não identifica todas as regiões não usinadas.", null));
         limitations(issues, profile);
         return new Report(source, "Geometry → CNC", unit(units), profile.label(), rows, common, issues);
@@ -225,7 +234,7 @@ final class CncPreflight {
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
         if (profile.isLaser()) {
             issues.add(new Issue(false, "Laser: potência é o valor S/PWM solicitado ao controlador, não RPM físico. A prévia mostra trajetos, mas não simula feixe, material, intertravamentos nem configurações elétricas; não é validação de segurança.", null));
-            issues.add(new Issue(false, "Laser: uma passagem por caminho, sem Multi-Depth, troca mecânica, Dwell ou Extra Cut. Pontos isolados exigem tempo de exposição e são recusados. Apenas End Z/XY está habilitado nas posições; parâmetros individuais permanecem indisponíveis.", null));
+            issues.add(new Issue(false, "Laser: uma passagem por caminho, sem Multi-Depth, troca mecânica, Dwell ou Extra Cut. Pontos isolados exigem tempo de exposição e são recusados. End Z/XY é comum; avanço/potência são individuais por grupo e Z_laser/Marlin permitem foco individual.", null));
             if (profile == GCodePreprocessor.GRBL_LASER || profile == GCodePreprocessor.Z_LASER)
                 issues.add(new Issue(false, "GRBL laser: confirme $30 (escala de S), $32 (modo laser) e a ligação de controle. O FX comanda M5 antes dos posicionamentos; não detecta a configuração da máquina nem assume que S representa uma porcentagem.", null));
             else {

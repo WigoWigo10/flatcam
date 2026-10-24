@@ -1,5 +1,19 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Laser por grupo — 2026-10-24
+
+Sobre `c8ae73cf`, etapa consolidada em commit na branch `flatcam-next`, sem push. Quatro perfis aceitam
+avanço/potência por grupo; Z_laser/Marlin também foco. GRBL simples recusa
+focos diferentes, sem inventar posicionamento Z. Transições desligadas pelo
+maior foco ativo, estacionamento comum e End Z automático do último grupo
+não vazio. Painel/revisão, persistência nativa/Python e join_geometry integrados.
+Auditor ampliado sem tratar grupo como ferramenta física: 32 receitas/perfil,
+zero problemas auditados FX; GRBL 0/32/0/0/0 e demais 0/0/32/0/0, strict
+reprovado. Controle fresagem GRBL inalterado 49/19/34/2/0. Python: 151 aprovados.
+Verify final: 1861 aprovações Java/18 skips opcionais, zero falhas/erros
+(1879 registros desta execução); log `target/laser-groups-full-final-20261024.log`.
+Detalhes/limites em [LASER_GROUPS.md](LASER_GROUPS.md).
+
 ## Roland, HPGL, sonda e posições laser — 2026-10-24
 
 Cinco etapas sobre `ef1cefdb`, consolidadas em commit na branch `flatcam-next`, sem push. Comparador

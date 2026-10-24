@@ -44,6 +44,19 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 
 ## Quality Goals
 
+Following local laser-group implementation on `c8ae73cf`: 1861 Java passes,
+18 optional skips (1879 current-run records), zero failures/errors; Python
+discovery 151 passes. See `flatcam-next/LASER_GROUPS.md`. Feed/power per group
+and focus for Z_laser/Marlin now supported; GRBL_laser simple rejects differing
+focus. Common off-power transition clearance uses active groups only; final Z
+defaults to last nonempty group. Native/legacy persistence and join_geometry
+tested. 32 comparisons/profile: no FX parameter issues, strict still fails;
+GRBL milling control unchanged 49/19/34/2/0. Exposure groups must not appear
+as fabricated hardware tool selections in diagnostic reports. Inactive
+mechanical-change defaults from Python laser files are not requested motions;
+active change settings remain preserved/rejected. Manual window/machine check
+not performed. This stage is committed locally on flatcam-next, without push.
+
 Latest local stage, 2026-10-24, on `ef1cefdb`: native Roland/HPGL readers,
 static Mach3 probe contract and laser End Z/XY support. See
 `flatcam-next/NATIVE_PROBE_LASER_PARITY.md`. Full final verify: 1854 passes,

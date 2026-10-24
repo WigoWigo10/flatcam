@@ -55,6 +55,8 @@ class PythonCncParametersExportTest {
                 for (String recipe : List.of("single","closed","ring","polygon","separated","source-reversed",
                         "negative","low-power","full-power","rapid-default","focus","slow-feed","park-low","park-high"))
                     cases.put(laser(units, scale, recipe));
+                cases.put(laserGroups(units,scale,false));
+                cases.put(laserGroups(units,scale,true));
                 continue;
             }
             for (String recipe : List.of("single", "peck", "offset", "negative-offset", "two-tools",
@@ -77,7 +79,7 @@ class PythonCncParametersExportTest {
                     "slot-chain-single","slot-chain-peck","slot-chain-no-last","slot-chain-zero-overlap","slot-chain-nearest","slot-chain-dwell"))
                 cases.put(multipleDrills(units,scale,recipe));
         }
-        assertEquals(profile.requiresProbe() ? 16 : profile.isPlotter() || profile.isRoland() ? 20 : profile.isLaser() ? 28 : metricOnly() ? 52 : 104, cases.length());
+        assertEquals(profile.requiresProbe() ? 16 : profile.isPlotter() || profile.isRoland() ? 20 : profile.isLaser() ? 32 : metricOnly() ? 52 : 104, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", switch(profile) {
             case GRBL_11_NO_M6 -> "GRBL_11_no_M6";
             case GRBL_11 -> "grbl_11";
@@ -103,7 +105,7 @@ class PythonCncParametersExportTest {
                 .put("powerMeaning", profile == GCodePreprocessor.REPETIER || profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN
                         ? "FAN_DUTY_0_255" : profile.isPlotter() ? "PEN_STATE_NO_MOTOR" : profile.isRoland() ? "BINARY_MOTOR_NO_RPM" : profile.isLaser() ? "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM" : "RPM")
                 .put("excludedOperationCases", profile.isLaser() ? new JSONArray().put(
-                        "Drilling, point exposure, Multi-Depth, mechanical tool change, Start Z, exclusions/routing, Extra Cut and per-tool overrides are outside this laser corpus; End Z/XY is included") : new JSONArray())
+                        "Drilling, point exposure, Multi-Depth, mechanical tool change, Start Z, exclusions/routing and Extra Cut are outside this laser corpus; End Z/XY and individual group feed/power/focus are included") : new JSONArray())
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("excludedUnitCases",metricOnly()
                         ? new JSONArray().put("IN: " + profile + " FX supports MM only; not counted as equivalence") : new JSONArray())
@@ -255,6 +257,29 @@ class PythonCncParametersExportTest {
                 .put("endX",nullable(p.jobOptions().endX())).put("endY",nullable(p.jobOptions().endY())).put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL)
                 .put("laserFocusZ",profile == GCodePreprocessor.GRBL_LASER ? JSONObject.NULL : p.safeZ()).put("exclusions",new JSONArray());
         return base(units,"laser-"+recipe,"geometry",code).put("tools",new JSONArray().put(tool)).put("job",job);
+    }
+
+    private JSONObject laserGroups(String units,double s,boolean parking) throws Exception {
+        var positions=parking ? new GeometryJobOptions(null,.5*s,30*s,5*s,null,null,null) : GeometryJobOptions.AUTOMATIC;
+        var a=new GeometryGCodeParameters(6*s,s,false,s,200*s,64,false,900*s).withJobOptions(positions);
+        var b=new GeometryGCodeParameters((profile==GCodePreprocessor.GRBL_LASER ? 6 : 2)*s,s,false,s,350*s,200,false,900*s).withJobOptions(positions);
+        var first=org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(new WKTReader().read("LINESTRING (10 7,12 7)"));
+        var second=org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(new WKTReader().read("LINESTRING (20 7,22 7)"));
+        var tools=List.of(new ToolGeometry(.4*s,first),new ToolGeometry(.8*s,second));
+        String code=GCodeGenerator.generateGeometryCncJob(units,tools,a,Map.of(),Map.of(1,b),CancellationToken.none(),profile).gcode();
+        var sources=new JSONArray(); var parameters=List.of(a,b);
+        for(int i=0;i<2;i++) {
+            var p=parameters.get(i);
+            sources.put(new JSONObject().put("id",i+1).put("diameter",tools.get(i).toolDiameter())
+                    .put("wkt",new WKTWriter().write(tools.get(i).geometry())).put("geometryType","LineString")
+                    .put("parameters",new JSONObject().put("safeZ",p.safeZ()).put("depth",p.cutDepth()).put("multiDepth",false)
+                            .put("depthPerPass",p.depthPerPass()).put("feed",p.feedRate()).put("feedZ",p.feedRateZ())
+                            .put("rpm",p.spindleSpeedRpm()).put("dwell",false).put("dwellSeconds",0)));
+        }
+        var job=new JSONObject().put("toolChange",false).put("toolChangeZ",15*s).put("endZ",parking ? .5*s : b.safeZ())
+                .put("rapidFeed",900*s).put("startZ",JSONObject.NULL).put("endX",nullable(positions.endX())).put("endY",nullable(positions.endY()))
+                .put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL).put("laserFocusZ",JSONObject.NULL).put("exclusions",new JSONArray());
+        return base(units,"laser-groups"+(parking ? "-park" : ""),"geometry",code).put("tools",sources).put("job",job);
     }
 
     // Fixture inputs only: PWM is chosen explicitly, never converted/clamped by the production generator.

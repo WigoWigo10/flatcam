@@ -449,6 +449,11 @@ def toolpath_review(case, fx, python, fx_issues, python_issues):
     reversed edge is never an execution/cutting match. Plunge origins deliberately
     have only XY in machining_signature and cannot be reversed as lateral cuts.
     """
+    if case.get("profile") in LASER_PROFILES and len(case["tools"])>1:
+        return {"requestedSourceGroups":[{"sourceGroup":t["id"],"requested":t["parameters"]} for t in case["tools"]],
+                "exposureStreamCounts":{"fx":len(fx["cuts"]),"python":len(python["cuts"])},
+                "parameterIssues":{"fx":fx_issues,"python":python_issues},
+                "limits":"Source groups are requested paths/parameters, NOT selected hardware tools. Audit matches exposures with multiplicity; no T2 selection or per-hardware-tool metrics may be inferred from laser comments. Full exposure/event ordering is still compared."}
     signatures = [[e for e in machining_signature(p) if "to" in e] for p in (fx, python)]
     categories = cut_difference_by_tool(fx, python)
     reviews = {}
@@ -975,7 +980,7 @@ def run(args):
     if profile=="ISEL_ICP_CNC":
         report["scope"]="Public MM ICP programs: integer micrometers, VEL/FASTVEL in integer micrometers/s, WAIT in ms. Initial commanded XYZ assumed zero. GETTOOL is an opaque automatic change; WPCLEAR/reference changes fail closed, prefix evidence is NOT full execution equivalence. Unrounded parameter requests and existing comparison tolerance are retained; quantization differences remain visible. No GUI/controller/physical certification."
     if profile in LASER_PROFILES:
-        report["scope"]="Public MM/IN XY laser paths, one source group (not hardware tool selection), no points, depth passes, dwell or mechanical changes. Commanded initial XYZ assumed zero; power initially UNKNOWN until commanded. Raw S/duty is not physical RPM. Explicit stop before positioning audited without claiming GRBL $32 beam simulation. Marlin standard-mode/IN support and FAN/cutter mapping are preconditions; G0 configuration is explicit. Full event ordering and powered directed XY/Z segments retained. No electrical/material/planner timing or safety certification."
+        report["scope"]="Public MM/IN XY laser paths, source groups with individual feed/power/focus (NOT hardware tool selection). Requested exposures are matched by path and parameters with multiplicity retained; comments never establish physical tool identity. No points, depth passes, dwell or mechanical changes. Commanded initial XYZ assumed zero; power initially UNKNOWN until commanded. Raw S/duty is not physical RPM. Explicit stop before positioning and common focus clearance between groups audited without claiming GRBL $32 beam simulation. Marlin standard-mode/IN support and FAN/cutter mapping are preconditions; G0 configuration is explicit. Full event ordering and powered directed XY/Z segments retained. No electrical/material/planner timing or safety certification."
         report["laserConfiguration"]=dict(rapidMode=rapid_mode,fixedRapidMillimetersPerMinute=fixed_rapid_mm,
             excludedOperations=export.get("excludedOperationCases",[]))
     if profile == "Roland_MDX_20":
@@ -1058,7 +1063,8 @@ def run(args):
                     firstExecutionDifference=first_difference(fx["events"],python["events"]),
                     firstMachiningDifference=first_difference(machining_signature(fx),machining_signature(python)),
                     rapidMetrics={"fx":rapid_metrics(fx),"python":rapid_metrics(python)})
-                result["cutDifferenceByTool"] = cut_difference_by_tool(fx,python)
+                if profile not in LASER_PROFILES or len(case["tools"])==1:
+                    result["cutDifferenceByTool"] = cut_difference_by_tool(fx,python)
                 result["toolpathReview"] = toolpath_review(case,fx,python,result["fxParameterIssues"],result["pythonParameterIssues"])
                 if not machining and case["operation"]=="drilling" and not any(tool.get("slots") and not tool.get("parameters",{}).get("fxSlotDrilling",False) for tool in case["tools"]) \
                         and any(len(tool.get("points",[]))>1 for tool in oracle_case["tools"]) \

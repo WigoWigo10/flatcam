@@ -719,7 +719,7 @@ public final class GCodeGenerator {
             preprocessor.validatePower(p.spindleSpeedRpm());
             preprocessor.validateFeedRates(p.feedRate(), params.rapidFeedRate());
         }
-        if ((preprocessor.isLaser() || preprocessor.isPlotter() || preprocessor.isRoland() || preprocessor.requiresProbe())
+        if ((preprocessor.isPlotter() || preprocessor.isRoland() || preprocessor.requiresProbe())
                 && !parametersByTool.isEmpty())
             throw new IllegalArgumentException("Individual machining parameters currently require a milling G-code profile without probing.");
         Objects.requireNonNull(units, "units");
@@ -754,7 +754,7 @@ public final class GCodeGenerator {
             return generateHpglCncJob(units, tools, params, cancellationToken);
         }
         if (preprocessor.isLaser()) {
-            return generateLaserCncJob(units, tools, params, cancellationToken, preprocessor);
+            return generateLaserCncJob(units, tools, params, parametersByTool, cancellationToken, preprocessor);
         }
         if (preprocessor.isRoland() && (params.pauseForToolChange()
                 || tools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1))
@@ -1077,10 +1077,17 @@ public final class GCodeGenerator {
 
     /** Laser emission is controlled per path, never by a negative Z plunge. */
     private static CncJobResult generateLaserCncJob(String units, List<ToolGeometry> tools,
-                                                   GeometryGCodeParameters params, CancellationToken cancellation,
+                                                   GeometryGCodeParameters params, Map<Integer, GeometryGCodeParameters> byTool,
+                                                   CancellationToken cancellation,
                                                    GCodePreprocessor profile) {
-        if (params.multiDepth() || params.pauseForToolChange()) throw new IllegalArgumentException(
-                "Laser nao usa Multi-Depth nem troca mecanica de ferramenta. Desative essas opcoes.");
+        validateLaserGroups(profile, params, byTool);
+        boolean focusPositioned = profile != GCodePreprocessor.GRBL_LASER;
+        double clearance = 0, lastFocus = params.safeZ();
+        for (int i=0; i<tools.size(); i++) if (!tools.get(i).geometry().isEmpty()) {
+            lastFocus = byTool.getOrDefault(i,params).safeZ();
+            clearance = Math.max(clearance,lastFocus);
+        }
+        if (clearance == 0) clearance = params.safeZ();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "%s", profile.comment("Gerado por FlatCAM FX - laser"));
         line(gcode, "%s", profile.header());
@@ -1091,19 +1098,23 @@ public final class GCodeGenerator {
         if (profile.usesG94()) line(gcode, "G94");
         // Power off even before the first positioning move; never inherit controller state.
         line(gcode, "%s", profile.spindleOff());
-        if (profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN
-                || profile == GCodePreprocessor.MARLIN_LASER_SPINDLE_PIN) {
-            line(gcode, "%s Z%s", profile.rapid(), fmt(params.safeZ()));
+        if (focusPositioned) {
+            line(gcode, "%s Z%s", profile.rapid(), fmt(clearance));
         }
         List<Geometry> travels = new ArrayList<>();
         Footprints cuts = new Footprints();
         double lastX = 0, lastY = 0;
-        for (ToolGeometry tool : tools) {
+        double currentZ = clearance;
+        for (int i=0; i<tools.size(); i++) {
+            ToolGeometry tool = tools.get(i);
+            GeometryGCodeParameters group = byTool.getOrDefault(i,params);
             cancellation.throwIfCancellationRequested();
             if (tool.geometry().isEmpty()) continue;
+            line(gcode, "%s", profile.comment("Laser group " + (i+1)));
             line(gcode, "%s", profile.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
-            if (profile == GCodePreprocessor.Z_LASER) {
-                line(gcode, "%s Z%s", profile.rapid(), fmt(params.safeZ()));
+            if (focusPositioned && currentZ != clearance) {
+                line(gcode, "%s Z%s", profile.rapid(), fmt(clearance));
+                currentZ = clearance;
             }
             for (Coordinate[] path : orderedByNearestNeighbor(tool.geometry(), lastX, lastY, cancellation)) {
                 cancellation.throwIfCancellationRequested();
@@ -1111,11 +1122,15 @@ public final class GCodeGenerator {
                         "Laser requer caminhos XY; pontos isolados exigem tempo de exposicao ainda nao suportado.");
                 addTravel(travels, lastX, lastY, path[0].x, path[0].y, tool.toolDiameter() / 2);
                 line(gcode, "%s X%s Y%s", profile.rapid(), fmtCoordinate(path[0].x, units), fmtCoordinate(path[0].y, units));
-                line(gcode, "%s S%d", profile.spindleOn(), params.spindleSpeedRpm());
+                if (focusPositioned && currentZ != group.safeZ()) {
+                    line(gcode, "%s Z%s", profile.rapid(), fmt(group.safeZ()));
+                    currentZ = group.safeZ();
+                }
+                line(gcode, "%s S%d", profile.spindleOn(), group.spindleSpeedRpm());
                 for (int p = 1; p < path.length; p++) {
                     cancellation.throwIfCancellationRequested();
                     line(gcode, "%s X%s Y%s F%s", profile.linear(), fmtCoordinate(path[p].x, units), fmtCoordinate(path[p].y, units),
-                            fmt(params.feedRate()));
+                            fmt(group.feedRate()));
                 }
                 line(gcode, "%s", profile.spindleOff());
                 cuts.add(GEOMETRY_FACTORY.createLineString(path), tool.toolDiameter() / 2);
@@ -1126,8 +1141,8 @@ public final class GCodeGenerator {
         line(gcode, "%s", profile.spindleOff());
         // Position only with power commanded off, above the common clearance until the final XY is reached.
         GeometryJobOptions positions=params.jobOptions();
-        double endZ=positions.endZ()==null ? params.safeZ() : positions.endZ();
-        double parkZ=Math.max(params.safeZ(),endZ);
+        double endZ=positions.endZ()==null ? lastFocus : positions.endZ();
+        double parkZ=Math.max(clearance,endZ);
         line(gcode, "%s Z%s", profile.rapid(), fmt(parkZ));
         if(positions.endX()!=null) {
             line(gcode,"%s X%s Y%s",profile.rapid(),fmt(positions.endX()),fmt(positions.endY()));
@@ -1138,6 +1153,24 @@ public final class GCodeGenerator {
         cancellation.throwIfCancellationRequested();
         return new CncJobResult(profile.finish(gcode, params.rapidFeedRate(), units),
                 travelFootprint(travels), cuts.result());
+    }
+
+    /** Laser source groups are not mechanical tool changes. Rapid and parking settings stay common. */
+    public static void validateLaserGroups(GCodePreprocessor profile, GeometryGCodeParameters base,
+                                          Map<Integer, GeometryGCodeParameters> byTool) {
+        if (!profile.isLaser()) throw new IllegalArgumentException("Perfil laser obrigatorio.");
+        var groups = new ArrayList<>(byTool.values());
+        groups.add(base);
+        for (var group : groups) {
+            profile.validatePower(group.spindleSpeedRpm());
+            profile.validateFeedRates(group.feedRate(),base.rapidFeedRate());
+            if (group.multiDepth() || group.pauseForToolChange() || group.probing()!=null || group.dwell() || group.extraCut())
+                throw new IllegalArgumentException("Laser nao aceita Multi-Depth, troca mecanica, sonda, Dwell ou Extra Cut.");
+            if (group.rapidFeedRate()!=base.rapidFeedRate())
+                throw new IllegalArgumentException("Feed rapids e comum ao trabalho laser, nao individual por grupo.");
+            if (profile==GCodePreprocessor.GRBL_LASER && group.safeZ()!=base.safeZ())
+                throw new IllegalArgumentException("GRBL_laser nao posiciona foco por grupo. Iguale Focus/End Z ou use Z_laser.");
+        }
     }
 
     /** [depthPerPass, 2*depthPerPass, ..., cutDepth] when multiDepth is on, else just [cutDepth]. */

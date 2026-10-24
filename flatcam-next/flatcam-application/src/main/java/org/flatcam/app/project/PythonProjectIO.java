@@ -230,9 +230,14 @@ public final class PythonProjectIO {
     }
 
     private static org.flatcam.cam.gcode.GeometryJobOptions readLegacyPositions(JSONObject data) {
-        Double[] end = legacyXY(data.opt("endxy")), change = legacyXY(data.opt("toolchangexy"));
+        // Python stores mechanical-change defaults even for laser groups with change disabled.
+        // They are inactive, not requested motions; the original legacy payload remains preserved.
+        boolean inactiveLaserChange=!data.optBoolean("toolchange",false)
+                && org.flatcam.cam.gcode.GCodePreprocessor.geometryProfiles().stream()
+                    .anyMatch(profile -> profile.isLaser() && PythonProjectWriter.pythonProfile(profile).equalsIgnoreCase(data.optString("ppname_g","")));
+        Double[] end = legacyXY(data.opt("endxy")), change = inactiveLaserChange ? new Double[]{null,null} : legacyXY(data.opt("toolchangexy"));
         return new org.flatcam.cam.gcode.GeometryJobOptions(legacyOptional(data.opt("startz")), legacyOptional(data.opt("endz")),
-                end[0], end[1], legacyOptional(data.opt("toolchangez")), change[0], change[1]);
+                end[0], end[1], inactiveLaserChange ? null : legacyOptional(data.opt("toolchangez")), change[0], change[1]);
     }
     private static Double legacyOptional(Object value) {
         if (value == null || value == JSONObject.NULL || value.toString().isBlank() || value.toString().equalsIgnoreCase("None")) return null;

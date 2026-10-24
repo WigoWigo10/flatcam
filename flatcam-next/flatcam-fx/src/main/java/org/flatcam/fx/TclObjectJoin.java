@@ -71,9 +71,11 @@ final class TclObjectJoin {
             throw new IllegalArgumentException("Geometry com e sem perfil CNC; configure todas antes de juntar.");
         GeometryGCodeParameters common = defaults;
         parameters.entrySet().removeIf(entry -> entry.getValue().equals(common));
-        if (model != null && !parameters.isEmpty() && (model.preprocessor().isLaser() || model.preprocessor().isPlotter()
+        if (model != null && !parameters.isEmpty() && (model.preprocessor().isPlotter()
                 || model.preprocessor().isRoland() || model.preprocessor().requiresProbe()))
             throw new IllegalArgumentException("Este perfil nao suporta parametros individuais; alinhe os parametros antes de juntar.");
+        if(model!=null && model.preprocessor().isLaser() && defaults!=null)
+            org.flatcam.cam.gcode.GCodeGenerator.validateLaserGroups(model.preprocessor(),defaults,parameters);
         GeometryCncSettings settings = model == null && parameters.isEmpty() ? null
                 : new GeometryCncSettings(model == null ? org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE
                         : model.preprocessor(), null, vTools, parameters, org.flatcam.cam.geometry.ToolProfile.C1, jobDefaults);

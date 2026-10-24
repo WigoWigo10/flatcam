@@ -114,7 +114,7 @@ class GCodePreprocessorTest {
         assertFalse(parsed.travelGeometry().isEmpty());
         assertTrue(parsed.stats().steps().stream().anyMatch(step -> !step.travel()));
         if (profile == GCodePreprocessor.Z_LASER) {
-            assertEquals(3, code.lines().filter(line -> line.equals("G00 Z2.0000")).count());
+            assertTrue(code.indexOf("G00 Z2.0000") < code.indexOf("G00 X1.0000 Y2.0000"),code);
         }
     }
 

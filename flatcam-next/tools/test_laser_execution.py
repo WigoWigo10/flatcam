@@ -1,7 +1,7 @@
 """Laser power/path contract: negative-Z milling is not an oracle for laser exposure."""
 import copy
 import unittest
-from compare_cnc_python import read_program, audit_parameters, equivalent, machining_signature
+from compare_cnc_python import read_program, audit_parameters, equivalent, machining_signature, toolpath_review
 from laser_execution import LASER_PROFILES, read_laser
 
 GRBL = "G21\nG90\nG17\nG94\nM5\nG0 X10 Y7\nM3 S128\nG1 X12 Y7 F200\nM5\nG0 Z3\n"
@@ -127,7 +127,7 @@ class LaserExecutionTest(unittest.TestCase):
         with self.assertRaises(ValueError): read_program(FAN,"Marlin_laser_FAN_pin",marlin_rapid_mode="fixed")
         with self.assertRaises(ValueError): read_laser(GRBL,"GRBL_laser",rapid_mode="variable")
 
-    def test_points_and_multiple_source_groups_are_explicitly_out_of_scope(self):
+    def test_points_and_invalid_source_group_ids_are_explicitly_out_of_scope(self):
         parsed = read_program(GRBL,"GRBL_laser")
         case = source("GRBL_laser"); case["tools"][0]["wkt"] = "POINT (10 7)"
         with self.assertRaises(ValueError): audit_parameters(case,parsed)
@@ -135,6 +135,23 @@ class LaserExecutionTest(unittest.TestCase):
         with self.assertRaises(ValueError): audit_parameters(case,parsed)
         case = source("GRBL_laser"); case["tools"][0]["id"] = 7
         with self.assertRaises(ValueError): audit_parameters(case,parsed)
+
+    def test_group_specific_feed_power_focus_and_clearance_are_checked_without_inventing_tool_changes(self):
+        case=source("Z_laser")
+        second=copy.deepcopy(case["tools"][0]); second.update(id=2,wkt="LINESTRING (20 7,22 7)")
+        second["parameters"].update(feed=350,rpm=200,safeZ=2)
+        case["tools"].append(second); case["job"]["laserFocusZ"]=3
+        code="G21\nG90\nG17\nG94\nM5\nG0 Z3\nG0 X10 Y7\nM3 S128\nG1 X12 Y7 F200\nM5\nG0 X20 Y7\nG0 Z2\nM3 S200\nG1 X22 Y7 F350\nM5\nG0 Z3\n"
+        parsed=read_program(code,"Z_laser")
+        self.assertEqual([],audit_parameters(case,parsed))
+        self.assertTrue(all(e["tool"]==1 for e in parsed["cuts"]))  # No Tn/M6 exists in laser code.
+        review=toolpath_review(case,parsed,parsed,[],[])
+        self.assertNotIn("tools",review)
+        self.assertEqual(2,len(review["requestedSourceGroups"]))
+        for old,new,message in (("F350","F200","Laser feed differs from requested feed"),
+                                ("S200","S128","Laser S/duty differs from requested power (not physical RPM)"),
+                                ("G0 X20 Y7\nG0 Z2","G0 Z2\nG0 X20 Y7","Laser cross-group XY is below the common focus clearance")):
+            self.assertIn(message,audit_parameters(case,read_program(code.replace(old,new),"Z_laser")))
 
 
 if __name__ == "__main__": unittest.main()

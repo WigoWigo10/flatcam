@@ -12,6 +12,23 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class CncPreflightTest {
+    @Test void laserReviewUsesIndividualGroupsAndLastActiveFocusForAutomaticParking() {
+        var a=new GeometryGCodeParameters(6,1,false,1,200,64,false,900);
+        var b=new GeometryGCodeParameters(2,1,false,1,350,200,false,900);
+        var empty=new GeometryGCodeParameters(99,1,false,1,100,50,false,900);
+        var tools=List.of(new ToolGeometry(.4,path()),new ToolGeometry(.8,path()),
+                new ToolGeometry(.4,new GeometryFactory().createPolygon()));
+        var result=new GeometryCncToolPanel.Result(tools,a,Map.of(),GCodePreprocessor.MARLIN_LASER_FAN_PIN,Map.of(1,b,2,empty));
+        var report=CncPreflight.geometry("Laser","MM",result);
+        assertTrue(report.canContinue()); assertEquals("Grupo 2",report.tools().get(1).name());
+        assertEquals("350",report.tools().get(1).feedXY()); assertEquals("2",report.tools().get(1).travelZ());
+        assertTrue(report.tools().get(1).power().contains("200 PWM"));
+        assertTrue(report.common().stream().anyMatch(v->v.label().equals("Z final (laser desligado)") && v.text().equals("2 mm")));
+        assertTrue(report.common().stream().anyMatch(v->v.label().equals("Altura XY entre grupos") && v.text().startsWith("6 mm")));
+        var simple=CncPreflight.geometry("Laser","MM",new GeometryCncToolPanel.Result(tools,a,Map.of(),GCodePreprocessor.GRBL_LASER,Map.of(1,b)));
+        assertFalse(simple.canContinue());
+        assertTrue(simple.issues().stream().anyMatch(i->i.blocking() && i.text().contains("Z_laser")));
+    }
     @Test void laserReviewDoesNotPromiseDwellPhysicalRpmOrUnimplementedPositionControls() {
         var p=new GeometryGCodeParameters(3,1,false,1,200,128,false,900,null,75,true,.25,true,.1);
         for(var profile:List.of(GCodePreprocessor.GRBL_LASER,GCodePreprocessor.Z_LASER,

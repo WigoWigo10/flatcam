@@ -1,5 +1,10 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Laser por grupo implementado em [LASER_GROUPS.md](LASER_GROUPS.md): avanço/
+potência nos quatro perfis e foco em Z_laser/Marlin, com transições, painel,
+revisão e persistência. A pendência genérica abaixo foi superada nesse escopo;
+equivalência completa de execução continua aberta.
+
 Rodada de 2026-10-24 em [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md):
 Roland/HPGL possuem comparação nativa; Mach3 possui contrato estático, sem
 contato simulado. End Z/XY laser está habilitado e testado, com 28 receitas

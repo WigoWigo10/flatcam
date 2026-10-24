@@ -238,6 +238,8 @@ final class GeometryCncToolPanel {
         Label zLabel = new Label();
         zLabel.textProperty().bind(javafx.beans.binding.Bindings.when(laser)
                 .then("Focus/End Z:").otherwise("Travel Z:"));
+        ToolDescriptions.apply(safeZField,"Altura de foco / Travel Z",
+                "Nos perfis Z_laser e Marlin laser, cada grupo pode ter seu foco Z. Entre grupos, o laser é desligado e o deslocamento XY usa o maior foco do trabalho; só depois posiciona o próximo foco. Isso não detecta obstáculos nem a altura da peça.\n\nGRBL_laser simples não posiciona foco: mantenha este valor igual em todos os grupos ou use Z_laser. Sem End Z explícito, a altura final é a do último grupo com trajetos.\n\nEm fresagem, este campo é Travel Z. Unidade do objeto (mm ou in). Feed rapids e posições finais são comuns.");
         Label powerLabel = new Label();
         powerLabel.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
                 () -> laser.get() || preprocessor.getValue() == GCodePreprocessor.REPETIER
@@ -458,27 +460,32 @@ final class GeometryCncToolPanel {
                 }
                 errorLabel.setText("");
                 Map<Integer, GeometryGCodeParameters> byTool = new LinkedHashMap<>();
-                if (multiTool && !noCutZ.get()) {
+                if (multiTool && !plotter.get()) {
                     snapshots.put(editing[0], capture.get());
                     for (int i = 0; i < tools.size(); i++) {
+                        try {
                         String[] s = snapshots.get(i);
                         GeometryGCodeParameters p = new GeometryGCodeParameters(
-                                parseText(s[0], "Tool " + (i+1) + " Travel Z"), parseText(s[1], "Cut Z"), Boolean.parseBoolean(s[8]),
-                                Boolean.parseBoolean(s[8]) ? parseText(s[2], "Depth per pass") : 1,
+                                parseText(s[0], "Tool " + (i+1) + " Travel/Focus Z"), noCutZ.get() ? 1 : parseText(s[1], "Cut Z"), !noCutZ.get() && Boolean.parseBoolean(s[8]),
+                                !noCutZ.get() && Boolean.parseBoolean(s[8]) ? parseText(s[2], "Depth per pass") : 1,
                                 parseText(s[3], "Feedrate XY"), integerPower(s[4]), params.pauseForToolChange(),
-                                params.rapidFeedRate(), params.probing(), parseText(s[5], "Feedrate Z"),
-                                !roland.get() && Boolean.parseBoolean(s[9]), Boolean.parseBoolean(s[9]) && !roland.get() ? parseText(s[6], "Dwell") : 0,
-                                Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) ? parseText(s[7], "Extra Cut Length") : 0,
+                                params.rapidFeedRate(), params.probing(), noCutZ.get() ? parseText(s[3], "Feedrate XY") : parseText(s[5], "Feedrate Z"),
+                                !noCutZ.get() && !roland.get() && Boolean.parseBoolean(s[9]), Boolean.parseBoolean(s[9]) && !noCutZ.get() && !roland.get() ? parseText(s[6], "Dwell") : 0,
+                                !noCutZ.get() && Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) && !noCutZ.get() ? parseText(s[7], "Extra Cut Length") : 0,
                                 ToolPathOffset.valueOf(s[11]), parseText(s[12], "Custom Offset"), positions)
                                 .withPassStrategy(unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(s[13]));
                         preprocessor.getValue().validatePower(p.spindleSpeedRpm());
                         preprocessor.getValue().validateFeedRates(p.feedRate(), params.rapidFeedRate());
                         byTool.put(i, p);
+                        } catch(IllegalArgumentException invalid) {
+                            throw new IllegalArgumentException((laser.get() ? "Grupo " : "Ferramenta ")+(i+1)+": "+invalid.getMessage(),invalid);
+                        }
                     }
                     if (byTool.values().stream().allMatch(params::equals)) byTool.clear();
                     if (!byTool.isEmpty() && (roland.get() || preprocessor.getValue().requiresProbe()))
                         throw new IllegalArgumentException("Este perfil exige parametros comuns; aplique a todas as ferramentas.");
                 }
+                if (laser.get()) org.flatcam.cam.gcode.GCodeGenerator.validateLaserGroups(preprocessor.getValue(),params,byTool);
                 double clearance = Math.max(params.safeZ(), byTool.values().stream().mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
                 positions.validate(preprocessor.getValue(), clearance, params.pauseForToolChange() || preprocessor.getValue().automaticToolSelection());
                 if (unsupportedPositions.get() && (params.offset() != ToolPathOffset.PATH
@@ -538,10 +545,13 @@ final class GeometryCncToolPanel {
             Label modeHelp = new Label();
             modeHelp.setWrapText(true);
             modeHelp.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(() ->
-                    noCutZ.get() || roland.get() || preprocessor.getValue().requiresProbe()
+                    laser.get() ? "Selecione um grupo para editar avanço e potência. Z_laser/Marlin também permitem foco por grupo; GRBL_laser exige Focus/End Z igual em todos. Feed rapids, posições finais e perfil são comuns. Não há troca mecânica entre grupos."
+                    : plotter.get() || roland.get() || preprocessor.getValue().requiresProbe()
                             ? "Este perfil usa os parametros comuns da ferramenta exibida; configuracoes individuais nao sao aplicadas."
                             : "Selecione uma linha para editar seus parametros. Feed rapids, troca e preprocessor sao comuns ao trabalho.",
                     preprocessor.valueProperty()));
+            applyAll.textProperty().bind(javafx.beans.binding.Bindings.when(laser)
+                    .then("Aplicar parâmetros a todos os grupos").otherwise("Aplicar parametros a todas as ferramentas"));
             box.getChildren().addAll(modeHelp, applyAll);
         }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);

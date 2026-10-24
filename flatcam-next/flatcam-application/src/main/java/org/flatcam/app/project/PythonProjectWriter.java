@@ -176,9 +176,15 @@ public final class PythonProjectWriter {
                         ? entry.cncSettings().singleToolDiameter() : "MM".equalsIgnoreCase(entry.units()) ? 0.8 : 0.8/25.4,
                         entry.geometry(),entry.cncSettings() == null ? org.flatcam.cam.geometry.ToolProfile.C1
                                 : entry.cncSettings().singleToolProfile())) : entry.tools();
+        boolean laser=entry.cncSettings()!=null && entry.cncSettings().preprocessor().isLaser();
+        Double lastLaserFocus=null;
+        if(laser) for(int i=0;i<paths.size();i++) if(!paths.get(i).geometry().isEmpty()) {
+            var effective=entry.cncSettings().parametersByTool().getOrDefault(i,entry.cncDefaults());
+            if(effective!=null) lastLaserFocus=effective.safeZ();
+        }
         for (int i = 0; i < paths.size(); i++) {
             ToolGeometry tool = paths.get(i);
-            if (tool.toolProfile() == org.flatcam.cam.geometry.ToolProfile.V
+            if (!laser && tool.toolProfile() == org.flatcam.cam.geometry.ToolProfile.V
                     && (entry.cncSettings() == null || !entry.cncSettings().vTools().containsKey(i)))
                 throw new IllegalArgumentException("Ferramenta V sem configuracao explicita de ponta: " + entry.name());
             var p = entry.cncSettings() == null ? entry.cncDefaults()
@@ -189,7 +195,7 @@ public final class PythonProjectWriter {
             double clearance = common == null ? 2 : common.safeZ();
             if (entry.cncSettings() != null) clearance = Math.max(clearance, entry.cncSettings().parametersByTool().values()
                     .stream().mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(clearance));
-            data.put("endz",positions.endZ() == null ? clearance : positions.endZ()).put("endxy", legacyXY(positions.endX(), positions.endY()))
+            data.put("endz",positions.endZ() == null ? laser && lastLaserFocus!=null ? lastLaserFocus : clearance : positions.endZ()).put("endxy", legacyXY(positions.endX(), positions.endY()))
                     .put("startz",positions.startZ() == null ? JSONObject.NULL : positions.startZ())
                     .put("toolchangez",positions.toolChangeZ() == null ? clearance : positions.toolChangeZ())
                     .put("toolchangexy",legacyXY(positions.toolChangeX(), positions.toolChangeY()))
@@ -201,7 +207,7 @@ public final class PythonProjectWriter {
                     throw new IllegalArgumentException("Geometry com sondagem exige formato nativo FX; exportacao da configuracao de sonda nao suportada.");
                 data.put("ppname_g", pythonProfile(entry.cncSettings().preprocessor()));
                 VTipSettings tip = entry.cncSettings().vTools().get(i);
-                if (tip != null) data.put("vtipdia",tip.tipDiameter()).put("vtipangle",tip.angleDegrees())
+                if (tip != null && !laser) data.put("vtipdia",tip.tipDiameter()).put("vtipangle",tip.angleDegrees())
                         .put("cutz",-tip.cutDepth(tool.toolDiameter()));
             }
             tools.put(Integer.toString(i+1), new JSONObject().put("tooldia",tool.toolDiameter())

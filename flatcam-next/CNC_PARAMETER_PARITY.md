@@ -1,5 +1,15 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Laser individual — 2026-10-24
+
+Avanço/potência por grupo e foco em Z_laser/Marlin, painel/revisão, formatos
+nativo/Python e join_geometry integrados. GRBL simples recusa focos distintos.
+Transições desligadas na maior altura ativa; End Z padrão do último grupo
+com trajetos. Corpus 32/perfil, zero problemas FX; strict continua reprovado
+pelas diferenças documentadas. Controle fresagem GRBL 49/19/34/2/0, inalterado.
+1861 Java aprovados/18 skips opcionais, zero falhas/erros; 151 auxiliares
+Python aprovados. [LASER_GROUPS.md](LASER_GROUPS.md).
+
 ## Roland, HPGL e contrato de sonda — 2026-10-24
 
 Leitores nativos independentes: Roland 20 MM, 0/7/12/1/0; HPGL 20 MM/IN,

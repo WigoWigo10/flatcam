@@ -115,7 +115,7 @@ def read_laser(program, profile, *, rapid_mode="shared", fixed_rapid_feed=None):
         laserControls=dict(profile=profile,initialCommandedXyz=[0,0,0],finalPower=power,
             rapidMode=rapid_mode,finalMovementBarrier=bool(events and events[-1]["kind"] == "synchronize"),
             powerMeaning="FAN_DUTY_0_255" if fan else "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM",
-            sourceGroup="Single source path group 1; NOT a selected hardware tool",
+            sourceGroup="Exposure stream; source groups are checked against requested paths/parameters, NOT a selected hardware tool",
             limits="Commanded state only. No GRBL $30/$32, Marlin power mapping, inline mode, FAN electrical timing, beam/material or physical interlocks simulated. Marlin assumes standard cutter mode and INCH_MODE_SUPPORT for IN."))
 
 
@@ -126,11 +126,11 @@ def laser_signature(parsed):
 def audit_laser(case, parsed, equivalent):
     from shapely import wkt
     issues = []
-    if case["operation"] != "geometry" or len(case["tools"]) != 1:
-        raise ValueError("Laser comparison requires one source path group, not milling tool selections")
-    tool = case["tools"][0]
-    if tool["id"] != 1: raise ValueError("Laser source group must be explicitly numbered 1, not a hardware tool ID")
-    p, job = tool["parameters"], case["job"]
+    if case["operation"] != "geometry" or not case["tools"]:
+        raise ValueError("Laser comparison requires source XY path groups, not milling tool selections")
+    if [t["id"] for t in case["tools"]] != list(range(1,len(case["tools"])+1)):
+        raise ValueError("Laser source groups must be sequentially numbered, not hardware tool IDs")
+    job = case["job"]
     if parsed["units"] != case["units"]: issues.append("Laser units differ from the source")
     expected = []
     def paths(shape):
@@ -139,21 +139,39 @@ def audit_laser(case, parsed, equivalent):
         if shape.geom_type in ("MultiLineString","MultiPolygon","GeometryCollection"):
             return [path for part in shape.geoms for path in paths(part)]
         raise ValueError("Laser source requires XY paths; point exposure is not modeled")
-    for path in paths(wkt.loads(tool["wkt"])):
-        expected.extend((list(a[:2]),list(b[:2])) for a,b in zip(path.coords,list(path.coords)[1:]))
+    for tool in case["tools"]:
+        for path in paths(wkt.loads(tool["wkt"])):
+            expected.extend((list(a[:2]),list(b[:2]),tool) for a,b in zip(path.coords,list(path.coords)[1:]))
     remaining = list(expected)
-    focus = job["laserFocusZ"]
+    clearance=max((t["parameters"]["safeZ"] for a,b,t in expected),default=job["endZ"])
+    positioned_focus=case["profile"] != "GRBL_laser"
+    def parameters_match(event,tool):
+        p=tool["parameters"]
+        return (equivalent(event["feed"],p["feed"]) and equivalent(event["laserPower"],p["rpm"])
+                and (not positioned_focus or equivalent(event["from"][2],p["safeZ"]) and equivalent(event["to"][2],p["safeZ"])))
+    previous_group=None; previous_cut_index=-1
     for e in parsed["cuts"]:
         a,b = e["from"], e["to"]
         if a[2] != b[2]: issues.append("Powered Z motion is outside the XY laser contract")
+        candidates=[i for i,(x,y,t) in enumerate(remaining) if equivalent(a[:2],x) and equivalent(b[:2],y)
+                      or equivalent(a[:2],y) and equivalent(b[:2],x)]
+        match=next((i for i in candidates if parameters_match(e,remaining[i][2])),candidates[0] if candidates else None)
+        if match is None:
+            issues.append("Extra/changed powered XY segment or repeated exposure")
+            continue
+        tool=remaining.pop(match)[2]; p=tool["parameters"]
         if not equivalent(e["feed"],p["feed"]): issues.append("Laser feed differs from requested feed")
         if not equivalent(e["laserPower"],p["rpm"]): issues.append("Laser S/duty differs from requested power (not physical RPM)")
+        focus=p["safeZ"] if positioned_focus else None
         if focus is not None and (not equivalent(a[2],focus) or not equivalent(b[2],focus)):
             issues.append("Laser focus Z differs from the requested focus plane")
-        match = next((i for i,(x,y) in enumerate(remaining) if equivalent(a[:2],x) and equivalent(b[:2],y)
-                      or equivalent(a[:2],y) and equivalent(b[:2],x)),None)
-        if match is None: issues.append("Extra/changed powered XY segment or repeated exposure")
-        else: remaining.pop(match)
+        cut_index=next(i for i,event in enumerate(parsed["events"]) if event is e)
+        if positioned_focus and previous_group is not None and previous_group != tool["id"]:
+            for move in parsed["events"][previous_cut_index+1:cut_index]:
+                if move["kind"] in ("rapid","linear") and move["from"][:2]!=move["to"][:2] \
+                        and min(move["from"][2],move["to"][2]) < clearance-.000051:
+                    issues.append("Laser cross-group XY is below the common focus clearance")
+        previous_group=tool["id"]; previous_cut_index=cut_index
     if remaining: issues.append("Missing powered source XY segments")
     for e in parsed["events"]:
         if e["kind"] == "nonstandardComment":
@@ -163,7 +181,7 @@ def audit_laser(case, parsed, equivalent):
         if case["profile"] in MARLIN_LASERS and e["kind"] == "rapid" and not equivalent(e["feed"],job["rapidFeed"]):
             issues.append("Laser Marlin G0 feed differs from requested Feed rapids (or is undeclared)")
         if job["endX"] is not None and e["kind"]=="rapid" and e["from"][:2]!=e["to"][:2] and equivalent(e["to"][:2],[job["endX"],job["endY"]]) \
-                and min(e["from"][2],e["to"][2]) < max(p["safeZ"],job["endZ"])-.000051:
+                and min(e["from"][2],e["to"][2]) < max(clearance,job["endZ"])-.000051:
             issues.append("Laser final XY is below requested parking clearance")
     if not equivalent(parsed["end"][2],job["endZ"]): issues.append("Laser final Z differs from requested height")
     if job["endX"] is not None and not equivalent(parsed["end"][:2],[job["endX"],job["endY"]]):
