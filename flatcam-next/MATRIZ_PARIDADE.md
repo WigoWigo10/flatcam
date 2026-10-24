@@ -1,5 +1,17 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Revisão GRBL, precisão nativa e matriz real — 2026-10-24
+
+GRBL conhecido classificado em [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md),
+sem defeito FX identificado nos 208 controles dos dois perfis. Revisão de
+precisão Roland/HPGL implementada/testada: **C**, não validação física.
+Uma fonte real em 3 layouts mais públicos MM/IN: 200/203 concordâncias;
+uma diferença de Connect em B_Cu 3×1 sem gap/fresa 1 mm e duas falhas Python
+Offset permanecem reprovadas. Fluxos FX, registro de furos e round-trip
+passaram; fonte intacta. [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md).
+G-code da matriz é interpretação do FX pelo parser Python, não prova de
+duas gerações idênticas. Verify 1867 aprovações/18 skips, zero falhas/erros.
+
 ## Laser por grupo — 2026-10-24
 
 Avanço/potência e foco Z_laser/Marlin individuais, com transições, revisão e

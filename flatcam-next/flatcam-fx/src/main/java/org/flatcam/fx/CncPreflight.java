@@ -28,6 +28,7 @@ final class CncPreflight {
         var common = new ArrayList<Value>();
         var profile = result.preprocessor();
         var base = result.parameters();
+        nativeInfo(common,profile,units);
         boolean cutting = !profile.isLaser() && !profile.isPlotter();
         double clearance = Math.max(base.safeZ(), result.parametersByTool().values().stream()
                 .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(base.safeZ()));
@@ -55,7 +56,7 @@ final class CncPreflight {
                             + "°; Cut Z calculado pela largura do corte", i, "cnc-v-tip-angle-" + i));
                 }
             }
-            details.add(value("Profundidade efetiva", cutting ? number(-depth) + " " + unit(units) : "Não se aplica ao corte neste perfil", i, "cnc-cut-depth"));
+            details.add(value(profile.isRoland() ? "Profundidade solicitada" : "Profundidade efetiva", cutting ? number(-depth) + " " + unit(units) : "Não se aplica ao corte neste perfil", i, "cnc-cut-depth"));
             if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL && base.pauseForToolChange() && !empty)
                 details.add(value("Ajuste manual em Z0", "Feed Z " + number(p.feedRateZ()) + " " + unit(units)
                         + "/min; spindle parado; não é sondagem", i, "cnc-feed-z"));
@@ -77,9 +78,19 @@ final class CncPreflight {
             details.add(value("Compensação", p.offset() + (p.offset() == ToolPathOffset.CUSTOM ? " (" + number(p.customOffset()) + ")" : ""), i, "cnc-offset"));
             details.add(value("Extra Cut", profile.isLaser() ? "Não suportado neste perfil" : p.extraCut() ? number(p.extraCutLength()) + " " + unit(units) : "Desativado", i, "cnc-extra-length"));
             details.add(value("Trajetos", empty ? "Nenhum: esta ferramenta será omitida" : "Associados à ferramenta " + (i + 1), i, "cnc-tools"));
+            if(profile.isRoland() || profile.isPlotter())
+                nativeSample(details,issues,profile,units,i,"cnc-tools",empty ? null : tool.geometry().getCoordinate());
+            String cutText=cutting ? number(-depth) : "—", travelText=cutting || profile.isLaser() && profile != GCodePreprocessor.GRBL_LASER ? number(p.safeZ()) : "—";
+            String feedXYText=profile.isPlotter() ? "—" : number(p.feedRate()), feedZText=cutting ? number(p.feedRateZ()) : "—";
+            if(profile.isRoland()) {
+                cutText=nativeValue(details,issues,units,i,"cnc-cut-depth","Cut Z",-depth,false,false);
+                travelText=nativeValue(details,issues,units,i,"cnc-safe-z","Travel Z",p.safeZ(),false,false);
+                feedXYText=nativeValue(details,issues,units,i,"cnc-feed","Feed XY",p.feedRate(),true,false);
+                feedZText=nativeValue(details,issues,units,i,"cnc-feed-z","Feed Z",p.feedRateZ(),true,false);
+                if(p.multiDepth()) nativeValue(details,issues,units,i,"cnc-depth-per-pass","Primeiro passe Z",-Math.min(depth,p.depthPerPass()),false,false);
+            }
             rows.add(new Tool(i, (profile.isLaser() ? "Grupo " : "T") + (i + 1) + (empty ? " (vazia)" : ""), number(tool.toolDiameter()),
-                    cutting ? number(-depth) : "—", cutting || profile.isLaser() && profile != GCodePreprocessor.GRBL_LASER ? number(p.safeZ()) : "—",
-                    profile.isPlotter() ? "—" : number(p.feedRate()), cutting ? number(p.feedRateZ()) : "—",
+                    cutText,travelText,feedXYText,feedZText,
                     profile.isPlotter() || profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
             if (empty) issues.add(new Issue(false, "T" + (i + 1) + " não tem trajetos e não produzirá cortes.", target(i, "cnc-tools")));
             if (!empty && cutting && p.spindleSpeedRpm() == 0 && !profile.isRoland() && profile != GCodePreprocessor.REPETIER)
@@ -101,6 +112,7 @@ final class CncPreflight {
         if (cutting) {
             positions(common, "cnc", pos.startZ(), pos.toolChangeZ() == null ? clearance : pos.toolChangeZ(),
                     pos.toolChangeX(), pos.toolChangeY(), pos.endZ() == null ? lastTravelZ : pos.endZ(), pos.endX(), pos.endY());
+            nativeEnd(common,issues,profile,units,"cnc",pos.endZ()==null ? lastTravelZ : pos.endZ(),pos.endX(),pos.endY());
             common.add(value("Política de Travel Z",travelPolicy.toString(),-1,"cnc-travel-clearance"));
             common.add(value("Altura dos deslocamentos XY",travelPolicy==GeometryTravelClearance.PER_TOOL ? "Individual: confira o valor efetivo de cada fresa"
                     : number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-travel-clearance"));
@@ -123,7 +135,7 @@ final class CncPreflight {
             case SOURCE -> "Ordem de origem"; case NEAREST -> "Proximidade"; case BOARDS -> "Agrupar por placa";
         }, -1, "cnc-route-mode"));
         common.add(value("Exclusões", pos.exclusionsEnabled() ? pos.exclusions().size() + " área(s) protegida(s)" : "Desativadas", -1, "cnc-exclusions-pane"));
-        rapid(common, profile, base.rapidFeedRate(), units, "cnc-rapid-feed");
+        rapid(common,issues, profile, base.rapidFeedRate(), units, "cnc-rapid-feed");
         if (travelPolicy==GeometryTravelClearance.PER_TOOL)
             issues.add(new Issue(false,"Travel Z individual pode ser menor que o de outras fresas. Confira cada altura e fixação; a troca ainda usa a altura comum validada.",target(-1,"cnc-travel-clearance")));
         double parkingZ=profile.isLaser() ? clearance : lastTravelZ;
@@ -140,14 +152,18 @@ final class CncPreflight {
         var issues = new ArrayList<Issue>();
         var common = new ArrayList<Value>();
         var counts = new LinkedHashMap<Integer, int[]>();
-        image.drills().forEach(hit -> counts.computeIfAbsent(hit.toolId(), key -> new int[2])[0]++);
-        image.slots().forEach(hit -> counts.computeIfAbsent(hit.toolId(), key -> new int[2])[1]++);
+        var samples=new LinkedHashMap<Integer,org.locationtech.jts.geom.Coordinate>();
+        image.drills().forEach(hit -> { counts.computeIfAbsent(hit.toolId(), key -> new int[2])[0]++;
+            samples.computeIfAbsent(hit.toolId(),key->new org.locationtech.jts.geom.Coordinate(hit.x(),hit.y())); });
+        image.slots().forEach(hit -> { counts.computeIfAbsent(hit.toolId(), key -> new int[2])[1]++;
+            samples.computeIfAbsent(hit.toolId(),key->new org.locationtech.jts.geom.Coordinate(hit.x1(),hit.y1())); });
         var profile = result.preprocessor();
+        nativeInfo(common,profile,image.units());
         for (int id : result.orderedToolIds()) {
             var p = result.settingsByTool().get(id);
             int[] count = counts.getOrDefault(id, new int[2]);
             var details = new ArrayList<>(List.of(value("Furos / rasgos", count[0] + " / " + count[1], id, "drill-tools"),
-                    value("Profundidade efetiva", number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z + Offset Z)", id, "drill-cut-z"),
+                    value(profile.isRoland() ? "Profundidade solicitada" : "Profundidade efetiva", number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z + Offset Z)", id, "drill-cut-z"),
                     value("Offset Z", number(p.offsetZ()), id, "drill-offset-z"),
                     value("Passes", passes(p.effectiveDepth(), p.multiDepth(), p.depthPerPass()), id, "drill-multi-depth"),
                     value("Dwell", p.dwell() ? number(p.dwellSeconds()) + " s" : "Desativado", id, "drill-dwell-time"),
@@ -157,8 +173,16 @@ final class CncPreflight {
             if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL && result.options().pauseForToolChange() && count[0]+count[1]>0)
                 details.add(value("Ajuste manual em Z0", "Feed Z " + number(p.feedRate()) + " " + unit(image.units())
                         + "/min; spindle parado; não é sondagem", id, "drill-feed-z"));
-            rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? " (vazia)" : ""), number(image.toolDiameters().get(id)), number(-p.effectiveDepth()),
-                    number(p.safeZ()), "—", number(p.feedRate()), profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
+            nativeSample(details,issues,profile,image.units(),id,"drill-tools",samples.get(id));
+            String cutText=number(-p.effectiveDepth()),travelText=number(p.safeZ()),feedText=number(p.feedRate());
+            if(profile.isRoland()) {
+                cutText=nativeValue(details,issues,image.units(),id,"drill-cut-z","Cut Z + Offset Z",-p.effectiveDepth(),false,false);
+                travelText=nativeValue(details,issues,image.units(),id,"drill-safe-z","Travel Z",p.safeZ(),false,false);
+                feedText=nativeValue(details,issues,image.units(),id,"drill-feed-z","Feed Z",p.feedRate(),true,false);
+                if(p.multiDepth()) nativeValue(details,issues,image.units(),id,"drill-depth-per-pass","Primeiro passe Z",-Math.min(p.effectiveDepth(),p.depthPerPass()),false,false);
+            }
+            rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? " (vazia)" : ""), number(image.toolDiameters().get(id)),cutText,
+                    travelText, "—",feedText, profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
             if (count[0] + count[1] == 0) issues.add(new Issue(false, "T" + id + " não contém furos nem rasgos.", target(id, "drill-tools")));
             if (count[1] > 0) issues.add(new Issue(false, p.slots().enabled()
                     ? "T" + id + ": Drill slots converte rasgos em furos. A sequência pode deixar material entre círculos; não equivale à fresagem integral. Confira a prévia e a adequação da broca."
@@ -176,13 +200,14 @@ final class CncPreflight {
                 : options.pauseForToolChange() ? "Ativada" : "Desativada", -1, "drill-tool-change"));
         positions(common, "drill", options.startZ(), options.toolChangeZ(), options.toolChangeX(), options.toolChangeY(),
                 options.endMoveZ(), options.endMoveX(), options.endMoveY());
+        nativeEnd(common,issues,profile,image.units(),"drill",options.endMoveZ(),options.endMoveX(),options.endMoveY());
         if (profile.requiresProbe() && options.probing() != null) probe(common, options.probing());
         startChangeNotice(issues,options.startZ(),options.toolChangeZ(),
                 options.pauseForToolChange() || profile.automaticToolSelection(),profile,"drill");
         exclusionNotice(issues,options.exclusionsEnabled(),options.exclusions());
         common.add(value("Ordem dos furos", options.optimizeDrills() ? "Proximidade, por ferramenta" : "Ordem de origem", -1, "drill-optimize-order"));
         common.add(value("Exclusões", options.exclusionsEnabled() ? options.exclusions().size() + " área(s) protegida(s)" : "Desativadas", -1, "cnc-exclusions-pane"));
-        rapid(common, profile, options.rapidFeedRate(), image.units(), "drill-rapid-feed");
+        rapid(common,issues, profile, options.rapidFeedRate(), image.units(), "drill-rapid-feed");
         var active = result.orderedToolIds().stream().filter(id -> {
             int[] count = counts.getOrDefault(id, new int[2]); return count[0] + count[1] > 0;
         }).toList();
@@ -219,9 +244,63 @@ final class CncPreflight {
         values.add(value("End Z", number(end), -1, prefix + "-end-z"));
         values.add(value("End X,Y", xy(endX, endY), -1, prefix + "-end-xy"));
     }
-    private static void rapid(List<Value> values, GCodePreprocessor profile, double rate, String units, String field) {
+    private static void rapid(List<Value> values,List<Issue> issues, GCodePreprocessor profile, double rate, String units, String field) {
+        if(profile.isRoland()) {
+            try { values.add(value("Avanço rápido",(rate==0 ? "Automático: 900" : precise(rate))+" → "+precise(NativeOutputPrecision.rolandFeed(rate,true))+" mm/min no arquivo",-1,field)); }
+            catch(IllegalArgumentException invalid) { issues.add(new Issue(true,invalid.getMessage(),target(-1,field))); }
+            return;
+        }
+        if(profile.isPlotter()) { values.add(value("Avanço","Não programado pelo perfil HPGL",-1,field)); return; }
         values.add(value("Avanço rápido", profile.usesRapidFeed() ? (rate == 0 ? "Automático" : number(rate) + " " + unit(units) + "/min")
                 : "Definido pelo controlador (G0); este perfil não envia F para limitar o rápido", -1, field));
+    }
+    private static void nativeInfo(List<Value> values,GCodePreprocessor profile,String units) {
+        if(!profile.isRoland() && !profile.isPlotter()) return;
+        values.add(new Value("Valores nativos","Solicitado → no arquivo. Arredondamento do texto não garante precisão mecânica.",null));
+        if(profile.isRoland()) {
+            values.add(new Value("Coordenadas Roland","Passo textual de 0,0025 mm, após formatação intermediária em 4 casas. O passo físico aceito pelo controlador pode ser maior.",null));
+            values.add(new Value("Avanços Roland","Passo de 6 mm/min (V em décimos de mm/s); faixa de 6 a 900 mm/min. Motor binário, sem RPM programável.",null));
+        } else {
+            double step=NativeOutputPrecision.HPGL_STEP_MM/("IN".equalsIgnoreCase(units) ? 25.4 : 1);
+            values.add(new Value("Grade XY no arquivo HPGL","0,025 mm por passo ("+precise(step)+" "+unit(units)+"). Arredonda ao passo mais próximo; caminhos que colapsam são recusados.",null));
+            values.add(new Value("Limites numéricos XY do FX",precise(NativeOutputPrecision.hpglMinimum(units))+" a "+precise(NativeOutputPrecision.hpglMaximum(units))+" "+unit(units)+"; fora da faixa é recusado, sem recorte. Não são os limites físicos da máquina.",null));
+        }
+        values.add(new Value("Amostra de coordenadas","Um ponto da geometria por grupo/ferramenta. Não é uma varredura de todos os vértices; a geração verifica o arquivo completo em segundo plano.",null));
+    }
+    private static String nativeValue(List<Value> values,List<Issue> issues,String units,int tool,String field,
+                                      String label,double requested,boolean feed,boolean rapid) {
+        try {
+            double emitted=feed ? NativeOutputPrecision.rolandFeed(requested,rapid)
+                    : NativeOutputPrecision.coordinate(GCodePreprocessor.ROLAND_MDX_20,units,requested);
+            if(!feed && requested!=0 && emitted==0) throw new IllegalArgumentException("Altura/profundidade menor que a resolução textual Roland.");
+            String text=precise(requested)+(Math.abs(requested-emitted)>1e-9 ? " → "+precise(emitted) : "");
+            values.add(value(label+" solicitado → arquivo",precise(requested)+" → "+precise(emitted)+" "+unit(units)+(feed ? "/min" : ""),tool,field));
+            if(Math.abs(requested-emitted)>1e-9)
+                issues.add(new Issue(false,label+": "+precise(requested)+" será exportado como "+precise(emitted)+" "+unit(units)+(feed ? "/min" : "")+" pelo arredondamento Roland.",target(tool,field)));
+            return text;
+        } catch(IllegalArgumentException invalid) {
+            issues.add(new Issue(true,label+": "+invalid.getMessage(),target(tool,field)));
+            return "Inválido";
+        }
+    }
+    private static void nativeSample(List<Value> values,List<Issue> issues,GCodePreprocessor profile,String units,
+                                     int tool,String field,org.locationtech.jts.geom.Coordinate sample) {
+        if(sample==null || !profile.isRoland() && !profile.isPlotter()) return;
+        try {
+            double x=NativeOutputPrecision.coordinate(profile,units,sample.x),y=NativeOutputPrecision.coordinate(profile,units,sample.y);
+            values.add(value("Exemplo XY solicitado → arquivo","X "+precise(sample.x)+" → "+precise(x)+"; Y "+precise(sample.y)+" → "+precise(y)+" "+unit(units),tool,field));
+            if(Math.abs(sample.x-x)>1e-9 || Math.abs(sample.y-y)>1e-9)
+                issues.add(new Issue(false,"A amostra XY de "+(profile.isPlotter() ? "HPGL" : "Roland")+" será arredondada. Confira o exemplo solicitado → arquivo nos detalhes.",target(tool,field)));
+        } catch(IllegalArgumentException invalid) { issues.add(new Issue(true,invalid.getMessage(),target(tool,field))); }
+    }
+    private static void nativeEnd(List<Value> values,List<Issue> issues,GCodePreprocessor profile,String units,
+                                  String prefix,double z,Double x,Double y) {
+        if(!profile.isRoland()) return;
+        nativeValue(values,issues,units,-1,prefix+"-end-z","End Z",z,false,false);
+        if(x!=null) nativeSample(values,issues,profile,units,-1,prefix+"-end-xy",new org.locationtech.jts.geom.Coordinate(x,y));
+    }
+    private static String precise(double value) {
+        return String.format(Locale.ROOT,"%.9f",value).replaceAll("0+$","").replaceAll("\\.$","");
     }
     private static void probe(List<Value> values, ProbeToolChangeParameters probe) {
         values.removeIf(value -> value.label().startsWith("Tool change"));

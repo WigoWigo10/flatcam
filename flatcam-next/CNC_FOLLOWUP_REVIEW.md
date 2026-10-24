@@ -1,5 +1,14 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Série de 2026-10-24: [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md) fecha a
+classificação dos 34 casos conhecidos sem inventar defeitos FX;
+[NATIVE_PRECISION_REVIEW.md](NATIVE_PRECISION_REVIEW.md) apresenta solicitado
+→ arquivo em Roland/HPGL. [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md) registra
+200/203 concordâncias, uma nova diferença de Connect (1 mm, B_Cu 3×1 sem gap)
+e duas falhas do handler Python Offset, com repros. É a pendência concreta
+nova; não repetir recomendações genéricas já revisadas. Verify 1867 passam,
+18 skips opcionais, sem falhas/erros; strict da matriz segue reprovado.
+
 Laser por grupo implementado em [LASER_GROUPS.md](LASER_GROUPS.md): avanço/
 potência nos quatro perfis e foco em Z_laser/Marlin, com transições, painel,
 revisão e persistência. A pendência genérica abaixo foi superada nesse escopo;

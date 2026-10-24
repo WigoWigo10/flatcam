@@ -1,5 +1,21 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Decisões GRBL e valores nativos visíveis — 2026-10-24
+
+GRBL_11_NO_M6 e GRBL_11 mantêm 49/19/34/2/0, sem desvios de parâmetros FX.
+34 diferenças de usinagem = 17 receitas por unidade com ordem, direção,
+passes de Point, operação de rasgo ou RPM zero documentados. Não são 34
+correções automáticas pendentes. [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md).
+Revisão CNC Roland/HPGL mostra solicitado → arquivo, arredondamentos, faixa
+e amostra XY; rápido Roland usa valor efetivo V, não descrição genérica G0.
+Testes comparam exemplos às ordens emitidas. [NATIVE_PRECISION_REVIEW.md](NATIVE_PRECISION_REVIEW.md).
+Matriz em uma fonte real/3 layouts e públicos MM/IN: 200 concordâncias, uma
+diferença NCC Connect da fresa 1 mm em B_Cu 3×1 sem gap e dois erros Python
+Offset. Strict continua reprovado; fonte intacta. Essa matriz interpreta o
+G-code FX com parser Python, não substitui a comparação de comandos acima.
+1867 Java aprovados/18 skips opcionais, zero falhas/erros no verify.
+[MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md).
+
 ## Laser individual — 2026-10-24
 
 Avanço/potência por grupo e foco em Z_laser/Marlin, painel/revisão, formatos

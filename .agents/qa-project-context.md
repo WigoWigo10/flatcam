@@ -44,6 +44,25 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 
 ## Quality Goals
 
+Latest three-step work on `c52029c1`, local/uncommitted: GRBL_11_NO_M6 and
+GRBL_11 unchanged at 49/19/34/2/0 each; known differences adjudicated in
+GRBL_PATH_DECISIONS.md, not generic pending FX fixes. Native precision review
+uses actual codecs and limited coordinate samples; it must not claim a full
+UI-thread geometry scan or mechanical accuracy. Full verify: 1867 passes,
+18 optional skips, 1885 current-run records, zero failures/errors. Matrix:
+one real source/3 layouts plus public MM/IN, 200 MATCH_SAMPLED, 1 DIFFERENT,
+2 ORACLE_ERROR, strict exit 1. All FX flows/registration/native reopen passed,
+source hash unchanged. Concrete gap: B_Cu 3x1 zero gap, NCC Rest+Itself+Connect,
+1 mm tool, sampled distance .218295 mm; clearing area equal, .2 mm tool agrees.
+Isolated repro repeats; do not declare intentional/equivalent based only on
+high footprint IoU. Original Offset handler fails at ToolNCC.py:1934 with
+nested MultiPolygon in both faces. See MAIN_FLOW_MATRIX.md and private target
+repros, never commit board geometry. Matrix G-code check parses FX code with
+Python; it is not two independent G-code generations. MatrixComplete and
+planned/recorded runs distinguish partial summaries; completion does not
+override failures or strict results. Start next investigation at this new
+Connect case, not the already-adjudicated generic GRBL list.
+
 Following local laser-group implementation on `c8ae73cf`: 1861 Java passes,
 18 optional skips (1879 current-run records), zero failures/errors; Python
 discovery 151 passes. See `flatcam-next/LASER_GROUPS.md`. Feed/power per group

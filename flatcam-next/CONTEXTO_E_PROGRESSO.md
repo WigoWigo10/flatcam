@@ -1,5 +1,35 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Três etapas: decisões GRBL, precisão nativa e matriz real — 2026-10-24
+
+Sobre `c52029c1`, alterações locais sem commit/push. A revisão GRBL dos dois
+perfis voltou a 49/19/34/2/0 em 104 receitas cada, sem desvios dos parâmetros
+FX. [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md) fecha as receitas por
+política/operação/limite conhecido; não repetir essas diferenças como defeitos
+genéricos pendentes sem nova evidência. Gerador GRBL não foi alterado.
+Roland/HPGL agora mostram solicitado → arquivo e limites na revisão CNC,
+incluindo Depth/Offset, feeds, rápidos Roland e amostra XY. Exemplos não
+varrem todos os vértices; geração completa permanece em worker.
+[NATIVE_PRECISION_REVIEW.md](NATIVE_PRECISION_REVIEW.md).
+Nova matriz serial aceita várias fontes e três layouts por fonte, agrega
+falhas sem transformá-las em aprovação e preserva hashes originais.
+Uma fonte real disponível, mais públicos MM/IN: [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md).
+Matriz encerrada: **200 MATCH_SAMPLED / 1 DIFFERENT / 2 ORACLE_ERROR** em 203
+controles, strict exit 1. Três fluxos reais FX passaram com registro de furos,
+round-trip e fonte intacta. Nova pendência concreta: B_Cu 3×1 sem gap, NCC
+Rest+Itself+Connect, fresa 1 mm, distância 0,218295 mm; região a limpar igual,
+fresa 0,2 mm concordante. Repro isolado preserva a diferença; causa exata da
+conexão ainda não minimizada. Não marcar como diferença intencional só pelo
+IoU alto. Offset Python falhou em ambas as faces, linha 1934 ToolNCC.py,
+MultiPolygon de geometria aninhada; traceback isolado confirma handler.
+G-code nessa matriz é lido pelo parser Python, não comparação de duas
+gerações de comandos; usar comparador de parâmetros para isso.
+Verify integral: 1867 aprovações Java/18 skips opcionais, zero falhas/erros
+(1885 registros atuais); log `target/three-steps-full-final-20261024.log`.
+Repros privados em `target/three-steps-connect-repro-20261024`; não commitar
+geometria da placa. Próxima investigação deve partir desse caso específico,
+sem afrouxar tolerância nem repetir a revisão genérica dos mesmos 34 GRBL.
+
 ## Laser por grupo — 2026-10-24
 
 Sobre `c8ae73cf`, etapa consolidada em commit na branch `flatcam-next`, sem push. Quatro perfis aceitam
