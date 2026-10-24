@@ -1,5 +1,24 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Perfis laser — 2026-10-23
+
+G94 do gerador laser corrigido (não apenas helper), M400 final nos Marlin,
+leitor XY/potência/foco por perfil e revisão CNC: **C**, não A global.
+24 receitas por perfil: GRBL 0/24/0/0/0; Z_laser, FAN e SPINDLE 0/0/24/0/0.
+Sem erros de leitura; diferenças de foco/comandos e sintaxe não validada
+impedem equivalência. App real gerou 16 controles isolados, não teste físico.
+1851 Java aprovados/18 skips, 134 auxiliares Python. [LASER_PARITY.md](LASER_PARITY.md).
+
+## Repetier/Berta e Dwell Marlin — 2026-10-23
+
+Conversão correta de tempo para G4 P em ms e dialeto sem G94; PWM FAN,
+pausa de host e macros Berta explicitados: **C**, não A global.
+Repetier 0/0/100/2/2: dois FX_ERROR são seleção inicial não conhecida pelo
+leitor, não crashes do gerador. Berta 0/68/34/2/0, com limite obrigatório de
+macros/origem não modeladas. Nenhum strict aprovado nem máquina certificada.
+Marlin atualizado 0/44/58/2/0, GRBL inalterado. Verify 1840 passam/18 skips;
+119 auxiliares Python. [REPETIER_BERTA_PARITY.md](REPETIER_BERTA_PARITY.md).
+
 ## Troca Manual/Custom — 2026-10-23
 
 Feed Z por ferramenta no ajuste manual, G90 entre pausas, resumo e auditoria

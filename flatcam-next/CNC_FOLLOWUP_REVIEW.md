@@ -1,5 +1,19 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Quatro lasers em [LASER_PARITY.md](LASER_PARITY.md): corrigido G94 direto
+que ignorava a regra Marlin e M400 após estacionamento. Leitor não confunde
+exposição XY em Z positivo com fresagem negativa, nem S/PWM com RPM físico.
+24 receitas por perfil, sem strict aprovado. Foco legado depende de Start Z/
+troca; cabeçalho Z_laser aninhado é diagnóstico não certificado. HPGL/Roland
+e sondagem continuam candidatos, sem alterar projetos privados ou fontes Python.
+
+Repetier/Berta ampliados em [REPETIER_BERTA_PARITY.md](REPETIER_BERTA_PARITY.md):
+Dwell Repetier/Marlin corrigido para ms; PWM FAN não é RPM, troca de host é
+condicional e M84 pode perder referência. Berta conserva macros/origem opacas,
+sem execução equivalente. Dois limites Repetier sem troca não são crashes FX.
+Marlin fresagem atual 0/44/58/2/0 substitui números anteriores; HPGL/Roland
+e sonda ainda precisam do ensaio específico. Strict não foi afrouxado.
+
 Troca Manual/Custom ampliada em [TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md):
 avanço de ajuste manual corrigido para Z por ferramenta, G90 antes de mover
 após pausas, auditoria de três fases e macro explícita. Custom sem Tn no legado
@@ -130,8 +144,9 @@ Artefatos em `target/cnc-marlin-effective-20261023/python`,
 `target/cnc-grbl-regression-20261023/python`. Todos strict exit 1 esperado;
 nenhuma tolerância ou regra de equivalência foi relaxada. 33 regressões Python
 passam, incluindo M400/feed, G71/M01, eixos simultâneos e comandos fora do perfil.
-Laser/FAN, Repetier, Berta, ICP/HPGL/Roland e sonda continuam fora deste leitor;
-o suporte de geração já existente não significa validação por este ensaio.
+Naquela rodada, Laser/FAN, Repetier, Berta, ICP/HPGL/Roland e sonda estavam
+fora do leitor. ICP, Repetier e Berta foram ampliados posteriormente conforme
+as revisões no início deste documento; geração não significa execução validada.
 
 ## Limites remanescentes
 

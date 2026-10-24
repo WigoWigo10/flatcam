@@ -89,12 +89,13 @@ public enum GCodePreprocessor {
     public String description() {
         return switch (this) {
             case REPETIER -> "Saida FAN M106/M107 (0-255). Troca usa M84 e @pause: requer Repetier-Host; "
-                    + "M84 libera motores e pode exigir novo referenciamento.";
+                    + "M84 libera motores e pode exigir novo referenciamento. Dwell em segundos convertido para G4 P em milissegundos; sem G94.";
             case MARLIN -> "Fresagem: M3/M5, com S em RPM somente se CUTTER_POWER_UNIT=RPM. "
                     + "Tn/M6 seguem o legado e exigem configuração/macro compatível; M0 exige suporte de pausa. "
                     + "G0 recebe F, mas G0_FEEDRATE fixo no firmware pode ignorá-lo. IN exige INCH_MODE_SUPPORT. "
                     + "M400 aguarda os movimentos, não a parada física do spindle.";
-            case BERTA_CNC -> "Inicializacao Berta: G91.1, G64 P0.03, M110, G54; termina com M111/M30.";
+            case BERTA_CNC -> "Inicializacao Berta: G91.1, G64 P0.03, M110, G54; termina com M111/M30. "
+                    + "M110/M111 e origem G54 dependem da maquina; nao simulados. P0.03 usa a unidade do programa.";
             case GRBL_LASER -> "Laser M03/M5 por caminho, sem mergulho Z. Potencia S deve respeitar o controlador.";
             case Z_LASER -> "Laser M03/M5; Focus Z e aplicado no inicio de cada ferramenta, com feixe desligado.";
             case MARLIN_LASER_FAN_PIN -> "Laser FAN: M106 S1-255; M400/M107 antes dos deslocamentos.";
@@ -160,10 +161,9 @@ public enum GCodePreprocessor {
     public String ending() {
         return switch (this) {
             case BERTA_CNC -> "(Berta)\nM111\nM30\n(Berta)\n";
-            case MARLIN -> "M400\n"; // Include final parking moves in the completion barrier.
+            case MARLIN, MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN -> "M400\n"; // Include final parking moves in the completion barrier.
             case ISEL_CNC -> "M30\n";
             case REPETIER, GRBL_LASER, Z_LASER,
-                    MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN,
                     TOOLCHANGE_MANUAL, TOOLCHANGE_CUSTOM, LINE_XYZ, ISEL_ICP_CNC, ROLAND_MDX_20,
                     TOOLCHANGE_PROBE_MACH3 -> "";
             default -> "M30\n";
@@ -316,17 +316,21 @@ public enum GCodePreprocessor {
         return grbl;
     }
 
-    /** Marlin uses native units/min; its command dispatcher has no G94 handler. */
-    public boolean usesG94() { return this != MARLIN; }
+    /** These firmwares use native units/min; their command dispatchers have no G94 handler. */
+    public boolean usesG94() { return this != MARLIN && this != REPETIER && this != MARLIN_LASER_FAN_PIN
+            && this != MARLIN_LASER_SPINDLE_PIN; }
 
     private void validateToolNumber(int number) {
         if (this == ISEL_CNC && (number < 1 || number > 128))
             throw new IllegalArgumentException("ISEL CNC exige ferramentas numeradas de T1 a T128.");
     }
 
-    /** Public UI time is seconds; Remote DIN/ISO G4 uses milliseconds. */
+    /** Public UI time is seconds; these controllers interpret G4 P in milliseconds, independent of G20/G21. */
     public String dwellCode(double seconds) {
-        double controllerTime = this == ISEL_CNC ? seconds * 1000 : seconds;
+        double controllerTime = switch (this) {
+            case ISEL_CNC, REPETIER, MARLIN, MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN -> seconds * 1000;
+            default -> seconds;
+        };
         if (!Double.isFinite(controllerTime) || controllerTime < 0)
             throw new IllegalArgumentException("Dwell fora do intervalo representável pelo perfil.");
         return "G4 P" + GCodeGenerator.fmt(controllerTime);

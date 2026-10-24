@@ -47,10 +47,20 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 Established task requirement: keep strict CNC comparisons honest, preserve
 source files on failure/cancellation, and verify relevant regressions plus
 full Maven build. Global coverage/flakiness/time budgets are unknown, not agreed
-numeric goals. Last committed baseline `4552cf00`: 1804 Java passes
-(including explicit regression repetitions), 18 optional skips, 55 Python
-auxiliary passes (logs in ISEL_ICP_PARITY.md). Uncommitted Manual/Custom work:
-TOOLCHANGE_PARITY.md. Distinguish opaque tool selection/reference changes from
+numeric goals. Prior baseline `a0f19c06`: 1829 Java passes
+(including explicit regression repetitions), 18 optional skips, 62 selected
+Python auxiliary passes. Repetier/Berta work: REPETIER_BERTA_PARITY.md;
+Repetier/Berta verify: 1840 passes / 18 optional skips, Python discovery 119 passes.
+Following laser work: LASER_PARITY.md; both stages consolidated in the
+2026-10-24 commit (see git log), no push. Full verify 1851 passes / 18
+optional skips (1869 records), Python discovery 134 passes. Laser emitter now
+actually consults usesG94() and adds final Marlin parking M400. Independent
+laser reader observes powered nonnegative-Z XY paths, raw S/FAN duty, focus,
+ordered/repeated exposure and barriers; not machine/beam simulation. Nested
+legacy header comments remain diagnostic limitations, not certified syntax.
+Repetier/Marlin G4 P is milliseconds, FAN duty is not RPM, host pause is only
+an operator request. Berta macro effects/work offsets are unknown and block
+execution equivalence. Distinguish opaque tool selection/reference changes from
 actual legacy crashes. The live probe must pass empty XY as "", not None;
 the original entry point treats them differently. Never count errors as parity.
 

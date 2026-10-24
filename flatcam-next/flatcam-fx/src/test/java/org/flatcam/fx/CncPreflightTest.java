@@ -12,6 +12,34 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class CncPreflightTest {
+    @Test void laserReviewDoesNotPromiseDwellPhysicalRpmOrUnimplementedPositionControls() {
+        var p=new GeometryGCodeParameters(3,1,false,1,200,128,false,900,null,75,true,.25,true,.1);
+        for(var profile:List.of(GCodePreprocessor.GRBL_LASER,GCodePreprocessor.Z_LASER,
+                GCodePreprocessor.MARLIN_LASER_FAN_PIN,GCodePreprocessor.MARLIN_LASER_SPINDLE_PIN)) {
+            var report=CncPreflight.geometry("Laser","MM",new GeometryCncToolPanel.Result(
+                    List.of(new ToolGeometry(.4,path())),p,Map.of(),profile,Map.of()));
+            var tool=report.tools().getFirst();
+            assertTrue(tool.power().contains(profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN ? "PWM (1–255)" : "S (laser)"));
+            assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Dwell") && v.text().contains("Não aplicado")));
+            assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Extra Cut") && v.text().contains("Não suportado")));
+            assertTrue(report.common().stream().anyMatch(v->v.label().equals("Z final (laser desligado)") && v.text().equals("3 mm")));
+            assertTrue(report.issues().stream().anyMatch(i->i.text().contains("não RPM físico")));
+            assertTrue(report.issues().stream().anyMatch(i->i.text().contains(profile.usesRapidFeed() ? "M400" : "$32")));
+        }
+    }
+    @Test void repetierReviewLabelsPwmAndBertaDoesNotClaimKnownMacroEffectsOrMetricToleranceInInches() {
+        var original=geometry();
+        var p=params(3,.6,200,75,128);
+        var repetier=CncPreflight.geometry("Repetier","MM",new GeometryCncToolPanel.Result(
+                original.tools(),p,Map.of(),GCodePreprocessor.REPETIER,Map.of()));
+        assertTrue(repetier.tools().stream().allMatch(t->t.power().equals("128 PWM (0–255)")));
+        for(String token:List.of("não RPM","@pause","M84","milissegundos","sem G94"))
+            assertTrue(repetier.issues().stream().anyMatch(i->i.text().contains(token)),token);
+        var berta=CncPreflight.geometry("Berta","IN",new GeometryCncToolPanel.Result(
+                original.tools(),original.parameters(),original.vTools(),GCodePreprocessor.BERTA_CNC,original.parametersByTool()));
+        for(String token:List.of("M110/M111","G54","não são simulados","0,762 mm","não precisão garantida"))
+            assertTrue(berta.issues().stream().anyMatch(i->i.text().contains(token)),token);
+    }
     @Test void iselReviewDistinguishesRemoteStopDwellUnitsAndToolChangeMacros() {
         var result=geometry();
         var report=CncPreflight.geometry("ISEL","MM",new GeometryCncToolPanel.Result(result.tools(),result.parameters(),

@@ -1088,7 +1088,7 @@ public final class GCodeGenerator {
         line(gcode, "MM".equalsIgnoreCase(units) ? "G21" : "G20");
         line(gcode, "G90");
         if (profile.usesG17()) line(gcode, "G17");
-        line(gcode, "G94");
+        if (profile.usesG94()) line(gcode, "G94");
         // Power off even before the first positioning move; never inherit controller state.
         line(gcode, "%s", profile.spindleOff());
         if (profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN

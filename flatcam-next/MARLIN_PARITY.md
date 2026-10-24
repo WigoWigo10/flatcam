@@ -1,5 +1,18 @@
 # Marlin CNC — contrato de geração e comparação
 
+Nota posterior laser: alterar `usesG94()` não bastava para o emissor laser,
+que tinha G94 direto. Corrigido junto ao M400 depois do estacionamento em
+[LASER_PARITY.md](LASER_PARITY.md). Esta nota não declara equivalência física.
+
+## Correção posterior do Dwell — 2026-10-23
+
+G4 P também usa milissegundos no Marlin: FX e leitor independente corrigidos
+na etapa [Repetier/Berta](REPETIER_BERTA_PARITY.md). 0,25 s passa a P250,
+independentemente de MM/IN. O Python original não foi modificado. Os três
+modos G0 agora têm 0/44/58/2/0, não 0/68/34/2/0; a auditoria FX continua sem
+desvios. A regra de G94 foi estendida aos dois perfis Marlin laser e Repetier.
+O registro abaixo é histórico: seus números e escopo não são a rodada atual.
+
 ## Revisão em 2026-10-23
 
 Esta etapa trata somente de **MARLIN de fresagem**. Não muda ISEL, Repetier,

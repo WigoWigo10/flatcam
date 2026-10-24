@@ -1,5 +1,28 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Laser: leitor próprio e contrato Marlin — 2026-10-23
+
+Gerador laser passa a consultar usesG94() (o helper sozinho não corrigia a
+saída) e dois Marlin laser aguardam o estacionamento final com M400.
+24 receitas MM/IN por perfil: GRBL laser 0/24/0/0/0; Z/FAN/SPINDLE
+0/0/24/0/0. Leitor não usa Z negativo como critério de exposição, não troca
+PWM/S por RPM e conserva sentido/repetições/foco/barreiras. Sintaxe aninhada
+Z_laser é limite explícito, não crash. App real confirmou os caminhos de foco.
+Verify 1851 aprovados/18 skips; 134 auxiliares Python, controle GRBL inalterado.
+Strict segue reprovado, sem máquina certificada. [LASER_PARITY.md](LASER_PARITY.md).
+
+## Repetier/Berta e correção compartilhada de Dwell — 2026-10-23
+
+Manual/Custom commitado em `a0f19c06`. Harness ampliado aos dois perfis:
+PWM FAN e troca solicitada via host separados de RPM/Tn; Berta conserva
+macros/origem não modeladas, sem alegar execução equivalente. Dwell Repetier/
+Marlin corrigido para milissegundos; G94 retirado do Repetier/Marlin laser.
+104 receitas por perfil: Repetier 0/0/100/2/2 (dois limites de seleção inicial
+no leitor FX, não crashes); Berta 0/68/34/2/0 (macros impedem equivalência).
+Marlin atualizado para 0/44/58/2/0 nos três modos; GRBL mantém 49/19/34/2/0.
+119 auxiliares Python e verify Java 1840 aprovados/18 skips, zero falhas.
+Fontes Python intactas; sem GUI/máquina validada. [REPETIER_BERTA_PARITY.md](REPETIER_BERTA_PARITY.md).
+
 ## Troca Manual/Custom — 2026-10-23
 
 Geometry Manual corrigida para usar Feed Z da ferramenta no ajuste em Z0,

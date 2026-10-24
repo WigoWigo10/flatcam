@@ -66,18 +66,20 @@ final class CncPreflight {
             details.add(value("Estratégia", p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING && p.multiDepth()
                     ? "Contínua, direção alternada" : cutting && p.multiDepth() && p.passStrategy()==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION
                     ? "Contínua, mesma direção (contornos fechados)" : cutting ? "Retração; mesma direção" : "Não se aplica", i, "cnc-pass-strategy"));
-            if (profile == GCodePreprocessor.Z_LASER) details.add(value("Foco / posição Z", number(p.safeZ()), i, "cnc-safe-z"));
-            details.add(value("Dwell", !p.dwell() ? "Desativado" : profile.controlsSpindle(p.spindleSpeedRpm())
+            if (profile == GCodePreprocessor.Z_LASER || profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN
+                    || profile == GCodePreprocessor.MARLIN_LASER_SPINDLE_PIN)
+                details.add(value("Foco / posição Z", number(p.safeZ()), i, "cnc-safe-z"));
+            details.add(value("Dwell", !p.dwell() ? "Desativado" : profile.isLaser() ? "Não aplicado: o perfil laser não emite Dwell" : profile.controlsSpindle(p.spindleSpeedRpm())
                     ? number(p.dwellSeconds()) + " s" : "Inativo: spindle não comandado pelo perfil", i, "cnc-dwell"));
             details.add(value("Compensação", p.offset() + (p.offset() == ToolPathOffset.CUSTOM ? " (" + number(p.customOffset()) + ")" : ""), i, "cnc-offset"));
-            details.add(value("Extra Cut", p.extraCut() ? number(p.extraCutLength()) + " " + unit(units) : "Desativado", i, "cnc-extra-length"));
+            details.add(value("Extra Cut", profile.isLaser() ? "Não suportado neste perfil" : p.extraCut() ? number(p.extraCutLength()) + " " + unit(units) : "Desativado", i, "cnc-extra-length"));
             details.add(value("Trajetos", empty ? "Nenhum: esta ferramenta será omitida" : "Associados à ferramenta " + (i + 1), i, "cnc-tools"));
             rows.add(new Tool(i, "T" + (i + 1) + (empty ? " (vazia)" : ""), number(tool.toolDiameter()),
                     cutting ? number(-depth) : "—", cutting || profile == GCodePreprocessor.Z_LASER ? number(p.safeZ()) : "—",
                     profile.isPlotter() ? "—" : number(p.feedRate()), cutting ? number(p.feedRateZ()) : "—",
-                    profile.isPlotter() || profile.isRoland() ? "—" : number(p.spindleSpeedRpm()), details));
+                    profile.isPlotter() || profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
             if (empty) issues.add(new Issue(false, "T" + (i + 1) + " não tem trajetos e não produzirá cortes.", target(i, "cnc-tools")));
-            if (!empty && cutting && p.spindleSpeedRpm() == 0 && !profile.isRoland())
+            if (!empty && cutting && p.spindleSpeedRpm() == 0 && !profile.isRoland() && profile != GCodePreprocessor.REPETIER)
                 issues.add(new Issue(false, "T" + (i + 1) + ": RPM zero não liga automaticamente o spindle nem garante a parada final. "
                         + "Confira acionamento/parada manuais; trocas ativadas podem pará-lo antes da pausa.", target(i, "cnc-power")));
             if (!empty && cutting && p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING)
@@ -99,7 +101,10 @@ final class CncPreflight {
             common.add(value("Política de Travel Z",travelPolicy.toString(),-1,"cnc-travel-clearance"));
             common.add(value("Altura dos deslocamentos XY",travelPolicy==GeometryTravelClearance.PER_TOOL ? "Individual: confira o valor efetivo de cada fresa"
                     : number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-travel-clearance"));
-        } else common.add(value("Posições de fresagem", "Não se aplicam a este perfil; Z_laser usa somente seu foco Z", -1, "cnc-preprocessor"));
+        } else if (profile.isLaser()) {
+            common.add(value("Z final (laser desligado)", number(base.safeZ()) + " " + unit(units), -1, "cnc-safe-z"));
+            common.add(value("Posições laser", "Z_laser e Marlin laser posicionam o foco Z; GRBL_laser simples não altera Z antes dos trajetos. End XY avançado não está disponível; mantém o último XY.", -1, "cnc-preprocessor"));
+        } else common.add(value("Posições de fresagem", "Não se aplicam a este perfil", -1, "cnc-preprocessor"));
         if (profile.requiresProbe() && base.probing() != null) probe(common, base.probing());
         startChangeNotice(issues,pos.startZ(),pos.toolChangeZ()==null ? clearance : pos.toolChangeZ(),
                 base.pauseForToolChange() || profile.automaticToolSelection(),profile,"cnc");
@@ -142,12 +147,12 @@ final class CncPreflight {
                 details.add(value("Ajuste manual em Z0", "Feed Z " + number(p.feedRate()) + " " + unit(image.units())
                         + "/min; spindle parado; não é sondagem", id, "drill-feed-z"));
             rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? " (vazia)" : ""), number(image.toolDiameters().get(id)), number(-p.effectiveDepth()),
-                    number(p.safeZ()), "—", number(p.feedRate()), profile.isRoland() ? "—" : number(p.spindleSpeedRpm()), details));
+                    number(p.safeZ()), "—", number(p.feedRate()), profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
             if (count[0] + count[1] == 0) issues.add(new Issue(false, "T" + id + " não contém furos nem rasgos.", target(id, "drill-tools")));
             if (count[1] > 0) issues.add(new Issue(false, p.slots().enabled()
                     ? "T" + id + ": Drill slots converte rasgos em furos. A sequência pode deixar material entre círculos; não equivale à fresagem integral. Confira a prévia e a adequação da broca."
                     : "T" + id + ": rasgos são fresados ao longo do eixo; confirme a ferramenta e o avanço lateral. Não é apenas mergulho de broca.", target(id, "drill-slots")));
-            if (p.spindleSpeedRpm() == 0 && !profile.isRoland())
+            if (p.spindleSpeedRpm() == 0 && !profile.isRoland() && profile != GCodePreprocessor.REPETIER)
                 issues.add(new Issue(false, "T" + id + ": RPM zero não liga automaticamente o spindle nem garante a parada final. "
                         + "Confira acionamento/parada manuais; trocas ativadas podem pará-lo antes da pausa.", target(id, "drill-power")));
         }
@@ -216,6 +221,28 @@ final class CncPreflight {
         values.add(value("Contact Z / referência G92", number(probe.contactZ()), -1, "probe-contact-z"));
     }
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
+        if (profile.isLaser()) {
+            issues.add(new Issue(false, "Laser: potência é o valor S/PWM solicitado ao controlador, não RPM físico. A prévia mostra trajetos, mas não simula feixe, material, intertravamentos nem configurações elétricas; não é validação de segurança.", null));
+            issues.add(new Issue(false, "Laser: uma passagem por caminho, sem Multi-Depth, troca mecânica, Dwell ou Extra Cut. Pontos isolados exigem tempo de exposição e são recusados; posições avançadas e parâmetros individuais também não estão habilitados.", null));
+            if (profile == GCodePreprocessor.GRBL_LASER || profile == GCodePreprocessor.Z_LASER)
+                issues.add(new Issue(false, "GRBL laser: confirme $30 (escala de S), $32 (modo laser) e a ligação de controle. O FX comanda M5 antes dos posicionamentos; não detecta a configuração da máquina nem assume que S representa uma porcentagem.", null));
+            else {
+                issues.add(new Issue(false, "Marlin laser: confirme INCH_MODE_SUPPORT para IN, a configuração da saída e o modo padrão de controle, não inline. G0_FEEDRATE fixo pode ignorar Feed rapids. M400 inclui o estacionamento final, mas não confirma o desligamento físico do feixe.", null));
+                if (profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN)
+                    issues.add(new Issue(false, "Marlin FAN: M106/M107 usam PWM de 1 a 255 neste perfil. Confirme FAN pin e LASER_SYNCHRONOUS_M106_M107; velocidade de ventilador não equivale a potência óptica calibrada.", null));
+            }
+        }
+        if (profile == GCodePreprocessor.REPETIER) {
+            issues.add(new Issue(false, "Repetier: o valor de potência é PWM FAN de 0 a 255, não RPM. M106/M107 exigem uma saída FAN e circuito adequados; não confirmam rotação física. Potência zero não liga a saída nem garante parada final se ela já estava ligada.", null));
+            issues.add(new Issue(false, "Repetier: @pause solicita a troca ao operador via Repetier-Host; não seleciona uma ferramenta automaticamente. M84 libera os motores e pode perder a referência. Confira fixação, origem e altura antes de retomar; a prévia não simula essa perda.", null));
+        }
+        if (profile == GCodePreprocessor.BERTA_CNC) {
+            issues.add(new Issue(false, "Berta: confirme a configuração dos comandos M110/M111 e da origem G54. Seus efeitos dependem da máquina e não são simulados; não use o perfil apenas por aceitar G-code genérico.", null));
+            issues.add(new Issue(false, "Berta: G64 P0.03 mantém o valor do perfil Python na unidade do programa: 0,03 mm em MM ou 0,762 mm em IN. É uma tolerância de trajetória configurada, não precisão garantida. Confira antes de exportar.", null));
+        }
+        if (profile == GCodePreprocessor.REPETIER || profile == GCodePreprocessor.MARLIN) {
+            issues.add(new Issue(false, "Dwell: o tempo da interface continua em segundos; G4 P é emitido em milissegundos, inclusive em IN. O avanço nativo é por minuto, sem G94.", null));
+        }
         if (profile == GCodePreprocessor.TOOLCHANGE_MANUAL) {
             issues.add(new Issue(false, "Troca manual: três pausas M0 por ferramenta. Entre elas há um movimento comandado até Z0 usando o Feed Z da fresa e retorno ao Tool change Z; G90 é restaurado antes dos movimentos verticais. Não é sondagem nem detecção automática de contato.", null));
             issues.add(new Issue(false, "Confirme o zero de peça, a posição XY e a altura livre antes de continuar cada pausa. Movimentos do operador e mudanças de origem/unidades não são simulados.", null));
@@ -245,6 +272,10 @@ final class CncPreflight {
                 : "A prévia é 2D: não simula remoção de material, grampos, limites da máquina nem movimentos de macros M6.", null));
     }
     private static Target target(int tool, String field) { return new Target(tool, field); }
+    private static String powerText(GCodePreprocessor profile, int value) {
+        return number(value) + (profile == GCodePreprocessor.REPETIER ? " PWM (0–255)"
+                : profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN ? " PWM (1–255)" : profile.isLaser() ? " S (laser)" : "");
+    }
     private static Value value(String label, String text, int tool, String field) { return new Value(label, text, target(tool, field)); }
     private static String xy(Double x, Double y) { return x == null ? "Mantém a posição atual" : number(x) + "; " + number(y); }
     static String number(double value) { return String.format(Locale.ROOT, "%.6f", value).replaceAll("0+$", "").replaceAll("\\.$", ""); }

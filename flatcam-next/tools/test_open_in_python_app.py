@@ -60,6 +60,22 @@ class ProfileProbeTest(unittest.TestCase):
             self.assertEqual("", calls[2].kwargs["toolchangexy"])
             self.assertEqual([11,17], calls[1].kwargs["toolchangexy"])
 
+    def test_repetier_probe_uses_explicit_pwm_input_not_a_clamped_rpm_request(self):
+        with tempfile.TemporaryDirectory() as folder:
+            app = self.app()
+            app.probeGeometry.generatecncjob = Mock()
+            cases = probe_cnc_profile(app, Mock(), "Repetier", Path(folder) / "programs", [])
+            self.assertTrue(all(call.kwargs["spindlespeed"] == 128 for call in app.probeGeometry.generatecncjob.call_args_list))
+            self.assertTrue(all(c["powerMeaning"] == "FAN_DUTY_0_255" and c["requestedPower"] == 128 for c in cases))
+
+    def test_laser_probe_does_not_send_12000_as_fan_duty_or_claim_physical_rpm(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for profile in ("GRBL_laser","Z_laser","Marlin_laser_FAN_pin","Marlin_laser_Spindle_pin"):
+                app = self.app(); app.probeGeometry.generatecncjob = Mock()
+                cases = probe_cnc_profile(app, Mock(), profile, Path(folder) / profile, [])
+                self.assertTrue(all(call.kwargs["spindlespeed"] == 128 for call in app.probeGeometry.generatecncjob.call_args_list))
+                self.assertTrue(all(c["requestedPower"] == 128 and c["powerMeaning"] != "RPM" for c in cases))
+
 
 if __name__ == "__main__":
     unittest.main()

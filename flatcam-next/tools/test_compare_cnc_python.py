@@ -134,7 +134,7 @@ class CncReaderTest(unittest.TestCase):
         with self.assertRaises(ValueError): read_program(PROGRAM,isel_m01_mode="optional-disabled")
 
     def test_marlin_profile_retains_barriers_and_rapid_feed_without_forging_g94(self):
-        program=PROGRAM.replace("G94\n","").replace("M5\n","M400\nM5\n")
+        program=PROGRAM.replace("G94\n","").replace("M5\n","M400\nM5\n").replace("G4 P0.25", "G4 P250")
         program=rewrite_rapid_feeds(program,1500)
         parsed=read_program(program,"Marlin")
         self.assertEqual(2,sum(e["kind"]=="synchronize" for e in parsed["events"]))

@@ -16,10 +16,11 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace, MethodType
 from icp_execution import read_icp, UnsupportedIcp
+from laser_execution import LASER_PROFILES, MARLIN_LASERS, read_laser, audit_laser, laser_signature
 
 
 WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
-SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom")
+SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom", "Repetier", "Berta_CNC") + LASER_PROFILES
 
 
 class UnmodeledToolSelection(ValueError):
@@ -31,6 +32,9 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
     """Profile-scoped modal subset; retain cuts, pauses, synchronization and feeds."""
     if profile not in SUPPORTED_PROFILES:
         raise ValueError("Profile outside the XYZ comparison reader")
+    if profile in LASER_PROFILES:
+        if isel_m01_mode != "remote": raise ValueError("ISEL modes do not apply to laser")
+        return read_laser(program,profile,rapid_mode=marlin_rapid_mode,fixed_rapid_feed=marlin_fixed_rapid_feed)
     if isel_m01_mode not in ("remote","optional-enabled","optional-disabled"):
         raise ValueError("Unknown ISEL M01 semantics")
     if profile != "ISEL_CNC" and isel_m01_mode != "remote":
@@ -56,11 +60,30 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
     absolute = False
     # Marlin's emitted dialect has native units/min and no G94 in its original
     # header. This is an explicit profile assumption, not an inserted command.
-    feed_per_minute = profile == "Marlin"
+    feed_per_minute = profile in ("Marlin", "Repetier")
     events, cuts = [], []
     terminated = False
     spindle_stopped = False
+    fan_duty = 0
+    host_instructions = []
     for number, raw in enumerate(program.splitlines(), 1):
+        if raw.lstrip().startswith("@"):
+            if profile != "Repetier" or terminated:
+                raise ValueError("Host directive outside the Repetier contract")
+            message = raw.strip()
+            # Tool identity is an OPERATOR REQUEST, never an automatic hardware T command.
+            diameter = r"(?:\d+(?:\.\d*)?|\.\d+)"
+            patterns = (r"@pause Troque para T([1-9]\d*) - diametro " + diameter + r" (?:MM|IN)(?: - e continue)?",
+                        r"@pause Change to tool T([1-9]\d*) with Tool Dia = " + diameter,
+                        r"@pause Change to Tool Dia = " + diameter + r", Total drills for tool T([1-9]\d*) = \d+")
+            matches = [m for pattern in patterns if (m := re.fullmatch(pattern, message))]
+            if len(matches) != 1:
+                raise UnmodeledToolSelection("Unknown Repetier host instruction or ambiguous/missing requested tool")
+            tool = int(matches[0].group(1))
+            host_instructions.append(message)
+            events.append(dict(kind="hostPause", tool=tool, at=xyz.copy(), spindleStopped=spindle_stopped,
+                               selection="operator-request-not-hardware-confirmation"))
+            continue
         line = re.sub(r"\([^()]*\)", "", raw.upper()).split(";", 1)[0].strip()
         if not line:
             continue
@@ -81,11 +104,12 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
             feed = values["F"]
             if feed <= 0:
                 raise ValueError("Nonpositive feed")
-        if "S" in values:
+        if "S" in values and profile != "Repetier":
             rpm = values["S"]
             if rpm < 0:
                 raise ValueError("Negative spindle speed")
         dwell = False
+        blending = False
         for letter, value in words:
             if letter != "G":
                 continue
@@ -105,9 +129,27 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                     events.append({"kind": "units", "value": units})
             elif code == 90:
                 absolute = True
+            elif profile == "Berta_CNC" and code in (91.1, 54, 64):
+                if units is None: raise ValueError("Berta setup without units")
+                if code == 64:
+                    if "P" not in values or values["P"] < 0 or len(words) != 2:
+                        raise ValueError("Unsupported Berta blending block")
+                    blending = True
+                    events.append(dict(kind="blending", tolerance=values["P"], units=units,
+                                       toleranceMm=values["P"] * (25.4 if units == "IN" else 1)))
+                else:
+                    if values or code == 54 and len(words) != 1 or code == 91.1 and any(
+                            k != "G" or float(v) not in (90, 17, 91.1) for k,v in words):
+                        raise ValueError("Unsupported compound Berta setup")
+                    events.append(dict(kind="arcCenterMode" if code == 91.1 else "workCoordinate", code=code))
             elif code == 94:
                 if profile == "Marlin":
                     raise ValueError("G94 is outside the modeled Marlin command set")
+                if profile == "Repetier":
+                    if len(words) != 1: raise ValueError("Unsupported compound Repetier G94 block")
+                    # Diagnostic observation, not an accepted mode. The parameter audit FAILS it.
+                    events.append(dict(kind="unsupportedCommand", code="G94"))
+                    continue
                 feed_per_minute = True
             elif code != 17:
                 raise ValueError(f"Unsupported G{value} on line {number}")
@@ -121,6 +163,7 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                 movement_feed = marlin_fixed_rapid_feed
                 # Fixed mode restores the NEW modal feed (including this block's F), not the old one.
         if "T" in values:
+            if profile == "Repetier": raise ValueError("Repetier Tn selects extruders, not this host tool-change contract")
             selected = values["T"]
             if selected != int(selected) or selected < 1 or profile == "ISEL_CNC" and selected > 128:
                 raise ValueError("Invalid tool number")
@@ -131,7 +174,22 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
             if letter != "M":
                 continue
             code = float(value)
-            if code in (3, 4, 5):
+            if profile == "Repetier" and code in (106, 107):
+                if any(k not in "S" for k in values) or len(words) != 1 + len(values):
+                    raise ValueError("Unsupported Repetier FAN block")
+                duty = values.get("S", 255) if code == 106 else 0
+                if duty != int(duty) or not 0 <= duty <= 255 or code == 107 and values:
+                    raise ValueError("FAN duty must be an integer 0..255")
+                fan_duty = int(duty)
+                spindle_stopped = duty == 0
+                events.append(dict(kind="fan", tool=tool, duty=fan_duty))
+            elif profile == "Repetier" and code == 84:
+                if len(words) != 1: raise ValueError("Only standalone Repetier M84 is modeled")
+                events.append(dict(kind="motorsDisabled", tool=tool, at=xyz.copy()))
+            elif profile == "Berta_CNC" and code in (110, 111):
+                if len(words) != 1: raise ValueError("Unsupported Berta macro block")
+                events.append(dict(kind="opaqueMacro", code=int(code), at=xyz.copy(), spindleStopped=spindle_stopped))
+            elif code in (3, 4, 5) and profile != "Repetier":
                 selected = 0 if code == 5 else int(code)
                 spindle_stopped = code == 5
                 if selected != spindle or selected and "S" in values:
@@ -164,7 +222,7 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                         events.append({"kind":"spindle","tool":tool,"direction":0,"rpm":0})
                     spindle_stopped=True
                     events.append({"kind":"programEnd","code":30,"tool":tool,"at":xyz.copy()})
-            elif code == 400 and profile == "Marlin":
+            elif code == 400 and profile in ("Marlin", "Repetier"):
                 if len(words) != 1:
                     raise ValueError("M400 must be a standalone synchronization block")
                 events.append({"kind":"synchronize", "tool":tool, "at":xyz.copy()})
@@ -173,8 +231,14 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
         if dwell:
             if "P" not in values or values["P"] < 0 or any(k in values for k in "XYZ"):
                 raise ValueError("Invalid/unsupported dwell")
-            events.append({"kind": "dwell", "tool": tool, "seconds": values["P"]/(1000 if profile=="ISEL_CNC" else 1)})
-        elif "P" in values:
+            ticks = values["P"]
+            if profile in ("Marlin", "Repetier"):
+                # The native timer receives integer milliseconds, not fractional milliseconds.
+                if ticks > (1_999_999_999 if profile == "Repetier" else 4_294_967_295):
+                    raise ValueError("Dwell beyond the modeled native timer range")
+                ticks = math.trunc(ticks)
+            events.append({"kind": "dwell", "tool": tool, "seconds": ticks/(1000 if profile in ("ISEL_CNC", "Marlin", "Repetier") else 1)})
+        elif "P" in values and not blending:
             raise ValueError("P without dwell")
         if any(k in values for k in "XYZ"):
             if units is None or motion is None or not absolute:
@@ -184,12 +248,16 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
                 if motion == 1 and (feed is None or not feed_per_minute):
                     raise ValueError("Linear motion without feed/G94")
                 event = {"kind": "rapid" if motion == 0 else "linear", "tool": tool,
-                         "from": xyz.copy(), "to": end, "feed": movement_feed if motion == 1 or profile == "Marlin" else None,
+                         "from": xyz.copy(), "to": end, "feed": movement_feed if motion == 1 or profile in ("Marlin", "Repetier") else None,
                          "spindle": spindle, "rpm": rpm if spindle else 0}
+                if profile == "Repetier":
+                    event.update(rpm=None, spindle=None, fanDuty=fan_duty)
                 events.append(event)
                 if motion == 1 and min(xyz[2], end[2]) < 0:
                     if profile == "Toolchange_Custom" and tool == 0:
                         raise UnmodeledToolSelection("Custom cutting motion without explicit Tn: installed tool is not modeled")
+                    if profile == "Repetier" and tool == 0:
+                        raise UnmodeledToolSelection("Repetier cutting without host tool request: initially installed tool is unknown; comments are not selection")
                     cuts.append(event)
             xyz = end
     if units is None or not cuts:
@@ -210,6 +278,15 @@ def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared"
             "limits":"Remote DIN/ISO stop semantics by default; optional-stop alternatives are explicit assumptions. Internal M06 movements are NOT simulated."}
     if profile in ("Toolchange_Manual", "Toolchange_Custom"):
         parsed["toolChangeControls"] = toolchange_controls(events, profile)
+    if profile == "Repetier":
+        parsed["repetierControls"] = dict(powerMeaning="FAN_DUTY_0_255_NOT_RPM", dwellWordUnits="milliseconds",
+            hostInstructions=host_instructions, motorDisables=[e for e in events if e["kind"] == "motorsDisabled"],
+            finalFanDuty=fan_duty, unsupportedCommands=[e["code"] for e in events if e["kind"] == "unsupportedCommand"],
+            limits="Commanded XYZ is conditional on host honoring @pause, operator installing the requested tool and preserving/reestablishing reference after M84. No physical motor/position confirmation.")
+    if profile == "Berta_CNC":
+        parsed["bertaControls"] = dict(macros=[e for e in events if e["kind"] == "opaqueMacro"],
+            setup=[e for e in events if e["kind"] in ("arcCenterMode", "workCoordinate", "blending")],
+            limits="M110/M111 effects and G54 offsets are machine-specific and unknown. Only the commanded path is observed; no full execution equivalence is claimed. Blending is recorded, not physically simulated.")
     return parsed
 
 
@@ -288,14 +365,16 @@ def machining_signature(parsed):
     Keep multiplicity, direction, tool, depth, feed and running spindle; no union,
     sorting or removal of repeated holes/passes. Full events remain compared too.
     """
+    if "laserControls" in parsed: return laser_signature(parsed)
     result = []
     for event in parsed["cuts"]:
         start, end = event["from"], event["to"]
         if event["kind"] == "linear" and end[2] < 0:
             signature = {k: event[k] for k in ("tool", "to", "feed", "spindle", "rpm")}
+            if "fanDuty" in event: signature["fanDuty"] = event["fanDuty"]
             signature["from"] = start if start[:2] != end[:2] else start[:2]
             result.append(signature)
-    result.extend(event for event in parsed["events"] if event["kind"] in ("dwell", "tool", "spindle"))
+    result.extend(event for event in parsed["events"] if event["kind"] in ("dwell", "tool", "spindle", "fan"))
     return result
 
 
@@ -380,6 +459,7 @@ def toolpath_review(case, fx, python, fx_issues, python_issues):
                 "deepestZ": min((e["to"][2] for e in selected), default=None),
                 "feeds": sorted({e["feed"] for e in selected}),
                 "spindleStates": [list(state) for state in sorted({(e["spindle"], e["rpm"]) for e in selected})],
+                "fanDutyStates": sorted({e["fanDuty"] for e in selected if "fanDuty" in e}),
                 **rapid_metrics({"events": rapid}),
                 "lowestRapidXY_Z": min((min(e["from"][2], e["to"][2]) for e in lateral), default=None),
                 "declaredRapidFeeds": sorted({e["feed"] for e in rapid if e["feed"] is not None}),
@@ -483,10 +563,43 @@ def audit_segments(expected,events,issues,identifier):
 
 def audit_parameters(case, parsed, *, implementation=None):
     """Check the requested settings independently; two equally wrong outputs are not a match."""
+    if case.get("profile") in LASER_PROFILES: return audit_laser(case,parsed,equivalent)
     issues = []
     if parsed["units"] != case["units"]:
         issues.append("Units differ from the source")
     job = case["job"]
+    repetier = case.get("profile") == "Repetier"
+    if repetier and parsed["repetierControls"]["unsupportedCommands"]:
+        issues.append("Repetier G94 is unsupported by the reference firmware; not normalized away")
+    if repetier:
+        if len(parsed["repetierControls"]["motorDisables"]) != (len(case["tools"]) if job["toolChange"] else 0):
+            issues.append("Repetier motor-disable count differs from the requested host tool changes")
+        if parsed["repetierControls"]["finalFanDuty"] != 0:
+            issues.append("Repetier FAN output was not stopped at completion")
+        for index,event in enumerate(parsed["events"]):
+            if event["kind"] == "hostPause" and (index == 0 or parsed["events"][index-1]["kind"] != "motorsDisabled"):
+                issues.append("Repetier host pause lacks an immediately preceding motor disable")
+    if case.get("profile") == "Berta_CNC":
+        issues.append("Berta M110/M111 effects and G54 offsets are unmodeled: commanded-path comparison only")
+        if [e["code"] for e in parsed["bertaControls"]["macros"]] != [110, 111]:
+            issues.append("Berta requires ordered M110 initialization and M111 completion")
+        else:
+            events = parsed["events"]
+            first, last = parsed["bertaControls"]["macros"]
+            motion_indices = [i for i,e in enumerate(events) if e["kind"] in ("rapid", "linear")]
+            if events.index(first) > min(motion_indices):
+                issues.append("Berta M110 must precede commanded movements")
+            if events.index(last) < max(motion_indices) or not equivalent(last["at"], parsed["end"]) or not last["spindleStopped"]:
+                issues.append("Berta M111 must follow final parking with spindle explicitly stopped")
+        if not parsed["explicitTermination"]: issues.append("Berta requires explicit M30 completion")
+        setup = parsed["bertaControls"]["setup"]
+        if [e["kind"] for e in setup] != ["arcCenterMode", "blending", "workCoordinate"]:
+            issues.append("Berta requires G91.1 / G64 P0.03 / G54 setup")
+        if any(parsed["events"].index(e) > next(i for i,event in enumerate(parsed["events"])
+                if event["kind"] in ("rapid", "linear")) for e in setup):
+            issues.append("Berta setup must precede commanded movements")
+        if any(not equivalent(e["tolerance"], .03) for e in setup if e["kind"] == "blending"):
+            issues.append("Berta blending tolerance differs from the profile's 0.03 source units")
     fx_clearance = job.get("fxTravelClearance","JOB_MAXIMUM")
     if implementation == "fx" and fx_clearance not in ("JOB_MAXIMUM","PER_TOOL"):
         raise ValueError("Unknown FX Travel Z policy")
@@ -528,11 +641,16 @@ def audit_parameters(case, parsed, *, implementation=None):
             wanted_feed = p["feedZ"] if plunge else p["feed"]
             if not equivalent(event["feed"],wanted_feed):
                 issues.append(f"T{tool['id']}: executed feed differs from the requested feed")
-            if p["rpm"] > 0 and (event["spindle"] != 3 or event["rpm"] != p["rpm"]):
+            if repetier and event["fanDuty"] != p["rpm"]:
+                issues.append(f"T{tool['id']}: requested FAN duty differs from commanded duty (not RPM)")
+            if not repetier and p["rpm"] > 0 and (event["spindle"] != 3 or event["rpm"] != p["rpm"]):
                 issues.append(f"T{tool['id']}: requested spindle is not running at the requested RPM")
         if implementation == "fx" and p["rpm"] == 0 and any(event["kind"] == "spindle"
                 and event["tool"] == tool["id"] and event["direction"] != 0 for event in parsed["events"]):
             issues.append(f"T{tool['id']}: RPM zero must not command a spindle start in FX")
+        if implementation == "fx" and repetier and p["rpm"] == 0 and any(e["kind"] == "fan"
+                and e["tool"] == tool["id"] and e["duty"] > 0 for e in parsed["events"]):
+            issues.append(f"T{tool['id']}: zero power must not command FAN output in FX")
         expected_dwells = [p["dwellSeconds"]] if p["dwell"] else []
         dwells = [event["seconds"] for event in parsed["events"] if event["kind"] == "dwell" and event["tool"] == tool["id"]]
         if not equivalent(dwells,expected_dwells):
@@ -567,7 +685,7 @@ def audit_parameters(case, parsed, *, implementation=None):
                             for a,b in zip(list(path.coords),list(path.coords)[1:]) for z in expected_depths]
             audit_segments(expected_edges,xy_cuts,issues,tool["id"])
     icp = case.get("profile") == "ISEL_ICP_CNC"
-    pause_kind = "nativeChange" if icp else "iselStop" if case.get("profile") == "ISEL_CNC" else "pause"
+    pause_kind = "hostPause" if repetier else "nativeChange" if icp else "iselStop" if case.get("profile") == "ISEL_CNC" else "pause"
     pauses = [event for event in parsed["events"] if event["kind"] == pause_kind and event.get("active",True)]
     if case.get("profile")=="ISEL_CNC" and job["toolChange"] and any(
             e["kind"]=="iselStop" and not e["active"] for e in parsed["events"]):
@@ -586,8 +704,8 @@ def audit_parameters(case, parsed, *, implementation=None):
     for event in parsed["events"]:
         if icp and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
             issues.append("ICP rapid feed differs from the requested Feed rapids (or FASTVEL is undeclared)")
-        if case.get("profile") == "Marlin" and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
-            issues.append("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)")
+        if case.get("profile") in ("Marlin", "Repetier") and event["kind"] == "rapid" and not equivalent(event["feed"],job["rapidFeed"]):
+            issues.append(case["profile"] + " G0 feed differs from the requested Feed rapids (or is undeclared)")
         if event["kind"] == "rapid" and event["from"][:2] != event["to"][:2]:
             p = next((tool["parameters"] for tool in tools if tool["id"] == event["tool"]),tools[0]["parameters"])
             if min(event["from"][2],event["to"][2]) < p["safeZ"]-.000051:
@@ -804,7 +922,7 @@ def run(args):
         raise ValueError("--isel-m01-mode requires ISEL_CNC")
     rapid_mode=args.marlin_rapid_mode
     fixed_rapid_mm=args.marlin_fixed_rapid_mm
-    if profile != "Marlin" and (rapid_mode != "shared" or fixed_rapid_mm is not None):
+    if profile not in ("Marlin", *MARLIN_LASERS) and (rapid_mode != "shared" or fixed_rapid_mm is not None):
         raise ValueError("Marlin reader configuration requires the Marlin profile")
     if rapid_mode == "fixed" and (fixed_rapid_mm is None or not math.isfinite(fixed_rapid_mm) or fixed_rapid_mm <= 0):
         raise ValueError("Fixed Marlin G0 requires --marlin-fixed-rapid-mm positive and finite")
@@ -831,9 +949,14 @@ def run(args):
               "iselConfiguration":None if profile!="ISEL_CNC" else {"m01Mode":args.isel_m01_mode,"dwellWordUnits":"milliseconds","toolRange":"T1..T128","reference":"ISEL Remote DIN/ISO interpreter, February 2025"},
               "icpConfiguration":None if profile!="ISEL_ICP_CNC" else {"units":"MM only", "coordinates":"integer micrometers", "velocities":"integer micrometers/second", "wait":"integer milliseconds", "rounding":"truncation toward zero", "parameterAudit":"Unrounded requests retained; quantization differences are reported, never hidden by increasing tolerance", "unsupported":"WPCLEAR/reference changes fail closed; captured prefix is diagnostic ONLY"},
               "toolChangeConfiguration":None if profile not in ("Toolchange_Manual","Toolchange_Custom") else {"manual":"Three ordered M0 pauses; adjustment at stopped spindle to Z0 using per-tool Feed Z; return to Change Z", "custom":"Selected tool Tn and opaque M6, no extra M0; commanded change position audited", "limits":"Operator actions/contact, macro motion and changed work offsets are not simulated"},
-              "scope":"Public synthetic cases; initial XYZ assumed zero; explicit XYZ/F/S/T G0/G1/M0/M6 subset for the allowlisted milling profiles. Marlin assumes native units/min, records M400 barriers and G0 feeds; other profiles still require G94. ISEL: G71=MM, G4 P in milliseconds, M01 operator stop by default (Remote); optional stop modes require explicit selection. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
+              "powerMeaning":export.get("powerMeaning", "RPM"),
+              "scope":"Public synthetic cases; initial commanded XYZ assumed zero. Marlin/Repetier use native units/min and G4 P milliseconds; Repetier FAN duty is NOT RPM and @pause only REQUESTS an operator tool change. M84/reference loss is not simulated. Berta M110/M111 macros and G54 offsets are UNKNOWN: no execution equivalence is claimed. Other profiles require G94. ISEL G71=MM and M01 operator stop by default. M6 internals are NOT simulated. No GUI/physical certification. Strict requires full modeled execution, not machining-only agreement."}
     if profile=="ISEL_ICP_CNC":
         report["scope"]="Public MM ICP programs: integer micrometers, VEL/FASTVEL in integer micrometers/s, WAIT in ms. Initial commanded XYZ assumed zero. GETTOOL is an opaque automatic change; WPCLEAR/reference changes fail closed, prefix evidence is NOT full execution equivalence. Unrounded parameter requests and existing comparison tolerance are retained; quantization differences remain visible. No GUI/controller/physical certification."
+    if profile in LASER_PROFILES:
+        report["scope"]="Public MM/IN XY laser paths, one source group (not hardware tool selection), no points, depth passes, dwell or mechanical changes. Commanded initial XYZ assumed zero; power initially UNKNOWN until commanded. Raw S/duty is not physical RPM. Explicit stop before positioning audited without claiming GRBL $32 beam simulation. Marlin standard-mode/IN support and FAN/cutter mapping are preconditions; G0 configuration is explicit. Full event ordering and powered directed XY/Z segments retained. No electrical/material/planner timing or safety certification."
+        report["laserConfiguration"]=dict(rapidMode=rapid_mode,fixedRapidMillimetersPerMinute=fixed_rapid_mm,
+            excludedOperations=export.get("excludedOperationCases",[]))
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
         extension = "imf" if profile=="ISEL_ICP_CNC" else "nc"
@@ -841,13 +964,17 @@ def run(args):
         try:
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
                 raise ValueError("Unsupported units/operation")
-            reader_options = {} if profile!="Marlin" else {"marlin_rapid_mode":rapid_mode,
+            reader_options = {} if profile not in ("Marlin", *MARLIN_LASERS) else {"marlin_rapid_mode":rapid_mode,
                 "marlin_fixed_rapid_feed":None if fixed_rapid_mm is None else fixed_rapid_mm/(25.4 if case["units"]=="IN" else 1)}
             if profile=="ISEL_CNC": reader_options["isel_m01_mode"]=args.isel_m01_mode
             fx = read_program(case["gcode"],profile,**reader_options)
             if profile=="Marlin": result["fxMarlinControls"]=fx["marlinControls"]
             if profile=="ISEL_CNC": result["fxIselControls"]=fx["iselControls"]
             if "toolChangeControls" in fx: result["fxToolChangeControls"]=fx["toolChangeControls"]
+            for control in ("repetierControls", "bertaControls", "laserControls"):
+                if control in fx: result["fx"+control[0].upper()+control[1:]] = fx[control]
+            if profile in ("Repetier", "Berta_CNC", *LASER_PROFILES):
+                (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
             if "toolChangeControls" in fx:
                 (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
             if profile=="ISEL_ICP_CNC":
@@ -860,6 +987,7 @@ def run(args):
                                             else "job-wide maximum Travel Z", "python":"per-tool Travel Z"}
         except Exception as error:
             result.update(status="FX_ERROR",error=str(error))
+            if isinstance(error, UnmodeledToolSelection): result["fxErrorKind"]="UNMODELED_TOOL_SELECTION_NOT_A_GENERATOR_CRASH"
         else:
             try:
                 oracle_case=slot_oracle_case(case,root)
@@ -872,6 +1000,8 @@ def run(args):
                 if profile=="Marlin": result["pythonMarlinControls"]=python["marlinControls"]
                 if profile=="ISEL_CNC": result["pythonIselControls"]=python["iselControls"]
                 if "toolChangeControls" in python: result["pythonToolChangeControls"]=python["toolChangeControls"]
+                for control in ("repetierControls", "bertaControls", "laserControls"):
+                    if control in python: result["python"+control[0].upper()+control[1:]] = python[control]
                 if profile=="ISEL_ICP_CNC": result["pythonIcpControls"]=python["icpControls"]
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
             except Exception as error:

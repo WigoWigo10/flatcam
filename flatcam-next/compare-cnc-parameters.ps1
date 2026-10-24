@@ -2,7 +2,7 @@ param(
     [string]$Python,
     [string]$DependencyPath,
     [string]$OutputDirectory,
-    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC','ISEL_ICP_CNC','TOOLCHANGE_MANUAL','TOOLCHANGE_CUSTOM')]
+    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC','ISEL_ICP_CNC','TOOLCHANGE_MANUAL','TOOLCHANGE_CUSTOM','REPETIER','BERTA_CNC','GRBL_LASER','Z_LASER','MARLIN_LASER_FAN_PIN','MARLIN_LASER_SPINDLE_PIN')]
     [string]$Profile = 'GRBL_11_NO_M6',
     [ValidateSet('shared','variable','fixed')]
     [string]$MarlinRapidMode = 'shared',
@@ -31,8 +31,8 @@ try {
     if ($Profile -ne 'ISEL_CNC' -and $IselM01Mode -ne 'remote') {
         throw 'IselM01Mode exige -Profile ISEL_CNC.'
     }
-    if ($Profile -ne 'MARLIN' -and ($MarlinRapidMode -ne 'shared' -or $MarlinFixedRapidMm -ne 0)) {
-        throw 'As opcoes MarlinRapidMode/MarlinFixedRapidMm exigem -Profile MARLIN.'
+    if ($Profile -notin @('MARLIN','MARLIN_LASER_FAN_PIN','MARLIN_LASER_SPINDLE_PIN') -and ($MarlinRapidMode -ne 'shared' -or $MarlinFixedRapidMm -ne 0)) {
+        throw 'As opcoes MarlinRapidMode/MarlinFixedRapidMm exigem um perfil MARLIN.'
     }
     if (($MarlinRapidMode -eq 'fixed' -and ($MarlinFixedRapidMm -le 0 -or [double]::IsNaN($MarlinFixedRapidMm) -or [double]::IsInfinity($MarlinFixedRapidMm))) -or
         ($MarlinRapidMode -ne 'fixed' -and $MarlinFixedRapidMm -ne 0)) {
@@ -72,7 +72,7 @@ try {
         if ($DependencyPath) { $oracleArgs += @('--dependency-path',$DependencyPath) }
         if ($Strict) { $oracleArgs += '--strict' }
         if ($Profile -eq 'ISEL_CNC') { $oracleArgs += @('--isel-m01-mode',$IselM01Mode) }
-        if ($Profile -eq 'MARLIN') {
+        if ($Profile -in @('MARLIN','MARLIN_LASER_FAN_PIN','MARLIN_LASER_SPINDLE_PIN')) {
             $oracleArgs += @('--marlin-rapid-mode',$MarlinRapidMode)
             if ($MarlinRapidMode -eq 'fixed') {
                 $oracleArgs += @('--marlin-fixed-rapid-mm',$MarlinFixedRapidMm.ToString([Globalization.CultureInfo]::InvariantCulture))

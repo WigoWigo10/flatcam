@@ -1,5 +1,52 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Quatro perfis laser — 2026-10-23
+
+Etapas Repetier/Berta e laser reunidas no commit de consolidação de
+2026-10-24 (ver git log), branch `flatcam-next`, sem push.
+Corrigido gerador laser que ignorava usesG94() e continuava emitindo G94 no
+Marlin; agora usa a regra do perfil. Dois Marlin laser também recebem M400
+após estacionamento final. Regressão red/green/red/green dez vezes, MM/IN.
+Leitor específico distingue trajetos iluminados em Z não negativo, potência
+bruta/PWM, foco, avanços, ordem/repetições e barreiras. 24 receitas por perfil:
+GRBL laser 0/24/0/0/0; Z_laser e dois Marlin 0/0/24/0/0. Zero problemas FX em
+shared/variable; fixed=900 detecta dois pedidos de rápido automático 1500 por
+perfil. Strict segue reprovado; não é equivalência física. Cabeçalho aninhado
+Z_laser é texto diagnóstico com aviso, não crash Python nem sintaxe validada.
+App Python real isolado gerou 16 controles; o foco depende do fluxo Start Z/
+troca do legado, sem modificar fontes. Tentativa FAN paralela sem relatório
+foi preservada; repetição serial passou, causa não determinada.
+Resumo CNC diferencia S/PWM de RPM físico e não promete Dwell/Extra Cut.
+Verify: 1869 registros, 1851 aprovados, 18 skips, zero falhas/erros. 134
+auxiliares Python; controle GRBL fresagem permanece 49/19/34/2/0.
+Detalhes em [LASER_PARITY.md](LASER_PARITY.md). Próximos candidatos:
+HPGL/Roland e sonda Mach3; posições laser avançadas continuam fora do port.
+
+## Repetier/Berta — 2026-10-23
+
+Manual/Custom commitado em `a0f19c06`, branch `flatcam-next`, sem push.
+Próxima etapa local: corrigido Dwell Repetier/Marlin (segundos da UI → P em
+milissegundos), inclusive regra compartilhada dos lasers; removido G94 do
+Repetier e a regra dos lasers Marlin. O gerador laser ainda ignorava essa
+regra; sua emissão efetiva foi corrigida na etapa laser acima.
+Regressão red/green/red/green dez vezes.
+Harness aceita Repetier/Berta: FAN PWM não é RPM, @pause é pedido ao operador,
+M84 não garante preservar referência. Berta M110/M111/G54 não são simulados
+nem tratados como no-ops conhecidos. Resumo CNC explicita esses limites.
+104 receitas por perfil: Repetier 0/0/100/2/2 (FX_ERROR são dois limites do
+leitor sem ferramenta inicial conhecida, não erros de geração); Berta
+0/68/34/2/0. Strict reprovado, sem promoção a paridade. Três controles normais
+gerados pelo app Python real isolado; Dwell zero falha nos dois perfis.
+Marlin nos três modos agora 0/44/58/2/0, GRBL controle inalterado 49/19/34/2/0.
+Verify integral: 1858 registros, 1840 aprovados, 18 skips opcionais, zero
+falhas/erros (`target/repetier-berta-full-20261023.log`). 119 auxiliares Python
+na descoberta completa, não 119 testes novos. Etapa posteriormente reunida
+com laser no commit de consolidação de 2026-10-24, sem push.
+Detalhes/reprodução em [REPETIER_BERTA_PARITY.md](REPETIER_BERTA_PARITY.md).
+Próximos: leitores/contratos laser, HPGL/Roland e sonda Mach3; frames ICP e
+seleção Custom continuam separados. Hardware e macros específicos dependem
+de configuração real, não podem ser certificados pelo comparador.
+
 ## Troca Manual/Custom — 2026-10-23
 
 ICP commitado em `4552cf00`. Manual Geometry agora usa Feed Z por ferramenta
@@ -10,7 +57,7 @@ seleções implícitas não modeladas e dois erros reais Dwell zero. Nenhum desv
 auditado FX. Não chamar os 102 limites Custom de crashes ou defeitos físicos.
 App real isolado confirmou; ensaio corrigiu campo XY vazio de None para `""`.
 Regressões red/green/red/green; 62 auxiliares Python aprovados. Detalhes em
-[TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md). Esta etapa ainda sem commit/push.
+[TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md). Etapa commitada em `a0f19c06`, sem push.
 Verify integral aprovado: 1829 passaram, 18 skips opcionais (1847 registros,
 incluindo repetições), zero falhas/erros. Log `target/toolchange-full-20261023.log`.
 
