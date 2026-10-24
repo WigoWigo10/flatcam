@@ -1,5 +1,17 @@
 # Laser — geração e comparação por perfil
 
+## Atualização — 2026-10-24
+
+End Z/XY comuns agora são aceitos no backend/painel e aparecem no resumo.
+Potência desligada, Z em `max(Focus/End Z, End Z solicitado)`, depois XY e
+eventual descida final. Marlin aguarda todo esse estacionamento com M400.
+Start Z, troca mecânica, exclusões e parâmetros individuais continuam fora.
+Corpus ampliado a 28 receitas/perfil: GRBL 0/28/0/0/0 e os outros três
+0/0/28/0/0; zero problemas auditados FX em shared, strict não aprovado.
+Detalhes e validação: [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md).
+As restrições a todas as posições avançadas e os números 24 abaixo descrevem
+a rodada anterior e foram substituídos apenas quanto a End Z/XY e ao corpus.
+
 ## Etapa de 2026-10-23
 
 Base commitada `a0f19c06`, branch `flatcam-next`, sobre as alterações locais

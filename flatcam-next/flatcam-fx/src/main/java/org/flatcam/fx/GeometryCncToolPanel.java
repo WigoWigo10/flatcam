@@ -294,15 +294,18 @@ final class GeometryCncToolPanel {
         positionGrid.addRow(3, new Label("Tool change Z:"), changeZ);
         positionGrid.addRow(4, new Label("Tool change X,Y:"), changeXY);
         positionGrid.addRow(5, new Label("Política de Travel Z:"), travelClearance);
-        positionGrid.disableProperty().bind(unsupportedPositions);
+        positionGrid.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
+                () -> plotter.get() || roland.get() || preprocessor.getValue().requiresProbe(),preprocessor.valueProperty()));
+        startZ.disableProperty().bind(laser);
+        travelClearance.disableProperty().bind(laser);
         changeZ.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
-                () -> !pauseCheck.isSelected() && !preprocessor.getValue().automaticToolSelection(), pauseCheck.selectedProperty(), preprocessor.valueProperty()));
+                () -> laser.get() || !pauseCheck.isSelected() && !preprocessor.getValue().automaticToolSelection(), pauseCheck.selectedProperty(), preprocessor.valueProperty()));
         changeXY.disableProperty().bind(changeZ.disableProperty());
-        Label positionsHelp = new Label("Posicoes comuns a todas as ferramentas. None = automatico. Disponiveis para fresagem sem sondagem; a sonda usa o painel proprio. Configuracoes preservadas nao sao ignoradas ao mudar de perfil.");
+        Label positionsHelp = new Label("Posicoes comuns a todas as ferramentas. None = automatico. Laser permite somente End Z/XY, com potencia desligada e XY na altura livre; Start Z e troca mecanica ficam bloqueados. A sonda usa o painel proprio. Configuracoes incompatíveis preservadas devem ser limpas na fresagem.");
         positionsHelp.setWrapText(true);
         TitledPane positionsPane = new TitledPane("Posicoes e troca de ferramenta", new VBox(8, positionGrid, positionsHelp));
         ToolDescriptions.apply(positionsPane, "Posições comuns do CNC",
-                "Start Z, End Z/XY e Tool change Z/XY valem para todas as ferramentas. Vazio/None mantém os valores automáticos.\n\nSomente para fresagem sem sonda; laser, HPGL, Roland e sondagem usam seus próprios ajustes. Campos desabilitados conservam os valores: configurações incompatíveis ativas são recusadas, não ignoradas. Volte à fresagem para limpá-las.\n\nTroca Z/XY só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente.");
+                "Start Z, End Z/XY e Tool change Z/XY valem para todas as ferramentas. Vazio/None mantém os valores automáticos.\n\nLaser aceita apenas End Z/XY: potência desligada, deslocamento XY em altura livre e depois End Z. HPGL, Roland e sonda usam seus próprios ajustes. Campos desabilitados conservam configurações incompatíveis: volte à fresagem para limpá-las.\n\nTroca Z/XY só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente.");
         positionsPane.setExpanded(!savedPositions.isAutomatic());
         var exclusions=new CncExclusionEditor(savedPositions,units,areaSelector,exclusionPreview);
         var commonDb = new CncJobDefaultsReview("cnc", suggestion -> {

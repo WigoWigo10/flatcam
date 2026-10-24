@@ -1,5 +1,20 @@
 # Paridade CNC: parâmetros executados, não só cortes XY
 
+## Roland, HPGL e contrato de sonda — 2026-10-24
+
+Leitores nativos independentes: Roland 20 MM, 0/7/12/1/0; HPGL 20 MM/IN,
+0/20/0/0/0, incluindo ordem/multiplicidade por caneta. Quantização não é
+escondida; um erro real Python Roland, sem erros de leitura FX. Mach3 tem
+16 PROBE_CONTRACT_ONLY: valida comandos, não posição de contato nem remoção.
+Laser aceita End Z/XY comuns e mantém demais restrições; 28 receitas/perfil,
+GRBL 0/28/0/0/0 e Z/FAN/SPINDLE 0/0/28/0/0, zero problemas auditados FX.
+App Python real confirma geração e falha Mach3 Dwell zero. Regressão dos
+fluxos mantém 27/28 em MM e IN (Seed estável diferente), sem afrouxar strict.
+Verify: 1854 Java aprovados/18 skips opcionais (1872 registros atuais), zero
+falhas/erros; 150 auxiliares Python aprovados. Macro M6 invalida estado de
+motor e avanço no leitor da sonda; contrato continua estático.
+Detalhes: [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md).
+
 ## Laser: leitor próprio e contrato Marlin — 2026-10-23
 
 Gerador laser passa a consultar usesG94() (o helper sozinho não corrigia a

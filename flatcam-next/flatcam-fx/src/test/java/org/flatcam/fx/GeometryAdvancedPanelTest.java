@@ -76,7 +76,7 @@ class GeometryAdvancedPanelTest {
             end.setText("NaN,2"); generate.fire(); assertNull(result.get()); assertTrue(error.getText().contains("finitas"));
             end.setText("10,20");
             var profiles = (ComboBox<GCodePreprocessor>) root.lookup("#cnc-preprocessor");
-            profiles.setValue(GCodePreprocessor.GRBL_LASER);
+            profiles.setValue(GCodePreprocessor.HPGL);
             assertTrue(end.isDisabled()); generate.fire(); assertNull(result.get()); assertTrue(error.getText().contains("Posicoes"));
             profiles.setValue(GCodePreprocessor.DEFAULT_NO_M6);
             assertFalse(end.isDisabled()); assertEquals("10,20",end.getText()); generate.fire();

@@ -1124,8 +1124,17 @@ public final class GCodeGenerator {
             }
         }
         line(gcode, "%s", profile.spindleOff());
-        // Matches the Python profiles' end Z, after the laser has been switched off.
-        line(gcode, "%s Z%s", profile.rapid(), fmt(params.safeZ()));
+        // Position only with power commanded off, above the common clearance until the final XY is reached.
+        GeometryJobOptions positions=params.jobOptions();
+        double endZ=positions.endZ()==null ? params.safeZ() : positions.endZ();
+        double parkZ=Math.max(params.safeZ(),endZ);
+        line(gcode, "%s Z%s", profile.rapid(), fmt(parkZ));
+        if(positions.endX()!=null) {
+            line(gcode,"%s X%s Y%s",profile.rapid(),fmt(positions.endX()),fmt(positions.endY()));
+            double radius=tools.stream().filter(t->!t.geometry().isEmpty()).mapToDouble(ToolGeometry::toolDiameter).max().orElse(0)/2;
+            addTravel(travels,lastX,lastY,positions.endX(),positions.endY(),radius);
+        }
+        if(endZ<parkZ) line(gcode,"%s Z%s",profile.rapid(),fmt(endZ));
         cancellation.throwIfCancellationRequested();
         return new CncJobResult(profile.finish(gcode, params.rapidFeedRate(), units),
                 travelFootprint(travels), cuts.result());

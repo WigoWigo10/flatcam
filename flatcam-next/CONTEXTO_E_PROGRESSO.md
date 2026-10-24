@@ -1,5 +1,26 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Roland, HPGL, sonda e posições laser — 2026-10-24
+
+Cinco etapas sobre `ef1cefdb`, consolidadas em commit na branch `flatcam-next`, sem push. Comparador
+nativo Roland: 20 MM, 0/7/12/1/0 (execução/rota/usinagem/erro Python/erro FX).
+HPGL: 20 MM/IN com traços por caneta iguais, execução completa diferente;
+quantização de dois pedidos mantida como aviso em ambos. Corrigida assinatura
+HPGL vazia na integração local, com red/green/revert/red/green e dez repetições.
+Mach3: 16 contratos estáticos, sem contato/G92 físico inventado; strict não
+pode passar esse modelo. End Z/XY habilitado nos quatro lasers, com parada
+de potência, XY em altura livre e depois descida; Start Z/ajustes individuais
+continuam bloqueados. Corpus laser 28/perfil, zero problemas auditados FX.
+App Python real isolado: Roland/HPGL 4 gerações cada; sonda 3 e um erro real
+Dwell zero. Fontes intactas. Fluxos públicos: 27/28 MM + 27/28 IN, somente
+Seed estável deliberadamente diferente; strict continua reprovado.
+Verify integral final: 1854 aprovações Java/18 skips opcionais, zero falhas ou
+erros (1872 registros atuais, excluindo XML antigo). Python discovery: 150
+aprovados. Logs `target/series-full-final-20261024.log` e
+`series-python-final-20261024.log`. Avanço do leitor Mach3 também invalidado
+após M6, com teste negativo red/green/revert/red/green e nova comparação.
+Evidências, comandos e limites: [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md).
+
 ## Quatro perfis laser — 2026-10-23
 
 Etapas Repetier/Berta e laser reunidas no commit de consolidação de

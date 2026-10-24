@@ -33,9 +33,27 @@ class PythonCncParametersExportTest {
         for (String units : List.of("MM", "IN")) {
             if (metricOnly() && units.equals("IN")) continue; // explicit profile constraint, not a skipped failure
             double scale = units.equals("IN") ? 1 / 25.4 : 1;
+            if (profile.requiresProbe()) {
+                for(String recipe:List.of("single","plate","xy","two-tools")) {
+                    cases.put(probe(units,scale,recipe,false)); cases.put(probe(units,scale,recipe,true));
+                }
+                continue;
+            }
+            if (profile.isPlotter()) {
+                for(String recipe:List.of("single","closed","ring","polygon","separated","source-reversed","negative","quantized","maximum","two-pens"))
+                    cases.put(hpgl(units,scale,recipe));
+                continue;
+            }
+            if (profile.isRoland()) {
+                for(String recipe:List.of("single","peck","closed","polygon","separated","negative","feed-rounding",
+                        "depth-rounding","minimum-feed","maximum-feed","zero-rpm","rapid-default")) cases.put(roland(recipe,false));
+                for(String recipe:List.of("single","peck","offset","negative-offset","multiple","nearest","slot","parking"))
+                    cases.put(roland(recipe,true));
+                continue;
+            }
             if (profile.isLaser()) {
                 for (String recipe : List.of("single","closed","ring","polygon","separated","source-reversed",
-                        "negative","low-power","full-power","rapid-default","focus","slow-feed"))
+                        "negative","low-power","full-power","rapid-default","focus","slow-feed","park-low","park-high"))
                     cases.put(laser(units, scale, recipe));
                 continue;
             }
@@ -59,7 +77,7 @@ class PythonCncParametersExportTest {
                     "slot-chain-single","slot-chain-peck","slot-chain-no-last","slot-chain-zero-overlap","slot-chain-nearest","slot-chain-dwell"))
                 cases.put(multipleDrills(units,scale,recipe));
         }
-        assertEquals(profile.isLaser() ? 24 : metricOnly() ? 52 : 104, cases.length());
+        assertEquals(profile.requiresProbe() ? 16 : profile.isPlotter() || profile.isRoland() ? 20 : profile.isLaser() ? 28 : metricOnly() ? 52 : 104, cases.length());
         var output = new JSONObject().put("schema", 1).put("profile", switch(profile) {
             case GRBL_11_NO_M6 -> "GRBL_11_no_M6";
             case GRBL_11 -> "grbl_11";
@@ -68,6 +86,9 @@ class PythonCncParametersExportTest {
             case MARLIN -> "Marlin";
             case REPETIER -> "Repetier";
             case BERTA_CNC -> "Berta_CNC";
+            case ROLAND_MDX_20 -> "Roland_MDX_20";
+            case HPGL -> "hpgl";
+            case TOOLCHANGE_PROBE_MACH3 -> "Toolchange_Probe_MACH3";
             case GRBL_LASER -> "GRBL_laser";
             case Z_LASER -> "Z_laser";
             case MARLIN_LASER_FAN_PIN -> "Marlin_laser_FAN_pin";
@@ -80,9 +101,9 @@ class PythonCncParametersExportTest {
             default -> throw new IllegalArgumentException("Perfil ainda fora do leitor XYZ comparativo");
         })
                 .put("powerMeaning", profile == GCodePreprocessor.REPETIER || profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN
-                        ? "FAN_DUTY_0_255" : profile.isLaser() ? "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM" : "RPM")
+                        ? "FAN_DUTY_0_255" : profile.isPlotter() ? "PEN_STATE_NO_MOTOR" : profile.isRoland() ? "BINARY_MOTOR_NO_RPM" : profile.isLaser() ? "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM" : "RPM")
                 .put("excludedOperationCases", profile.isLaser() ? new JSONArray().put(
-                        "Drilling, point exposure, Multi-Depth, mechanical tool change, advanced positions/exclusions, Extra Cut and per-tool overrides are outside this laser corpus; not counted as parity") : new JSONArray())
+                        "Drilling, point exposure, Multi-Depth, mechanical tool change, Start Z, exclusions/routing, Extra Cut and per-tool overrides are outside this laser corpus; End Z/XY is included") : new JSONArray())
                 .put("scope", "Public synthetic CNC parameters; not UI, machine safety certification or all profiles")
                 .put("excludedUnitCases",metricOnly()
                         ? new JSONArray().put("IN: " + profile + " FX supports MM only; not counted as equivalence") : new JSONArray())
@@ -92,7 +113,115 @@ class PythonCncParametersExportTest {
         Files.writeString(directory.resolve("fx-cnc.json"), output.toString(2), StandardCharsets.UTF_8);
     }
 
-    private boolean metricOnly() { return profile == GCodePreprocessor.ISEL_CNC || profile == GCodePreprocessor.ISEL_ICP_CNC; }
+    private boolean metricOnly() { return profile == GCodePreprocessor.ISEL_CNC || profile == GCodePreprocessor.ISEL_ICP_CNC || profile.isRoland(); }
+
+    private JSONObject probe(String units,double s,String recipe,boolean drilling) throws Exception {
+        var probe=new ProbeToolChangeParameters(15*s,-5*s,50*s,recipe.equals("plate") ? s : 0,
+                recipe.equals("xy") ? 7*s : null,recipe.equals("xy") ? 11*s : null);
+        boolean two=recipe.equals("two-tools");
+        var metadata=new JSONObject().put("depth",probe.probeDepth()).put("feed",probe.feedRate()).put("contactZ",probe.contactZ());
+        if(drilling) {
+            var holes=new java.util.ArrayList<ExcellonImage.Drill>(); holes.add(new ExcellonImage.Drill(1,10*s,7*s));
+            if(two) holes.add(new ExcellonImage.Drill(2,20*s,7*s));
+            var image=ExcellonImage.of(units,two ? Map.of(1,.4*s,2,.8*s) : Map.of(1,.4*s),holes,List.of(),factory.createPolygon());
+            var p=new DrillGCodeParameters(3*s,.6*s,100*s,10000,true,two,.2*s,false,0,0);
+            var options=new GCodeGenerator.DrillJobOptions(true,15*s,5*s,null,null,900*s,probe);
+            var ids=two ? List.of(2,1) : List.of(1);
+            String code=GCodeGenerator.generateDrillCncJob(image,two ? Map.of(1,p,2,p) : Map.of(1,p),ids,options,profile).gcode();
+            var tools=new JSONArray();
+            for(int id:ids) tools.put(new JSONObject().put("id",id).put("diameter",id*.4*s)
+                    .put("points",new JSONArray().put(new JSONArray().put(id*10*s).put(7*s))).put("parameters",drillParameters(p)));
+            return base(units,"probe-"+recipe,"drilling",code).put("tools",tools).put("job",job(options,units).put("probe",metadata));
+        }
+        var shape=org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(new WKTReader().read("LINESTRING (10 7,12 7)"));
+        var paths=two ? List.of(new ToolGeometry(.4*s,shape),new ToolGeometry(.8*s,shape)) : List.of(new ToolGeometry(.4*s,shape));
+        var p=new GeometryGCodeParameters(3*s,.6*s,two,.2*s,200*s,10000,true,900*s,probe,75*s,false,0,false,0);
+        String code=GCodeGenerator.generateGeometryCncJob(units,paths,p,Map.of(),CancellationToken.none(),profile).gcode();
+        var tools=new JSONArray();
+        for(int i=0;i<paths.size();i++) tools.put(new JSONObject().put("id",i+1).put("diameter",paths.get(i).toolDiameter())
+                .put("wkt",new WKTWriter().write(shape)).put("parameters",new JSONObject().put("safeZ",3*s).put("depth",.6*s)
+                        .put("multiDepth",two).put("depthPerPass",.2*s).put("feed",200*s).put("feedZ",75*s).put("rpm",10000)
+                        .put("dwell",false).put("dwellSeconds",0)));
+        var job=new JSONObject().put("toolChange",true).put("toolChangeZ",15*s).put("endZ",3*s).put("rapidFeed",900*s)
+                .put("startZ",JSONObject.NULL).put("endX",JSONObject.NULL).put("endY",JSONObject.NULL)
+                .put("changeX",probe.toolChangeX()==null ? JSONObject.NULL : probe.toolChangeX())
+                .put("changeY",probe.toolChangeY()==null ? JSONObject.NULL : probe.toolChangeY()).put("exclusions",new JSONArray()).put("probe",metadata);
+        return base(units,"probe-"+recipe,"geometry",code).put("tools",tools).put("job",job);
+    }
+
+    private JSONObject hpgl(String units,double s,String recipe) throws Exception {
+        var shape=new WKTReader().read(switch(recipe) {
+            case "closed","ring" -> "LINESTRING (10 0,20 0,20 10,10 10,10 0)";
+            case "polygon" -> "POLYGON ((10 0,20 0,20 10,10 10,10 0),(13 3,17 3,17 7,13 7,13 3))";
+            case "separated" -> "MULTILINESTRING ((10 0,12 0),(20 7,22 7))";
+            case "source-reversed" -> "MULTILINESTRING ((20 7,22 7),(10 0,12 0))";
+            case "negative" -> "LINESTRING (-10 -7,-8 -7)";
+            case "quantized" -> "LINESTRING (10.013 7.013,12.013 7.013)";
+            case "maximum" -> "LINESTRING (819.15 0,819.2 0)";
+            default -> "LINESTRING (10 7,12 7)";
+        });
+        if(recipe.equals("ring")) shape=factory.createLinearRing(shape.getCoordinates());
+        shape=org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(shape);
+        var paths=new java.util.ArrayList<ToolGeometry>(); paths.add(new ToolGeometry(.4*s,shape));
+        if(recipe.equals("two-pens")) paths.add(new ToolGeometry(.8*s,new WKTReader().read("LINESTRING (20 7,22 7)")));
+        if(recipe.equals("two-pens") && s != 1) paths.set(1,new ToolGeometry(.8*s,
+                org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(s,s).transform(paths.get(1).geometry())));
+        var p=new GeometryGCodeParameters(3*s,s,false,s,120*s,0,false,600*s);
+        String code=GCodeGenerator.generateGeometryCncJob(units,paths,p,Map.of(),CancellationToken.none(),profile).gcode();
+        var tools=new JSONArray();
+        for(int i=0;i<paths.size();i++) {
+            var geometry=paths.get(i).geometry();
+            var standard=geometry instanceof org.locationtech.jts.geom.LinearRing ? factory.createLineString(geometry.getCoordinates()) : geometry;
+            tools.put(new JSONObject().put("id",i+1).put("diameter",paths.get(i).toolDiameter()).put("wkt",new WKTWriter().write(standard))
+                    .put("geometryType",geometry.getGeometryType()).put("parameters",new JSONObject().put("safeZ",p.safeZ())
+                            .put("depth",p.cutDepth()).put("multiDepth",false).put("depthPerPass",s).put("feed",p.feedRate()).put("feedZ",p.feedRateZ())
+                            .put("rpm",0).put("dwell",false).put("dwellSeconds",0)));
+        }
+        var job=new JSONObject().put("toolChange",true).put("toolChangeMeaning","AUTOMATIC_PROFILE_SP_NOT_MECHANICAL_M6")
+                .put("toolChangeZ",15*s).put("endZ",3*s).put("rapidFeed",600*s).put("startZ",JSONObject.NULL)
+                .put("endX",JSONObject.NULL).put("endY",JSONObject.NULL).put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL).put("exclusions",new JSONArray());
+        return base(units,"hpgl-"+recipe,"geometry",code).put("tools",tools).put("job",job);
+    }
+
+    private JSONObject roland(String recipe, boolean drill) throws Exception {
+        double feed=recipe.equals("minimum-feed") ? 6 : recipe.equals("maximum-feed") ? 900 : recipe.equals("feed-rounding") ? 125 : 120;
+        double depth=recipe.equals("depth-rounding") ? .6006 : .6;
+        double rapid=recipe.equals("rapid-default") ? 0 : 600;
+        if(drill) {
+            var holes=new java.util.ArrayList<ExcellonImage.Drill>(); holes.add(new ExcellonImage.Drill(1,10,7));
+            if(recipe.equals("multiple") || recipe.equals("nearest")) { holes.add(new ExcellonImage.Drill(1,25,7)); holes.add(new ExcellonImage.Drill(1,12,7)); }
+            var slots=recipe.equals("slot") ? List.of(new ExcellonImage.Slot(1,20,7,22,7)) : List.<ExcellonImage.Slot>of();
+            var image=ExcellonImage.of("MM",Map.of(1,.8),holes,slots,factory.createPolygon());
+            var p=new DrillGCodeParameters(3,depth,feed,0,false,recipe.equals("peck"),.2,false,0,
+                    recipe.equals("offset") ? .1 : recipe.equals("negative-offset") ? -.1 : 0);
+            var options=new GCodeGenerator.DrillJobOptions(false,15,5,recipe.equals("parking") ? 25. : null,
+                    recipe.equals("parking") ? 9. : null,rapid).withOptimizedDrills(recipe.equals("nearest"));
+            String code=GCodeGenerator.generateDrillCncJob(image,Map.of(1,p),List.of(1),options,profile).gcode();
+            var points=new JSONArray(); holes.forEach(h->points.put(new JSONArray().put(h.x()).put(h.y())));
+            var pairs=new JSONArray(); slots.forEach(slot->pairs.put(new JSONArray().put(new JSONArray().put(slot.x1()).put(slot.y1()))
+                    .put(new JSONArray().put(slot.x2()).put(slot.y2()))));
+            return base("MM","roland-"+recipe,"drilling",code).put("tools",new JSONArray().put(new JSONObject().put("id",1)
+                    .put("diameter",.8).put("points",points).put("slots",pairs).put("parameters",drillParameters(p))))
+                    .put("job",job(options,"MM").put("rapidFeed",rapid > 0 ? rapid : 900));
+        }
+        var shape=new WKTReader().read(switch(recipe) {
+            case "closed" -> "LINESTRING (10 0,20 0,20 10,10 10,10 0)";
+            case "polygon" -> "POLYGON ((10 0,20 0,20 10,10 10,10 0),(13 3,17 3,17 7,13 7,13 3))";
+            case "separated" -> "MULTILINESTRING ((10 0,12 0),(20 7,22 7))";
+            case "negative" -> "LINESTRING (-10 -7,-8 -7)";
+            default -> "LINESTRING (10 7,12 7)";
+        });
+        var p=new GeometryGCodeParameters(3,depth,recipe.equals("peck"),.2,feed,recipe.equals("zero-rpm") ? 0 : 10000,
+                false,rapid,null,recipe.equals("minimum-feed") ? 6 : 60,false,0,false,0);
+        String code=GCodeGenerator.generateGeometryCncJob("MM",List.of(new ToolGeometry(.8,shape)),p,Map.of(),CancellationToken.none(),profile).gcode();
+        var parameters=new JSONObject().put("safeZ",3).put("depth",depth).put("multiDepth",p.multiDepth()).put("depthPerPass",.2)
+                .put("feed",feed).put("feedZ",p.feedRateZ()).put("rpm",p.spindleSpeedRpm()).put("dwell",false).put("dwellSeconds",0);
+        var job=new JSONObject().put("toolChange",false).put("toolChangeZ",15).put("endZ",3).put("rapidFeed",rapid > 0 ? rapid : 900)
+                .put("startZ",JSONObject.NULL).put("endX",JSONObject.NULL).put("endY",JSONObject.NULL).put("changeX",JSONObject.NULL)
+                .put("changeY",JSONObject.NULL).put("exclusions",new JSONArray());
+        return base("MM","roland-"+recipe,"geometry",code).put("tools",new JSONArray().put(new JSONObject().put("id",1)
+                .put("diameter",.8).put("wkt",new WKTWriter().write(shape)).put("parameters",parameters))).put("job",job);
+    }
 
     private JSONObject laser(String units, double s, String recipe) throws Exception {
         var reader = new WKTReader();
@@ -111,6 +240,8 @@ class PythonCncParametersExportTest {
         double rapid = recipe.equals("rapid-default") ? 0 : 900*s;
         var p = new GeometryGCodeParameters((recipe.equals("focus") ? 8 : 3)*s, s, false, s,
                 (recipe.equals("slow-feed") ? 20 : 200)*s, power, false, rapid);
+        if(recipe.startsWith("park-")) p=p.withJobOptions(new GeometryJobOptions(null,
+                (recipe.equals("park-low") ? .5 : 8)*s,25*s,9*s,null,null,null));
         String code = GCodeGenerator.generateGeometryCncJob(units, List.of(new ToolGeometry(.4*s,shape)),
                 p, Map.of(), CancellationToken.none(), profile).gcode();
         var wktShape = shape instanceof org.locationtech.jts.geom.LinearRing ? factory.createLineString(shape.getCoordinates()) : shape;
@@ -119,9 +250,9 @@ class PythonCncParametersExportTest {
                 .put("rpm",power).put("dwell",false).put("dwellSeconds",0);
         var tool = new JSONObject().put("id",1).put("diameter",.4*s).put("wkt",new WKTWriter().write(wktShape))
                 .put("geometryType",shape.getGeometryType()).put("parameters",parameters);
-        var job = new JSONObject().put("toolChange",false).put("toolChangeZ",15*s).put("endZ",p.safeZ())
+        var job = new JSONObject().put("toolChange",false).put("toolChangeZ",15*s).put("endZ",p.jobOptions().endZ()==null ? p.safeZ() : p.jobOptions().endZ())
                 .put("rapidFeed",rapid > 0 ? rapid : 1500*s).put("startZ",JSONObject.NULL)
-                .put("endX",JSONObject.NULL).put("endY",JSONObject.NULL).put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL)
+                .put("endX",nullable(p.jobOptions().endX())).put("endY",nullable(p.jobOptions().endY())).put("changeX",JSONObject.NULL).put("changeY",JSONObject.NULL)
                 .put("laserFocusZ",profile == GCodePreprocessor.GRBL_LASER ? JSONObject.NULL : p.safeZ()).put("exclusions",new JSONArray());
         return base(units,"laser-"+recipe,"geometry",code).put("tools",new JSONArray().put(tool)).put("job",job);
     }

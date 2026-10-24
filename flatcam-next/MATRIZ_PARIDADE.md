@@ -1,5 +1,18 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Perfis nativos, sonda e laser — 2026-10-24
+
+Roland e HPGL com leitores/auditoria independentes: **C**, não A global.
+20 Roland MM: 0/7/12/1/0; 20 HPGL MM/IN: 0/20/0/0/0, preservando diferenças
+de quantização e encerramento. Mach3: 16 contratos estáticos, contato físico
+desconhecido, sem equivalência de execução. End Z/XY laser habilitado e
+testado em MM/IN; parâmetros por grupo permanecem pendentes. Corpus laser
+28/perfil: GRBL 0/28/0/0/0; outros três 0/0/28/0/0, auditoria FX sem problemas.
+Fluxos públicos 27/28 MM e IN, Seed estável deliberadamente diferente;
+strict segue reprovado. [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md).
+Verify final: 1854 aprovações Java/18 skips opcionais, zero falhas/erros;
+150 auxiliares Python aprovados. Não é validação física nem paridade global.
+
 ## Perfis laser — 2026-10-23
 
 G94 do gerador laser corrigido (não apenas helper), M400 final nos Marlin,

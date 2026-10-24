@@ -11,7 +11,7 @@ FAN = "G21\nG90\nM400\nM107\nG0 Z3 F900\nG0 X10 Y7 F900\nM106 S128\nG1 X12 Y7 F2
 def source(profile):
     return dict(profile=profile,operation="geometry",units="MM",tools=[dict(id=1,diameter=.4,
         wkt="LINESTRING (10 7,12 7)",parameters=dict(safeZ=3,feed=200,rpm=128))],
-        job=dict(endZ=3,rapidFeed=900,laserFocusZ=None if profile == "GRBL_laser" else 3))
+        job=dict(endZ=3,endX=None,endY=None,rapidFeed=900,laserFocusZ=None if profile == "GRBL_laser" else 3))
 
 
 class LaserExecutionTest(unittest.TestCase):
@@ -71,6 +71,18 @@ class LaserExecutionTest(unittest.TestCase):
         for old,new in (("F200","F150"),("S128","S127"),("G0 Z3","G0 Z4"),("M5\nG0 Z3","G0 Z3")):
             parsed = read_program(GRBL.replace(old,new),"GRBL_laser")
             self.assertTrue(audit_parameters(source("GRBL_laser"),parsed),(old,new))
+
+    def test_final_xy_requires_clearance_before_lowering_even_with_power_off(self):
+        case = source("GRBL_laser")
+        case["job"].update(endZ=.5, endX=25, endY=9)
+        correct = GRBL + "G0 X25 Y9\nG0 Z.5\n"
+        self.assertEqual([],audit_parameters(case,read_program(correct,"GRBL_laser")))
+        low = GRBL + "G0 Z.5\nG0 X25 Y9\n"
+        self.assertIn("Laser final XY is below requested parking clearance",
+                      audit_parameters(case,read_program(low,"GRBL_laser")))
+        missing = GRBL + "G0 Z.5\n"
+        self.assertIn("Laser final XY differs from requested position",
+                      audit_parameters(case,read_program(missing,"GRBL_laser")))
 
     def test_repeated_exposure_and_reversed_direction_are_not_merged_for_parity(self):
         base = read_program(GRBL,"GRBL_laser")

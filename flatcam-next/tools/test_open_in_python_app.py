@@ -51,6 +51,17 @@ class ProfileProbeTest(unittest.TestCase):
             self.assertEqual(4, len(list(output.glob("*.imf"))))
             self.assertFalse(list(output.glob("*.nc")))
 
+    def test_native_roland_and_hpgl_keep_extensions_and_do_not_claim_rpm(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for profile,extension,meaning in (("Roland_MDX_20","rml","BINARY_MOTOR_NO_RPM"),
+                                               ("hpgl","plt","PEN_STATE_NO_MOTOR")):
+                app = self.app(); app.probeGeometry.generatecncjob = Mock()
+                output = Path(folder) / profile
+                cases = probe_cnc_profile(app,Mock(),profile,output,[])
+                self.assertEqual(4,len(list(output.glob("*."+extension))))
+                self.assertFalse(list(output.glob("*.nc")))
+                self.assertTrue(all(c["requestedPower"] == 0 and c["powerMeaning"] == meaning for c in cases))
+
     def test_empty_xy_uses_the_real_blank_field_representation_not_none(self):
         with tempfile.TemporaryDirectory() as folder:
             app = self.app()

@@ -44,6 +44,17 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 
 ## Quality Goals
 
+Latest local stage, 2026-10-24, on `ef1cefdb`: native Roland/HPGL readers,
+static Mach3 probe contract and laser End Z/XY support. See
+`flatcam-next/NATIVE_PROBE_LASER_PARITY.md`. Full final verify: 1854 passes,
+18 optional skips, zero failures/errors (1872 current-run XML records;
+exclude 3 stale LauncherConfigurationTest records). Python discovery 150
+passes. Public main-flow MM/IN: 27 matches + deliberate stable Seed difference
+each; strict still fails. Native HPGL cut signatures must retain PU/PD paths
+at zero Z; after opaque M6, probe reader must invalidate both spindle state
+and feed. Both local harness defects have red/green/revert/restore evidence.
+No contact coordinates, physical G92 frame or macro execution may be invented.
+
 Established task requirement: keep strict CNC comparisons honest, preserve
 source files on failure/cancellation, and verify relevant regressions plus
 full Maven build. Global coverage/flakiness/time budgets are unknown, not agreed

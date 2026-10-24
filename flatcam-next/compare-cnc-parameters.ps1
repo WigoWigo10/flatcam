@@ -2,7 +2,7 @@ param(
     [string]$Python,
     [string]$DependencyPath,
     [string]$OutputDirectory,
-    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC','ISEL_ICP_CNC','TOOLCHANGE_MANUAL','TOOLCHANGE_CUSTOM','REPETIER','BERTA_CNC','GRBL_LASER','Z_LASER','MARLIN_LASER_FAN_PIN','MARLIN_LASER_SPINDLE_PIN')]
+    [ValidateSet('GRBL_11_NO_M6','GRBL_11','DEFAULT','DEFAULT_NO_M6','MARLIN','LINE_XYZ','ISEL_CNC','ISEL_ICP_CNC','TOOLCHANGE_MANUAL','TOOLCHANGE_CUSTOM','REPETIER','BERTA_CNC','GRBL_LASER','Z_LASER','MARLIN_LASER_FAN_PIN','MARLIN_LASER_SPINDLE_PIN','ROLAND_MDX_20','HPGL','TOOLCHANGE_PROBE_MACH3')]
     [string]$Profile = 'GRBL_11_NO_M6',
     [ValidateSet('shared','variable','fixed')]
     [string]$MarlinRapidMode = 'shared',
@@ -60,7 +60,7 @@ try {
     if ($code -ne 0) { throw 'Esperado Python 3.11 / Shapely 1.8.5.post1 / GEOS 3.10.3 e OR-Tools disponivel.' }
     Push-Location $comparisonRoot
     try {
-        Write-Host 'Exportando casos publicos CNC XYZ em MM e IN...'
+        Write-Host 'Exportando casos publicos do perfil (unidades e operacoes suportadas)...'
         $buildArgs = @('-q','-pl','flatcam-application','-am','-Dtest=PythonCncParametersExportTest',
             ('-Dflatcam.cnc.comparison.profile=' + $Profile),
             '-Dsurefire.failIfNoSpecifiedTests=false',('-Dflatcam.cnc.comparison.output=' + $OutputDirectory),
@@ -78,7 +78,7 @@ try {
                 $oracleArgs += @('--marlin-fixed-rapid-mm',$MarlinFixedRapidMm.ToString([Globalization.CultureInfo]::InvariantCulture))
             }
         }
-        Write-Host 'Comparando movimentos XYZ, feed, spindle, pausas e ferramentas com o Python original...'
+        Write-Host 'Comparando comandos, trajetos e parametros do perfil com o Python original...'
         $code = Invoke-CncNative $Python $oracleArgs (Join-Path $OutputDirectory 'comparison.log')
         if ($code -notin @(0,1) -or -not (Test-Path -LiteralPath (Join-Path $OutputDirectory 'python/report.json'))) {
             throw "Comparacao falhou ($code). Consulte comparison.log."

@@ -17,10 +17,12 @@ from pathlib import Path
 from types import SimpleNamespace, MethodType
 from icp_execution import read_icp, UnsupportedIcp
 from laser_execution import LASER_PROFILES, MARLIN_LASERS, read_laser, audit_laser, laser_signature
+from native_execution import read_roland, audit_roland, read_hpgl, audit_hpgl
+from probe_contract import read_probe, audit_probe
 
 
 WORD = re.compile(r"([A-Z])\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))")
-SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom", "Repetier", "Berta_CNC") + LASER_PROFILES
+SUPPORTED_PROFILES = ("GRBL_11_no_M6", "grbl_11", "default", "Default_no_M6", "Marlin", "line_xyz", "ISEL_CNC", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom", "Repetier", "Berta_CNC", "Roland_MDX_20", "hpgl", "Toolchange_Probe_MACH3") + LASER_PROFILES
 
 
 class UnmodeledToolSelection(ValueError):
@@ -28,10 +30,23 @@ class UnmodeledToolSelection(ValueError):
 
 
 def read_program(program, profile="GRBL_11_no_M6", *, marlin_rapid_mode="shared", marlin_fixed_rapid_feed=None,
-                 isel_m01_mode="remote"):
+                 isel_m01_mode="remote", hpgl_source_units=None):
     """Profile-scoped modal subset; retain cuts, pauses, synchronization and feeds."""
     if profile not in SUPPORTED_PROFILES:
         raise ValueError("Profile outside the XYZ comparison reader")
+    if profile == "hpgl":
+        if isel_m01_mode != "remote" or marlin_rapid_mode != "shared" or marlin_fixed_rapid_feed is not None:
+            raise ValueError("Other controller modes do not apply to HPGL")
+        return read_hpgl(program,hpgl_source_units or "MM")
+    if hpgl_source_units is not None: raise ValueError("HPGL unit context requires hpgl")
+    if profile == "Toolchange_Probe_MACH3":
+        if isel_m01_mode != "remote" or marlin_rapid_mode != "shared" or marlin_fixed_rapid_feed is not None:
+            raise ValueError("Other controller modes do not apply to Mach3 probe")
+        return read_probe(program)
+    if profile == "Roland_MDX_20":
+        if isel_m01_mode != "remote" or marlin_rapid_mode != "shared" or marlin_fixed_rapid_feed is not None:
+            raise ValueError("Other controller modes do not apply to Roland")
+        return read_roland(program)
     if profile in LASER_PROFILES:
         if isel_m01_mode != "remote": raise ValueError("ISEL modes do not apply to laser")
         return read_laser(program,profile,rapid_mode=marlin_rapid_mode,fixed_rapid_feed=marlin_fixed_rapid_feed)
@@ -366,6 +381,8 @@ def machining_signature(parsed):
     sorting or removal of repeated holes/passes. Full events remain compared too.
     """
     if "laserControls" in parsed: return laser_signature(parsed)
+    if "hpglControls" in parsed:
+        return [{k:e[k] for k in ("tool","from","to","feed","spindle","rpm","penDown")} for e in parsed["cuts"]]
     result = []
     for event in parsed["cuts"]:
         start, end = event["from"], event["to"]
@@ -564,6 +581,9 @@ def audit_segments(expected,events,issues,identifier):
 def audit_parameters(case, parsed, *, implementation=None):
     """Check the requested settings independently; two equally wrong outputs are not a match."""
     if case.get("profile") in LASER_PROFILES: return audit_laser(case,parsed,equivalent)
+    if case.get("profile") == "Roland_MDX_20": return audit_roland(case,parsed,equivalent,geometry_paths,geometry_source)
+    if case.get("profile") == "hpgl": return audit_hpgl(case,parsed,equivalent,geometry_paths,geometry_source)
+    if case.get("profile") == "Toolchange_Probe_MACH3": return audit_probe(case,parsed,equivalent)
     issues = []
     if parsed["units"] != case["units"]:
         issues.append("Units differ from the source")
@@ -789,7 +809,8 @@ def python_program(case, root, app, camlib):
     app.log.addHandler(errors)
     profile = case.get("profile","GRBL_11_no_M6")
     try:
-        cnc = camlib.CNCjob(units=case["units"],pp_geometry_name=profile,pp_excellon_name=profile)
+        probe_options={} if "probe" not in job else dict(z_pdepth=job["probe"]["depth"],feedrate_probe=job["probe"]["feed"])
+        cnc = camlib.CNCjob(units=case["units"],pp_geometry_name=profile,pp_excellon_name=profile,**probe_options)
         cnc.coords_decimals = 4
         # Match the FX's fixed four feed decimals through a real Python setting,
         # not by changing the preprocessor or tolerating different feed rates.
@@ -811,7 +832,7 @@ def python_program(case, root, app, camlib):
                     tools_drill_dwelltime=p["dwellSeconds"],tools_drill_spindledir="CW",tools_drill_offset=p["offsetZ"],
                     tools_drill_toolchangez=job["toolChangeZ"],tools_drill_toolchangexy=xy(job,"change"),
                     tools_drill_startz=job["startZ"],tools_drill_endz=job["endZ"],tools_drill_endxy=xy(job,"end"),
-                    tools_drill_z_pdepth=-1,tools_drill_feedrate_probe=50)
+                    tools_drill_z_pdepth=job.get("probe",{}).get("depth",-1),tools_drill_feedrate_probe=job.get("probe",{}).get("feed",50))
                 tools[tool["id"]] = {"tooldia":tool["diameter"],"drills":[Point(*pt) for pt in tool["points"]],"data":data}
             result, start, first = "", "", (0,0)
             for index, tool in enumerate(case["tools"]):
@@ -957,9 +978,15 @@ def run(args):
         report["scope"]="Public MM/IN XY laser paths, one source group (not hardware tool selection), no points, depth passes, dwell or mechanical changes. Commanded initial XYZ assumed zero; power initially UNKNOWN until commanded. Raw S/duty is not physical RPM. Explicit stop before positioning audited without claiming GRBL $32 beam simulation. Marlin standard-mode/IN support and FAN/cutter mapping are preconditions; G0 configuration is explicit. Full event ordering and powered directed XY/Z segments retained. No electrical/material/planner timing or safety certification."
         report["laserConfiguration"]=dict(rapidMode=rapid_mode,fixedRapidMillimetersPerMinute=fixed_rapid_mm,
             excludedOperations=export.get("excludedOperationCases",[]))
+    if profile == "Roland_MDX_20":
+        report["scope"]="MM native RML-1; one manually installed tool; binary motor without RPM. Z contains absolute XYZ in 1/40 mm units, V in mm/s. Initial commanded XYZ zero is an explicit precondition, not homing. Native has no G0/G1 distinction. Unrounded requested parameters audited independently; quantization differences are not hidden by relaxed tolerances. No machine or physical safety simulation."
+    if profile == "hpgl":
+        report["scope"]="Native HPGL XY at 0.025 mm command steps. Source MM/IN context supplied explicitly to the reader, not inferred from native commands. Initial pen unknown until SP; PU/PD and pen identity retained, no Z/motor/speed invented. Requested unrounded source paths audited without increased tolerance. No physical pen, stroke width or machine safety simulation."
+    if profile == "Toolchange_Probe_MACH3":
+        report["scope"]="STATIC PROBE CONTRACT ONLY: compare G31 limits/feeds, confirmation order, G92 requested contact height and modal restoration after M6. Contact locations, physical frame offsets and macro/operator actions remain unknown. Never execution equivalence or an invented preview; strict cannot pass this model."
     for case in export["cases"]:
         result = {"id":case["id"],"operation":case["operation"],"units":case["units"]}
-        extension = "imf" if profile=="ISEL_ICP_CNC" else "nc"
+        extension = "plt" if profile=="hpgl" else "rml" if profile=="Roland_MDX_20" else "imf" if profile=="ISEL_ICP_CNC" else "nc"
         (args.output/(case["id"]+".fx."+extension)).write_text(case["gcode"],encoding="utf-8")
         try:
             if case["units"] not in ("MM","IN") or case["operation"] not in ("drilling","geometry"):
@@ -967,13 +994,14 @@ def run(args):
             reader_options = {} if profile not in ("Marlin", *MARLIN_LASERS) else {"marlin_rapid_mode":rapid_mode,
                 "marlin_fixed_rapid_feed":None if fixed_rapid_mm is None else fixed_rapid_mm/(25.4 if case["units"]=="IN" else 1)}
             if profile=="ISEL_CNC": reader_options["isel_m01_mode"]=args.isel_m01_mode
+            if profile=="hpgl": reader_options["hpgl_source_units"]=case["units"]
             fx = read_program(case["gcode"],profile,**reader_options)
             if profile=="Marlin": result["fxMarlinControls"]=fx["marlinControls"]
             if profile=="ISEL_CNC": result["fxIselControls"]=fx["iselControls"]
             if "toolChangeControls" in fx: result["fxToolChangeControls"]=fx["toolChangeControls"]
-            for control in ("repetierControls", "bertaControls", "laserControls"):
+            for control in ("repetierControls", "bertaControls", "laserControls", "rolandControls", "hpglControls", "probeControls"):
                 if control in fx: result["fx"+control[0].upper()+control[1:]] = fx[control]
-            if profile in ("Repetier", "Berta_CNC", *LASER_PROFILES):
+            if profile in ("Repetier", "Berta_CNC", "Roland_MDX_20", "hpgl", *LASER_PROFILES):
                 (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
             if "toolChangeControls" in fx:
                 (args.output/(case["id"]+".fx.trace.json")).write_text(json.dumps(fx,indent=2),encoding="utf-8")
@@ -1000,7 +1028,7 @@ def run(args):
                 if profile=="Marlin": result["pythonMarlinControls"]=python["marlinControls"]
                 if profile=="ISEL_CNC": result["pythonIselControls"]=python["iselControls"]
                 if "toolChangeControls" in python: result["pythonToolChangeControls"]=python["toolChangeControls"]
-                for control in ("repetierControls", "bertaControls", "laserControls"):
+                for control in ("repetierControls", "bertaControls", "laserControls", "rolandControls", "hpglControls", "probeControls"):
                     if control in python: result["python"+control[0].upper()+control[1:]] = python[control]
                 if profile=="ISEL_ICP_CNC": result["pythonIcpControls"]=python["icpControls"]
                 result["pythonParameterIssues"] = audit_parameters(oracle_case,python,implementation="python")
@@ -1013,6 +1041,13 @@ def run(args):
                                                "cutDifferenceByTool":cut_difference_by_tool(fx,error.prefix)}
                     (args.output/(case["id"]+".python-prefix.json")).write_text(json.dumps(error.prefix,indent=2),encoding="utf-8")
             else:
+                if profile == "Toolchange_Probe_MACH3":
+                    result.update(status="PROBE_CONTRACT_ONLY",executionMatches=False,
+                        commandContractMatches=equivalent(fx["events"],python["events"]),
+                        limits=fx["probeControls"]["limits"])
+                    (args.output/(case["id"]+".trace.json")).write_text(json.dumps({"fx":fx,"python":python},indent=2),encoding="utf-8")
+                    report["cases"].append(result)
+                    continue
                 full = (equivalent(fx["events"],python["events"]) and equivalent(fx["end"],python["end"])
                         and fx["units"] == python["units"] and not result["fxParameterIssues"] and not result["pythonParameterIssues"])
                 machining = equivalent(machining_signature(fx),machining_signature(python))
@@ -1034,7 +1069,7 @@ def run(args):
     if hashes != {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in sources}:
         raise ValueError("Oracle sources changed during the run")
     report["counts"] = {status:sum(c["status"] == status for c in report["cases"])
-                        for status in ("MATCH_EXECUTION","ROUTING_DIFFERENT","MACHINING_DIFFERENT","ORACLE_ERROR","FX_ERROR")}
+                        for status in ("MATCH_EXECUTION","ROUTING_DIFFERENT","MACHINING_DIFFERENT","ORACLE_ERROR","FX_ERROR","PROBE_CONTRACT_ONLY")}
     (args.output/"report.json").write_text(json.dumps(report,indent=2,allow_nan=False),encoding="utf-8")
     rows = ""
     for case in report["cases"]:

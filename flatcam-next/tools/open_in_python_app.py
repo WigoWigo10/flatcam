@@ -66,8 +66,8 @@ def probe_cnc_profile(fc, qapp, profile, directory, messages):
     """Diagnostic only: original app objects + original generation entry point, no PP shims."""
     from shapely.geometry import LineString
     laser = profile in ("GRBL_laser", "Z_laser", "Marlin_laser_FAN_pin", "Marlin_laser_Spindle_pin")
-    power = 128 if profile == "Repetier" or laser else 12000
-    power_meaning = "FAN_DUTY_0_255" if profile in ("Repetier", "Marlin_laser_FAN_pin") else "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM" if laser else "RPM"
+    power = 0 if profile in ("Roland_MDX_20","hpgl") else 128 if profile == "Repetier" or laser else 12000
+    power_meaning = "BINARY_MOTOR_NO_RPM" if profile == "Roland_MDX_20" else "PEN_STATE_NO_MOTOR" if profile == "hpgl" else "FAN_DUTY_0_255" if profile in ("Repetier", "Marlin_laser_FAN_pin") else "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM" if laser else "RPM"
     directory.mkdir(parents=True, exist_ok=False)
     errors = []
 
@@ -115,7 +115,7 @@ def probe_cnc_profile(fc, qapp, profile, directory, messages):
             job = fc.collection.get_by_name(outname)
             program = getattr(job, "source_file", "") if job is not None else ""
             if program:
-                extension = ".imf" if profile == "ISEL_ICP_CNC" else ".nc"
+                extension = ".rml" if profile == "Roland_MDX_20" else ".plt" if profile == "hpgl" else ".imf" if profile == "ISEL_ICP_CNC" else ".nc"
                 (directory / (name + extension)).write_text(program, encoding="utf-8")
             case_errors = errors[before_errors:] + application_errors(messages[before_messages:])
             results.append(dict(case=name, objectCreated=job is not None, programBytes=len(program.encode("utf-8")),
@@ -139,7 +139,7 @@ def main():
                         help="Explicit isolated app unit preference before opening; legacy set_ui overwrites object units from defaults")
     parser.add_argument("--new-empty-geometry", action="store_true",
                         help="Control run: also create a blank Geometry with the application's own command")
-    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom", "Repetier", "Berta_CNC", "GRBL_laser", "Z_laser", "Marlin_laser_FAN_pin", "Marlin_laser_Spindle_pin"),
+    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom", "Repetier", "Berta_CNC", "GRBL_laser", "Z_laser", "Marlin_laser_FAN_pin", "Marlin_laser_Spindle_pin", "Roland_MDX_20", "hpgl", "Toolchange_Probe_MACH3"),
                         help="Generate public synthetic Geometry through the real app, without opening a project")
     parser.add_argument("--probe-output", type=Path, help="Fresh directory for diagnostic CNC programs")
     args = parser.parse_args()

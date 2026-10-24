@@ -1,5 +1,12 @@
 # CNC — trajetos, exportações e perfis adicionais
 
+Rodada de 2026-10-24 em [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md):
+Roland/HPGL possuem comparação nativa; Mach3 possui contrato estático, sem
+contato simulado. End Z/XY laser está habilitado e testado, com 28 receitas
+por perfil. As indicações abaixo de que todos esses ensaios são candidatos
+descrevem rodadas anteriores. Parâmetros laser por grupo e equivalência
+completa desses perfis seguem pendentes; strict não foi afrouxado.
+
 Quatro lasers em [LASER_PARITY.md](LASER_PARITY.md): corrigido G94 direto
 que ignorava a regra Marlin e M400 após estacionamento. Leitor não confunde
 exposição XY em Z positivo com fresagem negativa, nem S/PWM com RPM físico.

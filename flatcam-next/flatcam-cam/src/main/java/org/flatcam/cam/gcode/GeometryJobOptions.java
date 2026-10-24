@@ -52,6 +52,12 @@ public record GeometryJobOptions(Double startZ, Double endZ, Double endX, Double
     }
     public void validate(GCodePreprocessor profile, double clearance, boolean toolChange) {
         if(exclusionsEnabled && exclusions.isEmpty()) throw new IllegalArgumentException("Exclusoes ativadas: desenhe ao menos uma area ou desmarque a opcao.");
+        if(profile.isLaser()) {
+            if(startZ!=null || toolChangeZ!=null || toolChangeX!=null || exclusionsEnabled
+                    || !routing.equals(CncRouting.LEGACY) || travelClearance!=GeometryTravelClearance.JOB_MAXIMUM)
+                throw new IllegalArgumentException("Laser permite End Z/XY; Start Z, troca mecanica, exclusoes e roteamento avancado ainda nao sao suportados.");
+            return;
+        }
         if (!isAutomatic() && (profile.isLaser() || profile.isPlotter() || profile.isRoland() || profile.requiresProbe()))
             throw new IllegalArgumentException("Posicoes comuns avancadas exigem perfil de fresagem sem sondagem. A sonda possui seu proprio painel de troca.");
         if (toolChange && toolChangeZ != null && toolChangeZ < clearance)

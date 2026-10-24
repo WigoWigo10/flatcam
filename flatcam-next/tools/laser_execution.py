@@ -162,7 +162,12 @@ def audit_laser(case, parsed, equivalent):
             issues.append("Positioning without an explicit commanded laser stop; actual beam behavior depends on firmware")
         if case["profile"] in MARLIN_LASERS and e["kind"] == "rapid" and not equivalent(e["feed"],job["rapidFeed"]):
             issues.append("Laser Marlin G0 feed differs from requested Feed rapids (or is undeclared)")
+        if job["endX"] is not None and e["kind"]=="rapid" and e["from"][:2]!=e["to"][:2] and equivalent(e["to"][:2],[job["endX"],job["endY"]]) \
+                and min(e["from"][2],e["to"][2]) < max(p["safeZ"],job["endZ"])-.000051:
+            issues.append("Laser final XY is below requested parking clearance")
     if not equivalent(parsed["end"][2],job["endZ"]): issues.append("Laser final Z differs from requested height")
+    if job["endX"] is not None and not equivalent(parsed["end"][:2],[job["endX"],job["endY"]]):
+        issues.append("Laser final XY differs from requested position")
     if parsed["laserControls"]["finalPower"] != 0: issues.append("Laser has no explicit final power-off command")
     if case["profile"] in MARLIN_LASERS and not parsed["laserControls"]["finalMovementBarrier"]:
         issues.append("Laser Marlin final parking is outside the final M400 barrier")

@@ -102,8 +102,10 @@ final class CncPreflight {
             common.add(value("Altura dos deslocamentos XY",travelPolicy==GeometryTravelClearance.PER_TOOL ? "Individual: confira o valor efetivo de cada fresa"
                     : number(clearance) + " " + unit(units) + " (maior Travel Z do trabalho)", -1, "cnc-travel-clearance"));
         } else if (profile.isLaser()) {
-            common.add(value("Z final (laser desligado)", number(base.safeZ()) + " " + unit(units), -1, "cnc-safe-z"));
-            common.add(value("Posições laser", "Z_laser e Marlin laser posicionam o foco Z; GRBL_laser simples não altera Z antes dos trajetos. End XY avançado não está disponível; mantém o último XY.", -1, "cnc-preprocessor"));
+            double end=pos.endZ()==null ? base.safeZ() : pos.endZ();
+            common.add(value("Z final (laser desligado)", number(end) + " " + unit(units), -1, "cnc-end-z"));
+            common.add(value("End X,Y (laser desligado)",xy(pos.endX(),pos.endY())+"; deslocamento em Z "+number(Math.max(base.safeZ(),end))+" "+unit(units), -1,"cnc-end-xy"));
+            common.add(value("Posições laser", "Z_laser e Marlin laser posicionam o foco Z; GRBL_laser simples não altera Z antes dos trajetos. End XY ocorre com potência desligada antes de descer para End Z. Start Z e troca mecânica continuam indisponíveis.", -1, "cnc-preprocessor"));
         } else common.add(value("Posições de fresagem", "Não se aplicam a este perfil", -1, "cnc-preprocessor"));
         if (profile.requiresProbe() && base.probing() != null) probe(common, base.probing());
         startChangeNotice(issues,pos.startZ(),pos.toolChangeZ()==null ? clearance : pos.toolChangeZ(),
@@ -223,7 +225,7 @@ final class CncPreflight {
     private static void limitations(List<Issue> issues, GCodePreprocessor profile) {
         if (profile.isLaser()) {
             issues.add(new Issue(false, "Laser: potência é o valor S/PWM solicitado ao controlador, não RPM físico. A prévia mostra trajetos, mas não simula feixe, material, intertravamentos nem configurações elétricas; não é validação de segurança.", null));
-            issues.add(new Issue(false, "Laser: uma passagem por caminho, sem Multi-Depth, troca mecânica, Dwell ou Extra Cut. Pontos isolados exigem tempo de exposição e são recusados; posições avançadas e parâmetros individuais também não estão habilitados.", null));
+            issues.add(new Issue(false, "Laser: uma passagem por caminho, sem Multi-Depth, troca mecânica, Dwell ou Extra Cut. Pontos isolados exigem tempo de exposição e são recusados. Apenas End Z/XY está habilitado nas posições; parâmetros individuais permanecem indisponíveis.", null));
             if (profile == GCodePreprocessor.GRBL_LASER || profile == GCodePreprocessor.Z_LASER)
                 issues.add(new Issue(false, "GRBL laser: confirme $30 (escala de S), $32 (modo laser) e a ligação de controle. O FX comanda M5 antes dos posicionamentos; não detecta a configuração da máquina nem assume que S representa uma porcentagem.", null));
             else {
