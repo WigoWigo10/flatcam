@@ -1,8 +1,38 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## NCC: componentes que se tocam em pontos — 2026-10-24
+
+Continuação do commit `79f2aedd`, consolidada em commit separado (ver git log).
+Causa do caso B_Cu 3×1 encontrada: `buffer(0)` do conjunto inteiro recomeçava anéis em
+outros vértices. Rest Python não faz essa limpeza; sem Rest limpa cada
+polígono separadamente. FX agora segue ambas as políticas, sem mexer em Paint,
+tolerâncias, fontes do legado ou geometria de entrada. Regressão pública com
+losango/retângulo falhou antes e passou depois, MM/IN × Rest × Connect.
+8/8 controles públicos contra GUI Python passaram; 63 testes focados passaram;
+contraprova isolada com classe anterior falhou 10/10 e atual passou 10/10.
+O caso real isolado passou nas duas fresas (distâncias 5,68e-14/1,07e-14 mm).
+O comparador de ferramenta única também tinha limpeza extra; agora adapta
+só metadados e chama a GUI original. Regressão Python red/green 10/10 e
+28 testes passam. Validação final: **201 MATCH_SAMPLED, zero diferenças de
+CAM/G-code/parciais, 2 ORACLE_ERROR** em 203 controles/33 relatórios; strict
+continua 1. Os erros são Offset nas duas faces, sem prova de sessão GUI
+completa. Todos os NCC comparados agora usam o inicializador GUI original.
+Três layouts reais FX passaram, furos/reabertura nativa conferidos, fonte
+original intacta. 2×2 e públicos padrão reutilizam exports completos do
+código Java final; 3×1/avançado foram reexportados. Todos os ensaios Python
+foram refeitos. A matriz intermediária interrompida não conta como aprovada.
+Resumo privado: `target/ncc-seams-final-validation-20261024/index.html` e
+`summary.json`. Build final: 1868 aprovações/18 skips, zero falhas/erros.
+A primeira execução falhou em End Z de um teste Roland; não se repetiu nas
+reexecuções isolada, empacotada e integral. Causa não confirmada, log e
+expectativa preservados, mensagem de diagnóstico melhorada. Próximo: checar
+a representação/carga Python dos casos Offset; Connect 1 mm está encerrado
+neste corpus, sem afrouxar tolerâncias. Sem push.
+Detalhes e comandos: [NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md).
+
 ## Três etapas: decisões GRBL, precisão nativa e matriz real — 2026-10-24
 
-Sobre `c52029c1`, alterações locais sem commit/push. A revisão GRBL dos dois
+Sobre `c52029c1`, commitado em `79f2aedd`, sem push. A revisão GRBL dos dois
 perfis voltou a 49/19/34/2/0 em 104 receitas cada, sem desvios dos parâmetros
 FX. [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md) fecha as receitas por
 política/operação/limite conhecido; não repetir essas diferenças como defeitos

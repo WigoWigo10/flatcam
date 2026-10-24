@@ -461,8 +461,26 @@ def legacy_paths(case, copper, engine, root, handler_cache):
     params = case["parameters"]
     diameter = case["diameter"]
     operation = case["operation"]
-    if operation == "ncc" and "tools" in params:
-        return legacy_ncc_tools(case,engine,root,handler_cache)
+    if operation == "ncc":
+        if "tools" in params:
+            return legacy_ncc_tools(case,engine,root,handler_cache)
+        # Older single-tool exports omit the tool-table metadata. Adapt that
+        # schema, not its geometry: the original GUI initializer must still
+        # choose the area preparation, including per-polygon non-Rest cleanup.
+        # The old shortcut's whole-area buffer(0) changed point-touching seams.
+        gui_params = dict(params, restMachining=params.get("restMachining",False),
+            order=params.get("order","NONE"),copperOffset=params.get("copperOffset",0),
+            tools=[dict(diameter=diameter,overlap=params["overlap"],method=params["method"],
+                        connect=params["connect"],contour=params["contour"],
+                        copperOffset=params.get("copperOffset",0))])
+        if gui_params.get("boundary") in ("connect", "no-contour"):
+            gui_params["boundary"] = "itself"
+        result, extra = legacy_ncc_tools(dict(case,parameters=gui_params),engine,root,handler_cache)
+        # These exports have exactly one cutter, already checked by the full
+        # path/G-code comparison. Do not invent per-tool FX metadata.
+        extra.pop("_toolPaths",None)
+        extra["pythonSingleToolAdapter"] = True
+        return result, extra
     if operation == "isolation":
         results = []
         if params.get("follow"):
@@ -501,14 +519,7 @@ def legacy_paths(case, copper, engine, root, handler_cache):
         result = namespace["cutout_rect_handler"](
             outline, params["gapSize"] / 2 + diameter / 2, xmin, ymin, xmax, ymax)
         return unary_union(lines(result)), {"oracle": "actual nested rectangular handler and CutOut helpers"}
-    if operation == "ncc":
-        # Actual ToolNCC selection/margin methods; no ISO, Rest or copper offset in these cases.
-        area = ncc_boundary(case, copper, engine, root, handler_cache).difference(copper).buffer(0)
-        fx_area = wkt.loads(params["fxClearingAreaWkt"])
-        extra = {"clearingAreaSymmetricDifference": area.symmetric_difference(fx_area).area,
-                 "clearingAreaMatches": area.symmetric_difference(fx_area).area <= max(area.area, fx_area.area) * 1e-8,
-                 "oracle": "original NCC boundary/margin methods and clearing routine"}
-    elif operation == "paint":
+    if operation == "paint":
         area = wkt.loads(case["inputWkt"])
         extra = {"oracle": "actual clearing routine on the same explicitly selected area"}
     else:

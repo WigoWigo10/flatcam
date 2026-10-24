@@ -1,5 +1,18 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## NCC por componente e GUI original em todos os controles — 2026-10-24
+
+[NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md): corrigida limpeza extra
+que mudava os inícios dos anéis e os caminhos Rest/Connect. Sem Rest, limpa
+cada polígono separadamente; Rest usa a subtração diretamente. O comparador
+antigo de ferramenta única também tinha a limpeza extra e agora chama a
+GUI original. Regressões públicas comprovadas antes/depois, 10/10 repetições.
+Final: **201 MATCH_SAMPLED / 0 diferenças CAM/G-code/parciais / 2 ORACLE_ERROR**
+em 203 controles. Três layouts reais e 148 públicos, fonte intacta. Os dois
+erros são Offset Python nas duas faces e não contam como paridade. Todos
+os fluxos FX passaram; verify 1868 aprovações/18 skips. Há uma falha isolada
+anterior de teste End Z não reproduzida, registrada no relatório.
+
 ## Revisão GRBL, precisão nativa e matriz real — 2026-10-24
 
 GRBL conhecido classificado em [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md),

@@ -46,7 +46,8 @@ class CncNativePrecisionTest {
         assertTrue(report.canContinue());
         assertEquals("125 → 126",report.tools().getFirst().feedZ());
         assertEquals("-0.6006 → -0.6",report.tools().getFirst().cutZ());
-        assertTrue(report.common().stream().anyMatch(v->v.label().equals("End Z solicitado → arquivo") && v.text().contains("3.0025")));
+        assertTrue(report.common().stream().anyMatch(v->v.label().equals("End Z solicitado → arquivo") && v.text().contains("3.0025")),
+                () -> "Unexpected native End Z values: " + report.common());
     }
     @Test void sampledOverflowAndUnrepresentableRolandHeightBlockReview() {
         var line=F.createLineString(new Coordinate[]{new Coordinate(820,7),new Coordinate(822,7)});

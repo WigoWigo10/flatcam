@@ -1,5 +1,13 @@
 # Matriz de validação dos fluxos principais — 2026-10-24
 
+Resultado posterior e correção do comparador:
+[NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md). **201 concordâncias,
+zero diferenças de CAM/G-code/parciais, 2 erros do handler Offset Python**
+em 203 controles. Todos os casos NCC agora chamam a GUI original, inclusive
+os schemas antigos de ferramenta única. A tabela abaixo mantém o baseline
+histórico anterior; a matriz intermediária interrompida não conta como
+aprovada. Relatório final em `target/ncc-seams-final-validation-20261024`.
+
 Terceira etapa sobre `c52029c1`, após a revisão GRBL e a revisão de precisão
 nativa. `compare-main-flow-matrix.ps1` executa fontes `.FlatPrj` em série,
 usando o fluxo existente de `compare-panelized-flows.ps1`. Aceita várias

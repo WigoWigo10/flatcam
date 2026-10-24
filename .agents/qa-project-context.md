@@ -44,7 +44,43 @@ isolate settings/offscreen UI and must not modify private projects/preferences.
 
 ## Quality Goals
 
-Latest three-step work on `c52029c1`, local/uncommitted: GRBL_11_NO_M6 and
+Continuation after `79f2aedd`: NCC point-touch preparation fix completed,
+see `flatcam-next/NCC_POINT_TOUCH_REVIEW.md`. Root cause established:
+copper, boundary and raw subtraction exact; extra whole-area buffer(0) moves
+ring seams. GUI Rest uses raw subtraction; non-Rest cleans each polygon
+separately. Production now follows those two policies; Paint unchanged.
+Public diamond regression was red before each fix; 8/8 original GUI controls
+MM/IN now pass strict (exit codes recorded), 63 focused Java tests pass.
+Same compiled regression is red 10/10 with isolated `79f2aedd` class and green
+10/10 with current classes. Real B_Cu 3x1 Rest+Itself+Connect isolated now
+passes both tools: sampled distances 5.68e-14 and 1.07e-14 mm. This isolated
+export predates only the non-Rest refinement. That first full matrix was
+interrupted after finding the single-tool comparator shortcut also buffered
+the whole area; it is INCOMPLETE, not a final pass. `legacy_paths` now adapts
+single-tool metadata into the ORIGINAL GUI initializer too; no legacy source
+or coordinates patched. Public regression/counterproof red/green 10/10,
+28 comparator tests pass. The apparent B_Cu 2x2 non-Rest Connect difference
+is 5.68e-14 mm under the real GUI handler. Final validation is now under
+`target/ncc-seams-final-validation-20261024`, reusing completed final-code
+2x2/public exports and reexporting 3x1/advanced. COMPLETE: 33 reports, 203
+controls, 201 MATCH_SAMPLED, zero CAM/G-code/partial differences, 2 original
+Offset ORACLE_ERROR (one each face); strict-equivalent exit 1, never count
+those errors as parity. All NCC controls use original GUI code now. All
+three FX flows passed, drill registration/native reopen checked, original
+source hash unchanged. Summary includes FX export hashes and consistent
+legacy source hashes. All 148 public controls pass; separate public seam
+probe passes 8/8. Full verify rerun passed 1868 tests,
+18 optional skips. Initial full verify had an unexplained End Z assertion
+failure in CncNativePrecisionTest; isolated, packaged and full reruns pass.
+Only its failure diagnostic improved; preserve first log, do not invent a
+cause. Offset error is proven in the handler/harness, not a complete live
+GUI import proof. Next investigate that source representation/load path;
+do not reopen the fixed 1 mm Connect gap without new contrary evidence.
+All private geometry remains ignored. Consolidated in the subsequent NCC
+fix commit; see git log. No push.
+
+Historical baseline before this fix: three-step work committed as `79f2aedd`
+on `flatcam-next`, no push: GRBL_11_NO_M6 and
 GRBL_11 unchanged at 49/19/34/2/0 each; known differences adjudicated in
 GRBL_PATH_DECISIONS.md, not generic pending FX fixes. Native precision review
 uses actual codecs and limited coordinate samples; it must not claim a full

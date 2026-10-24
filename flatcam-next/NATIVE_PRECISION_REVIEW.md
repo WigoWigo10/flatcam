@@ -42,4 +42,4 @@ também passaram. Log: `target/three-steps-precision-final-20261024.log`.
 
 Verify integral final da série: 1867 aprovações Java/18 skips opcionais,
 zero falhas/erros. Log `target/three-steps-full-final-20261024.log`.
-Alterações locais sobre `c52029c1`, sem commit/push nesta etapa.
+Alterações sobre `c52029c1`, commitadas em `79f2aedd`, sem push.

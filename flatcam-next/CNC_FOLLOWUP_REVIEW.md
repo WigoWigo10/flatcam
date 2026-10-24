@@ -4,10 +4,16 @@ Série de 2026-10-24: [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md) fecha a
 classificação dos 34 casos conhecidos sem inventar defeitos FX;
 [NATIVE_PRECISION_REVIEW.md](NATIVE_PRECISION_REVIEW.md) apresenta solicitado
 → arquivo em Roland/HPGL. [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md) registra
-200/203 concordâncias, uma nova diferença de Connect (1 mm, B_Cu 3×1 sem gap)
-e duas falhas do handler Python Offset, com repros. É a pendência concreta
-nova; não repetir recomendações genéricas já revisadas. Verify 1867 passam,
-18 skips opcionais, sem falhas/erros; strict da matriz segue reprovado.
+o baseline anterior. A diferença Connect de 1 mm foi corrigida pela política
+de preparo por componente: [NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md).
+O comparador simples também foi corrigido para chamar a GUI original.
+Resultado final: **201/203 concordâncias, zero diferenças CAM/G-code/parciais,
+2 erros do handler Python Offset**. Verify 1868 passam/18 skips opcionais,
+sem falhas/erros na reexecução integral. Primeira falha isolada de End Z
+Roland não se repetiu; logs preservados. Próximo: investigar representação e
+carga do Offset Python antes de atribuir defeito ao FX; não repetir a lacuna
+Connect já encerrada ou os 34 GRBL já classificados. Strict segue reprovado
+pelos dois erros originais, sem convertê-los em paridade.
 
 Laser por grupo implementado em [LASER_GROUPS.md](LASER_GROUPS.md): avanço/
 potência nos quatro perfis e foco em Z_laser/Marlin, com transições, painel,

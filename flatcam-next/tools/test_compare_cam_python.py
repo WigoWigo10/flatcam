@@ -10,9 +10,37 @@ from compare_cam_python import (classify_result, compile_rectangular_handler, co
                                sampled_distance, sampled_witness, gcode_metrics)
 from compare_cam_python import panelize_legacy_source, public_panelized_source
 from compare_cam_python import legacy_ncc_tools
+from compare_cam_python import legacy_paths
 
 
 class ComparisonReportTest(unittest.TestCase):
+    def test_single_tool_ncc_executes_the_original_gui_preparation_not_a_whole_area_repair(self):
+        import sys
+        from shapely.ops import unary_union
+        root = self.legacy_root()
+        sys.path[:0] = [str(root), str(root / "tests")]
+        import camlib
+        from parser_baseline import install_stub_app
+        install_stub_app()
+        engine = camlib.Geometry()
+        engine.geo_steps_per_circle = 64
+        copper = Polygon([(5,20),(2,10),(5,0),(8,10),(5,20)])
+        engine.solid_geometry = copper
+        # Same independent public ring representation exported by the Java probe.
+        reference = Polygon([(0,0),(0,20),(30,20),(30,0),(0,0)])
+        params = dict(boundary="reference-geometry",referenceWkt=reference.wkt,
+                      margin=0,overlap=.4,method="STANDARD",connect=True,contour=True,
+                      fxClearingAreaWkt=reference.difference(copper).wkt)
+        case = dict(id="public-point-touch",operation="ncc",units="MM",diameter=1,parameters=params)
+        before = params.copy()
+        result, extra = legacy_paths(case,unary_union(copper),engine,root,{})
+        self.assertAlmostEqual(883.6995235475393,result.length,places=7)
+        self.assertIn("GUI initializer",extra["oracle"])
+        self.assertTrue(extra["pythonSingleToolAdapter"])
+        self.assertEqual(0,extra["pythonFailedPolygons"])
+        self.assertEqual(before,params)
+        self.assertEqual(copper.wkt,engine.solid_geometry.wkt)
+
     def test_original_iso_helper_keeps_two_cutters_before_clear_and_does_not_leak_between_cases(self):
         import sys
         import shapely
