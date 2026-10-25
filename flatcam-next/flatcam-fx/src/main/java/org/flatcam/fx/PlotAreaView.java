@@ -1204,6 +1204,11 @@ final class PlotAreaView extends StackPane {
     }
 
     boolean beginEditorPlacement(List<Geometry> geometries, boolean strokeOnly, PlacementHandler handler) {
+        return beginEditorPlacement(geometries, strokeOnly, null, handler);
+    }
+
+    /** Retains the pickup point between repeated operations such as the Geometry eraser. */
+    boolean beginEditorPlacement(List<Geometry> geometries, boolean strokeOnly, Coordinate anchor, PlacementHandler handler) {
         if (selectionHandler == null || geometries.isEmpty() || handler == null) {
             return false;
         }
@@ -1215,7 +1220,10 @@ final class PlotAreaView extends StackPane {
             preview.add(new RenderLayer(geometry, strokeOnly, PLACEMENT_FILL, PLACEMENT_STROKE,
                     true, LayerCategory.OVERLAY, true, false));
         }
-        return startPlacement(List.of(), preview, 0, 0, false, handler);
+        boolean started = startPlacement(List.of(), preview, anchor == null ? 0 : anchor.x,
+                anchor == null ? 0 : anchor.y, anchor != null, handler);
+        if (started && anchor != null && cursorInsidePlot) updatePlacement(cursorScreenX, cursorScreenY);
+        return started;
     }
 
     /** A flash is already centered at the origin: the first click places it at the cursor. */

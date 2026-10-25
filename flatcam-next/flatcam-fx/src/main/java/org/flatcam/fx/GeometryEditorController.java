@@ -67,6 +67,7 @@ final class GeometryEditorController {
     private static final LayerKey SHAPES_LAYER = new LayerKey("geometry-editor-shapes");
     private static final Color SHAPE_COLOR = Color.web("#FF0000AF");
     private static final int EXACT_HIGHLIGHT_LIMIT = 2_000;
+    private static final javafx.css.PseudoClass ERASER_ACTIVE = javafx.css.PseudoClass.getPseudoClass("eraser-active");
 
     private final PlotAreaView plotArea;
     private final Host host;
@@ -115,6 +116,16 @@ final class GeometryEditorController {
     private boolean busy;
     private boolean initiallyVisible;
     private boolean strokeOnly;
+    private EraserGesture eraser;
+
+    /** Frozen stencil: erasing the source shape must not silently change the next erase area. */
+    private static final class EraserGesture {
+        final GeometryEditSession editing;
+        Geometry mask;
+        Coordinate anchor;
+        boolean suspending;
+        EraserGesture(GeometryEditSession editing) { this.editing = editing; }
+    }
 
     GeometryEditorController(PlotAreaView plotArea, Host host) {
         this(plotArea, host, AsyncFontCatalog.SYSTEM);
@@ -209,8 +220,8 @@ final class GeometryEditorController {
             if (syncingTable || busy || session == null) {
                 return;
             }
-            plotArea.cancelPlacement();
             Set<Integer> current = new LinkedHashSet<>(shapeTable.getSelectionModel().getSelectedIndices());
+            plotArea.cancelPlacement();
             tableSelectionOrder.retainAll(current);
             for (int index : current) {
                 tableSelectionOrder.add(index);
@@ -792,31 +803,78 @@ final class GeometryEditorController {
 
     void startEraser() {
         if (!readyForTool()) return;
+        if (eraser != null) { cancelEraserFromShortcut(); return; }
         plotArea.cancelPlacement();
-        GeometryEditSession editing = session;
+        EraserGesture gesture = new EraserGesture(session);
+        eraser = gesture;
+        eraserButton.pseudoClassStateChanged(ERASER_ACTIVE, true);
         try {
-            calculate(editing.prepareEraserMask(), result -> {
-                Geometry mask = result.resultParts().getFirst().geometry();
-                Set<Integer> originalSelection = editing.selectedIndices();
-                boolean started = plotArea.beginEditorPlacement(List.of(mask), false, new PlotAreaView.PlacementHandler() {
-                    public void onAnchorChosen() { if (session == editing) instruction.setText("Clique no destino para apagar; Esc cancela."); }
-                    public void onCommit(double dx, double dy) {
-                        if (session != editing || !editing.selectedIndices().equals(originalSelection)) return;
-                        try {
-                            calculate(editing.prepareErase(mask, dx, dy), erased -> {
-                                boolean changed = editing.applyOperation(erased);
-                                refreshGeometry();
-                                instruction.setText(changed ? "Area apagada. Ctrl+Z desfaz."
-                                        : "Nenhuma forma foi alterada nessa area.");
-                            });
-                        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
+            calculate(session.prepareEraserMask(), result -> {
+                if (eraser != gesture) return;
+                gesture.mask = result.resultParts().getFirst().geometry();
+                armEraser(gesture);
+            }, () -> stopEraser(gesture));
+        } catch (IllegalArgumentException error) {
+            stopEraser(gesture); instruction.setText(error.getMessage());
+        }
+    }
+
+    boolean isEraserActive() { return eraser != null; }
+
+    /** Also handles Escape while the worker runs, when there is no ordinary placement to cancel. */
+    boolean cancelEraserFromShortcut() {
+        if (eraser == null) return false;
+        EraserGesture gesture = eraser;
+        stopEraser(gesture);
+        plotArea.cancelPlacement();
+        refreshSelection();
+        instruction.setText(busy ? "Borracha encerrada; o cálculo pendente será descartado."
+                : "Borracha encerrada. As operações confirmadas foram mantidas.");
+        return true;
+    }
+
+    private void stopEraser(EraserGesture gesture) {
+        if (eraser == gesture) {
+            eraser = null;
+            eraserButton.pseudoClassStateChanged(ERASER_ACTIVE, false);
+        }
+    }
+
+    private void armEraser(EraserGesture gesture) {
+        if (eraser != gesture || session != gesture.editing) return;
+        boolean started = plotArea.beginEditorPlacement(List.of(gesture.mask), false, gesture.anchor,
+                new PlotAreaView.PlacementHandler() {
+                    public void onAnchorChosen(double x, double y) {
+                        gesture.anchor = new Coordinate(x, y);
+                        instruction.setText("Borracha ativa: clique nos destinos para apagar; Esc/botão direito encerra.");
                     }
-                    public void onCancel() { if (session == editing) instruction.setText("Borracha cancelada."); }
+                    public void onCommit(double dx, double dy) {
+                        if (eraser != gesture || session != gesture.editing) return;
+                        try {
+                            calculate(session.prepareErase(gesture.mask, dx, dy), erased -> {
+                                if (eraser != gesture) return;
+                                boolean changed = session.applyOperation(erased);
+                                refreshGeometry();
+                                armEraser(gesture);
+                                instruction.setText((changed ? "Área apagada. Ctrl+Z desfaz. " : "Nenhuma forma alterada. ")
+                                        + "Borracha ativa: clique no próximo destino; Esc/botão direito encerra.");
+                            }, () -> stopEraser(gesture));
+                        } catch (IllegalArgumentException error) {
+                            stopEraser(gesture); instruction.setText(error.getMessage());
+                        }
+                    }
+                    public void onCancel() {
+                        if (eraser == gesture && !gesture.suspending) {
+                            stopEraser(gesture);
+                            refreshSelection();
+                            instruction.setText("Borracha encerrada. As operações confirmadas foram mantidas.");
+                        }
+                    }
                 });
-                instruction.setText(started ? "Borracha: clique na origem do molde e depois no destino; Esc cancela."
-                        : "Nao foi possivel iniciar a borracha.");
-            });
-        } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
+        if (!started) stopEraser(gesture);
+        instruction.setText(!started ? "Não foi possível iniciar a borracha."
+                : gesture.anchor == null ? "Borracha: clique na origem do molde e depois nos destinos; Esc cancela."
+                : "Borracha ativa: clique no próximo destino; Ctrl+Z desfaz; Esc/botão direito encerra.");
     }
 
     private void startMoveOrCopy(boolean copy) {
@@ -896,24 +954,25 @@ final class GeometryEditorController {
         if (!readyForTool()) {
             return false;
         }
-        plotArea.cancelPlacement();
-        if (!session.undo()) {
-            return false;
-        }
-        refreshGeometry();
-        return true;
+        return changeHistory(false);
     }
 
     private boolean redo() {
         if (!readyForTool()) {
             return false;
         }
+        return changeHistory(true);
+    }
+
+    private boolean changeHistory(boolean redo) {
+        EraserGesture gesture = eraser;
+        if (gesture != null) gesture.suspending = true;
         plotArea.cancelPlacement();
-        if (!session.redo()) {
-            return false;
-        }
-        refreshGeometry();
-        return true;
+        if (gesture != null) gesture.suspending = false;
+        boolean changed = redo ? session.redo() : session.undo();
+        if (changed) refreshGeometry();
+        if (gesture != null) armEraser(gesture);
+        return changed;
     }
 
     void startUnion() {
@@ -975,6 +1034,11 @@ final class GeometryEditorController {
     }
 
     private void calculate(GeometryEditSession.OperationRequest request, Consumer<GeometryEditSession.OperationResult> success) {
+        calculate(request, success, () -> { });
+    }
+
+    private void calculate(GeometryEditSession.OperationRequest request, Consumer<GeometryEditSession.OperationResult> success,
+                           Runnable failure) {
         GeometryEditSession editing = session;
         busy = true;
         refreshSelection();
@@ -989,12 +1053,14 @@ final class GeometryEditorController {
         }, error -> {
             if (session == editing) {
                 busy = false;
+                failure.run();
                 refreshSelection();
                 instruction.setText(error);
             }
         });
         if (!accepted) {
             busy = false;
+            failure.run();
             refreshSelection();
             instruction.setText("Nao foi possivel iniciar: ja existe outra operacao em andamento.");
         }
@@ -1084,7 +1150,7 @@ final class GeometryEditorController {
         bufferButton.setDisable(session.selectedCount() == 0);
         explodeButton.setDisable(session.selectedCount() == 0);
         transformButton.setDisable(session.selectedCount() == 0);
-        eraserButton.setDisable(session.selectedCount() == 0);
+        eraserButton.setDisable(session.selectedCount() == 0 && eraser == null);
         paintButton.setDisable(session.selectedCount() == 0);
         paintPane.setDisable(busy);
         textPane.setDisable(busy);
@@ -1099,6 +1165,7 @@ final class GeometryEditorController {
 
     private void end() {
         plotArea.cancelPlacement();
+        eraser = null;
         plotArea.setSelectionHandler(null);
         plotArea.removeLayer(SHAPES_LAYER);
         plotArea.setEditorHighlight(null, false);

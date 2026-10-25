@@ -27,6 +27,13 @@
     -fx-border-color: -fc-panel-text;
 }
 
+/* The repeat eraser keeps its stencil after the selection is cleared. */
+.tool-bar .button:eraser-active {
+    -fx-border-color: -fc-accent;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+}
+
 .side-panel {
     -fx-background-color: -fc-panel-bg;
     -fx-padding: 6;

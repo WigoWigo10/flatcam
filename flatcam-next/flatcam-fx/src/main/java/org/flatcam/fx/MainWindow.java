@@ -834,7 +834,9 @@ final class MainWindow implements TclFlatcamHost {
                     return;
                 }
             }
-            if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
+            if (event.getCode() == KeyCode.ESCAPE && geometryEditor.cancelEraserFromShortcut()) {
+                event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
                 event.consume();
             } else if ((geometryEditor.isActive() || excellonEditor.isActive()) && event.getCode() == KeyCode.DELETE
@@ -869,7 +871,7 @@ final class MainWindow implements TclFlatcamHost {
                 statusControls.toggleGrid();
                 event.consume();
             } else if (event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
-                    && !event.isShiftDown() && !plotAreaView.isPlacementActive()
+                    && !event.isShiftDown() && (!plotAreaView.isPlacementActive() || geometryEditor.isEraserActive())
                     && projectTree.getEditingItem() == null
                     && !isTextInputTarget(event.getTarget())) {
                 boolean handled = false;

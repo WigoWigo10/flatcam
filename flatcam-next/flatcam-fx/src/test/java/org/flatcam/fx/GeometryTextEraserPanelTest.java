@@ -71,12 +71,21 @@ class GeometryTextEraserPanelTest {
         Button button(String id) { return (Button) toolbar.lookup("#"+id); }
         TableView<?> table() { return (TableView<?>) panel.lookup("#geometry-shapes"); }
         void click(double x,double y) {
+            click(x, y, MouseButton.PRIMARY);
+        }
+        void click(double x,double y, MouseButton button) {
             // Default viewport: centre (50,40), scale 3, 44/20 px rulers. No fit/pan in this harness.
             double sx=(x-50)*3+(plot.getWidth()-44)/2+44;
             double sy=(plot.getHeight()-20)/2-(y-40)*3+20;
             for (var type : List.of(MouseEvent.MOUSE_PRESSED,MouseEvent.MOUSE_RELEASED))
-                plot.fireEvent(new MouseEvent(type,sx,sy,sx,sy,MouseButton.PRIMARY,1,
-                        false,false,false,false,type==MouseEvent.MOUSE_PRESSED,false,false,false,false,true,null));
+                plot.fireEvent(new MouseEvent(type,sx,sy,sx,sy,button,1,
+                        false,false,false,false,type==MouseEvent.MOUSE_PRESSED && button==MouseButton.PRIMARY,
+                        false,type==MouseEvent.MOUSE_PRESSED && button==MouseButton.SECONDARY,false,false,true,null));
+        }
+        double area() { return reflectedSession().resultGeometry().getArea(); }
+        GeometryEditSession reflectedSession() {
+            try { var field=GeometryEditorController.class.getDeclaredField("session"); field.setAccessible(true); return (GeometryEditSession)field.get(controller); }
+            catch (ReflectiveOperationException error) { throw new AssertionError(error); }
         }
     }
     @Test void fontsAreNotEnumeratedUntilTextOpensAndClosedEditorsIgnoreCompletions() throws Exception {
@@ -218,6 +227,124 @@ class GeometryTextEraserPanelTest {
                 assertTrue(h.controller.undoFromShortcut()); assertFalse(h.controller.hasUnappliedChanges());
                 assertTrue(h.controller.redoFromShortcut()); h.controller.apply();
                 assertEquals(16,h.applied.getArea(),1e-6); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void eraserKeepsOriginAcrossTargetsAndUndoRedoWithoutRecomputingItsStencil() throws Exception {
+        var f=new GeometryFactory();
+        Geometry template=f.toGeometry(new Envelope(30,32,30,32)), target=f.toGeometry(new Envelope(40,48,30,34));
+        var h=fx(() -> new Harness(f.buildGeometry(List.of(template,target)),List.of()));
+        try {
+            fx(() -> { h.table().getSelectionModel().select(0); h.controller.startEraser(); return null; });
+            h.finish();
+            fx(() -> { h.click(30,30); h.click(40,30); return null; }); h.finish();
+            fx(() -> {
+                assertEquals(32,h.area(),1e-6); assertTrue(h.controller.isEraserActive());
+                assertTrue(h.plot.isPlacementActive()); assertFalse(h.button("geometry-eraser").isDisabled());
+                h.click(44,30); assertEquals(GeometryEditSession.Operation.ERASE,h.request.operation()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertEquals(28,h.area(),1e-6); assertTrue(h.plot.isPlacementActive());
+                assertTrue(h.controller.undoFromShortcut()); assertEquals(32,h.area(),1e-6);
+                assertTrue(h.controller.isEraserActive()); assertTrue(h.plot.isPlacementActive());
+                assertTrue(h.controller.redoFromShortcut()); assertEquals(28,h.area(),1e-6);
+                assertTrue(h.plot.isPlacementActive());
+                h.click(80,70); return null; // A miss must not end the gesture or create undo history.
+            }); h.finish();
+            fx(() -> {
+                assertEquals(28,h.area(),1e-6); assertTrue(h.plot.isPlacementActive());
+                assertTrue(h.controller.undoFromShortcut()); assertEquals(32,h.area(),1e-6);
+                h.click(44,32); return null;
+            }); h.finish();
+            fx(() -> {
+                assertEquals(28,h.area(),1e-6);
+                h.click(44,32,MouseButton.SECONDARY);
+                assertFalse(h.controller.isEraserActive()); assertFalse(h.plot.isPlacementActive());
+                assertTrue(h.button("geometry-eraser").isDisabled());
+                h.controller.apply(); assertEquals(28,h.applied.getArea(),1e-6); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void eraserRetainsItsStencilEvenAfterErasingTheSourceAndCanStopByItsButton() throws Exception {
+        var f=new GeometryFactory();
+        Geometry template=f.toGeometry(new Envelope(30,32,30,32)), target=f.toGeometry(new Envelope(40,44,30,34));
+        var h=fx(() -> new Harness(f.buildGeometry(List.of(template,target)),List.of()));
+        try {
+            fx(() -> { h.table().getSelectionModel().select(0); h.controller.startEraser(); return null; }); h.finish();
+            fx(() -> { h.click(30,30); h.click(30,30); return null; }); h.finish();
+            fx(() -> {
+                assertEquals(16,h.area(),1e-6); assertEquals(1,h.table().getItems().size());
+                h.click(40,30); return null;
+            }); h.finish();
+            fx(() -> {
+                assertEquals(12,h.area(),1e-6); assertTrue(h.controller.isEraserActive());
+                h.button("geometry-eraser").fire();
+                assertFalse(h.controller.isEraserActive()); assertFalse(h.plot.isPlacementActive());
+                assertEquals(12,h.area(),1e-6); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void escapeWhilePreparingOrErasingDiscardsPendingWorkAndNeverRearmsIt() throws Exception {
+        var f=new GeometryFactory();
+        Geometry template=f.toGeometry(new Envelope(30,32,30,32)), target=f.toGeometry(new Envelope(40,44,30,34));
+        var h=fx(() -> new Harness(f.buildGeometry(List.of(template,target)),List.of()));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.controller.startEraser();
+                assertTrue(h.controller.cancelEraserFromShortcut()); assertTrue(h.controller.isBusy()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertFalse(h.controller.isEraserActive()); assertFalse(h.plot.isPlacementActive());
+                assertFalse(h.controller.hasUnappliedChanges()); h.controller.startEraser(); return null;
+            }); h.finish();
+            fx(() -> {
+                h.click(30,30); h.click(40,30);
+                assertTrue(h.controller.isBusy()); assertTrue(h.controller.cancelEraserFromShortcut()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertFalse(h.controller.isBusy()); assertFalse(h.controller.isEraserActive());
+                assertFalse(h.controller.hasUnappliedChanges()); assertFalse(h.plot.isPlacementActive());
+                assertEquals(20,h.area(),1e-6); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void selectionChangeAndSwitchingToolsStopRepeatedErasing() throws Exception {
+        var f=new GeometryFactory();
+        Geometry template=f.toGeometry(new Envelope(30,32,30,32)), target=f.toGeometry(new Envelope(40,44,30,34));
+        var h=fx(() -> new Harness(f.buildGeometry(List.of(template,target)),List.of()));
+        try {
+            fx(() -> { h.table().getSelectionModel().select(0); h.controller.startEraser(); return null; }); h.finish();
+            fx(() -> {
+                h.click(30,30); h.table().getSelectionModel().clearAndSelect(1);
+                assertFalse(h.controller.isEraserActive()); assertFalse(h.plot.isPlacementActive());
+                assertEquals(java.util.Set.of(1),h.reflectedSession().selectedIndices());
+                h.controller.startEraser(); return null;
+            }); h.finish();
+            fx(() -> {
+                h.controller.startCircle(); assertFalse(h.controller.isEraserActive());
+                assertTrue(h.plot.isPlacementActive()); h.plot.cancelPlacement();
+                assertFalse(h.controller.hasUnappliedChanges()); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void failedEraseEndsRepeatModeAndKeepsEarlierConfirmedEdits() throws Exception {
+        var f=new GeometryFactory();
+        Geometry template=f.toGeometry(new Envelope(30,32,30,32)), target=f.toGeometry(new Envelope(40,48,30,34));
+        var h=fx(() -> new Harness(f.buildGeometry(List.of(template,target)),List.of()));
+        try {
+            fx(() -> { h.table().getSelectionModel().select(0); h.controller.startEraser(); return null; }); h.finish();
+            fx(() -> { h.click(30,30); h.click(40,30); return null; }); h.finish();
+            fx(() -> {
+                h.click(44,30); var fail=h.failed; h.request=null; h.failed=null;
+                fail.accept("Operação cancelada.");
+                assertFalse(h.controller.isBusy()); assertFalse(h.controller.isEraserActive());
+                assertFalse(h.plot.isPlacementActive()); assertEquals(32,h.area(),1e-6);
+                assertTrue(h.controller.undoFromShortcut()); assertEquals(36,h.area(),1e-6); return null;
             });
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }

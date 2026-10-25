@@ -36,10 +36,35 @@ A associação à ferramenta e o perfil permanecem. Se a região cobrir também 
 molde original, ele é apagado como qualquer outra forma. Apagar tudo é permitido.
 Uma operação é um passo de undo/redo. Sem alteração não é criado histórico.
 
-Esc/botão direito cancela antes do segundo clique; durante o cálculo use o
-cancelamento de trabalho na barra de status. Cancelamento/falha não aplica
-resultado parcial. Para repetir, selecione o molde e acione Borracha novamente:
-o FX encerra cada gesto, enquanto o Python mantém a ferramenta ativa.
+### Destinos sucessivos — 2026-10-24
+
+A Borracha permanece ativa depois de cada operação, como no gesto do Python.
+Selecione o molde, acione Borracha e clique **uma vez na origem de referência**.
+Cada clique seguinte escolhe outro destino; aguarde o cálculo terminar entre
+os destinos. A prévia mostra a região deslocada e o botão recebe uma borda de
+destaque enquanto o modo está ativo. Nenhum destino é aplicado só por mover o mouse.
+
+O FX conserva uma cópia do molde inicial e a mesma origem, mesmo se a própria
+forma usada como molde for apagada. O Python recalcula o molde a partir da
+seleção viva, que pode ter sido recortada; essa alteração silenciosa não foi
+copiada. Para usar outro molde, encerre e selecione novamente as formas.
+
+Entre destinos, **Esc, botão direito ou clicar novamente em Borracha** encerra
+sem desfazer operações confirmadas. Trocar ferramenta ou seleção também encerra.
+**Ctrl+Z/Ctrl+Y** desfaz/refaz uma operação e mantém o molde e a origem ativos,
+inclusive quando a seleção ficou vazia após um recorte. Cliques sem alteração
+não acrescentam histórico.
+
+Durante o cálculo, **Esc descarta o resultado pendente** e impede reativação
+atrasada; o worker continua ocupado até devolver o resultado. Para interromper
+o trabalho quando possível, use **Cancelar** na barra de status. Falha ou
+cancelamento não publica resultado parcial nem remove operações anteriores.
+Aplicar/Descartar continuam se referindo ao rascunho inteiro do editor.
+
+Testes de interface com eventos de mouse cobrem destinos sucessivos, undo/redo,
+misses, exclusão do molde de origem, fim por botão direito/botão, cancelamento
+durante preparação/recorte, falha e troca de seleção/ferramenta. Não houve
+validação manual na janela nem execução na máquina.
 
 ## Desempenho e limites de paridade
 

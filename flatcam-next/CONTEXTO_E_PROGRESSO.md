@@ -1,5 +1,29 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Editor Geometry: Borracha contínua — 2026-10-24
+
+Cutout por cursor commitado em `16986f33`, branch `flatcam-next`, sem push.
+Próxima lacuna de gestos tratada: Borracha agora conserva molde/origem e se
+rearma depois de cada recorte em worker. Undo/redo preservam o gesto; não
+exigem nova seleção depois que a aplicação limpa os índices selecionados.
+Esc/botão direito/botão da Borracha encerram entre destinos; Esc durante o
+cálculo invalida a publicação pendente. Falha/cancelamento encerra o modo sem
+desfazer operações anteriores. Trocar ferramenta/seleção encerra; a seleção
+da tabela é capturada antes de cancelar a prévia para não perder o clique.
+O FX congela o molde inicial mesmo se sua forma fonte for apagada; o Python
+usa a seleção viva. Limite deliberado documentado em [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+Verificação: cinco novos cenários no painel (11 testes nesse arquivo) passam;
+empacotamento final e 42 testes focados passam, incluindo revisão Roland.
+`verify` completo: 1899 registros, 1880 passaram, 18 opcionais pulados e uma
+falha já conhecida em `CncNativePrecisionTest` (End Z). O diagnóstico mostra
+o valor/rótulo esperados, mas a causa da asserção intermitente segue aberta;
+nenhum teste foi desabilitado/afrouxado e a execução integral continua reprovada.
+Logs: `target/geometry-repeat-eraser-verify.log`,
+`geometry-repeat-eraser-verify-totals.json` e `geometry-repeat-eraser-final-targeted.log`.
+Modos/atalhos avançados de arco, outras transformações interativas e
+Preferências por categoria continuam pendentes. Esta implementação ainda
+aguarda validação visual manual. Sem push.
+
 ## UX Cutout: pontes pelo cursor — 2026-10-24
 
 Após o fechamento do NCC em `4f013ede`, o usuário priorizou a interface/UX.

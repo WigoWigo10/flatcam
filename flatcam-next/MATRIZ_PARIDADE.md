@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Borracha contínua no Editor Geometry — 2026-10-24
+
+Mantém molde/origem entre recortes; Ctrl+Z/Y mantém o gesto ativo. Esc durante
+cálculo invalida o resultado pendente; falhas não publicam alterações parciais.
+O molde é um snapshot inicial, ao contrário da seleção viva usada pelo Python.
+Testes de cliques e histórico automatizados; janela real ainda não validada.
+Outros gestos avançados de arco/transformação continuam parciais.
+[GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Interação Cutout por cursor — 2026-10-24
 
 Posicionamento repetido de pontes no Plot Area implementado, com Snap, prévia
