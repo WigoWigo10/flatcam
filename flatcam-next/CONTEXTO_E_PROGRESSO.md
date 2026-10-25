@@ -1,5 +1,30 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## UX Cutout: pontes pelo cursor — 2026-10-24
+
+Após o fechamento do NCC em `4f013ede`, o usuário priorizou a interface/UX.
+Cutout agora permite cliques repetidos com máscara quadrada na ponta do cursor,
+prévia do contorno externo calculada em worker e confirmação pela geração
+normal. Botão direito/Esc mantém gaps confirmados e cancela cálculo pendente.
+Snap é respeitado; não altera o projeto durante a prévia. Gaps do cursor são
+invalidados quando seus parâmetros mudam, preservando máscaras desenhadas.
+Valida mesmo contorno Free-form/Rectangular ao gerar e descarta conclusões
+atrasadas de ferramentas fechadas/origens alteradas. Thin/M-Bites usam a
+geração existente; a prévia não antecipa os furos. Recortes internos não ganham
+pontes. Ver [CUTOUT.md](CUTOUT.md) e `CutoutCursorGapsTest`.
+Oito testes novos passam. `verify` executou 1894 controles: 1875 passaram,
+18 opcionais foram pulados e voltou a falhar somente a asserção intermitente
+End Z em `CncNativePrecisionTest` já registrada na etapa NCC. O diagnóstico
+contém o rótulo e `3.0025` esperados; causa não confirmada, teste não alterado.
+Reexecução focada e empacotamento passaram, incluindo esse teste. Logs em
+`target/cutout-cursor-verify.log`, `cutout-cursor-verify-totals.json` e
+`cutout-cursor-final-targeted.log`. Isso não transforma o verify anterior em verde.
+Próximas lacunas de UX discutidas: gestos avançados/repetição nos editores e
+Preferências por categoria. Investigação Offset Python continua pendente e
+foi deixada de lado por solicitação do usuário. Avaliação visual desta entrega
+na janela real ainda não foi feita. Etapa autorizada para commit em seguida;
+sem push solicitado nesta interação.
+
 ## NCC: componentes que se tocam em pontos — 2026-10-24
 
 Continuação do commit `79f2aedd`, consolidada em commit separado (ver git log).

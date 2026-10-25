@@ -39,6 +39,8 @@ final class ToolPanelIcons {
             Map.entry("Desenhar poligono de excecao", "polygon32.png"),
             Map.entry("Limpar area desenhada", "clear_plot32.png"),
             Map.entry("Adicionar gap por retangulo", "rectangle32.png"),
+            Map.entry("Posicionar gaps (Free-form)", "cut32.png"),
+            Map.entry("Posicionar gaps (Rectangular)", "rectangle32.png"),
             Map.entry("Adicionar gap por poligono", "polygon32.png"),
             Map.entry("Limpar gaps manuais", "clear_plot32.png"),
             Map.entry("Gerar (Free-form)", "cut32_bis.png"),

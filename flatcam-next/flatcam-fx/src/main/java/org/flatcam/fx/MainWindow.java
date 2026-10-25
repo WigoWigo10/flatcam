@@ -6686,19 +6686,23 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole("Cutout exige um Gerber ou Geometry preenchida como origem.");
             return;
         }
+        var gaps = new CutoutGapPlacementController(plotAreaView, jobExecutor, units, source, sourceAvailable);
         openToolPanel("Cutout Tool", CutoutToolPanel.build(units,
                 (polygon, onSelected, onCancelled) -> beginNccAreaSelection(source,
                         polygon ? NccToolPanel.AreaShape.POLYGON : NccToolPanel.AreaShape.RECTANGLE,
                         onSelected, onCancelled),
-                plotAreaView::cancelPlacement,
+                gaps::cancel,
                 () -> toolsDatabaseTools(LegacyToolsDatabase::cutoutTools),
+                gaps::begin,
                 result -> {
-                    plotAreaView.cancelPlacement();
+                    if (gaps.isBusy()) throw new IllegalArgumentException("Aguarde o cálculo da ponte antes de gerar ou conclua com Esc para cancelar o cálculo pendente.");
+                    gaps.cancel();
                     runCutoutGeneration(item, units, source, sourceAvailable, result);
                 }, () -> {
-                    plotAreaView.cancelPlacement();
+                    gaps.cancel();
                     closeToolPanel();
                 }));
+        activeToolCleanup = gaps::close;
     }
 
     private record CutoutJobOutcome(CutoutResult cutout, ExcellonImage mouseBites) {

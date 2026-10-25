@@ -4,6 +4,45 @@ Cutout gera Geometry; a configuração e geração CNC são etapas posteriores.
 Os valores usam as unidades do objeto de origem. Confira os caminhos, as alturas
 e as profundidades antes de executar na máquina.
 
+## Pontes pelo cursor — 2026-10-24
+
+Use **Posicionar gaps (Free-form)** ou **Posicionar gaps (Rectangular)**.
+O FX prepara o contorno externo compensado em segundo plano e o mostra no Plot
+Area. A área quadrada na ponta do cursor tem lado `Gap size + Tool Dia`, como
+`ToolCutOut.cutting_geo` do Python. O clique aplica exatamente essa área, com
+o Snap da grade ativo ou desligado conforme a barra inferior.
+
+Clique sobre o contorno e aguarde a prévia atualizar antes do próximo clique.
+É possível adicionar várias pontes sem rearmar a ferramenta. Cliques fora do
+contorno, inteiramente dentro de gaps anteriores ou que eliminariam todo o
+caminho externo são recusados com uma mensagem. **Botão direito ou Esc** encerra
+o gesto e mantém as pontes confirmadas; um cálculo ainda pendente é cancelado.
+**Gerar** publica o resultado no projeto e exige concluir um cálculo pendente.
+Não há alteração de objetos do projeto durante a prévia.
+
+Os gaps manuais substituem o padrão automático e podem ser combinados com as
+máscaras por retângulo/polígono existentes. Gere com o mesmo tipo de contorno
+usado pelo cursor; uma troca Free-form/Rectangular exige limpar os gaps primeiro.
+Alterar diâmetro, margem, largura, Convex Shape, Single/Panel ou recortes internos
+cancela a interação e limpa somente os gaps do cursor; máscaras desenhadas
+continuam nas suas coordenadas. **Limpar gaps manuais** remove ambos.
+
+A prévia é do caminho externo e das máscaras. Thin e furos M-Bites são criados
+pela geração existente e devem ser conferidos depois de gerar. Os recortes
+internos continuam fechados e não recebem pontes. Uma máscara pode alcançar
+mais de um trecho próximo: confira os contornos de painéis com espaçamento
+pequeno. Nas diagonais e cantos, a ponte resultante pode diferir da largura
+nominal. Não há rotação automática: a máscara da prévia e a aplicada têm sempre
+a mesma orientação. O Python pode girar só a prévia durante o movimento; esse
+comportamento não foi copiado.
+
+Testes automatizados cobrem cliques repetidos, conclusão por botão direito,
+Snap ligado/desligado, cancelamento usado pelo Esc, misses/duplicatas,
+mudanças de parâmetros, ferramenta fechada/origem alterada antes da publicação,
+largura MM/IN e preservação de recortes internos e de outra placa do painel.
+A avaliação visual com mouse na janela real permanece para o usuário; isso
+não declara equivalência integral dos gestos Python nem validação física.
+
 ## Recortes internos fechados (FX, 2026-10-10)
 
 Marque **Incluir recortes internos** para acrescentar os anéis internos da

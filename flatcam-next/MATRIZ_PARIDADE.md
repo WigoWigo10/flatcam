@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Interação Cutout por cursor — 2026-10-24
+
+Posicionamento repetido de pontes no Plot Area implementado, com Snap, prévia
+do caminho externo em worker, conclusão por botão direito/Esc e geração
+posterior. Máscara quadrada segue o tamanho do `cutting_geo` Python; a prévia
+FX não gira independentemente da máscara aplicada. Thin/M-Bites continuam na
+geração normal. Não equivale a todos os gestos do legado; falta avaliação
+visual manual. Detalhes e limites em [CUTOUT.md](CUTOUT.md).
+
 ## NCC por componente e GUI original em todos os controles — 2026-10-24
 
 [NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md): corrigida limpeza extra

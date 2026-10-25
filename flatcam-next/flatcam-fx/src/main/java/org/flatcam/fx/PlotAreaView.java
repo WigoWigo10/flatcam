@@ -222,6 +222,13 @@ final class PlotAreaView extends StackPane {
         void onCancel();
     }
 
+    /** Repeated absolute clicks with a cursor-sized preview, used by manual Cutout gaps. */
+    interface CursorPlacementHandler {
+        Geometry preview(double worldX, double worldY);
+        void onClick(double worldX, double worldY);
+        void onFinish();
+    }
+
     enum TwoPointShape {
         RECTANGLE, CIRCLE, SLOT
     }
@@ -415,6 +422,8 @@ final class PlotAreaView extends StackPane {
     private double rightPressScreenX;
     private double rightPressScreenY;
     private PlacementHandler placementHandler;
+    private CursorPlacementHandler cursorPlacementHandler;
+    private Geometry cursorPlacementPreview;
     private List<Object> placementKeys = List.of();
     private List<RenderLayer> placementLayers = List.of();
     private double placementAnchorWorldX;
@@ -1315,6 +1324,16 @@ final class PlotAreaView extends StackPane {
         return true;
     }
 
+    boolean beginCursorPlacement(CursorPlacementHandler handler) {
+        if (handler == null || selectionHandler != null) return false;
+        startPlacement(List.of(), List.of(), 0, 0, true, new PlacementHandler() {
+            public void onCommit(double dx, double dy) { }
+            public void onCancel() { handler.onFinish(); }
+        });
+        cursorPlacementHandler = handler;
+        return true;
+    }
+
     /** Multi-click free-angle polygon used for NCC area selection outside an editor. */
     boolean beginAreaPolygonPlacement(TrackPlacementHandler handler) {
         if (selectionHandler != null || !beginTrackPlacement(1.5 / scale, handler)) {
@@ -1411,6 +1430,8 @@ final class PlotAreaView extends StackPane {
 
     private void clearPlacement() {
         placementHandler = null;
+        cursorPlacementHandler = null;
+        cursorPlacementPreview = null;
         placementKeys = List.of();
         placementLayers = List.of();
         placementPrimaryPressed = false;
@@ -1537,7 +1558,11 @@ final class PlotAreaView extends StackPane {
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
                 double[] world = snappedWorld(event.getX(), event.getY());
-                if (trackPlacementHandler != null) {
+                if (cursorPlacementHandler != null) {
+                    cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
+                    cursorPlacementHandler.onClick(world[0], world[1]);
+                    drawEditorHighlight();
+                } else if (trackPlacementHandler != null) {
                     if (!placementAnchorChosen) {
                         Coordinate first = new Coordinate(world[0], world[1]);
                         placementTrackPoints.add(first);
@@ -1672,6 +1697,8 @@ final class PlotAreaView extends StackPane {
             double[] world = snappedWorld(screenX, screenY);
             placementCurrentWorldX = world[0];
             placementCurrentWorldY = world[1];
+            if (cursorPlacementHandler != null)
+                cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
             drawEditorHighlight();
         }
     }
@@ -2084,6 +2111,13 @@ final class PlotAreaView extends StackPane {
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
+        if (cursorPlacementHandler != null) {
+            if (cursorPlacementPreview != null && !cursorPlacementPreview.isEmpty())
+                drawLayer(gc, new RenderLayer(cursorPlacementPreview, false, PLACEMENT_FILL,
+                        PLACEMENT_STROKE, true, LayerCategory.OVERLAY, true, false), contentWidth, contentHeight);
+            gc.restore();
+            return;
+        }
         if (placementTwoPointShape != null) {
             double[] first = worldToScreen(placementAnchorWorldX, placementAnchorWorldY,
                     contentWidth, contentHeight);

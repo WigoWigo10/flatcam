@@ -26,7 +26,7 @@ import org.locationtech.jts.operation.linemerge.LineMerger;
  * automatic or manually located M-Bites drill points are available. Thin segments become a
  * separate Geometry so the user can choose their shallower Cut Z at the
  * Geometry-to-CNC step. Manual masks can cut one or more arbitrary gap areas;
- * the Python cursor-oriented gap gesture is not reproduced yet.
+ * the FX panel also supplies square masks positioned through repeated cursor clicks.
  */
 public final class CutoutGenerator {
 
