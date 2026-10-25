@@ -848,6 +848,10 @@ final class MainWindow implements TclFlatcamHost {
                 if (excellonEditor.isActive()) excellonEditor.deleteFromShortcut();
                 else geometryEditor.deleteFromShortcut();
                 event.consume();
+            } else if (geometryEditor.isArcActive() && !event.isControlDown() && !event.isAltDown()
+                    && !event.isMetaDown() && !event.isShiftDown() && !isTextInputTarget(event.getTarget())
+                    && geometryEditor.handleArcKey(event.getCode())) {
+                event.consume();
             } else if (plotAreaView.isTrackPlacementActive() && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
                     && !isTextInputTarget(event.getTarget())) {
@@ -1659,6 +1663,7 @@ final class MainWindow implements TclFlatcamHost {
                     }
                 };
                 case "circle" -> geometryEditor::startCircle;
+                case "arc" -> geometryEditor::startArc;
                 case "rectangle" -> geometryEditor::startRectangle;
                 case "path" -> geometryEditor::startPath;
                 case "polygon" -> geometryEditor::startPolygon;

@@ -16,7 +16,7 @@ import org.junit.jupiter.api.condition.OS;
 
 class GeometryEditorDescriptionsTest {
     @Test void helpDescribesEffectsLimitsAndKeyboardWithoutClaimingFullParity() {
-        for (String id : List.of("text","eraser","buffer","cut_path","subtract","union","intersection","explode","move","copy")) {
+        for (String id : List.of("arc","text","eraser","buffer","cut_path","subtract","union","intersection","explode","move","copy")) {
             var help = GeometryEditorDescriptions.of(id);
             assertNotNull(help,id); assertTrue(help.text().length() > 100,id);
             assertTrue(help.text().contains("Ctrl+Z"),id);

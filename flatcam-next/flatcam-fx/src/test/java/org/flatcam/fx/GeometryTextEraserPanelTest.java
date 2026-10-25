@@ -12,6 +12,7 @@ import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.KeyCode;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import org.flatcam.cam.CancellationToken;
@@ -81,6 +82,12 @@ class GeometryTextEraserPanelTest {
                 plot.fireEvent(new MouseEvent(type,sx,sy,sx,sy,button,1,
                         false,false,false,false,type==MouseEvent.MOUSE_PRESSED && button==MouseButton.PRIMARY,
                         false,type==MouseEvent.MOUSE_PRESSED && button==MouseButton.SECONDARY,false,false,true,null));
+        }
+        void move(double x,double y) {
+            double sx=(x-50)*3+(plot.getWidth()-44)/2+44;
+            double sy=(plot.getHeight()-20)/2-(y-40)*3+20;
+            plot.fireEvent(new MouseEvent(MouseEvent.MOUSE_MOVED,sx,sy,sx,sy,MouseButton.NONE,0,
+                    false,false,false,false,false,false,false,false,false,true,null));
         }
         double area() { return reflectedSession().resultGeometry().getArea(); }
         GeometryEditSession reflectedSession() {
@@ -345,6 +352,71 @@ class GeometryTextEraserPanelTest {
                 assertFalse(h.controller.isBusy()); assertFalse(h.controller.isEraserActive());
                 assertFalse(h.plot.isPlacementActive()); assertEquals(32,h.area(),1e-6);
                 assertTrue(h.controller.undoFromShortcut()); assertEquals(36,h.area(),1e-6); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void arcPreviewIsCurvedAndThirdClickCommitsWithOneUndoTransaction() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                h.button("geometry-arc").fire(); assertTrue(h.controller.isArcActive());
+                h.click(50,40); h.click(60,40); h.move(50,50);
+                assertEquals(0,h.table().getItems().size()); assertFalse(h.controller.hasUnappliedChanges());
+                var f=PlotAreaView.class.getDeclaredField("threePointPreview"); f.setAccessible(true);
+                var preview=(Geometry)f.get(h.plot);
+                assertTrue(preview.getGeometryN(0).getNumPoints()>10);
+                double oldLength=preview.getGeometryN(0).getLength();
+                assertTrue(h.controller.handleArcKey(KeyCode.D));
+                preview=(Geometry)f.get(h.plot); assertTrue(preview.getGeometryN(0).getLength()<oldLength);
+                h.click(50,50); assertFalse(h.controller.isArcActive()); assertFalse(h.plot.isPlacementActive());
+                assertEquals(1,h.table().getItems().size()); assertTrue(h.controller.undoFromShortcut());
+                assertEquals(0,h.table().getItems().size()); assertTrue(h.controller.redoFromShortcut());
+                assertEquals(1,h.table().getItems().size()); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void arcModeChangeResetsPointsAndInvalidThirdPointCanBeRetried() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                h.controller.startArc(); h.click(10,10);
+                h.controller.handleArcKey(KeyCode.M); // 12C, first click discarded.
+                assertEquals(EditorArc.Mode.START_END_CENTER,((ComboBox<?>)h.panel.lookup("#geometry-arc-mode")).getValue());
+                h.click(40,40); h.click(60,40); h.click(50,45);
+                assertEquals(1,h.table().getItems().size());
+                h.controller.startArc(); h.controller.handleArcKey(KeyCode.M); // 132.
+                var direction=(CheckBox)h.panel.lookup("#geometry-arc-clockwise");
+                assertTrue(direction.isDisabled());
+                boolean old=direction.isSelected(); h.controller.handleArcKey(KeyCode.D); assertEquals(old,direction.isSelected());
+                h.click(40,40); h.click(60,40); h.click(50,40); // Collinear.
+                assertTrue(h.controller.isArcActive()); assertEquals(1,h.table().getItems().size());
+                assertTrue(((Label)h.panel.lookup("#geometry-instruction")).getText().contains("terceiro ponto"));
+                h.controller.handleArcKey(KeyCode.BACK_SPACE); // Remove end, retain start.
+                h.click(60,40); h.click(50,50);
+                assertFalse(h.controller.isArcActive()); assertEquals(2,h.table().getItems().size());
+                return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void arcUsesSnapAndRightClickCancelsWithoutCreatingAnIncompleteShape() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                h.plot.setGridSnap(true,2,2); h.controller.startArc();
+                h.click(50.3,40.4); h.click(60.3,40.4); h.move(50.3,50.4);
+                h.click(50.3,50.4,MouseButton.SECONDARY);
+                assertFalse(h.controller.isArcActive()); assertFalse(h.controller.hasUnappliedChanges());
+                h.controller.startArc(); h.click(50.3,40.4); h.click(60.3,40.4); h.click(50.3,50.4);
+                assertEquals(1,h.table().getItems().size());
+                Geometry expected=EditorArc.build(new GeometryFactory(),EditorArc.Mode.CENTER_START_END,true,
+                        List.of(new Coordinate(50,40),new Coordinate(60,40),new Coordinate(50,50))).path();
+                assertTrue(expected.equalsTopo(h.reflectedSession().resultGeometry().getGeometryN(0)));
+                h.controller.startArc(); h.click(50,40); h.controller.startCircle();
+                assertFalse(h.controller.isArcActive()); h.plot.cancelPlacement();
+                assertEquals(1,h.table().getItems().size()); return null;
             });
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }

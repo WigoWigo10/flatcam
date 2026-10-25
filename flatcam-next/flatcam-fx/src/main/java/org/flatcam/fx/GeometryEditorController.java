@@ -30,6 +30,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import org.flatcam.cam.geometry.GeometryEditSession;
+import org.flatcam.cam.geometry.EditorArc;
 import org.flatcam.cam.geometry.ToolGeometry;
 import org.flatcam.cam.geometry.TextGeometry;
 import org.locationtech.jts.geom.util.AffineTransformation;
@@ -116,6 +117,10 @@ final class GeometryEditorController {
     private boolean busy;
     private boolean initiallyVisible;
     private boolean strokeOnly;
+    private TitledPane arcPane;
+    private ComboBox<EditorArc.Mode> arcMode;
+    private CheckBox arcClockwise;
+    private Object arcGesture;
     private EraserGesture eraser;
 
     /** Frozen stencil: erasing the source shape must not silently change the next erase area. */
@@ -237,6 +242,7 @@ final class GeometryEditorController {
         Button rectangleButton = new Button("Retangulo");
         Button circleButton = new Button("Circulo");
         Button arcButton = new Button("Arco");
+        arcButton.setId("geometry-arc");
         deleteButton = new Button("Excluir selecionadas");
         moveButton = new Button("Mover selecionadas");
         copyButton = new Button("Copiar selecionadas");
@@ -292,6 +298,7 @@ final class GeometryEditorController {
         GeometryEditorDescriptions.apply(paintButton, "paint");
         GeometryEditorDescriptions.apply(textButton, "text");
         GeometryEditorDescriptions.apply(eraserButton, "eraser");
+        GeometryEditorDescriptions.apply(arcButton, "arc");
         GeometryEditorDescriptions.apply(bufferButton, "buffer");
         GeometryEditorDescriptions.apply(cutPathButton, "cut_path");
         GeometryEditorDescriptions.apply(subtractButton, "subtract");
@@ -327,6 +334,30 @@ final class GeometryEditorController {
         eraserButton.setOnAction(event -> startEraser());
         paintButton.setOnAction(event -> startPaint());
         VBox panel = new VBox(8, new Label("Geometry Editor"), shapeTable, status, instruction);
+        arcMode = new ComboBox<>(FXCollections.observableArrayList(EditorArc.Mode.values()));
+        arcMode.setId("geometry-arc-mode"); arcMode.setMaxWidth(Double.MAX_VALUE);
+        arcMode.setConverter(new javafx.util.StringConverter<>() {
+            public String toString(EditorArc.Mode mode) { return mode == null ? "" : arcModeLabel(mode); }
+            public EditorArc.Mode fromString(String text) { throw new UnsupportedOperationException(); }
+        });
+        arcMode.setValue(EditorArc.Mode.CENTER_START_END);
+        arcClockwise = new CheckBox("Sentido horário (CW)"); arcClockwise.setSelected(true);
+        arcClockwise.setId("geometry-arc-clockwise");
+        arcClockwise.disableProperty().bind(arcMode.valueProperty().isEqualTo(EditorArc.Mode.START_END_THROUGH));
+        ToolDescriptions.apply(arcMode, "Ordem dos pontos do arco", GeometryEditorDescriptions.of("arc").text());
+        ToolDescriptions.apply(arcClockwise, "Sentido do arco",
+                "Marcado: horário (CW); desmarcado: anti-horário (CCW). D alterna durante o desenho. "
+                + "Em 132, o ponto no arco determina o sentido automaticamente.\n\nMilling Type Climb inverte a ordem final dos vértices, como no Python; confira o sentido ao gerar CNC.");
+        arcMode.valueProperty().addListener((obs, old, value) -> {
+            if (arcGesture != null) plotArea.resetEditorThreePointPlacement();
+        });
+        arcClockwise.selectedProperty().addListener((obs, old, value) -> {
+            if (arcGesture != null) { plotArea.refreshEditorThreePointPreview(); arcInstruction(-1); }
+        });
+        Label arcHelp = new Label("M: modo • D: sentido • Backspace: voltar um ponto. O terceiro clique conclui; Esc/botão direito cancela.");
+        arcHelp.setWrapText(true);
+        arcPane = new TitledPane("Arcos", new VBox(6, arcMode, arcClockwise, arcHelp));
+        arcPane.setExpanded(false); panel.getChildren().add(arcPane);
         textContent = new TextArea(); textContent.setId("geometry-text-content");
         textContent.setPromptText("Texto para converter em geometria"); textContent.setPrefRowCount(3);
         textContent.setWrapText(true);
@@ -579,48 +610,87 @@ final class GeometryEditorController {
     }
 
     void startArc() {
-        if (!readyForTool()) {
-            return;
-        }
+        if (!readyForTool()) return;
         GeometryEditSession editing = session;
         int toolIndex = selectedToolIndex();
-        if (plotArea.beginEditorGeometryPathPlacement(false, new PlotAreaView.TrackPlacementHandler() {
-            @Override
-            public void onPathChanged(int anchorCount, org.flatcam.cam.gerber.edit.TrackBendMode mode) {
-                if (session == editing) {
-                    instruction.setText("Arco: " + anchorCount
-                            + " ponto(s). Escolha inicio, ponto intermediario e fim; "
-                            + "Enter ou botao direito conclui; Esc cancela.");
-                }
-            }
-
-            @Override
-            public void onCommit(List<Coordinate> points) {
-                if (session != editing) {
-                    return;
-                }
-                if (points.size() != 3) {
-                    instruction.setText("O arco exige exatamente tres pontos: inicio, meio e fim.");
-                    return;
-                }
+        plotArea.cancelPlacement();
+        Object gesture = new Object(); arcGesture = gesture; arcPane.setExpanded(true);
+        if (!plotArea.beginEditorThreePointPlacement(new PlotAreaView.ThreePointPlacementHandler() {
+            public Geometry preview(List<Coordinate> points, Coordinate cursor) {
+                if (points.isEmpty()) return null;
+                var factory = new org.locationtech.jts.geom.GeometryFactory();
+                if (points.size() == 1) return factory.createLineString(new Coordinate[]{points.getFirst(), cursor});
                 try {
-                    editing.addArc(points.get(0), points.get(1), points.get(2), toolIndex);
-                    refreshGeometry();
-                    instruction.setText("Arco adicionado. Ctrl+Z desfaz.");
+                    var arc = EditorArc.build(factory, arcMode.getValue(), arcClockwise.isSelected(),
+                            List.of(points.get(0), points.get(1), cursor));
+                    double cross = plotArea.worldPerPixel() * 4;
+                    Coordinate c = arc.center();
+                    return factory.buildGeometry(List.of(arc.path(),
+                            factory.createLineString(new Coordinate[]{new Coordinate(c.x - cross, c.y), new Coordinate(c.x + cross, c.y)}),
+                            factory.createLineString(new Coordinate[]{new Coordinate(c.x, c.y - cross), new Coordinate(c.x, c.y + cross)})));
                 } catch (IllegalArgumentException invalid) {
-                    instruction.setText(invalid.getMessage());
+                    return factory.createLineString(new Coordinate[]{points.getFirst(), points.get(1), cursor});
                 }
             }
-
-            @Override
+            public void onPointsChanged(int count) { if (arcGesture == gesture) arcInstruction(count); }
+            public boolean onCommit(List<Coordinate> points) {
+                if (session != editing || arcGesture != gesture) return false;
+                try {
+                    editing.addArc(arcMode.getValue(), arcClockwise.isSelected(), points, toolIndex);
+                    arcGesture = null;
+                    refreshGeometry();
+                    instruction.setText("Arco adicionado. Ctrl+Z desfaz; Ctrl+Y refaz.");
+                    return true;
+                } catch (IllegalArgumentException invalid) {
+                    instruction.setText(invalid.getMessage() + " Escolha outro terceiro ponto ou use Backspace.");
+                    return false;
+                }
+            }
             public void onCancel() {
-                if (session == editing) {
-                    instruction.setText("Arco cancelado.");
+                if (arcGesture == gesture) {
+                    arcGesture = null; instruction.setText("Arco cancelado; nenhuma forma inserida.");
                 }
             }
         })) {
-            instruction.setText("Clique no inicio, em um ponto do arco e no fim; Enter conclui.");
+            arcGesture = null; instruction.setText("Não foi possível iniciar o arco.");
         }
+    }
+
+    boolean isArcActive() { return arcGesture != null; }
+
+    boolean handleArcKey(javafx.scene.input.KeyCode key) {
+        if (arcGesture == null) return false;
+        return switch (key) {
+            case M -> { arcMode.setValue(EditorArc.Mode.values()[(arcMode.getValue().ordinal() + 1) % 3]); yield true; }
+            case D -> {
+                if (arcMode.getValue() != EditorArc.Mode.START_END_THROUGH) arcClockwise.setSelected(!arcClockwise.isSelected());
+                else instruction.setText("Modo 132: o ponto no arco determina o sentido automaticamente.");
+                yield true;
+            }
+            case BACK_SPACE -> { plotArea.backtrackEditorThreePointPlacement(); yield true; }
+            case ENTER -> { instruction.setText("Escolha os três pontos no plot; o terceiro clique conclui o arco."); yield true; }
+            default -> false;
+        };
+    }
+
+    private static String arcModeLabel(EditorArc.Mode mode) {
+        return switch (mode) {
+            case CENTER_START_END -> "Centro → Início → Fim (C12)";
+            case START_END_CENTER -> "Início → Fim → Centro (12C)";
+            case START_END_THROUGH -> "Início → Fim → Ponto no arco (132)";
+        };
+    }
+
+    private void arcInstruction(int count) {
+        String[] next = switch (arcMode.getValue()) {
+            case CENTER_START_END -> new String[]{"centro", "início", "direção do fim"};
+            case START_END_CENTER -> new String[]{"início", "fim", "referência do centro"};
+            case START_END_THROUGH -> new String[]{"início", "fim", "ponto no arco"};
+        };
+        instruction.setText("Arco — " + arcModeLabel(arcMode.getValue())
+                + (count < 0 ? "" : ": clique no " + next[Math.min(count, 2)])
+                + ". " + (arcMode.getValue() == EditorArc.Mode.START_END_THROUGH ? "Sentido automático" : arcClockwise.isSelected() ? "Horário (CW)" : "Anti-horário (CCW)")
+                + "; M muda o modo, D o sentido; Esc cancela.");
     }
 
     private void startMultiPoint(boolean polygon) {
@@ -1154,6 +1224,7 @@ final class GeometryEditorController {
         paintButton.setDisable(session.selectedCount() == 0);
         paintPane.setDisable(busy);
         textPane.setDisable(busy);
+        arcPane.setDisable(busy);
         if (toolChoice != null) toolChoice.setDisable(busy);
         if (busy) {
             editorButtons.forEach(button -> button.setDisable(true));
@@ -1166,6 +1237,7 @@ final class GeometryEditorController {
     private void end() {
         plotArea.cancelPlacement();
         eraser = null;
+        arcGesture = null;
         plotArea.setSelectionHandler(null);
         plotArea.removeLayer(SHAPES_LAYER);
         plotArea.setEditorHighlight(null, false);
@@ -1199,6 +1271,7 @@ final class GeometryEditorController {
         paintButton = null; paintPane = null; paintDiameter = null; paintOverlap = null; paintMargin = null;
         paintMethod = null; paintConnect = null; paintContour = null;
         textFont = null; textSize = null; textBold = null; textItalic = null; units = null;
+        arcPane = null; arcMode = null; arcClockwise = null;
         bufferDistance = null;
         bufferMode = null;
         editorButtons = null;

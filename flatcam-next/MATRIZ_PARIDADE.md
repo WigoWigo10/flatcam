@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Modos de arco no Editor Geometry — 2026-10-24
+
+C12/12C/132 e M/D/Backspace implementados, com prévia curva, Snap, terceiro
+clique, cancelamento e undo/redo. 40 controles sintéticos de matemática/amostragem
+contra funções originais Python passaram em MM/IN, sem sessão Qt. Um caso
+adicional prova diferença deliberada em 132: o FX passa pelo terceiro ponto
+onde o Python escolhe o arco complementar. Não conta como concordância. J e a
+preferência de resolução variável continuam pendentes; não é paridade total
+dos editores. Detalhes: [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Borracha contínua no Editor Geometry — 2026-10-24
 
 Mantém molde/origem entre recortes; Ctrl+Z/Y mantém o gesto ativo. Esc durante

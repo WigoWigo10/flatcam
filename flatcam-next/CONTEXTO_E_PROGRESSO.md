@@ -1,5 +1,33 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Editor Geometry: modos de arco — 2026-10-24
+
+Borracha contínua commitada em `32bdaf8f`, branch `flatcam-next`, sem push.
+Arco agora oferece C12/12C/132, M para trocar modo e reiniciar pontos, D para
+sentido nos modos com centro e Backspace. Prévia curva/centro, terceiro clique
+conclui, Esc/botão direito cancela; terceiro ponto inválido permite repetir.
+Controles têm ajuda formatada e o menu Geo Editor passa a habilitar Arco.
+Kernel limitado a 65 vértices, independente do volume da geometria editada.
+40 controles públicos do `FCArc.make` original MM/IN comparam todos os vértices
+em 1e-11; 69 testes focados passaram, incluindo os gestos de arco e regressões
+da Borracha, Cutout, Snap e tooltips. A normalização perto de contagem inteira
+evita segmento extra por arredondamento; sem alterar coordenadas de entrada.
+Um controle adicional 132 prova diferença deliberada: Python escolhe o arco
+complementar quando T[0] é -0.0 e perde o terceiro ponto; FX passa pelo ponto.
+Esse controle fica separado no JSON e não conta como concordância literal.
+Empacotamento final e 73 testes focados passaram, incluindo o controle de
+diferença deliberada e a revisão Roland isolada. `verify` integral executou
+1907 registros: 1888 passaram, 18 opcionais pulados, uma falha conhecida em
+`CncNativePrecisionTest` End Z. Não foi alterada/ignorada; o build integral
+permanece reprovado, com causa da asserção ainda aberta. O controle extra de
+diferença foi acrescentado ao teste numérico existente e revalidado na rodada
+focada final, sem nova alteração de produção após o verify.
+Logs: `target/editor-arcs-verify.log`, `editor-arcs-verify-totals.json` e
+`editor-arcs-final-targeted.log`. Sem commit/push dos arcos nesta entrega.
+Próximas lacunas: J/diálogo de coordenadas e resolução configurável do arco,
+transformações interativas e Preferências por categoria. Avaliação visual
+manual dos gestos novos ainda pendente. Ver [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Editor Geometry: Borracha contínua — 2026-10-24
 
 Cutout por cursor commitado em `16986f33`, branch `flatcam-next`, sem push.

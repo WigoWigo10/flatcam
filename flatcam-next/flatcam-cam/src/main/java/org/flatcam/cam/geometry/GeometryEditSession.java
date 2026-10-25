@@ -691,6 +691,11 @@ public final class GeometryEditSession {
         addShape(millingDirection(factory.createLineString(arc.toArray(new Coordinate[0]))), toolIndex);
     }
 
+    /** Adds an editor arc in one undo transaction, retaining the selected tool and Milling Type. */
+    public void addArc(EditorArc.Mode mode, boolean clockwise, List<Coordinate> points, int toolIndex) {
+        addShape(millingDirection(EditorArc.build(factory, mode, clockwise, points).path()), toolIndex);
+    }
+
     private static double positiveAngle(double angle) {
         double fullTurn = 2 * Math.PI;
         double result = angle % fullTurn;

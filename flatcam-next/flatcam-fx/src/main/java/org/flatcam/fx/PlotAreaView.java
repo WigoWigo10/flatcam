@@ -229,6 +229,13 @@ final class PlotAreaView extends StackPane {
         void onFinish();
     }
 
+    interface ThreePointPlacementHandler {
+        Geometry preview(List<Coordinate> points, Coordinate cursor);
+        void onPointsChanged(int count);
+        boolean onCommit(List<Coordinate> points);
+        void onCancel();
+    }
+
     enum TwoPointShape {
         RECTANGLE, CIRCLE, SLOT
     }
@@ -424,6 +431,9 @@ final class PlotAreaView extends StackPane {
     private PlacementHandler placementHandler;
     private CursorPlacementHandler cursorPlacementHandler;
     private Geometry cursorPlacementPreview;
+    private ThreePointPlacementHandler threePointHandler;
+    private final List<Coordinate> threePointAnchors = new ArrayList<>();
+    private Geometry threePointPreview;
     private List<Object> placementKeys = List.of();
     private List<RenderLayer> placementLayers = List.of();
     private double placementAnchorWorldX;
@@ -1342,6 +1352,38 @@ final class PlotAreaView extends StackPane {
         return true;
     }
 
+    /** Exact clicks, without track bend routing; the third valid click completes the shape. */
+    boolean beginEditorThreePointPlacement(ThreePointPlacementHandler handler) {
+        if (handler == null || selectionHandler == null) return false;
+        startPlacement(List.of(), List.of(), 0, 0, false, new PlacementHandler() {
+            public void onCommit(double dx, double dy) { }
+            public void onCancel() { handler.onCancel(); }
+        });
+        threePointHandler = handler;
+        handler.onPointsChanged(0);
+        return true;
+    }
+
+    void resetEditorThreePointPlacement() {
+        if (threePointHandler == null) return;
+        threePointAnchors.clear(); placementAnchorChosen = false; threePointPreview = null;
+        threePointHandler.onPointsChanged(0); drawEditorHighlight();
+    }
+
+    boolean backtrackEditorThreePointPlacement() {
+        if (threePointHandler == null || threePointAnchors.isEmpty()) return false;
+        threePointAnchors.removeLast(); placementAnchorChosen = !threePointAnchors.isEmpty();
+        threePointHandler.onPointsChanged(threePointAnchors.size()); refreshEditorThreePointPreview();
+        return true;
+    }
+
+    void refreshEditorThreePointPreview() {
+        if (threePointHandler == null) return;
+        threePointPreview = threePointHandler.preview(threePointAnchors.stream().map(Coordinate::new).toList(),
+                new Coordinate(placementCurrentWorldX, placementCurrentWorldY));
+        drawEditorHighlight();
+    }
+
     /** Multi-click free-angle polygon used for NCC area selection outside an editor. */
     boolean beginAreaPolygonPlacement(TrackPlacementHandler handler) {
         if (selectionHandler != null || !beginTrackPlacement(1.5 / scale, handler)) {
@@ -1440,6 +1482,8 @@ final class PlotAreaView extends StackPane {
         placementHandler = null;
         cursorPlacementHandler = null;
         cursorPlacementPreview = null;
+        threePointHandler = null;
+        threePointAnchors.clear(); threePointPreview = null;
         placementKeys = List.of();
         placementLayers = List.of();
         placementPrimaryPressed = false;
@@ -1566,7 +1610,18 @@ final class PlotAreaView extends StackPane {
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
                 double[] world = snappedWorld(event.getX(), event.getY());
-                if (cursorPlacementHandler != null) {
+                if (threePointHandler != null) {
+                    threePointAnchors.add(new Coordinate(world[0], world[1]));
+                    placementCurrentWorldX = world[0]; placementCurrentWorldY = world[1];
+                    placementAnchorChosen = true;
+                    if (threePointAnchors.size() == 3) {
+                        if (threePointHandler.onCommit(threePointAnchors.stream().map(Coordinate::new).toList())) clearPlacement();
+                        else { threePointAnchors.removeLast(); refreshEditorThreePointPreview(); }
+                    } else {
+                        threePointHandler.onPointsChanged(threePointAnchors.size());
+                        refreshEditorThreePointPreview();
+                    }
+                } else if (cursorPlacementHandler != null) {
                     cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
                     cursorPlacementHandler.onClick(world[0], world[1]);
                     drawEditorHighlight();
@@ -1705,6 +1760,7 @@ final class PlotAreaView extends StackPane {
             double[] world = snappedWorld(screenX, screenY);
             placementCurrentWorldX = world[0];
             placementCurrentWorldY = world[1];
+            if (threePointHandler != null) { refreshEditorThreePointPreview(); return; }
             if (cursorPlacementHandler != null)
                 cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
             drawEditorHighlight();
@@ -2119,6 +2175,12 @@ final class PlotAreaView extends StackPane {
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
+        if (threePointHandler != null) {
+            if (threePointPreview != null && !threePointPreview.isEmpty())
+                drawLayer(gc, new RenderLayer(threePointPreview, true, PLACEMENT_FILL,
+                        PLACEMENT_STROKE, true, LayerCategory.OVERLAY, true, false), contentWidth, contentHeight);
+            gc.restore(); return;
+        }
         if (cursorPlacementHandler != null) {
             if (cursorPlacementPreview != null && !cursorPlacementPreview.isEmpty())
                 drawLayer(gc, new RenderLayer(cursorPlacementPreview, false, PLACEMENT_FILL,

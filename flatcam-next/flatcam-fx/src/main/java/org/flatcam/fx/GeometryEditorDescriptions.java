@@ -9,6 +9,8 @@ final class GeometryEditorDescriptions {
 
     static ToolDescriptions.Description of(String id) {
         return switch (id) {
+            case "arc" -> new ToolDescriptions.Description("Arco por três cliques",
+                    "C12: centro, início e direção do fim; o raio vem do início. 12C: início, fim e referência do centro; o centro fica na mediatriz, usando a distância da referência ao meio da corda, como no Python. 132: início, fim e um ponto no arco; o sentido é automático.\n\nM alterna o modo e limpa os pontos anteriores; D alterna horário/anti-horário nos modos com centro. Backspace remove o último ponto. O terceiro clique válido conclui; Esc/botão direito cancela sem inserir. Snap é respeitado.\n\nA prévia mostra o arco e uma cruz no centro. A curva usa 64 segmentos por círculo; pontos inválidos são recusados. Milling Type Climb inverte os vértices finais como no Python. Ctrl+Z desfaz o arco inteiro; Ctrl+Y refaz.");
             case "paint" -> new ToolDescriptions.Description("Paint Shape",
                     "Acrescenta caminhos de preenchimento nas areas selecionadas, sem apagar os contornos originais. Aceita poligonos e aneis fechados simples; linhas abertas sao recusadas.\n\nCalcule a previa em segundo plano e confirme por clique no plot ou Confirmar Paint; Esc cancela. Ctrl+Z desfaz todo o preenchimento. Diametro deve coincidir com a ferramenta associada; sem associacao, confira-o ao gerar CNC.");
             case "text" -> new ToolDescriptions.Description("Texto vetorial",
