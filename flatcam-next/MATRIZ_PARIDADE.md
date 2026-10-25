@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Coordenadas J e resolução no Editor Geometry — 2026-10-24
+
+J no arco aceita absoluto/relativo; posiciona cursor/prévia sem inserir ou
+adiciona explicitamente um ponto exato sem Snap. Resolução 4–4096 compartilhada
+por novos arcos/círculos, com padrão salvo e ajuda. 58 controles de matemática
+Python concordantes (40 padrão + 18 de resolução), caso 132 diferente separado.
+Diálogo/controlador automatizados sem movimento físico de mouse; apresentação
+e movimento físico ainda precisam validação manual. Jump geral e preferência
+de referência persistida continuam pendentes. [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Modos de arco no Editor Geometry — 2026-10-24
 
 C12/12C/132 e M/D/Backspace implementados, com prévia curva, Snap, terceiro

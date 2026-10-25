@@ -1,5 +1,32 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Editor Geometry: J e resolução de curvas — 2026-10-24
+
+Modos de arco commitados em `2060bc91`, branch `flatcam-next`, sem push.
+J abre coordenadas absolutas/relativas durante o arco. Posicionar cursor
+centraliza/atualiza prévia sem inserir, respeitando Snap; a aplicação usa Robot
+para levar o cursor físico à posição. Adicionar ponto é explícito e exato, sem
+Snap, e pode fornecer os três pontos. Cancelar diálogo não cancela o gesto;
+respostas atrasadas após troca de modo/gesto são recusadas por identidade/revisão.
+Diálogo tem validação, tema do proprietário e tooltips. Testes não movem o mouse.
+Resolução de 4 a 4096 em Arcos e curvas, padrão 64; afeta novos arcos/círculos.
+Círculos usam quadrantes inteiros como Python (65 → 64); prévia acompanha.
+Valor local só persiste com Salvar resolução padrão; integração na seção Editor
+Geometry dos padrões, com validação/import/export e store em memória nos testes.
+18 controles adicionais nas resoluções 8/65/256 MM/IN comparam vértices com Python:
+58 controles concordantes no total; caso deliberado 132 continua separado.
+87 testes focados passaram. Validação manual do diálogo, movimento físico do
+cursor e diferentes DPI ainda pendente. J geral fora do arco, referência
+relativa lembrada entre diálogos e importação automática da preferência de
+resolução de `.FlatPrj` não estão implementados. Detalhes: [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+Empacotamento final e **91 testes focados** passaram, incluindo a revisão
+Roland isolada. `verify` integral: 1914 registros, 1895 aprovações, 18 skips
+opcionais e somente a falha conhecida End Z de `CncNativePrecisionTest`.
+O teste não foi alterado nem desabilitado; a execução integral permanece
+reprovada e a causa dessa asserção continua aberta. Logs:
+`target/editor-coordinate-verify.log`, `editor-coordinate-verify-totals.json`
+e `editor-coordinate-final-targeted.log`. Implementação nova sem commit/push.
+
 ## Editor Geometry: modos de arco — 2026-10-24
 
 Borracha contínua commitada em `32bdaf8f`, branch `flatcam-next`, sem push.

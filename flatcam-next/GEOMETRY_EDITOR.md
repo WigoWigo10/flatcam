@@ -1,11 +1,11 @@
-# Texto e Borracha no Editor Geometry
+# Arcos, Texto e Borracha no Editor Geometry
 
 Disponíveis na barra e no menu **Geo Editor**. As alterações continuam sendo
 rascunho até **Salvar e sair do editor**; Descartar não modifica o objeto.
 
 ## Arcos: modos e prévia — 2026-10-24
 
-O botão **Arco** abre a seção **Arcos**. Selecione a ordem dos três cliques:
+O botão **Arco** abre a seção **Arcos e curvas**. Selecione a ordem dos três cliques:
 
 - **C12 — Centro → Início → Fim:** o raio vem do centro/início; o último
   clique fornece a direção angular do fim, projetado nesse raio. Repetir
@@ -31,18 +31,18 @@ Snap ligado/desligado vale para todos os cliques. Cada arco é uma transação
 de Ctrl+Z/Ctrl+Y, conservando a associação da ferramenta. Milling Type Climb
 inverte a ordem final dos vértices, assim como o handler global do Python.
 
-São usados **64 segmentos por círculo**, como o padrão anterior do FX e os
-controles Python desta etapa; a preferência Python de resolução variável ainda
-não foi portada. Coordenadas não finitas, raio zero, extremos repetidos nos
-modos 12C/132 e ponto colinear em 132 são recusados. O cálculo usa até 65
-vértices e não executa operações sobre a geometria densa do projeto na prévia.
+O padrão continua **64 segmentos por círculo**, agora configurável (ver abaixo).
+Coordenadas não finitas, raio zero, extremos repetidos nos modos 12C/132 e ponto
+colinear em 132 são recusados. O cálculo usa até 4097 vértices e não executa
+operações sobre a geometria densa do projeto na prévia.
 
 `EditorArcTest` compara todos os vértices de **40 controles sintéticos públicos
 MM/IN** com `FCArc.make()`/`camlib.arc()` originais (tolerância 1e-11 nas unidades
 do controle). Há também testes de pontos inválidos, deslocamentos grandes,
 histórico, Milling Type e eventos de clique/teclas no controlador. Isso não
 valida os gestos numa sessão Qt real nem a janela FX com mouse físico.
-O atalho **J** para abrir o diálogo de coordenadas continua pendente.
+Mais 18 controles MM/IN comparam as resoluções 8, 65 e 256 com a matemática
+Python original, sem mudar a tolerância.
 
 **Diferença deliberada em 132:** no controle início `(5,0)`, fim `(0,5)` e
 ponto no arco `(-5,0)`, o `FCArc.make` Python recebe `T[0] = -0.0` e escolhe
@@ -61,6 +61,52 @@ coordenadas/forma e as notificações da UI, sem iniciar Qt, ler projetos ou
 preferências. Os hashes das fontes ficam no JSON. A amostragem em frações
 exatas de círculo é estabilizada contra um segmento extra por arredondamento
 do solucionador; não há arredondamento das coordenadas de entrada.
+
+### Coordenadas pelo J — 2026-10-24
+
+Durante o desenho do arco, **J** abre X/Y nas unidades do objeto. Use referência
+absoluta ou marque **Relativas ao cursor atual** para somar deslocamentos ao
+cursor capturado na abertura. Alternar a referência reinicia os campos.
+Aceita ponto/vírgula decimal, mas não expressões ou separadores de milhares.
+
+- **Posicionar cursor** centraliza a vista, mantém o zoom e mostra a prévia,
+  sem adicionar um ponto. Respeita o Snap ativo. Na aplicação, o cursor físico
+  também é levado à posição. Confirme depois por clique.
+- **Adicionar ponto** usa as coordenadas exatas como o próximo ponto, sem
+  arredondar à grade. Pode fornecer os três pontos por J; o terceiro válido
+  conclui. Essa ação explícita é uma extensão do FX ao Jump Python.
+- **Cancelar/Esc no diálogo** mantém os pontos e a vista anteriores. Esc no
+  plot continua cancelando o arco inteiro. Trocar modo/gesto invalida uma
+  resposta de diálogo anterior.
+
+Se o sistema não permitir mover o cursor físico, a prévia fica posicionada e
+o terminal informa para usar **J > Adicionar ponto**. Não há leitura/execução
+de expressões da área de transferência. A referência relativa volta ao padrão
+absoluto em cada diálogo, diferente da preferência global lembrada pelo Python.
+J nesta etapa é do arco; Jump geral no plot e nos outros editores continua pendente.
+
+### Resolução de novas curvas — 2026-10-24
+
+**Segmentos/volta** em Arcos e curvas ajusta os próximos arcos e círculos de
+**4 a 4096**, com padrão 64. A prévia usa a mesma segmentação da forma final.
+Arcos podem atualizar a prévia sem perder pontos ao mudar o valor; mudar o
+valor durante um círculo cancela sua prévia para recomeçar com a nova resolução.
+Formas existentes não são reaproximadas. Como `FCCircle` Python, círculos usam
+`4 × int(valor/4)` segmentos: 65 gera 64. Arcos usam o valor nominal por volta.
+
+**Salvar resolução padrão** persiste somente esse valor para editores abertos
+depois. O mesmo ajuste aparece em **Preferências > Padrões das ferramentas >
+Editor Geometry**, com validação e exportação/importação dos padrões. É uma
+configuração do FX independente de mm/in; não importa automaticamente a
+preferência `geometry_circle_steps` de um `.FlatPrj`. O limite 4096 mantém o
+trabalho da prévia limitado e pode ser revisto; não é equivalência de toda a
+faixa de preferências Python.
+
+Testes de diálogo/controlador são feitos sem mover o mouse da área de trabalho:
+cobrem entradas absolutas/relativas, valores inválidos, preview sem inserção,
+inserção exata com Snap ativo, respostas atrasadas, resolução, padrão salvo e
+reinício do círculo. O movimento físico e a apresentação em monitores/DPI
+ainda precisam da avaliação manual do usuário.
 
 ## Texto
 
@@ -139,8 +185,9 @@ Contour; cálculo cancelável em segundo plano, prévia fixa e confirmação por
 ou botão. Esc/botão direito cancela; Ctrl+Z desfaz a inserção inteira. Ferramentas
 associadas conservam o diâmetro (selecione uma por vez); sem associação, confira
 o diâmetro ao gerar CNC. Resultados vazios/incompletos são recusados atomicamente.
-Arcos agora têm os três modos e M/D/Backspace; J, resolução configurável e
-transformações interativas ainda não reproduzem integralmente os gestos Python.
+Arcos agora têm os três modos, M/D/Backspace, J e resolução configurável.
+Jump fora do arco, referência persistida e transformações interativas ainda
+não reproduzem integralmente os gestos Python.
 Estas entregas não tornam o editor 100% equivalente.
 
 Testes de núcleo, controles, cliques no plot, cancelamento, undo/redo, 10.000 formas

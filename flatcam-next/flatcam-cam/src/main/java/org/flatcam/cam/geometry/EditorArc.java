@@ -8,12 +8,25 @@ import org.locationtech.jts.geom.LineString;
 
 /** The three point orders used by Python FCArc. Coordinates use the object's units. */
 public final class EditorArc {
+    public static final int DEFAULT_STEPS = 64;
+    public static final int MIN_STEPS = 4;
+    public static final int MAX_STEPS = 4096;
     public enum Mode { CENTER_START_END, START_END_CENTER, START_END_THROUGH }
     public record Result(Coordinate center, double radius, boolean clockwise, LineString path) { }
     private static final double TURN = 2 * Math.PI;
     private EditorArc() { }
 
     public static Result build(GeometryFactory factory, Mode mode, boolean clockwise, List<Coordinate> points) {
+        return build(factory, mode, clockwise, points, DEFAULT_STEPS);
+    }
+
+    public static void validateSteps(int steps) {
+        if (steps < MIN_STEPS || steps > MAX_STEPS)
+            throw new IllegalArgumentException("Resolução deve ser um inteiro entre 4 e 4096 segmentos por círculo.");
+    }
+
+    public static Result build(GeometryFactory factory, Mode mode, boolean clockwise, List<Coordinate> points, int steps) {
+        validateSteps(steps);
         Objects.requireNonNull(factory); Objects.requireNonNull(mode);
         if (points.size() != 3) throw new IllegalArgumentException("O arco exige três pontos.");
         for (Coordinate p : points) if (p == null || !Double.isFinite(p.x) || !Double.isFinite(p.y))
@@ -56,7 +69,7 @@ public final class EditorArc {
         double last = Math.atan2(end.y - center.y, end.x - center.x);
         double sweep = positive(clockwise ? first - last : last - first);
         if (sweep == 0) sweep = TURN;
-        double requestedSegments = sweep / TURN * 64;
+        double requestedSegments = sweep / TURN * steps;
         // A half/quarter circle must not gain a segment because the center solver rounded an angle upward.
         double nearest = Math.rint(requestedSegments);
         if (Math.abs(requestedSegments - nearest) < 1e-12) requestedSegments = nearest;

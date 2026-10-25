@@ -447,6 +447,7 @@ final class PlotAreaView extends StackPane {
     private boolean placementRegion;
     private boolean placementFreePath;
     private TwoPointShape placementTwoPointShape;
+    private int placementCircleSteps;
     private TrackPlacementHandler trackPlacementHandler;
     private List<Coordinate> placementTrackPoints = new ArrayList<>();
     private List<Integer> placementTrackUndoSizes = new ArrayList<>();
@@ -1321,6 +1322,12 @@ final class PlotAreaView extends StackPane {
         return beginEditorTwoPointPlacement(shape, 0, handler);
     }
 
+    boolean beginEditorCirclePlacement(int steps, PlacementHandler handler) {
+        org.flatcam.cam.geometry.EditorArc.validateSteps(steps);
+        if (!beginEditorTwoPointPlacement(TwoPointShape.CIRCLE,handler)) return false;
+        placementCircleSteps = 4 * (steps / 4); redraw(); return true;
+    }
+
     boolean beginEditorTwoPointPlacement(TwoPointShape shape, double strokeWidth, PlacementHandler handler) {
         if (selectionHandler == null || shape == null || handler == null
                 || !startPlacement(List.of(), List.of(), 0, 0, false, handler)) {
@@ -1382,6 +1389,38 @@ final class PlotAreaView extends StackPane {
         threePointPreview = threePointHandler.preview(threePointAnchors.stream().map(Coordinate::new).toList(),
                 new Coordinate(placementCurrentWorldX, placementCurrentWorldY));
         drawEditorHighlight();
+    }
+
+    Coordinate editorCursorPoint() {
+        if (threePointHandler != null && placementAnchorChosen)
+            return new Coordinate(placementCurrentWorldX,placementCurrentWorldY);
+        if (cursorInsidePlot) { double[] p = snappedWorld(cursorScreenX,cursorScreenY); return new Coordinate(p[0],p[1]); }
+        return new Coordinate(viewCenterX,viewCenterY);
+    }
+
+    Coordinate previewEditorThreePointAt(Coordinate point) {
+        if (threePointHandler == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)) return null;
+        Coordinate p = new Coordinate(point);
+        if (gridSnapEnabled) { p.x = snapCoordinate(p.x,gridStepX); p.y = snapCoordinate(p.y,gridStepY); }
+        placementCurrentWorldX = p.x; placementCurrentWorldY = p.y;
+        // Keep the existing zoom; unlike an actual click, a jump never adds an anchor.
+        viewCenterX = p.x; viewCenterY = p.y;
+        PlotCamera camera = cameraSnapshot(); updateCoordLabel(camera.screenX(p.x),camera.screenY(p.y));
+        refreshEditorThreePointPreview(); redraw(); return p;
+    }
+
+    boolean acceptEditorThreePoint(Coordinate point) {
+        if (threePointHandler == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)) return false;
+        threePointAnchors.add(new Coordinate(point));
+        placementCurrentWorldX = point.x; placementCurrentWorldY = point.y; placementAnchorChosen = true;
+        if (threePointAnchors.size() == 3) {
+            if (threePointHandler.onCommit(threePointAnchors.stream().map(Coordinate::new).toList())) {
+                clearPlacement(); return true;
+            }
+            threePointAnchors.removeLast(); refreshEditorThreePointPreview(); return false;
+        }
+        threePointHandler.onPointsChanged(threePointAnchors.size()); refreshEditorThreePointPreview();
+        return true;
     }
 
     /** Multi-click free-angle polygon used for NCC area selection outside an editor. */
@@ -1493,6 +1532,7 @@ final class PlotAreaView extends StackPane {
         placementRegion = false;
         placementFreePath = false;
         placementTwoPointShape = null;
+        placementCircleSteps = 0;
         trackPlacementHandler = null;
         placementTrackPoints = new ArrayList<>();
         placementTrackUndoSizes = new ArrayList<>();
@@ -1611,16 +1651,7 @@ final class PlotAreaView extends StackPane {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
                 double[] world = snappedWorld(event.getX(), event.getY());
                 if (threePointHandler != null) {
-                    threePointAnchors.add(new Coordinate(world[0], world[1]));
-                    placementCurrentWorldX = world[0]; placementCurrentWorldY = world[1];
-                    placementAnchorChosen = true;
-                    if (threePointAnchors.size() == 3) {
-                        if (threePointHandler.onCommit(threePointAnchors.stream().map(Coordinate::new).toList())) clearPlacement();
-                        else { threePointAnchors.removeLast(); refreshEditorThreePointPreview(); }
-                    } else {
-                        threePointHandler.onPointsChanged(threePointAnchors.size());
-                        refreshEditorThreePointPreview();
-                    }
+                    acceptEditorThreePoint(new Coordinate(world[0],world[1]));
                 } else if (cursorPlacementHandler != null) {
                     cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
                     cursorPlacementHandler.onClick(world[0], world[1]);
@@ -2213,8 +2244,18 @@ final class PlotAreaView extends StackPane {
                 gc.strokeLine(firstX, firstY, secondX, secondY);
             } else {
                 double radius = Math.hypot(secondX - firstX, secondY - firstY);
-                gc.fillOval(firstX - radius, firstY - radius, radius * 2, radius * 2);
-                gc.strokeOval(firstX - radius, firstY - radius, radius * 2, radius * 2);
+                if (placementCircleSteps > 0) {
+                    gc.beginPath();
+                    gc.moveTo(firstX + radius,firstY);
+                    for (int i=1;i<=placementCircleSteps;i++) {
+                        double angle = 2 * Math.PI * i / placementCircleSteps;
+                        gc.lineTo(firstX + radius * Math.cos(angle),firstY + radius * Math.sin(angle));
+                    }
+                    gc.closePath(); gc.fill(); gc.stroke();
+                } else {
+                    gc.fillOval(firstX - radius, firstY - radius, radius * 2, radius * 2);
+                    gc.strokeOval(firstX - radius, firstY - radius, radius * 2, radius * 2);
+                }
             }
             gc.restore();
             return;

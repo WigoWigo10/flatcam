@@ -648,6 +648,11 @@ public final class GeometryEditSession {
     }
 
     public void addCircle(double centerX, double centerY, double perimeterX, double perimeterY, int toolIndex) {
+        addCircle(centerX, centerY, perimeterX, perimeterY, toolIndex, EditorArc.DEFAULT_STEPS);
+    }
+
+    public void addCircle(double centerX, double centerY, double perimeterX, double perimeterY, int toolIndex, int steps) {
+        EditorArc.validateSteps(steps);
         if (!Double.isFinite(centerX) || !Double.isFinite(centerY)
                 || !Double.isFinite(perimeterX) || !Double.isFinite(perimeterY)) {
             throw new IllegalArgumentException("As coordenadas do circulo devem ser finitas.");
@@ -656,8 +661,9 @@ public final class GeometryEditSession {
         if (!(radius > 0) || !Double.isFinite(radius)) {
             throw new IllegalArgumentException("Escolha um ponto do perimetro diferente do centro.");
         }
-        // Python's geometry_circle_steps defaults to 64 segments: 16 per quadrant.
-        addShape(millingDirection(factory.createPoint(new Coordinate(centerX, centerY)).buffer(radius, 16)), toolIndex);
+        // FCCircle uses int(geometry_circle_steps / 4) segments per quadrant.
+        Geometry circle = factory.createPoint(new Coordinate(centerX, centerY)).buffer(radius, steps / 4);
+        addShape(millingDirection(circle), toolIndex);
     }
 
     /** Adds the circular arc passing through start, intermediate and end, in that order. */
@@ -693,7 +699,11 @@ public final class GeometryEditSession {
 
     /** Adds an editor arc in one undo transaction, retaining the selected tool and Milling Type. */
     public void addArc(EditorArc.Mode mode, boolean clockwise, List<Coordinate> points, int toolIndex) {
-        addShape(millingDirection(EditorArc.build(factory, mode, clockwise, points).path()), toolIndex);
+        addArc(mode, clockwise, points, toolIndex, EditorArc.DEFAULT_STEPS);
+    }
+
+    public void addArc(EditorArc.Mode mode, boolean clockwise, List<Coordinate> points, int toolIndex, int steps) {
+        addShape(millingDirection(EditorArc.build(factory, mode, clockwise, points, steps).path()), toolIndex);
     }
 
     private static double positiveAngle(double angle) {

@@ -410,6 +410,24 @@ final class MainWindow implements TclFlatcamHost {
                 }
 
                 @Override
+                public void requestArcCoordinates(Coordinate cursor, String units, Consumer<ArcCoordinateDialog.Choice> selected) {
+                    new ArcCoordinateDialog(scene.getWindow(),cursor,units).showAndWait().ifPresent(choice ->
+                            Platform.runLater(() -> { plotAreaView.requestFocus(); selected.accept(choice); }));
+                }
+
+                @Override
+                public void movePlotCursor(Coordinate point) {
+                    if (scene == null || scene.getWindow() == null || !scene.getWindow().isShowing()) return;
+                    PlotCamera camera = plotAreaView.cameraSnapshot();
+                    var screen = plotAreaView.localToScreen(camera.screenX(point.x),camera.screenY(point.y));
+                    if (screen == null) return;
+                    try { new javafx.scene.robot.Robot().mouseMove(screen); }
+                    catch (RuntimeException unavailable) {
+                        appendConsole("Prévia posicionada, mas não foi possível mover o mouse. Use J > Adicionar ponto para inserir as coordenadas exatas.");
+                    }
+                }
+
+                @Override
                 public void log(String message) {
                     appendConsole(message);
                 }

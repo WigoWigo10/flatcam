@@ -23,6 +23,7 @@ class ToolDefaultsTest {
 
     @Test
     void factoryValuesDependOnTheUnitsOnlyForLengths() {
+        assertEquals(64,ToolDefaults.integer("geometry.editorcirclesteps"));
         assertEquals("2.4", ToolDefaults.text("cutout.tooldia", true));
         assertEquals("0.094", ToolDefaults.text("cutout.tooldia", false));
         assertEquals(-1.7, ToolDefaults.number("cutout.cutz", true));
@@ -48,6 +49,8 @@ class ToolDefaultsTest {
 
     @Test
     void invalidValuesAreRefusedWithTheNameOfTheSetting() {
+        for (String bad : new String[]{"3","4097","64.0","NaN"})
+            assertThrows(IllegalArgumentException.class,()->ToolDefaults.set("geometry.editorcirclesteps",true,bad));
         IllegalArgumentException number = assertThrows(IllegalArgumentException.class,
                 () -> ToolDefaults.set("cutout.tooldia", true, "abc"));
         assertTrue(number.getMessage().contains("Cutout") && number.getMessage().contains("número"));

@@ -89,6 +89,8 @@ final class ToolDefaultsDescriptions {
 
     private static String specific(ToolDefaults.Setting s) {
         String key = s.key();
+        if (key.equals("geometry.editorcirclesteps"))
+            return "Número de segmentos por volta completa para novos arcos e círculos do Editor Geometry, de 4 a 4096. Círculos usam o múltiplo de 4 inferior, como no Python: 65 resulta em 64. Mais segmentos aproximam melhor a curva e aumentam memória/custo da prévia. Não modifica formas existentes nem garante precisão física da máquina. O editor permite ajustar o valor localmente antes de desenhar.";
         if (key.equals("ncc.tooldia") || key.equals("paint.tooldia"))
             return "Lista de diâmetros iniciais das ferramentas. Separe os itens com vírgula e use ponto decimal, por exemplo 1.0, 0.5. Não é uma única ferramenta nem uma conversão automática de unidades.";
         if (key.equals("ncc.seedpolicy"))

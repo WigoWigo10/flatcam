@@ -84,4 +84,36 @@ class EditorArcTest {
             assertTrue(session.redo()); assertEquals(2,session.shapeCount());
         }
     }
+
+    @Test void customResolutionsAgreeWithEighteenOriginalPythonControls() throws Exception {
+        try(var stream=getClass().getResourceAsStream("python-editor-arcs.json")) {
+            assertNotNull(stream);
+            var cases=new JSONObject(new String(stream.readAllBytes(),StandardCharsets.UTF_8)).getJSONArray("resolutionCases");
+            assertEquals(18,cases.length());
+            for(Object value:cases) {
+                JSONObject c=(JSONObject)value; var input=c.getJSONArray("points");
+                var points=java.util.stream.IntStream.range(0,3).mapToObj(i->p(input.getJSONArray(i).getDouble(0),input.getJSONArray(i).getDouble(1))).toList();
+                var result=EditorArc.build(F,EditorArc.Mode.valueOf(c.getString("mode")),c.getBoolean("clockwise"),points,c.getInt("steps"));
+                var expected=c.getJSONArray("expected"); String label=c.getString("mode")+" "+c.getString("units")+" steps="+c.getInt("steps");
+                assertEquals(expected.length(),result.path().getNumPoints(),label);
+                for(int i=0;i<expected.length();i++) {
+                    assertEquals(expected.getJSONArray(i).getDouble(0),result.path().getCoordinateN(i).x,1e-11,label);
+                    assertEquals(expected.getJSONArray(i).getDouble(1),result.path().getCoordinateN(i).y,1e-11,label);
+                }
+            }
+        }
+    }
+
+    @Test void customResolutionControlsArcsAndCirclesAndInvalidValuesDoNotChangeTheDraft() {
+        for (int steps : new int[]{4,65,128,4096}) {
+            var full=EditorArc.build(F,EditorArc.Mode.CENTER_START_END,true,List.of(p(0,0),p(5,0),p(5,0)),steps);
+            assertEquals(steps+1,full.path().getNumPoints()); assertTrue(full.path().isClosed());
+            var session=new GeometryEditSession(F.createGeometryCollection(),List.of());
+            session.addCircle(0,0,5,0,-1,steps); assertEquals(4*(steps/4)+1,session.resultGeometry().getGeometryN(0).getNumPoints());
+            assertTrue(session.resultGeometry().isValid()); assertTrue(session.undo()); assertFalse(session.isDirty());
+            for (int bad : new int[]{0,3,4097,Integer.MAX_VALUE})
+                assertThrows(IllegalArgumentException.class,()->session.addCircle(0,0,5,0,-1,bad));
+            assertFalse(session.isDirty());
+        }
+    }
 }

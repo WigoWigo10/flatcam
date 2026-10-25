@@ -54,6 +54,15 @@ def export(root):
                 namespace["make"](tool)
                 cases.append(dict(mode=modes[mode], clockwise=direction == "cw", units=units,
                                   points=coordinates, expected=list(tool.geometry.coords)))
+    resolution_cases = []
+    for steps in [8,65,256]:
+        for units, scale in [("MM",1),("IN",1/25.4)]:
+            for mode, points in [templates[0],templates[3],templates[6]]:
+                coordinates = [(x*scale,y*scale) for x,y in points]
+                tool = NS(points=coordinates,mode=mode,direction="cw",steps_per_circ=steps,draw_app=NS(app=app))
+                namespace["make"](tool)
+                resolution_cases.append(dict(mode=modes[mode],clockwise=True,units=units,steps=steps,
+                                             points=coordinates,expected=list(tool.geometry.coords)))
     points = [(5., 0.), (0., 5.), (-5., 0.)]
     tool = NS(points=points, mode="132", direction="cw", steps_per_circ=64, draw_app=NS(app=app))
     namespace["make"](tool)
@@ -61,7 +70,7 @@ def export(root):
                         policy="FX passes through the third point. Python T[0] == -0.0 chooses CCW and misses it.")]
     return dict(scope="Original FCArc.make math/sampling; public synthetic cases, no Qt gestures or physical CNC",
                 sources={str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in [cam, editor]},
-                cases=cases, knownPythonDifferences=differences)
+                cases=cases, resolutionCases=resolution_cases, knownPythonDifferences=differences)
 
 
 if __name__ == "__main__":
@@ -71,4 +80,4 @@ if __name__ == "__main__":
     result = export(Path(__file__).resolve().parents[2])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    print(f"Exported {len(result['cases'])} original Python arc controls to {args.output}")
+    print(f"Exported {len(result['cases'])} default + {len(result['resolutionCases'])} custom-resolution Python arc controls to {args.output}")

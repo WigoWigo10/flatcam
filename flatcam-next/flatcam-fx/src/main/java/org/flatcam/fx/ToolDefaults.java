@@ -49,6 +49,7 @@ final class ToolDefaults {
     }
 
     static {
+        integer("geometry.editorcirclesteps", "Editor Geometry", "Segmentos por círculo (arcos e círculos)", 64);
         String cutout = "Cutout";
         length("cutout.tooldia", cutout, "Diâmetro da ferramenta", "2.4", "0.094");
         length("cutout.margin", cutout, "Margem", "0.1", "0.004");
@@ -498,7 +499,11 @@ final class ToolDefaults {
             }
             case INTEGER -> {
                 try {
-                    Integer.parseInt(value);
+                    int parsed = Integer.parseInt(value);
+                    if (setting.key().equals("geometry.editorcirclesteps")) {
+                        try { org.flatcam.cam.geometry.EditorArc.validateSteps(parsed); }
+                        catch (IllegalArgumentException invalid) { return invalid.getMessage(); }
+                    }
                 } catch (NumberFormatException invalid) {
                     return "deve ser um número inteiro";
                 }

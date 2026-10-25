@@ -60,6 +60,9 @@ final class GeometryEditorController {
                              Consumer<String> onFailure);
 
         void log(String message);
+
+        default void requestArcCoordinates(Coordinate cursor, String units, Consumer<ArcCoordinateDialog.Choice> selected) { }
+        default void movePlotCursor(Coordinate point) { }
     }
 
     private record LayerKey(String name) {
@@ -121,6 +124,9 @@ final class GeometryEditorController {
     private ComboBox<EditorArc.Mode> arcMode;
     private CheckBox arcClockwise;
     private Object arcGesture;
+    private long arcPointRevision;
+    private TextField curveSteps;
+    private boolean drawingCircle;
     private EraserGesture eraser;
 
     /** Frozen stencil: erasing the source shape must not silently change the next erase area. */
@@ -354,9 +360,27 @@ final class GeometryEditorController {
         arcClockwise.selectedProperty().addListener((obs, old, value) -> {
             if (arcGesture != null) { plotArea.refreshEditorThreePointPreview(); arcInstruction(-1); }
         });
-        Label arcHelp = new Label("M: modo • D: sentido • Backspace: voltar um ponto. O terceiro clique conclui; Esc/botão direito cancela.");
+        curveSteps = new TextField(ToolDefaults.text("geometry.editorcirclesteps",true));
+        curveSteps.setId("geometry-curve-steps"); curveSteps.setPrefColumnCount(5); curveSteps.setMinWidth(0);
+        ToolDescriptions.apply(curveSteps,"Segmentos por círculo",
+                ToolDefaultsDescriptions.text(ToolDefaults.setting("geometry.editorcirclesteps"),true));
+        Button saveCurveSteps = new Button("Salvar resolução padrão"); saveCurveSteps.setId("geometry-curve-steps-save");
+        ToolDescriptions.apply(saveCurveSteps,"Salvar resolução padrão",
+                "Salva apenas a resolução atual para os próximos editores, em mm e in. Não altera formas existentes; também pode ser configurada em Preferências > Padrões das ferramentas > Editor Geometry.");
+        saveCurveSteps.setOnAction(event -> {
+            try { ToolDefaults.set("geometry.editorcirclesteps",true,Integer.toString(curveSteps())); instruction.setText("Resolução padrão salva; formas existentes foram mantidas."); }
+            catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
+        });
+        curveSteps.textProperty().addListener((obs, old, value) -> {
+            if (arcGesture != null) {
+                plotArea.refreshEditorThreePointPreview();
+                try { curveSteps(); arcInstruction(-1); } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
+            } else if (drawingCircle) { plotArea.cancelPlacement(); instruction.setText("Resolução alterada; inicie o círculo novamente."); }
+        });
+        Label arcHelp = new Label("M: modo • D: sentido • J: coordenadas • Backspace: voltar um ponto. O terceiro clique conclui; Esc/botão direito cancela.");
         arcHelp.setWrapText(true);
-        arcPane = new TitledPane("Arcos", new VBox(6, arcMode, arcClockwise, arcHelp));
+        arcPane = new TitledPane("Arcos e curvas", new VBox(6, arcMode, arcClockwise,
+                new HBox(8,new Label("Segmentos/volta:"),curveSteps),saveCurveSteps,arcHelp));
         arcPane.setExpanded(false); panel.getChildren().add(arcPane);
         textContent = new TextArea(); textContent.setId("geometry-text-content");
         textContent.setPromptText("Texto para converter em geometria"); textContent.setPrefRowCount(3);
@@ -611,6 +635,7 @@ final class GeometryEditorController {
 
     void startArc() {
         if (!readyForTool()) return;
+        try { curveSteps(); } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); return; }
         GeometryEditSession editing = session;
         int toolIndex = selectedToolIndex();
         plotArea.cancelPlacement();
@@ -622,7 +647,7 @@ final class GeometryEditorController {
                 if (points.size() == 1) return factory.createLineString(new Coordinate[]{points.getFirst(), cursor});
                 try {
                     var arc = EditorArc.build(factory, arcMode.getValue(), arcClockwise.isSelected(),
-                            List.of(points.get(0), points.get(1), cursor));
+                            List.of(points.get(0), points.get(1), cursor),curveSteps());
                     double cross = plotArea.worldPerPixel() * 4;
                     Coordinate c = arc.center();
                     return factory.buildGeometry(List.of(arc.path(),
@@ -632,11 +657,11 @@ final class GeometryEditorController {
                     return factory.createLineString(new Coordinate[]{points.getFirst(), points.get(1), cursor});
                 }
             }
-            public void onPointsChanged(int count) { if (arcGesture == gesture) arcInstruction(count); }
+            public void onPointsChanged(int count) { ++arcPointRevision; if (arcGesture == gesture) arcInstruction(count); }
             public boolean onCommit(List<Coordinate> points) {
                 if (session != editing || arcGesture != gesture) return false;
                 try {
-                    editing.addArc(arcMode.getValue(), arcClockwise.isSelected(), points, toolIndex);
+                    editing.addArc(arcMode.getValue(), arcClockwise.isSelected(), points, toolIndex,curveSteps());
                     arcGesture = null;
                     refreshGeometry();
                     instruction.setText("Arco adicionado. Ctrl+Z desfaz; Ctrl+Y refaz.");
@@ -661,6 +686,7 @@ final class GeometryEditorController {
     boolean handleArcKey(javafx.scene.input.KeyCode key) {
         if (arcGesture == null) return false;
         return switch (key) {
+            case J -> { requestArcCoordinates(); yield true; }
             case M -> { arcMode.setValue(EditorArc.Mode.values()[(arcMode.getValue().ordinal() + 1) % 3]); yield true; }
             case D -> {
                 if (arcMode.getValue() != EditorArc.Mode.START_END_THROUGH) arcClockwise.setSelected(!arcClockwise.isSelected());
@@ -671,6 +697,24 @@ final class GeometryEditorController {
             case ENTER -> { instruction.setText("Escolha os três pontos no plot; o terceiro clique conclui o arco."); yield true; }
             default -> false;
         };
+    }
+
+    private int curveSteps() {
+        try { int steps = Integer.parseInt(curveSteps.getText().trim()); EditorArc.validateSteps(steps); return steps; }
+        catch (IllegalArgumentException invalid) { throw new IllegalArgumentException("Resolução deve ser um inteiro entre 4 e 4096 segmentos por círculo."); }
+    }
+
+    private void requestArcCoordinates() {
+        Object gesture = arcGesture;
+        long revision = arcPointRevision;
+        host.requestArcCoordinates(plotArea.editorCursorPoint(),units,choice -> {
+            if (choice == null || arcGesture != gesture || arcPointRevision != revision || busy) return;
+            if (choice.insert()) plotArea.acceptEditorThreePoint(choice.point());
+            else {
+                Coordinate cursor = plotArea.previewEditorThreePointAt(choice.point());
+                if (cursor != null) { host.movePlotCursor(cursor); instruction.setText("Cursor posicionado; clique para confirmar o próximo ponto ou use J > Adicionar ponto."); }
+            }
+        });
     }
 
     private static String arcModeLabel(EditorArc.Mode mode) {
@@ -690,7 +734,7 @@ final class GeometryEditorController {
         instruction.setText("Arco — " + arcModeLabel(arcMode.getValue())
                 + (count < 0 ? "" : ": clique no " + next[Math.min(count, 2)])
                 + ". " + (arcMode.getValue() == EditorArc.Mode.START_END_THROUGH ? "Sentido automático" : arcClockwise.isSelected() ? "Horário (CW)" : "Anti-horário (CCW)")
-                + "; M muda o modo, D o sentido; Esc cancela.");
+                + "; M muda o modo, D o sentido, J abre coordenadas; Esc cancela.");
     }
 
     private void startMultiPoint(boolean polygon) {
@@ -751,10 +795,11 @@ final class GeometryEditorController {
         }
         GeometryEditSession editing = session;
         int toolIndex = selectedToolIndex();
+        int resolution;
+        try { resolution = circle ? curveSteps() : EditorArc.DEFAULT_STEPS; } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); return; }
+        plotArea.cancelPlacement(); drawingCircle = circle;
         double[] anchor = new double[2];
-        boolean started = plotArea.beginEditorTwoPointPlacement(
-                circle ? PlotAreaView.TwoPointShape.CIRCLE : PlotAreaView.TwoPointShape.RECTANGLE,
-                new PlotAreaView.PlacementHandler() {
+        var handler = new PlotAreaView.PlacementHandler() {
                     @Override
                     public void onAnchorChosen(double x, double y) {
                         anchor[0] = x;
@@ -767,13 +812,14 @@ final class GeometryEditorController {
 
                     @Override
                     public void onCommit(double dx, double dy) {
+                        drawingCircle = false;
                         if (session != editing) {
                             return;
                         }
                         try {
                             if (circle) {
                                 editing.addCircle(anchor[0], anchor[1], anchor[0] + dx, anchor[1] + dy,
-                                        toolIndex);
+                                        toolIndex,resolution);
                             } else {
                                 editing.addRectangle(anchor[0], anchor[1], anchor[0] + dx, anchor[1] + dy,
                                         toolIndex);
@@ -787,11 +833,14 @@ final class GeometryEditorController {
 
                     @Override
                     public void onCancel() {
+                        drawingCircle = false;
                         if (session == editing) {
                             instruction.setText("Desenho cancelado.");
                         }
                     }
-                });
+                };
+        boolean started = circle ? plotArea.beginEditorCirclePlacement(resolution,handler)
+                : plotArea.beginEditorTwoPointPlacement(PlotAreaView.TwoPointShape.RECTANGLE,handler);
         if (started) {
             instruction.setText(circle ? "Clique no centro do circulo." : "Clique no primeiro canto.");
         }
@@ -1238,6 +1287,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         eraser = null;
         arcGesture = null;
+        drawingCircle = false;
         plotArea.setSelectionHandler(null);
         plotArea.removeLayer(SHAPES_LAYER);
         plotArea.setEditorHighlight(null, false);
@@ -1272,6 +1322,7 @@ final class GeometryEditorController {
         paintMethod = null; paintConnect = null; paintContour = null;
         textFont = null; textSize = null; textBold = null; textItalic = null; units = null;
         arcPane = null; arcMode = null; arcClockwise = null;
+        curveSteps = null;
         bufferDistance = null;
         bufferMode = null;
         editorButtons = null;

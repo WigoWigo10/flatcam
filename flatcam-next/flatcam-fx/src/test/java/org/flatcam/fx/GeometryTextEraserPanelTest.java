@@ -19,12 +19,15 @@ import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.geometry.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class GeometryTextEraserPanelTest {
+    @BeforeEach @AfterEach void defaults() { ToolDefaults.useStore(ToolDefaults.memoryStore()); }
     private static <T> T fx(Callable<T> action) throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
         var task = new FutureTask<>(action); Platform.runLater(task); return task.get(20,TimeUnit.SECONDS);
@@ -39,6 +42,12 @@ class GeometryTextEraserPanelTest {
         GeometryEditSession.OperationRequest request;
         Consumer<GeometryEditSession.OperationResult> completed;
         Consumer<String> failed;
+        Consumer<ArcCoordinateDialog.Choice> coordinateReply;
+        Coordinate coordinateReference, movedCursor;
+        public void requestArcCoordinates(Coordinate cursor,String units,Consumer<ArcCoordinateDialog.Choice> selected) {
+            coordinateReference = new Coordinate(cursor); coordinateReply = selected;
+        }
+        public void movePlotCursor(Coordinate point) { movedCursor = new Coordinate(point); }
         Harness(Geometry source, List<ToolGeometry> tools) {
             this(source, tools, AsyncFontCatalog.SYSTEM);
         }
@@ -76,16 +85,14 @@ class GeometryTextEraserPanelTest {
         }
         void click(double x,double y, MouseButton button) {
             // Default viewport: centre (50,40), scale 3, 44/20 px rulers. No fit/pan in this harness.
-            double sx=(x-50)*3+(plot.getWidth()-44)/2+44;
-            double sy=(plot.getHeight()-20)/2-(y-40)*3+20;
+            double sx=plot.cameraSnapshot().screenX(x), sy=plot.cameraSnapshot().screenY(y);
             for (var type : List.of(MouseEvent.MOUSE_PRESSED,MouseEvent.MOUSE_RELEASED))
                 plot.fireEvent(new MouseEvent(type,sx,sy,sx,sy,button,1,
                         false,false,false,false,type==MouseEvent.MOUSE_PRESSED && button==MouseButton.PRIMARY,
                         false,type==MouseEvent.MOUSE_PRESSED && button==MouseButton.SECONDARY,false,false,true,null));
         }
         void move(double x,double y) {
-            double sx=(x-50)*3+(plot.getWidth()-44)/2+44;
-            double sy=(plot.getHeight()-20)/2-(y-40)*3+20;
+            double sx=plot.cameraSnapshot().screenX(x), sy=plot.cameraSnapshot().screenY(y);
             plot.fireEvent(new MouseEvent(MouseEvent.MOUSE_MOVED,sx,sy,sx,sy,MouseButton.NONE,0,
                     false,false,false,false,false,false,false,false,false,true,null));
         }
@@ -418,6 +425,72 @@ class GeometryTextEraserPanelTest {
                 assertFalse(h.controller.isArcActive()); h.plot.cancelPlacement();
                 assertEquals(1,h.table().getItems().size()); return null;
             });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void numericPreviewKeepsAnchorsAndZoomWhileExactInsertionBypassesSnap() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                h.plot.setGridSnap(true,2,2); h.controller.startArc();
+                h.click(50,40); h.click(60,40); double zoom=h.plot.cameraSnapshot().scale();
+                assertTrue(h.controller.handleArcKey(KeyCode.J));
+                h.coordinateReply.accept(new ArcCoordinateDialog.Choice(new Coordinate(25.3,30.8),false));
+                assertEquals(new Coordinate(26,30),h.movedCursor);
+                assertEquals(zoom,h.plot.cameraSnapshot().scale()); assertEquals(26,h.plot.cameraSnapshot().centerX());
+                assertEquals(0,h.table().getItems().size()); assertTrue(h.controller.isArcActive());
+                h.coordinateReply.accept(new ArcCoordinateDialog.Choice(new Coordinate(50.25,50.75),true));
+                assertEquals(1,h.table().getItems().size());
+                var expected=EditorArc.build(new GeometryFactory(),EditorArc.Mode.CENTER_START_END,true,
+                        List.of(new Coordinate(50,40),new Coordinate(60,40),new Coordinate(50.25,50.75))).path();
+                assertTrue(expected.equalsTopo(h.reflectedSession().resultGeometry().getGeometryN(0)));
+                assertTrue(h.controller.undoFromShortcut()); assertEquals(0,h.table().getItems().size()); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void numericEntryCanSupplyAllPointsButLateDialogRepliesCannotAffectANewGesture() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                h.controller.startArc(); h.controller.handleArcKey(KeyCode.J); var stale=h.coordinateReply;
+                h.controller.handleArcKey(KeyCode.M); stale.accept(new ArcCoordinateDialog.Choice(new Coordinate(500,500),true));
+                for (Coordinate p : List.of(new Coordinate(40,40),new Coordinate(60,40),new Coordinate(50,45))) {
+                    h.controller.handleArcKey(KeyCode.J); h.coordinateReply.accept(new ArcCoordinateDialog.Choice(p,true));
+                }
+                assertEquals(1,h.table().getItems().size()); assertFalse(h.controller.isArcActive());
+                h.controller.startArc(); h.controller.handleArcKey(KeyCode.J); stale=h.coordinateReply;
+                h.plot.cancelPlacement(); h.controller.startArc();
+                stale.accept(new ArcCoordinateDialog.Choice(new Coordinate(500,500),true));
+                assertEquals(1,h.table().getItems().size());
+                h.controller.handleArcKey(KeyCode.J); h.coordinateReply.accept(null);
+                assertTrue(h.controller.isArcActive()); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void resolutionUpdatesArcPreviewAndSavedDefaultAndCancelsAnOldCirclePreview() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                var steps=(TextField)h.panel.lookup("#geometry-curve-steps"); steps.setText("4");
+                h.controller.startArc(); h.click(50,40); h.click(60,40); h.move(50,50);
+                var f=PlotAreaView.class.getDeclaredField("threePointPreview"); f.setAccessible(true);
+                assertEquals(4,((Geometry)f.get(h.plot)).getGeometryN(0).getNumPoints());
+                steps.setText("128"); assertEquals(97,((Geometry)f.get(h.plot)).getGeometryN(0).getNumPoints());
+                assertEquals(64,ToolDefaults.integer("geometry.editorcirclesteps"));
+                ((Button)h.panel.lookup("#geometry-curve-steps-save")).fire();
+                assertEquals(128,ToolDefaults.integer("geometry.editorcirclesteps"));
+                h.click(50,50); assertEquals(97,h.reflectedSession().resultGeometry().getGeometryN(0).getNumPoints());
+                steps.setText("3"); h.controller.startArc(); assertFalse(h.controller.isArcActive());
+                steps.setText("16"); h.controller.startCircle(); h.click(50,40); steps.setText("65");
+                assertFalse(h.plot.isPlacementActive()); h.controller.startCircle(); h.click(50,40); h.click(60,40);
+                assertEquals(65,h.reflectedSession().resultGeometry().getGeometryN(1).getNumPoints());
+                return null;
+            });
+            var next=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+            try { fx(() -> { assertEquals("128",((TextField)next.panel.lookup("#geometry-curve-steps")).getText()); return null; }); }
+            finally { fx(() -> { next.controller.cancel(); return null; }); }
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }
     @Test void workerFailureReenablesToolsAndPreservesDraft() throws Exception {
