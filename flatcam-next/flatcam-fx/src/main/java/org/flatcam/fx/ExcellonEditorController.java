@@ -146,6 +146,7 @@ final class ExcellonEditorController {
         diameterField = new TextField(toolChoice.getValue() == null ? ToolDefaults.text("editor.excellon.diameter", image.units().equals("MM"))
                 : Double.toString(session.toolDiameters().get(toolChoice.getValue())));
         diameterField.setId("excellon-new-diameter");
+        ToolDescriptions.apply(diameterField,"Diâmetro Excellon","Diâmetro para novos arrays LINEAR/CIRCULAR; uma ferramenta existente é reutilizada ou criada ao confirmar. Em Redimensionar, aplica o diâmetro somente aos furos/slots selecionados e preserva as posições. Unidades do objeto (mm ou in). Alterar invalida a prévia.");
         toolChoice.valueProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) diameterField.setText(Double.toString(session.toolDiameters().get(newValue)));
         });

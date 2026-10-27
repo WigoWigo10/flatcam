@@ -399,9 +399,11 @@ final class PlotAreaView extends StackPane {
     private final Map<Object, List<Annotation>> annotations = new LinkedHashMap<>();
     private Geometry editorHighlightGeometry;
     private Color editorHighlightColor = EDITOR_HIGHLIGHT_COLOR;
-    /** A faint, dashed "where it was" companion to the editor highlight (e.g. the un-mirrored outline). */
+    /** A dashed reference companion to the editor highlight, with theme-aware outline contrast. */
     private Geometry editorReferenceGeometry;
-    private static final Color EDITOR_REFERENCE_COLOR = Color.web("#0000FF38");
+    private static final Color EDITOR_REFERENCE_LIGHT = Color.web("#2358C4");
+    private static final Color EDITOR_REFERENCE_DARK = Color.web("#7DBBFF");
+    static Color editorReferenceColor(boolean dark) { return dark ? EDITOR_REFERENCE_DARK : EDITOR_REFERENCE_LIGHT; }
     private static final Color EDITOR_FILL_COLOR = Color.web("#00B4FF2E");
     private static final Color EDITOR_REFERENCE_FILL_COLOR = Color.web("#0000FF12");
     /** Translucent interiors under the outlines: the new (mirrored) one and the original one. */
@@ -2246,8 +2248,9 @@ final class PlotAreaView extends StackPane {
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
             gc.clip();
             gc.setLineDashes(8, 6);
-            drawOverlay(gc, REFERENCE_KEY, new RenderLayer(editorReferenceGeometry, true, EDITOR_REFERENCE_COLOR,
-                    EDITOR_REFERENCE_COLOR, true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth,
+            Color referenceInk=editorReferenceColor(palette.background().getBrightness()<.5);
+            drawOverlay(gc, REFERENCE_KEY, new RenderLayer(editorReferenceGeometry, true, referenceInk,
+                    referenceInk, true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth,
                     contentHeight);
             gc.restore();
         }

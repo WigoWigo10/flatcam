@@ -20,6 +20,10 @@ class ToolPreviewPaletteTest {
                     "thin outline contrast in " + theme + ": " + ink.stroke());
             assertTrue(ink.fill().getOpacity() > 0 && ink.fill().getOpacity() < 1);
         }
+        Color editorReference=PlotAreaView.editorReferenceColor(dark);
+        double foreground=luminance(editorReference), backgroundLuma=luminance(background);
+        assertEquals(1,editorReference.getOpacity(),"thin preview stroke must not fade into the background");
+        assertTrue((Math.max(foreground,backgroundLuma)+.05)/(Math.min(foreground,backgroundLuma)+.05)>=3,"editor preview contrast in "+theme);
         var opposite = PlotAreaView.toolPreviewColors(PlotAreaView.LayerCategory.GERBER, !dark);
         assertNotEquals(inks.getFirst(), opposite, "theme changes the inks, not the category meaning");
     }

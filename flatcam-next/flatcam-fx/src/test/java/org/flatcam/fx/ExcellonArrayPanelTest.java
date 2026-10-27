@@ -116,6 +116,15 @@ class ExcellonArrayPanelTest {
             });
         } finally { TerminalPanelTest.fx(()-> { h.editor.cancel(); return null; }); }
     }
+    @Test void toolbarHelpExplainsNewPatternsAndDistinguishesTheLegacyGrid() {
+        for(String label:List.of("Array de furos","Array de slots")) {
+            String help=PanelTooltips.help("Editor Excellon",label);
+            assertTrue(help.contains("LINEAR") && help.contains("CIRCULAR") && help.contains("sem exigir seleção"));
+            assertTrue(help.contains("prévia") && help.contains("Ctrl+Z") && help.contains("Ctrl+Y"));
+        }
+        String grid=PanelTooltips.help("Editor Excellon","Array de furos selecionados");
+        assertTrue(grid.contains("selecionados") && grid.contains("direta"));
+    }
     @Test void closedEditorIgnoresWorkerCompletion() throws Exception {
         var h=TerminalPanelTest.fx(()->new Harness(false));
         TerminalPanelTest.fx(()-> { h.form().preview.fire(); h.editor.cancel(); return null; });

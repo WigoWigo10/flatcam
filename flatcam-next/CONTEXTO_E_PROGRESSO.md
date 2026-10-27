@@ -1,5 +1,21 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série seguinte, item 4 concluído com limites registrados: janelas — 2026-10-27
+
+Itens 1–3 commitados: `c5a1daf7` runtime, `d3015117` arrays, `b92c9389` importação.
+Revisão real do FX com cópia do projeto: quatro temas, painel lateral, campos
+novos de importação, array circular/confirmar/Ctrl+Z/Ctrl+Y/cancelar editor.
+Corrigidos tooltip antigo da barra, ajuda do diâmetro e contraste do contorno
+de referência. Nova janela reconstruída conferida em claro/escuro com prévia.
+Python original abriu/renderizou a cópia, mas automação não conseguiu ativar
+a janela Qt após recuperação; comparação interativa Qt e DPI/multimonitor
+continuam pendentes. Não contar como validação visual completa.
+Original e cópias com SHA-256 inalterado. Launchers de revisão isolam preferências
+FX e dados/configuração Python. Build nativo/probe passaram; integral final:
+**2008 aprovações, 18 skips opcionais, zero falhas/erros** (2026 registros),
+`target/ui-review-final-verify.log`. [UI_PARITY_REVIEW.md](UI_PARITY_REVIEW.md)
+registra resultados, reprodução e próximos ensaios.
+
 ## Série seguinte, item 3 concluído: importação — 2026-10-27
 
 Inteiros IN/MM e LZ/TZ configuráveis no Excellon. Leitor corrige tokens LZ

@@ -6,6 +6,15 @@ logs under `flatcam-next/target`. This is a desktop app, not a Next.js website.
 
 ## Product
 
+Latest serial review (2026-10-27): full verify 2026 records, 2008 passed,
+18 optional skips, zero failures/errors. Real FX GUI exercised four themes,
+new Excellon array preview/confirm/undo/redo/cancel and import fields on a copy
+of the 21-object project. Python GUI loaded/rendered its copy, but window
+activation failed after recovery; interactive Qt comparison and DPI/multiple
+monitors remain unverified. Originals/copies SHA-256 unchanged. See
+`flatcam-next/UI_PARITY_REVIEW.md`; repeatable isolation helpers under
+`flatcam-next/tools/ui-review`. Review does not establish frame-rate gains.
+
 Java desktop CAM port of FlatCAM Python. Critical evidenced flows: open Gerber
 and Excellon; panelize aligned layers; Isolation/NCC/Cutout to Geometry;
 Geometry/Drilling to CNC; review/export G-code; save/reopen native and compatible

@@ -268,7 +268,8 @@ final class PanelHelpCatalog {
         case "cancelar" -> "Descarta o rascunho e encerra o editor sem aplicar alterações ao objeto.";
         case "ferramenta para novos furos/slots" -> "Ferramenta Excellon usada nos novos furos e slots. Não altera automaticamente as ferramentas das formas existentes.";
         case "redimensionar selecionados", "redimensionar" -> "Aplica o novo diâmetro aos furos ou slots selecionados, preservando seu posicionamento.";
-        case "array de furos selecionados", "array de slots selecionados", "array de furos", "array de slots" -> "Repete os furos ou slots selecionados pela grade de colunas/linhas e passos X/Y. Clique no plot conforme solicitado para posicionar.\n\nAtalho: Esc cancela; Ctrl+Z desfaz.";
+        case "array de furos selecionados", "array de slots selecionados" -> "GRID replica os furos ou slots selecionados numa grade de colunas/linhas e passos X/Y. A aplicação da grade é direta. Ctrl+Z desfaz a replicação inteira.";
+        case "array de furos", "array de slots" -> "LINEAR e CIRCULAR criam novos furos ou slots sem exigir seleção, usando o diâmetro informado. Escolha quantidade, passo/eixo ou centro/raio/ângulos e confira a prévia. Confirme pelo botão ou clique no plot; o clique não desloca o array. GRID mantém a replicação direta da seleção.\n\nAtalho: Esc cancela a prévia; Ctrl+Z desfaz o array inteiro e a ferramenta nova; Ctrl+Y refaz.";
         case "selecionar" -> "Volta ao modo de seleção no plot. Clique seleciona; Ctrl+clique alterna; arrastar cria uma seleção por área.";
         case "adicionar furo", "adicionar slot" -> "Usa a ferramenta escolhida para desenhar um furo ou slot no plot. Confira os pontos e dimensões antes de aplicar.";
         case "excluir" -> "Apaga do rascunho as formas selecionadas.\n\nAtalho: Ctrl+Z desfaz.";

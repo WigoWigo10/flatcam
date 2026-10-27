@@ -1,5 +1,16 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Importação e conferência das janelas — 2026-10-27
+
+Excellon: inteiros IN/MM e LZ/TZ configuráveis, leitura de tokens abreviados,
+precedência dos cabeçalhos, sinais e decimais literais; 48 controles contra
+parse_number original sem diferenças. [IMPORT_FORMATS.md](IMPORT_FORMATS.md).
+Janela real FX: quatro temas, nova prévia circular, confirmação, undo/redo e
+cancelamento; corrigidos ajuda antiga e contorno tênue. Python original abriu
+e renderizou a cópia do projeto, mas ativação automática da janela Qt falhou.
+Comparação interativa Qt e DPI/multimonitor pendentes. Integral final: 2008
+aprovações, 18 skips, zero falhas. [UI_PARITY_REVIEW.md](UI_PARITY_REVIEW.md).
+
 ## Arrays Excellon e correção do runtime — 2026-10-27
 
 Editor Excellon agora cria arrays lineares/circulares novos, de furos e slots,
