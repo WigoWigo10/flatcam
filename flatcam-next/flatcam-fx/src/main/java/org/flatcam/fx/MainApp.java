@@ -58,6 +58,7 @@ public class MainApp extends Application {
 
         // Only the real application remembers the tool defaults; tests and harnesses keep the factory values.
         ToolDefaults.useStore(AppPreferences.toolDefaultsStore());
+        CamExportDialog.migrateLegacyPreferences();
         mainWindow = new MainWindow(jobExecutor);
         ToolDefaults.useDisplayUnits(mainWindow::displayUnitsMetric);
         StartupTarget startup = startupTarget();

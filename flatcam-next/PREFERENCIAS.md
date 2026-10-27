@@ -159,3 +159,23 @@ Cores incluem opacidade; limites de seleção só simplificam o destaque, sem
 limitar a seleção. Os limites FX existentes (2000/500) foram mantidos.
 Validação, roundtrip mm/in e consumo na UI cobertos por 56 testes focados e
 empacotamento aprovados em `target/editor-defaults-final.log`.
+
+
+### Série seguinte, item 3: exportação CAM
+
+Gerber/Excellon têm seções Exportação: unidades IN/MM, dígitos inteiros/decimais
+(1–6), zeros L/T no Gerber e LZ/TZ no Excellon, formato dec/ndec e slots
+ROUTED/G85. Valores de fábrica conferidos no Python. O diálogo confirma e salva
+os mesmos valores usados por Salvar como e pelo Terminal; cancelar não salva.
+Ao iniciar pela primeira vez esta versão, os formatos antes lembrados pelo
+antigo diálogo são migrados uma única vez. Exportar/importar/reset de preferências
+inclui estes padrões. Não há conversão do objeto em memória.
+A precisão escolhida arredonda o arquivo: o padrão Python IN 2:4 é diferente do
+antigo Salvar como FX, que usava precisão automática. Escolha mais decimais nas
+preferências quando necessário. Excellon decimal ignora a opção de zeros.
+Foram escritos/reabertos arquivos nas 4 combinações Gerber e 16 Excellon,
+conferindo limites, furos, diâmetros e finais de slots. Os reparos do exportador
+FX nos slots e supressão declarada permanecem: isto não afirma igualdade textual
+com as saídas defeituosas do legado. Regressão: 126 aprovações/1 skip opcional
+mais exporters CAM (`target/export-preferences-final.log`); repetição com arquivos
+temporários reais aprovada (`target/export-preferences-files.log`).

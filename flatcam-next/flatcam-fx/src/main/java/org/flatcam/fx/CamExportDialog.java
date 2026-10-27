@@ -16,9 +16,8 @@ import org.flatcam.cam.gerber.GerberExporter;
 /**
  * Coordinate format asked for by File > Exportar > Gerber / Excellon - the
  * gerber_exp_* and excellon_exp_* options of FlatCAM Python's Preferences
- * (Gerber/Excellon > Export), asked for at export time instead of being
- * buried in Preferences. Starts from Python's defaults and remembers the
- * last choice.
+ * (Gerber/Excellon > Export), shared with the Preferences pages and Terminal. Starts from Python's defaults and remembers the
+ * last confirmed choice.
  */
 final class CamExportDialog {
 
@@ -53,9 +52,7 @@ final class CamExportDialog {
                 : new GerberExporter.Format(isInch(units) ? "IN" : "MM", integerDigits.getValue(),
                         decimalDigits.getValue(), zeros.getSelectionModel().getSelectedIndex() == 0));
         Optional<GerberExporter.Format> result = dialog.showAndWait();
-        result.ifPresent(format -> AppPreferences.saveText(GERBER_KEY, format.units() + ";"
-                + format.integerDigits() + ";" + format.decimalDigits() + ";"
-                + (format.omitLeadingZeros() ? "L" : "T")));
+        result.ifPresent(CamExportDialog::saveGerber);
         return result;
     }
 
@@ -104,16 +101,15 @@ final class CamExportDialog {
                         slots.getSelectionModel().getSelectedIndex() == 0
                                 ? ExcellonExporter.SlotStyle.ROUTED : ExcellonExporter.SlotStyle.G85));
         Optional<ExcellonExporter.Format> result = dialog.showAndWait();
-        result.ifPresent(format -> AppPreferences.saveText(EXCELLON_KEY, format.units() + ";"
-                + (format.decimal() ? "dec" : "ndec") + ";" + format.integerDigits() + ";"
-                + format.decimalDigits() + ";" + (format.leadingZeros() ? "LZ" : "TZ") + ";"
-                + format.slots().name()));
+        result.ifPresent(CamExportDialog::saveExcellon);
         return result;
     }
 
     /** Shared UI/Tcl format lookup; never writes preferences. */
     static GerberExporter.Format loadGerber() {
-        return parseGerberFormat(AppPreferences.loadText(GERBER_KEY));
+        return new GerberExporter.Format(ToolDefaults.choice("export.gerber.units"),
+                ToolDefaults.integer("export.gerber.integer"), ToolDefaults.integer("export.gerber.decimals"),
+                ToolDefaults.choice("export.gerber.zeros").equals("L"));
     }
 
     static GerberExporter.Format parseGerberFormat(String saved) {
@@ -128,7 +124,10 @@ final class CamExportDialog {
 
     /** Shared by the export dialog and noninteractive Tcl export; does not write preferences. */
     static ExcellonExporter.Format loadExcellon() {
-        return parseExcellonFormat(AppPreferences.loadText(EXCELLON_KEY));
+        return new ExcellonExporter.Format(ToolDefaults.choice("export.excellon.units"),
+                ToolDefaults.choice("export.excellon.format").equals("dec"), ToolDefaults.integer("export.excellon.integer"),
+                ToolDefaults.integer("export.excellon.decimals"), ToolDefaults.choice("export.excellon.zeros").equals("LZ"),
+                ToolDefaults.choice("export.excellon.slots", ExcellonExporter.SlotStyle.class));
     }
 
     static ExcellonExporter.Format parseExcellonFormat(String saved) {
@@ -140,6 +139,34 @@ final class CamExportDialog {
         } catch (RuntimeException missingOrStale) {
             return ExcellonExporter.Format.flatcamDefaults();
         }
+    }
+
+    static void saveGerber(GerberExporter.Format format) {
+        ToolDefaults.set("export.gerber.units",true,format.units());
+        ToolDefaults.set("export.gerber.integer",true,Integer.toString(format.integerDigits()));
+        ToolDefaults.set("export.gerber.decimals",true,Integer.toString(format.decimalDigits()));
+        ToolDefaults.set("export.gerber.zeros",true,format.omitLeadingZeros() ? "L" : "T");
+    }
+
+    static void saveExcellon(ExcellonExporter.Format format) {
+        ToolDefaults.set("export.excellon.units",true,format.units());
+        ToolDefaults.set("export.excellon.integer",true,Integer.toString(format.integerDigits()));
+        ToolDefaults.set("export.excellon.decimals",true,Integer.toString(format.decimalDigits()));
+        ToolDefaults.set("export.excellon.format",true,format.decimal() ? "dec" : "ndec");
+        ToolDefaults.set("export.excellon.zeros",true,format.leadingZeros() ? "LZ" : "TZ");
+        ToolDefaults.set("export.excellon.slots",true,format.slots().name());
+    }
+
+    /** Only MainApp invokes this once after installing the persistent store. Reset must not resurrect old formats. */
+    static void migrateLegacyPreferences() {
+        if ("true".equals(AppPreferences.loadText("exportDefaultsMigrated"))) return;
+        migrateLegacyFormats(AppPreferences.loadText(GERBER_KEY), AppPreferences.loadText(EXCELLON_KEY));
+        AppPreferences.saveText("exportDefaultsMigrated", "true");
+    }
+
+    static void migrateLegacyFormats(String gerber, String excellon) {
+        if (gerber != null && !gerber.isBlank()) saveGerber(parseGerberFormat(gerber));
+        if (excellon != null && !excellon.isBlank()) saveExcellon(parseExcellonFormat(excellon));
     }
 
     private static <T> Dialog<T> dialog(Window owner, String title) {

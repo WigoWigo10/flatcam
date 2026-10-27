@@ -13,6 +13,14 @@ final class ToolDefaultsDescriptions {
             if (setting.key().endsWith(".diameter")) body += " Só usado se não há ferramenta existente selecionada; diâmetros existentes são preservados.";
             if (setting.kind() == ToolDefaults.Kind.COLOR) body += " AA define a opacidade: 00 transparente, FF opaco.";
         }
+        if (setting.key().startsWith("export.")) {
+            body = "Formato inicial usado em Exportar, Salvar como e no Terminal. Unidades do arquivo são independentes do objeto; as coordenadas e diâmetros são convertidos. A precisão escolhida arredonda as coordenadas exportadas, sem alterar o objeto. IN usa polegadas; MM usa milímetros.";
+            if (setting.key().endsWith(".zeros")) body += setting.key().contains("gerber")
+                ? " Gerber: L omite zeros à esquerda; T omite zeros à direita."
+                : " Excellon sem ponto: LZ mantém zeros à esquerda; TZ mantém zeros à direita. No modo decimal, esta opção não altera coordenadas.";
+            if (setting.key().endsWith(".slots")) body += " ROUTED usa G00/M15/G01/M16; G85 usa o ciclo de slot. Escolha o formato aceito pelo destino.";
+            if (setting.key().endsWith(".format")) body += " dec escreve ponto decimal; ndec usa os dígitos e zeros declarados no cabeçalho.";
+        }
         if (body == null) {
             String caption = caption(setting);
             body = PanelTooltips.help(context(setting), caption);

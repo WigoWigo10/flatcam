@@ -6088,9 +6088,9 @@ final class MainWindow implements TclFlatcamHost {
             } else if (cncJob != null) {
                 Files.writeString(target, cncJob.gcode());
             } else if (gerber != null) {
-                new GerberExporter().write(gerber, target);
+                new GerberExporter().write(gerber, CamExportDialog.loadGerber(), target);
             } else if (excellon != null) {
-                new ExcellonExporter().write(excellon, target);
+                new ExcellonExporter().write(excellon, CamExportDialog.loadExcellon(), target);
             } else if (!sourcePath.toAbsolutePath().normalize().equals(target.toAbsolutePath().normalize())) {
                 Files.copy(sourcePath, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -8530,7 +8530,15 @@ final class MainWindow implements TclFlatcamHost {
                 if (!isPlottable(item)) throw new IllegalArgumentException("CNC Job sem previa compativel: " + item.getValue());
             plotAreaView.beginBatchUpdate();
             try {
-                for (TreeItem<String> item : targets) applyObjectVisibility(item, visible);
+                for (TreeItem<String> item : targets) {
+                    // Tcl plot_objects explicitly requests both sublayers, unlike the tree's Plot toggle.
+                    if (visible && cncJobByItem.containsKey(item)) {
+                        var style=snapshotCncPlotSettings(item);
+                        cncPlotSettings.put(item,new org.flatcam.app.project.CncPlotSettings(style.cutFill(),style.cutLine(),
+                                style.travelFill(),style.travelLine(),"ALL",style.annotations(),style.arrows(),style.fontSize(),style.fontColor()));
+                    }
+                    applyObjectVisibility(item, visible);
+                }
                 refreshObjectVisibilityUi();
             } finally { plotAreaView.endBatchUpdate(); }
             return null;

@@ -70,6 +70,18 @@ final class ToolDefaults {
         integer("editor.excellon.rows",excellonEditor,"Linhas do array retangular",2);
         millimetres("editor.excellon.pitchx",excellonEditor,"Passo X do array retangular","2.54");
         millimetres("editor.excellon.pitchy",excellonEditor,"Passo Y do array retangular","2.54");
+        for (String format : List.of("gerber", "excellon")) {
+            String group = "Exportação: " + (format.equals("gerber") ? "Gerber" : "Excellon");
+            choice("export."+format+".units",group,"Unidades do arquivo","IN","IN","MM");
+            integer("export."+format+".integer",group,"Dígitos inteiros",2);
+            integer("export."+format+".decimals",group,"Dígitos decimais",4);
+            if (format.equals("gerber")) choice("export.gerber.zeros",group,"Omitir zeros","L","L","T");
+            else {
+                choice("export.excellon.format",group,"Formato das coordenadas","dec","dec","ndec");
+                choice("export.excellon.zeros",group,"Convenção de zeros (sem ponto)","LZ","LZ","TZ");
+                choice("export.excellon.slots",group,"Exportar slots","ROUTED","ROUTED","G85");
+            }
+        }
         String cncDisplay="CNC Job: Exibição";
         flag("display.cnc.plot",cncDisplay,"Plotar novos CNC Jobs",true);
         choice("display.cnc.kind",cncDisplay,"Plot Kind","ALL","ALL","CUT","TRAVEL");
@@ -557,6 +569,7 @@ final class ToolDefaults {
             case INTEGER -> {
                 try {
                     int parsed = Integer.parseInt(value);
+                    if (setting.key().startsWith("export.") && (parsed < 1 || parsed > 6)) return "deve estar entre 1 e 6";
                     if (setting.key().startsWith("editor.") && (parsed < 1 || parsed > 100000)) return "deve estar entre 1 e 100000";
                     if (setting.key().equals("display.cnc.fontsize") && (parsed<1 || parsed>72)) return "deve estar entre 1 e 72";
                     if (setting.key().equals("geometry.editorcirclesteps")) {

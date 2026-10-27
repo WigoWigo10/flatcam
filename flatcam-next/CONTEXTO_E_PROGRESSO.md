@@ -1,5 +1,21 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série de paridade visual, item 3: exportação — 2026-10-27
+
+Dez preferências de exportação Gerber/Excellon (unidades, dígitos, zeros, decimal,
+slots) agora em páginas próprias. Diálogo, Terminal e Salvar como usam a mesma
+fonte. MainApp migra uma vez os formatos antigos; reset não os ressuscita.
+Padrões conferidos por AST no defaults.py (10/10; INCH->IN, routing->ROUTED).
+Arquivos escritos e reabertos: Gerber MM/IN x L/T, Excellon MM/IN x decimal/
+implícito x LZ/TZ x ROUTED/G85. Sem alegação de igualdade byte a byte com Qt:
+FX conserva seus reparos conhecidos nos slots e supressão de zeros.
+Regressão ampliada: 126 aprovações e 1 skip opcional (127 casos UI mais testes
+CAM de exportação); log `target/export-preferences-final.log`. Depois do teste
+passar a usar arquivos temporários reais, nova rodada de pacote/exporters também
+passou (`target/export-preferences-files.log`). Corrigida regressão de item 1:
+Tcl plot_objects explícito mostra ambas subcamadas e sincroniza Kind=ALL.
+Próximo item autorizado: transformações Geometry com pivô e prévia. Sem push.
+
 ## Série de paridade visual, item 2: editores — 2026-10-27
 
 21 padrões ligados aos controles/operações existentes: cores RGBA dos três editores,
