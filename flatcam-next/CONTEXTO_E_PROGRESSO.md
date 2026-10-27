@@ -1,5 +1,18 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Identificação da máquina de benchmark e comparação entre PCs — 2026-10-26
+
+As medições atuais GTX 1650 são do **PC-GTX1650-82CG**, notebook Lenovo 82CG,
+i5-10300H (4C/8T), 23,87 GiB de RAM visível, GTX 1650 4096 MiB e Intel UHD
+presente. GPU Prism confirmada NVIDIA/D3D, não apenas pedido do host. Inventário
+atual complementar separado do que foi realmente registrado nos ensaios.
+[BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md) fixa runtime, driver, escala,
+corpus/hash, três perfis A/B/C e comandos para repetir em outro PC e comparar.
+Não generalizar FPS para Intel Arc/outra GPU; nova comparação de hardware deve
+usar mesmo código/carga nos dois PCs, registrando energia/monitor/condições não
+capturadas historicamente. Baseline privada em target não é transportada pelo
+Git; gerar summary na origem e transferir artefatos privadamente quando preciso.
+
 ## Continuação: clipping de linhas e CPU por thread — 2026-10-26
 
 Sobre `32688546`: desenvolvido protótipo CanvasCncLineRenderer, opt-in

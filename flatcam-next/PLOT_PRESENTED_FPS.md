@@ -1,5 +1,9 @@
 # FPS apresentado e custo das linhas — GTX 1650, 2026-10-26
 
+**Esta baseline pertence ao notebook PC-GTX1650-82CG.** Não generalizar seus FPS
+para outros computadores. Especificações, lacunas históricas e protocolo de
+repetição em outro PC: [BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md).
+
 Continuação: [PLOT_CNC_LINE_CLIPPING.md](PLOT_CNC_LINE_CLIPPING.md) documenta um
 protótipo sem descarte de trechos visíveis, comparação alternada, CPU por thread
 e capturas Canvas idênticas. Não houve ganho consistente; permanece desativado.

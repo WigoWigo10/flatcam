@@ -1,5 +1,9 @@
 # Plot no notebook GTX 1650 — 2026-10-26
 
+Máquina de referência: **PC-GTX1650-82CG**. Especificações, condições registradas
+e roteiro para repetir as cargas em outro computador:
+[BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md).
+
 Quarta etapa sobre `1c58cd71`. Não é migração LWJGL nem novo renderer de produção.
 As rodadas registraram worktree dirty dessa base, com as mudanças do benchmark
 desta entrega; consultar o commit de fechamento no histórico.

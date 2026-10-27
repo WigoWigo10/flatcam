@@ -1,5 +1,10 @@
 # Baseline e primeira fronteira do renderer
 
+As rodadas GTX 1650 de 2026-10-26 são específicas do notebook PC-GTX1650-82CG;
+as baselines Intel Arc anteriores pertencem a outro hardware. Para reproduzir
+as mesmas cargas em outro PC e comparar sem misturar perfis, consulte
+[BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md).
+
 ## FPS apresentado e controles de linhas/imagens — 2026-10-26
 
 Continuação: `-CncLines REFERENCE|CLIPPED` compara a emissão anterior a um culling

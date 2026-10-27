@@ -1,5 +1,9 @@
 # Investigação de segmentos externos das passadas CNC — 2026-10-26
 
+**Resultados específicos deste notebook, não de outros PCs.** Inventário,
+identificador PC-GTX1650-82CG e comandos para repetir/comparar as mesmas cargas:
+[BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md).
+
 ## Decisão
 
 **Não ativar o protótipo por padrão.** Ele reduz comandos enviados ao Canvas e
