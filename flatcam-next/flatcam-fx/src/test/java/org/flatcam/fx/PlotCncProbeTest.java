@@ -11,6 +11,19 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 
 class PlotCncProbeTest {
+    @Test void lineCountersAggregateSeparatelyFromCpuCommandTime() {
+        var metrics = new PlotBenchmarkCncMetrics();
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.PASS_LINES, false, 1.25, 2_000_000,
+                new CanvasCncLineRenderer.Stats(true, 100, 20, 80, 4, 0)));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.PASS_LINES, false, 1.25, 3_000_000,
+                new CanvasCncLineRenderer.Stats(true, 50, 10, 40, 2, 1)));
+        var lines = metrics.finish().getJSONObject("PASS_LINES");
+        assertEquals(2, lines.getLong("clippedCalls")); assertEquals(150, lines.getLong("acceptedSegments"));
+        assertEquals(30, lines.getLong("emittedSegments")); assertEquals(120, lines.getLong("culledSegments"));
+        assertEquals(6, lines.getLong("strokeCalls")); assertEquals(1, lines.getLong("fallbackParts"));
+        assertEquals(5, lines.getDouble("commandEmissionMs"));
+    }
+
     @Test void eachAblationOmitsOnlyTheNamedPassAndNeverMeansVisualParity() {
         for (var mode : PlotCncProbe.Mode.values()) {
             var probe = new PlotCncProbe(mode, ignored -> {});

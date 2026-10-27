@@ -53,6 +53,7 @@ class MainPlotRenderBenchmarkTest {
         report.put("schema", 4).put("status", "RUNNING").put("scope", "visible production Plot; scripted camera and geometry session publication")
                 .put("cncProbe", cncProbeMode.name())
                 .put("rasterProbe", omitRaster ? "OMIT_DRAW" : "FULL")
+                .put("cncLineRendering", Boolean.getBoolean("flatcam.plot.cncLines.clipped") ? "CLIPPED" : "REFERENCE")
                 .put("visualValidation", cncProbeMode == PlotCncProbe.Mode.FULL && !omitRaster ? "REFERENCE_NO_OMISSIONS" : "NOT_VALIDATED_DIAGNOSTIC_OMISSIONS")
                 .put("processId", ProcessHandle.current().pid())
                 .put("qpcFrequency", Long.getLong("flatcam.plot.benchmark.qpcFrequency", 0))
@@ -92,7 +93,8 @@ class MainPlotRenderBenchmarkTest {
                 String probeLabel = cncProbeMode == PlotCncProbe.Mode.FULL && !omitRaster
                         ? "DESENHO COMPLETO" : "DIAGNOSTICO: DESENHO OMITIDO";
                 stage.setTitle("FlatCAM FX — Plot benchmark — " + probeLabel + " [" + cncProbeMode
-                        + "; raster=" + (omitRaster ? "OMIT_DRAW" : "FULL") + "]");
+                        + "; raster=" + (omitRaster ? "OMIT_DRAW" : "FULL")
+                        + "; lines=" + report.getString("cncLineRendering") + "]");
                 stage.setScene(scene); stage.show();
                 pulseTimer = new AnimationTimer() {
                     @Override public void handle(long now) { if (metrics != null) metrics.pulse(System.nanoTime()); }
@@ -196,12 +198,14 @@ class MainPlotRenderBenchmarkTest {
                 // Read-only visual evidence, AFTER all timed phases, never counted as FPS frames.
                 fx(() -> { view.setCamera(base); return null; }); awaitReady();
                 saveSnapshot(output.resolve("plot-far.png"));
+                saveCanvasSnapshot(output.resolve("canvas-far.png"));
                 var near = new PlotCamera(base.centerX(), base.centerY(), base.scale() * 8,
                         base.width(), base.height(), base.insetX(), base.insetY());
                 fx(() -> { view.setCamera(near); return null; }); awaitReady();
                 saveSnapshot(output.resolve("plot-near.png"));
+                saveCanvasSnapshot(output.resolve("canvas-near.png"));
                 fx(() -> { view.setCamera(base); return null; }); awaitReady();
-                report.put("snapshots", List.of("plot-far.png", "plot-near.png"));
+                report.put("snapshots", List.of("plot-far.png", "plot-near.png", "canvas-far.png", "canvas-near.png"));
             }
             if (Boolean.getBoolean("flatcam.plot.benchmark.jfr")) {
                 PlotBenchmarkJfr.dumpSummary(output);
@@ -240,11 +244,13 @@ class MainPlotRenderBenchmarkTest {
             metrics = new PlotBenchmarkMetrics(); cncMetrics = new PlotBenchmarkCncMetrics();
             view.setRenderObserver(sample -> metrics.redraw(sample, System.nanoTime())); return null;
         });
+        var cpuBefore = PlotBenchmarkThreadCpu.sample();
         long start = System.nanoTime();
         try (var marker = PlotBenchmarkJfr.phase(name, repeat)) {
             action.call(); awaitReady(); marker.completed();
         }
         long ended = System.nanoTime();
+        var cpuAfter = PlotBenchmarkThreadCpu.sample();
         var result = fx(() -> {
             view.setRenderObserver(null);
             JSONObject recorded = metrics.finish().put("cncPasses", cncMetrics.finish());
@@ -252,6 +258,7 @@ class MainPlotRenderBenchmarkTest {
         });
         result.put("name", name).put("repeat", repeat).put("startNanoTime", start).put("endNanoTime", ended)
                 .put("elapsedMs", (ended - start) / 1e6)
+                .put("threadCpuTime", PlotBenchmarkThreadCpu.delta(cpuBefore, cpuAfter))
                 .put("memoryBefore", memoryBefore).put("memoryAfter", memory())
                 .put("rasterBefore", rasterBefore).put("rasterAfter", fx(this::rasterStats));
         assertTrue(result.getJSONObject("redrawCommandsMs").getInt("samples") > 0, "No redraw samples");
@@ -262,8 +269,17 @@ class MainPlotRenderBenchmarkTest {
     }
 
     private void saveSnapshot(Path path) throws Exception {
+        saveSnapshot(path, view);
+    }
+
+    private void saveCanvasSnapshot(Path path) throws Exception {
+        var canvasField = PlotAreaView.class.getDeclaredField("canvas"); canvasField.setAccessible(true);
+        saveSnapshot(path, fx(() -> (javafx.scene.Node) canvasField.get(view)));
+    }
+
+    private void saveSnapshot(Path path, javafx.scene.Node node) throws Exception {
         var picture = fx(() -> {
-            var image = view.snapshot(null, null);
+            var image = node.snapshot(null, null);
             int width = (int) image.getWidth(), height = (int) image.getHeight();
             int[] pixels = new int[width * height];
             image.getPixelReader().getPixels(0, 0, width, height, javafx.scene.image.PixelFormat.getIntArgbInstance(), pixels, 0, width);

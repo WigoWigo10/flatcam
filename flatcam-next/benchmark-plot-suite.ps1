@@ -6,6 +6,9 @@ param(
     [ValidateRange(4,3600)][int]$Steps = 120,
     [ValidateRange(2,20)][int]$Repeats = 3,
     [switch]$IncludeSoftware,
+    [switch]$CncLineComparison,
+    [ValidateRange(1,5)][int]$LinePairs = 2,
+    [switch]$Snapshots,
     [switch]$Jfr
 )
 $ErrorActionPreference = 'Stop'
@@ -15,7 +18,7 @@ $suiteDirectory = Join-Path $PSScriptRoot ('target/plot-suite-' + (Get-Date -For
 New-Item -ItemType Directory -Path $suiteDirectory | Out-Null
 $manifestPath = Join-Path $suiteDirectory 'suite.json'
 $encoding = [Text.UTF8Encoding]::new($false)
-$manifest = [ordered]@{Schema=1; Status='RUNNING'; Steps=$Steps; Repeats=$Repeats; Results=@();
+$manifest = [ordered]@{Schema=1; Status='RUNNING'; Steps=$Steps; Repeats=$Repeats; LineComparison=$CncLineComparison.IsPresent; LinePairs=$LinePairs; Results=@();
     Limits=@('OMIT controls intentionally change the image; not delivered optimizations.',
         'FPS is ETW displayed-frame cadence, not UI pulse rate or optical input latency.',
         'Run serially, with the Plot visible; keep monitor/scale/power/driver unchanged.')}
@@ -30,6 +33,13 @@ $cases = @(
     @{Name='gpu-no-cnc-floor'; Options=@{CncProbe='OMIT_CNC'}},
     @{Name='gpu-full-recheck'; Options=@{}}
 )
+if ($CncLineComparison) {
+    $cases = @()
+    for ($pair=1; $pair -le $LinePairs; $pair++) {
+        $cases += @{Name="gpu-lines-reference-$pair"; Options=@{CncLines='REFERENCE'}}
+        $cases += @{Name="gpu-lines-clipped-$pair"; Options=@{CncLines='CLIPPED'}}
+    }
+}
 if ($IncludeSoftware) { $cases += @{Name='software-full'; Options=@{Software=$true}} }
 if ($GeometryObjectName) { $cases += @{Name='gpu-geometry'; Options=@{ObjectName=$GeometryObjectName}} }
 $reference = $null
@@ -38,7 +48,7 @@ foreach ($case in $cases) {
     try {
         Write-Host "Suite: $($case.Name)"
         $options = @{Project=$Project;ObjectName=$ObjectName;PresentMon=$PresentMon;Native=$true;
-            Steps=$Steps;Repeats=$Repeats;Jfr=$Jfr.IsPresent}
+            Steps=$Steps;Repeats=$Repeats;Jfr=$Jfr.IsPresent;Snapshots=$Snapshots.IsPresent}
         foreach ($key in $case.Options.Keys) { $options[$key] = $case.Options[$key] }
         $paths = @(& (Join-Path $PSScriptRoot 'benchmark-plot.ps1') @options)
         $reportPath = [string]$paths[-1]

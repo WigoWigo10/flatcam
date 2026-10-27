@@ -14,6 +14,7 @@ param(
     [switch]$Snapshots,
     [switch]$DisableWideDensity,
     [ValidateSet('FULL', 'OMIT_DRAW')][string]$RasterProbe = 'FULL',
+    [ValidateSet('REFERENCE', 'CLIPPED')][string]$CncLines = 'REFERENCE',
     [string]$PresentMon = '',
     [string]$Python = '',
     [ValidateSet('FULL', 'OMIT_BODY', 'OMIT_WIDE_BODY', 'OMIT_PASS_LINES', 'OMIT_DECORATIONS', 'OMIT_CNC')]
@@ -52,6 +53,7 @@ $jvmArgs = '-Dprism.verbose=true'
 if ($Software) { $jvmArgs += ' -Dprism.order=sw' }
 if ($PixelWriter) { $jvmArgs += ' -Dflatcam.plot.density.pixelBuffer=false' }
 if ($DisableWideDensity) { $jvmArgs += ' -Dflatcam.plot.density.wide=false' }
+$jvmArgs += ' -Dflatcam.plot.cncLines.clipped=' + ($CncLines -eq 'CLIPPED').ToString().ToLowerInvariant()
 if ($Jfr) {
     $recording = (Join-Path $output 'recording.jfr').Replace('\', '/')
     $jvmArgs += (' -XX:StartFlightRecording=settings=profile,dumponexit=true,filename="' + $recording + '"')
@@ -103,6 +105,7 @@ try {
         $nativeOptions += if ($Software) { '-Dprism.order=sw' } else { '-Dprism.order=d3d,sw' }
         if ($PixelWriter) { $nativeOptions += '-Dflatcam.plot.density.pixelBuffer=false' }
         if ($DisableWideDensity) { $nativeOptions += '-Dflatcam.plot.density.wide=false' }
+        $nativeOptions += '-Dflatcam.plot.cncLines.clipped=' + ($CncLines -eq 'CLIPPED').ToString().ToLowerInvariant()
         if ($Jfr) { $nativeOptions += '-XX:StartFlightRecording=settings=profile,dumponexit=true,filename=' + (Join-Path $output 'recording.jfr') }
         if ($PresentMon) { $nativeOptions += '-Dflatcam.plot.benchmark.captureGate=' + (Join-Path $output 'capture-ready') }
         [IO.File]::WriteAllLines($optionFile, [string[]]$nativeOptions, $encoding)

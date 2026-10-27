@@ -1,10 +1,18 @@
 import json
 import unittest
 from unittest.mock import patch
-from summarize_plot_suite import collect
+from summarize_plot_suite import collect, thread_cpu_ms
 
 
 class PlotSuiteSummaryTest(unittest.TestCase):
+    def test_missing_cpu_counters_are_not_zero_but_a_real_zero_is_preserved(self):
+        self.assertIsNone(thread_cpu_ms({}, "QuantumRenderer"))
+        self.assertIsNone(thread_cpu_ms({"threadCpuTime": {"status": "AVAILABLE", "threads": []}}, "QuantumRenderer"))
+        phase = {"threadCpuTime": {"status": "AVAILABLE", "threads": [
+            {"name": "QuantumRenderer-0", "cpuMs": 0}, {"name": "JavaFX Application Thread", "cpuMs": 12}]}}
+        self.assertEqual(0, thread_cpu_ms(phase, "QuantumRenderer"))
+        self.assertEqual(12, thread_cpu_ms(phase, "JavaFX"))
+
     def test_failed_run_never_uses_partial_or_stale_reports(self):
         manifest = {"Results": [{"Name": "failed", "Status": "FAILED", "Report": "private/report.json", "Error": "missing ETW"}]}
         with patch("pathlib.Path.read_text", side_effect=AssertionError("must not read rejected evidence")):
@@ -36,6 +44,8 @@ class PlotSuiteSummaryTest(unittest.TestCase):
         self.assertEqual(60, rows[0]["uiPulseHz"])
         self.assertEqual(2, rows[0]["repeat"])
         self.assertEqual(4, rows[0]["imageDrawOmissions"])
+        self.assertIsNone(rows[0]["quantumRendererCpuMs"])
+        self.assertIsNone(rows[0]["passSegmentsCulled"])
 
 
 if __name__ == "__main__":

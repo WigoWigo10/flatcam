@@ -269,6 +269,8 @@ final class PlotAreaView extends StackPane {
 
     private final Canvas canvas = new Canvas();
     private final CanvasPlotRenderer vectorRenderer = new CanvasPlotRenderer();
+    private final CanvasCncLineRenderer cncLineRenderer = new CanvasCncLineRenderer();
+    private static final boolean CNC_LINES_CLIPPED = Boolean.getBoolean("flatcam.plot.cncLines.clipped");
     /** Opt-in diagnostics: completion means commands issued, not a GPU-presented frame. */
     record RenderSample(long commandsNanos, boolean ready, boolean failed) { }
     private Consumer<RenderSample> renderObserver;
@@ -1937,7 +1939,7 @@ final class PlotAreaView extends StackPane {
                             lastLayerDense = lastLayerStale = false;
                             if (includesCncBody(lodLineWidth)) {
                                 long passStart = beginCncPass();
-                                // Packed segments use an image; wide strokes remain vector.
+                                // Dense cutter bodies may use an image; pass lines are a separate submission.
                                 if (!drawDensityLayer(gc, entry.getKey(), lodLayer, index, viewBounds, contentWidth,
                                         contentHeight, lodLineWidth))
                                     drawLayer(gc, lodLayer, contentWidth, contentHeight, viewBounds, index);
@@ -1950,9 +1952,16 @@ final class PlotAreaView extends StackPane {
                                 long passStart = beginCncPass();
                                 gc.setLineDashes();
                                 lodLineWidth = 1.25;
-                                drawLayer(gc, new RenderLayer(drawnGeometry, true, passColor, passColor,
-                                        true, category, true, false), contentWidth, contentHeight, viewBounds, index);
-                                recordCncPass(PlotCncProbe.Pass.PASS_LINES, false, lodLineWidth, passStart);
+                                if (CNC_LINES_CLIPPED) {
+                                    var lineStats = cncLineRenderer.draw(gc, camera(contentWidth, contentHeight),
+                                            new PlotRenderSnapshot(index.geometry(), index, true, true, false,
+                                                    passColor, passColor, lodLineWidth, viewBounds));
+                                    if (cncProbe != null) cncProbe.record(PlotCncProbe.Pass.PASS_LINES, false, lodLineWidth, passStart, lineStats);
+                                } else {
+                                    drawLayer(gc, new RenderLayer(drawnGeometry, true, passColor, passColor,
+                                            true, category, true, false), contentWidth, contentHeight, viewBounds, index);
+                                    recordCncPass(PlotCncProbe.Pass.PASS_LINES, false, lodLineWidth, passStart);
+                                }
                             }
                         } finally {
                             lodLineWidth = Double.NaN;

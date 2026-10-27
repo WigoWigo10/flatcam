@@ -10,12 +10,20 @@ final class PlotBenchmarkCncMetrics {
         int calls, raster, vector;
         double min = Double.POSITIVE_INFINITY, max;
         long commandNanos;
+        long acceptedSegments, emittedSegments, culledSegments, strokeCalls, fallbackParts, clippedCalls;
     }
     private final EnumMap<PlotCncProbe.Pass, Counts> counts = new EnumMap<>(PlotCncProbe.Pass.class);
     void sample(PlotCncProbe.Sample sample) {
         var value = counts.computeIfAbsent(sample.pass(), ignored -> new Counts());
         value.calls++;
         value.commandNanos += sample.commandNanos();
+        var stats = sample.lineStats();
+        if (stats != null) {
+            if (stats.applied()) value.clippedCalls++;
+            value.acceptedSegments += stats.acceptedSegments(); value.emittedSegments += stats.emittedSegments();
+            value.culledSegments += stats.culledSegments(); value.strokeCalls += stats.strokeCalls();
+            value.fallbackParts += stats.fallbackParts();
+        }
         if (sample.raster()) value.raster++; else value.vector++;
         value.min = Math.min(value.min, sample.lineWidth()); value.max = Math.max(value.max, sample.lineWidth());
     }
@@ -26,6 +34,9 @@ final class PlotBenchmarkCncMetrics {
             result.put(pass.name(), value == null ? new JSONObject().put("calls", 0)
                     : new JSONObject().put("calls", value.calls).put("rasterCalls", value.raster).put("vectorCalls", value.vector)
                             .put("lineWidthMinLogical", value.min).put("lineWidthMaxLogical", value.max)
+                            .put("clippedCalls", value.clippedCalls).put("acceptedSegments", value.acceptedSegments)
+                            .put("emittedSegments", value.emittedSegments).put("culledSegments", value.culledSegments)
+                            .put("strokeCalls", value.strokeCalls).put("fallbackParts", value.fallbackParts)
                             .put("cpuTimingAvailable", pass != PlotCncProbe.Pass.DECORATIONS)
                             .put("commandEmissionMs", pass == PlotCncProbe.Pass.DECORATIONS ? JSONObject.NULL : value.commandNanos / 1e6));
         }

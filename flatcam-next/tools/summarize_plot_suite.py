@@ -5,6 +5,14 @@ import json
 from pathlib import Path
 
 
+def thread_cpu_ms(phase, prefix):
+    counters = phase.get("threadCpuTime", {})
+    if counters.get("status") != "AVAILABLE":
+        return None
+    selected = [t["cpuMs"] for t in counters.get("threads", []) if t["name"].startswith(prefix)]
+    return sum(selected) if selected else None
+
+
 def collect(manifest):
     rows, failures = [], []
     for entry in manifest["Results"]:
@@ -21,7 +29,10 @@ def collect(manifest):
             for phase in report["phases"]:
                 frames = displayed.get((phase["name"], phase["repeat"]), {})
                 before, after = phase["rasterBefore"], phase["rasterAfter"]
+                lines = phase["cncPasses"]["PASS_LINES"]
+                clipped = lines.get("clippedCalls", 0) > 0
                 rows.append({"run": entry["Name"], "phase": phase["name"], "repeat": phase["repeat"],
+                             "cncLineRendering": report.get("cncLineRendering", "REFERENCE"),
                              "visualValidation": report["visualValidation"], "adapter": report["graphics"]["adapter"],
                              "fpsStatus": frames.get("status", "UNAVAILABLE"), "displayedFrames": frames.get("displayedFrames", 0),
                              "averageFps": frames.get("averageFps"), "onePercentLowFps": frames.get("onePercentLowFps"),
@@ -31,6 +42,11 @@ def collect(manifest):
                              "uiQueueMsP95": phase["uiQueueMs"]["p95"],
                              "readyCommandsMsP95": phase["requestToReadyCommandsMs"]["p95"],
                              "passLineCommandMsTotal": phase["cncPasses"]["PASS_LINES"].get("commandEmissionMs", 0),
+                             "quantumRendererCpuMs": thread_cpu_ms(phase, "QuantumRenderer"),
+                             "fxApplicationCpuMs": thread_cpu_ms(phase, "JavaFX Application Thread"),
+                             "passSegmentsAccepted": lines.get("acceptedSegments") if clipped else None,
+                             "passSegmentsEmitted": lines.get("emittedSegments") if clipped else None,
+                             "passSegmentsCulled": lines.get("culledSegments") if clipped else None,
                              "imageDrawOmissions": after["drawOmissionsCumulative"] - before["drawOmissionsCumulative"],
                              "report": str(report_path)})
         except (OSError, ValueError, KeyError) as error:
