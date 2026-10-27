@@ -29,6 +29,13 @@ final class ToolDefaultsPane {
     }
 
     static Node build() {
+        return build(null, null);
+    }
+
+    /** A cached preferences page: filtering never discards drafts; reset affects only these groups. */
+    static Node build(java.util.Collection<String> selectedGroups, javafx.beans.value.ObservableStringValue filter) {
+        boolean scoped = selectedGroups != null;
+        java.util.Set<String> included = scoped ? java.util.Set.copyOf(selectedGroups) : ToolDefaults.byTool().keySet();
         // What the user typed and has not saved yet, by setting and units ("key@mm", "key@in" or "key").
         Map<String, String> pending = new LinkedHashMap<>();
         ToggleGroup units = new ToggleGroup();
@@ -47,37 +54,51 @@ final class ToolDefaultsPane {
 
         Runnable rebuild = () -> {
             String expanded = groups.getExpandedPane() == null ? null : groups.getExpandedPane().getText();
+            groups.setExpandedPane(null);
             groups.getPanes().clear();
             boolean metric = millimetres.isSelected();
             for (Map.Entry<String, List<ToolDefaults.Setting>> tool : ToolDefaults.byTool().entrySet()) {
+                if (!included.contains(tool.getKey())) continue;
                 GridPane grid = new GridPane();
                 grid.setHgap(10);
                 grid.setVgap(6);
                 grid.setPadding(new Insets(8));
+                var labels = new javafx.scene.layout.ColumnConstraints();
+                labels.setPercentWidth(60);
+                var editors = new javafx.scene.layout.ColumnConstraints();
+                editors.setPercentWidth(40);
+                grid.getColumnConstraints().setAll(labels, editors);
                 int row = 0;
                 for (ToolDefaults.Setting setting : tool.getValue()) {
+                    String help = ToolDefaultsDescriptions.text(setting, metric);
+                    if (filter != null && !PreferencesSearch.matches(filter.get(), setting.tool(), setting.label(), setting.key(), help)) continue;
                     String slot = setting.perUnit() ? setting.key() + (metric ? "@mm" : "@in") : setting.key();
                     String value = pending.getOrDefault(slot, ToolDefaults.text(setting.key(), metric));
                     Node editor = editor(setting, value, text -> pending.put(slot, text));
                     editor.setId("tool-default-" + setting.key().replace('.', '-'));
                     Label label = new Label(setting.label() + (setting.perUnit() ? " (" + (metric ? "mm" : "in") + ")" : "") + ":");
-                    String help = ToolDefaultsDescriptions.text(setting, metric);
+                    label.setWrapText(true);
+                    label.setMinWidth(0);
+                    if (editor instanceof javafx.scene.layout.Region region) { region.setMinWidth(0); region.setMaxWidth(Double.MAX_VALUE); }
                     ToolDescriptions.apply(editor, setting.tool() + " — " + setting.label(), help);
                     ToolDescriptions.apply(label, setting.label(), help);
                     if (editor instanceof javafx.scene.control.Control control) label.setLabelFor(control);
                     grid.addRow(row++, label, editor);
                 }
+                if (row == 0) continue;
                 TitledPane pane = new TitledPane(tool.getKey(), grid);
                 groups.getPanes().add(pane);
-                if (tool.getKey().equals(expanded)) {
+                if (tool.getKey().equals(expanded) || scoped && groups.getExpandedPane() == null) {
                     groups.setExpandedPane(pane);
                 }
             }
         };
         units.selectedToggleProperty().addListener((observable, before, now) -> rebuild.run());
+        if (filter != null) filter.addListener((observable, before, now) -> rebuild.run());
         rebuild.run();
 
-        Button save = new Button("Salvar padrões das ferramentas");
+        Button save = new Button(scoped ? "Salvar esta seção" : "Salvar padrões das ferramentas");
+        if (scoped) save.getStyleClass().add("primary-action");
         save.setId("tool-defaults-save");
         save.setOnAction(event -> {
             List<String> problems = new ArrayList<>();
@@ -102,19 +123,25 @@ final class ToolDefaultsPane {
         Button reset = new Button("Restaurar padrões de fábrica");
         reset.setId("tool-defaults-reset");
         // Two steps, in the page itself: restoring discards every saved value.
-        Button confirmReset = new Button("Confirmar: restaurar tudo");
+        Button confirmReset = new Button(scoped ? "Confirmar restauração desta seção" : "Confirmar: restaurar tudo");
         confirmReset.setId("tool-defaults-reset-confirm");
         confirmReset.setVisible(false);
         confirmReset.setManaged(false);
         ToolDescriptions.apply(save, "Salvar padrões", "Valida e salva os rascunhos desta seção. Valores inválidos continuam pendentes; os demais podem ser salvos. Não salva o projeto nem atualiza painéis já abertos.");
         ToolDescriptions.apply(reset, "Restaurar fábrica", "Mostra uma segunda confirmação antes de remover todos os padrões personalizados desta seção. Não apaga objetos ou projetos.");
-        ToolDescriptions.apply(confirmReset, "Confirmar restauração", "Remove imediatamente os padrões personalizados de todas as ferramentas e descarta os rascunhos, em mm e in. Não altera configurações de tema ou objetos do projeto.");
+        ToolDescriptions.apply(confirmReset, "Confirmar restauração", scoped
+                ? "Remove os padrões personalizados somente desta seção e descarta seus rascunhos, em mm e in, incluindo campos ocultos pela busca. Não modifica outras seções, objetos ou projetos."
+                : "Remove imediatamente os padrões personalizados de todas as ferramentas e descarta os rascunhos, em mm e in. Não altera configurações de tema ou objetos do projeto.");
         reset.setOnAction(event -> {
             confirmReset.setVisible(true);
             confirmReset.setManaged(true);
         });
         confirmReset.setOnAction(event -> {
-            ToolDefaults.resetAll();
+            if (!scoped) ToolDefaults.resetAll();
+            else for (var setting : ToolDefaults.settings()) if (included.contains(setting.tool())) {
+                ToolDefaults.set(setting.key(), true, setting.factory(true));
+                if (setting.perUnit()) ToolDefaults.set(setting.key(), false, setting.factory(false));
+            }
             pending.clear();
             confirmReset.setVisible(false);
             confirmReset.setManaged(false);
@@ -122,8 +149,13 @@ final class ToolDefaultsPane {
             rebuild.run();
         });
 
+        if (scoped) {
+            ToolDescriptions.apply(save, "Salvar esta seção", "Valida e salva todos os rascunhos desta seção, em mm e in, incluindo campos ocultos pela busca. Valores inválidos continuam pendentes; os demais podem ser salvos. Não salva o projeto nem atualiza painéis já abertos.");
+            ToolDescriptions.apply(reset, "Restaurar esta seção", "Pede confirmação antes de remover os padrões personalizados somente desta seção, em mm e in. Não modifica outras seções nem objetos do projeto.");
+        }
+        var actions = new javafx.scene.layout.FlowPane(8, 8, save, reset, confirmReset);
         VBox box = new VBox(8, new HBox(10, new Label("Unidades dos comprimentos:"), millimetres, inches), groups,
-                new HBox(8, save, reset, confirmReset), feedback);
+                actions, feedback);
         return box;
     }
 

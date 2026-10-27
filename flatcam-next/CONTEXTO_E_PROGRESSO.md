@@ -1,5 +1,25 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Preferências por categoria — 2026-10-27
+
+Sobre `3d395253`: substituído o formulário único por árvore lateral, busca e
+páginas mantidas na aba. Todos os grupos ToolDefaults são roteados em Geral,
+Plot, Gerber, Excellon, Geometry, CNC e Ferramentas; somente configurações
+efetivamente consumidas pelo FX. Busca ignora acentos/caixa e mantém rascunhos.
+Salvar/reset de padrões são restritos à seção, incluindo mm/in e campos ocultos;
+reset tem confirmação inline. Geral/Plot restauram o rascunho antes de Aplicar.
+Extração de PreferencesPane mantém integração de tema/status e tooltips ricos.
+Empacotamento e 55 regressões focadas passaram. Dez cenários novos de navegação,
+persistência/validação e layout 680 px nos quatro temas; sem preferências reais.
+Suíte integral final: 1975 registros, 1956 aprovados, 18 skips opcionais e
+somente a falha End Z já conhecida em CncNativePrecisionTest; causa não resolvida
+e nenhuma asserção afrouxada/desabilitada. Os dez testes novos passaram nessa
+rodada. Resultado em `target/preferences-verify.log`; integral continua reprovado.
+Limites e próximos grupos Python em [PREFERENCIAS.md](PREFERENCIAS.md). A entrega
+de Preferências está pronta para commit; rotação anterior registrada em
+`ebacf0ad`. Avaliação manual de janela/DPI ainda pendente.
+Benchmark Avell/comparação já em `3d395253`.
+
 ## Identificação da máquina de benchmark e comparação entre PCs — 2026-10-26
 
 As medições atuais GTX 1650 são do **PC-GTX1650-82CG**, notebook Lenovo 82CG,

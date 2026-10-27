@@ -8313,76 +8313,18 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private Node buildPreferencesPanel() {
-        AppPreferences.PlotStatusSettings saved = AppPreferences.loadPlotStatusSettings();
-        Label title = new Label("Preferencias");
-        title.getStyleClass().add("tool-title");
-        ComboBox<ThemeOption> theme = new ComboBox<>();
-        theme.getItems().addAll(ThemeOption.values());
-        theme.setConverter(new javafx.util.StringConverter<>() {
-            @Override public String toString(ThemeOption option) {
-                return option == null ? "" : option.label();
+        return new PreferencesPane(new PreferencesPane.Host() {
+            @Override public ThemeOption theme() { return currentTheme; }
+            @Override public AppPreferences.PlotStatusSettings plotSettings() { return AppPreferences.loadPlotStatusSettings(); }
+            @Override public void applyTheme(ThemeOption theme) {
+                MainWindow.this.applyTheme(theme);
+                setStatus("Tema salvo.", IDLE_COLOR);
             }
-            @Override public ThemeOption fromString(String value) {
-                return theme.getValue();
-            }
-        });
-        theme.setValue(currentTheme);
-        CheckBox snap = new CheckBox("Ativar snap na grade");
-        snap.setSelected(saved.gridSnap());
-        CheckBox showGrid = new CheckBox("Mostrar grade visual");
-        showGrid.setSelected(saved.gridVisible());
-        showGrid.setTooltip(new Tooltip("A grade visual pode ficar oculta sem desativar o snap."));
-        CheckBox linked = new CheckBox("Usar passo X tambem em Y");
-        linked.setSelected(saved.gridLinked());
-        TextField gridX = new TextField(Double.toString(saved.gridX()));
-        TextField gridY = new TextField(Double.toString(saved.gridY()));
-        gridX.setPrefColumnCount(8);
-        gridY.setPrefColumnCount(8);
-        gridY.setDisable(linked.isSelected());
-        linked.selectedProperty().addListener((obs, oldValue, value) -> gridY.setDisable(value));
-        CheckBox axis = new CheckBox("Mostrar eixos");
-        axis.setSelected(saved.axisVisible());
-        CheckBox hud = new CheckBox("Mostrar HUD de coordenadas");
-        hud.setSelected(saved.hudVisible());
-        CheckBox workspace = new CheckBox("Mostrar area A4");
-        workspace.setSelected(saved.workspaceVisible());
-        GridPane grid = new GridPane();
-        grid.setHgap(10);
-        grid.setVgap(8);
-        grid.addRow(0, new Label("Tema:"), theme);
-        grid.addRow(1, new Label("Passo X:"), gridX);
-        grid.addRow(2, new Label("Passo Y:"), gridY);
-        Label feedback = new Label();
-        feedback.setWrapText(true);
-        Button apply = new Button("Aplicar preferencias");
-        apply.setGraphic(legacyIcon("apply32.png", 16));
-        apply.getStyleClass().add("primary-action");
-        apply.setOnAction(event -> {
-            try {
-                double x = preferenceStep(gridX.getText(), "Passo X");
-                double y = linked.isSelected() ? x : preferenceStep(gridY.getText(), "Passo Y");
-                AppPreferences.PlotStatusSettings settings = new AppPreferences.PlotStatusSettings(
-                        snap.isSelected(), showGrid.isSelected(), x, y, linked.isSelected(), axis.isSelected(),
-                        hud.isSelected(), workspace.isSelected());
+            @Override public void applyPlot(AppPreferences.PlotStatusSettings settings) {
                 statusControls.applySettings(settings);
-                applyTheme(theme.getValue());
-                feedback.setText("Preferencias aplicadas e salvas.");
-                setStatus("Preferencias salvas.", IDLE_COLOR);
-            } catch (IllegalArgumentException error) {
-                feedback.setText(error.getMessage());
+                setStatus("Preferências do Plot salvas.", IDLE_COLOR);
             }
-        });
-        VBox panel = new VBox(12, title,
-                new Label("Aparencia"), grid,
-                new Separator(), new Label("Plot Area"), snap, showGrid, linked, axis, hud, workspace,
-                feedback, apply,
-                new Separator(), new Label("Padroes das ferramentas"), ToolDefaultsPane.build());
-        panel.setPadding(new Insets(18));
-        panel.setMaxWidth(460);
-        PanelTooltips.install(panel, "Preferencias");
-        ScrollPane scroll = new ScrollPane(panel);
-        scroll.setFitToWidth(true);
-        return scroll;
+        }, icon -> legacyIcon(icon, 16));
     }
 
     /** File > Backup > Exportar preferencias: the tool defaults as an editable .properties file. */
@@ -8422,14 +8364,6 @@ final class MainWindow implements TclFlatcamHost {
         int[] counts = ToolDefaults.importFrom(properties);
         appendConsole("Preferencias importadas de " + file.getName() + ": " + counts[0] + " aplicadas, " + counts[1]
                 + " ignoradas. Valem para os paineis abertos a partir de agora.");
-    }
-
-    private static double preferenceStep(String text, String label) {
-        try {
-            double value = Double.parseDouble(text.trim().replace(',', '.'));
-            if (Double.isFinite(value) && value > 0) return value;
-        } catch (NumberFormatException ignored) { }
-        throw new IllegalArgumentException(label + " deve ser numerico e positivo.");
     }
 
     private void openToolsDatabase() {

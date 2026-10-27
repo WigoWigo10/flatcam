@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Preferências por categoria — 2026-10-27
+
+Navegação Geral/Plot/Gerber/Excellon/Geometry/CNC/Ferramentas e busca sem acentos
+reorganizam todos os padrões existentes, com rascunhos mantidos ao navegar.
+Salvar/restaurar é restrito à seção; mm/in continuam independentes. Tema e
+controles Plot aplicam pela integração existente. Layout compacto nos quatro
+temas e comportamento de persistência têm testes; preferências avançadas do
+Python e validação manual DPI/monitores continuam pendentes. [PREFERENCIAS.md](PREFERENCIAS.md).
+
 ## Rotação com referência e prévia no Editor Geometry — 2026-10-24
 
 Referências origem/centro/cantos/ponto, pivô por clique e sinal horário positivo
