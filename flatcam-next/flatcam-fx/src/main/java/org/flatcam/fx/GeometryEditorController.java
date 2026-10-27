@@ -4,7 +4,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.BooleanSupplier;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
@@ -129,6 +128,15 @@ final class GeometryEditorController {
     private TextField curveSteps;
     private boolean drawingCircle;
     private TextField rotationAngle, rotationX, rotationY;
+    private TextField scaleX, scaleY, skewX, skewY, offsetX, offsetY;
+    private ComboBox<TransformKind> transformKind;
+    enum TransformKind {
+        ROTATE("Rotação"), SCALE("Escala X/Y"), MIRROR_X("Espelhar X (esquerda/direita)"),
+        MIRROR_Y("Espelhar Y (cima/baixo)"), SKEW("Inclinação X/Y"), OFFSET("Deslocamento X/Y");
+        final String label;
+        TransformKind(String label) { this.label=label; }
+        @Override public String toString() { return label; }
+    }
     private ComboBox<RotationReference> rotationReference;
     private TitledPane transformsPane;
     private Button rotationConfirm, rotationCancel;
@@ -504,45 +512,46 @@ final class GeometryEditorController {
         for (TextField f : List.of(rotationX,rotationY)) {
             f.setPrefColumnCount(6); f.setMinWidth(0);
             f.disableProperty().bind(rotationReference.valueProperty().isNotEqualTo(RotationReference.POINT));
-            ToolDescriptions.apply(f,"Pivô da rotação","Coordenada absoluta do pivô em " + units + ". Aceita ponto ou vírgula decimal. Alterar o valor cancela uma prévia anterior; não move as formas antes de confirmar.");
+            ToolDescriptions.apply(f,"Pivô da transformação","Coordenada absoluta do pivô em " + units + ". Aceita ponto ou vírgula decimal. Alterar o valor cancela uma prévia anterior; não move as formas antes de confirmar.");
         }
-        TextField scaleField = new TextField("1.0");
-        scaleField.setPrefColumnCount(6);
-        Button rotate = new Button("Pré-visualizar rotação"); rotate.setId("geometry-rotation-preview");
+        transformKind=new ComboBox<>(FXCollections.observableArrayList(TransformKind.values()));
+        transformKind.setId("geometry-transform-kind"); transformKind.setValue(TransformKind.ROTATE);
+        transformKind.setMaxWidth(Double.MAX_VALUE); transformKind.setMinWidth(0);
+        scaleX=transformField("scale-x","1"); scaleY=transformField("scale-y","1");
+        skewX=transformField("skew-x","0"); skewY=transformField("skew-y","0");
+        offsetX=transformField("offset-x","0"); offsetY=transformField("offset-y","0");
+        Button rotate = new Button("Pré-visualizar transformação"); rotate.setId("geometry-rotation-preview");
         Button pickPivot = new Button("Escolher pivô no plot"); pickPivot.setId("geometry-rotation-pick");
-        rotationConfirm = new Button("Confirmar rotação"); rotationConfirm.setId("geometry-rotation-confirm");
-        rotationCancel = new Button("Cancelar prévia da rotação"); rotationCancel.setId("geometry-rotation-cancel");
+        rotationConfirm = new Button("Confirmar transformação"); rotationConfirm.setId("geometry-rotation-confirm");
+        rotationCancel = new Button("Cancelar prévia"); rotationCancel.setId("geometry-rotation-cancel");
         ToolDescriptions.apply(rotationAngle,"Ângulo da rotação",GeometryEditorDescriptions.of("rotate").text());
-        ToolDescriptions.apply(rotationReference,"Referência da rotação","Escolha a origem, centro/canto da caixa da seleção ou um ponto absoluto. A caixa inclui todas as formas selecionadas. O centro não é o centro de massa. Escala e espelhos abaixo continuam usando o centro da seleção.");
-        ToolDescriptions.apply(rotate,"Prévia da rotação",GeometryEditorDescriptions.of("rotate").text());
-        ToolDescriptions.apply(pickPivot,"Pivô no desenho","Escolha o ângulo, clique neste botão e depois no pivô no Plot Area. O Snap da barra inferior é respeitado. A prévia é calculada após o clique; Esc/botão direito cancela sem mudar o rascunho.");
-        ToolDescriptions.apply(rotationConfirm,"Confirmar rotação","Aplica exatamente a prévia calculada às formas selecionadas. Também pode confirmar com um clique no plot. Mantém ferramentas, IDs e seleção; Ctrl+Z desfaz a rotação inteira. Salvar e sair aplica o rascunho ao objeto.");
-        ToolDescriptions.apply(rotationCancel,"Cancelar rotação","Descarta a prévia, preservando o rascunho. Durante o cálculo, use Esc para descartar o resultado pendente ou Cancelar na barra de status para interromper o trabalho quando possível.");
-        Button scale = new Button("Escalar");
-        Button mirrorHorizontal = new Button("Espelhar horizontal");
-        Button mirrorVertical = new Button("Espelhar vertical");
-        rotate.setOnAction(event -> previewRotation());
+        ToolDescriptions.apply(pickPivot,"Pivô no desenho","Escolha a transformação e os valores, clique neste botão e depois no pivô no Plot Area. O Snap da barra inferior é respeitado. A prévia é calculada após o clique; Esc/botão direito cancela sem mudar o rascunho.");
+        rotate.setOnAction(event -> previewTransform());
         pickPivot.setOnAction(event -> pickRotationPivot());
         rotationConfirm.setOnAction(event -> { if (rotationReady) plotArea.confirmEditorFixedPreview(); });
         rotationCancel.setOnAction(event -> cancelRotationFromShortcut());
-        for (var property : List.<javafx.beans.value.ObservableValue<?>>of(rotationAngle.textProperty(),rotationX.textProperty(),rotationY.textProperty(),rotationReference.valueProperty()))
+        for (var property : List.<javafx.beans.value.ObservableValue<?>>of(rotationAngle.textProperty(),rotationX.textProperty(),rotationY.textProperty(),rotationReference.valueProperty(),
+                transformKind.valueProperty(),scaleX.textProperty(),scaleY.textProperty(),skewX.textProperty(),skewY.textProperty(),offsetX.textProperty(),offsetY.textProperty()))
             property.addListener((obs, old, value) -> { if (rotationGesture != null) cancelRotationFromShortcut(); });
-        scale.setOnAction(event -> runTransform("Escala aplicada.", () ->
-                session.scaleSelected(parseTransformNumber(scaleField, "Escala"))));
-        mirrorHorizontal.setOnAction(event -> runTransform("Espelhamento horizontal aplicado.",
-                () -> session.mirrorSelected(true)));
-        mirrorVertical.setOnAction(event -> runTransform("Espelhamento vertical aplicado.",
-                () -> session.mirrorSelected(false)));
-        for (Button button : List.of(rotate, pickPivot, scale, mirrorHorizontal, mirrorVertical)) {
-            button.disableProperty().bind(transformButton.disableProperty());
+        for (Button button : List.of(rotate, pickPivot)) button.disableProperty().bind(transformButton.disableProperty());
+        var angleRow=new HBox(8,new Label("Graus (+horário):"),rotationAngle);
+        var scaleRow=new HBox(8,new Label("Fator X:"),scaleX,new Label("Y:"),scaleY);
+        var skewRow=new HBox(8,new Label("Graus X:"),skewX,new Label("Y:"),skewY);
+        var offsetRow=new HBox(8,new Label("Desloc. X:"),offsetX,new Label("Y:"),offsetY);
+        transformRow(angleRow,TransformKind.ROTATE); transformRow(scaleRow,TransformKind.SCALE);
+        transformRow(skewRow,TransformKind.SKEW); transformRow(offsetRow,TransformKind.OFFSET);
+        ToolDescriptions.apply(transformKind,"Transformação","Escolha a operação e confira a prévia antes de confirmar. Escala e espelhos usam o pivô escolhido; inclinação aplica X/Y simultaneamente. Deslocamento soma X/Y nas unidades do objeto, independentemente do pivô. Ctrl+Z desfaz a operação inteira.");
+        ToolDescriptions.apply(rotationReference,"Referência da transformação","Origem, centro/canto da caixa da seleção ou ponto absoluto. Centro significa centro da caixa, não centro de massa. Compartilhada por rotação, escala, espelho e inclinação; não muda o deslocamento X/Y.");
+        ToolDescriptions.apply(rotate,"Prévia da transformação","Calcula fora da interface, sem alterar o rascunho. Confira o contorno e o pivô no Plot Area; confirme pelo botão ou clique. Esc/botão direito cancela. Valores e seleção alterados invalidam a prévia.");
+        ToolDescriptions.apply(rotationConfirm,"Confirmar transformação","Aplica exatamente a prévia, mantendo IDs, ferramentas e seleção. Ctrl+Z desfaz e Ctrl+Y refaz em uma etapa. Salvar e sair publica o rascunho no objeto.");
+        ToolDescriptions.apply(rotationCancel,"Cancelar prévia","Descarta a prévia sem alterar as formas. Durante o cálculo, Esc invalida o resultado pendente; o botão Cancelar da barra de progresso interrompe o trabalho quando possível.");
+        var pivotRow=new HBox(8,new Label("Pivô X:"),rotationX,new Label("Y:"),rotationY);
+        for(Node node:List.of(rotationReference,pivotRow,pickPivot)) {
+            node.visibleProperty().bind(transformKind.valueProperty().isNotEqualTo(TransformKind.OFFSET));
+            node.managedProperty().bind(node.visibleProperty());
         }
-        VBox transformControls = new VBox(8,
-                new HBox(8, new Label("Graus (+horário):"), rotationAngle), rotationReference,
-                new HBox(8,new Label("X:"),rotationX,new Label("Y:"),rotationY),
-                pickPivot,rotate,rotationConfirm,rotationCancel,
-                new Label("Escala/espelhos: centro da seleção."),
-                new HBox(8, new Label("Fator:"), scaleField, scale),
-                mirrorHorizontal, mirrorVertical);
+        VBox transformControls = new VBox(8,transformKind,angleRow,scaleRow,skewRow,offsetRow,rotationReference,
+                pivotRow,pickPivot,rotate,rotationConfirm,rotationCancel);
         transformsPane = new TitledPane("Transformacoes das selecionadas", transformControls);
         transformsPane.setExpanded(false);
         transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
@@ -625,27 +634,23 @@ final class GeometryEditorController {
         }
     }
 
-    private void runTransform(String success, BooleanSupplier operation) {
-        if (!readyForTool()) return;
-        if (session.selectedCount() == 0) {
-            instruction.setText("Selecione ao menos uma forma para transformar.");
-            return;
-        }
-        plotArea.cancelPlacement();
-        try {
-            if (operation.getAsBoolean()) {
-                refreshGeometry();
-                instruction.setText(success + " Ctrl+Z desfaz.");
-            } else {
-                instruction.setText("Nenhuma transformacao aplicada.");
-            }
-        } catch (IllegalArgumentException error) {
-            instruction.setText(error.getMessage());
-        }
-    }
-
     void openTransforms() {
         if (readyForTool()) transformsPane.setExpanded(true);
+    }
+
+    private TextField transformField(String id,String initial) {
+        var field=new TextField(initial); field.setId("geometry-transform-"+id);
+        field.setPrefColumnCount(5); field.setMinWidth(0);
+        String help=id.startsWith("scale") ? "Fator sem unidade no eixo indicado. 1 conserva o tamanho; valores negativos também espelham. Zero é recusado."
+                : id.startsWith("skew") ? "Inclinação em graus no eixo indicado, entre -90 e 90 sem os extremos. X/Y são aplicados simultaneamente em torno do pivô. Combinações que achatam a forma são recusadas."
+                : "Deslocamento no eixo indicado em " + units + ". Positivo aumenta a coordenada; negativo diminui. O pivô não altera o deslocamento.";
+        ToolDescriptions.apply(field,"Parâmetro da transformação",help+" Alterar o valor cancela a prévia anterior; só confirma após nova prévia.");
+        return field;
+    }
+
+    private void transformRow(Node row,TransformKind kind) {
+        row.visibleProperty().bind(transformKind.valueProperty().isEqualTo(kind));
+        row.managedProperty().bind(row.visibleProperty());
     }
 
     private Coordinate rotationPivot() {
@@ -677,27 +682,38 @@ final class GeometryEditorController {
                 if (session!=editing || rotationGesture!=gesture || !selection.equals(editing.selectedIndexOrder())) return;
                 rotationGesture=null;
                 rotationX.setText(Double.toString(x)); rotationY.setText(Double.toString(y));
-                rotationReference.setValue(RotationReference.POINT); previewRotation();
+                rotationReference.setValue(RotationReference.POINT); previewTransform();
             }
             public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Escolha do pivô cancelada."); }
         });
         if (!started) stopRotation(gesture,"Não foi possível escolher o pivô.");
-        else instruction.setText("Clique no pivô da rotação; depois confira a prévia. Esc/botão direito cancela.");
+        else instruction.setText("Clique no pivô da transformação; depois confira a prévia. Esc/botão direito cancela.");
         refreshSelection();
     }
 
-    private void previewRotation() {
+    private void previewTransform() {
         if (!readyForTool()) return;
-        if (session.selectedCount()==0) { instruction.setText("Selecione formas para girar."); return; }
+        if (session.selectedCount()==0) { instruction.setText("Selecione formas para transformar."); return; }
         plotArea.cancelPlacement();
         GeometryEditSession editing=session;
         try {
-            Coordinate pivot=rotationPivot();
-            var request=editing.prepareRotation(parseTransformNumber(rotationAngle,"Ângulo"),pivot);
+            Coordinate pivot=transformKind.getValue()==TransformKind.OFFSET
+                    ? session.selectedBounds().getEnvelopeInternal().centre() : rotationPivot();
+            var request=switch(transformKind.getValue()) {
+                case ROTATE -> editing.prepareRotation(parseTransformNumber(rotationAngle,"Ângulo"),pivot);
+                case SCALE -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.scale(
+                        parseTransformNumber(scaleX,"Fator X"),parseTransformNumber(scaleY,"Fator Y")),pivot);
+                case MIRROR_X -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.scale(-1,1),pivot);
+                case MIRROR_Y -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.scale(1,-1),pivot);
+                case SKEW -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.skew(
+                        parseTransformNumber(skewX,"Inclinação X"),parseTransformNumber(skewY,"Inclinação Y")),pivot);
+                case OFFSET -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.offset(
+                        parseTransformNumber(offsetX,"Deslocamento X"),parseTransformNumber(offsetY,"Deslocamento Y")),new Coordinate(0,0));
+            };
             Object gesture=new Object(); rotationGesture=gesture; rotationReady=false;
             calculate(request,result -> {
                 if (rotationGesture!=gesture) return;
-                if (result.resultParts().isEmpty()) { stopRotation(gesture,"Nenhuma coordenada foi alterada pela rotação."); return; }
+                if (result.resultParts().isEmpty()) { stopRotation(gesture,"Nenhuma coordenada foi alterada pela transformação."); return; }
                 var factory=result.resultParts().getFirst().geometry().getFactory();
                 // Use the indexed overlay for dense shapes; only the small pivot marker is a placement preview.
                 Geometry preview=factory.buildGeometry(result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
@@ -705,15 +721,15 @@ final class GeometryEditorController {
                     public void onCommit(double dx,double dy) {
                         if (session!=editing || rotationGesture!=gesture) return;
                         rotationGesture=null; rotationReady=false; plotArea.setEditorReference(null);
-                        boolean changed=editing.applyRotation(result); refreshGeometry();
-                        instruction.setText(changed ? "Rotação aplicada ao rascunho. Ctrl+Z desfaz; Ctrl+Y refaz."
+                        boolean changed=editing.applyTransform(result); refreshGeometry();
+                        instruction.setText(changed ? "Transformação aplicada ao rascunho. Ctrl+Z desfaz; Ctrl+Y refaz."
                                 : "A seleção ou o rascunho mudou; prévia descartada.");
                     }
-                    public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Prévia da rotação descartada."); }
+                    public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Prévia da transformação descartada."); }
                 });
                 if (!started) { stopRotation(gesture,"Não foi possível mostrar a prévia da rotação."); return; }
                 plotArea.setEditorReference(preview); rotationReady=true; refreshSelection();
-                instruction.setText("Prévia da rotação: confira o novo contorno. Confirme pelo botão ou clique no plot; Esc/botão direito cancela.");
+                instruction.setText("Prévia da transformação: confira o novo contorno. Confirme pelo botão ou clique no plot; Esc/botão direito cancela.");
             },() -> stopRotation(gesture,null));
         } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
     }
@@ -721,7 +737,7 @@ final class GeometryEditorController {
     boolean cancelRotationFromShortcut() {
         if (rotationGesture==null) return false;
         Object gesture=rotationGesture;
-        stopRotation(gesture,busy ? "Rotação cancelada; o resultado pendente será descartado." : "Prévia da rotação descartada.");
+        stopRotation(gesture,busy ? "Transformação cancelada; o resultado pendente será descartado." : "Prévia da transformação descartada.");
         plotArea.cancelPlacement(); return true;
     }
 
@@ -1294,7 +1310,7 @@ final class GeometryEditorController {
         GeometryEditSession editing = session;
         busy = true;
         refreshSelection();
-        instruction.setText("Calculando " + (request.operation()==GeometryEditSession.Operation.ROTATE ? "rotação"
+        instruction.setText("Calculando " + (request.operation()==GeometryEditSession.Operation.AFFINE ? "transformação" : request.operation()==GeometryEditSession.Operation.ROTATE ? "rotação"
                 : request.operation().name().toLowerCase(java.util.Locale.ROOT)) + "...");
         boolean accepted = host.runOperation(request, result -> {
             if (session != editing) {
@@ -1461,7 +1477,7 @@ final class GeometryEditorController {
         textFont = null; textSize = null; textBold = null; textItalic = null; units = null;
         arcPane = null; arcMode = null; arcClockwise = null;
         curveSteps = null;
-        rotationAngle=null; rotationX=null; rotationY=null; rotationReference=null; rotationConfirm=null; rotationCancel=null; transformsPane=null;
+        transformKind=null; scaleX=null; scaleY=null; skewX=null; skewY=null; offsetX=null; offsetY=null; rotationAngle=null; rotationX=null; rotationY=null; rotationReference=null; rotationConfirm=null; rotationCancel=null; transformsPane=null;
         bufferDistance = null;
         bufferMode = null;
         editorButtons = null;

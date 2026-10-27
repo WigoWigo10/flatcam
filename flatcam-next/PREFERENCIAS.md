@@ -139,7 +139,7 @@ a suíte integral continua reprovada.
 
 É um incremento da paridade visual/organização, não port completo das preferências
 Python. Continuam faltando opções avançadas completas de
-importação/editores e exportação e outras preferências gerais do legado. Buffering
+importação/editores e outras preferências gerais do legado. Buffering
 e Delayed Buffering do Gerber Python não foram copiados para o backend FX, que
 possui outra preparação/renderização. Não foram
 criados controles sem efeito para representar esses campos. Falta validação da
@@ -179,3 +179,17 @@ FX nos slots e supressão declarada permanecem: isto não afirma igualdade textu
 com as saídas defeituosas do legado. Regressão: 126 aprovações/1 skip opcional
 mais exporters CAM (`target/export-preferences-final.log`); repetição com arquivos
 temporários reais aprovada (`target/export-preferences-files.log`).
+
+
+### Série seguinte, item 4: transformações do Editor Geometry
+
+Escala X/Y, espelhos X/Y, inclinação e offset usam prévia/confirmar/cancelar,
+com o mesmo cálculo em worker e histórico da rotação. Origem/centro/cantos/ponto
+servem de pivô; deslocamento é independente dele e oculta esses controles.
+Documentação e limitações em [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+Não foram adicionadas preferências inertes para operações ainda ausentes.
+Última verificação focada: 37 testes, sem falhas ou skips, e pacote aprovados.
+Suíte integral da série: 1987 aprovações/18 skips/1 falha End Z já conhecida,
+2006 registros; log `target/parity-preferences-series-verify.log`. O último ajuste
+somente do modo offset foi coberto pela rodada `target/editor-affine-final.log`.
+O integral continua reprovado; não foi alterada a asserção de End Z.

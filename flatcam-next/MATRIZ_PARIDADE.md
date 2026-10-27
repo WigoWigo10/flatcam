@@ -1,5 +1,20 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Série visual: CNC, editores, exportação e transformações — 2026-10-27
+
+CNC: cores RGBA corte/deslocamento, Kind, Plot e fontes/anotações/setas; estilo
+por objeto preservado em cópia, edição e reabertura. `.FlatPrj` usa extensão FX
+para detalhes por objeto; não afirma que Qt consome os estilos da extensão.
+Editores: 21 padrões ligados a operações reais, cores/limites/aberturas/arrays/
+escala/buffer/diâmetro. Excellon ainda tem array retangular, não circular Qt.
+Exportação: dez padrões Python compartilhados por Preferências, diálogo,
+Terminal e Salvar como, com migração dos formatos anteriores e roundtrip de
+arquivos MM/IN. Reparos FX em zeros/slots mantidos, sem equivalência byte a byte.
+Geometry: escala X/Y, espelhos, inclinação e offset agora usam prévia/confirmar/
+cancelar como a rotação; pivôs e conservação de IDs/ferramentas/Z/M testados.
+Arrasto angular, catálogo integral de preferências e sessão Qt visual continuam
+pendentes. Detalhes: [PREFERENCIAS.md](PREFERENCIAS.md), [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Preferências avançadas de exibição — 2026-10-27
 
 Quinze padrões de Gerber/Excellon/Geometry: cores/transparência, Plot/Solid/
@@ -25,8 +40,8 @@ Referências origem/centro/cantos/ponto, pivô por clique e sinal horário posit
 do painel Python implementados. Prévia em worker e confirmação atômica,
 preservando IDs/ferramentas/seleção; menu de transformações habilitado.
 Núcleo MM/IN e gestos testados; sem sessão GUI Python comparativa ou validação
-manual FX. Arrasto angular e demais transformações com prévia permanecem
-parciais. [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+manual FX. Arrasto angular permanece pendente; as demais transformações com prévia foram
+implementadas na série de 2026-10-27 descrita acima. [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
 
 ## Coordenadas J e resolução no Editor Geometry — 2026-10-24
 

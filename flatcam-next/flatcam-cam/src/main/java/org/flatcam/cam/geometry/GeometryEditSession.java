@@ -33,7 +33,7 @@ public final class GeometryEditSession {
 
     public enum Operation {
         UNION, INTERSECTION, SUBTRACT, CUT_PATH, BUFFER_FULL, BUFFER_INTERIOR, BUFFER_EXTERIOR,
-        TEXT, ERASER_MASK, ERASE, PAINT, ROTATE
+        TEXT, ERASER_MASK, ERASE, PAINT, ROTATE, AFFINE
     }
 
     public record ToolPart(Geometry geometry, int toolIndex) {
@@ -57,7 +57,13 @@ public final class GeometryEditSession {
     /** Immutable input for a potentially expensive JTS operation on a worker thread. */
     public record OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
                                    List<ToolPart> inputs, double distance, TextGeometry.Parameters text,
-                                   int newToolIndex, org.flatcam.cam.ncc.PaintParameters paint, String units, Coordinate pivot) {
+                                   int newToolIndex, org.flatcam.cam.ncc.PaintParameters paint, String units, Coordinate pivot,
+                                   EditorTransform transform) {
+        public OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
+                                List<ToolPart> inputs, double distance, TextGeometry.Parameters text,
+                                int newToolIndex, org.flatcam.cam.ncc.PaintParameters paint, String units, Coordinate pivot) {
+            this(revision,operation,selectedIndices,inputs,distance,text,newToolIndex,paint,units,pivot,null);
+        }
         public OperationRequest(long revision, Operation operation, List<Integer> selectedIndices,
                                 List<ToolPart> inputs, double distance, TextGeometry.Parameters text,
                                 int newToolIndex, org.flatcam.cam.ncc.PaintParameters paint, String units) {
@@ -83,8 +89,9 @@ public final class GeometryEditSession {
             cancellation.throwIfCancellationRequested();
             progress.report(0.05);
             List<ToolPart> outputs = new ArrayList<>();
-            if (operation == Operation.ROTATE) {
-                validateRotation(distance,pivot);
+            if (operation == Operation.ROTATE || operation == Operation.AFFINE) {
+                if (operation == Operation.ROTATE) validateRotation(distance,pivot);
+                else { Objects.requireNonNull(transform); validatePivot(pivot); }
                 double angle = -Math.toRadians(Math.IEEEremainder(distance,360));
                 double rawCos=Math.cos(angle),rawSin=Math.sin(angle);
                 double cos=Math.abs(rawCos)<2.5e-16 ? 0 : rawCos, sin=Math.abs(rawSin)<2.5e-16 ? 0 : rawSin;
@@ -97,10 +104,12 @@ public final class GeometryEditSession {
                         public void filter(org.locationtech.jts.geom.CoordinateSequence seq, int i) {
                             if (i % 256 == 0) cancellation.throwIfCancellationRequested();
                             double x=seq.getX(i),y=seq.getY(i);
-                            double nx=pivot.x + cos*(x-pivot.x) - sin*(y-pivot.y);
-                            double ny=pivot.y + sin*(x-pivot.x) + cos*(y-pivot.y);
+                            double nx=operation==Operation.ROTATE ? pivot.x + cos*(x-pivot.x) - sin*(y-pivot.y)
+                                    : pivot.x + transform.xx()*(x-pivot.x) + transform.xy()*(y-pivot.y) + transform.dx();
+                            double ny=operation==Operation.ROTATE ? pivot.y + sin*(x-pivot.x) + cos*(y-pivot.y)
+                                    : pivot.y + transform.yx()*(x-pivot.x) + transform.yy()*(y-pivot.y) + transform.dy();
                             if (!Double.isFinite(nx) || !Double.isFinite(ny))
-                                throw new IllegalArgumentException("Rotação excede o limite de coordenadas.");
+                                throw new IllegalArgumentException("Transformação excede o limite de coordenadas.");
                             if (nx != x || ny != y) changed[0]=true;
                             seq.setOrdinate(i,0,nx); seq.setOrdinate(i,1,ny);
                         }
@@ -425,7 +434,7 @@ public final class GeometryEditSession {
 
     public OperationRequest prepareOperation(Operation operation, double distance) {
         Objects.requireNonNull(operation);
-        if (operation == Operation.TEXT || operation == Operation.ERASER_MASK || operation == Operation.ERASE || operation == Operation.PAINT)
+        if (operation == Operation.ROTATE || operation == Operation.AFFINE || operation == Operation.TEXT || operation == Operation.ERASER_MASK || operation == Operation.ERASE || operation == Operation.PAINT)
             throw new IllegalArgumentException("Use o preparo especifico de Texto/Borracha.");
         boolean booleanOperation = operation == Operation.UNION || operation == Operation.INTERSECTION
                 || operation == Operation.SUBTRACT || operation == Operation.CUT_PATH;
@@ -565,6 +574,20 @@ public final class GeometryEditSession {
                 null,-1,null,"MM",pivot);
     }
 
+    /** Snapshots one affine transform; worker execution never mutates the editor draft. */
+    public OperationRequest prepareTransform(EditorTransform transform, Coordinate pivot) {
+        if (selected.isEmpty()) throw new IllegalArgumentException("Selecione formas para transformar.");
+        Objects.requireNonNull(transform); validatePivot(pivot);
+        var inputs=selected.stream().map(i -> new ToolPart(parts.get(i).geometry(),parts.get(i).toolIndex())).toList();
+        return new OperationRequest(revision,Operation.AFFINE,List.copyOf(selected),inputs,0,
+                null,-1,null,"MM",pivot,transform);
+    }
+
+    private static void validatePivot(Coordinate pivot) {
+        if (pivot==null || !Double.isFinite(pivot.x) || !Double.isFinite(pivot.y))
+            throw new IllegalArgumentException("Coordenadas do pivô devem ser finitas.");
+    }
+
     private static void validateRotation(double degrees, Coordinate pivot) {
         if (!Double.isFinite(degrees) || pivot == null || !Double.isFinite(pivot.x) || !Double.isFinite(pivot.y))
             throw new IllegalArgumentException("Ângulo e coordenadas do pivô devem ser finitos.");
@@ -573,14 +596,16 @@ public final class GeometryEditSession {
     }
 
     /** Installs a worker rotation atomically, preserving shape IDs, tool associations and selection order. */
-    public boolean applyRotation(OperationResult result) {
+    public boolean applyRotation(OperationResult result) { return applyTransform(result); }
+
+    public boolean applyTransform(OperationResult result) {
         if (result.revision() != revision || !result.selectedIndices().equals(List.copyOf(selected))
                 || !result.replacedIndices().equals(result.selectedIndices()) || result.resultParts().isEmpty()) return false;
-        if (result.resultParts().size() != selected.size()) throw new IllegalArgumentException("Resultado de rotação incompleto.");
+        if (result.resultParts().size() != selected.size()) throw new IllegalArgumentException("Resultado de transformação incompleto.");
         List<Part> updated = new ArrayList<>(parts);
         for (int i=0;i<result.selectedIndices().size();i++) {
             int index=result.selectedIndices().get(i); Part before=parts.get(index); ToolPart after=result.resultParts().get(i);
-            if (before.toolIndex() != after.toolIndex()) throw new IllegalArgumentException("A ferramenta da forma mudou durante a rotação.");
+            if (before.toolIndex() != after.toolIndex()) throw new IllegalArgumentException("A ferramenta da forma mudou durante a transformação.");
             updated.set(index,new Part(before.id(),after.geometry(),before.toolIndex()));
         }
         commit(updated,List.copyOf(selected)); return true;

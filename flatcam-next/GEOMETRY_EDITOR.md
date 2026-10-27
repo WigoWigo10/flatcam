@@ -108,27 +108,27 @@ inserção exata com Snap ativo, respostas atrasadas, resolução, padrão salvo
 reinício do círculo. O movimento físico e a apresentação em monitores/DPI
 ainda precisam da avaliação manual do usuário.
 
-## Rotação com pivô e prévia — 2026-10-24
+## Transformações com pivô e prévia — atualização 2026-10-27
 
 Abra **Transformações das selecionadas** pela barra ou **Geo Editor >
-Transformações**. Selecione as formas e informe o ângulo: **positivo gira no
+Transformações**. Escolha a operação e selecione as formas. Na rotação, informe o ângulo: **positivo gira no
 sentido horário**, como `on_rotate_action` Python; negativo é anti-horário.
 O campo substitui a aplicação imediata anterior do botão Girar no FX.
 
 Escolha o pivô na lista: origem `(0,0)`, centro da caixa da seleção, um dos
 quatro cantos dessa caixa ou ponto absoluto X/Y nas unidades do objeto.
 **Escolher pivô no plot** recebe um clique com o Snap atual e calcula a prévia
-em seguida, usando o ângulo já informado. **Pré-visualizar rotação** calcula
+em seguida, usando os parâmetros já informados. **Pré-visualizar transformação** calcula
 com a referência do formulário.
 
 A prévia desenha o contorno transformado e uma cruz no pivô. O rascunho fica
-intacto até **Confirmar rotação** ou um clique no plot; o lugar desse clique
+intacto até **Confirmar transformação** ou um clique no plot; o lugar desse clique
 não desloca a prévia. Esc/botão direito/Cancelar prévia descartam sem alterar
 o rascunho. Mudar ângulo, pivô, seleção ou ferramenta invalida uma prévia antiga.
 Durante o cálculo, Esc descarta a publicação pendente; Cancelar na barra de
 status solicita interrupção do trabalho. Uma falha não publica resultado parcial.
 
-Depois de confirmar, Ctrl+Z/Ctrl+Y desfaz/refaz a rotação inteira. Conserva os
+Depois de confirmar, Ctrl+Z/Ctrl+Y desfaz/refaz a transformação inteira. Conserva os
 IDs, a ordem de seleção, a associação às ferramentas e o perfil delas; formas
 não selecionadas permanecem como estavam. O objeto do projeto só muda ao
 Salvar e sair do editor. Ângulo zero/voltas completas e coordenadas não finitas
@@ -142,10 +142,33 @@ cancelamento em uma forma de 20.000 vértices, cliques e referências são autom
 Ainda falta avaliar visualmente na janela real.
 
 O ângulo desta etapa é digitado; escolha angular por arrasto e atalhos globais
-de transformação continuam pendentes. Escala e espelhos ainda usam os comandos
-numéricos anteriores pelo centro da seleção, sem esta prévia com pivô escolhido.
+de transformação continuam pendentes. Escala X/Y, espelhar X ou Y e inclinação
+agora compartilham o pivô e o fluxo de prévia. Deslocamento X/Y também tem prévia,
+mas soma os valores nas unidades do objeto, independentemente do pivô.
 A API antiga `rotateSelected` continua anti-horária para os chamadores existentes;
 o novo pedido de rotação do painel é explicitamente horário, como o Python.
+
+### Escala, espelho, inclinação e deslocamento
+
+- Escala X/Y independente: 1 mantém o tamanho; negativos também espelham;
+  fatores zero são recusados. O centro/canto/ponto escolhido fica fixo.
+- Espelhar X inverte esquerda/direita; espelhar Y inverte cima/baixo.
+- Inclinação X/Y usa graus entre -90 e 90, sem os extremos; eixos são
+  inclinados simultaneamente, como a matriz de skew do Python. Combinações
+  degeneradas (como 45/45) são recusadas para não achatar a geometria.
+- Deslocamento X/Y soma distâncias mm/in. A referência não altera esse delta.
+
+Cada operação calcula em worker com cancelamento por vértices, mostra o contorno
+sem apagar o rascunho e só publica após confirmar. Trocar tipo, parâmetros,
+seleção ou ferramenta invalida a prévia, inclusive um resultado ainda em cálculo.
+Mantém Z/M, buracos, ferramentas, IDs e seleção. Valores não finitos e overflow
+são recusados sem aplicação parcial. Sem escolha angular por arrasto.
+
+Validação focada: 31 testes CAM e 30 UI passaram, depois 25 UI com o novo teste
+de largura de 360 px nos quatro temas. Logs `target/editor-affine-tests.log` e
+`target/editor-affine-layout.log`; capturas opt-in
+`flatcam-fx/target/editor-transforms-<tema>.png`. Contagens são rodadas sobrepostas.
+Sem medição de FPS nova ou afirmação de paridade visual Qt integral.
 
 ## Texto
 
@@ -232,3 +255,10 @@ Estas entregas não tornam o editor 100% equivalente.
 Testes de núcleo, controles, cliques no plot, cancelamento, undo/redo, 10.000 formas
 não relacionadas e persistência nativa/legada são automatizados. A janela não foi
 validada visualmente nem houve execução na máquina.
+
+
+Fechamento da série em 2026-10-27: última rodada de transformações/ajuda/tooltip
+aprovou 37 testes (8 CAM, 29 UI) e empacotou com sucesso, incluindo o modo offset
+ignorando/ocultando pivô. `target/editor-affine-final.log`. Integral da série
+registrou 2006 casos: 1987 aprovados, 18 skips e somente a falha End Z conhecida
+de CncNativePrecisionTest; log `target/parity-preferences-series-verify.log`.

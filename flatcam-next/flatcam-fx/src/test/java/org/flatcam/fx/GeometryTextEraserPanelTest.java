@@ -585,6 +585,106 @@ class GeometryTextEraserPanelTest {
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }
 
+    @Test void scaleMirrorSkewAndOffsetSharePivotPreviewConfirmationAndUndo() throws Exception {
+        var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
+        var h=fx(() -> new Harness(source,List.of(new ToolGeometry(.8,source))));
+        var kinds=List.of(GeometryEditorController.TransformKind.SCALE,GeometryEditorController.TransformKind.MIRROR_X,
+                GeometryEditorController.TransformKind.MIRROR_Y,GeometryEditorController.TransformKind.SKEW,GeometryEditorController.TransformKind.OFFSET);
+        double[][] expected={{40,48,30,36},{36,40,30,32},{40,44,28,30},{40,46,30,32},{45,49,27,29}};
+        try {
+            for(int i=0;i<kinds.size();i++) {
+                var kind=kinds.get(i); final int index=i;
+                fx(()-> {
+                    h.table().getSelectionModel().select(0);
+                    ((ComboBox<GeometryEditorController.TransformKind>)h.panel.lookup("#geometry-transform-kind")).setValue(kind);
+                    ((ComboBox<GeometryEditorController.RotationReference>)h.panel.lookup("#geometry-rotation-reference"))
+                            .setValue(GeometryEditorController.RotationReference.LOWER_LEFT);
+                    for(var entry:List.of(new String[]{"scale-x","2"},new String[]{"scale-y","3"},new String[]{"skew-x","45"},
+                            new String[]{"offset-x","5"},new String[]{"offset-y","-3"}))
+                        ((TextField)h.panel.lookup("#geometry-transform-"+entry[0])).setText(entry[1]);
+                    if(kind==GeometryEditorController.TransformKind.OFFSET) {
+                        ((ComboBox<GeometryEditorController.RotationReference>)h.panel.lookup("#geometry-rotation-reference")).setValue(GeometryEditorController.RotationReference.POINT);
+                        h.rotationField("x").setText("inválido");
+                        assertFalse(h.rotationField("x").getParent().isVisible());
+                    }
+                    h.rotationButton("preview").fire();
+                    assertEquals(GeometryEditSession.Operation.AFFINE,h.request.operation()); return null;
+                });
+                h.finish();
+                fx(()-> {
+                    assertFalse(h.controller.hasUnappliedChanges()); assertNotNull(h.plotField("editorReferenceGeometry"));
+                    h.rotationButton("confirm").fire();
+                    var bounds=h.reflectedSession().resultGeometry().getEnvelopeInternal();
+                    assertEquals(expected[index][0],bounds.getMinX(),1e-9,kind.toString());
+                    assertEquals(expected[index][1],bounds.getMaxX(),1e-9,kind.toString());
+                    assertEquals(expected[index][2],bounds.getMinY(),1e-9,kind.toString());
+                    assertEquals(expected[index][3],bounds.getMaxY(),1e-9,kind.toString());
+                    assertEquals(.8,h.reflectedSession().resultTools().getFirst().toolDiameter());
+                    assertTrue(h.controller.undoFromShortcut()); assertFalse(h.controller.hasUnappliedChanges());
+                    assertTrue(h.controller.redoFromShortcut()); assertTrue(h.controller.undoFromShortcut()); return null;
+                });
+            }
+        } finally { fx(()-> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void transformControlsFitNarrowPanelsInEveryTheme() throws Exception {
+        fx(()-> {
+            for(var theme:ThemeOption.values()) {
+                var h=new Harness(new GeometryFactory().toGeometry(new Envelope(40,44,30,32)),List.of());
+                try {
+                    h.table().getSelectionModel().select(0);
+                    var pane=(TitledPane)h.panel.lookup(".titled-pane");
+                    // Find by its actual content rather than depending on the order of other editor sections.
+                    for(var node:((javafx.scene.Parent)h.panel).lookupAll(".titled-pane"))
+                        if(((TitledPane)node).getContent().lookup("#geometry-transform-kind")!=null) pane=(TitledPane)node;
+                    assertNotNull(pane); ((VBox)pane.getParent()).getChildren().remove(pane);
+                    pane.setAnimated(false); pane.setExpanded(true);
+                    var root=new VBox(pane); var scene=new Scene(root,360,420); theme.applyTo(scene);
+                    ((ComboBox<GeometryEditorController.TransformKind>)pane.lookup("#geometry-transform-kind")).setValue(GeometryEditorController.TransformKind.SCALE);
+                    root.applyCss(); root.layout();
+                    for(String id:List.of("geometry-transform-scale-x","geometry-transform-scale-y","geometry-rotation-x","geometry-rotation-y")) {
+                        var field=pane.lookup("#"+id); var bounds=field.localToScene(field.getBoundsInLocal());
+                        assertTrue(bounds.getMinX()>=0 && bounds.getMaxX()<=361,id+" "+theme+" "+bounds);
+                        assertTrue(bounds.getWidth()>=35,id+" "+theme);
+                    }
+                    if(Boolean.getBoolean("flatcam.tests.snapshots")) {
+                        var image=root.snapshot(null,null); var reader=image.getPixelReader();
+                        var png=new java.awt.image.BufferedImage((int)image.getWidth(),(int)image.getHeight(),java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                        for(int y=0;y<image.getHeight();y++) for(int x=0;x<image.getWidth();x++) png.setRGB(x,y,reader.getArgb(x,y));
+                        javax.imageio.ImageIO.write(png,"png",java.nio.file.Path.of("target/editor-transforms-"+theme+".png").toFile());
+                    }
+                } finally { h.controller.cancel(); }
+            }
+            return null;
+        });
+    }
+
+    @Test void affineParameterAndModeChangesInvalidateReadyAndPendingPreviews() throws Exception {
+        var h=fx(()-> new Harness(new GeometryFactory().toGeometry(new Envelope(40,44,30,32)),List.of()));
+        try {
+            fx(()-> {
+                h.table().getSelectionModel().select(0);
+                ((ComboBox<GeometryEditorController.TransformKind>)h.panel.lookup("#geometry-transform-kind")).setValue(GeometryEditorController.TransformKind.SCALE);
+                ((TextField)h.panel.lookup("#geometry-transform-scale-x")).setText("2");
+                h.rotationButton("preview").fire(); return null;
+            }); h.finish();
+            fx(()-> {
+                ((TextField)h.panel.lookup("#geometry-transform-scale-y")).setText("3");
+                assertNull(h.plotField("editorReferenceGeometry")); assertFalse(h.plot.isPlacementActive());
+                h.rotationButton("preview").fire();
+                ((ComboBox<GeometryEditorController.TransformKind>)h.panel.lookup("#geometry-transform-kind")).setValue(GeometryEditorController.TransformKind.MIRROR_Y);
+                return null;
+            }); h.finish();
+            fx(()-> {
+                assertFalse(h.controller.hasUnappliedChanges()); assertNull(h.plotField("editorReferenceGeometry"));
+                ((ComboBox<GeometryEditorController.TransformKind>)h.panel.lookup("#geometry-transform-kind")).setValue(GeometryEditorController.TransformKind.SCALE);
+                ((TextField)h.panel.lookup("#geometry-transform-scale-x")).setText("0");
+                h.rotationButton("preview").fire(); assertNull(h.request); assertFalse(h.controller.isBusy());
+                return null;
+            });
+        } finally { fx(()-> { h.controller.cancel(); return null; }); }
+    }
+
     @Test void changingRotationParametersOrSelectionDiscardsPreviewAndBusyEscapeDiscardsResult() throws Exception {
         var f=new GeometryFactory(); var h=fx(() -> new Harness(f.buildGeometry(List.of(
                 f.toGeometry(new Envelope(40,44,30,32)),f.toGeometry(new Envelope(50,54,30,32)))),List.of()));

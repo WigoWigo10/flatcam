@@ -1,5 +1,34 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série de paridade visual concluída, item 4: transformações — 2026-10-27
+
+Itens anteriores commitados: `9dd76a58` CNC; `24774447` editores;
+`961e6b5b` exportação. Último item: Geometry escala X/Y, espelho X/Y,
+inclinação X/Y e offset agora compartilham prévia/confirmar/cancelar com rotação.
+Referência origem/caixa/ponto e clique com Snap para escala/espelho/inclinação;
+offset soma distâncias mm/in sem pivô (campos ocultos e valores antigos ignorados).
+Worker cancelável, overlay indexado, resultado atômico, IDs/ferramentas/seleção/
+Z/M e buracos mantidos, um passo de histórico. Mudanças invalidam resultados
+pendentes. Fatores zero, skew singular, não finitos e overflow são recusados.
+API antiga de rotação segue compatível. Ajuda/menus/documentação atualizados.
+
+Verificação integral `mvnw.cmd verify`: **2006 registros, 1987 aprovações,
+18 skips opcionais e 1 falha**, a End Z já conhecida em
+`CncNativePrecisionTest.drillingReviewIncludesEffectiveOffsetDepthFeedAndEndPositions:49`.
+Nenhuma asserção alterada, removida ou afrouxada. Log
+`target/parity-preferences-series-verify.log`; totais em JSON homônimo.
+Após ocultar/ignorar pivô no modo offset, última validação focada e pacote:
+**37 testes aprovados** (8 CAM +29 UI), sem skips, incluindo auditoria de tooltips.
+Log `target/editor-affine-final.log`. Layout de 360 px nos quatro temas e capturas
+JavaFX offscreen verificados (`flatcam-fx/target/editor-transforms-<tema>.png`).
+A suíte integral permanece reprovada pelo caso conhecido; não afirmar build
+integral verde. Estes testes não substituem validação visual/manual na janela Qt.
+
+Restantes desta área: arrasto angular/atalhos globais do editor, arrays circulares
+Excellon, preferências de importação e catálogo avançado integral Qt; extensão
+visual CNC por objeto não é interpretada integralmente pelo Python. Sem nova
+medição de FPS ou mudança de arquitetura de renderização. Sem push solicitado.
+
 ## Série de paridade visual, item 3: exportação — 2026-10-27
 
 Dez preferências de exportação Gerber/Excellon (unidades, dígitos, zeros, decimal,
