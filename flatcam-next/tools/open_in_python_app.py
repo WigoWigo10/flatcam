@@ -128,12 +128,51 @@ def probe_cnc_profile(fc, qapp, profile, directory, messages):
     return results
 
 
+def probe_ncc_offset_loading(fc, objects):
+    """Original handler on objects loaded by the original application; never repairs its input."""
+    from shapely.geometry import box
+    import shapely
+    from shapely.geos import geos_version_string
+    cases = []
+    for obj in objects:
+        if obj.kind != "gerber" or not any(face in obj.options["name"] for face in ("F_Cu", "B_Cu")):
+            continue
+        solid = obj.solid_geometry
+        shape = {"type": type(solid).__name__}
+        if isinstance(solid, (list, tuple)):
+            shape.update(count=len(solid), memberTypes=dict(Counter(type(part).__name__ for part in solid)))
+        # Bounds only choose a surrounding test boundary; the target representation stays untouched.
+        extent = box(*obj.bounds()).buffer(1 if obj.units.upper() == "MM" else 1 / 25.4)
+        for offset in (False, True):
+            case = {"name": obj.options["name"], "offsetEnabled": offset, "representation": shape,
+                    "entryPoint": "ToolNCC.get_tool_empty_area", "gerberBuffering": fc.defaults["gerber_buffering"]}
+            try:
+                result = fc.ncclear_tool.get_tool_empty_area(
+                    name="offset_loading_probe", ncc_obj=obj, geo_obj=None, isotooldia=[], has_offset=offset,
+                    ncc_offset=.15 if obj.units.upper() == "MM" else .15 / 25.4,
+                    ncc_margin=0, bounding_box=extent, tools_storage={})
+                if result == "fail":
+                    case.update(status="ORACLE_ERROR", error="Original handler returned fail")
+                else:
+                    area, warning = result
+                    case.update(status="PREPARED", emptyArea=area.area, warning=warning)
+            except Exception as error:
+                case.update(status="ORACLE_ERROR", error=f"{type(error).__name__}: {error}", trace=traceback.format_exc())
+            cases.append(case)
+    if not cases:
+        raise RuntimeError("No F_Cu/B_Cu Gerber objects were loaded; no NCC control executed")
+    return {"shapely": shapely.__version__, "geos": geos_version_string, "cases": cases,
+            "scope": "Loaded original project and original area-preparation handler; not a full GUI generation or CAM parity result"}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--legacy-root", type=Path, required=True)
     parser.add_argument("project", type=Path, nargs="?")
     parser.add_argument("--resave", type=Path, help="Where the Python application saves the project it opened")
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--probe-ncc-offset", action="store_true",
+                        help="Diagnose Offset on F_Cu/B_Cu objects loaded by the real Python application, without saving")
     parser.add_argument("--timeout", type=float, default=300.0)
     parser.add_argument("--initial-units", choices=("MM", "IN"),
                         help="Explicit isolated app unit preference before opening; legacy set_ui overwrites object units from defaults")
@@ -143,6 +182,8 @@ def main():
                         help="Generate public synthetic Geometry through the real app, without opening a project")
     parser.add_argument("--probe-output", type=Path, help="Fresh directory for diagnostic CNC programs")
     args = parser.parse_args()
+    if args.probe_ncc_offset and (not args.project or args.resave or args.probe_cnc_profile or args.new_empty_geometry):
+        parser.error("NCC loading probe requires a project and cannot save/mutate it or run another probe")
     if args.probe_cnc_profile:
         if args.project or args.resave or args.new_empty_geometry or not args.probe_output:
             parser.error("CNC probe requires --probe-output and cannot open/save a project")
@@ -164,9 +205,12 @@ def main():
         parser.error("--report must not overwrite a project")
     report = {"status": "ERROR", "project": project.name if project else None}
     source_paths = [root / "camlib.py", root / "appObjects/FlatCAMGeometry.py"]
+    if args.probe_ncc_offset:
+        source_paths += [root / "appTools/ToolNCC.py", root / "appObjects/FlatCAMGerber.py", root / "app_Main.py"]
     if args.probe_cnc_profile:
         source_paths += [root / "preprocessors" / (args.probe_cnc_profile + ".py")]
     source_hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_paths}
+    project_hash = hashlib.sha256(project.read_bytes()).hexdigest() if args.probe_ncc_offset else None
 
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     isolated = Path(tempfile.mkdtemp(prefix="flatcam-python-app-"))
@@ -233,6 +277,17 @@ def main():
                     raise RuntimeError("Non-finite bounds: " + o.options["name"])
             report["counts"] = counts
             report["units"] = fc.defaults["units"]
+            if args.probe_ncc_offset:
+                report["nccOffsetLoading"] = probe_ncc_offset_loading(fc, objects)
+                report["sourceSha256"] = source_hashes
+                report["originalSourcesUnchanged"] = all(
+                    hashlib.sha256((root / p).read_bytes()).hexdigest() == value for p, value in source_hashes.items())
+                report["projectSha256Before"] = project_hash
+                report["projectSha256After"] = hashlib.sha256(project.read_bytes()).hexdigest()
+                cases = report["nccOffsetLoading"]["cases"]
+                report["status"] = "ORACLE_ERRORS" if any(c["status"] == "ORACLE_ERROR" for c in cases) else "PREPARED_NOT_PARITY"
+                unchanged = report["originalSourcesUnchanged"] and project_hash == report["projectSha256After"]
+                finish(2 if not unchanged else 1 if report["status"] == "ORACLE_ERRORS" else 0)
             if args.new_empty_geometry:
                 # Control: what the Python application does with a blank Geometry of its own.
                 fc.app_obj.new_geometry_object()

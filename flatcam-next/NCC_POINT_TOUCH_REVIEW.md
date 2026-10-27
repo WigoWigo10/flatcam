@@ -1,5 +1,10 @@
 # NCC: preparação de componentes que se tocam em pontos — 2026-10-24
 
+Continuação em 2026-10-26: [NCC_OFFSET_LOADING_REVIEW.md](NCC_OFFSET_LOADING_REVIEW.md)
+reproduziu os dois erros Offset também após abrir o projeto no aplicativo
+Python real, com a representação original dos objetos e hashes intactos.
+Isso não muda os resultados nem eleva os erros abaixo a paridade.
+
 Continuação do commit `79f2aedd`, branch `flatcam-next`. A investigação começa
 na diferença B_Cu, painel 3×1 sem espaço, Rest + Itself + Connect, fresa de
 1 mm, registrada em [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md).

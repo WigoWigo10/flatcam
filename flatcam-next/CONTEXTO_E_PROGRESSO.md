@@ -1,5 +1,16 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## NCC Offset após carregamento Python real — 2026-10-26
+
+Sobre `cfbefb21`: diagnóstico `open_in_python_app.py --probe-ncc-offset` abriu
+o projeto atual no aplicativo Python original com preferências isoladas.
+F_Cu/B_Cu chegam como list[MultiPolygon]; controles sem Offset funcionam e
+ambos com Offset falham na construção MultiPolygon em ToolNCC.py:1934.
+Fonte/projeto intactos por hash. Dois erros continuam ORACLE_ERROR, não paridade.
+Sem correção justificada no FX nem alteração do algoritmo legado. Quatro testes
+novos do diagnóstico e limites em [NCC_OFFSET_LOADING_REVIEW.md](NCC_OFFSET_LOADING_REVIEW.md).
+Próxima etapa: validação visual dos fluxos integrados, depois benchmark GTX 1650.
+
 ## Saída com scripts não salvos — 2026-10-26
 
 Sobre `2877fbd8`: corrigida saída que ignorava abas ScriptEditorPanel não salvas.
