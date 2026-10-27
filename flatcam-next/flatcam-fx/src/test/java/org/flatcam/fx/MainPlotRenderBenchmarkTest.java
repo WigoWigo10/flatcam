@@ -63,6 +63,8 @@ class MainPlotRenderBenchmarkTest {
                 .put("densityAsync", System.getProperty("flatcam.plot.density.async", "true"))
                 .put("densityEnabled", !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density")))
                 .put("pixelBuffer", !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.pixelBuffer")))
+                .put("launchMode", System.getProperty("flatcam.plot.benchmark.launchMode", "MAVEN_SUREFIRE"))
+                .put("wideDensityEnabled", !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.wide")))
                 .put("jfrRequested", Boolean.getBoolean("flatcam.plot.benchmark.jfr"))
                 .put("indexAsync", System.getProperty("flatcam.plot.index.async", "true"))
                 .put("hardware", SystemHardwareInfo.collect().summary()).put("phases", phases);
@@ -90,7 +92,8 @@ class MainPlotRenderBenchmarkTest {
             });
             long loading = System.nanoTime();
             try (var marker = PlotBenchmarkJfr.phase("load-and-initial-ready", 0)) {
-                if (source != null) session.window.openProject(source); // Worker-side production decode/preview and FX restore.
+                // Discard only this benchmark's disposable initial fixture, never a user's live workspace.
+                if (source != null) session.window.openProject(source, true);
                 else fx(() -> {
                     view.clearLayers();
                     view.putLayer("synthetic-dense", PlotAreaView.LayerCategory.GEOMETRY, synthetic(),

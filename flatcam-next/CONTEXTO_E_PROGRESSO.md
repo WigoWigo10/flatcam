@@ -1,5 +1,22 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Benchmark GTX 1650 e fechamento da série — 2026-10-26
+
+Sobre `1c58cd71`: corrigido benchmark bloqueado pela própria fixture não salva;
+host JNI de teste `-Native` solicita GPU dedicada sem mudar preferências Windows.
+Java.exe selecionava Intel UHD; host confirmou GTX 1650. Quatro rodadas JFR
+sequenciais completas (GPU atual, GPU vetorial largo, SW, Geometry), fonte intacta.
+Zoom aquecido: fila p95 atual 21–25 ms, vetorial 59–72 ms, SW 161–166 ms;
+apagar/desfazer Geometry 93–108 ms até comandos prontos, 24 ações com undo correto.
+CPU QuantumRenderer/Marlin continua relevante. Sem renderer novo/LWJGL ou promessa
+de FPS. Manter densidade atual; próxima investigação: linhas de passes/apresentação.
+Dados, tentativas reprovadas e reprodução em [PLOT_GTX1650_REVIEW.md](PLOT_GTX1650_REVIEW.md).
+Suíte integral de fechamento `mvnw.cmd -q verify` aprovada: **1919 registros,
+1901 aprovações e 18 skips opcionais**, zero falhas/erros, contagem só de XML novos.
+Treze testes auxiliares Python aprovados. Não contar benchmarks opt-in como testes
+JUnit aprovados nem os dois erros Offset do legado como paridade.
+Executável recompilado; probes nativos D3D/GTX 1650 e software aprovados.
+
 ## Fluxos visuais integrados — 2026-10-26
 
 Sobre `9831e3d5`: 121 testes de 16 suítes aprovados; snapshots JavaFX reais do

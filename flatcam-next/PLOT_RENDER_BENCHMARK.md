@@ -1,5 +1,14 @@
 # Baseline e primeira fronteira do renderer
 
+## Atualização GTX 1650 — 2026-10-26
+
+`benchmark-plot.ps1 -Native` executa o mesmo benchmark em host JNI de teste
+com solicitação de GPU de alto desempenho, sem modificar o registro do Windows.
+Requer g++ UCRT64/JAVA_HOME. Confirme o adaptador ativo no JSON; a opção não
+garante escolha do driver. `-DisableWideDensity` compara corpos largos no Canvas,
+sem omissões. Corrigida a abertura da fixture sob a proteção de projeto não salvo.
+Resultados e limites: [PLOT_GTX1650_REVIEW.md](PLOT_GTX1650_REVIEW.md).
+
 2026-10-10, branch `flatcam-next`, base `780728b5`. Consultar `git log` para o
 commit desta entrega; sem push.
 
