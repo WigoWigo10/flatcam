@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Continuação: clipping de linhas e CPU por thread — 2026-10-26
+
+Sobre `32688546`: desenvolvido protótipo CanvasCncLineRenderer, opt-in
+`-CncLines CLIPPED`, que rejeita apenas segmentos externos ao Canvas com halo,
+sem mover endpoints/alterar geometria ou composição entre partes. Renderer
+normal segue REFERENCE; **não habilitar o protótipo por padrão**, pois quatro
+rodadas alternadas de 240 passos/3 repetições não mostraram ganho consistente.
+Mesmo evitando ~83,85% dos segmentos, p95 de display ficou ~50 ms. Num par
+adicional de 120 passos, QuantumRenderer CPU/FPS pioraram no protótipo.
+Counter ThreadMXBean por fase agora distingue CPU real por thread de amostras
+JFR e FPS; ausências não viram zero. Snapshots adicionais do Canvas principal,
+sem outros nós HUD/cursor, tiveram hashes idênticos REFERENCE/CLIPPED longe/perto.
+O experimento atende só passada sólida redonda 1,25 px; largura 7 px apresentou
+divergência em uma repetição e agora usa fallback original, sem relaxar tolerância.
+Novos controles e pares `-CncLineComparison -LinePairs 1..5` mantêm desenho inteiro.
+Suíte integral: **1928 registros, 1910 aprovados, 18 skips**, zero falhas/erros;
+12 testes Python aprovados. Matriz de pixels passou três vezes consecutivas;
+probes/lifecycle testados com CLIPPED. Fonte intacta em sete ensaios completos.
+Dados, tentativas, limites e próxima hipótese em
+[PLOT_CNC_LINE_CLIPPING.md](PLOT_CNC_LINE_CLIPPING.md). Próximo alvo: caminhos
+retidos/primitivas GPU com composição equivalente, não apenas reduzir comandos.
+
 ## FPS apresentado e separação de linhas/apresentação — 2026-10-26
 
 Sobre `207f83b9`: benchmark schema 4, FPS externo PresentMon 2.6.0/QPC por PID,

@@ -1,5 +1,9 @@
 # FPS apresentado e custo das linhas — GTX 1650, 2026-10-26
 
+Continuação: [PLOT_CNC_LINE_CLIPPING.md](PLOT_CNC_LINE_CLIPPING.md) documenta um
+protótipo sem descarte de trechos visíveis, comparação alternada, CPU por thread
+e capturas Canvas idênticas. Não houve ganho consistente; permanece desativado.
+
 ## Escopo e interpretação
 
 O benchmark agora mede **FPS de quadros apresentados atribuído pelo ETW**, via

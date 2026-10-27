@@ -2,6 +2,13 @@
 
 ## FPS apresentado e controles de linhas/imagens — 2026-10-26
 
+Continuação: `-CncLines REFERENCE|CLIPPED` compara a emissão anterior a um culling
+conservador experimental, sem omitir linhas visíveis. `-CncLineComparison` na
+série alterna pares; `threadCpuTime` acrescenta contadores CPU por thread, não
+tempo GPU. `-Snapshots` também exporta o Canvas principal para comparação sem
+cursor/HUD. Experimento não habilitado por padrão por falta de ganho consistente:
+[PLOT_CNC_LINE_CLIPPING.md](PLOT_CNC_LINE_CLIPPING.md).
+
 `-Native -PresentMon <executável>` acrescenta captura externa ETW por PID, FPS
 médio, 1% low e frame times. `report.json` agora usa schema 4; cadência UI em Hz
 continua explicitamente separada de FPS. `-RasterProbe OMIT_DRAW` isola emissão
