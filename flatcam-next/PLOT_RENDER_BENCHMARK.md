@@ -1,5 +1,16 @@
 # Baseline e primeira fronteira do renderer
 
+## FPS apresentado e controles de linhas/imagens — 2026-10-26
+
+`-Native -PresentMon <executável>` acrescenta captura externa ETW por PID, FPS
+médio, 1% low e frame times. `report.json` agora usa schema 4; cadência UI em Hz
+continua explicitamente separada de FPS. `-RasterProbe OMIT_DRAW` isola emissão
+das imagens preservando cálculo/publicação; não é paridade visual. Títulos
+identificam omissões e `-Snapshots` registra longe/perto após as fases medidas.
+`benchmark-plot-suite.ps1` executa os controles em série, com validação de metadata.
+Método, comandos, resultados e limites em [PLOT_PRESENTED_FPS.md](PLOT_PRESENTED_FPS.md).
+As baselines abaixo são históricas e não devem ser tratadas como medições de FPS.
+
 ## Atualização GTX 1650 — 2026-10-26
 
 `benchmark-plot.ps1 -Native` executa o mesmo benchmark em host JNI de teste

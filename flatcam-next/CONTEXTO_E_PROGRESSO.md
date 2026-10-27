@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## FPS apresentado e separação de linhas/apresentação — 2026-10-26
+
+Sobre `207f83b9`: benchmark schema 4, FPS externo PresentMon 2.6.0/QPC por PID,
+1% low e frame times separados de UI Hz; controle de omissão somente do drawImage
+preserva cálculo/publicação/readiness. Série serial compara FULL, sem linhas,
+sem imagens, ambos, PixelWriter, piso sem CNC, FULL final, SW e Geometry.
+Oito capturas de FPS completas; SW completou ações mas não gerou CSV de display:
+manifest da série fica INCOMPLETE, não nove aprovações. Fonte intacta em todos.
+Zoom aquecido FULL 37,73–39,23 FPS, recontrole 38,52–38,74; sem linhas 47,74–56,16;
+sem drawImage 37,13–39,87. Omissões NÃO são otimizações/paridade. 1% low ainda
+instável/baixo; investigar cache/batching das linhas mantendo o desenho inteiro.
+QuantumRenderer/Marlin continua relevante no JFR; não mede saturação/tempo GPU.
+Capturas FULL longe/perto inspecionadas e ambas renderizam; títulos agora avisam
+DESENHO OMITIDO nas sondas para evitar confusão com falha do aplicativo normal.
+Detalhes, limitações, tentativas reprovadas e comandos em [PLOT_PRESENTED_FPS.md](PLOT_PRESENTED_FPS.md).
+Suíte integral `mvnw.cmd -q verify`: 1921 registros novos, **1903 aprovados,
+18 skips opcionais**, zero falhas/erros. Onze testes Python novos aprovados.
+Host nativo final recompilado; probes de argumentos inválidos, imagem de processo
+errada e encerramento Ctrl+C em console isolado aprovados, sem elevação. Sessões
+ETW criadas pelos ensaios limpas; não houve alteração de preferências/registro.
+Artefatos privados só em target; série `plot-suite-20261026-214007-660`.
+
 ## Benchmark GTX 1650 e fechamento da série — 2026-10-26
 
 Sobre `1c58cd71`: corrigido benchmark bloqueado pela própria fixture não salva;
