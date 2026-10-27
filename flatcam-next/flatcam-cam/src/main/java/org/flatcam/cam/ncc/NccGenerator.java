@@ -119,7 +119,7 @@ public final class NccGenerator {
         List<Double> orderedTools = orderedToolDiameters(params);
         double initialOffset = params.restMachining() ? params.copperOffset()
                 : params.settingsFor(orderedTools.get(0)).copperOffset();
-        Geometry clearingArea = clearingArea(boundary, keepOutBase, initialOffset);
+        Geometry clearingArea = clearingArea(boundary, keepOutBase, initialOffset, params.restMachining());
         cancellation.throwIfCancellationRequested();
         progress.report(0.08);
 
@@ -153,7 +153,7 @@ public final class NccGenerator {
             NccToolSettings settings = params.settingsFor(toolDiameter);
             Geometry areaForThisTool = params.restMachining() ? remainingArea
                     : areaByOffset.computeIfAbsent(settings.copperOffset(), offset ->
-                            clearingArea(boundary, keepOutBase, offset));
+                            clearingArea(boundary, keepOutBase, offset, false));
             // All tools share one boundary and their copper keep-outs are
             // nested. The union of their clearable areas is the one with the
             // smallest offset; no expensive polygon union is needed here.
@@ -225,7 +225,7 @@ public final class NccGenerator {
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
                     : clearArea(areaForTool, diameter, settings, false, cancellation,
                             fraction -> progress.report((index + fraction) / tools.size()));
-            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR));
+            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR,areaForTool));
             if (!result.geometry().isEmpty()) {
                 combinedPaths.add(result.geometry());
             }
@@ -239,7 +239,8 @@ public final class NccGenerator {
                 org.locationtech.jts.operation.overlayng.OverlayNGRobust.union(requestedAreas), toolResults);
     }
 
-    private static Geometry clearingArea(Geometry boundary, Geometry isolationEnvelopeOrCopper, double copperOffset) {
+    private static Geometry clearingArea(Geometry boundary, Geometry isolationEnvelopeOrCopper,
+                                         double copperOffset, boolean restMachining) {
         // ToolNCC.get_tool_empty_area first creates the ISO envelope with
         // geo_steps_per_circle, then applies optional .buffer(ncc_offset)
         // with Shapely's DEFAULT 16 quadrant segments. Combining the radii
@@ -250,7 +251,17 @@ public final class NccGenerator {
         // classic overlay represents the same area but starts rings on different
         // vertices, changing paint_connect's endpoints and thus cutting moves.
         // Use the robust modern operation, not a fixture-specific ring rotation.
-        return OverlayNGRobust.overlay(boundary, keepOut, OverlayNG.DIFFERENCE).buffer(0);
+        Geometry difference = OverlayNGRobust.overlay(boundary, keepOut, OverlayNG.DIFFERENCE);
+        // GUI Rest passes the subtraction directly to its clearing loop. A zero
+        // buffer of the whole MultiPolygon nodes point-touching components again
+        // and can move their ring starts, changing erosion and Connect. Non-Rest
+        // cleans each polygon separately, without re-noding shared components.
+        if (restMachining || difference.isEmpty()) return difference;
+        List<Polygon> polygons = new ArrayList<>();
+        collectPolygons(difference, polygons);
+        List<Polygon> repaired = new ArrayList<>();
+        for (Polygon polygon : polygons) collectPolygons(polygon.buffer(0), repaired);
+        return difference.getFactory().buildGeometry(repaired);
     }
 
     private static Geometry isolationEnvelope(Geometry source, double radius, CancellationToken cancellation) {

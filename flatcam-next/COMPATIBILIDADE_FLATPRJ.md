@@ -1,5 +1,22 @@
 # Projetos Python 8.994 e FX
 
+## Drilling no aplicativo real — 2026-10-14
+
+Novo ensaio dos parâmetros Drill slots encontrou perda não vista nos codecs:
+Excellon.set_ui toma ajustes de app.options e build_ui substitui dados de todas
+as ferramentas. FX agora escreve ajustes uniformes também em opções do objeto
+e globais e recupera perfil/posições/ordem comuns válidos ao reabrir o legado.
+Parâmetros diferentes entre ferramentas/objetos novos/alterados são recusados
+antes de gravar; use `.fcnproj` ou projetos separados. Arquivo original legível
+inalterado ainda preservável por identidade/mesclagem, sem corrigir esse bug Py.
+
+Controles públicos MM/IN abertos/regravados no app Python real e reabertos no FX:
+ajustes, unidades e G-code regenerado conferidos. IN requer preferência inicial
+Python IN, pois set_ui também sobrescreve a unidade pelo default do aplicativo.
+O harness expõe `--initial-units IN` e registra a condição; não é prova de abrir
+IN mantendo preferências MM. Seleção/otimização próprias FX e todos os perfis
+não são validados por esse ciclo. Detalhes: [CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md).
+
 ## Correções da revisão — 2026-10-11
 
 - O aplicativo registra a origem dos objetos por identidade do item, não por

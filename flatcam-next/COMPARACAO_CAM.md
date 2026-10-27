@@ -1,5 +1,17 @@
 # Comparação reproduzível CAM: FX × Python
 
+## Inicializador GUI para todos os casos NCC — 2026-10-24
+
+`compare_cam_python.py` agora chama o inicializador GUI original também nos
+exports antigos de ferramenta única. A rotina auxiliar anterior desses
+exports aplicava `buffer(0)` ao conjunto da área; o GUI sem Rest limpa cada
+polígono separadamente. As métricas históricas de casos simples não provavam
+essa etapa do GUI. A regressão pública e a contraprova contra `79f2aedd`
+estão em [NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md).
+Só os metadados do schema são adaptados: sem mudar geometria, recipiente da
+origem, fontes do Python ou tolerâncias. Erros reais do legado continuam
+reprovando strict. Paint mantém seu ensaio direto anterior.
+
 ## ISO por membro e segunda união — resultado final 2026-10-11
 
 Sucessor de `9eb77ff6`: expandir cada membro original antes de unir os

@@ -23,8 +23,9 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         var pane = getDialogPane(); pane.setId("cnc-review-dialog"); pane.setPrefSize(900, 650); pane.setMinSize(460, 360);
         Label title = label(report.operation() + " — " + report.source()); title.getStyleClass().add("tool-title");
         Label units = label("Unidades: " + report.units() + " • Avanços: " + report.units() + "/min • Perfil: " + report.profile());
-        Label explanation = label("Confira os valores efetivos de cada ferramenta, na ordem de execução. "
-                + "Clique em um parâmetro para voltar ao campo correspondente. Nenhum arquivo foi gravado.");
+        boolean editable=report.operation().startsWith("Geometry") || report.operation().startsWith("Excellon");
+        Label explanation = label(editable ? "Confira os valores efetivos de cada ferramenta, na ordem de execução. Clique em um parâmetro para voltar ao campo correspondente. Nenhum arquivo foi gravado."
+                : "Confira as informações do programa existente. Campos não inferidos precisam ser consultados no editor de código; não são rascunhos CAM. Nenhum arquivo foi gravado.");
         toolDetails.setHgap(12); toolDetails.setVgap(5);
         var detailLeft = new ColumnConstraints(); detailLeft.setPercentWidth(50);
         var detailRight = new ColumnConstraints(); detailRight.setPercentWidth(50);
@@ -35,21 +36,23 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         column(table, "Ferramenta", CncPreflight.Tool::name);
         column(table, "Diâmetro", CncPreflight.Tool::diameter);
-        column(table, "Cut Z efetivo", CncPreflight.Tool::cutZ);
+        column(table, editable ? "Cut Z efetivo" : "Z mínimo (prévia)", CncPreflight.Tool::cutZ);
         column(table, "Travel Z", CncPreflight.Tool::travelZ);
         column(table, "Avanço XY", CncPreflight.Tool::feedXY);
         column(table, "Avanço Z", CncPreflight.Tool::feedZ);
         column(table, "RPM / potência", CncPreflight.Tool::power);
-        ToolDescriptions.apply(table, "Parâmetros por ferramenta", "A ordem é a enviada ao gerador. Cut Z efetivo inclui Offset Z na furação e a profundidade calculada para a ponta V. Valores — não se aplicam ao perfil. Selecione uma linha para revisar seus detalhes.");
+        ToolDescriptions.apply(table, "Parâmetros por ferramenta", editable
+                ? "A ordem é a enviada ao gerador. Cut Z efetivo inclui Offset Z na furação e a profundidade calculada para a ponta V. Valores — não se aplicam ao perfil. Selecione uma linha para revisar seus detalhes."
+                : "Dados extraídos do texto ou da prévia disponível. Z mínimo não é profundidade de usinagem validada. Consultar código indica valores variáveis ou não inferidos; nenhum rascunho CAM substitui o programa exportado.");
         table.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             toolDetails.getChildren().clear();
             if (selected != null) {
                 var entries = new java.util.ArrayList<>(selected.details());
                 String prefix = report.operation().startsWith("Geometry") ? "cnc" : "drill";
-                entries.add(new CncPreflight.Value("Travel Z", selected.travelZ(), new CncPreflight.Target(selected.key(), prefix.equals("cnc") ? "cnc-safe-z" : "drill-travel-z")));
-                if (!selected.feedXY().equals("—")) entries.add(new CncPreflight.Value("Avanço XY", selected.feedXY(), new CncPreflight.Target(selected.key(), "cnc-feed")));
-                entries.add(new CncPreflight.Value("Avanço Z", selected.feedZ(), new CncPreflight.Target(selected.key(), prefix + "-feed-z")));
-                entries.add(new CncPreflight.Value("RPM / potência", selected.power(), new CncPreflight.Target(selected.key(), prefix + "-power")));
+                entries.add(new CncPreflight.Value("Travel Z", selected.travelZ(), editable ? new CncPreflight.Target(selected.key(), prefix.equals("cnc") ? "cnc-safe-z" : "drill-travel-z") : null));
+                if (!selected.feedXY().equals("—")) entries.add(new CncPreflight.Value("Avanço XY", selected.feedXY(), editable ? new CncPreflight.Target(selected.key(), "cnc-feed") : null));
+                entries.add(new CncPreflight.Value("Avanço Z", selected.feedZ(), editable ? new CncPreflight.Target(selected.key(), prefix + "-feed-z") : null));
+                entries.add(new CncPreflight.Value("RPM / potência", selected.power(), editable ? new CncPreflight.Target(selected.key(), prefix + "-power") : null));
                 for (int i = 0; i < entries.size(); i++) toolDetails.add(editLink(entries.get(i)), i % 2, i / 2);
             }
         });
@@ -62,7 +65,7 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
                 text = "Área-alvo NCC disponível: use Ver cobertura no Plot para calcular os resíduos nominais por fresa, sem salvar G-code.";
             if (issue.target() == null) notices.getChildren().add(label(text));
             else {
-                Hyperlink link = editLink(new CncPreflight.Value(text, "Revisar…", issue.target()));
+                Hyperlink link = (Hyperlink)editLink(new CncPreflight.Value(text, "Revisar…", issue.target()));
                 if (issue.blocking()) link.getStyleClass().add("form-error-label");
                 notices.getChildren().add(link);
             }
@@ -77,7 +80,7 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
                 label("Esta revisão confere configurações; não aprova a usinagem nem substitui conferência de origem, fixação e teste a seco."));
         body.setPadding(new Insets(8)); body.setMinWidth(0);
         ScrollPane scroll = new ScrollPane(body); scroll.setFitToWidth(true); scroll.setMinSize(0, 0); pane.setContent(scroll);
-        var back = new ButtonType("Voltar ao painel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        var back = new ButtonType(editable ? "Voltar ao painel" : "Fechar revisão", ButtonBar.ButtonData.CANCEL_CLOSE);
         pane.getButtonTypes().addAll(CONTINUE, back);
         if (coverageAvailable) {
             pane.getButtonTypes().addFirst(COVERAGE);
@@ -91,7 +94,12 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         theme.applyTo(pane.getScene()); FluidTooltips.install(this, "Revisão CNC");
     }
 
-    private Hyperlink editLink(CncPreflight.Value value) {
+    private javafx.scene.Node editLink(CncPreflight.Value value) {
+        if (value.target()==null) {
+            var text=label(value.label()+": "+value.text());
+            ToolDescriptions.apply(text,"Valor do programa", "Informação extraída do programa existente. Para alterar, feche o resumo e use o editor de código.");
+            return text;
+        }
         Hyperlink link = new Hyperlink(value.label() + ": " + value.text()); link.setWrapText(true); link.setMinWidth(0);
         link.setMaxWidth(Double.MAX_VALUE); link.setUserData(value.target());
         ToolDescriptions.apply(link, "Revisar parâmetro", "Fecha este resumo e leva ao campo correspondente no painel, selecionando a ferramenta quando necessário. Não altera valores nem grava arquivos.");

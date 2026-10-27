@@ -10,6 +10,34 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class CncRoutingFieldsTest {
+    @Test void laserAllowsOnlyEndZAndXyAndPublishesTheSharedParkingSettings() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var f=new GeometryFactory();
+            var line=f.createLineString(new Coordinate[]{new Coordinate(10,7),new Coordinate(12,7)});
+            for(var profile:List.of(GCodePreprocessor.GRBL_LASER,GCodePreprocessor.Z_LASER,
+                    GCodePreprocessor.MARLIN_LASER_FAN_PIN,GCodePreprocessor.MARLIN_LASER_SPINDLE_PIN)) {
+                var p=new GeometryGCodeParameters(3,1,false,1,200,128,false,900);
+                var result=new java.util.concurrent.atomic.AtomicReference<GeometryCncToolPanel.Result>();
+                var root=(javafx.scene.Parent)GeometryCncToolPanel.build("MM",line,List.of(),p,result::set,()->{});
+                new javafx.scene.Scene(root);root.applyCss();root.layout();
+                @SuppressWarnings("unchecked") var profiles=(ComboBox<GCodePreprocessor>)root.lookup("#cnc-preprocessor");
+                profiles.setValue(profile);
+                assertTrue(root.lookup("#cnc-start-z").isDisabled());
+                assertTrue(root.lookup("#cnc-change-z").isDisabled());
+                assertFalse(root.lookup("#cnc-end-z").isDisabled());
+                assertFalse(root.lookup("#cnc-end-xy").isDisabled());
+                ((TextField)root.lookup("#cnc-end-z")).setText("0.5");
+                ((TextField)root.lookup("#cnc-end-xy")).setText("25;9");
+                ((Button)root.lookup("#cnc-generate")).fire();
+                assertNotNull(result.get(),((Label)root.lookup("#cnc-error")).getText());
+                assertEquals(.5,result.get().parameters().jobOptions().endZ());
+                assertEquals(25,result.get().parameters().jobOptions().endX());
+                assertEquals(9,result.get().parameters().jobOptions().endY());
+                assertNull(result.get().parameters().jobOptions().startZ());
+            }
+            return null;
+        });
+    }
     @Test void closedContinuousChoicePublishesAndAllowsPreservingDirection() throws Exception {
         TerminalPanelTest.fx(() -> {
             var f=new GeometryFactory();

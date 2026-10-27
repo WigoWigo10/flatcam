@@ -27,7 +27,11 @@ class GeometryPerToolTest {
             assertTrue(code.contains("Z-0.3000 F100.0000"), pp.name());
             assertTrue(code.contains("F200.0000"), pp.name());
             assertTrue(code.contains("S200"), pp.name());
-            assertTrue(code.contains("G4 P0.5"), pp.name());
+            String dwell = switch (pp) {
+                case ISEL_CNC, REPETIER, MARLIN, MARLIN_LASER_FAN_PIN, MARLIN_LASER_SPINDLE_PIN -> "G4 P500.0000";
+                default -> "G4 P0.5000";
+            };
+            assertEquals(2,code.lines().filter(line -> line.equals(dwell)).count(),pp.name()+code);
         }
     }
     @Test void extraCutOnlyExtendsClosedPathsAndRejectsExcess() {

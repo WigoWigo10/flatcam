@@ -1,5 +1,283 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## NCC: componentes que se tocam em pontos — 2026-10-24
+
+Continuação do commit `79f2aedd`, consolidada em commit separado (ver git log).
+Causa do caso B_Cu 3×1 encontrada: `buffer(0)` do conjunto inteiro recomeçava anéis em
+outros vértices. Rest Python não faz essa limpeza; sem Rest limpa cada
+polígono separadamente. FX agora segue ambas as políticas, sem mexer em Paint,
+tolerâncias, fontes do legado ou geometria de entrada. Regressão pública com
+losango/retângulo falhou antes e passou depois, MM/IN × Rest × Connect.
+8/8 controles públicos contra GUI Python passaram; 63 testes focados passaram;
+contraprova isolada com classe anterior falhou 10/10 e atual passou 10/10.
+O caso real isolado passou nas duas fresas (distâncias 5,68e-14/1,07e-14 mm).
+O comparador de ferramenta única também tinha limpeza extra; agora adapta
+só metadados e chama a GUI original. Regressão Python red/green 10/10 e
+28 testes passam. Validação final: **201 MATCH_SAMPLED, zero diferenças de
+CAM/G-code/parciais, 2 ORACLE_ERROR** em 203 controles/33 relatórios; strict
+continua 1. Os erros são Offset nas duas faces, sem prova de sessão GUI
+completa. Todos os NCC comparados agora usam o inicializador GUI original.
+Três layouts reais FX passaram, furos/reabertura nativa conferidos, fonte
+original intacta. 2×2 e públicos padrão reutilizam exports completos do
+código Java final; 3×1/avançado foram reexportados. Todos os ensaios Python
+foram refeitos. A matriz intermediária interrompida não conta como aprovada.
+Resumo privado: `target/ncc-seams-final-validation-20261024/index.html` e
+`summary.json`. Build final: 1868 aprovações/18 skips, zero falhas/erros.
+A primeira execução falhou em End Z de um teste Roland; não se repetiu nas
+reexecuções isolada, empacotada e integral. Causa não confirmada, log e
+expectativa preservados, mensagem de diagnóstico melhorada. Próximo: checar
+a representação/carga Python dos casos Offset; Connect 1 mm está encerrado
+neste corpus, sem afrouxar tolerâncias. Sem push.
+Detalhes e comandos: [NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md).
+
+## Três etapas: decisões GRBL, precisão nativa e matriz real — 2026-10-24
+
+Sobre `c52029c1`, commitado em `79f2aedd`, sem push. A revisão GRBL dos dois
+perfis voltou a 49/19/34/2/0 em 104 receitas cada, sem desvios dos parâmetros
+FX. [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md) fecha as receitas por
+política/operação/limite conhecido; não repetir essas diferenças como defeitos
+genéricos pendentes sem nova evidência. Gerador GRBL não foi alterado.
+Roland/HPGL agora mostram solicitado → arquivo e limites na revisão CNC,
+incluindo Depth/Offset, feeds, rápidos Roland e amostra XY. Exemplos não
+varrem todos os vértices; geração completa permanece em worker.
+[NATIVE_PRECISION_REVIEW.md](NATIVE_PRECISION_REVIEW.md).
+Nova matriz serial aceita várias fontes e três layouts por fonte, agrega
+falhas sem transformá-las em aprovação e preserva hashes originais.
+Uma fonte real disponível, mais públicos MM/IN: [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md).
+Matriz encerrada: **200 MATCH_SAMPLED / 1 DIFFERENT / 2 ORACLE_ERROR** em 203
+controles, strict exit 1. Três fluxos reais FX passaram com registro de furos,
+round-trip e fonte intacta. Nova pendência concreta: B_Cu 3×1 sem gap, NCC
+Rest+Itself+Connect, fresa 1 mm, distância 0,218295 mm; região a limpar igual,
+fresa 0,2 mm concordante. Repro isolado preserva a diferença; causa exata da
+conexão ainda não minimizada. Não marcar como diferença intencional só pelo
+IoU alto. Offset Python falhou em ambas as faces, linha 1934 ToolNCC.py,
+MultiPolygon de geometria aninhada; traceback isolado confirma handler.
+G-code nessa matriz é lido pelo parser Python, não comparação de duas
+gerações de comandos; usar comparador de parâmetros para isso.
+Verify integral: 1867 aprovações Java/18 skips opcionais, zero falhas/erros
+(1885 registros atuais); log `target/three-steps-full-final-20261024.log`.
+Repros privados em `target/three-steps-connect-repro-20261024`; não commitar
+geometria da placa. Próxima investigação deve partir desse caso específico,
+sem afrouxar tolerância nem repetir a revisão genérica dos mesmos 34 GRBL.
+
+## Laser por grupo — 2026-10-24
+
+Sobre `c8ae73cf`, etapa consolidada em commit na branch `flatcam-next`, sem push. Quatro perfis aceitam
+avanço/potência por grupo; Z_laser/Marlin também foco. GRBL simples recusa
+focos diferentes, sem inventar posicionamento Z. Transições desligadas pelo
+maior foco ativo, estacionamento comum e End Z automático do último grupo
+não vazio. Painel/revisão, persistência nativa/Python e join_geometry integrados.
+Auditor ampliado sem tratar grupo como ferramenta física: 32 receitas/perfil,
+zero problemas auditados FX; GRBL 0/32/0/0/0 e demais 0/0/32/0/0, strict
+reprovado. Controle fresagem GRBL inalterado 49/19/34/2/0. Python: 151 aprovados.
+Verify final: 1861 aprovações Java/18 skips opcionais, zero falhas/erros
+(1879 registros desta execução); log `target/laser-groups-full-final-20261024.log`.
+Detalhes/limites em [LASER_GROUPS.md](LASER_GROUPS.md).
+
+## Roland, HPGL, sonda e posições laser — 2026-10-24
+
+Cinco etapas sobre `ef1cefdb`, consolidadas em commit na branch `flatcam-next`, sem push. Comparador
+nativo Roland: 20 MM, 0/7/12/1/0 (execução/rota/usinagem/erro Python/erro FX).
+HPGL: 20 MM/IN com traços por caneta iguais, execução completa diferente;
+quantização de dois pedidos mantida como aviso em ambos. Corrigida assinatura
+HPGL vazia na integração local, com red/green/revert/red/green e dez repetições.
+Mach3: 16 contratos estáticos, sem contato/G92 físico inventado; strict não
+pode passar esse modelo. End Z/XY habilitado nos quatro lasers, com parada
+de potência, XY em altura livre e depois descida; Start Z/ajustes individuais
+continuam bloqueados. Corpus laser 28/perfil, zero problemas auditados FX.
+App Python real isolado: Roland/HPGL 4 gerações cada; sonda 3 e um erro real
+Dwell zero. Fontes intactas. Fluxos públicos: 27/28 MM + 27/28 IN, somente
+Seed estável deliberadamente diferente; strict continua reprovado.
+Verify integral final: 1854 aprovações Java/18 skips opcionais, zero falhas ou
+erros (1872 registros atuais, excluindo XML antigo). Python discovery: 150
+aprovados. Logs `target/series-full-final-20261024.log` e
+`series-python-final-20261024.log`. Avanço do leitor Mach3 também invalidado
+após M6, com teste negativo red/green/revert/red/green e nova comparação.
+Evidências, comandos e limites: [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md).
+
+## Quatro perfis laser — 2026-10-23
+
+Etapas Repetier/Berta e laser reunidas no commit de consolidação de
+2026-10-24 (ver git log), branch `flatcam-next`, sem push.
+Corrigido gerador laser que ignorava usesG94() e continuava emitindo G94 no
+Marlin; agora usa a regra do perfil. Dois Marlin laser também recebem M400
+após estacionamento final. Regressão red/green/red/green dez vezes, MM/IN.
+Leitor específico distingue trajetos iluminados em Z não negativo, potência
+bruta/PWM, foco, avanços, ordem/repetições e barreiras. 24 receitas por perfil:
+GRBL laser 0/24/0/0/0; Z_laser e dois Marlin 0/0/24/0/0. Zero problemas FX em
+shared/variable; fixed=900 detecta dois pedidos de rápido automático 1500 por
+perfil. Strict segue reprovado; não é equivalência física. Cabeçalho aninhado
+Z_laser é texto diagnóstico com aviso, não crash Python nem sintaxe validada.
+App Python real isolado gerou 16 controles; o foco depende do fluxo Start Z/
+troca do legado, sem modificar fontes. Tentativa FAN paralela sem relatório
+foi preservada; repetição serial passou, causa não determinada.
+Resumo CNC diferencia S/PWM de RPM físico e não promete Dwell/Extra Cut.
+Verify: 1869 registros, 1851 aprovados, 18 skips, zero falhas/erros. 134
+auxiliares Python; controle GRBL fresagem permanece 49/19/34/2/0.
+Detalhes em [LASER_PARITY.md](LASER_PARITY.md). Próximos candidatos:
+HPGL/Roland e sonda Mach3; posições laser avançadas continuam fora do port.
+
+## Repetier/Berta — 2026-10-23
+
+Manual/Custom commitado em `a0f19c06`, branch `flatcam-next`, sem push.
+Próxima etapa local: corrigido Dwell Repetier/Marlin (segundos da UI → P em
+milissegundos), inclusive regra compartilhada dos lasers; removido G94 do
+Repetier e a regra dos lasers Marlin. O gerador laser ainda ignorava essa
+regra; sua emissão efetiva foi corrigida na etapa laser acima.
+Regressão red/green/red/green dez vezes.
+Harness aceita Repetier/Berta: FAN PWM não é RPM, @pause é pedido ao operador,
+M84 não garante preservar referência. Berta M110/M111/G54 não são simulados
+nem tratados como no-ops conhecidos. Resumo CNC explicita esses limites.
+104 receitas por perfil: Repetier 0/0/100/2/2 (FX_ERROR são dois limites do
+leitor sem ferramenta inicial conhecida, não erros de geração); Berta
+0/68/34/2/0. Strict reprovado, sem promoção a paridade. Três controles normais
+gerados pelo app Python real isolado; Dwell zero falha nos dois perfis.
+Marlin nos três modos agora 0/44/58/2/0, GRBL controle inalterado 49/19/34/2/0.
+Verify integral: 1858 registros, 1840 aprovados, 18 skips opcionais, zero
+falhas/erros (`target/repetier-berta-full-20261023.log`). 119 auxiliares Python
+na descoberta completa, não 119 testes novos. Etapa posteriormente reunida
+com laser no commit de consolidação de 2026-10-24, sem push.
+Detalhes/reprodução em [REPETIER_BERTA_PARITY.md](REPETIER_BERTA_PARITY.md).
+Próximos: leitores/contratos laser, HPGL/Roland e sonda Mach3; frames ICP e
+seleção Custom continuam separados. Hardware e macros específicos dependem
+de configuração real, não podem ser certificados pelo comparador.
+
+## Troca Manual/Custom — 2026-10-23
+
+ICP commitado em `4552cf00`. Manual Geometry agora usa Feed Z por ferramenta
+no ajuste em Z0 e reemite G90 antes dos movimentos entre pausas. Resumo CNC
+mostra avanço real/avisos; Custom continua Tn/M6 sem M0 extra, macro não simulada.
+104 controles por perfil: Manual 20/48/34/2/0; Custom 0/0/0/104/0, com 102
+seleções implícitas não modeladas e dois erros reais Dwell zero. Nenhum desvio
+auditado FX. Não chamar os 102 limites Custom de crashes ou defeitos físicos.
+App real isolado confirmou; ensaio corrigiu campo XY vazio de None para `""`.
+Regressões red/green/red/green; 62 auxiliares Python aprovados. Detalhes em
+[TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md). Etapa commitada em `a0f19c06`, sem push.
+Verify integral aprovado: 1829 passaram, 18 skips opcionais (1847 registros,
+incluindo repetições), zero falhas/erros. Log `target/toolchange-full-20261023.log`.
+
+## ISEL_ICP_CNC: velocidades e fim nativo — 2026-10-23
+
+line_xyz commitado em `09486037`. ICP passa a emitir Feed rapids via FASTVEL,
+checar cancelamento durante conversão e recusar arquivo nativo sem PROGEND.
+Leitor independente modela unidades inteiras, velocidades separadas e GETTOOL
+opaco. 52 MM: zero erros FX; strict reprovado por 51 WPCLEAR fora do modelo de
+referência e uma falha Python real de Dwell zero. Não chamar os 51 de crashes.
+48 avisos FX de avanço são quantização frente ao solicitado, sem desvio do
+truncamento declarado e sem relaxar tolerância. App Python real isolado
+confirmou finalização nativa e a falha Dwell zero, fontes preservados.
+Regressões red/green/red/green dez vezes por caso; 55 auxiliares Python.
+Evidências/limites em [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md).
+Verify integral aprovado: 1804 passaram, 18 skips opcionais (1822 registros,
+incluindo repetições), zero falhas/erros. Log `target/icp-full-20261023.log`.
+Etapa ICP posteriormente commitada em `4552cf00`; macros e referenciais físicos não simulados.
+
+## line_xyz: coordenadas desconhecidas e Python real — 2026-10-23
+
+ISEL commitado em `a1fa7204`. Próxima etapa corrige conversão XYZ do FX:
+subida inicial e restauração após M6 não inventam/reutilizam X/Y; cancelamento
+é consultado durante a conversão. Regressões comprovadas red/green/red/green,
+dez repetições por caso. Prévia continua sem simular a macro física.
+Python real isolado confirmou erros de cabeçalho `end_xy`, Y=X na troca e
+dwell zero, inclusive criação de textos parciais. Nada foi corrigido nos
+fontes Python para fazer o ensaio passar. Corpus 104: zero FX_ERROR e nenhum
+desvio de parâmetros FX, 104 ORACLE_ERROR, strict reprovado. GRBL inalterado.
+Detalhes/artefatos/comandos em [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md).
+Verify integral final aprovado: 1770 passaram, 18 skips opcionais, zero
+falhas/erros (1788 registros, incluindo repetições); 48 auxiliares Python.
+Primeiro verify teve erro intermitente de limpeza JUnit em teste Tcl, não
+ocultado: logs e causa ainda não confirmada registrados na revisão.
+Etapa posteriormente commitada em `09486037`; ICP ampliado na seção acima.
+
+## ISEL Remote: unidades de Dwell e parada — 2026-10-23
+
+Marlin commitado em `4fcc2a3a`. ISEL_CNC corrige Dwell s→ms, termina com M30
+após estacionamento e recusa T fora de 1–128. Alturas/XY de troca FX mantidos.
+Manual Remote DIN/ISO não descreve M01 como simples chave opcional: ensaio
+agora explicita Remote / optional-enabled / optional-disabled; o último acusa
+a pausa solicitada que não seria executada. Base MM apenas, sem simular M06.
+Corpus 52 por modo: 0/22/29/1/0. FX sem problemas nos modos Remote/enabled;
+disabled é incompatível com as pausas solicitadas, não é promovido a paridade.
+Regressão do dwell falhou antes, passou depois, falhou com a conversão retirada
+e passou dez vezes restaurada. Detalhes em [ISEL_PARITY.md](ISEL_PARITY.md).
+Contexto central de QA registrado em `../.agents/qa-project-context.md`.
+Verify final aprovado: 1737 passaram, 18 opcionais ignorados (1755 registros),
+zero falhas/erros; 36 auxiliares Python passaram. Log final:
+`target/isel-contract-full-final-20261023.log`. Primeira rodada completa achou
+uma expectativa antiga de segundos em todos os perfis; preservada no log
+`target/isel-contract-full-20261023.log`, corrigida com asserções mais exatas.
+ISEL posteriormente commitado em `a1fa7204`; nenhum ensaio físico.
+
+## Contrato Marlin e modos G0 — 2026-10-23
+
+Série anterior commitada até `45771879`. Revisão Marlin remove G94 do perfil
+de fresagem/furação, acrescenta M400 após estacionamento final e explicita
+pré-condições de RPM/Tn/M6/M0/IN na revisão. Comparador agora diferencia feed
+compartilhado, variável e fixo conforme configuração do firmware. Omissão de F
+no Python não é defeito universal: em fixed=1500 a quantidade de programas
+Python com avisos cai de 102 para apenas oito. FX sem problemas
+auditados nos 104 controles de cada modo, mas strict permanece reprovado:
+0/68/34/2/0. Não confundir correção do ensaio com aumento de paridade.
+Referências, comandos, evidências e limites em [MARLIN_PARITY.md](MARLIN_PARITY.md).
+Verify integral passou: 1732 aprovados, 18 opcionais ignorados (1750 registros),
+zero falhas/erros; 35 auxiliares Python passaram. GRBL manteve 49/19/34/2/0.
+Alterações desta etapa ainda sem commit/push; nenhuma validação física.
+
+## Série trajetos/exportações/perfis — 2026-10-23
+
+Seis lacunas anteriores commitadas em `faa27fb2`. Etapa 1 investigada:
+relatório CNC agora mostra cortes sem correspondência/sentido inverso e
+distâncias/alturas de rápidos por ferramenta, sem relaxar strict. Nos 104
+controles DEFAULT_NO_M6 não houve problema novo nos parâmetros FX; diferenças
+de ordem, estratégia de passes e operação foram mantidas explícitas. 30 testes
+auxiliares passam. Evidência e limites em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+Etapa 2: rascunhos/Calibration/SolderPaste e CNC existente compartilham revisão
+assíncrona e publicação protegida. Paste gera/ordena fora da UI e aceita
+cancelamento; avisos específicos distinguem calibração/dispensação de fresagem.
+111 testes passaram, um opcional ignorado. Etapa 3 acrescenta Marlin, ISEL MM e
+line_xyz ao comparador. Nenhum problema auditado nos parâmetros FX; novas
+divergências legadas de rápidos/troca são explícitas e line_xyz original falha
+nos 104 controles. GRBL mantém os resultados anteriores. 33 auxiliares Python
+passam. Não declarar equivalência total dos novos perfis nem corrigir fontes
+do legado para melhorar o placar. Resultados completos no documento da série.
+Verify final aprovado: 1727 passaram, 18 opcionais ignorados, zero falhas/erros
+(1745 registros); log `target/cnc-three-step-full-20261023.log`. Etapas anteriores
+commitadas em `11f1ab93` e `e46df638`; sem push.
+
+## Série das seis lacunas CNC — 2026-10-14
+
+Drill slots anterior commitado em `b467b9bd`. Percorridos os seis pontos em série:
+round-trip real dos novos parâmetros (com correção de exportação/importação),
+rasgos em painéis MM/IN com duas ferramentas e Over/Around, diagnóstico de
+cortes/ordem por ferramenta, quatro perfis XYZ no comparador, revisão de CNC
+existente/Terminal e transporte de cobertura conhecida + Paint.
+
+Descoberta real: o Python Excellon copia opções globais ao objeto e dados de
+todas as ferramentas ao abrir. Exportação agora espelha os ajustes uniformes
+também no objeto/global; combinações novas/alteradas incompatíveis são recusadas
+sem tocar o destino. Legado inalterado ainda preservável. Formato nativo guarda
+valores individuais. IN exige preferência inicial Python IN; o harness torna
+esta precondição explícita, sem alterar preferências reais. FX reabre os arquivos
+regravados, recupera ajustes/perfil/posições e regenera os programas dos controles.
+
+Cada perfil (GRBL_11_NO_M6, GRBL_11, DEFAULT, DEFAULT_NO_M6): corpus 104,
+49 execuções iguais, 19 rotas diferentes, 34 cortes/ordem/operação diferentes,
+dois erros Python, zero FX e zero problemas na auditoria de parâmetros FX.
+Strict permanece reprovado. Não certificar M6 interno/sonda/laser/outros dialetos.
+
+Salvar como CNC usa revisão assíncrona, estatísticas/texto reais, diálogo e
+publicação atômica com guard de versão/cancelamento. Terminal imprime revisão
+separada (sem contaminar retorno G-code). Alvos NCC/PAINT acompanham affine,
+cópia e panelização; escala recalcula cobertura com diâmetro real inalterado.
+Buffer/edição arbitrária e alvos ausentes continuam sem cobertura inferida.
+
+Verify completo: 1737 registros, 1719 aprovados, 18 skips opcionais, zero
+falhas/erros; ajuste final de UI/cobertura aprovado em testes específicos.
+28 auxiliares Python aprovados. Evidências/limites completos e próximas ações:
+[CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md). Novas alterações sem commit/push.
+Próximos: testar novo diálogo/FileChooser manualmente; famílias fora do leitor;
+seleções/otimizações exclusivas FX no legado; exportadores soltos e alvos genéricos.
+
 ## Drill slots — 2026-10-14
 
 Contraste commitado em `a3bfa7d5`. Nova lacuna implementada: Drilling converte

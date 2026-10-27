@@ -1,5 +1,138 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## NCC por componente e GUI original em todos os controles — 2026-10-24
+
+[NCC_POINT_TOUCH_REVIEW.md](NCC_POINT_TOUCH_REVIEW.md): corrigida limpeza extra
+que mudava os inícios dos anéis e os caminhos Rest/Connect. Sem Rest, limpa
+cada polígono separadamente; Rest usa a subtração diretamente. O comparador
+antigo de ferramenta única também tinha a limpeza extra e agora chama a
+GUI original. Regressões públicas comprovadas antes/depois, 10/10 repetições.
+Final: **201 MATCH_SAMPLED / 0 diferenças CAM/G-code/parciais / 2 ORACLE_ERROR**
+em 203 controles. Três layouts reais e 148 públicos, fonte intacta. Os dois
+erros são Offset Python nas duas faces e não contam como paridade. Todos
+os fluxos FX passaram; verify 1868 aprovações/18 skips. Há uma falha isolada
+anterior de teste End Z não reproduzida, registrada no relatório.
+
+## Revisão GRBL, precisão nativa e matriz real — 2026-10-24
+
+GRBL conhecido classificado em [GRBL_PATH_DECISIONS.md](GRBL_PATH_DECISIONS.md),
+sem defeito FX identificado nos 208 controles dos dois perfis. Revisão de
+precisão Roland/HPGL implementada/testada: **C**, não validação física.
+Uma fonte real em 3 layouts mais públicos MM/IN: 200/203 concordâncias;
+uma diferença de Connect em B_Cu 3×1 sem gap/fresa 1 mm e duas falhas Python
+Offset permanecem reprovadas. Fluxos FX, registro de furos e round-trip
+passaram; fonte intacta. [MAIN_FLOW_MATRIX.md](MAIN_FLOW_MATRIX.md).
+G-code da matriz é interpretação do FX pelo parser Python, não prova de
+duas gerações idênticas. Verify 1867 aprovações/18 skips, zero falhas/erros.
+
+## Laser por grupo — 2026-10-24
+
+Avanço/potência e foco Z_laser/Marlin individuais, com transições, revisão e
+persistência testadas: **C**, não A global. GRBL simples mantém foco comum.
+32 receitas/perfil, sem problemas nos parâmetros FX; GRBL 0/32/0/0/0 e demais
+0/0/32/0/0. Strict reprovado, sem simulação de feixe ou controlador físico.
+[LASER_GROUPS.md](LASER_GROUPS.md) substitui a pendência genérica de parâmetros
+individuais abaixo nesse escopo; Multi-Depth/Dwell/Extra Cut não foram habilitados.
+Verify final: 1861 aprovações Java/18 skips opcionais e 151 auxiliares Python,
+zero falhas/erros. Aparência em janela e máquina não validadas nesta rodada.
+
+## Perfis nativos, sonda e laser — 2026-10-24
+
+Roland e HPGL com leitores/auditoria independentes: **C**, não A global.
+20 Roland MM: 0/7/12/1/0; 20 HPGL MM/IN: 0/20/0/0/0, preservando diferenças
+de quantização e encerramento. Mach3: 16 contratos estáticos, contato físico
+desconhecido, sem equivalência de execução. End Z/XY laser habilitado e
+testado em MM/IN; parâmetros por grupo permanecem pendentes. Corpus laser
+28/perfil: GRBL 0/28/0/0/0; outros três 0/0/28/0/0, auditoria FX sem problemas.
+Fluxos públicos 27/28 MM e IN, Seed estável deliberadamente diferente;
+strict segue reprovado. [NATIVE_PROBE_LASER_PARITY.md](NATIVE_PROBE_LASER_PARITY.md).
+Verify final: 1854 aprovações Java/18 skips opcionais, zero falhas/erros;
+150 auxiliares Python aprovados. Não é validação física nem paridade global.
+
+## Perfis laser — 2026-10-23
+
+G94 do gerador laser corrigido (não apenas helper), M400 final nos Marlin,
+leitor XY/potência/foco por perfil e revisão CNC: **C**, não A global.
+24 receitas por perfil: GRBL 0/24/0/0/0; Z_laser, FAN e SPINDLE 0/0/24/0/0.
+Sem erros de leitura; diferenças de foco/comandos e sintaxe não validada
+impedem equivalência. App real gerou 16 controles isolados, não teste físico.
+1851 Java aprovados/18 skips, 134 auxiliares Python. [LASER_PARITY.md](LASER_PARITY.md).
+
+## Repetier/Berta e Dwell Marlin — 2026-10-23
+
+Conversão correta de tempo para G4 P em ms e dialeto sem G94; PWM FAN,
+pausa de host e macros Berta explicitados: **C**, não A global.
+Repetier 0/0/100/2/2: dois FX_ERROR são seleção inicial não conhecida pelo
+leitor, não crashes do gerador. Berta 0/68/34/2/0, com limite obrigatório de
+macros/origem não modeladas. Nenhum strict aprovado nem máquina certificada.
+Marlin atualizado 0/44/58/2/0, GRBL inalterado. Verify 1840 passam/18 skips;
+119 auxiliares Python. [REPETIER_BERTA_PARITY.md](REPETIER_BERTA_PARITY.md).
+
+## Troca Manual/Custom — 2026-10-23
+
+Feed Z por ferramenta no ajuste manual, G90 entre pausas, resumo e auditoria
+de fases/macros: **C**, não A global. Manual 20/48/34/2/0; Custom 0/0/0/104/0
+(102 seleções de ferramenta opacas, dois Dwell zero). FX sem desvios auditados.
+App Python isolado confirmou sequências, não interação GUI/máquina.
+Campo vazio no ensaio agora é `""`, diferente de None no legado.
+[TOOLCHANGE_PARITY.md](TOOLCHANGE_PARITY.md).
+
+## ISEL_ICP_CNC nativo — 2026-10-23
+
+FASTVEL, conversão cancelável, PROGEND obrigatório na prévia e leitor próprio:
+**C**, não A. 52 MM sem erro de leitura FX, mas 48 avisos de resolução inteira
+de avanço mantidos. Strict 52 ORACLE_ERROR: 51 limites de referência WPCLEAR,
+uma falha Dwell zero. Prefixos por ferramenta não provam execução completa;
+sem GUI/máquina certificada. [ISEL_ICP_PARITY.md](ISEL_ICP_PARITY.md).
+
+## line_xyz — contrato de coordenadas e app real — 2026-10-23
+
+Subida inicial/restauração pós-M6 sem XY inventados e conversão cancelável:
+**C**. Python real isolado confirmou erro de cabeçalho, Y=X na troca e texto
+parcial apesar de erros. 104 ORACLE_ERROR / zero FX_ERROR, sem equivalência
+global A; controlador precisa aceitar preâmbulo vertical. Sem validação física.
+Detalhes: [LINE_XYZ_PARITY.md](LINE_XYZ_PARITY.md).
+
+## ISEL_CNC Remote — 2026-10-23
+
+Dwell corrigido para ms, M30 após estacionamento, faixa T1–T128 e semântica
+de M01 explícita no leitor: **C**, não equivalência global A. Corpus MM 52:
+0/22/29/1/0. Remote e variante opcional habilitada sem problemas auditados FX;
+opcional desabilitada acusa pausa ausente. A caracterização histórica de M01
+como opcional universal foi corrigida conforme o manual Remote. IN e macros
+físicas não foram validados. [ISEL_PARITY.md](ISEL_PARITY.md).
+
+## Marlin CNC — revisão de configuração — 2026-10-23
+
+Sem G94 na saída, M400 após estacionamento, avisos de configuração e leitor
+G0 shared/variable/fixed: **C**. Auditoria FX sem problemas em 104 controles
+MM/IN por modo; strict segue 0/68/34/2/0, não A global. Omissão de F no legado
+depende da configuração: em fixed=1500 mm/min ficam oito programas Python
+com avisos, não 102. Tn/M6/M0, S em RPM e IN exigem configuração compatível;
+não há certificação de firmware ou máquina. [MARLIN_PARITY.md](MARLIN_PARITY.md).
+
+## Trajetos, exportações e perfis — 2026-10-23
+
+Diagnóstico por fresa ampliado sem relaxar strict. Rascunhos, Calibration e
+SolderPaste agora passam por revisão/worker/publicação protegida: **C**, não
+validação física. Comparador inclui Marlin (MM/IN), ISEL_CNC (somente MM) e
+line_xyz além dos quatro perfis anteriores. Nenhum erro de parâmetros FX no
+corpus; novos perfis NÃO atingem equivalência completa. line_xyz Python falha
+nos 104 controles, portanto não recebe A. M400, G0/F e M01 opcional são eventos
+explícitos; não se simulam macros. Evidências, diferenças e limites em
+[CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+
+## Série CNC: seis lacunas — 2026-10-14
+
+Round-trip real de Drill slots com parâmetros uniformes e preferência de unidade
+correta, importação de perfil/posições comuns, testes de panel/diagonal/exclusões,
+diagnóstico por ferramenta, quatro perfis XYZ, revisão de exportação existente/
+Tcl, transporte de alvos e Paint: **C**, com evidência comparativa apenas nos
+controles aprovados. Outros dialetos, GUI/máquina e alvos ausentes não ficam A.
+As restrições de `.FlatPrj` agora protegem contra a sobrescrita que o próprio
+Python faz em dados Drilling diferentes; nativo mantém esses valores.
+Escopo, evidências e limites: [CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md).
+
 ## Drill slots — 2026-10-14
 
 Furar rasgos por sobreposição/último furo, por ferramenta, preservando fresagem

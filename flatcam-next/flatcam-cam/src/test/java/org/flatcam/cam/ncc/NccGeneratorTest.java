@@ -79,9 +79,11 @@ class NccGeneratorTest {
             var restResult = NccGenerator.generate(scale == 1 ? "MM" : "IN",source,restParams);
             Geometry expectedWithoutOffset = org.locationtech.jts.operation.overlayng.OverlayNGRobust.overlay(
                     reference,NccCopperUnion.union(iso,CancellationToken.none()),
-                    org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE).buffer(0);
+                    org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE);
             Geometry onlyOneUnion = org.locationtech.jts.operation.overlayng.OverlayNGRobust.overlay(reference,
-                    iso,org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE).buffer(0);
+                    iso,org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE);
+            // Unlike non-Rest, the original GUI Rest does not repair the
+            // subtraction with buffer(0) before processing its polygons.
             assertTrue(restResult.clearingArea().equalsExact(expectedWithoutOffset,1e-12*scale));
             assertFalse(expectedWithoutOffset.equalsExact(onlyOneUnion,1e-12*scale),
                     "The fixture must distinguish the second union even with zero area difference");
@@ -492,6 +494,34 @@ class NccGeneratorTest {
                         "Connect's endpoint must follow modern overlay, not an arbitrary ring rotation");
             }
         }
+    }
+
+    @Test
+    void pointTouchingAreaSeamsSurvivePreparationAcrossRestConnectAndUnits() throws Exception {
+        // Independent public fixture: a diamond touches both edges of a rectangle.
+        // Original ToolNCC GUI Rest passes the subtraction straight to clear_polygon;
+        // buffer(0) rotates the right component from (30,20) to (5,0), changing
+        // its erosion and connectors despite preserving exactly the same area.
+        Geometry source = new org.locationtech.jts.io.WKTReader().read(
+                "POLYGON ((5 20,2 10,5 0,8 10,5 20))");
+        Geometry reference = FACTORY.toGeometry(new Envelope(0,30,0,20));
+        for (double u : List.of(1.,1/25.4)) for (boolean rest : List.of(false,true))
+            for (boolean connect : List.of(false,true)) {
+                var transform = org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(u,u);
+                Geometry copper = transform.transform(source);
+                var result = NccGenerator.generate(u == 1 ? "MM" : "IN",copper,
+                        new NccParameters(List.of(u),.4,0,NccMethod.STANDARD,connect,true,0,
+                                rest,NccOrder.NONE,new NccBoundary.ReferenceGeometry(transform.transform(reference))));
+                // Original ToolNCC GUI and camlib, Shapely 1.8.5.post1 / GEOS
+                // 3.10.3, 64 quadrant segments, overlap .4; no normalized rings.
+                double expectedLength = connect ? 883.6995235475384 : 851.9040249778097;
+                String mode = "Rest="+rest+", Connect="+connect+", scale="+u;
+                assertEquals(expectedLength*u,result.totalLength(),1e-7*u,mode);
+                assertEquals(.24819156614456692*u,result.geometry().distance(FACTORY.createPoint(
+                        new Coordinate(15.681143036676945*u,7.957126919275144*u))),1e-9*u,mode);
+                assertTrue(result.clearingArea().isValid(),mode);
+                assertEquals(0,result.totalFailedPolygonCount(),mode);
+            }
     }
 
     @Test

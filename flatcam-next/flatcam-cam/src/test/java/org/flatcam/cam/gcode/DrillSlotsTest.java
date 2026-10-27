@@ -10,6 +10,28 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class DrillSlotsTest {
+    @Test void diagonalSlotsInMetricAndInchPanelsKeepToolIdsPeckCountsAndMixedExclusions() {
+        for (String units : List.of("MM","IN")) {
+            double s=units.equals("MM") ? 1 : 1/25.4;
+            var source=ExcellonImage.of(units,Map.of(1,s,2,s),List.of(new ExcellonImage.Drill(1,8*s,0)),
+                    List.of(new ExcellonImage.Slot(1,3*s,4*s,0,0),new ExcellonImage.Slot(2,10*s,s,12*s,s)),factory.createPolygon());
+            var panel=org.flatcam.cam.panel.Panelize.excellon(source,new org.flatcam.cam.panel.Panelize.Layout(2,2,false,20*s,10*s));
+            var chain=new DrillGCodeParameters(3*s,.8*s,100*s,10000,true,true,.4*s,false,0,0)
+                    .withSlots(new DrillSlotParameters(true,0,true));
+            var mill=chain.withSlots(DrillSlotParameters.milling());
+            var over=CncExclusionArea.of(factory.toGeometry(new Envelope(4*s,6*s,-.1*s,.1*s)),CncExclusionArea.Strategy.OVER,7*s);
+            var around=CncExclusionArea.of(factory.toGeometry(new Envelope(8*s,9*s,4*s,6*s)),CncExclusionArea.Strategy.AROUND,0);
+            var options=new GCodeGenerator.DrillJobOptions(true,15*s,5*s,null,null)
+                    .withOptimizedDrills(true).withExclusions(true,List.of(over,around));
+            var job=GCodeGenerator.generateDrillCncJob(panel,Map.of(1,chain,2,mill),List.of(1,2),options,GCodePreprocessor.GRBL_11_NO_M6);
+            assertEquals(64,job.gcode().lines().filter(line -> line.matches("G0?1 Z-.*")).count());
+            assertEquals(8,job.gcode().lines().filter(line -> line.matches("G0?1 X.*")).count());
+            assertEquals(8,panel.totalSlots()); assertEquals(4,panel.totalDrills());
+            assertEquals(2,source.totalSlots()); assertEquals(1,source.totalDrills());
+            assertFalse(job.cutGeometry().intersects(over.geometry()));
+            assertFalse(job.cutGeometry().intersects(around.geometry()));
+        }
+    }
     private final GeometryFactory factory = new GeometryFactory();
     private List<ExcellonImage.Drill> points(ExcellonImage.Slot slot, double diameter, double overlap, boolean last) {
         var points = new ArrayList<ExcellonImage.Drill>();

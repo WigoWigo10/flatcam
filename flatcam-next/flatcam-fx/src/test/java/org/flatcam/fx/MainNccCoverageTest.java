@@ -16,6 +16,30 @@ import org.junit.jupiter.api.condition.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class MainNccCoverageTest {
+    @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory;
+    @Test void paintPublishesItsActualClearingAreaAndPersistsKnownCoverage() throws Exception {
+        try (var session=new MainCamFlowTest.Session("MM")) {
+            var params=new org.flatcam.cam.ncc.PaintParameters(List.of(1.0),.2,0,
+                    org.flatcam.cam.ncc.NccMethod.STANDARD,false,true,org.flatcam.cam.ncc.NccOrder.NONE,false);
+            var handle=TerminalPanelTest.fx(()->{
+                call(session.window,"runPaintGeneration",new Class<?>[]{TreeItem.class,String.class,org.locationtech.jts.geom.Geometry.class,org.flatcam.cam.ncc.PaintParameters.class},
+                        session.reference,"MM",session.referenceGeometry,params);
+                return (JobHandle<?>)field(session.window,"runningJob");
+            });
+            session.release.countDown(); handle.completion().get(15,TimeUnit.SECONDS); session.awaitUi();
+            var snapshot=TerminalPanelTest.fx(()->{
+                var entry=session.geometries().entrySet().stream().filter(e->e.getKey().getValue().endsWith("_paint")).findFirst().orElseThrow().getValue();
+                var target=(MachiningTarget)component(entry,"machiningTarget"); assertNotNull(target);
+                assertEquals("PAINT",target.operation()); assertEquals(session.referenceGeometry.getArea(),target.area().getArea(),1e-8);
+                var saved=(ProjectFile)call(session.window,"snapshotProject",new Class<?>[]{});
+                assertTrue(saved.geometries().stream().anyMatch(e->e.machiningTarget()!=null && e.machiningTarget().operation().equals("PAINT")));
+                return saved;
+            });
+            var file=directory.resolve("paint.fcnproj"); org.flatcam.app.project.ProjectFileIO.save(snapshot,file,true);
+            var loaded=org.flatcam.app.project.ProjectFileIO.load(file);
+            assertTrue(loaded.geometries().stream().anyMatch(e->e.machiningTarget()!=null && e.machiningTarget().operation().equals("PAINT")));
+        }
+    }
     static Object component(Object record, String name) throws Exception {
         var method = record.getClass().getDeclaredMethod(name); method.setAccessible(true); return method.invoke(record);
     }
@@ -25,7 +49,7 @@ class MainNccCoverageTest {
     static Object field(MainWindow window, String name) throws Exception {
         var field = MainWindow.class.getDeclaredField(name); field.setAccessible(true); return field.get(window);
     }
-    @Test void realNccPublicationPreservesTargetAnalysisIsReadOnlyAndTransformInvalidatesIt() throws Exception {
+    @Test void realNccPublicationPreservesTargetAnalysisIsReadOnlyAndAffineTransportRetainsIt() throws Exception {
         try (var session = new MainCamFlowTest.Session("MM")) {
             var ncc = session.start("NCC",true); session.release.countDown(); ncc.completion().get(15,TimeUnit.SECONDS); session.awaitUi();
             var generated = TerminalPanelTest.fx(() -> session.geometries().keySet().stream().filter(item -> item != session.reference).findFirst().orElseThrow());
@@ -49,7 +73,12 @@ class MainNccCoverageTest {
                 assertEquals("234.0",((TextField) root.lookup("#cnc-feed")).getText());
                 assertEquals("12345",((TextField) root.lookup("#cnc-power")).getText());
                 call(session.window,"applyTransformToItem",new Class<?>[]{TreeItem.class,TransformOp.class},generated,new TransformOp.Offset(1,2));
-                assertNull(component(session.geometries().get(generated),"machiningTarget"));
+                var moved=(MachiningTarget)component(session.geometries().get(generated),"machiningTarget");
+                assertNotNull(moved);
+                assertEquals(target.area().getArea(),moved.area().getArea(),1e-8);
+                assertEquals(target.area().getEnvelopeInternal().getMinX()+1,moved.area().getEnvelopeInternal().getMinX(),1e-8);
+                call(session.window,"applyTransformToItem",new Class<?>[]{TreeItem.class,TransformOp.class},generated,new TransformOp.Buffer(.01,false,true));
+                assertNull(component(session.geometries().get(generated),"machiningTarget"),"Buffer is not affine target transport");
                 return null;
             });
         }

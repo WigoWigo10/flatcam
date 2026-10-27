@@ -12,6 +12,74 @@ import org.junit.jupiter.api.Test;
 import org.locationtech.jts.geom.*;
 
 class CncPreflightTest {
+    @Test void laserReviewUsesIndividualGroupsAndLastActiveFocusForAutomaticParking() {
+        var a=new GeometryGCodeParameters(6,1,false,1,200,64,false,900);
+        var b=new GeometryGCodeParameters(2,1,false,1,350,200,false,900);
+        var empty=new GeometryGCodeParameters(99,1,false,1,100,50,false,900);
+        var tools=List.of(new ToolGeometry(.4,path()),new ToolGeometry(.8,path()),
+                new ToolGeometry(.4,new GeometryFactory().createPolygon()));
+        var result=new GeometryCncToolPanel.Result(tools,a,Map.of(),GCodePreprocessor.MARLIN_LASER_FAN_PIN,Map.of(1,b,2,empty));
+        var report=CncPreflight.geometry("Laser","MM",result);
+        assertTrue(report.canContinue()); assertEquals("Grupo 2",report.tools().get(1).name());
+        assertEquals("350",report.tools().get(1).feedXY()); assertEquals("2",report.tools().get(1).travelZ());
+        assertTrue(report.tools().get(1).power().contains("200 PWM"));
+        assertTrue(report.common().stream().anyMatch(v->v.label().equals("Z final (laser desligado)") && v.text().equals("2 mm")));
+        assertTrue(report.common().stream().anyMatch(v->v.label().equals("Altura XY entre grupos") && v.text().startsWith("6 mm")));
+        var simple=CncPreflight.geometry("Laser","MM",new GeometryCncToolPanel.Result(tools,a,Map.of(),GCodePreprocessor.GRBL_LASER,Map.of(1,b)));
+        assertFalse(simple.canContinue());
+        assertTrue(simple.issues().stream().anyMatch(i->i.blocking() && i.text().contains("Z_laser")));
+    }
+    @Test void laserReviewDoesNotPromiseDwellPhysicalRpmOrUnimplementedPositionControls() {
+        var p=new GeometryGCodeParameters(3,1,false,1,200,128,false,900,null,75,true,.25,true,.1);
+        for(var profile:List.of(GCodePreprocessor.GRBL_LASER,GCodePreprocessor.Z_LASER,
+                GCodePreprocessor.MARLIN_LASER_FAN_PIN,GCodePreprocessor.MARLIN_LASER_SPINDLE_PIN)) {
+            var report=CncPreflight.geometry("Laser","MM",new GeometryCncToolPanel.Result(
+                    List.of(new ToolGeometry(.4,path())),p,Map.of(),profile,Map.of()));
+            var tool=report.tools().getFirst();
+            assertTrue(tool.power().contains(profile == GCodePreprocessor.MARLIN_LASER_FAN_PIN ? "PWM (1–255)" : "S (laser)"));
+            assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Dwell") && v.text().contains("Não aplicado")));
+            assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Extra Cut") && v.text().contains("Não suportado")));
+            assertTrue(report.common().stream().anyMatch(v->v.label().equals("Z final (laser desligado)") && v.text().equals("3 mm")));
+            assertTrue(report.issues().stream().anyMatch(i->i.text().contains("não RPM físico")));
+            assertTrue(report.issues().stream().anyMatch(i->i.text().contains(profile.usesRapidFeed() ? "M400" : "$32")));
+        }
+    }
+    @Test void repetierReviewLabelsPwmAndBertaDoesNotClaimKnownMacroEffectsOrMetricToleranceInInches() {
+        var original=geometry();
+        var p=params(3,.6,200,75,128);
+        var repetier=CncPreflight.geometry("Repetier","MM",new GeometryCncToolPanel.Result(
+                original.tools(),p,Map.of(),GCodePreprocessor.REPETIER,Map.of()));
+        assertTrue(repetier.tools().stream().allMatch(t->t.power().equals("128 PWM (0–255)")));
+        for(String token:List.of("não RPM","@pause","M84","milissegundos","sem G94"))
+            assertTrue(repetier.issues().stream().anyMatch(i->i.text().contains(token)),token);
+        var berta=CncPreflight.geometry("Berta","IN",new GeometryCncToolPanel.Result(
+                original.tools(),original.parameters(),original.vTools(),GCodePreprocessor.BERTA_CNC,original.parametersByTool()));
+        for(String token:List.of("M110/M111","G54","não são simulados","0,762 mm","não precisão garantida"))
+            assertTrue(berta.issues().stream().anyMatch(i->i.text().contains(token)),token);
+    }
+    @Test void iselReviewDistinguishesRemoteStopDwellUnitsAndToolChangeMacros() {
+        var result=geometry();
+        var report=CncPreflight.geometry("ISEL","MM",new GeometryCncToolPanel.Result(result.tools(),result.parameters(),
+                result.vTools(),GCodePreprocessor.ISEL_CNC,result.parametersByTool()));
+        assertTrue(report.canContinue());
+        for(String token:List.of("milissegundos","M01","Remote","M30","T1–T128","macro"))
+            assertTrue(report.issues().stream().anyMatch(i->i.text().contains(token)),token);
+        assertFalse(CncPreflight.geometry("GRBL","MM",result).issues().stream().anyMatch(i->i.text().contains("ISEL")));
+    }
+    @Test void marlinReviewExplainsFirmwarePreconditionsWithoutClaimingPhysicalRpmOrRapidSpeed() {
+        var original=geometry();
+        var geometryReport=CncPreflight.geometry("Marlin","MM",new GeometryCncToolPanel.Result(
+                original.tools(),original.parameters(),original.vTools(),GCodePreprocessor.MARLIN,original.parametersByTool()));
+        var drill=drilling();
+        var drillReport=CncPreflight.drilling(new DrillGCodeToolPanel.Result(drill.source(),drill.settingsByTool(),
+                drill.orderedToolIds(),drill.options(),GCodePreprocessor.MARLIN,drill.toolOrder()));
+        for(var report:List.of(geometryReport,drillReport)) {
+            assertTrue(report.canContinue());
+            for(String setting:List.of("CUTTER_POWER_UNIT=RPM","Tn/M6","G0_FEEDRATE","INCH_MODE_SUPPORT","parada física"))
+                assertTrue(report.issues().stream().anyMatch(issue->issue.text().contains(setting)),setting);
+        }
+        assertFalse(CncPreflight.geometry("GRBL","MM",original).issues().stream().anyMatch(i->i.text().contains("G0_FEEDRATE")));
+    }
     @Test void closedContinuousReviewDoesNotClaimThatDirectionAlternates() {
         var base=params(3,.6,200,75,10000).withPassStrategy(GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION);
         var report=CncPreflight.geometry("Ring","MM",new GeometryCncToolPanel.Result(List.of(new ToolGeometry(1,path())),base,Map.of(),GCodePreprocessor.GRBL_11_NO_M6,Map.of()));
@@ -20,6 +88,22 @@ class CncPreflightTest {
         assertFalse(report.issues().stream().anyMatch(issue->issue.text().contains("invertem o sentido")));
     }
     static final GeometryFactory FACTORY = new GeometryFactory();
+    @Test void manualReviewShowsTheActualPerToolAdjustmentFeedsAndCustomExplainsItsMacro() {
+        var original=geometry();
+        var manual=CncPreflight.geometry("Board","MM",new GeometryCncToolPanel.Result(original.tools(),original.parameters(),
+                original.vTools(),GCodePreprocessor.TOOLCHANGE_MANUAL,original.parametersByTool()));
+        for(var tool:manual.tools()) assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Ajuste manual em Z0")
+                && v.text().contains("Feed Z "+tool.feedZ()) && v.target().field().equals("cnc-feed-z")));
+        assertTrue(manual.issues().stream().anyMatch(i->!i.blocking() && i.text().contains("três pausas M0") && i.text().contains("G90")));
+        var drill=drilling();
+        var drillReport=CncPreflight.drilling(new DrillGCodeToolPanel.Result(drill.source(),drill.settingsByTool(),drill.orderedToolIds(),
+                drill.options(),GCodePreprocessor.TOOLCHANGE_MANUAL,drill.toolOrder()));
+        for(var tool:drillReport.tools()) assertTrue(tool.details().stream().anyMatch(v->v.label().equals("Ajuste manual em Z0")
+                && v.text().contains("Feed Z "+tool.feedZ()) && v.target().field().equals("drill-feed-z")));
+        var custom=CncPreflight.geometry("Board","MM",new GeometryCncToolPanel.Result(original.tools(),original.parameters(),
+                original.vTools(),GCodePreprocessor.TOOLCHANGE_CUSTOM,original.parametersByTool()));
+        assertTrue(custom.issues().stream().anyMatch(i->!i.blocking() && i.text().contains("Tn/M6") && i.text().contains("sem M0 adicional")));
+    }
     static Geometry path() { return FACTORY.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(12, 0)}); }
     static GeometryGCodeParameters params(double z, double depth, double feed, double feedZ, int rpm) {
         return new GeometryGCodeParameters(z, depth, true, .2, feed, rpm, true, 1500, null, feedZ, true, .5, false, 0);
@@ -125,6 +209,21 @@ class CncPreflightTest {
         assertEquals("—", laser.tools().getFirst().cutZ()); assertEquals("3", laser.tools().getFirst().travelZ());
         assertTrue(laser.tools().getFirst().details().stream().anyMatch(value -> value.label().equals("Foco / posição Z") && value.text().equals("3")));
         assertFalse(laser.common().stream().anyMatch(value -> value.label().equals("End Z")));
+    }
+    @Test void lineXyzExplainsVerticalBootstrapAndUnknownMacroPosition() {
+        var report = CncPreflight.geometry("Board", "MM", new GeometryCncToolPanel.Result(
+                List.of(new ToolGeometry(.4, path())), params(3, .3, 100, 50, 10000), Map.of(),
+                GCodePreprocessor.LINE_XYZ, Map.of()));
+        assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking()
+                && issue.text().contains("preambulo vertical") && issue.text().contains("M6")));
+    }
+    @Test void icpExplainsIntegerResolutionAutomaticMacroAndRapidTimingLimits() {
+        var report = CncPreflight.geometry("Board", "MM", new GeometryCncToolPanel.Result(
+                List.of(new ToolGeometry(.4, path())), params(3, .3, 100, 50, 10000), Map.of(),
+                GCodePreprocessor.ISEL_ICP_CNC, Map.of()));
+        assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking() && issue.text().contains("FASTVEL")));
+        assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking() && issue.text().contains("GETTOOL")
+                && issue.text().contains("WPCLEAR")));
     }
     @Test void startHeightDoesNotMasqueradeAsTheFirstChangeHeightAndOverExplainsItsTransitions() {
         var area=CncExclusionArea.of(FACTORY.toGeometry(new Envelope(4,6,-1,1)),CncExclusionArea.Strategy.OVER,8);

@@ -73,9 +73,10 @@ public final class PythonProjectIO {
                     }
                     case "excellon" -> {
                         ExcellonFlatPrjCodec.Decoded decoded = ExcellonFlatPrjCodec.fromJson(object);
+                        var defaults=readDrillDefaults(object);
                         excellons.add(new ProjectFile.ExcellonEntry(decoded.name(), decoded.image(),
                                 decoded.fillColorWeb(), decoded.strokeColorWeb(), plot(object),
-                                decoded.filled(), decoded.multicolor(), readDrillDefaults(object)));
+                                decoded.filled(), decoded.multicolor(), defaults,readDrillingSettings(object,defaults)));
                     }
                     case "geometry" -> geometries.add(readGeometry(object));
                     case "cncjob" -> jobs.add(readCncJob(object));
@@ -229,9 +230,14 @@ public final class PythonProjectIO {
     }
 
     private static org.flatcam.cam.gcode.GeometryJobOptions readLegacyPositions(JSONObject data) {
-        Double[] end = legacyXY(data.opt("endxy")), change = legacyXY(data.opt("toolchangexy"));
+        // Python stores mechanical-change defaults even for laser groups with change disabled.
+        // They are inactive, not requested motions; the original legacy payload remains preserved.
+        boolean inactiveLaserChange=!data.optBoolean("toolchange",false)
+                && org.flatcam.cam.gcode.GCodePreprocessor.geometryProfiles().stream()
+                    .anyMatch(profile -> profile.isLaser() && PythonProjectWriter.pythonProfile(profile).equalsIgnoreCase(data.optString("ppname_g","")));
+        Double[] end = legacyXY(data.opt("endxy")), change = inactiveLaserChange ? new Double[]{null,null} : legacyXY(data.opt("toolchangexy"));
         return new org.flatcam.cam.gcode.GeometryJobOptions(legacyOptional(data.opt("startz")), legacyOptional(data.opt("endz")),
-                end[0], end[1], legacyOptional(data.opt("toolchangez")), change[0], change[1]);
+                end[0], end[1], inactiveLaserChange ? null : legacyOptional(data.opt("toolchangez")), change[0], change[1]);
     }
     private static Double legacyOptional(Object value) {
         if (value == null || value == JSONObject.NULL || value.toString().isBlank() || value.toString().equalsIgnoreCase("None")) return null;
@@ -247,6 +253,30 @@ public final class PythonProjectIO {
         String[] xy = value.toString().replace("(", "").replace(")", "").replace("[", "").replace("]", "").split(",", -1);
         if (xy.length != 2) throw new IllegalArgumentException("Posicao XY invalida.");
         return new Double[]{Double.valueOf(xy[0].trim()), Double.valueOf(xy[1].trim())};
+    }
+
+    private static DrillCncSettings readDrillingSettings(JSONObject object, Map<Integer,DrillGCodeParameters> parameters) {
+        if (parameters.isEmpty()) return null;
+        try {
+            var suggestions=new LinkedHashMap<Integer,CncJobDefaults>();
+            var tools=object.getJSONObject("tools");
+            for (int id:parameters.keySet()) suggestions.put(id,CncJobDefaults.fromLegacy(tools.getJSONObject(Integer.toString(id)).getJSONObject("data"),true));
+            var resolved=CncJobDefaults.resolve(suggestions);
+            if (!resolved.conflicts().isEmpty()) return null;
+            var common=resolved.agreed(); var profile=common.preprocessor();
+            if (profile==null || profile.requiresProbe()) return null; // No inferred probing or machine macro settings.
+            var positions=common.positions(org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC);
+            double clearance=parameters.values().stream().mapToDouble(DrillGCodeParameters::safeZ).max().orElseThrow();
+            boolean change=common.has(CncJobDefaults.Field.TOOL_CHANGE) && Boolean.parseBoolean(common.value(CncJobDefaults.Field.TOOL_CHANGE));
+            var options=new org.flatcam.cam.gcode.GCodeGenerator.DrillJobOptions(change,
+                    positions.toolChangeZ()==null ? clearance : positions.toolChangeZ(),positions.endZ()==null ? clearance : positions.endZ(),
+                    positions.endX(),positions.endY(),common.has(CncJobDefaults.Field.RAPID_FEED) ? Double.parseDouble(common.value(CncJobDefaults.Field.RAPID_FEED)) : 0)
+                    .withPositions(positions.startZ(),positions.toolChangeX(),positions.toolChangeY());
+            var order=switch(object.getJSONObject("options").optString("tools_drill_tool_order","no")) {
+                case "fwd" -> DrillCncSettings.ToolOrder.FORWARD; case "rev" -> DrillCncSettings.ToolOrder.REVERSE; default -> DrillCncSettings.ToolOrder.NO;
+            };
+            return new DrillCncSettings(profile,options,parameters.keySet().stream().sorted().toList(),order);
+        } catch (RuntimeException unsupported) { return null; } // Optional settings cannot discard original drills/slots.
     }
 
     private static Map<Integer, DrillGCodeParameters> readDrillDefaults(JSONObject object) {

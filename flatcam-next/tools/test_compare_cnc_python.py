@@ -3,6 +3,8 @@ import copy
 import unittest
 from compare_cnc_python import read_program, equivalent, machining_signature, first_difference, audit_parameters, rapid_metrics
 from compare_cnc_python import geometry_source,geometry_paths,nearest_points,slot_oracle_case
+from compare_cnc_python import cut_difference_by_tool, toolpath_review
+from compare_cnc_python import icp_quantization_review
 
 
 PROGRAM = """G21
@@ -37,7 +39,159 @@ def case():
         "job":{"toolChange":True,"toolChangeZ":15,"endZ":5,"endX":None,"endY":None,"startZ":None}}
 
 
+def rewrite_rapid_feeds(program, feed):
+    return "\n".join(line+f" F{feed}" if line.startswith("G0 ") else line for line in program.splitlines())+"\n"
+
+
 class CncReaderTest(unittest.TestCase):
+    def test_icp_native_reader_and_quantization_diagnostic_do_not_relax_raw_audit(self):
+        program="IMF_PBL test\nFASTVEL 25000\nSPINDLE OFF\nFASTABS Z15000\nGETTOOL 1\n"
+        program+="FASTABS Z3000\nSPINDLE CW RPM10000\nFASTABS X10000 Y0\nVEL 1666\nMOVEABS Z-1100\n"
+        program+="SPINDLE OFF\nFASTABS Z5000\nPROGEND\n"
+        parsed=read_program(program,"ISEL_ICP_CNC")
+        source=case(); source["profile"]="ISEL_ICP_CNC"; source["job"]["rapidFeed"]=1500
+        source["tools"][0]["parameters"].update(multiDepth=False,dwell=False)
+        self.assertIn("T1: executed feed differs from the requested feed",audit_parameters(source,parsed,implementation="fx"))
+        review=icp_quantization_review(source,parsed)["tools"]["1"]
+        self.assertEqual(0,review["unexpectedCutFeedCount"])
+        self.assertEqual(1666,review["rates"]["feedZ"]["nativeMicrometersPerSecond"])
+        self.assertEqual(99.96,review["rates"]["feedZ"]["effectiveMillimetersPerMinute"])
+        changed=read_program(program.replace("VEL 1666","VEL 1500"),"ISEL_ICP_CNC")
+        self.assertEqual(1,icp_quantization_review(source,changed)["tools"]["1"]["unexpectedCutFeedCount"])
+        with self.assertRaises(ValueError): read_program(program,"ISEL_ICP_CNC",marlin_rapid_mode="variable")
+
+    def test_marlin_firmware_feed_modes_do_not_share_the_same_modal_state(self):
+        # Marlin 2.1.2.5 G0_G1.cpp: variable mode restores OLD G1 feed;
+        # fixed mode restores the NEW F but executes G0 at the compiled rate.
+        program="G21\nG90\nG1 F100\nG0 Z3 F900\nG0 X10\nG1 Z-1\nM5\nG0 Z3 F900\nM400\n"
+        shared=read_program(program,"Marlin")
+        variable=read_program(program,"Marlin",marlin_rapid_mode="variable")
+        fixed=read_program(program,"Marlin",marlin_rapid_mode="fixed",marlin_fixed_rapid_feed=1200)
+        self.assertEqual(900,shared["cuts"][0]["feed"])
+        self.assertEqual(100,variable["cuts"][0]["feed"])
+        self.assertEqual(900,fixed["cuts"][0]["feed"])
+        self.assertTrue(all(e["feed"]==1200 for e in fixed["events"] if e["kind"]=="rapid"))
+        self.assertTrue(variable["marlinControls"]["finalMovementBarrier"])
+        self.assertEqual([10,0,3],variable["marlinControls"]["synchronizationPoints"][-1])
+        self.assertEqual(0,variable["marlinControls"]["finalSpindleCommand"])
+        missing=read_program(program.replace("G0 Z3 F900","G0 Z3",1),"Marlin",marlin_rapid_mode="variable")
+        self.assertIsNone(next(e["feed"] for e in missing["events"] if e["kind"]=="rapid"))
+        with self.assertRaises(ValueError): read_program(program,"Marlin",marlin_rapid_mode="fixed")
+        with self.assertRaises(ValueError): read_program(program,"Marlin",marlin_rapid_mode="unknown")
+        with self.assertRaises(ValueError): read_program(program,"Marlin",marlin_fixed_rapid_feed=900)
+        with self.assertRaises(ValueError): read_program(program.replace("G90","G90\nG94"),"Marlin")
+
+    def test_marlin_fixed_rapid_mismatch_and_missing_completion_barrier_are_visible(self):
+        source=case(); source["profile"]="Marlin";source["job"]["rapidFeed"]=1500
+        program=rewrite_rapid_feeds(PROGRAM.replace("G94\n",""),1500)+"M400\n"
+        # Termination cannot be followed by a fake completion command.
+        with self.assertRaises(ValueError): read_program(program,"Marlin")
+        program=program.replace("M30\n","")
+        fixed=read_program(program,"Marlin",marlin_rapid_mode="fixed",marlin_fixed_rapid_feed=900)
+        self.assertIn("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)",audit_parameters(source,fixed))
+        unsynced=read_program(program.replace("M400\n",""),"Marlin",marlin_rapid_mode="fixed",marlin_fixed_rapid_feed=900)
+        self.assertFalse(unsynced["marlinControls"]["finalMovementBarrier"])
+        self.assertFalse(equivalent(fixed["events"],unsynced["events"]))
+
+    def test_isel_g71_and_operator_stop_are_explicit_and_profile_scoped(self):
+        program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n").replace("G4 P0.25","G4 P250")
+        parsed=read_program(program,"ISEL_CNC")
+        self.assertEqual("MM",parsed["units"])
+        self.assertEqual(1,sum(e["kind"]=="iselStop" for e in parsed["events"]))
+        self.assertEqual("remote",parsed["iselControls"]["m01Mode"])
+        source=case();source["profile"]="ISEL_CNC"
+        self.assertEqual([],audit_parameters(source,parsed))
+        optional=read_program(program,"ISEL_CNC",isel_m01_mode="optional-enabled")
+        self.assertFalse(equivalent(parsed["events"],optional["events"]))
+        disabled=read_program(program,"ISEL_CNC",isel_m01_mode="optional-disabled")
+        self.assertIn("Tool-change pause count differs from the requested setting",audit_parameters(source,disabled))
+        self.assertIn("ISEL M01 is disabled in the selected controller model; requested pause is not active",audit_parameters(source,disabled))
+        with self.assertRaises(ValueError): read_program(program.replace("M01\n","M00\n"),"ISEL_CNC")
+        with self.assertRaises(ValueError): read_program(program)
+        with self.assertRaises(ValueError): read_program(program.replace("G71","G20"),"ISEL_CNC")
+        with self.assertRaises(ValueError): read_program(program.replace("M01","M01 G0 X0"),"ISEL_CNC")
+
+    def test_isel_dwell_milliseconds_tool_limits_and_explicit_end_cannot_be_normalized_away(self):
+        program=PROGRAM.replace("G21","G71").replace("M0\n","M01\n").replace("G4 P0.25","G4 P250")
+        source=case();source["profile"]="ISEL_CNC"
+        correct=read_program(program,"ISEL_CNC")
+        wrong=read_program(program.replace("G4 P250","G4 P0.25"),"ISEL_CNC")
+        self.assertEqual(.25,next(e["seconds"] for e in correct["events"] if e["kind"]=="dwell"))
+        self.assertEqual(.00025,next(e["seconds"] for e in wrong["events"] if e["kind"]=="dwell"))
+        self.assertIn("T1: dwell differs from the requested duration/count",audit_parameters(source,wrong))
+        self.assertFalse(equivalent(correct["events"],wrong["events"]))
+        self.assertTrue(correct["iselControls"]["explicitProgramEnd"])
+        self.assertEqual("programEnd",correct["events"][-1]["kind"])
+        no_end=read_program(program.replace("M30\n",""),"ISEL_CNC")
+        self.assertFalse(no_end["iselControls"]["explicitProgramEnd"])
+        self.assertFalse(equivalent(correct["events"],no_end["events"]))
+        # Remote M30 switches the spindle off; M02 does not have those semantics.
+        end=read_program(program.replace("G0 Z3\nM5\nG0 Z5","G0 Z3\nG0 Z5"),"ISEL_CNC")
+        self.assertEqual(0,end["iselControls"]["finalSpindleCommand"])
+        self.assertTrue(read_program(program.replace("T1\n","T128\n"),"ISEL_CNC")["cuts"])
+        for altered in (program.replace("T1\n","T129\n"),program.replace("T1\n","M06\n"),program.replace("M30","M02")):
+            with self.assertRaises(ValueError): read_program(altered,"ISEL_CNC")
+        with self.assertRaises(ValueError): read_program(PROGRAM,isel_m01_mode="optional-disabled")
+
+    def test_marlin_profile_retains_barriers_and_rapid_feed_without_forging_g94(self):
+        program=PROGRAM.replace("G94\n","").replace("M5\n","M400\nM5\n").replace("G4 P0.25", "G4 P250")
+        program=rewrite_rapid_feeds(program,1500)
+        parsed=read_program(program,"Marlin")
+        self.assertEqual(2,sum(e["kind"]=="synchronize" for e in parsed["events"]))
+        self.assertTrue(all(e["feed"]==1500 for e in parsed["events"] if e["kind"]=="rapid"))
+        source=case(); source["profile"]="Marlin"; source["job"]["rapidFeed"]=1500
+        self.assertEqual([],audit_parameters(source,parsed))
+        changed=read_program(program.replace("G0 X10 Y0 F1500","G0 X10 Y0 F1400"),"Marlin")
+        self.assertIn("Marlin G0 feed differs from the requested Feed rapids (or is undeclared)",audit_parameters(source,changed))
+        self.assertFalse(equivalent(parsed["events"],read_program(program.replace("M400\n","",1),"Marlin")["events"]))
+        with self.assertRaises(ValueError): read_program(program)  # not a GRBL command
+        with self.assertRaises(ValueError): read_program(program.replace("M400","M400 M5",1),"Marlin")
+        with self.assertRaises(ValueError): read_program(program,"Repetier")
+
+    def test_explicit_xyz_never_hides_simultaneous_rapid_or_wrong_toolchange_y(self):
+        original=read_program(PROGRAM,"line_xyz")
+        # Specifying unchanged axes must not create extra moves or hide a real change.
+        explicit=read_program(PROGRAM.replace("G0 X10 Y0","G0 X10 Y0 Z3"),"line_xyz")
+        self.assertTrue(equivalent(original,explicit))
+        diagonal=read_program(PROGRAM.replace("G0 Z15","G0 X2 Y2 Z15",1),"line_xyz")
+        self.assertFalse(equivalent(original,diagonal))
+        self.assertIn("Rapid XY below the selected tool's requested Travel Z",audit_parameters(case(),diagonal))
+        with self.assertRaises(ValueError): read_program(PROGRAM.replace("G94\n",""),"line_xyz")
+
+    def test_tool_review_keeps_reversed_edges_repeated_passes_and_state_changes_different(self):
+        source = case()
+        first = read_program(PROGRAM)
+        edge = {"kind":"linear", "tool":1, "from":[10,0,-.4], "to":[12,0,-.4],
+                "feed":100, "spindle":3, "rpm":10000}
+        first["cuts"].extend([edge, copy.deepcopy(edge)])
+        other = copy.deepcopy(first)
+        for cut in other["cuts"][-2:]: cut["from"],cut["to"] = cut["to"],cut["from"]
+        review = toolpath_review(source,first,other,[],["T1: changed", "Job issue"])
+        tool = review["tools"]["1"]
+        self.assertEqual("CUTS_OR_PARAMETERS_DIFFER",tool["cutComparison"])
+        self.assertEqual(2,tool["oppositeDirectionPairs"])
+        self.assertEqual({"fx":2,"python":2},tool["unmatchedDirectedCuts"])
+        self.assertEqual(["T1: changed"],tool["parameterIssues"]["python"])
+        self.assertEqual(["Job issue"],review["jobIssues"]["python"])
+        other["cuts"][-1]["feed"] = 99
+        tool = toolpath_review(source,first,other,[],[])["tools"]["1"]
+        self.assertEqual(1,tool["oppositeDirectionPairs"])
+        self.assertEqual(2,tool["unmatchedDirectedCuts"]["fx"])
+        self.assertFalse(equivalent(machining_signature(first),machining_signature(other)))
+
+    def test_tool_review_order_only_does_not_erase_clearance_or_missing_plunges(self):
+        first = read_program(PROGRAM)
+        other = copy.deepcopy(first); other["cuts"].reverse()
+        tool = toolpath_review(case(),first,other,[],[])["tools"]["1"]
+        self.assertEqual("SAME_CUTS_DIFFERENT_ORDER",tool["cutComparison"])
+        self.assertEqual({"fx":0,"python":0},tool["unmatchedDirectedCuts"])
+        self.assertEqual(3,tool["metrics"]["fx"]["lowestRapidXY_Z"])
+        self.assertEqual(-1.1,tool["metrics"]["fx"]["deepestZ"])
+        other["cuts"].pop()
+        tool = toolpath_review(case(),first,other,[],[])["tools"]["1"]
+        self.assertEqual(1,tool["unmatchedDirectedCuts"]["fx"])
+        self.assertEqual(0,tool["oppositeDirectionPairs"])
+
     def test_ring_type_is_explicit_and_cannot_be_forged_by_an_open_linestring(self):
         tool={"wkt":"LINESTRING (10 0,12 0,12 2,10 2,10 0)","geometryType":"LinearRing"}
         self.assertEqual("LinearRing",geometry_source(tool).geom_type)
@@ -105,6 +259,14 @@ class CncReaderTest(unittest.TestCase):
         self.assertEqual(other["slots"],converted["tools"][1]["slots"])
         self.assertNotEqual(source,converted)
         self.assertEqual(1,len(source["tools"][0]["slots"]))
+
+    def test_cut_order_diagnosis_does_not_hide_a_missing_pass_or_direction_change(self):
+        first=read_program(PROGRAM)
+        reordered=copy.deepcopy(first); reordered["cuts"]=list(reversed(first["cuts"]))
+        self.assertEqual("SAME_CUTS_DIFFERENT_ORDER",cut_difference_by_tool(first,reordered)["1"])
+        self.assertFalse(equivalent(first,reordered))
+        reordered["cuts"].pop()
+        self.assertEqual("CUTS_OR_PARAMETERS_DIFFER",cut_difference_by_tool(first,reordered)["1"])
 
     def test_original_diagonal_slot_can_stop_early_on_exact_within_predicate(self):
         from pathlib import Path

@@ -21,10 +21,10 @@ class ControllerProgramCodecTest {
     }
 
     @Test
-    void lineXyzPreservesDistinctCoordinatesAndWritesEveryAxisOnEveryMove() {
+    void lineXyzPreservesDistinctCoordinatesAndExpandsEstablishedAxes() {
         String input = "G21\nG90\nG00 Z2\nG00 X3 Y7\nG01 Z-1 F100\nG01 X8 Y9 F100\nG00 Z2\n";
         String output = ControllerProgramCodec.explicitXyz(input);
-        assertEquals("G21\nG90\nG00 X0.0000 Y0.0000 Z2.0000\nG00 X3.0000 Y7.0000 Z2.0000\n"
+        assertEquals("G21\nG90\nG00 Z2.0000\nG00 X3.0000 Y7.0000 Z2.0000\n"
                 + "G01 X3.0000 Y7.0000 Z-1.0000 F100.0000\nG01 X8.0000 Y9.0000 Z-1.0000 F100.0000\n"
                 + "G00 X8.0000 Y9.0000 Z2.0000\n", output);
         assertNull(parse(output).warning());
@@ -80,7 +80,7 @@ class ControllerProgramCodecTest {
 
     @Test
     void nativeIcpEncodingMatchesPythonUnitsForCoordinatesVelocityAndWait() {
-        assertEquals("IMF_PBL flatcam\n; Preprocessor: ISEL_ICP_CNC\nSPINDLE OFF\n"
+        assertEquals("IMF_PBL flatcam\nFASTVEL 25000\n; Preprocessor: ISEL_ICP_CNC\nSPINDLE OFF\n"
                         + "FASTABS Z2000\nGETTOOL 2\nSPINDLE CW RPM12000\nWAIT 500\n"
                         + "FASTABS X3000 Y7000\nVEL 2000\nMOVEABS Z-500\nVEL 2000\n"
                         + "MOVEABS X6000 Y7000\nSPINDLE OFF\nFASTABS Z2000\nPROGEND\n",

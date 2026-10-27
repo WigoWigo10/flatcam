@@ -11,6 +11,8 @@ read or written.
 import argparse
 import json
 import lzma
+import hashlib
+import logging
 import math
 import os
 import sys
@@ -60,18 +62,98 @@ def save_and_validate(fc, target, messages):
         stage.unlink(missing_ok=True)
 
 
+def probe_cnc_profile(fc, qapp, profile, directory, messages):
+    """Diagnostic only: original app objects + original generation entry point, no PP shims."""
+    from shapely.geometry import LineString
+    laser = profile in ("GRBL_laser", "Z_laser", "Marlin_laser_FAN_pin", "Marlin_laser_Spindle_pin")
+    power = 0 if profile in ("Roland_MDX_20","hpgl") else 128 if profile == "Repetier" or laser else 12000
+    power_meaning = "BINARY_MOTOR_NO_RPM" if profile == "Roland_MDX_20" else "PEN_STATE_NO_MOTOR" if profile == "hpgl" else "FAN_DUTY_0_255" if profile in ("Repetier", "Marlin_laser_FAN_pin") else "RAW_CONTROLLER_LASER_S_NOT_PHYSICAL_RPM" if laser else "RPM"
+    directory.mkdir(parents=True, exist_ok=False)
+    errors = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            if record.levelno >= logging.ERROR:
+                errors.append(record.getMessage())
+
+    capture = Capture()
+    fc.log.addHandler(capture)
+    results = []
+    try:
+        def initialize(obj, app):
+            obj.solid_geometry = [LineString([(3, 7), (8, 7)])]
+
+        geometry = fc.app_obj.new_object("geometry", "public_cnc_probe", initialize, plot=False)
+        if geometry == "fail":
+            raise RuntimeError("Could not create public synthetic Geometry")
+        qapp.processEvents()
+        for name, change, change_xy, dwell, seconds in (
+                ("no-change", False, None, False, .5),
+                ("distinct-change-xy", True, [11, 17], True, .5),
+                ("current-change-xy", True, None, False, .5),
+                ("zero-dwell", True, [11, 17], True, 0)):
+            before_errors, before_messages = len(errors), len(messages)
+            outname = "probe_" + name
+            failure = None
+            try:
+                # generatecncjob has legacy truthiness fallbacks: configure the actual
+                # isolated object's options too, rather than hiding a zero/False request.
+                requested_xy = "" if change_xy is None else change_xy
+                # The real entry point distinguishes an empty coordinate field from
+                # Python None (which its fallback can turn into the string "None").
+                geometry.options.update(toolchange=change, toolchangexy=requested_xy,
+                                        dwell=dwell, dwelltime=seconds)
+                geometry.generatecncjob(outname=outname, dia=.4, offset=0,
+                    z_cut=-.5, z_move=3, feedrate=100, feedrate_z=50, feedrate_rapid=1500,
+                    spindlespeed=power, dwell=dwell, dwelltime=seconds, multidepth=False,
+                    dpp=.5, toolchange=change, toolchangez=15, toolchangexy=requested_xy,
+                    extracut=False, extracut_length=0, startz=12, endz=5,
+                    endxy=[23, 29], pp=profile, use_thread=False, plot=False)
+                qapp.processEvents()
+            except Exception:
+                failure = traceback.format_exc(limit=6)
+            job = fc.collection.get_by_name(outname)
+            program = getattr(job, "source_file", "") if job is not None else ""
+            if program:
+                extension = ".rml" if profile == "Roland_MDX_20" else ".plt" if profile == "hpgl" else ".imf" if profile == "ISEL_ICP_CNC" else ".nc"
+                (directory / (name + extension)).write_text(program, encoding="utf-8")
+            case_errors = errors[before_errors:] + application_errors(messages[before_messages:])
+            results.append(dict(case=name, objectCreated=job is not None, programBytes=len(program.encode("utf-8")),
+                                powerMeaning=power_meaning,
+                                requestedPower=power,
+                                errors=case_errors, exception=failure,
+                                status="ERROR" if failure or case_errors or not program else "GENERATED"))
+    finally:
+        fc.log.removeHandler(capture)
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--legacy-root", type=Path, required=True)
-    parser.add_argument("project", type=Path)
+    parser.add_argument("project", type=Path, nargs="?")
     parser.add_argument("--resave", type=Path, help="Where the Python application saves the project it opened")
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=300.0)
+    parser.add_argument("--initial-units", choices=("MM", "IN"),
+                        help="Explicit isolated app unit preference before opening; legacy set_ui overwrites object units from defaults")
     parser.add_argument("--new-empty-geometry", action="store_true",
                         help="Control run: also create a blank Geometry with the application's own command")
+    parser.add_argument("--probe-cnc-profile", choices=("line_xyz", "default", "ISEL_ICP_CNC", "Toolchange_Manual", "Toolchange_Custom", "Repetier", "Berta_CNC", "GRBL_laser", "Z_laser", "Marlin_laser_FAN_pin", "Marlin_laser_Spindle_pin", "Roland_MDX_20", "hpgl", "Toolchange_Probe_MACH3"),
+                        help="Generate public synthetic Geometry through the real app, without opening a project")
+    parser.add_argument("--probe-output", type=Path, help="Fresh directory for diagnostic CNC programs")
     args = parser.parse_args()
+    if args.probe_cnc_profile:
+        if args.project or args.resave or args.new_empty_geometry or not args.probe_output:
+            parser.error("CNC probe requires --probe-output and cannot open/save a project")
+    elif not args.project or args.probe_output:
+        parser.error("Provide a project, or --probe-cnc-profile with --probe-output")
     root = args.legacy_root.resolve()
-    project = args.project.resolve()
+    project = args.project.resolve() if args.project else None
+    if args.probe_output:
+        args.probe_output = args.probe_output.resolve()
+        if args.probe_output.exists():
+            parser.error("--probe-output must be a new directory")
     # Resolve every path now: the application needs its own folder as the working directory.
     args.report = args.report.resolve()
     if args.resave:
@@ -80,7 +162,11 @@ def main():
             parser.error("--resave must be a copy, not the source project")
     if args.report in {project, args.resave}:
         parser.error("--report must not overwrite a project")
-    report = {"status": "ERROR", "project": project.name}
+    report = {"status": "ERROR", "project": project.name if project else None}
+    source_paths = [root / "camlib.py", root / "appObjects/FlatCAMGeometry.py"]
+    if args.probe_cnc_profile:
+        source_paths += [root / "preprocessors" / (args.probe_cnc_profile + ".py")]
+    source_hashes = {str(p.relative_to(root)): hashlib.sha256(p.read_bytes()).hexdigest() for p in source_paths}
 
     os.environ["QT_QPA_PLATFORM"] = "offscreen"
     isolated = Path(tempfile.mkdtemp(prefix="flatcam-python-app-"))
@@ -123,6 +209,16 @@ def main():
             report["dataPath"] = str(fc.data_path)
             if not str(fc.data_path).startswith(str(isolated)):
                 raise RuntimeError("The application is not using the isolated settings folder: %s" % fc.data_path)
+            if args.probe_cnc_profile:
+                report["profile"] = args.probe_cnc_profile
+                report["generationEntryPoint"] = "GeometryObject.generatecncjob(use_thread=False, plot=False)"
+                report["cases"] = probe_cnc_profile(fc, qapp, args.probe_cnc_profile, args.probe_output, messages)
+                report["sourceSha256"] = source_hashes
+                report["originalSourcesUnchanged"] = all(
+                    hashlib.sha256((root / p).read_bytes()).hexdigest() == value for p, value in source_hashes.items())
+                failed = not report["originalSourcesUnchanged"] or any(c["status"] != "GENERATED" for c in report["cases"])
+                report["status"] = "CNC_PROFILE_ERRORS" if failed else "GENERATED_NOT_MACHINE_VALIDATED"
+                finish(1 if failed else 0)
             fc.f_handlers.open_project(str(project), cli=True, plot=False)
             objects = fc.collection.get_list()
             expected = Counter((obj["kind"], obj["options"]["name"]) for obj in read_project(project)["objs"])
@@ -158,6 +254,11 @@ def main():
         finish(3)
 
     fc = App(qapp=qapp)
+    report["initialUnitPreference"] = fc.defaults["units"]
+    if args.initial_units:
+        fc.defaults["units"] = args.initial_units
+        fc.options["units"] = args.initial_units
+        report["initialUnitPreference"] = args.initial_units
     QtCore.QTimer.singleShot(int(args.timeout * 1000), timed_out)
     QtCore.QTimer.singleShot(1500, run)
     qapp.exec_()

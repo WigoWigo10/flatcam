@@ -20,30 +20,58 @@ final class ControllerProgramCodec {
         return program != null && ICP_HEADER.matcher(program.startsWith("\uFEFF") ? program.substring(1) : program).find();
     }
 
-    /** Retains modal coordinates and writes XYZ on every G0/G1, without the Python Y=X typo. */
+    /** Expands known modal axes only: a vertical preamble must not invent an XY origin. */
     static String explicitXyz(String program) {
+        return explicitXyz(program, CancellationToken.none());
+    }
+
+    static String explicitXyz(String program, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
         StringBuilder result = new StringBuilder(program.length());
-        double x = 0, y = 0, z = 0;
-        for (String line : program.lines().toList()) {
+        double x = Double.NaN, y = Double.NaN, z = Double.NaN;
+        var lines = program.lines().iterator();
+        while (lines.hasNext()) {
+            cancellation.throwIfCancellationRequested();
+            String line = lines.next();
+            // A machine-defined macro may move any axis. Do not replay its pre-change XY
+            // while restoring Z afterwards. This is not a simulation of the macro.
+            if (line.trim().matches("M0*6")) x = y = z = Double.NaN;
             if (LINEAR_MOVE.matcher(line).matches()) {
                 Map<Character, Double> words = words(line);
+                if (!words.containsKey('X') && !words.containsKey('Y') && !words.containsKey('Z')) {
+                    result.append(line).append('\n');
+                    continue; // G01 F... is a feed setting, not an axis move.
+                }
                 x = words.getOrDefault('X', x);
                 y = words.getOrDefault('Y', y);
                 z = words.getOrDefault('Z', z);
-                result.append(words.get('G') == 0 ? "G00" : "G01")
-                        .append(" X").append(GCodeGenerator.fmt(x))
-                        .append(" Y").append(GCodeGenerator.fmt(y))
-                        .append(" Z").append(GCodeGenerator.fmt(z));
+                result.append(words.get('G') == 0 ? "G00" : "G01");
+                if (!Double.isNaN(x)) result.append(" X").append(GCodeGenerator.fmt(x));
+                if (!Double.isNaN(y)) result.append(" Y").append(GCodeGenerator.fmt(y));
+                if (!Double.isNaN(z)) result.append(" Z").append(GCodeGenerator.fmt(z));
                 if (words.containsKey('F')) result.append(" F").append(GCodeGenerator.fmt(words.get('F')));
                 result.append('\n');
             } else result.append(line).append('\n');
         }
+        cancellation.throwIfCancellationRequested();
         return result.toString();
     }
 
     static String encodeIcp(String program) {
-        StringBuilder result = new StringBuilder("IMF_PBL flatcam\n");
-        for (String raw : program.lines().toList()) {
+        return encodeIcp(program, 1500, CancellationToken.none());
+    }
+
+    static String encodeIcp(String program, double rapidFeed, CancellationToken cancellation) {
+        cancellation.throwIfCancellationRequested();
+        if (!Double.isFinite(rapidFeed) || rapidFeed <= 0)
+            throw new IllegalArgumentException("Feed rapido ICP deve ser positivo e finito.");
+        int rapid = scaled(rapidFeed, 1000.0 / 60);
+        if (rapid <= 0) throw new IllegalArgumentException("Feed rapido ICP abaixo de 1 micrometro/s.");
+        StringBuilder result = new StringBuilder("IMF_PBL flatcam\nFASTVEL " + rapid + "\n");
+        var lines = program.lines().iterator();
+        while (lines.hasNext()) {
+            cancellation.throwIfCancellationRequested();
+            String raw = lines.next();
             String line = raw.trim();
             if (line.isEmpty()) continue;
             if (line.startsWith(";") || line.startsWith("(")) {
@@ -86,6 +114,7 @@ final class ControllerProgramCodec {
                 } else throw new IllegalArgumentException("Comando nao suportado para ICP: " + line);
             } else throw new IllegalArgumentException("Comando nao suportado para ICP: " + line);
         }
+        cancellation.throwIfCancellationRequested();
         // Do not clear the work origin or force Z0/X0/Y0 as Python does: retain the selected safe end move.
         return result.append("PROGEND\n").toString();
     }
@@ -126,6 +155,9 @@ final class ControllerProgramCodec {
                         result.append('\n');
                     }
                     case "VEL" -> result.append('F').append(GCodeGenerator.fmt(integer(argument, index, true) * 60.0 / 1000)).append('\n');
+                    // Rapid speed does not replace the separate MOVEABS velocity. The
+                    // XY preview does not simulate rapid timing; the execution reader does.
+                    case "FASTVEL" -> result.append("; ICP FASTVEL ").append(integer(argument, index, true)).append('\n');
                     case "WAIT" -> result.append("G4 P").append(GCodeGenerator.fmt(integer(argument, index, false) / 1000.0)).append('\n');
                     case "GETTOOL" -> result.append('T').append(integer(argument, index, false)).append('\n');
                     case "SPINDLE" -> {
@@ -149,6 +181,7 @@ final class ControllerProgramCodec {
             if (index % 256 == 0 || index == lines.size() - 1) progress.report((index + 1.0) / lines.size());
         }
         if (!header) throw new IllegalArgumentException("Cabecalho ICP ausente");
+        if (!ended) throw new IllegalArgumentException("PROGEND ausente: programa ICP incompleto");
         progress.report(1);
         return result.toString();
     }

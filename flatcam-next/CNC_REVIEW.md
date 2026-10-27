@@ -1,5 +1,33 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Rascunhos e programas auxiliares — 2026-10-23
+
+Editor G-code, Calibration e SolderPaste agora compartilham o fluxo assíncrono
+de revisão/publicação com Salvar como de CNC Job. O destino é escolhido após
+a revisão; origem/época são revalidadas e o texto analisado é o texto salvo.
+Recusa/cancelamento antes de publicar preserva o arquivo anterior. SolderPaste
+gera programa/prévia no worker com cancelamento durante a ordenação/emissão.
+Avisos distinguem dispensação e calibração de fresagem; o relatório não inventa
+feed/Travel Z constantes. Ensaios de fluxo usam decisão/destino injetados;
+seletor/diálogo nativos e máquina ainda não foram validados manualmente.
+Detalhes em [CNC_FOLLOWUP_REVIEW.md](CNC_FOLLOWUP_REVIEW.md).
+
+## Programa existente e cobertura transportada — 2026-10-14
+
+Salvar como de CNC Job passa por revisão assíncrona antes do FileChooser e
+publicação atômica, revalidando versão/cancelamento. Relatório é extraído do
+programa/statísticas, não dos rascunhos: campos não inferidos ficam Consultar
+código, sem links de edição falsos. Terminal mostra resumo separado do retorno
+export_gcode/write_gcode, incluindo pre/postâmbulos, e revalida antes de publicar.
+Isso não simula F/S/Z modal completo/macros nem impede toda gravação de rascunho
+ou saída de ferramenta auxiliar. Nenhum diálogo é aberto em automações Tcl.
+
+Cobertura passa a usar alvos conhecidos NCC e PAINT, mantidos em affine,
+cópia e painel; escala não escala fresa e recalcula a área residual. Buffer/
+edição arbitrária invalidam referência. Perfis laser/plotter/sonda não oferecem
+o botão de cobertura de fresagem. Geometry genérica/antiga permanece desconhecida.
+Evidência e limites: [CNC_SIX_STEP_REVIEW.md](CNC_SIX_STEP_REVIEW.md).
+
 ## Incremento posterior: Drill slots — 2026-10-14
 
 Detalhes por broca mostram operação dos rasgos (furos sobrepostos ou fresagem),
