@@ -127,6 +127,21 @@ final class GeometryEditorController {
     private long arcPointRevision;
     private TextField curveSteps;
     private boolean drawingCircle;
+    private TextField rotationAngle, rotationX, rotationY;
+    private ComboBox<RotationReference> rotationReference;
+    private TitledPane transformsPane;
+    private Button rotationConfirm, rotationCancel;
+    private Object rotationGesture;
+    private boolean rotationReady;
+
+    enum RotationReference {
+        SELECTION("Centro da seleção"), ORIGIN("Origem (0, 0)"), POINT("Ponto X/Y"),
+        LOWER_LEFT("Canto inferior esquerdo"), LOWER_RIGHT("Canto inferior direito"),
+        UPPER_RIGHT("Canto superior direito"), UPPER_LEFT("Canto superior esquerdo");
+        final String label;
+        RotationReference(String label) { this.label=label; }
+        @Override public String toString() { return label; }
+    }
     private EraserGesture eraser;
 
     /** Frozen stencil: erasing the source shape must not silently change the next erase area. */
@@ -305,6 +320,7 @@ final class GeometryEditorController {
         GeometryEditorDescriptions.apply(textButton, "text");
         GeometryEditorDescriptions.apply(eraserButton, "eraser");
         GeometryEditorDescriptions.apply(arcButton, "arc");
+        GeometryEditorDescriptions.apply(transformButton,"transform");
         GeometryEditorDescriptions.apply(bufferButton, "buffer");
         GeometryEditorDescriptions.apply(cutPathButton, "cut_path");
         GeometryEditorDescriptions.apply(subtractButton, "subtract");
@@ -458,7 +474,7 @@ final class GeometryEditorController {
         Button paintConfirm = new Button("Confirmar Paint"); paintConfirm.setId("geometry-paint-confirm");
         Button paintCancel = new Button("Cancelar previa");
         paintPreview.setOnAction(event -> generatePaint());
-        paintConfirm.setOnAction(event -> plotArea.confirmEditorFixedPreview());
+        paintConfirm.setOnAction(event -> { if (rotationGesture == null) plotArea.confirmEditorFixedPreview(); });
         paintCancel.setOnAction(event -> plotArea.cancelPlacement());
         paintConfirm.disableProperty().bind(paintPreview.disableProperty());
         for (javafx.beans.value.ObservableValue<?> property : List.<javafx.beans.value.ObservableValue<?>>of(paintDiameter.textProperty(), paintOverlap.textProperty(), paintMargin.textProperty(), paintMethod.valueProperty()))
@@ -473,31 +489,56 @@ final class GeometryEditorController {
                 new HBox(8, new Label("Margem:"), paintMargin), new HBox(8, new Label("Method:"), paintMethod),
                 new HBox(8, paintConnect, paintContour), paintPreview, paintConfirm, paintCancel));
         paintPane.setExpanded(false); panel.getChildren().add(paintPane);
-        TextField angleField = new TextField("90");
-        angleField.setPrefColumnCount(6);
+        rotationAngle = new TextField("90"); rotationAngle.setId("geometry-rotation-angle");
+        rotationAngle.setPrefColumnCount(6); rotationAngle.setMinWidth(0);
+        rotationReference = new ComboBox<>(FXCollections.observableArrayList(RotationReference.values()));
+        rotationReference.setId("geometry-rotation-reference"); rotationReference.setValue(RotationReference.SELECTION);
+        rotationReference.setMinWidth(0); rotationReference.setMaxWidth(Double.MAX_VALUE);
+        rotationX = new TextField("0"); rotationY = new TextField("0");
+        rotationX.setId("geometry-rotation-x"); rotationY.setId("geometry-rotation-y");
+        for (TextField f : List.of(rotationX,rotationY)) {
+            f.setPrefColumnCount(6); f.setMinWidth(0);
+            f.disableProperty().bind(rotationReference.valueProperty().isNotEqualTo(RotationReference.POINT));
+            ToolDescriptions.apply(f,"Pivô da rotação","Coordenada absoluta do pivô em " + units + ". Aceita ponto ou vírgula decimal. Alterar o valor cancela uma prévia anterior; não move as formas antes de confirmar.");
+        }
         TextField scaleField = new TextField("1.0");
         scaleField.setPrefColumnCount(6);
-        Button rotate = new Button("Girar");
+        Button rotate = new Button("Pré-visualizar rotação"); rotate.setId("geometry-rotation-preview");
+        Button pickPivot = new Button("Escolher pivô no plot"); pickPivot.setId("geometry-rotation-pick");
+        rotationConfirm = new Button("Confirmar rotação"); rotationConfirm.setId("geometry-rotation-confirm");
+        rotationCancel = new Button("Cancelar prévia da rotação"); rotationCancel.setId("geometry-rotation-cancel");
+        ToolDescriptions.apply(rotationAngle,"Ângulo da rotação",GeometryEditorDescriptions.of("rotate").text());
+        ToolDescriptions.apply(rotationReference,"Referência da rotação","Escolha a origem, centro/canto da caixa da seleção ou um ponto absoluto. A caixa inclui todas as formas selecionadas. O centro não é o centro de massa. Escala e espelhos abaixo continuam usando o centro da seleção.");
+        ToolDescriptions.apply(rotate,"Prévia da rotação",GeometryEditorDescriptions.of("rotate").text());
+        ToolDescriptions.apply(pickPivot,"Pivô no desenho","Escolha o ângulo, clique neste botão e depois no pivô no Plot Area. O Snap da barra inferior é respeitado. A prévia é calculada após o clique; Esc/botão direito cancela sem mudar o rascunho.");
+        ToolDescriptions.apply(rotationConfirm,"Confirmar rotação","Aplica exatamente a prévia calculada às formas selecionadas. Também pode confirmar com um clique no plot. Mantém ferramentas, IDs e seleção; Ctrl+Z desfaz a rotação inteira. Salvar e sair aplica o rascunho ao objeto.");
+        ToolDescriptions.apply(rotationCancel,"Cancelar rotação","Descarta a prévia, preservando o rascunho. Durante o cálculo, use Esc para descartar o resultado pendente ou Cancelar na barra de status para interromper o trabalho quando possível.");
         Button scale = new Button("Escalar");
         Button mirrorHorizontal = new Button("Espelhar horizontal");
         Button mirrorVertical = new Button("Espelhar vertical");
-        rotate.setOnAction(event -> runTransform("Rotacao aplicada.", () ->
-                session.rotateSelected(parseTransformNumber(angleField, "Angulo"))));
+        rotate.setOnAction(event -> previewRotation());
+        pickPivot.setOnAction(event -> pickRotationPivot());
+        rotationConfirm.setOnAction(event -> { if (rotationReady) plotArea.confirmEditorFixedPreview(); });
+        rotationCancel.setOnAction(event -> cancelRotationFromShortcut());
+        for (var property : List.<javafx.beans.value.ObservableValue<?>>of(rotationAngle.textProperty(),rotationX.textProperty(),rotationY.textProperty(),rotationReference.valueProperty()))
+            property.addListener((obs, old, value) -> { if (rotationGesture != null) cancelRotationFromShortcut(); });
         scale.setOnAction(event -> runTransform("Escala aplicada.", () ->
                 session.scaleSelected(parseTransformNumber(scaleField, "Escala"))));
         mirrorHorizontal.setOnAction(event -> runTransform("Espelhamento horizontal aplicado.",
                 () -> session.mirrorSelected(true)));
         mirrorVertical.setOnAction(event -> runTransform("Espelhamento vertical aplicado.",
                 () -> session.mirrorSelected(false)));
-        for (Button button : List.of(rotate, scale, mirrorHorizontal, mirrorVertical)) {
+        for (Button button : List.of(rotate, pickPivot, scale, mirrorHorizontal, mirrorVertical)) {
             button.disableProperty().bind(transformButton.disableProperty());
         }
         VBox transformControls = new VBox(8,
-                new Label("Centro: meio dos limites das formas selecionadas."),
-                new HBox(8, new Label("Graus:"), angleField, rotate),
+                new HBox(8, new Label("Graus (+horário):"), rotationAngle), rotationReference,
+                new HBox(8,new Label("X:"),rotationX,new Label("Y:"),rotationY),
+                pickPivot,rotate,rotationConfirm,rotationCancel,
+                new Label("Escala/espelhos: centro da seleção."),
                 new HBox(8, new Label("Fator:"), scaleField, scale),
                 mirrorHorizontal, mirrorVertical);
-        TitledPane transformsPane = new TitledPane("Transformacoes das selecionadas", transformControls);
+        transformsPane = new TitledPane("Transformacoes das selecionadas", transformControls);
         transformsPane.setExpanded(false);
         transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
         panel.getChildren().add(transformsPane);
@@ -596,6 +637,93 @@ final class GeometryEditorController {
         } catch (IllegalArgumentException error) {
             instruction.setText(error.getMessage());
         }
+    }
+
+    void openTransforms() {
+        if (readyForTool()) transformsPane.setExpanded(true);
+    }
+
+    private Coordinate rotationPivot() {
+        if (rotationReference.getValue() == RotationReference.ORIGIN) return new Coordinate(0,0);
+        if (rotationReference.getValue() == RotationReference.POINT)
+            return new Coordinate(parseTransformNumber(rotationX,"Pivô X"),parseTransformNumber(rotationY,"Pivô Y"));
+        var bounds=session.selectedBounds().getEnvelopeInternal();
+        return switch(rotationReference.getValue()) {
+            case LOWER_LEFT -> new Coordinate(bounds.getMinX(),bounds.getMinY());
+            case LOWER_RIGHT -> new Coordinate(bounds.getMaxX(),bounds.getMinY());
+            case UPPER_RIGHT -> new Coordinate(bounds.getMaxX(),bounds.getMaxY());
+            case UPPER_LEFT -> new Coordinate(bounds.getMinX(),bounds.getMaxY());
+            default -> bounds.centre();
+        };
+    }
+
+    private Geometry pivotCross(Coordinate pivot) {
+        var factory=new org.locationtech.jts.geom.GeometryFactory(); double r=plotArea.worldPerPixel()*5;
+        return factory.buildGeometry(List.of(factory.createLineString(new Coordinate[]{new Coordinate(pivot.x-r,pivot.y),new Coordinate(pivot.x+r,pivot.y)}),
+                factory.createLineString(new Coordinate[]{new Coordinate(pivot.x,pivot.y-r),new Coordinate(pivot.x,pivot.y+r)})));
+    }
+
+    private void pickRotationPivot() {
+        if (!readyForTool() || session.selectedCount()==0) return;
+        plotArea.cancelPlacement(); Object gesture=new Object(); rotationGesture=gesture; rotationReady=false;
+        GeometryEditSession editing=session; var selection=editing.selectedIndexOrder();
+        boolean started=plotArea.beginEditorFlashPlacement(pivotCross(new Coordinate(0,0)),new PlotAreaView.PlacementHandler() {
+            public void onCommit(double x,double y) {
+                if (session!=editing || rotationGesture!=gesture || !selection.equals(editing.selectedIndexOrder())) return;
+                rotationGesture=null;
+                rotationX.setText(Double.toString(x)); rotationY.setText(Double.toString(y));
+                rotationReference.setValue(RotationReference.POINT); previewRotation();
+            }
+            public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Escolha do pivô cancelada."); }
+        });
+        if (!started) stopRotation(gesture,"Não foi possível escolher o pivô.");
+        else instruction.setText("Clique no pivô da rotação; depois confira a prévia. Esc/botão direito cancela.");
+        refreshSelection();
+    }
+
+    private void previewRotation() {
+        if (!readyForTool()) return;
+        if (session.selectedCount()==0) { instruction.setText("Selecione formas para girar."); return; }
+        plotArea.cancelPlacement();
+        GeometryEditSession editing=session;
+        try {
+            Coordinate pivot=rotationPivot();
+            var request=editing.prepareRotation(parseTransformNumber(rotationAngle,"Ângulo"),pivot);
+            Object gesture=new Object(); rotationGesture=gesture; rotationReady=false;
+            calculate(request,result -> {
+                if (rotationGesture!=gesture) return;
+                if (result.resultParts().isEmpty()) { stopRotation(gesture,"Nenhuma coordenada foi alterada pela rotação."); return; }
+                var factory=result.resultParts().getFirst().geometry().getFactory();
+                // Use the indexed overlay for dense shapes; only the small pivot marker is a placement preview.
+                Geometry preview=factory.buildGeometry(result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
+                boolean started=plotArea.beginEditorFixedPreview(pivotCross(pivot),new PlotAreaView.PlacementHandler() {
+                    public void onCommit(double dx,double dy) {
+                        if (session!=editing || rotationGesture!=gesture) return;
+                        rotationGesture=null; rotationReady=false; plotArea.setEditorReference(null);
+                        boolean changed=editing.applyRotation(result); refreshGeometry();
+                        instruction.setText(changed ? "Rotação aplicada ao rascunho. Ctrl+Z desfaz; Ctrl+Y refaz."
+                                : "A seleção ou o rascunho mudou; prévia descartada.");
+                    }
+                    public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Prévia da rotação descartada."); }
+                });
+                if (!started) { stopRotation(gesture,"Não foi possível mostrar a prévia da rotação."); return; }
+                plotArea.setEditorReference(preview); rotationReady=true; refreshSelection();
+                instruction.setText("Prévia da rotação: confira o novo contorno. Confirme pelo botão ou clique no plot; Esc/botão direito cancela.");
+            },() -> stopRotation(gesture,null));
+        } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
+    }
+
+    boolean cancelRotationFromShortcut() {
+        if (rotationGesture==null) return false;
+        Object gesture=rotationGesture;
+        stopRotation(gesture,busy ? "Rotação cancelada; o resultado pendente será descartado." : "Prévia da rotação descartada.");
+        plotArea.cancelPlacement(); return true;
+    }
+
+    private void stopRotation(Object gesture,String message) {
+        if (rotationGesture!=gesture) return;
+        rotationGesture=null; rotationReady=false; plotArea.setEditorReference(null);
+        refreshSelection(); if (message!=null) instruction.setText(message);
     }
 
     private Button plannedToolButton(String label, String icon) {
@@ -1161,7 +1289,8 @@ final class GeometryEditorController {
         GeometryEditSession editing = session;
         busy = true;
         refreshSelection();
-        instruction.setText("Calculando " + request.operation().name().toLowerCase(java.util.Locale.ROOT) + "...");
+        instruction.setText("Calculando " + (request.operation()==GeometryEditSession.Operation.ROTATE ? "rotação"
+                : request.operation().name().toLowerCase(java.util.Locale.ROOT)) + "...");
         boolean accepted = host.runOperation(request, result -> {
             if (session != editing) {
                 return;
@@ -1274,6 +1403,9 @@ final class GeometryEditorController {
         paintPane.setDisable(busy);
         textPane.setDisable(busy);
         arcPane.setDisable(busy);
+        transformsPane.setDisable(busy);
+        rotationConfirm.setDisable(busy || !rotationReady);
+        rotationCancel.setDisable(rotationGesture==null);
         if (toolChoice != null) toolChoice.setDisable(busy);
         if (busy) {
             editorButtons.forEach(button -> button.setDisable(true));
@@ -1288,6 +1420,7 @@ final class GeometryEditorController {
         eraser = null;
         arcGesture = null;
         drawingCircle = false;
+        rotationGesture=null; rotationReady=false; plotArea.setEditorReference(null);
         plotArea.setSelectionHandler(null);
         plotArea.removeLayer(SHAPES_LAYER);
         plotArea.setEditorHighlight(null, false);
@@ -1323,6 +1456,7 @@ final class GeometryEditorController {
         textFont = null; textSize = null; textBold = null; textItalic = null; units = null;
         arcPane = null; arcMode = null; arcClockwise = null;
         curveSteps = null;
+        rotationAngle=null; rotationX=null; rotationY=null; rotationReference=null; rotationConfirm=null; rotationCancel=null; transformsPane=null;
         bufferDistance = null;
         bufferMode = null;
         editorButtons = null;

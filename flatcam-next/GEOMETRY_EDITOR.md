@@ -108,6 +108,45 @@ inserção exata com Snap ativo, respostas atrasadas, resolução, padrão salvo
 reinício do círculo. O movimento físico e a apresentação em monitores/DPI
 ainda precisam da avaliação manual do usuário.
 
+## Rotação com pivô e prévia — 2026-10-24
+
+Abra **Transformações das selecionadas** pela barra ou **Geo Editor >
+Transformações**. Selecione as formas e informe o ângulo: **positivo gira no
+sentido horário**, como `on_rotate_action` Python; negativo é anti-horário.
+O campo substitui a aplicação imediata anterior do botão Girar no FX.
+
+Escolha o pivô na lista: origem `(0,0)`, centro da caixa da seleção, um dos
+quatro cantos dessa caixa ou ponto absoluto X/Y nas unidades do objeto.
+**Escolher pivô no plot** recebe um clique com o Snap atual e calcula a prévia
+em seguida, usando o ângulo já informado. **Pré-visualizar rotação** calcula
+com a referência do formulário.
+
+A prévia desenha o contorno transformado e uma cruz no pivô. O rascunho fica
+intacto até **Confirmar rotação** ou um clique no plot; o lugar desse clique
+não desloca a prévia. Esc/botão direito/Cancelar prévia descartam sem alterar
+o rascunho. Mudar ângulo, pivô, seleção ou ferramenta invalida uma prévia antiga.
+Durante o cálculo, Esc descarta a publicação pendente; Cancelar na barra de
+status solicita interrupção do trabalho. Uma falha não publica resultado parcial.
+
+Depois de confirmar, Ctrl+Z/Ctrl+Y desfaz/refaz a rotação inteira. Conserva os
+IDs, a ordem de seleção, a associação às ferramentas e o perfil delas; formas
+não selecionadas permanecem como estavam. O objeto do projeto só muda ao
+Salvar e sair do editor. Ângulo zero/voltas completas e coordenadas não finitas
+são recusados, sem histórico novo.
+
+O cálculo das coordenadas usa worker e verifica cancelamento durante a travessia
+de uma forma densa. A prévia usa o overlay indexado do plot; só a pequena cruz
+do pivô usa o desenho imediato de posicionamento. Não houve medição de ganho
+de FPS nesta etapa. Testes MM/IN, Z preservado, ferramenta/IDs/histórico, overflow,
+cancelamento em uma forma de 20.000 vértices, cliques e referências são automatizados.
+Ainda falta avaliar visualmente na janela real.
+
+O ângulo desta etapa é digitado; escolha angular por arrasto e atalhos globais
+de transformação continuam pendentes. Escala e espelhos ainda usam os comandos
+numéricos anteriores pelo centro da seleção, sem esta prévia com pivô escolhido.
+A API antiga `rotateSelected` continua anti-horária para os chamadores existentes;
+o novo pedido de rotação do painel é explicitamente horário, como o Python.
+
 ## Texto
 
 Clique **Texto**, escolha fonte instalada, tamanho, Negrito/Itálico e conteúdo.
@@ -186,8 +225,8 @@ ou botão. Esc/botão direito cancela; Ctrl+Z desfaz a inserção inteira. Ferra
 associadas conservam o diâmetro (selecione uma por vez); sem associação, confira
 o diâmetro ao gerar CNC. Resultados vazios/incompletos são recusados atomicamente.
 Arcos agora têm os três modos, M/D/Backspace, J e resolução configurável.
-Jump fora do arco, referência persistida e transformações interativas ainda
-não reproduzem integralmente os gestos Python.
+Jump fora do arco, referência persistida, arrasto angular e as demais
+transformações com prévia ainda não reproduzem integralmente os gestos Python.
 Estas entregas não tornam o editor 100% equivalente.
 
 Testes de núcleo, controles, cliques no plot, cancelamento, undo/redo, 10.000 formas

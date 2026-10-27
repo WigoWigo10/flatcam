@@ -854,7 +854,7 @@ final class MainWindow implements TclFlatcamHost {
                     return;
                 }
             }
-            if (event.getCode() == KeyCode.ESCAPE && geometryEditor.cancelEraserFromShortcut()) {
+            if (event.getCode() == KeyCode.ESCAPE && (geometryEditor.cancelEraserFromShortcut() || geometryEditor.cancelRotationFromShortcut())) {
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
@@ -1734,6 +1734,7 @@ final class MainWindow implements TclFlatcamHost {
                 case "text" -> geometryEditor::startText;
                 case "paint" -> geometryEditor::startPaint;
                 case "eraser" -> geometryEditor::startEraser;
+                case "transform" -> geometryEditor::openTransforms;
                 case "explode" -> geometryEditor::explode;
                 default -> null;
             };

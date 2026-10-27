@@ -97,6 +97,12 @@ class GeometryTextEraserPanelTest {
                     false,false,false,false,false,false,false,false,false,true,null));
         }
         double area() { return reflectedSession().resultGeometry().getArea(); }
+        Button rotationButton(String suffix) { return (Button)panel.lookup("#geometry-rotation-"+suffix); }
+        TextField rotationField(String suffix) { return (TextField)panel.lookup("#geometry-rotation-"+suffix); }
+        Object plotField(String name) {
+            try { var field=PlotAreaView.class.getDeclaredField(name); field.setAccessible(true); return field.get(plot); }
+            catch(ReflectiveOperationException error) { throw new AssertionError(error); }
+        }
         GeometryEditSession reflectedSession() {
             try { var field=GeometryEditorController.class.getDeclaredField("session"); field.setAccessible(true); return (GeometryEditSession)field.get(controller); }
             catch (ReflectiveOperationException error) { throw new AssertionError(error); }
@@ -491,6 +497,118 @@ class GeometryTextEraserPanelTest {
             var next=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
             try { fx(() -> { assertEquals("128",((TextField)next.panel.lookup("#geometry-curve-steps")).getText()); return null; }); }
             finally { fx(() -> { next.controller.cancel(); return null; }); }
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void rotationPreviewIsFixedAndRequiresConfirmationWithOneUndoTransaction() throws Exception {
+        var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
+        var h=fx(() -> new Harness(source,List.of(new ToolGeometry(.8,source))));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.rotationButton("preview").fire();
+                assertTrue(h.controller.isBusy()); assertFalse(h.controller.hasUnappliedChanges()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertFalse(h.controller.hasUnappliedChanges()); assertNotNull(h.plotField("editorReferenceGeometry"));
+                assertFalse(h.rotationButton("confirm").isDisabled());
+                ((Button)h.panel.lookup("#geometry-paint-confirm")).fire(); // Must not confirm a rotation.
+                assertFalse(h.controller.hasUnappliedChanges());
+                h.click(80,60); // The confirmation click must not translate the rotated shape.
+                assertTrue(h.controller.hasUnappliedChanges()); assertNull(h.plotField("editorReferenceGeometry"));
+                assertEquals(0,h.reflectedSession().selectedIndexOrder().getFirst());
+                var result=h.reflectedSession().resultGeometry();
+                assertEquals(41,result.getEnvelopeInternal().getMinX(),1e-10);
+                assertEquals(29,result.getEnvelopeInternal().getMinY(),1e-10);
+                assertTrue(h.controller.undoFromShortcut()); assertFalse(h.controller.hasUnappliedChanges());
+                assertTrue(h.controller.redoFromShortcut());
+                assertEquals(.8,h.reflectedSession().resultTools().getFirst().toolDiameter());
+                h.controller.apply(); assertNotNull(h.applied); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void pivotClickRespectsSnapAndNumericReferenceChoicesMatchTheSelectedBounds() throws Exception {
+        var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
+        var h=fx(() -> new Harness(source,List.of()));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.plot.setGridSnap(true,1,1);
+                h.rotationButton("pick").fire(); h.click(50.3,40.6);
+                assertEquals("50.0",h.rotationField("x").getText()); assertEquals("41.0",h.rotationField("y").getText());
+                assertEquals(GeometryEditSession.Operation.ROTATE,h.request.operation()); return null;
+            }); h.finish();
+            fx(() -> {
+                h.rotationButton("confirm").fire();
+                assertEquals(39,h.reflectedSession().resultGeometry().getEnvelopeInternal().getMinX(),1e-10);
+                assertEquals(47,h.reflectedSession().resultGeometry().getEnvelopeInternal().getMinY(),1e-10);
+                assertTrue(h.controller.undoFromShortcut()); return null;
+            });
+            for (var ref:GeometryEditorController.RotationReference.values()) {
+                fx(() -> {
+                    ((ComboBox<GeometryEditorController.RotationReference>)h.panel.lookup("#geometry-rotation-reference")).setValue(ref);
+                    h.rotationButton("preview").fire(); return null;
+                });
+                Coordinate pivot=switch(ref) {
+                    case SELECTION -> new Coordinate(42,31);
+                    case ORIGIN -> new Coordinate(0,0);
+                    case POINT -> new Coordinate(50,41);
+                    case LOWER_LEFT -> new Coordinate(40,30);
+                    case LOWER_RIGHT -> new Coordinate(44,30);
+                    case UPPER_RIGHT -> new Coordinate(44,32);
+                    case UPPER_LEFT -> new Coordinate(40,32);
+                };
+                assertEquals(pivot,h.request.pivot(),ref.toString());
+                h.finish();
+                fx(() -> {
+                    h.rotationButton("confirm").fire();
+                    Geometry expected=org.locationtech.jts.geom.util.AffineTransformation.rotationInstance(-Math.PI/2,pivot.x,pivot.y).transform(source);
+                    assertTrue(expected.equalsExact(h.reflectedSession().resultGeometry(),1e-10),ref.toString());
+                    assertTrue(h.controller.undoFromShortcut()); return null;
+                });
+            }
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void changingRotationParametersOrSelectionDiscardsPreviewAndBusyEscapeDiscardsResult() throws Exception {
+        var f=new GeometryFactory(); var h=fx(() -> new Harness(f.buildGeometry(List.of(
+                f.toGeometry(new Envelope(40,44,30,32)),f.toGeometry(new Envelope(50,54,30,32)))),List.of()));
+        try {
+            fx(() -> { h.table().getSelectionModel().select(0); h.rotationButton("preview").fire(); return null; }); h.finish();
+            fx(() -> {
+                h.rotationField("angle").setText("45");
+                assertNull(h.plotField("editorReferenceGeometry")); assertFalse(h.plot.isPlacementActive());
+                h.rotationButton("preview").fire(); return null;
+            }); h.finish();
+            fx(() -> {
+                h.table().getSelectionModel().clearAndSelect(1);
+                assertNull(h.plotField("editorReferenceGeometry")); assertEquals(List.of(1),h.reflectedSession().selectedIndexOrder());
+                h.rotationButton("preview").fire(); assertTrue(h.controller.cancelRotationFromShortcut()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertFalse(h.controller.hasUnappliedChanges()); assertFalse(h.plot.isPlacementActive());
+                assertNull(h.plotField("editorReferenceGeometry")); assertFalse(h.controller.isBusy());
+                h.rotationField("angle").setText("360"); h.rotationButton("preview").fire(); assertNull(h.request);
+                assertFalse(h.controller.hasUnappliedChanges()); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void rotationFailureAndRightClickKeepDraftAndDoNotLeaveAnOverlay() throws Exception {
+        var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
+        var h=fx(() -> new Harness(source,List.of()));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.rotationButton("preview").fire();
+                var failure=h.failed; h.request=null; h.failed=null; failure.accept("Operação cancelada.");
+                assertFalse(h.controller.isBusy()); assertNull(h.plotField("editorReferenceGeometry"));
+                h.rotationButton("preview").fire(); return null;
+            }); h.finish();
+            fx(() -> {
+                h.click(70,50,MouseButton.SECONDARY);
+                assertFalse(h.plot.isPlacementActive()); assertFalse(h.controller.hasUnappliedChanges());
+                assertNull(h.plotField("editorReferenceGeometry")); assertTrue(h.rotationButton("confirm").isDisabled());
+                return null;
+            });
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }
     @Test void workerFailureReenablesToolsAndPreservesDraft() throws Exception {

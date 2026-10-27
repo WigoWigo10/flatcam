@@ -110,6 +110,32 @@ após a correção, sem falhas/erros; suíte integral será repetida ao final da
 Logs em `target/session-review-20261026`. Próxima etapa: investigar a representação
 Python dos dois erros NCC Offset, sem alterar o algoritmo ou tolerâncias do legado.
 
+## Editor Geometry: rotação com pivô e prévia — 2026-10-24
+
+J/resolução commitados em `c0cb3219`, branch `flatcam-next`, sem push.
+Painel de transformações agora permite rotação com referência origem/centro/
+quatro cantos/ponto e pivô escolhido no plot com Snap. Ângulo positivo horário,
+como `appGeoEditor.on_rotate_action(-val)`; a antiga API rotateSelected permanece
+anti-horária por compatibilidade com seus chamadores. Cálculo em worker,
+cancelamento por coordenadas e prévia em overlay indexado; confirmação por
+botão/clique aplica o resultado já calculado sem transladá-lo para o clique.
+Conserva IDs, ferramentas e ordem de seleção em uma transação de undo/redo.
+Parâmetros/seleção alterados e Esc invalidam previews/resultados pendentes.
+Confirmação Paint não aceita um preview de rotação. Menu Geo Editor >
+Transformações passa a abrir o painel, com ajuda comum ao ícone da barra.
+Testes novos cobrem MM/IN, Z, IDs/ferramentas, histórico, referências, pivô com
+Snap, descartes e cancelamento em uma forma de 20.000 vértices. Sem benchmark
+de FPS nem avaliação visual manual. Escala/espelhos e arrasto angular continuam
+pendentes de prévia/gestos equivalentes; ver [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+Empacotamento final e **84 testes focados** passaram, incluindo o teste do
+menu habilitado e a revisão Roland isolada. `verify` integral: 1922 registros,
+1903 aprovações, 18 skips opcionais e a única falha conhecida End Z em
+`CncNativePrecisionTest`, sem mudança/afrouxamento dessa asserção.
+Menu/ajuda e texto de progresso foram finalizados após o verify e cobertos
+pela rodada focada final; a execução integral anterior continua reprovada.
+Logs em `target/editor-rotation-verify.log`, `editor-rotation-verify-totals.json`
+e `editor-rotation-final-targeted.log`. Rotação ainda sem commit/push.
+
 ## Editor Geometry: J e resolução de curvas — 2026-10-24
 
 Modos de arco commitados em `2060bc91`, branch `flatcam-next`, sem push.

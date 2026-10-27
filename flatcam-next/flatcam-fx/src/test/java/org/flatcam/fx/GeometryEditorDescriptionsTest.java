@@ -16,7 +16,7 @@ import org.junit.jupiter.api.condition.OS;
 
 class GeometryEditorDescriptionsTest {
     @Test void helpDescribesEffectsLimitsAndKeyboardWithoutClaimingFullParity() {
-        for (String id : List.of("arc","text","eraser","buffer","cut_path","subtract","union","intersection","explode","move","copy")) {
+        for (String id : List.of("transform","rotate","arc","text","eraser","buffer","cut_path","subtract","union","intersection","explode","move","copy")) {
             var help = GeometryEditorDescriptions.of(id);
             assertNotNull(help,id); assertTrue(help.text().length() > 100,id);
             assertTrue(help.text().contains("Ctrl+Z"),id);
@@ -27,6 +27,22 @@ class GeometryEditorDescriptionsTest {
         assertTrue(GeometryEditorDescriptions.of("buffer").text().contains("distância negativa"));
         assertTrue(GeometryEditorDescriptions.of("cut_path").text().contains("mantém os cortadores"));
         assertNull(GeometryEditorDescriptions.of("delete")); assertNotNull(GeometryEditorDescriptions.of("paint"));
+    }
+
+    @Test @EnabledOnOs(OS.WINDOWS)
+    void transformMenuIsEnabledAndUsesTheSameHelpAsTheToolbar() throws Exception {
+        var jobs=new org.flatcam.app.job.JobExecutor(1);
+        try {
+            TerminalPanelTest.fx(() -> {
+                var window=new MainWindow(jobs); var menu=new javafx.scene.control.Menu("Geo Editor");
+                var build=MainWindow.class.getDeclaredMethod("addGeometryEditorCommands",javafx.scene.control.Menu.class);
+                build.setAccessible(true); build.invoke(window,menu);
+                var item=menu.getItems().stream().filter(i->"Transformações".equals(i.getText())).findFirst().orElseThrow();
+                assertFalse(item.isDisable()); assertNotNull(item.getOnAction());
+                assertEquals(GeometryEditorDescriptions.of("transform").text(),item.getProperties().get(FluidTooltips.TEXT_KEY));
+                return null;
+            });
+        } finally { jobs.shutdown(); }
     }
     @Test @EnabledOnOs(OS.WINDOWS)
     void menuAndIconUseIdenticalRichHelpWithoutTwoTooltips() throws Exception {

@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Rotação com referência e prévia no Editor Geometry — 2026-10-24
+
+Referências origem/centro/cantos/ponto, pivô por clique e sinal horário positivo
+do painel Python implementados. Prévia em worker e confirmação atômica,
+preservando IDs/ferramentas/seleção; menu de transformações habilitado.
+Núcleo MM/IN e gestos testados; sem sessão GUI Python comparativa ou validação
+manual FX. Arrasto angular e demais transformações com prévia permanecem
+parciais. [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Coordenadas J e resolução no Editor Geometry — 2026-10-24
 
 J no arco aceita absoluto/relativo; posiciona cursor/prévia sem inserir ou
