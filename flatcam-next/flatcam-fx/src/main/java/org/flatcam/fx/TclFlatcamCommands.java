@@ -51,6 +51,7 @@ final class TclFlatcamCommands {
         registerCutout(interpreter);
         registerNcc(interpreter);
         registerCncjob(interpreter);
+        registerDrillcncjob(interpreter);
         registerExportGcode(interpreter);
         registerWriteGcode(interpreter);
         registerExportExcellon(interpreter);
@@ -110,6 +111,13 @@ final class TclFlatcamCommands {
                     + "<=0 = automatico (0.02 para formas; diametro da ferramenta ou 0.02 para CNC). "
                     + "Nao escala coordenadas. Unidades da origem, Y para cima, Travel sob Cut. "
                     + "Destino explicito obrigatorio; substitui arquivo existente apos validacao. Feche editores.";
+            case "drillcncjob" -> "drillcncjob {furos} -drillz -1.7 -travelz 2 -feedrate_z 300 ?-drilled_dias 0.8,1.0? "
+                    + "?-diatol pct? ?-dpp passo? ?-spindlespeed rpm? ?-toolchangez z? ?-toolchangexy x,y? ?-startz z? "
+                    + "?-endz z? ?-endxy x,y? ?-dwelltime s? ?-feedrate_rapid f? ?-pp perfil? ?-opt_type B|M|T? ?-outname nome?\n"
+                    + "-drillz (negativo), -travelz e -feedrate_z sao obrigatorios no FX (o Python usaria Preferencias). "
+                    + "Ferramentas em ordem crescente de diametro. Troca de ferramenta so com -toolchangez. "
+                    + "-pp aceita o nome Python (ex.: GRBL_11) ou do FX; padrao FX portable. "
+                    + "-opt_type B/M/T usa a ordem por proximidade do FX, nao OR-Tools/TSP. -muted e aceito sem efeito.";
             default -> null;
         };
     }
@@ -550,6 +558,84 @@ final class TclFlatcamCommands {
             String outname = args.optionOrDefault("outname", name + "_cnc");
             return creationResult(outname, host.cncjob(name, outname, dia, zCut, zMove, feedrate, feedrateZ, feedrateRapid));
         });
+    }
+
+    /**
+     * Python's TclCommandDrillcncjob. Required here: {@code -drillz} (finite, negative), {@code -travelz}
+     * and {@code -feedrate_z} (positive) - Python falls back to Preferences this Terminal does not read.
+     */
+    private void registerDrillcncjob(TclInterpreter interpreter) {
+        interpreter.register("drillcncjob", (interp, words) -> {
+            TclArgs args = TclArgs.parse(words);
+            args.rejectUnknownOptions(java.util.Set.of("drilled_dias", "drillz", "dpp", "travelz", "feedrate_z",
+                    "feedrate_rapid", "spindlespeed", "toolchangez", "toolchangexy", "startz", "endz", "endxy",
+                    "dwelltime", "pp", "opt_type", "diatol", "muted", "outname"));
+            requirePositionals(args, 1, 1);
+            String name = args.positional(0);
+            List<Double> diameters = new ArrayList<>();
+            String drilled = args.optionOrDefault("drilled_dias", "all").trim();
+            if (!drilled.equalsIgnoreCase("all")) {
+                for (String part : drilled.split(",")) {
+                    if (part.isBlank()) continue;
+                    double dia = number(part);
+                    if (dia <= 0) throw new TclException("drilled_dias must list positive diameters, got: " + part);
+                    diameters.add(dia);
+                }
+                if (diameters.isEmpty()) throw new TclException("drilled_dias must list at least one diameter.");
+            }
+            Double tolerance = null;
+            if (args.isPresent("diatol")) {
+                double percent = number(args.requireOption("diatol"));
+                tolerance = Math.max(0.0, Math.min(100.0, percent)) / 100.0;
+            }
+            double drillZ = number(args.requireOption("drillz"));
+            if (drillZ >= 0) throw new TclException("drillz must be negative (for example -1.7).");
+            double travelZ = positive(args, "travelz");
+            double feedZ = positive(args, "feedrate_z");
+            boolean multiDepth = args.isPresent("dpp");
+            double dpp = multiDepth ? positive(args, "dpp") : 0;
+            double rapid = args.isPresent("feedrate_rapid") ? number(args.requireOption("feedrate_rapid")) : 0;
+            if (rapid < 0) throw new TclException("feedrate_rapid cannot be negative.");
+            int spindle = args.intOrDefault("spindlespeed", 0);
+            if (spindle < 0) throw new TclException("spindlespeed cannot be negative.");
+            boolean toolChange = args.isPresent("toolchangez");
+            double toolChangeZ = toolChange ? positive(args, "toolchangez") : travelZ;
+            double[] toolChangeXY = args.isPresent("toolchangexy") ? point(args.requireOption("toolchangexy")) : null;
+            Double startZ = args.isPresent("startz") ? number(args.requireOption("startz")) : null;
+            if (startZ != null && startZ < 0) throw new TclException("startz cannot be negative.");
+            double endZ = args.isPresent("endz") ? number(args.requireOption("endz")) : travelZ;
+            double[] endXY = args.isPresent("endxy") ? point(args.requireOption("endxy")) : null;
+            boolean dwell = args.isPresent("dwelltime");
+            double dwellSeconds = dwell ? number(args.requireOption("dwelltime")) : 0;
+            if (dwellSeconds < 0) throw new TclException("dwelltime cannot be negative.");
+            String optType = args.optionOrDefault("opt_type", "B").trim().toUpperCase(java.util.Locale.ROOT);
+            if (!List.of("B", "M", "T").contains(optType))
+                throw new TclException("opt_type must be B, M or T, got: " + optType);
+            org.flatcam.cam.gcode.GCodePreprocessor pp = args.isPresent("pp")
+                    ? preprocessor(args.requireOption("pp")) : org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE;
+            String outname = args.optionOrDefault("outname", name + "_cnc");
+            TclDrillRequest request = new TclDrillRequest(diameters, tolerance, -drillZ, multiDepth, dpp, travelZ,
+                    feedZ, rapid, spindle, toolChange, toolChangeZ, toolChangeXY, startZ, endZ, endXY, dwell,
+                    dwellSeconds, pp, true);
+            return creationResult(outname, host.drillcncjob(name, outname, request));
+        });
+    }
+
+    private static double positive(TclArgs args, String option) throws TclException {
+        double value = number(args.requireOption(option));
+        if (value <= 0) throw new TclException(option + " must be positive, got: " + value);
+        return value;
+    }
+
+    /** Accepts the Python profile name (e.g. GRBL_11, default, Marlin) or this port's enum name. */
+    static org.flatcam.cam.gcode.GCodePreprocessor preprocessor(String text) throws TclException {
+        String wanted = text.trim();
+        for (var profile : org.flatcam.cam.gcode.GCodePreprocessor.values()) {
+            String python = profile == org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE ? null
+                    : profile.label().split(" \\(")[0];
+            if (profile.name().equalsIgnoreCase(wanted) || wanted.equalsIgnoreCase(python)) return profile;
+        }
+        throw new TclException("Unknown preprocessor: " + text);
     }
 
     /** Python's TclCommandExportGcode: {@code export_gcode name ?-preamble p? ?-postamble p?} - returns the G-code text. */

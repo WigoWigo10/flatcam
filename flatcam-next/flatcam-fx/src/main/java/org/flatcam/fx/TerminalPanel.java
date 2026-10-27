@@ -158,6 +158,22 @@ final class TerminalPanel extends BorderPane {
         }
         historyIndex = history.size();
         appendLine("> " + command);
+        execute(command);
+    }
+
+    /**
+     * Python's File > Run Script / script editor Run Code: the whole text is evaluated as one script on
+     * the same worker, cancellation and progress as a typed command. Returns false (nothing started) if
+     * another script is running.
+     */
+    boolean runScript(String script, String label) {
+        if (busy.get()) return false;
+        appendLine("> [script] " + label + " (" + script.lines().count() + " linhas)");
+        execute(script);
+        return true;
+    }
+
+    private void execute(String command) {
         busy.set(true);
         activity.setText("Executando...");
         progress.setProgress(-1);

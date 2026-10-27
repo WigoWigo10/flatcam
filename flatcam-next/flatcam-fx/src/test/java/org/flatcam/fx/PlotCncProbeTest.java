@@ -11,6 +11,19 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 
 class PlotCncProbeTest {
+    @Test void lineCountersAggregateSeparatelyFromCpuCommandTime() {
+        var metrics = new PlotBenchmarkCncMetrics();
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.PASS_LINES, false, 1.25, 2_000_000,
+                new CanvasCncLineRenderer.Stats(true, 100, 20, 80, 4, 0)));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.PASS_LINES, false, 1.25, 3_000_000,
+                new CanvasCncLineRenderer.Stats(true, 50, 10, 40, 2, 1)));
+        var lines = metrics.finish().getJSONObject("PASS_LINES");
+        assertEquals(2, lines.getLong("clippedCalls")); assertEquals(150, lines.getLong("acceptedSegments"));
+        assertEquals(30, lines.getLong("emittedSegments")); assertEquals(120, lines.getLong("culledSegments"));
+        assertEquals(6, lines.getLong("strokeCalls")); assertEquals(1, lines.getLong("fallbackParts"));
+        assertEquals(5, lines.getDouble("commandEmissionMs"));
+    }
+
     @Test void eachAblationOmitsOnlyTheNamedPassAndNeverMeansVisualParity() {
         for (var mode : PlotCncProbe.Mode.values()) {
             var probe = new PlotCncProbe(mode, ignored -> {});
@@ -35,14 +48,18 @@ class PlotCncProbeTest {
     @Test void phaseCountsDistinguishVectorRasterAndLogicalStrokeWidths() {
         var metrics = new PlotBenchmarkCncMetrics();
         assertEquals(0, metrics.finish().getJSONObject("BODY").getInt("calls"));
-        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, true, 1.5));
-        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, false, 12));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, true, 1.5, 2_000_000));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, false, 12, 3_000_000));
         metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.PASS_LINES, false, 1.25));
         var body = metrics.finish().getJSONObject("BODY");
         assertEquals(2, body.getInt("calls")); assertEquals(1, body.getInt("vectorCalls"));
         assertEquals(1, body.getInt("rasterCalls")); assertEquals(1.5, body.getDouble("lineWidthMinLogical"));
         assertEquals(12, body.getDouble("lineWidthMaxLogical"));
+        assertEquals(5, body.getDouble("commandEmissionMs"));
         assertEquals(1, metrics.finish().getJSONObject("PASS_LINES").getInt("calls"));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.DECORATIONS, false, 0));
+        assertFalse(metrics.finish().getJSONObject("DECORATIONS").getBoolean("cpuTimingAvailable"));
+        assertTrue(metrics.finish().getJSONObject("DECORATIONS").isNull("commandEmissionMs"));
     }
 
     @Test @EnabledOnOs(OS.WINDOWS) void fullProbeMatchesNormalPixelsAndOmissionsPreserveGeometryAndLifecycle() throws Exception {
@@ -101,6 +118,8 @@ class PlotCncProbeTest {
                     assertEquals(count, samples.size());
                     assertThrows(IllegalStateException.class,
                             () -> view.setCncBenchmarkProbe(new PlotCncProbe(PlotCncProbe.Mode.FULL, samples::add)));
+                    assertDoesNotThrow(() -> view.setRasterBenchmarkProbe(false));
+                    assertThrows(IllegalStateException.class, () -> view.setRasterBenchmarkProbe(true));
                 } finally { view.dispose(); }
                 return null;
             });

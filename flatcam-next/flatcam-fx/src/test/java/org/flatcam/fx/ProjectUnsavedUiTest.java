@@ -126,4 +126,38 @@ class ProjectUnsavedUiTest {
             });
         }
     }
+
+    @Test void newProjectIsProtectedLikeOpenAndThenStartsEmpty() throws Exception {
+        try(var s=new Session()) {
+            s.save(directory.resolve("before-new.fcnproj"));
+            TerminalPanelTest.fx(() -> {
+                s.item.setValue("changed"); assertTrue(s.window.hasUnsavedProjectChanges());
+                s.window.setProjectDecisionProvider(draft -> UnsavedChangesGuard.Choice.CANCEL);
+                invoke(s.window,"newProject",new Class<?>[]{});
+                assertEquals(1,((Map<?,?>)field(s.window,"geometryByItem")).size());
+                assertNotNull(field(s.window,"currentProjectFile"));
+                s.window.setProjectDecisionProvider(draft -> UnsavedChangesGuard.Choice.DISCARD);
+                invoke(s.window,"newProject",new Class<?>[]{});
+                assertTrue(((Map<?,?>)field(s.window,"geometryByItem")).isEmpty());
+                assertNull(field(s.window,"currentProjectFile"));
+                assertFalse(s.window.hasUnsavedProjectChanges());
+                s.window.setProjectDecisionProvider(draft -> { fail("an empty clean project must not ask"); return UnsavedChangesGuard.Choice.CANCEL; });
+                invoke(s.window,"newProject",new Class<?>[]{});
+                return null;
+            });
+        }
+    }
+    @Test void saveProjectWritesStraightToTheCurrentFxProjectWithoutAskingForADestination() throws Exception {
+        try(var s=new Session()) {
+            Path file=directory.resolve("current.fcnproj");
+            s.save(file);
+            TerminalPanelTest.fx(() -> { s.item.setValue("renamed"); invoke(s.window,"saveProject",new Class<?>[]{}); return null; });
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(20);
+            while(TerminalPanelTest.fx(() -> field(s.window,"runningJob")!=null || s.window.hasUnsavedProjectChanges())) {
+                assertTrue(System.nanoTime()<deadline,"direct save did not finish"); Thread.sleep(50);
+            }
+            var loaded=org.flatcam.app.project.ProjectFileIO.load(file);
+            assertEquals(List.of("renamed"),loaded.geometries().stream().map(org.flatcam.app.project.ProjectFile.GeometryEntry::name).toList());
+        }
+    }
 }

@@ -131,4 +131,10 @@ interface TclFlatcamHost {
 
     /** Current object drawing in source units; <=0 selects automatic stroke width, as in Python. */
     void exportSvg(String name, Path outputFile, double scaleStrokeFactor) throws TclException, IOException;
+
+    /**
+     * Python's {@code drillcncjob}: Excellon drills/slots of the selected tools into a CNC Job, tools in
+     * ascending diameter order (Python's {@code order='fwd'}). Returns the published (possibly suffixed) name.
+     */
+    String drillcncjob(String sourceName, String outname, TclDrillRequest request) throws TclException;
 }

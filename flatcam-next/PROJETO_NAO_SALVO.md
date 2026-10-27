@@ -2,9 +2,19 @@
 
 ## Fluxos protegidos
 
+- Scripts (2026-10-26): fechar a aba, Arquivo > Sair e fechar a janela oferecem
+  Salvar / Descartar / Cancelar para cada script não salvo. Cancelar ou falhar ao
+  salvar impede a saída, sem remover abas já examinadas. Scripts são arquivos
+  independentes: salvar o projeto não os salva. Aprovações são revalidadas para
+  não descartar textos alterados ou novas abas criadas durante diálogos modais.
+  Projeto Novo/Abrir conservam as abas de scripts; não as descartam.
+
 - Abrir projeto pelo menu e Recentes: Salvar projeto / Não salvar / Cancelar.
   O arquivo escolhido só substitui o atual depois de validação completa.
   Consentir em não salvar não apaga o projeto atual se o alvo falhar ao carregar.
+- Arquivo > Novo Projeto (Ctrl+N, 2026-10-17): mesma confirmação; depois remove todos
+  os objetos e esquece o arquivo atual. Preferências, layout e variáveis do Terminal
+  ficam, como o interpretador Tcl do Python. Projeto vazio e limpo não pergunta.
 - Fechar pela janela ou Arquivo > Sair: mesma confirmação; também conserva
   a confirmação existente da Tools Database e a gravação de layout/monitor.
 - Rascunhos de Gerber/Excellon/Geometry/G-code: Voltar e aplicar / Descartar
@@ -13,7 +23,10 @@
 - Se há operação CAM ou Terminal em andamento, a transição é bloqueada com
   mensagem no status; aguardar ou cancelar a operação antes de continuar.
 
-Salvar abre o FileChooser, sugere nome/formato/pasta do projeto atual e exige
+Salvar Projeto (Ctrl+S) grava direto no `.fcnproj` atual, como `on_file_saveproject`
+do Python; sem arquivo atual, ou com um `.FlatPrj` importado do Python, abre o destino
+(o original Python nunca é substituído em silêncio). Salvar Projeto Como (Ctrl+Shift+S)
+sempre pergunta. O diálogo de salvar abre o FileChooser, sugere nome/formato/pasta do projeto atual e exige
 `.fcnproj` ou `.FlatPrj`. Cancelar o destino, falha na escrita/compatibilidade
 ou alterações durante a gravação **não** permitem a abertura/saída pendente.
 Após uma gravação válida, só a versão efetivamente serializada vira baseline;

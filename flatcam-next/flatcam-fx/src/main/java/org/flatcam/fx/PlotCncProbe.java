@@ -8,7 +8,10 @@ import java.util.function.Consumer;
 final class PlotCncProbe {
     enum Pass { BODY, PASS_LINES, DECORATIONS }
     enum Mode { FULL, OMIT_BODY, OMIT_WIDE_BODY, OMIT_PASS_LINES, OMIT_DECORATIONS, OMIT_CNC }
-    record Sample(Pass pass, boolean raster, double lineWidth) { }
+    record Sample(Pass pass, boolean raster, double lineWidth, long commandNanos, CanvasCncLineRenderer.Stats lineStats) {
+        Sample(Pass pass, boolean raster, double lineWidth, long commandNanos) { this(pass, raster, lineWidth, commandNanos, null); }
+        Sample(Pass pass, boolean raster, double lineWidth) { this(pass, raster, lineWidth, 0); }
+    }
     private final Mode mode;
     private final Consumer<Sample> observer;
 
@@ -33,4 +36,10 @@ final class PlotCncProbe {
     }
 
     void record(Pass pass, boolean raster, double lineWidth) { observer.accept(new Sample(pass, raster, lineWidth)); }
+    void record(Pass pass, boolean raster, double lineWidth, long started) {
+        observer.accept(new Sample(pass, raster, lineWidth, Math.max(0, System.nanoTime() - started)));
+    }
+    void record(Pass pass, boolean raster, double lineWidth, long started, CanvasCncLineRenderer.Stats stats) {
+        observer.accept(new Sample(pass, raster, lineWidth, Math.max(0, System.nanoTime() - started), stats));
+    }
 }

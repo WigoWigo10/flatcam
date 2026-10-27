@@ -1,5 +1,37 @@
 # Baseline e primeira fronteira do renderer
 
+As rodadas GTX 1650 de 2026-10-26 são específicas do notebook PC-GTX1650-82CG;
+as baselines Intel Arc anteriores pertencem a outro hardware. Para reproduzir
+as mesmas cargas em outro PC e comparar sem misturar perfis, consulte
+[BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md).
+
+## FPS apresentado e controles de linhas/imagens — 2026-10-26
+
+Continuação: `-CncLines REFERENCE|CLIPPED` compara a emissão anterior a um culling
+conservador experimental, sem omitir linhas visíveis. `-CncLineComparison` na
+série alterna pares; `threadCpuTime` acrescenta contadores CPU por thread, não
+tempo GPU. `-Snapshots` também exporta o Canvas principal para comparação sem
+cursor/HUD. Experimento não habilitado por padrão por falta de ganho consistente:
+[PLOT_CNC_LINE_CLIPPING.md](PLOT_CNC_LINE_CLIPPING.md).
+
+`-Native -PresentMon <executável>` acrescenta captura externa ETW por PID, FPS
+médio, 1% low e frame times. `report.json` agora usa schema 4; cadência UI em Hz
+continua explicitamente separada de FPS. `-RasterProbe OMIT_DRAW` isola emissão
+das imagens preservando cálculo/publicação; não é paridade visual. Títulos
+identificam omissões e `-Snapshots` registra longe/perto após as fases medidas.
+`benchmark-plot-suite.ps1` executa os controles em série, com validação de metadata.
+Método, comandos, resultados e limites em [PLOT_PRESENTED_FPS.md](PLOT_PRESENTED_FPS.md).
+As baselines abaixo são históricas e não devem ser tratadas como medições de FPS.
+
+## Atualização GTX 1650 — 2026-10-26
+
+`benchmark-plot.ps1 -Native` executa o mesmo benchmark em host JNI de teste
+com solicitação de GPU de alto desempenho, sem modificar o registro do Windows.
+Requer g++ UCRT64/JAVA_HOME. Confirme o adaptador ativo no JSON; a opção não
+garante escolha do driver. `-DisableWideDensity` compara corpos largos no Canvas,
+sem omissões. Corrigida a abertura da fixture sob a proteção de projeto não salvo.
+Resultados e limites: [PLOT_GTX1650_REVIEW.md](PLOT_GTX1650_REVIEW.md).
+
 2026-10-10, branch `flatcam-next`, base `780728b5`. Consultar `git log` para o
 commit desta entrega; sem push.
 

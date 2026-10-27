@@ -1,5 +1,115 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Identificação da máquina de benchmark e comparação entre PCs — 2026-10-26
+
+As medições atuais GTX 1650 são do **PC-GTX1650-82CG**, notebook Lenovo 82CG,
+i5-10300H (4C/8T), 23,87 GiB de RAM visível, GTX 1650 4096 MiB e Intel UHD
+presente. GPU Prism confirmada NVIDIA/D3D, não apenas pedido do host. Inventário
+atual complementar separado do que foi realmente registrado nos ensaios.
+[BENCHMARK_PC_GTX1650.md](BENCHMARK_PC_GTX1650.md) fixa runtime, driver, escala,
+corpus/hash, três perfis A/B/C e comandos para repetir em outro PC e comparar.
+Não generalizar FPS para Intel Arc/outra GPU; nova comparação de hardware deve
+usar mesmo código/carga nos dois PCs, registrando energia/monitor/condições não
+capturadas historicamente. Baseline privada em target não é transportada pelo
+Git; gerar summary na origem e transferir artefatos privadamente quando preciso.
+
+## Continuação: clipping de linhas e CPU por thread — 2026-10-26
+
+Sobre `32688546`: desenvolvido protótipo CanvasCncLineRenderer, opt-in
+`-CncLines CLIPPED`, que rejeita apenas segmentos externos ao Canvas com halo,
+sem mover endpoints/alterar geometria ou composição entre partes. Renderer
+normal segue REFERENCE; **não habilitar o protótipo por padrão**, pois quatro
+rodadas alternadas de 240 passos/3 repetições não mostraram ganho consistente.
+Mesmo evitando ~83,85% dos segmentos, p95 de display ficou ~50 ms. Num par
+adicional de 120 passos, QuantumRenderer CPU/FPS pioraram no protótipo.
+Counter ThreadMXBean por fase agora distingue CPU real por thread de amostras
+JFR e FPS; ausências não viram zero. Snapshots adicionais do Canvas principal,
+sem outros nós HUD/cursor, tiveram hashes idênticos REFERENCE/CLIPPED longe/perto.
+O experimento atende só passada sólida redonda 1,25 px; largura 7 px apresentou
+divergência em uma repetição e agora usa fallback original, sem relaxar tolerância.
+Novos controles e pares `-CncLineComparison -LinePairs 1..5` mantêm desenho inteiro.
+Suíte integral: **1928 registros, 1910 aprovados, 18 skips**, zero falhas/erros;
+12 testes Python aprovados. Matriz de pixels passou três vezes consecutivas;
+probes/lifecycle testados com CLIPPED. Fonte intacta em sete ensaios completos.
+Dados, tentativas, limites e próxima hipótese em
+[PLOT_CNC_LINE_CLIPPING.md](PLOT_CNC_LINE_CLIPPING.md). Próximo alvo: caminhos
+retidos/primitivas GPU com composição equivalente, não apenas reduzir comandos.
+
+## FPS apresentado e separação de linhas/apresentação — 2026-10-26
+
+Sobre `207f83b9`: benchmark schema 4, FPS externo PresentMon 2.6.0/QPC por PID,
+1% low e frame times separados de UI Hz; controle de omissão somente do drawImage
+preserva cálculo/publicação/readiness. Série serial compara FULL, sem linhas,
+sem imagens, ambos, PixelWriter, piso sem CNC, FULL final, SW e Geometry.
+Oito capturas de FPS completas; SW completou ações mas não gerou CSV de display:
+manifest da série fica INCOMPLETE, não nove aprovações. Fonte intacta em todos.
+Zoom aquecido FULL 37,73–39,23 FPS, recontrole 38,52–38,74; sem linhas 47,74–56,16;
+sem drawImage 37,13–39,87. Omissões NÃO são otimizações/paridade. 1% low ainda
+instável/baixo; investigar cache/batching das linhas mantendo o desenho inteiro.
+QuantumRenderer/Marlin continua relevante no JFR; não mede saturação/tempo GPU.
+Capturas FULL longe/perto inspecionadas e ambas renderizam; títulos agora avisam
+DESENHO OMITIDO nas sondas para evitar confusão com falha do aplicativo normal.
+Detalhes, limitações, tentativas reprovadas e comandos em [PLOT_PRESENTED_FPS.md](PLOT_PRESENTED_FPS.md).
+Suíte integral `mvnw.cmd -q verify`: 1921 registros novos, **1903 aprovados,
+18 skips opcionais**, zero falhas/erros. Onze testes Python novos aprovados.
+Host nativo final recompilado; probes de argumentos inválidos, imagem de processo
+errada e encerramento Ctrl+C em console isolado aprovados, sem elevação. Sessões
+ETW criadas pelos ensaios limpas; não houve alteração de preferências/registro.
+Artefatos privados só em target; série `plot-suite-20261026-214007-660`.
+
+## Benchmark GTX 1650 e fechamento da série — 2026-10-26
+
+Sobre `1c58cd71`: corrigido benchmark bloqueado pela própria fixture não salva;
+host JNI de teste `-Native` solicita GPU dedicada sem mudar preferências Windows.
+Java.exe selecionava Intel UHD; host confirmou GTX 1650. Quatro rodadas JFR
+sequenciais completas (GPU atual, GPU vetorial largo, SW, Geometry), fonte intacta.
+Zoom aquecido: fila p95 atual 21–25 ms, vetorial 59–72 ms, SW 161–166 ms;
+apagar/desfazer Geometry 93–108 ms até comandos prontos, 24 ações com undo correto.
+CPU QuantumRenderer/Marlin continua relevante. Sem renderer novo/LWJGL ou promessa
+de FPS. Manter densidade atual; próxima investigação: linhas de passes/apresentação.
+Dados, tentativas reprovadas e reprodução em [PLOT_GTX1650_REVIEW.md](PLOT_GTX1650_REVIEW.md).
+Suíte integral de fechamento `mvnw.cmd -q verify` aprovada: **1919 registros,
+1901 aprovações e 18 skips opcionais**, zero falhas/erros, contagem só de XML novos.
+Treze testes auxiliares Python aprovados. Não contar benchmarks opt-in como testes
+JUnit aprovados nem os dois erros Offset do legado como paridade.
+Executável recompilado; probes nativos D3D/GTX 1650 e software aprovados.
+
+## Fluxos visuais integrados — 2026-10-26
+
+Sobre `9831e3d5`: 121 testes de 16 suítes aprovados; snapshots JavaFX reais do
+workspace e painéis nos quatro temas, com inspeção direta dos exemplos listados
+em [WORKSPACE_VISUAL_REVIEW.md](WORKSPACE_VISUAL_REVIEW.md). Novo teste do workspace
+mantém scripts enquanto alterna Atalhos/Medir, sem alterar preferências.
+Lista de Atalhos agora quebra descrições longas em vez de escondê-las em reticências.
+Cinco regressões adicionais. Capturas em target, sem projetos privados; não é
+validação de todos os cliques, comparação visual Python ou certificação física.
+Próxima etapa: benchmark do Plot com identificação real da GPU neste notebook.
+
+## NCC Offset após carregamento Python real — 2026-10-26
+
+Sobre `cfbefb21`: diagnóstico `open_in_python_app.py --probe-ncc-offset` abriu
+o projeto atual no aplicativo Python original com preferências isoladas.
+F_Cu/B_Cu chegam como list[MultiPolygon]; controles sem Offset funcionam e
+ambos com Offset falham na construção MultiPolygon em ToolNCC.py:1934.
+Fonte/projeto intactos por hash. Dois erros continuam ORACLE_ERROR, não paridade.
+Sem correção justificada no FX nem alteração do algoritmo legado. Quatro testes
+novos do diagnóstico e limites em [NCC_OFFSET_LOADING_REVIEW.md](NCC_OFFSET_LOADING_REVIEW.md).
+Próxima etapa: validação visual dos fluxos integrados, depois benchmark GTX 1650.
+
+## Saída com scripts não salvos — 2026-10-26
+
+Sobre `2877fbd8`: corrigida saída que ignorava abas ScriptEditorPanel não salvas.
+Janela/Sair agora verificam todos os scripts depois da proteção de projeto e
+Tools Database; Salvar/Descartar/Cancelar também no fechamento individual da aba.
+Falha/cancelamento do save impede saída, sem apagar os outros rascunhos.
+Revalidação do texto aprovado e de novas abas protege contra mudanças nos loops
+modais. Projeto Novo/Abrir mantêm scripts abertos; scripts não são objetos salvos
+no projeto. Seis regressões adicionais; cinco falharam antes da correção.
+Suítes ScriptingTest, ProjectUnsavedUiTest e UnsavedChangesGuardTest aprovadas
+após a correção, sem falhas/erros; suíte integral será repetida ao final da série.
+Logs em `target/session-review-20261026`. Próxima etapa: investigar a representação
+Python dos dois erros NCC Offset, sem alterar o algoritmo ou tolerâncias do legado.
+
 ## Editor Geometry: J e resolução de curvas — 2026-10-24
 
 Modos de arco commitados em `2060bc91`, branch `flatcam-next`, sem push.

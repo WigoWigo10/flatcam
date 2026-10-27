@@ -48,6 +48,7 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextInputDialog;
 import javafx.scene.control.TextInputControl;
 import javafx.scene.control.TitledPane;
@@ -803,6 +804,7 @@ final class MainWindow implements TclFlatcamHost {
         centerTabs.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) change -> {
             while (change.next()) for (Tab removed : change.getRemoved())
                 if (removed.getContent() instanceof CodeEditor code) code.close();
+                else if (removed.getContent() instanceof ScriptEditorPanel script) script.close();
         });
     }
 
@@ -887,6 +889,42 @@ final class MainWindow implements TclFlatcamHost {
                 if (handled) {
                     event.consume();
                 }
+            } else if (event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && (event.getCode() == KeyCode.S || event.getCode() == KeyCode.N && !event.isShiftDown())
+                    && !gcodeEditor.isActive() && !plotAreaView.isPlacementActive()) {
+                if (event.getCode() == KeyCode.N) newProject();
+                else if (event.isShiftDown()) saveProjectAs();
+                else saveProject();
+                event.consume();
+            } else if ((event.getCode() == KeyCode.EQUALS || event.getCode() == KeyCode.ADD
+                    || event.getCode() == KeyCode.MINUS || event.getCode() == KeyCode.SUBTRACT)
+                    && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
+                    && projectTree.getEditingItem() == null) {
+                boolean in = event.getCode() == KeyCode.EQUALS || event.getCode() == KeyCode.ADD;
+                plotAreaView.zoomBy(in ? MENU_ZOOM_RATIO : 1 / MENU_ZOOM_RATIO);
+                event.consume();
+            } else if (event.getCode() == KeyCode.A && event.isControlDown() && !event.isAltDown()
+                    && !event.isMetaDown() && !event.isShiftDown() && !isTextInputTarget(event.getTarget())
+                    && !anyObjectEditorActive() && !plotAreaView.isEditorActive()
+                    && projectTree.getEditingItem() == null) {
+                selectAllObjects();
+                event.consume();
+            } else if (event.getCode() == KeyCode.M && !event.isAltDown() && !event.isMetaDown()
+                    && (event.isControlDown() != event.isShiftDown())
+                    && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
+                    && !anyObjectEditorActive() && !plotAreaView.isEditorActive()) {
+                if (event.isControlDown()) openMeasureTool(); else openMinimumDistanceTool();
+                event.consume();
+            } else if ((event.getCode() == KeyCode.O || event.getCode() == KeyCode.J)
+                    && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()
+                    && !isTextInputTarget(event.getTarget()) && !plotAreaView.isPlacementActive()
+                    && !anyObjectEditorActive() && !plotAreaView.isEditorActive()
+                    && projectTree.getEditingItem() == null) {
+                if (event.getCode() == KeyCode.J) { if (event.isShiftDown()) askLocateInObject(); else askJumpToLocation(); }
+                else if (event.isShiftDown()) moveSelectionToOrigin();
+                else beginSetOrigin();
+                event.consume();
             } else if (event.getCode() == KeyCode.G && !event.isControlDown()
                     && !event.isAltDown() && !event.isMetaDown() && !event.isShiftDown()
                     && !isTextInputTarget(event.getTarget())) {
@@ -1730,9 +1768,13 @@ final class MainWindow implements TclFlatcamHost {
         Menu newMenu = new Menu("Novo");
         setLegacyMenuIcon(newMenu, "new_file32.png");
         newMenu.getItems().addAll(
-                plannedItem("Novo Projeto", "new_file32.png"),
-                plannedItem("Geometry", "geometry32.png"),
-                plannedItem("Excellon", "drill32.png"),
+                tipped(chromeItem("Novo Projeto", "new_file32.png", this::newProject), "Novo Projeto",
+                        "Fecha todos os objetos e começa um projeto vazio. Com alterações não salvas, pergunta antes "
+                        + "(Salvar / Não salvar / Cancelar). Preferências e o Terminal são mantidos.\n\nAtalho: Ctrl+N."),
+                tipped(chromeItem("Geometry", "geometry32.png", this::newEmptyGeometryObject), "Nova Geometry",
+                        "Cria uma Geometry vazia (new_geo) nas unidades atuais e a seleciona; use Editar Objeto para desenhar."),
+                tipped(chromeItem("Excellon", "drill32.png", this::newEmptyExcellonObject), "Novo Excellon",
+                        "Cria um Excellon vazio (new_exc) nas unidades atuais e o seleciona; use Editar Objeto para adicionar furos."),
                 plannedItem("Document", "notebook32.png"));
         Menu openMenu = new Menu("Abrir");
         setLegacyMenuIcon(openMenu, "folder32.png");
@@ -1762,9 +1804,13 @@ final class MainWindow implements TclFlatcamHost {
         Menu scriptMenu = new Menu("Scripting");
         setLegacyMenuIcon(scriptMenu, "script16.png");
         scriptMenu.getItems().addAll(
-                plannedItem("Novo Script", "script_new24.png"),
-                plannedItem("Abrir Script", "open_script32.png"),
-                plannedItem("Executar Script", "script16.png"));
+                tipped(chromeItem("Novo Script", "script_new24.png", this::newScript), "Novo Script",
+                        "Abre um script Tcl novo no editor, com o modelo do FlatCAM Python. Executar envia o texto ao Terminal."),
+                tipped(chromeItem("Abrir Script...", "open_script32.png", this::openScripts), "Abrir Script",
+                        "Abre um ou mais arquivos .FlatScript/.tcl/.txt no editor de scripts, sem executá-los."),
+                tipped(chromeItem("Executar Script...", "script16.png", this::runScriptFile), "Executar Script",
+                        "Escolhe um arquivo de script e o executa no Terminal Tcl (dialeto reduzido do FX), "
+                        + "como Arquivo > Run Script do Python."));
         Menu backupMenu = new Menu("Backup");
         setLegacyMenuIcon(backupMenu, "backup24.png");
         backupMenu.getItems().addAll(
@@ -1775,8 +1821,13 @@ final class MainWindow implements TclFlatcamHost {
         printPdf.setId("print-pdf-menu-item");
         printPdf.setAccelerator(new javafx.scene.input.KeyCodeCombination(KeyCode.P, javafx.scene.input.KeyCombination.CONTROL_DOWN));
         fileMenu.getItems().addAll(newMenu, openMenu, RecentFilesMenu.build(recentFiles,this::openRecent,this::legacyIcon),
-                new SeparatorMenuItem(), chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject),
-                plannedItem("Salvar Projeto Como...", "save_as.png"), new SeparatorMenuItem(),
+                new SeparatorMenuItem(),
+                tipped(chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject), "Salvar Projeto",
+                        "Grava no arquivo .fcnproj atual sem perguntar; sem arquivo ou com projeto Python .FlatPrj, "
+                        + "pergunta o destino (o original Python nunca é substituído em silêncio).\n\nAtalho: Ctrl+S."),
+                tipped(chromeItem("Salvar Projeto Como...", "save_as.png", this::saveProjectAs), "Salvar Projeto Como",
+                        "Sempre pergunta destino e formato (.fcnproj ou .FlatPrj).\n\nAtalho: Ctrl+Shift+S."),
+                new SeparatorMenuItem(),
                 importMenu, exportMenu, scriptMenu, backupMenu,
                 printPdf, new SeparatorMenuItem(),
                 chromeItem("Sair", "power16.png", this::requestApplicationClose));
@@ -1837,12 +1888,19 @@ final class MainWindow implements TclFlatcamHost {
                 chromeItem("Excluir", "trash32.png", this::deleteSelectedObjects),
                 conversionsMenu, joinMenu,
                 new SeparatorMenuItem(),
-                plannedItem("Medir Distancia", "distance32.png"),
-                plannedItem("Distancia Minima", "distance_min32.png"),
-                plannedItem("Definir Origem", "origin32.png"),
-                plannedItem("Mover para Origem", "origin2_32.png"),
-                plannedItem("Ir para Localizacao", "jump_to16.png"),
-                plannedItem("Localizar no Objeto", "locate32.png"),
+                tipped(chromeItem("Medir Distancia", "distance32.png", this::openMeasureTool), "Medir Distância",
+                        "Clique em dois pontos do Plot: mostra Dx, Dy, ângulo e distância.\n\nAtalho: Ctrl+M."),
+                tipped(chromeItem("Distancia Minima", "distance_min32.png", this::openMinimumDistanceTool), "Distância Mínima",
+                        "Menor distância entre os dois objetos selecionados, com os pontos mais próximos e o ponto médio.\n\nAtalho: Shift+M."),
+                tipped(chromeItem("Definir Origem", "origin32.png", this::beginSetOrigin), "Definir Origem",
+                        "Clique no Plot: todos os objetos são deslocados para que o ponto clicado vire (0,0). "
+                        + "Usa o snap da grade quando ativo. Esc cancela. Projetos com CNC Job são recusados.\n\nAtalho: O."),
+                tipped(chromeItem("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin), "Mover para Origem",
+                        "Desloca os objetos selecionados para que o canto inferior esquerdo do conjunto fique em (0,0).\n\nAtalho: Shift+O."),
+                tipped(chromeItem("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation), "Ir para Localização",
+                        "Centraliza a vista num ponto X,Y absoluto, ou relativo à última posição do cursor no Plot.\n\nAtalho: J."),
+                tipped(chromeItem("Localizar no Objeto", "locate32.png", this::askLocateInObject), "Localizar no Objeto",
+                        "Centraliza a vista num canto ou no centro do objeto selecionado.\n\nAtalho: Shift+J."),
                 new SeparatorMenuItem(),
                 plannedItem("Alternar Unidades", "toggle_units32.png"),
                 chromeItem("Preferencias", "settings18.png", this::openPreferences));
@@ -1928,10 +1986,16 @@ final class MainWindow implements TclFlatcamHost {
 
         Menu viewMenu = new Menu("Exibir");
         viewMenu.getItems().addAll(
-                plannedItem("Replotar Tudo", "replot32.png"),
-                plannedItem("Limpar Plot", "clear_plot32.png"),
-                plannedItem("Aproximar", "zoom_in32.png"),
-                plannedItem("Afastar", "zoom_out32.png"),
+                tipped(chromeItem("Replotar Tudo", "replot32.png", this::replotAllObjects), "Replotar Tudo",
+                        "Redesenha todos os objetos ativos (inclusive depois de Limpar Plot) e enquadra a vista. "
+                        + "Não altera o estado Plot de cada objeto."),
+                tipped(chromeItem("Limpar Plot", "clear_plot32.png", this::clearAllPlots), "Limpar Plot",
+                        "Retira os desenhos do Plot sem desmarcar o Plot de cada objeto, como no Python. "
+                        + "Replotar Tudo, reativar ou alterar um objeto o desenha de novo."),
+                tipped(chromeItem("Aproximar", "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)), "Aproximar",
+                        "Aproxima 1,5× em torno do centro da vista.\n\nAtalho: = (com o foco fora de campos de texto)."),
+                tipped(chromeItem("Afastar", "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)), "Afastar",
+                        "Afasta 1,5× em torno do centro da vista.\n\nAtalho: - (com o foco fora de campos de texto)."),
                 chromeItem("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
                 new SeparatorMenuItem(),
                 chromeItem("Snap na grade", "grid32.png", () -> statusControls.toggleGrid()),
@@ -1945,8 +2009,10 @@ final class MainWindow implements TclFlatcamHost {
 
         Menu objectsMenu = new Menu("Objetos");
         objectsMenu.getItems().addAll(
-                plannedItem("Selecionar Todos", "select_all.png"),
-                plannedItem("Desmarcar Todos", "deselect_all32.png"),
+                tipped(chromeItem("Selecionar Todos", "select_all.png", this::selectAllObjects), "Selecionar Todos",
+                        "Seleciona todos os objetos do projeto.\n\nAtalho: Ctrl+A (fora de campos de texto e editores)."),
+                tipped(chromeItem("Desmarcar Todos", "deselect_all32.png", this::deselectAllObjects), "Desmarcar Todos",
+                        "Limpa a seleção de objetos do projeto."),
                 new SeparatorMenuItem(),
                 chromeItem("Copiar Selecionados", "copy32.png", this::copySelectedObjects),
                 chromeItem("Excluir Selecionados", "trash32.png", this::deleteSelectedObjects));
@@ -1976,7 +2042,8 @@ final class MainWindow implements TclFlatcamHost {
         helpMenu.getItems().addAll(
                 plannedItem("Ajuda Online", "help.png"),
                 plannedItem("Bookmarks", "bookmarks32.png"),
-                plannedItem("Lista de Atalhos", "shortcuts24.png"),
+                tipped(chromeItem("Lista de Atalhos", "shortcuts24.png", this::openShortcutList), "Lista de Atalhos",
+                        "Abre uma aba com os atalhos de teclado e mouse que o FlatCAM FX implementa."),
                 plannedItem("Como Usar", "videohelp24.png"),
                 plannedItem("Reportar Problema", "bug32.png"),
                 new SeparatorMenuItem(),
@@ -2079,23 +2146,23 @@ final class MainWindow implements TclFlatcamHost {
                 chromeButton("Copiar", "copy_file32.png", this::copySelectedObjects),
                 chromeButton("Excluir", "trash32.png", this::deleteSelectedObjects),
                 new Separator(),
-                chromeButton("Medir Distancia", "distance32.png", null),
-                chromeButton("Distancia Minima", "distance_min32.png", null),
-                chromeButton("Definir Origem", "origin32.png", null),
-                chromeButton("Mover para Origem", "origin2_32.png", null),
-                chromeButton("Ir para Localizacao", "jump_to16.png", null),
-                chromeButton("Localizar no Objeto", "locate32.png", null));
+                chromeButton("Medir Distancia", "distance32.png", this::openMeasureTool),
+                chromeButton("Distancia Minima", "distance_min32.png", this::openMinimumDistanceTool),
+                chromeButton("Definir Origem", "origin32.png", this::beginSetOrigin),
+                chromeButton("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin),
+                chromeButton("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation),
+                chromeButton("Localizar no Objeto", "locate32.png", this::askLocateInObject));
         toolbarGroup(bar, TOOLBAR_VIEW, true,
-                chromeButton("Replotar", "replot32.png", null),
-                chromeButton("Limpar Plot", "clear_plot32.png", null),
-                chromeButton("Aproximar", "zoom_in32.png", null),
-                chromeButton("Afastar", "zoom_out32.png", null),
+                chromeButton("Replotar", "replot32.png", this::replotAllObjects),
+                chromeButton("Limpar Plot", "clear_plot32.png", this::clearAllPlots),
+                chromeButton("Aproximar", "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)),
+                chromeButton("Afastar", "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)),
                 chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject));
         toolbarGroup(bar, TOOLBAR_SHELL, true,
                 chromeButton("Linha de Comando", "shell32.png", this::openTerminal),
-                chromeButton("Novo Script", "script_new24.png", null),
-                chromeButton("Abrir Script", "open_script32.png", null),
-                chromeButton("Executar Script", "script16.png", null));
+                chromeButton("Novo Script", "script_new24.png", this::newScript),
+                chromeButton("Abrir Script", "open_script32.png", this::openScripts),
+                chromeButton("Executar Script", "script16.png", this::runScriptFile));
         applyToolbarView();
         return bar;
     }
@@ -2997,6 +3064,321 @@ final class MainWindow implements TclFlatcamHost {
         if (applied > 0) {
             appendConsole(applied + " objeto(s) transformado(s).");
             showProperties(projectTree.getSelectionModel().getSelectedItem());
+        }
+    }
+
+    // ---- Origin and location (Python Edit > Set Origin / Move to Origin / Jump to) ----
+
+    /** Python on_set_origin: the next plot click becomes (0,0) for every object in the project. */
+    private void beginSetOrigin() {
+        String refusal = setOriginRefusal(allProjectObjects());
+        if (refusal != null) { appendConsole(refusal); return; }
+        setStatus("Clique no Plot para definir a origem (Esc cancela)...", RUNNING_COLOR);
+        beginPointPick(point -> {
+            if (point == null) { setStatus("Definir origem cancelado.", IDLE_COLOR); return; }
+            setOrigin(point.x, point.y);
+        });
+    }
+
+    private String setOriginRefusal(List<TreeItem<String>> objects) {
+        if (runningJob != null) return "Ja existe uma operacao em andamento.";
+        if (anyObjectEditorActive()) return "Conclua ou cancele o editor antes de mover objetos.";
+        if (objects.isEmpty()) return "Nenhum objeto no projeto.";
+        if (objects.stream().anyMatch(cncJobByItem::containsKey))
+            return "Definir origem desloca todos os objetos, e um CNC Job nao pode ser deslocado sem reescrever "
+                    + "seu G-code. Exclua ou exporte os CNC Jobs antes.";
+        return null;
+    }
+
+    /** Python on_set_zero_click: every object is offset by (-x, -y), then the view is fitted again. */
+    boolean setOrigin(double x, double y) {
+        List<TreeItem<String>> objects = allProjectObjects();
+        String refusal = setOriginRefusal(objects);
+        if (refusal != null) { appendConsole(refusal); return false; }
+        if (!Double.isFinite(x) || !Double.isFinite(y)) { appendConsole("Origem invalida."); return false; }
+        offsetObjects(objects, -x, -y);
+        plotAreaView.fitAllVisible();
+        appendConsole(String.format(java.util.Locale.ROOT, "Origem definida em (%.4f, %.4f).", x, y));
+        setStatus("Origem definida.", IDLE_COLOR);
+        return true;
+    }
+
+    /** Python on_move2origin: the selection's lower-left corner moves to (0,0). */
+    boolean moveSelectionToOrigin() {
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.isEmpty()) { appendConsole("Selecione ao menos um objeto para mover para a origem."); return false; }
+        if (runningJob != null) { appendConsole("Ja existe uma operacao em andamento."); return false; }
+        if (anyObjectEditorActive()) { appendConsole("Conclua ou cancele o editor antes de mover objetos."); return false; }
+        if (selected.stream().anyMatch(cncJobByItem::containsKey)) {
+            appendConsole("CNC Job nao pode ser movido sem reescrever seu G-code; remova-o da selecao.");
+            return false;
+        }
+        double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
+        for (TreeItem<String> item : selected) {
+            double[] bounds = objectBounds(item);
+            if (bounds == null) continue;
+            minX = Math.min(minX, bounds[0]);
+            minY = Math.min(minY, bounds[1]);
+        }
+        if (!Double.isFinite(minX) || !Double.isFinite(minY)) {
+            appendConsole("Os objetos selecionados estao vazios; nada a mover.");
+            return false;
+        }
+        if (minX == 0 && minY == 0) { appendConsole("A selecao ja esta na origem."); return true; }
+        offsetObjects(selected, -minX, -minY);
+        appendConsole(String.format(java.util.Locale.ROOT, "%d objeto(s) movido(s) para a origem (deslocamento %.4f, %.4f).",
+                selected.size(), -minX, -minY));
+        return true;
+    }
+
+    private void offsetObjects(List<TreeItem<String>> items, double dx, double dy) {
+        TransformOp op = new TransformOp.Offset(dx, dy);
+        plotAreaView.beginBatchUpdate();
+        try {
+            for (TreeItem<String> item : items) applyTransformToItem(item, op);
+        } finally {
+            plotAreaView.endBatchUpdate();
+        }
+        TreeItem<String> shown = projectTree.getSelectionModel().getSelectedItem();
+        if (shown != null) showProperties(shown);
+    }
+
+    private double[] objectBounds(TreeItem<String> item) {
+        Geometry geometry = gerberByItem.containsKey(item) ? gerberByItem.get(item).solidGeometry()
+                : excellonByItem.containsKey(item) ? excellonByItem.get(item).solidGeometry()
+                : geometryByItem.containsKey(item) ? geometryByItem.get(item).geometry() : null;
+        if (geometry == null || geometry.isEmpty()) return null;
+        Envelope env = geometry.getEnvelopeInternal();
+        return new double[]{env.getMinX(), env.getMinY(), env.getMaxX(), env.getMaxY()};
+    }
+
+    /** Python on_jump_to: centers the view on an absolute point, or one relative to the last pointer position. */
+    void jumpTo(double x, double y, boolean relative) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)) throw new IllegalArgumentException("Coordenadas invalidas.");
+        double[] base = relative ? plotAreaView.lastPointerWorld() : new double[]{0, 0};
+        double targetX = base[0] + x, targetY = base[1] + y;
+        plotAreaView.centerOn(targetX, targetY);
+        setStatus(String.format(java.util.Locale.ROOT, "Vista centralizada em (%.4f, %.4f).", targetX, targetY), IDLE_COLOR);
+    }
+
+    private void askJumpToLocation() {
+        var dialog = new javafx.scene.control.Dialog<double[]>();
+        if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
+        dialog.setTitle("Ir para Localizacao");
+        dialog.setHeaderText(null);
+        TextField coordinates = new TextField();
+        coordinates.setPromptText("X,Y");
+        coordinates.setId("jump-coordinates");
+        RadioButton absolute = new RadioButton("Absoluto");
+        RadioButton relative = new RadioButton("Relativo ao cursor");
+        ToggleGroup reference = new ToggleGroup();
+        absolute.setToggleGroup(reference); relative.setToggleGroup(reference);
+        absolute.setSelected(!"rel".equals(AppPreferences.loadText("jump.reference")));
+        relative.setSelected(!absolute.isSelected());
+        Label error = new Label();
+        error.getStyleClass().add("error-label");
+        VBox content = new VBox(8, new Label("Digite as coordenadas no formato X,Y:"), coordinates,
+                new HBox(12, absolute, relative), error);
+        content.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().getButtonTypes().setAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (scene != null) dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        Node ok = dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.OK);
+        ok.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            if (parseXY(coordinates.getText()) == null) {
+                error.setText("Use dois numeros finitos: X,Y (parenteses opcionais).");
+                event.consume();
+            }
+        });
+        dialog.setResultConverter(button -> button == javafx.scene.control.ButtonType.OK ? parseXY(coordinates.getText()) : null);
+        javafx.application.Platform.runLater(coordinates::requestFocus);
+        dialog.showAndWait().ifPresent(xy -> {
+            AppPreferences.saveText("jump.reference", relative.isSelected() ? "rel" : "abs");
+            jumpTo(xy[0], xy[1], relative.isSelected());
+        });
+    }
+
+    // ---- File > New > Geometry / Excellon (Python AppObject.new_geometry_object / new_excellon_object) ----
+
+    /** An empty Geometry named new_geo (suffixed if taken), selected so it can be edited right away. */
+    TreeItem<String> newEmptyGeometryObject() {
+        TreeItem<String> item = addGeometryToProject(uniqueDerivedName("new_geo"), "", currentDisplayUnits().toUpperCase(java.util.Locale.ROOT),
+                CNC_GEOMETRY_FACTORY.createGeometryCollection(), false);
+        selectOnly(item);
+        appendConsole("Geometry vazia criada: " + item.getValue() + ".");
+        return item;
+    }
+
+    /** An empty Excellon named new_exc (suffixed if taken), selected so it can be edited right away. */
+    TreeItem<String> newEmptyExcellonObject() {
+        ExcellonImage image = ExcellonImage.of(currentDisplayUnits().toUpperCase(java.util.Locale.ROOT), Map.of(),
+                List.of(), List.of(), CNC_GEOMETRY_FACTORY.createGeometryCollection());
+        TreeItem<String> item = addExcellonToProject(uniqueDerivedName("new_exc"), null, image);
+        selectOnly(item);
+        appendConsole("Excellon vazio criado: " + item.getValue() + ".");
+        return item;
+    }
+
+    private void selectOnly(TreeItem<String> item) {
+        int row = rowForPlotObject(item);
+        if (row >= 0) projectTree.getSelectionModel().clearAndSelect(row);
+    }
+
+    // ---- Measurement (Python ToolDistance / ToolDistanceMin) and Locate in Object ----
+
+    private MeasurementToolPanel measurePanel;
+
+    /** Python Distance Tool: two plot clicks, results in the Tool tab, the line drawn as a highlight. */
+    void openMeasureTool() {
+        MeasurementToolPanel panel = new MeasurementToolPanel(false, currentDisplayUnits(), this::startMeasurement,
+                xy -> jumpTo(xy[0], xy[1], false), this::closeToolPanel);
+        openToolPanel("Medir Distancia", panel); // releases the previous tool before this one becomes current
+        measurePanel = panel;
+        activeToolCleanup = () -> { clearToolOverlays(); if (measurePanel == panel) measurePanel = null; };
+        startMeasurement();
+    }
+
+    private void startMeasurement() {
+        MeasurementToolPanel panel = measurePanel;
+        if (panel == null) return;
+        panel.clear();
+        plotAreaView.setEditorHighlight(null, false);
+        panel.showMessage("Clique no ponto INICIAL...");
+        setStatus("Medir distancia: clique no ponto inicial (Esc cancela).", RUNNING_COLOR);
+        beginPointPick(first -> {
+            if (first == null || measurePanel != panel) { setStatus("Medicao cancelada.", IDLE_COLOR); return; }
+            panel.showStart(first.x, first.y);
+            setStatus("Medir distancia: clique no ponto final (Esc cancela).", RUNNING_COLOR);
+            beginPointPick(second -> {
+                if (second == null || measurePanel != panel) { setStatus("Medicao cancelada.", IDLE_COLOR); return; }
+                finishMeasurement(panel, new MeasurementToolPanel.Measurement(first.x, first.y, second.x, second.y));
+            });
+        });
+    }
+
+    private void finishMeasurement(MeasurementToolPanel panel, MeasurementToolPanel.Measurement measurement) {
+        panel.showResult(measurement);
+        if (measurement.distance() > 0) {
+            plotAreaView.setEditorHighlight(CNC_GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                    new Coordinate(measurement.x1(), measurement.y1()), new Coordinate(measurement.x2(), measurement.y2())}), true);
+        }
+        String summary = panel.summary(measurement);
+        appendConsole(summary);
+        setStatus(summary, IDLE_COLOR);
+    }
+
+    /** Python Minimum Distance Tool: exactly two selected objects, nearest points of their geometry. */
+    void openMinimumDistanceTool() {
+        MeasurementToolPanel panel = new MeasurementToolPanel(true, currentDisplayUnits(), this::measureMinimumDistance,
+                xy -> jumpTo(xy[0], xy[1], false), this::closeToolPanel);
+        openToolPanel("Distancia Minima", panel); // releases the previous tool before this one becomes current
+        measurePanel = panel;
+        activeToolCleanup = () -> { clearToolOverlays(); if (measurePanel == panel) measurePanel = null; };
+        measureMinimumDistance();
+    }
+
+    MeasurementToolPanel.Measurement measureMinimumDistance() {
+        MeasurementToolPanel panel = measurePanel;
+        List<TreeItem<String>> selected = selectedObjects();
+        if (selected.size() != 2) {
+            String text = "Selecione exatamente dois objetos. Selecionados agora: " + selected.size() + ".";
+            if (panel != null) { panel.clear(); panel.showMessage(text); }
+            appendConsole(text);
+            plotAreaView.setEditorHighlight(null, false);
+            return null;
+        }
+        Geometry first = measurableGeometry(selected.get(0)), second = measurableGeometry(selected.get(1));
+        if (first == null || second == null) {
+            String text = "Um dos objetos selecionados nao tem geometria para medir.";
+            if (panel != null) { panel.clear(); panel.showMessage(text); }
+            appendConsole(text);
+            return null;
+        }
+        MeasurementToolPanel.Measurement measurement = MeasurementToolPanel.nearest(first, second);
+        if (panel != null) panel.showResult(measurement);
+        plotAreaView.setEditorHighlight(measurement.distance() > 0 ? CNC_GEOMETRY_FACTORY.createLineString(new Coordinate[]{
+                new Coordinate(measurement.x1(), measurement.y1()), new Coordinate(measurement.x2(), measurement.y2())}) : null, true);
+        String text = measurement.distance() == 0
+                ? "Os objetos se intersectam ou se tocam."
+                : (panel != null ? panel.summary(measurement) : "Distancia minima " + MeasurementToolPanel.number(measurement.distance()));
+        appendConsole(text);
+        setStatus(text, IDLE_COLOR);
+        return measurement;
+    }
+
+    private Geometry measurableGeometry(TreeItem<String> item) {
+        Geometry geometry = gerberByItem.containsKey(item) ? gerberByItem.get(item).solidGeometry()
+                : excellonByItem.containsKey(item) ? excellonByItem.get(item).solidGeometry()
+                : geometryByItem.containsKey(item) ? geometryByItem.get(item).geometry()
+                : cncJobByItem.containsKey(item) ? cncJobByItem.get(item).cutGeometry() : null;
+        return geometry == null || geometry.isEmpty() ? null : geometry;
+    }
+
+    private String currentDisplayUnits() {
+        String text = unitsLabel == null ? "" : unitsLabel.getText().replace("[", "").replace("]", "").trim();
+        return text.isEmpty() ? "mm" : text;
+    }
+
+    enum LocatePoint { BOTTOM_LEFT, TOP_LEFT, BOTTOM_RIGHT, TOP_RIGHT, CENTER }
+
+    /** Python on_locate: one corner or the center of the selected object's bounds, centered in the view. */
+    double[] locateInObject(TreeItem<String> item, LocatePoint where) {
+        Geometry geometry = item == null ? null : measurableGeometry(item);
+        if (geometry == null) return null;
+        Envelope b = geometry.getEnvelopeInternal();
+        double[] point = switch (where) {
+            case BOTTOM_LEFT -> new double[]{b.getMinX(), b.getMinY()};
+            case TOP_LEFT -> new double[]{b.getMinX(), b.getMaxY()};
+            case BOTTOM_RIGHT -> new double[]{b.getMaxX(), b.getMinY()};
+            case TOP_RIGHT -> new double[]{b.getMaxX(), b.getMaxY()};
+            case CENTER -> new double[]{b.getMinX() + b.getWidth() / 2, b.getMinY() + b.getHeight() / 2};
+        };
+        jumpTo(point[0], point[1], false);
+        return point;
+    }
+
+    private void askLocateInObject() {
+        TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
+        if (item == null || !isProjectObject(item)) { appendConsole("Nenhum objeto selecionado."); return; }
+        var dialog = new javafx.scene.control.Dialog<LocatePoint>();
+        if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
+        dialog.setTitle("Localizar no Objeto");
+        dialog.setHeaderText(null);
+        ToggleGroup group = new ToggleGroup();
+        VBox options = new VBox(6);
+        LocatePoint remembered;
+        try { remembered = LocatePoint.valueOf(AppPreferences.loadText("locate.point")); }
+        catch (RuntimeException absent) { remembered = LocatePoint.BOTTOM_LEFT; }
+        String[] labels = {"Inferior esquerdo", "Superior esquerdo", "Inferior direito", "Superior direito", "Centro"};
+        for (LocatePoint point : LocatePoint.values()) {
+            RadioButton radio = new RadioButton(labels[point.ordinal()]);
+            radio.setUserData(point); radio.setToggleGroup(group); radio.setSelected(point == remembered);
+            options.getChildren().add(radio);
+        }
+        options.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(options);
+        dialog.getDialogPane().getButtonTypes().setAll(javafx.scene.control.ButtonType.OK, javafx.scene.control.ButtonType.CANCEL);
+        if (scene != null) dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        dialog.setResultConverter(button -> button == javafx.scene.control.ButtonType.OK && group.getSelectedToggle() != null
+                ? (LocatePoint) group.getSelectedToggle().getUserData() : null);
+        dialog.showAndWait().ifPresent(point -> {
+            AppPreferences.saveText("locate.point", point.name());
+            if (locateInObject(item, point) == null) appendConsole("O objeto selecionado esta vazio.");
+        });
+    }
+
+    /** "x,y" or "(x,y)" with two finite numbers; no expression evaluation (Python uses eval). */
+    static double[] parseXY(String text) {
+        if (text == null) return null;
+        String value = text.trim();
+        if (value.startsWith("(") && value.endsWith(")")) value = value.substring(1, value.length() - 1);
+        String[] parts = value.split(",", -1);
+        if (parts.length != 2) return null;
+        try {
+            double x = Double.parseDouble(parts[0].trim()), y = Double.parseDouble(parts[1].trim());
+            return Double.isFinite(x) && Double.isFinite(y) ? new double[]{x, y} : null;
+        } catch (NumberFormatException invalid) {
+            return null;
         }
     }
 
@@ -5105,6 +5487,70 @@ final class MainWindow implements TclFlatcamHost {
         return plotAreaView.isLayerVisible(item);
     }
 
+    /** Visible and not taken off the canvas by Limpar Plot (Python keeps the Plot state through clear_plots). */
+    private boolean isObjectDrawn(TreeItem<String> item) {
+        if (!isObjectVisible(item)) return false;
+        if (cncJobByItem.containsKey(item))
+            return !(plotAreaView.isLayerCleared(new CncTravelLayerKey(item)) && plotAreaView.isLayerCleared(new CncCutLayerKey(item)));
+        return !plotAreaView.isLayerCleared(item);
+    }
+
+    private List<TreeItem<String>> allProjectObjects() {
+        List<TreeItem<String>> all = new ArrayList<>();
+        all.addAll(gerberByItem.keySet());
+        all.addAll(excellonByItem.keySet());
+        all.addAll(geometryByItem.keySet());
+        all.addAll(cncJobByItem.keySet());
+        return all;
+    }
+
+    /** Python View > Replot (plot_all with fit_view): redraw every enabled object, then fit the view. */
+    private void replotAllObjects() {
+        plotAreaView.replotAll();
+        cncJobByItem.keySet().forEach(this::refreshCncAnnotations);
+        refreshPlotSelectionOutline();
+        plotAreaView.fitAllVisible();
+    }
+
+    /** Python Clear Plot: shapes leave the canvas, each object's Plot checkbox is unchanged. */
+    private void clearAllPlots() {
+        plotAreaView.clearPlots();
+        cncJobByItem.keySet().forEach(this::refreshCncAnnotations);
+        refreshPlotSelectionOutline();
+    }
+
+    /** Python View > Zoom In/Out step: {@code global_zoom_ratio}, 1.5 by default. */
+    static final double MENU_ZOOM_RATIO = 1.5;
+
+    /** Python Ctrl+A on_selectall: every project object becomes selected. */
+    private void selectAllObjects() {
+        if (anyObjectEditorActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de selecionar todos os objetos.");
+            return;
+        }
+        List<TreeItem<String>> objects = allProjectObjects();
+        var model = projectTree.getSelectionModel();
+        model.clearSelection();
+        int[] rows = objects.stream().mapToInt(this::rowForPlotObject).filter(row -> row >= 0).sorted().toArray();
+        if (rows.length == 0) {
+            appendConsole("Nenhum objeto no projeto para selecionar.");
+            return;
+        }
+        model.selectIndices(rows[0], java.util.Arrays.copyOfRange(rows, 1, rows.length));
+    }
+
+    private void deselectAllObjects() {
+        if (anyObjectEditorActive()) {
+            appendConsole("Conclua ou cancele o editor atual antes de desmarcar os objetos.");
+            return;
+        }
+        projectTree.getSelectionModel().clearSelection();
+    }
+
+    private boolean anyObjectEditorActive() {
+        return gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive() || gcodeEditor.isActive();
+    }
+
     private boolean cncLayerVisible(TreeItem<String> item, boolean travel) {
         CncJobEntry entry = cncJobByItem.get(item);
         if (entry == null) return false;
@@ -6179,8 +6625,8 @@ final class MainWindow implements TclFlatcamHost {
         CncAnnotationKey key = new CncAnnotationKey(item);
         CncJobEntry entry = cncJobByItem.get(item);
         boolean showArrows = entry != null && entry.stats() != null && !cncArrowsOff.contains(item)
-                && isObjectVisible(item);
-        boolean routeVisible = entry != null && entry.stats() != null && isObjectVisible(item);
+                && isObjectDrawn(item);
+        boolean routeVisible = entry != null && entry.stats() != null && isObjectDrawn(item);
         plotAreaView.setSteps(key, routeVisible ? entry.stats().steps() : List.of(),
                 routeVisible ? entry.stats().pathMarks() : List.of(),
                 routeVisible ? entry.previewStrokeWidth() : 0, routeVisible ? entry.stats().units() : "MM");
@@ -6188,7 +6634,7 @@ final class MainWindow implements TclFlatcamHost {
                 .map(a -> new PlotAreaView.Arrow(a.x(), a.y(), a.dx(), a.dy(), a.length()))
                 .toList());
         if (entry == null || entry.stats() == null || entry.stats().pathMarks().isEmpty()
-                || cncAnnotationsOff.contains(item) || !isObjectVisible(item)) {
+                || cncAnnotationsOff.contains(item) || !isObjectDrawn(item)) {
             plotAreaView.setAnnotations(key, List.of());
             return;
         }
@@ -7856,6 +8302,11 @@ final class MainWindow implements TclFlatcamHost {
         centerTabs.getSelectionModel().select(tab);
     }
 
+    /** Python Help > Shortcuts List: a tab in the plot area, not a dialog. */
+    void openShortcutList() {
+        openAuxiliaryTab("Lista de Atalhos", ShortcutListPanel::new);
+    }
+
     private void openPreferences() {
         openAuxiliaryTab("Preferencias", this::buildPreferencesPanel);
     }
@@ -8234,6 +8685,7 @@ final class MainWindow implements TclFlatcamHost {
     void requestClose(Runnable close) {
         protectProjectTransition(() -> {
             if(!confirmToolsDatabaseClose())return;
+            if(!confirmScriptsClose())return;
             if(fluidTooltips!=null)fluidTooltips.closeNow(); close.run();
         });
     }
@@ -8673,6 +9125,40 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     @Override
+    public String drillcncjob(String sourceName, String outname, TclDrillRequest request) throws TclException {
+        TclSource source = tclSource(sourceName);
+        if (source.kind() != Kind.EXCELLON)
+            throw new TclException("Expected an Excellon object, got: " + sourceName);
+        ExcellonImage image = (ExcellonImage) source.version();
+        List<Integer> ordered = TclDrillTools.select(image, request.drilledDiameters(), request.diameterTolerance());
+        if (ordered.isEmpty()) throw new TclException("The Excellon object has no drills or slots to drill: " + sourceName);
+        CncJobResult job;
+        try {
+            DrillGCodeParameters params = new DrillGCodeParameters(request.travelZ(), request.drillDepth(),
+                    request.feedRateZ(), request.spindleSpeed(), request.toolChange(), request.multiDepth(),
+                    request.depthPerPass(), request.dwell(), request.dwellSeconds(), 0);
+            Map<Integer, DrillGCodeParameters> byTool = new LinkedHashMap<>();
+            ordered.forEach(id -> byTool.put(id, params));
+            double[] change = request.toolChangeXY(), end = request.endXY();
+            GCodeGenerator.DrillJobOptions options = new GCodeGenerator.DrillJobOptions(request.toolChange(),
+                    request.toolChangeZ(), request.endZ(), end == null ? null : end[0], end == null ? null : end[1],
+                    request.rapidFeedRate(), null, false, List.of(), request.startZ(),
+                    change == null ? null : change[0], change == null ? null : change[1], request.optimizeDrills());
+            TclExecution.phase("Gerando furacao...");
+            job = GCodeGenerator.generateDrillCncJob(image, byTool, ordered, options, request.preprocessor(),
+                    TclExecution.cancellation(), TclExecution.progress("Gerando furacao..."));
+        } catch (IllegalArgumentException invalid) { throw new TclException(invalid.getMessage()); }
+        CncJobResult generated = job;
+        return TclExecution.onFx(() -> {
+            checkTclSource(source);
+            String actual = uniqueDerivedName(outname);
+            addCncJobToProject(actual, sourceName, Path.of(actual), generated.gcode(),
+                    generated.travelGeometry(), generated.cutGeometry());
+            return actual;
+        });
+    }
+
+    @Override
     public String exportGcode(String cncJobName, String preamble, String postamble) throws TclException {
         requireWorkerCommand();
         TclSource source = tclSource(cncJobName);
@@ -8816,6 +9302,152 @@ final class MainWindow implements TclFlatcamHost {
         if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive() || gcodeEditor.isActive())
             throw new IllegalStateException("Conclua a operacao e feche os editores antes de exportar pelo Terminal.");
+    }
+
+    // ---- Scripting (Python File > Scripting: New / Open / Run Script) ----
+
+    private static final String SCRIPT_DIRECTORY_KEY = "scripting.lastDirectory";
+
+    private FileChooser scriptChooser(String title) {
+        FileChooser chooser = new FileChooser();
+        chooser.setTitle(title);
+        chooser.getExtensionFilters().addAll(
+                new FileChooser.ExtensionFilter("Script Tcl FlatCAM", "*.FlatScript", "*.tcl", "*.TCL", "*.txt", "*.TXT"),
+                new FileChooser.ExtensionFilter("Todos os arquivos", "*.*"));
+        String remembered = AppPreferences.loadText(SCRIPT_DIRECTORY_KEY);
+        if (remembered != null && !remembered.isBlank() && Files.isDirectory(Path.of(remembered)))
+            chooser.setInitialDirectory(Path.of(remembered).toFile());
+        return chooser;
+    }
+
+    private void rememberScriptDirectory(Path file) {
+        Path parent = file.toAbsolutePath().getParent();
+        if (parent != null) AppPreferences.saveText(SCRIPT_DIRECTORY_KEY, parent.toString());
+    }
+
+    /** Python on_filenewscript: a new script in the editor, with the Python template. */
+    void newScript() {
+        openScriptTab(ScriptEditorPanel.NEW_SCRIPT_TEMPLATE, null);
+    }
+
+    private void openScripts() {
+        List<File> files = scriptChooser("Abrir Script Tcl").showOpenMultipleDialog(scene.getWindow());
+        if (files == null) return;
+        for (File file : files) openScript(file.toPath());
+    }
+
+    /** Python on_fileopenscript: the file opens in the editor and is not executed. */
+    void openScript(Path file) {
+        Path absolute = file.toAbsolutePath();
+        for (Tab tab : centerTabs.getTabs()) {
+            if (tab.getContent() instanceof ScriptEditorPanel panel && absolute.equals(panel.file())) {
+                centerTabs.getSelectionModel().select(tab);
+                return;
+            }
+        }
+        try {
+            String text = Files.readString(file, java.nio.charset.StandardCharsets.UTF_8);
+            rememberScriptDirectory(file);
+            openScriptTab(text, absolute);
+        } catch (IOException | RuntimeException error) {
+            appendConsole("Falha ao abrir o script " + file + ": " + error.getMessage());
+        }
+    }
+
+    private void runScriptFile() {
+        File file = scriptChooser("Executar Script Tcl").showOpenDialog(scene.getWindow());
+        if (file != null) runScriptFile(file.toPath());
+    }
+
+    /** Python on_filerunscript: read the file, show the Terminal and run it there. */
+    boolean runScriptFile(Path file) {
+        String text;
+        try { text = Files.readString(file, java.nio.charset.StandardCharsets.UTF_8); }
+        catch (IOException | RuntimeException error) {
+            appendConsole("Falha ao ler o script " + file + ": " + error.getMessage());
+            return false;
+        }
+        rememberScriptDirectory(file);
+        return runInTerminal(text, file.getFileName().toString());
+    }
+
+    private boolean runInTerminal(String script, String label) {
+        openTerminal();
+        if (!terminalPanel.runScript(script, label)) {
+            appendConsole("O Terminal ainda está executando outro script; aguarde ou cancele antes de executar " + label + ".");
+            return false;
+        }
+        return true;
+    }
+
+    private void openScriptTab(String text, Path file) {
+        ScriptEditorPanel panel = new ScriptEditorPanel(text, file, new ScriptEditorPanel.Host() {
+            @Override public boolean run(String script, String label) { return runInTerminal(script, label); }
+            @Override public Path chooseSaveTarget(Path suggested) {
+                FileChooser chooser = scriptChooser("Salvar Script Tcl");
+                chooser.setInitialFileName(suggested == null ? "new_script.FlatScript" : suggested.getFileName().toString());
+                File chosen = chooser.showSaveDialog(scene.getWindow());
+                if (chosen == null) return null;
+                rememberScriptDirectory(chosen.toPath());
+                return chosen.toPath();
+            }
+            @Override public void log(String message) { appendConsole(message); }
+        });
+        Tab tab = new Tab();
+        tab.getStyleClass().add("script-editor-tab");
+        tab.setGraphic(legacyIcon("script16.png", 16));
+        tab.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(panel::title, panel.dirtyProperty()));
+        tab.setContent(panel);
+        tab.setOnCloseRequest(event -> {
+            if (!confirmScriptClose(panel)) event.consume();
+        });
+        centerTabs.getTabs().add(tab);
+        centerTabs.getSelectionModel().select(tab);
+        panel.focusCode();
+    }
+
+    private java.util.function.Predicate<ScriptEditorPanel> scriptDiscardDecision = this::askDiscardScript;
+    void setScriptDiscardDecision(java.util.function.Predicate<ScriptEditorPanel> decision) { scriptDiscardDecision = decision; }
+
+    private boolean confirmScriptClose(ScriptEditorPanel script) {
+        if (!script.isDirty()) return true;
+        String draft = script.text();
+        return scriptDiscardDecision.test(script) && (!script.isDirty() || draft.equals(script.text()));
+    }
+
+    /** Dialogs run nested FX event loops: a previous approval must not discard a newer draft. */
+    private boolean confirmScriptsClose() {
+        Map<ScriptEditorPanel,String> approved = new java.util.IdentityHashMap<>();
+        for (Tab tab : List.copyOf(centerTabs.getTabs())) {
+            if (tab.getContent() instanceof ScriptEditorPanel script && script.isDirty()) {
+                String draft = script.text();
+                if (!confirmScriptClose(script)) return false;
+                approved.put(script, draft);
+            }
+        }
+        for (Tab tab : centerTabs.getTabs()) {
+            if (tab.getContent() instanceof ScriptEditorPanel script && script.isDirty()
+                    && !script.text().equals(approved.get(script))) {
+                appendConsole("Um script mudou durante a confirmação. Revise-o antes de sair.");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean askDiscardScript(ScriptEditorPanel panel) {
+        if (scene == null || scene.getWindow() == null) return false;
+        var dialog = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
+        dialog.initOwner(scene.getWindow());
+        dialog.setTitle("Script não salvo");
+        dialog.setHeaderText(null);
+        dialog.setContentText("O script \"" + panel.title().replace(" *", "") + "\" tem alterações não salvas. Deseja salvá-las antes de fechar?");
+        var save = new javafx.scene.control.ButtonType("Salvar", javafx.scene.control.ButtonBar.ButtonData.YES);
+        var discard = new javafx.scene.control.ButtonType("Descartar", javafx.scene.control.ButtonBar.ButtonData.NO);
+        dialog.getButtonTypes().setAll(save, discard, javafx.scene.control.ButtonType.CANCEL);
+        dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
+        var choice = dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL);
+        return choice == discard || choice == save && panel.save() && !panel.isDirty();
     }
 
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */
@@ -9436,7 +10068,42 @@ final class MainWindow implements TclFlatcamHost {
     private void saveProject() {
         saveProject(ignored -> {});
     }
+
+    private void saveProjectAs() {
+        saveProjectAs(ignored -> {});
+    }
+
+    /**
+     * Python on_file_saveproject: save straight to the current project file, else Save As. Only an FX
+     * {@code .fcnproj} is rewritten silently; an imported Python {@code .FlatPrj} (or no file yet) asks for
+     * the destination, so Ctrl+S never replaces a Python original behind the user's back.
+     */
     private void saveProject(java.util.function.Consumer<Boolean> done) {
+        Path current = currentProjectFile;
+        if (current == null || !current.toString().toLowerCase(java.util.Locale.ROOT).endsWith(".fcnproj")
+                || current.getParent() == null || !Files.isDirectory(current.getParent())) {
+            saveProjectAs(done);
+            return;
+        }
+        if (!projectSaveAllowed()) { done.accept(false); return; }
+        writeProject(current.toFile(), snapshotProject(), projectStateStamp(), done);
+    }
+
+    private boolean projectSaveAllowed() {
+        if (runningJob != null) {
+            appendConsole("Ja existe uma operacao em andamento.");
+            return false;
+        }
+        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
+                || excellonEditor.isActive()) {
+            appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
+            return false;
+        }
+        return true;
+    }
+
+    /** Python on_file_saveprojectas: always asks for the destination and format. */
+    private void saveProjectAs(java.util.function.Consumer<Boolean> done) {
         if (runningJob != null) {
             appendConsole("Ja existe uma operacao em andamento.");
             done.accept(false);
@@ -9476,6 +10143,12 @@ final class MainWindow implements TclFlatcamHost {
         if(!pythonFormat && !file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".fcnproj")) {
             appendConsole("Escolha uma extensão .fcnproj ou .FlatPrj para salvar o projeto."); done.accept(false); return;
         }
+        writeProject(file, project, before, done);
+    }
+
+    private void writeProject(File file, ProjectFile project, ProjectChangeTracker.State before,
+                              java.util.function.Consumer<Boolean> done) {
+        boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
         if (pythonFormat) appendConsole(project.pythonLegacy() != null
                 ? "Salvando no formato Python 8.994: o que nao foi alterado no FX e mantido como estava no projeto original "
                         + "(preferencias, opcoes dos objetos, macros, scripts); recursos exclusivos do FX ficam so para o FX."
@@ -9815,6 +10488,22 @@ final class MainWindow implements TclFlatcamHost {
 
     private void clearProject() {
         clearProject(true);
+    }
+
+    /**
+     * Python File > New Project (on_file_new_click): same Save/Don't save/Cancel protection as opening a
+     * project, then every object leaves the session and the project file is forgotten. Preferences, the
+     * Terminal's variables and window layout are kept, as Python keeps its Tcl interpreter.
+     */
+    private void newProject() {
+        protectProjectTransition(() -> {
+            closeToolPanel();
+            clearProject();
+            currentProjectFile = null;
+            projectChanges.saved(projectStateStamp());
+            appendConsole("Novo projeto criado.");
+            setStatus("Novo projeto criado.", IDLE_COLOR);
+        });
     }
 
     private void clearProject(boolean cancelTerminal) {

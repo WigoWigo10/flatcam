@@ -310,6 +310,57 @@ Sete regressões exercitam árvore/células reais, com controle positivo do gati
 nativo. Install: 983 registrados, 972 aprovados, 11 opcionais ignorados, zero
 falhas/erros. Validar manualmente o clique físico e foco do campo de edição.
 
+**Comandos de menu/toolbar ainda em stub — série iniciada em 2026-10-17.**
+Levantamento: 27 entradas `plannedItem`/botões sem ação. Fechados nesta série:
+
+- Exibir > Replotar Tudo, Limpar Plot, Aproximar, Afastar (menu e toolbar View) e
+  Objetos > Selecionar Todos/Desmarcar Todos. Limpar Plot segue `clear_plots` do
+  Python: retira os desenhos sem desmarcar o Plot de cada objeto; reativar, alterar
+  ou Replotar desenha de novo. Replotar = `plot_all(fit_view=True)`. Zoom 1,5×
+  pelo centro (`global_zoom_ratio`); atalhos `=`/`-` e Ctrl+A no filtro de cena,
+  ignorando campos de texto, editores e posicionamento (não como aceleradores de
+  menu, que disparariam ao digitar). Três regressões FX.
+
+- Arquivo > Novo Projeto (Ctrl+N) com a proteção de projeto não salvo, e Salvar
+  Projeto Como (Ctrl+Shift+S). Salvar Projeto (Ctrl+S) agora grava direto no
+  `.fcnproj` atual, como `on_file_saveproject`; `.FlatPrj` importado ou projeto sem
+  arquivo continuam perguntando o destino. Duas regressões FX. Ver
+  [PROJETO_NAO_SALVO.md](PROJETO_NAO_SALVO.md).
+
+- Arquivo > Scripting: Novo, Abrir e Executar Script (também na toolbar Shell), com
+  editor Tcl em aba e execução pelo Terminal. Ver [TERMINAL_TCL.md](TERMINAL_TCL.md).
+
+- Editar > Definir Origem (clique no Plot com snap; atalho O), Mover para Origem
+  (canto inferior esquerdo da seleção; Shift+O) e Ir para Localização (X,Y absoluto
+  ou relativo ao cursor; J), também na toolbar. Diferenças deliberadas: projetos com
+  CNC Job recusam Definir Origem e CNC Jobs não são movidos (deslocar só a prévia sem
+  reescrever o G-code seria enganoso — mesma política das transformações); coordenadas
+  sem `eval`; Ir para centraliza a vista, sem mover o cursor do sistema. Quatro
+  regressões FX.
+
+- Editar > Medir Distância (dois cliques no Plot, Ctrl+M), Distância Mínima entre dois
+  objetos selecionados (pontos mais próximos e ponto médio, Shift+M) e Localizar no
+  Objeto (cantos/centro, Shift+J), também na toolbar, com resultados no painel
+  Ferramenta e a linha medida destacada no Plot. Fórmulas iguais às das ferramentas
+  Python (atan2 em [0,360) na medição; atan(dy/dx) na mínima). Diferenças: sem a opção
+  "Snap to center" dos editores; par vertical na mínima mostra 90° (o Python mantém o
+  valor anterior). Corrigido no caminho um bug de ordem de limpeza ao trocar entre as
+  duas ferramentas. Duas regressões FX.
+
+- Arquivo > Novo > Geometry/Excellon: objetos vazios `new_geo`/`new_exc` (sufixo se o
+  nome existir) nas unidades atuais, já selecionados para Editar Objeto, como
+  `new_geometry_object`/`new_excellon_object`. A Geometry nova é simples (sem a fresa
+  padrão que o Python anexa); Document continua pendente, pois o FX não tem o tipo de
+  objeto Document. Uma regressão FX (editores e ida-e-volta .fcnproj/.FlatPrj).
+
+- Ajuda > Lista de Atalhos: aba com os atalhos de teclado/mouse que o FX realmente
+  trata (cena, árvore, Plot, inspeção CNC, editores, código, Terminal, Tools Database).
+  As letras de ferramentas dos editores do Python ainda não existem no FX e não são
+  listadas. Uma regressão FX.
+
+Restantes: Novo Document, Abrir Configuração, Alternar Unidades e itens de Ajuda (online, bookmarks,
+atalhos, como usar, reportar problema).
+
 ### 7. Completar preferências e automação
 
 **Áreas de código em 2026-10-05:** Editor G-code e Ver Fonte usam componente

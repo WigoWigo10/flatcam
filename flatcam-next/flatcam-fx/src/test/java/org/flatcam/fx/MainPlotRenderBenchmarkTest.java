@@ -49,9 +49,16 @@ class MainPlotRenderBenchmarkTest {
         Files.createDirectories(output);
         ThemeOption theme = ThemeOption.valueOf(System.getProperty("flatcam.plot.benchmark.theme", "ICE_DARK"));
         var cncProbeMode = PlotCncProbe.Mode.valueOf(System.getProperty("flatcam.plot.benchmark.cncProbe", "FULL"));
-        report.put("schema", 3).put("status", "RUNNING").put("scope", "visible production Plot; scripted camera and geometry session publication")
+        boolean omitRaster = Boolean.getBoolean("flatcam.plot.benchmark.omitRasterDrawing");
+        report.put("schema", 4).put("status", "RUNNING").put("scope", "visible production Plot; scripted camera and geometry session publication")
                 .put("cncProbe", cncProbeMode.name())
-                .put("visualValidation", cncProbeMode == PlotCncProbe.Mode.FULL ? "REFERENCE_NO_OMISSIONS" : "NOT_VALIDATED_DIAGNOSTIC_OMISSIONS")
+                .put("rasterProbe", omitRaster ? "OMIT_DRAW" : "FULL")
+                .put("cncLineRendering", Boolean.getBoolean("flatcam.plot.cncLines.clipped") ? "CLIPPED" : "REFERENCE")
+                .put("visualValidation", cncProbeMode == PlotCncProbe.Mode.FULL && !omitRaster ? "REFERENCE_NO_OMISSIONS" : "NOT_VALIDATED_DIAGNOSTIC_OMISSIONS")
+                .put("processId", ProcessHandle.current().pid())
+                .put("qpcFrequency", Long.getLong("flatcam.plot.benchmark.qpcFrequency", 0))
+                .put("qpcMinusNanoTimeNanos", Long.getLong("flatcam.plot.benchmark.qpcMinusNanoTime", 0))
+                .put("qpcCalibrationUncertaintyNanos", Long.getLong("flatcam.plot.benchmark.qpcUncertainty", -1))
                 .put("notMeasured", List.of("GPU-presented FPS", "physical input latency", "full editor sidebar/table flow", "CAM generation", "project save"))
                 .put("source", source == null ? "synthetic-lines-v1" : source.getFileName().toString())
                 .put("sourceSha256", source == null ? JSONObject.NULL : HexFormat.of().formatHex(beforeHash))
@@ -63,6 +70,8 @@ class MainPlotRenderBenchmarkTest {
                 .put("densityAsync", System.getProperty("flatcam.plot.density.async", "true"))
                 .put("densityEnabled", !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density")))
                 .put("pixelBuffer", !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.pixelBuffer")))
+                .put("launchMode", System.getProperty("flatcam.plot.benchmark.launchMode", "MAVEN_SUREFIRE"))
+                .put("wideDensityEnabled", !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.density.wide")))
                 .put("jfrRequested", Boolean.getBoolean("flatcam.plot.benchmark.jfr"))
                 .put("indexAsync", System.getProperty("flatcam.plot.index.async", "true"))
                 .put("hardware", SystemHardwareInfo.collect().summary()).put("phases", phases);
@@ -76,11 +85,16 @@ class MainPlotRenderBenchmarkTest {
                 view.setCncBenchmarkProbe(new PlotCncProbe(cncProbeMode, sample -> {
                     if (cncMetrics != null) cncMetrics.sample(sample);
                 }));
+                view.setRasterBenchmarkProbe(omitRaster);
                 stage = new Stage();
                 var scene = new Scene(view, Integer.getInteger("flatcam.plot.benchmark.width", 1280),
                         Integer.getInteger("flatcam.plot.benchmark.height", 800));
                 theme.applyTo(scene); view.applyTheme(theme);
-                stage.setTitle("FlatCAM FX — Plot benchmark (somente leitura)");
+                String probeLabel = cncProbeMode == PlotCncProbe.Mode.FULL && !omitRaster
+                        ? "DESENHO COMPLETO" : "DIAGNOSTICO: DESENHO OMITIDO";
+                stage.setTitle("FlatCAM FX — Plot benchmark — " + probeLabel + " [" + cncProbeMode
+                        + "; raster=" + (omitRaster ? "OMIT_DRAW" : "FULL")
+                        + "; lines=" + report.getString("cncLineRendering") + "]");
                 stage.setScene(scene); stage.show();
                 pulseTimer = new AnimationTimer() {
                     @Override public void handle(long now) { if (metrics != null) metrics.pulse(System.nanoTime()); }
@@ -90,7 +104,8 @@ class MainPlotRenderBenchmarkTest {
             });
             long loading = System.nanoTime();
             try (var marker = PlotBenchmarkJfr.phase("load-and-initial-ready", 0)) {
-                if (source != null) session.window.openProject(source); // Worker-side production decode/preview and FX restore.
+                // Discard only this benchmark's disposable initial fixture, never a user's live workspace.
+                if (source != null) session.window.openProject(source, true);
                 else fx(() -> {
                     view.clearLayers();
                     view.putLayer("synthetic-dense", PlotAreaView.LayerCategory.GEOMETRY, synthetic(),
@@ -179,6 +194,19 @@ class MainPlotRenderBenchmarkTest {
                 }
                 assertSame(original, edit.resultGeometry(), "Undo must restore the borrowed original version");
             } else report.put("editSkipped", "No visible Geometry in this corpus; not counted as tested");
+            if (Boolean.getBoolean("flatcam.plot.benchmark.snapshots")) {
+                // Read-only visual evidence, AFTER all timed phases, never counted as FPS frames.
+                fx(() -> { view.setCamera(base); return null; }); awaitReady();
+                saveSnapshot(output.resolve("plot-far.png"));
+                saveCanvasSnapshot(output.resolve("canvas-far.png"));
+                var near = new PlotCamera(base.centerX(), base.centerY(), base.scale() * 8,
+                        base.width(), base.height(), base.insetX(), base.insetY());
+                fx(() -> { view.setCamera(near); return null; }); awaitReady();
+                saveSnapshot(output.resolve("plot-near.png"));
+                saveCanvasSnapshot(output.resolve("canvas-near.png"));
+                fx(() -> { view.setCamera(base); return null; }); awaitReady();
+                report.put("snapshots", List.of("plot-far.png", "plot-near.png", "canvas-far.png", "canvas-near.png"));
+            }
             if (Boolean.getBoolean("flatcam.plot.benchmark.jfr")) {
                 PlotBenchmarkJfr.dumpSummary(output);
                 report.put("jfrSummary", "jfr-summary.json");
@@ -192,6 +220,7 @@ class MainPlotRenderBenchmarkTest {
                 metrics = null;
                 cncMetrics = null;
                 view.setCncBenchmarkProbe(null);
+                view.setRasterBenchmarkProbe(false);
                 if (pulseTimer != null) pulseTimer.stop();
                 view.setRenderObserver(null);
                 if (stage != null) stage.close();
@@ -215,16 +244,21 @@ class MainPlotRenderBenchmarkTest {
             metrics = new PlotBenchmarkMetrics(); cncMetrics = new PlotBenchmarkCncMetrics();
             view.setRenderObserver(sample -> metrics.redraw(sample, System.nanoTime())); return null;
         });
+        var cpuBefore = PlotBenchmarkThreadCpu.sample();
         long start = System.nanoTime();
         try (var marker = PlotBenchmarkJfr.phase(name, repeat)) {
             action.call(); awaitReady(); marker.completed();
         }
+        long ended = System.nanoTime();
+        var cpuAfter = PlotBenchmarkThreadCpu.sample();
         var result = fx(() -> {
             view.setRenderObserver(null);
             JSONObject recorded = metrics.finish().put("cncPasses", cncMetrics.finish());
             metrics = null; cncMetrics = null; return recorded;
         });
-        result.put("name", name).put("repeat", repeat).put("elapsedMs", (System.nanoTime() - start) / 1e6)
+        result.put("name", name).put("repeat", repeat).put("startNanoTime", start).put("endNanoTime", ended)
+                .put("elapsedMs", (ended - start) / 1e6)
+                .put("threadCpuTime", PlotBenchmarkThreadCpu.delta(cpuBefore, cpuAfter))
                 .put("memoryBefore", memoryBefore).put("memoryAfter", memory())
                 .put("rasterBefore", rasterBefore).put("rasterAfter", fx(this::rasterStats));
         assertTrue(result.getJSONObject("redrawCommandsMs").getInt("samples") > 0, "No redraw samples");
@@ -232,6 +266,28 @@ class MainPlotRenderBenchmarkTest {
         System.out.printf(Locale.ROOT, "[PLOT-BENCHMARK] %s repeat=%d command_p95=%.2fms queue_p95=%.2fms ready_samples=%d%n",
                 name, repeat, result.getJSONObject("redrawCommandsMs").getDouble("p95"),
                 result.getJSONObject("uiQueueMs").getDouble("p95"), result.getJSONObject("requestToReadyCommandsMs").getInt("samples"));
+    }
+
+    private void saveSnapshot(Path path) throws Exception {
+        saveSnapshot(path, view);
+    }
+
+    private void saveCanvasSnapshot(Path path) throws Exception {
+        var canvasField = PlotAreaView.class.getDeclaredField("canvas"); canvasField.setAccessible(true);
+        saveSnapshot(path, fx(() -> (javafx.scene.Node) canvasField.get(view)));
+    }
+
+    private void saveSnapshot(Path path, javafx.scene.Node node) throws Exception {
+        var picture = fx(() -> {
+            var image = node.snapshot(null, null);
+            int width = (int) image.getWidth(), height = (int) image.getHeight();
+            int[] pixels = new int[width * height];
+            image.getPixelReader().getPixels(0, 0, width, height, javafx.scene.image.PixelFormat.getIntArgbInstance(), pixels, 0, width);
+            var png = new java.awt.image.BufferedImage(width, height, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+            png.setRGB(0, 0, width, height, pixels, 0, width);
+            return png;
+        });
+        assertTrue(javax.imageio.ImageIO.write(picture, "png", path.toFile()), "PNG writer unavailable");
     }
 
     private Void cameraPhase(PlotCamera base, int steps, boolean zoom) throws Exception {
@@ -304,6 +360,7 @@ class MainPlotRenderBenchmarkTest {
                 .put("workerScratchBytes", stats.workerScratchBytes()).put("publicationsCumulative", stats.publications())
                 .put("imagePrepareMsCumulative", stats.imagePrepareNanos() / 1e6)
                 .put("presentationCommandsMsCumulative", stats.presentationCommandsNanos() / 1e6)
+                .put("drawAttemptsCumulative", view.rasterDrawAttempts()).put("drawOmissionsCumulative", view.rasterDrawOmissions())
                 .put("timingsEnabled", stats.timingsEnabled());
     }
 
