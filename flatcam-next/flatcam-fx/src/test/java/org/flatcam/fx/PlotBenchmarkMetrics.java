@@ -48,7 +48,23 @@ final class PlotBenchmarkMetrics {
         return new JSONObject().put("requests", requests).put("coalescedBeforeCommands", coalesced)
                 .put("supersededBeforeReady", superseded).put("uiQueueMs", distribution(queue))
                 .put("requestToFirstCommandsMs", distribution(firstCommands)).put("requestToReadyCommandsMs", distribution(ready))
-                .put("redrawCommandsMs", distribution(commands)).put("uiPulseIntervalMs", distribution(pulses));
+                .put("redrawCommandsMs", distribution(commands)).put("uiPulseIntervalMs", distribution(pulses))
+                .put("uiPulseCadence", cadence(pulses));
+    }
+
+    /** Explicit UI Hz, never labelled as GPU/display FPS; 1% low = inverse mean of slowest 1%. */
+    static JSONObject cadence(List<Long> intervals) {
+        var positive = intervals.stream().filter(value -> value > 0).sorted().toList();
+        var result = new JSONObject().put("metric", "UI_PULSE_HZ_NOT_PRESENTED_FPS")
+                .put("intervalSamples", positive.size()).put("averageHz", JSONObject.NULL).put("onePercentLowHz", JSONObject.NULL);
+        if (!positive.isEmpty()) {
+            double average = positive.stream().mapToDouble(Long::doubleValue).average().orElseThrow();
+            int slowest = Math.max(1, (int) Math.ceil(positive.size() * .01));
+            double slowMean = positive.subList(positive.size() - slowest, positive.size()).stream()
+                    .mapToDouble(Long::doubleValue).average().orElseThrow();
+            result.put("averageHz", 1e9 / average).put("onePercentLowHz", 1e9 / slowMean);
+        }
+        return result;
     }
 
     static JSONObject distribution(List<Long> nanos) {

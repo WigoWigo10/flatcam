@@ -289,6 +289,20 @@ final class PlotAreaView extends StackPane {
     private void recordCncPass(PlotCncProbe.Pass pass, boolean raster, double width) {
         if (cncProbe != null) cncProbe.record(pass, raster, width);
     }
+    private long beginCncPass() { return cncProbe == null ? 0 : System.nanoTime(); }
+    private void recordCncPass(PlotCncProbe.Pass pass, boolean raster, double width, long started) {
+        if (cncProbe != null) cncProbe.record(pass, raster, width, started);
+    }
+
+    void setRasterBenchmarkProbe(boolean omitDrawing) {
+        if (!javafx.application.Platform.isFxApplicationThread()) throw new IllegalStateException("Plot probe belongs to FX");
+        if (disposed) {
+            if (omitDrawing) throw new IllegalStateException("Plot probe cannot outlive viewport disposal");
+            return; // Idempotent diagnostic detach after the owning session disposed the view.
+        }
+        densityRenderer.setBenchmarkOmitDrawing(omitDrawing);
+        requestInteractionRedraw();
+    }
 
     void setRenderObserver(Consumer<RenderSample> observer) { renderObserver = observer; }
     boolean renderReady() {
@@ -1922,21 +1936,23 @@ final class PlotAreaView extends StackPane {
                                     true, category, true, false);
                             lastLayerDense = lastLayerStale = false;
                             if (includesCncBody(lodLineWidth)) {
+                                long passStart = beginCncPass();
                                 // Packed segments use an image; wide strokes remain vector.
                                 if (!drawDensityLayer(gc, entry.getKey(), lodLayer, index, viewBounds, contentWidth,
                                         contentHeight, lodLineWidth))
                                     drawLayer(gc, lodLayer, contentWidth, contentHeight, viewBounds, index);
-                                recordCncPass(PlotCncProbe.Pass.BODY, lastLayerDense, lodLineWidth);
+                                recordCncPass(PlotCncProbe.Pass.BODY, lastLayerDense, lodLineWidth, passStart);
                             }
                             if (lod.stroked() && wideStroke >= PASS_LINES_MIN_WIDTH
                                     && includesCncPass(PlotCncProbe.Pass.PASS_LINES)) {
                                 // Zoomed in on a wide cutter: show each pass as a thin line over the body.
                                 Color passColor = lodColor.deriveColor(0, 1, 0.45, 0.9);
+                                long passStart = beginCncPass();
                                 gc.setLineDashes();
                                 lodLineWidth = 1.25;
                                 drawLayer(gc, new RenderLayer(drawnGeometry, true, passColor, passColor,
                                         true, category, true, false), contentWidth, contentHeight, viewBounds, index);
-                                recordCncPass(PlotCncProbe.Pass.PASS_LINES, false, lodLineWidth);
+                                recordCncPass(PlotCncProbe.Pass.PASS_LINES, false, lodLineWidth, passStart);
                             }
                         } finally {
                             lodLineWidth = Double.NaN;
@@ -1945,11 +1961,12 @@ final class PlotAreaView extends StackPane {
                     } else {
                         lastLayerDense = lastLayerStale = false;
                         if (category != LayerCategory.CNCJOB || includesCncBody(layer.strokeOnly() ? 1.5 : 1)) {
+                            long passStart = beginCncPass();
                             if (!drawDensityLayer(gc, entry.getKey(), layer, index, viewBounds, contentWidth,
                                     contentHeight, layer.strokeOnly() ? 1.5 : 1))
                                 drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
                             if (category == LayerCategory.CNCJOB)
-                                recordCncPass(PlotCncProbe.Pass.BODY, lastLayerDense, layer.strokeOnly() ? 1.5 : 1);
+                                recordCncPass(PlotCncProbe.Pass.BODY, lastLayerDense, layer.strokeOnly() ? 1.5 : 1, passStart);
                         }
                     }
                     if (profiling) {
@@ -2019,6 +2036,8 @@ final class PlotAreaView extends StackPane {
     }
 
     PlotDensityRenderer.Stats rasterStats() { return densityRenderer.stats(); }
+    long rasterDrawAttempts() { return densityRenderer.benchmarkDrawAttempts(); }
+    long rasterDrawOmissions() { return densityRenderer.benchmarkDrawOmissions(); }
 
     private boolean drawDensityLayer(GraphicsContext gc, Object key, RenderLayer layer, PlotDrawableIndex index,
                                      Envelope viewBounds, double contentWidth, double contentHeight, double lineWidth) {

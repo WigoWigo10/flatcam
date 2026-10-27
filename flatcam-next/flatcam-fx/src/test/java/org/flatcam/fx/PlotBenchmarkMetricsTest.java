@@ -5,6 +5,14 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PlotBenchmarkMetricsTest {
+    @Test void pulseCadenceIsExplicitlyNotPresentedFpsAndUsesTheSlowTail() {
+        var empty = PlotBenchmarkMetrics.cadence(List.of(0L, -1L));
+        assertTrue(empty.isNull("averageHz"));
+        var cadence = PlotBenchmarkMetrics.cadence(List.of(10_000_000L, 10_000_000L, 20_000_000L));
+        assertEquals("UI_PULSE_HZ_NOT_PRESENTED_FPS", cadence.getString("metric"));
+        assertEquals(75, cadence.getDouble("averageHz"), 1e-9);
+        assertEquals(50, cadence.getDouble("onePercentLowHz"), 1e-9);
+    }
     @Test void percentilesAndGapsHaveExplicitEmptyAndSmallSampleSemantics() {
         var empty = PlotBenchmarkMetrics.distribution(List.of());
         assertTrue(empty.isNull("p99"));

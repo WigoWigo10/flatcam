@@ -35,6 +35,24 @@ final class PlotDensityRenderer implements AutoCloseable {
     private int[] pixels = new int[0];
     private boolean closed;
     private long publications, imagePrepareNanos, presentationCommandsNanos;
+    private boolean benchmarkOmitDrawing;
+    private long benchmarkDrawAttempts, benchmarkDrawOmissions;
+
+    /** Diagnostic only: keep computation, image creation, caches and readiness; omit only drawImage. */
+    void setBenchmarkOmitDrawing(boolean omit) {
+        requireFx();
+        if (closed) throw new IllegalStateException("Raster probe cannot outlive disposal");
+        if (omit && !Boolean.getBoolean("flatcam.plot.benchmark"))
+            throw new IllegalStateException("Raster omission requires the opt-in Plot benchmark");
+        benchmarkOmitDrawing = omit;
+    }
+    long benchmarkDrawAttempts() { requireFx(); return benchmarkDrawAttempts; }
+    long benchmarkDrawOmissions() { requireFx(); return benchmarkDrawOmissions; }
+    private boolean presentImage() {
+        if (timings) benchmarkDrawAttempts++;
+        if (benchmarkOmitDrawing) { benchmarkDrawOmissions++; return false; }
+        return true;
+    }
 
     PlotDensityRenderer(boolean asynchronous, boolean pixelBuffer, Predicate<Object> acceptsFrame, Runnable redraw) {
         this.asynchronous = asynchronous;
@@ -79,7 +97,7 @@ final class PlotDensityRenderer implements AutoCloseable {
                 worker.request(key, view, index, bounds);
                 if (frame == null) return DrawResult.PREPARING;
                 long start = timings ? System.nanoTime() : 0;
-                presenter.drawPreview(gc, frame, view, camera);
+                if (presentImage()) presenter.drawPreview(gc, frame, view, camera);
                 if (timings) presentationCommandsNanos += System.nanoTime() - start;
                 return DrawResult.PREVIEW;
             }
@@ -97,7 +115,7 @@ final class PlotDensityRenderer implements AutoCloseable {
         // A latest/overview hit supersedes even a queued publication for an intermediate camera.
         if (asynchronous) worker.suspend(key);
         long start = timings ? System.nanoTime() : 0;
-        presenter.drawCurrent(gc, frame, camera);
+        if (presentImage()) presenter.drawCurrent(gc, frame, camera);
         if (timings) presentationCommandsNanos += System.nanoTime() - start;
         return DrawResult.CURRENT;
     }
@@ -142,6 +160,7 @@ final class PlotDensityRenderer implements AutoCloseable {
         requireFx();
         if (closed) return;
         closed = true;
+        benchmarkOmitDrawing = false;
         worker.shutdown(); clear();
     }
 

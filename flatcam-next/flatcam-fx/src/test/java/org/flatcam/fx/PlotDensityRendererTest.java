@@ -13,6 +13,53 @@ import org.locationtech.jts.geom.util.AffineTransformation;
 
 @EnabledOnOs(OS.WINDOWS)
 class PlotDensityRendererTest {
+    @Test void rasterOmissionRequiresOptInRetainsReadinessAndCanRestoreExactPixels() throws Exception {
+        String saved = System.getProperty("flatcam.plot.benchmark");
+        try {
+            System.clearProperty("flatcam.plot.benchmark");
+            fx(() -> {
+                var renderer = new PlotDensityRenderer(false, true, key -> true, () -> {});
+                try { assertThrows(IllegalStateException.class, () -> renderer.setBenchmarkOmitDrawing(true)); }
+                finally { renderer.close(); }
+                return null;
+            });
+            System.setProperty("flatcam.plot.benchmark", "true");
+            fx(() -> {
+                var renderer = new PlotDensityRenderer(false, true, key -> true, () -> {});
+                var canvas = new Canvas(124, 80); var gc = canvas.getGraphicsContext2D();
+                var index = new PlotDrawableIndex(packed());
+                try {
+                    gc.setFill(Color.BLACK); gc.fillRect(0, 0, 124, 80);
+                    renderer.draw(gc, "key", index, true, false, Color.RED, 1.5, CAMERA, CAMERA.visibleBounds());
+                    var normal = canvas.snapshot(null, null).getPixelReader();
+                    gc.fillRect(0, 0, 124, 80);
+                    renderer.setBenchmarkOmitDrawing(true);
+                    assertEquals(PlotDensityRenderer.DrawResult.CURRENT,
+                            renderer.draw(gc, "key", index, true, false, Color.RED, 1.5, CAMERA, CAMERA.visibleBounds()));
+                    assertFalse(renderer.preparing()); assertEquals(1, renderer.stats().publications());
+                    assertTrue(renderer.stats().estimatedImageBytes() > 0);
+                    assertEquals(1, renderer.benchmarkDrawOmissions());
+                    var omitted = canvas.snapshot(null, null).getPixelReader();
+                    for (int y = 0; y < 80; y++) for (int x = 0; x < 124; x++)
+                        assertEquals(0xff000000, omitted.getArgb(x, y));
+                    renderer.setBenchmarkOmitDrawing(false);
+                    renderer.draw(gc, "key", index, true, false, Color.RED, 1.5, CAMERA, CAMERA.visibleBounds());
+                    var restored = canvas.snapshot(null, null).getPixelReader();
+                    boolean painted = false;
+                    for (int y = 0; y < 80; y++) for (int x = 0; x < 124; x++) {
+                        assertEquals(normal.getArgb(x, y), restored.getArgb(x, y), "restored pixel " + x + "," + y);
+                        painted |= restored.getArgb(x, y) != 0xff000000;
+                    }
+                    assertTrue(painted); assertEquals(1, renderer.stats().publications(), "restore reuses the prepared image");
+                    renderer.close();
+                    assertThrows(IllegalStateException.class, () -> renderer.setBenchmarkOmitDrawing(true));
+                } finally { renderer.close(); }
+                return null;
+            });
+        } finally {
+            if (saved == null) System.clearProperty("flatcam.plot.benchmark"); else System.setProperty("flatcam.plot.benchmark", saved);
+        }
+    }
     private static final PlotCamera CAMERA = new PlotCamera(50, 40, 3, 80, 60, 44, 20);
 
     private static Geometry packed() {

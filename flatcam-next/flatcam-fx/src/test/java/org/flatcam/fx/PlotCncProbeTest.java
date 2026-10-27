@@ -35,14 +35,18 @@ class PlotCncProbeTest {
     @Test void phaseCountsDistinguishVectorRasterAndLogicalStrokeWidths() {
         var metrics = new PlotBenchmarkCncMetrics();
         assertEquals(0, metrics.finish().getJSONObject("BODY").getInt("calls"));
-        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, true, 1.5));
-        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, false, 12));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, true, 1.5, 2_000_000));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.BODY, false, 12, 3_000_000));
         metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.PASS_LINES, false, 1.25));
         var body = metrics.finish().getJSONObject("BODY");
         assertEquals(2, body.getInt("calls")); assertEquals(1, body.getInt("vectorCalls"));
         assertEquals(1, body.getInt("rasterCalls")); assertEquals(1.5, body.getDouble("lineWidthMinLogical"));
         assertEquals(12, body.getDouble("lineWidthMaxLogical"));
+        assertEquals(5, body.getDouble("commandEmissionMs"));
         assertEquals(1, metrics.finish().getJSONObject("PASS_LINES").getInt("calls"));
+        metrics.sample(new PlotCncProbe.Sample(PlotCncProbe.Pass.DECORATIONS, false, 0));
+        assertFalse(metrics.finish().getJSONObject("DECORATIONS").getBoolean("cpuTimingAvailable"));
+        assertTrue(metrics.finish().getJSONObject("DECORATIONS").isNull("commandEmissionMs"));
     }
 
     @Test @EnabledOnOs(OS.WINDOWS) void fullProbeMatchesNormalPixelsAndOmissionsPreserveGeometryAndLifecycle() throws Exception {
@@ -101,6 +105,8 @@ class PlotCncProbeTest {
                     assertEquals(count, samples.size());
                     assertThrows(IllegalStateException.class,
                             () -> view.setCncBenchmarkProbe(new PlotCncProbe(PlotCncProbe.Mode.FULL, samples::add)));
+                    assertDoesNotThrow(() -> view.setRasterBenchmarkProbe(false));
+                    assertThrows(IllegalStateException.class, () -> view.setRasterBenchmarkProbe(true));
                 } finally { view.dispose(); }
                 return null;
             });
