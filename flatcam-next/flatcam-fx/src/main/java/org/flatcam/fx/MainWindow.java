@@ -815,7 +815,7 @@ final class MainWindow implements TclFlatcamHost {
     private ToggleButton sidebarToggle;
     private PlotStatusControls statusControls;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
-    private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.ICE_LIGHT);
+    private ThemeOption currentTheme = AppPreferences.loadTheme();
     /** Saved projects restore their own presentation, independently of defaults for newly added objects. */
     private boolean restoringProject;
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());

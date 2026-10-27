@@ -18,6 +18,10 @@ class PreferencesPaneTest {
         ThemeOption theme = ThemeOption.ICE_DARK;
         AppPreferences.PlotStatusSettings settings = new AppPreferences.PlotStatusSettings(true, true, 1, 1, true, true, true, false);
         int themeWrites, plotWrites;
+        boolean splash=true;
+        int splashWrites;
+        @Override public boolean splashEnabled() { return splash; }
+        @Override public void applySplash(boolean enabled) { splash=enabled; splashWrites++; }
         @Override public ThemeOption theme() { return theme; }
         @Override public AppPreferences.PlotStatusSettings plotSettings() { return settings; }
         @Override public void applyTheme(ThemeOption value) { theme = value; themeWrites++; }
@@ -137,11 +141,26 @@ class PreferencesPaneTest {
             View view = view(); button(view, "preferences-general-reset").fire(); assertEquals(0, view.host.themeWrites);
             search(view).setText("no-such-setting-xyz"); assertTrue(tree(view).getRoot().getChildren().isEmpty());
             search(view).clear(); select(view, "general"); button(view, "preferences-general-apply").fire();
-            assertEquals(1, view.host.themeWrites); assertEquals(ThemeOption.ICE_LIGHT, view.host.theme);
+            assertEquals(1, view.host.themeWrites); assertEquals(ThemeOption.CLASSIC_LIGHT, view.host.theme);
             assertTrue(PreferencesSearch.matches("SOBREPOSICAO ncc", "NCC", "Sobreposição (%)"));
             assertFalse(PreferencesSearch.matches("ncc xyz", "NCC", "Sobreposição"));
             assertFalse(PreferencesSearch.matches("cor", "A validação ocorre ao salvar"));
             assertTrue(PreferencesSearch.matches("cor", "Cores do Gerber"));
+            return null;
+        });
+    }
+
+    @Test void startupSplashDraftPersistsOnlyWithGeneralApplyAndFactoryResetEnablesIt() throws Exception {
+        TerminalPanelTest.fx(()-> {
+            var view=view(); var splash=(CheckBox)view.pane.lookup("#preferences-splash");
+            assertTrue(splash.isSelected()); splash.setSelected(false);
+            select(view,"plot"); select(view,"general");
+            assertFalse(splash.isSelected()); assertEquals(0,view.host.splashWrites);
+            button(view,"preferences-general-apply").fire();
+            assertFalse(view.host.splash); assertEquals(1,view.host.splashWrites);
+            button(view,"preferences-general-reset").fire();
+            assertTrue(splash.isSelected()); assertFalse(view.host.splash);
+            button(view,"preferences-general-apply").fire(); assertTrue(view.host.splash);
             return null;
         });
     }

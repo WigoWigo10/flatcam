@@ -17,6 +17,8 @@ final class PreferencesPane extends BorderPane {
         AppPreferences.PlotStatusSettings plotSettings();
         void applyTheme(ThemeOption theme);
         void applyPlot(AppPreferences.PlotStatusSettings settings);
+        default boolean splashEnabled() { return AppPreferences.loadSplashScreen(); }
+        default void applySplash(boolean enabled) { AppPreferences.saveSplashScreen(enabled); }
     }
     record Section(String id, String label, String category, String group, String icon) {
         @Override public String toString() { return label; }
@@ -96,7 +98,7 @@ final class PreferencesPane extends BorderPane {
 
     private boolean matches(Section section) {
         if (section.group() == null) return PreferencesSearch.matches(search.getText(), section.label(),
-                section.id().equals("general") ? "aparência tema branco preto gelo" : "grade snap passo X Y eixos HUD coordenadas área A4");
+                section.id().equals("general") ? "aparência tema branco preto gelo splash abertura inicialização" : "grade snap passo X Y eixos HUD coordenadas área A4");
         return ToolDefaults.byTool().get(section.group()).stream().anyMatch(s -> PreferencesSearch.matches(search.getText(),
                 s.tool(), s.label(), s.key(), ToolDefaultsDescriptions.text(s, true), ToolDefaultsDescriptions.text(s, false)));
     }
@@ -161,16 +163,20 @@ final class PreferencesPane extends BorderPane {
             @Override public String toString(ThemeOption option) { return option == null ? "" : option.label(); }
             @Override public ThemeOption fromString(String value) { return theme.getValue(); }
         });
-        help(theme, "Tema da interface", "Escolha Branco, Preto, Branco gelo ou Preto gelo. Aplicar atualiza a janela e salva a escolha; não altera o projeto.");
+        help(theme, "Tema da interface", "Escolha Branco puro, Preto puro, Branco gelo ou Preto gelo. Branco puro é o padrão inicial. Aplicar atualiza a janela e salva a escolha; não altera o projeto.");
         Label label = new Label("Tema:"); label.setLabelFor(theme);
+        CheckBox splash=check("Exibir tela de abertura", "preferences-splash",host.splashEnabled(),
+                "Mostra a tela de abertura com o tema salvo e o modo gráfico em uso. Depois de pronta, mantém as informações por 5 segundos; clique para continuar antes. A alteração vale na próxima inicialização e só é salva ao aplicar.");
         Label feedback = new Label(); feedback.setWrapText(true);
         Button apply = button("Aplicar e salvar", "preferences-general-apply", () -> {
-            host.applyTheme(theme.getValue()); feedback.setText("Tema aplicado e salvo.");
-        }, "Aplica e salva somente o tema escolhido. Não salva padrões das outras seções.");
+            host.applyTheme(theme.getValue()); host.applySplash(splash.isSelected());
+            feedback.setText("Tema e tela de abertura salvos. A opção de abertura vale na próxima inicialização.");
+        }, "Aplica e salva o tema e a opção de tela de abertura. Não salva padrões das outras seções.");
         Button reset = button("Restaurar padrão", "preferences-general-reset", () -> {
-            theme.setValue(ThemeOption.ICE_LIGHT); feedback.setText("Branco gelo preparado. Clique em Aplicar e salvar para confirmar.");
-        }, "Prepara o tema Branco gelo, padrão inicial do FX. A mudança só é salva ao aplicar.");
-        return new VBox(12, new HBox(10, label, theme), new FlowPane(8, 8, apply, reset), feedback);
+            theme.setValue(ThemeOption.DEFAULT); splash.setSelected(true);
+            feedback.setText("Branco puro e tela de abertura ativada preparados. Clique em Aplicar e salvar para confirmar.");
+        }, "Prepara Branco puro e tela de abertura ativada, padrões iniciais do FX. A mudança só é salva ao aplicar.");
+        return new VBox(12, new HBox(10, label, theme), splash, new FlowPane(8, 8, apply, reset), feedback);
     }
 
     private Node plot() {

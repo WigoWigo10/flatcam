@@ -6,26 +6,67 @@ import javafx.application.Application;
 /** Plain Java entry point: diagnostics must start before JavaFX startup, not inside Application.start. */
 public final class FlatCamLauncher {
     private static DiagnosticSession diagnostics;
+    private static volatile StartupSplash splash;
+    private static javafx.animation.AnimationTimer startupFrames;
     private FlatCamLauncher() { }
 
     public static void main(String[] args) throws Exception {
         if (Arrays.asList(args).contains("--no-diagnostics")) System.setProperty("flatcam.diagnostics.enabled", "false");
-        diagnostics = DiagnosticSession.start();
         try {
+            String splashOverride=System.getProperty("flatcam.splash.enabled");
+            if (StartupSplash.enabled(args,true,splashOverride,java.awt.GraphicsEnvironment.isHeadless())
+                    && (splashOverride!=null || AppPreferences.loadSplashScreen())) {
+                var saved=AppPreferences.loadWindowScreen();
+                splash=StartupSplash.open(AppPreferences.loadTheme(),saved==null ? null : saved.deviceId());
+                startupMessage("Preparando a inicialização…");
+            }
+            diagnostics = DiagnosticSession.start();
             if (Arrays.asList(args).contains("--diagnostics-probe")) {
                 if (diagnostics == null) throw new IllegalStateException("Diagnostics are unavailable");
                 System.out.println("FlatCAM FX diagnostics probe: log UTF-8 — informações.");
                 Thread probe = new Thread(() -> { throw new IllegalStateException("intentional diagnostics probe"); }, "diagnostics-probe");
                 probe.start(); probe.join(); diagnostics.capture("probe");
             } else {
+                startupMessage("Iniciando a interface gráfica…");
                 Application.launch(MainApp.class, args);
             }
         } catch (Throwable failure) {
             if (diagnostics != null) diagnostics.launchFailed(failure);
             throw failure;
         } finally {
+            closeSplash();
             if (diagnostics != null) diagnostics.close();
         }
+    }
+
+    static void startupMessage(String message) { var current=splash; if(current!=null) current.message(message); }
+    static void closeSplash() {
+        var current=splash; splash=null;
+        if(current!=null) current.close();
+    }
+
+    /** Query the initialized window adapter after its first layout/render pulses; never block JavaFX. */
+    static void mainWindowShown(javafx.stage.Window owner) {
+        if(splash==null || startupFrames!=null) return;
+        var current=splash;
+        startupMessage("Identificando o modo gráfico…"); current.keepVisible();
+        startupFrames=new javafx.animation.AnimationTimer() {
+            private int frames;
+            @Override public void handle(long now) {
+                if(++frames>=2) {
+                    stop(); startupFrames=null;
+                    GraphicsRuntimeInfo.query(owner).whenComplete((graphics,failure)-> {
+                        if(splash==current) current.ready(failure==null ? graphics : GraphicsRuntimeInfo.unavailable("Consulta indisponível."));
+                    });
+                }
+            }
+        };
+        startupFrames.start();
+    }
+
+    static void stopSplash() {
+        if(startupFrames!=null) { startupFrames.stop(); startupFrames=null; }
+        closeSplash();
     }
 
     static void monitorUi() { if (diagnostics != null) diagnostics.monitorUi(javafx.application.Platform::runLater); }

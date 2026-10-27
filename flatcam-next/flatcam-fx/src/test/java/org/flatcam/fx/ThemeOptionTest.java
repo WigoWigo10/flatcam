@@ -13,6 +13,8 @@ class ThemeOptionTest {
 
     @Test
     void oldThemePreferencesMigrateWithoutLosingLightOrDarkChoice() {
+        assertEquals(ThemeOption.CLASSIC_LIGHT,ThemeOption.fromSavedName(null,ThemeOption.DEFAULT));
+        assertEquals(ThemeOption.CLASSIC_LIGHT,ThemeOption.fromSavedName("unknown",ThemeOption.DEFAULT));
         assertEquals(ThemeOption.ICE_LIGHT,
                 ThemeOption.fromSavedName("CUSTOM_LIGHT", ThemeOption.CLASSIC_LIGHT));
         assertEquals(ThemeOption.ICE_DARK,

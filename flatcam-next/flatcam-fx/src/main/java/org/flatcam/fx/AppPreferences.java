@@ -26,6 +26,7 @@ final class AppPreferences {
     private static final Preferences PREFS = Preferences.userNodeForPackage(AppPreferences.class);
 
     private static final String KEY_THEME = "theme";
+    private static final String KEY_SPLASH = "showStartupSplash";
     private static final String KEY_WINDOW_WIDTH = "windowWidth";
     private static final String KEY_WINDOW_HEIGHT = "windowHeight";
     private static final String KEY_WINDOW_SCREEN_ID = "windowScreenId";
@@ -60,10 +61,15 @@ final class AppPreferences {
         flush();
     }
 
+    static ThemeOption loadTheme() { return loadTheme(ThemeOption.DEFAULT); }
+
     static ThemeOption loadTheme(ThemeOption fallback) {
         String name = PREFS.get(KEY_THEME, null);
         return ThemeOption.fromSavedName(name, fallback);
     }
+
+    static boolean loadSplashScreen() { return PREFS.getBoolean(KEY_SPLASH,true); }
+    static void saveSplashScreen(boolean enabled) { PREFS.putBoolean(KEY_SPLASH,enabled); flush(); }
 
     static void saveTheme(ThemeOption option) {
         PREFS.put(KEY_THEME, option.name());

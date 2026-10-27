@@ -8,7 +8,7 @@ a 460 px. As páginas são criadas quando abertas e mantidas enquanto a aba exis
 
 | Categoria | Configurações já consumidas pelo FX |
 | --- | --- |
-| Geral | Quatro temas da interface |
+| Geral | Quatro temas da interface e tela de abertura |
 | Plot Area | Grade, snap, passos X/Y vinculados ou independentes, eixos, HUD e referência A4 |
 | Gerber | Plot/Solid/Multi-Color, cores/transparência, Follow, abertura da tabela e opções de importação |
 | Excellon | Plot/Solid/Multi-Color, cores/transparência e opções de importação |
@@ -38,7 +38,7 @@ Os valores em mm/in continuam independentes, sem conversão ao alternar unidades
   seção. Os dois passos da grade são validados antes de qualquer aplicação;
   zero, negativos e valores não finitos são recusados. Aceita ponto/vírgula decimal.
 - **Restaurar padrão** em Geral/Plot prepara o rascunho. Aplicar confirma.
-  O tema inicial é Branco gelo; Plot usa os padrões existentes do FX.
+  O tema inicial é Branco puro e a tela de abertura vem ativada; Plot usa os padrões existentes do FX.
 - Padrões: **Salvar esta seção** salva todos os rascunhos dessa seção, inclusive
   os ocultos pela busca e nas duas unidades. Os valores inválidos permanecem
   pendentes com mensagem; os demais podem ser salvos, como no editor anterior.
@@ -212,3 +212,23 @@ leitor, inclusive nos slots. Máscaras/comentários e cabeçalhos declarados tê
 prioridade; ponto explícito é literal. Save recusa valores fora dos intervalos.
 Gerber mantém suas duas opções existentes; buffering Qt não ganhou controles
 inertes. [IMPORT_FORMATS.md](IMPORT_FORMATS.md) contém exemplos e evidências.
+
+## Tela de abertura
+
+Em **Geral**, **Exibir tela de abertura** controla a próxima inicialização.
+Aplicar salva a escolha; navegar não salva e Restaurar prepara a opção ativada.
+A splash usa o tema salvo e mostra etapa, modo gráfico ativo e placa em uso.
+Depois de pronta, mantém as informações por 5 segundos; clique nela para
+continuar antes. Acentos Unicode são preservados.
+Detalhes e opções de execução: [STARTUP_SPLASH.md](STARTUP_SPLASH.md).
+
+## Padrão Branco puro
+
+**Branco puro** (tema clássico claro) é o padrão de fábrica, compartilhado pela
+janela, splash e tooltips sem proprietário. **Restaurar padrão** em Geral prepara
+essa escolha; aplicar confirma. Temas já salvos continuam respeitados. Os nomes
+na interface são Branco puro, Preto puro, Branco gelo e Preto gelo; identificadores
+persistidos CLASSIC_LIGHT/CLASSIC_DARK permanecem compatíveis.
+
+A splash usa fundo uniforme #FFFFFF em Branco puro e #000000 em Preto puro,
+com textos/logotipo contrastantes e os mesmos dados de GPU/Software e leitura.

@@ -23,12 +23,18 @@ if exist "%FLATCAM_CXX%" (
     set "FLATCAM_CXX=g++.exe"
 )
 if not exist "target\native" mkdir "target\native"
+rem Declare DPI awareness before the JVM/AWT/Glass creates the first native window.
+rem Without this resource, Glass can change the process DPI after the splash exists.
+for %%C in ("%FLATCAM_CXX%") do set "FLATCAM_WINDRES=%%~dpCwindres.exe"
+if not exist "%FLATCAM_WINDRES%" set "FLATCAM_WINDRES=windres.exe"
+"%FLATCAM_WINDRES%" -I"native-launcher" -i "native-launcher\FlatCAMFX.rc" -o "target\native\FlatCAMFX-res.o"
+if errorlevel 1 goto failure
 set "FLATCAM_JNI_INCLUDE=%JAVA_HOME%\include"
 if not exist "%FLATCAM_JNI_INCLUDE%\jni.h" (
     echo JAVA_HOME must point to a JDK with include\jni.h.
     goto failure
 )
-"%FLATCAM_CXX%" -std=c++17 -O2 -Wall -Wextra -municode -static -I"%FLATCAM_JNI_INCLUDE%" -I"%FLATCAM_JNI_INCLUDE%\win32" "native-launcher\FlatCAMFX.cpp" -o "target\native\FlatCAMFX.exe"
+"%FLATCAM_CXX%" -std=c++17 -O2 -Wall -Wextra -municode -static -I"%FLATCAM_JNI_INCLUDE%" -I"%FLATCAM_JNI_INCLUDE%\win32" "native-launcher\FlatCAMFX.cpp" "target\native\FlatCAMFX-res.o" -o "target\native\FlatCAMFX.exe"
 if errorlevel 1 goto failure
 "target\native\FlatCAMFX.exe" --probe
 if errorlevel 1 goto failure

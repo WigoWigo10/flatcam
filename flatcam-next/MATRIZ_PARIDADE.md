@@ -1,5 +1,21 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Tela de abertura — 2026-10-27
+
+Splash do FX antes do JavaFX, com quatro temas, etapa real, barra animada e
+preferência Geral. Branco puro é o padrão de fábrica; splash branca/preta
+usa fundos uniformes #FFFFFF/#000000 e preserva escolhas já salvas. Modo GPU/Software confirmado no renderizador, nome da GPU e
+acentos Unicode; 5 s de leitura após desenhar as informações, com clique para
+continuar antes e fechamento imediato na saída/falha. Arte própria, sem alegação de réplica visual Qt. Testes de janela,
+falha do launcher e desenhos 1x/2x. Rodada seguinte: janela nativa em duas
+telas 200%/100%, escalas forçadas 100–300%, matriz de 1120 disposições e correção
+da máscara em cartões reduzidos. [STARTUP_SPLASH_DPI.md](STARTUP_SPLASH_DPI.md)
+distingue ensaios nativos, simulação e limites restantes. Relato posterior
+reproduziu redução/deslocamento no host JNI: corrigido com manifesto DPI antes
+da JVM, regressão física do HWND, red/green/revert/restore e dez reinícios
+estáveis. Testes via java.exe sozinhos não cobriam essa transição.
+[STARTUP_SPLASH.md](STARTUP_SPLASH.md).
+
 ## Excellon incremental e circular — 2026-10-27
 
 G91/G90 em furos, G85 e roteamento; G02/G03 A/IJ até 180°, aproximação com erro

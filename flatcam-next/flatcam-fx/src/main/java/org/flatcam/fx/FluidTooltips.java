@@ -223,7 +223,7 @@ final class FluidTooltips {
                     : (FluidTooltips) ownerScene.getProperties().get(SCENE_KEY);
             if (ownerScene != null) dialogScene.getStylesheets().setAll(ownerScene.getStylesheets());
             new FluidTooltips(dialogScene, ownerHandler == null
-                    ? () -> AppPreferences.loadTheme(ThemeOption.CLASSIC_LIGHT) : ownerHandler.theme);
+                    ? AppPreferences::loadTheme : ownerHandler.theme);
         });
         var previousHidden = dialog.getOnHidden();
         dialog.setOnHidden(event -> {

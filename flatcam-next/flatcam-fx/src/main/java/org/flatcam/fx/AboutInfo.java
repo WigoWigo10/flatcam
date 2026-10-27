@@ -29,7 +29,7 @@ final class AboutInfo {
     static Properties build() {
         Properties values = new Properties();
         try (var input = AboutInfo.class.getResourceAsStream("build-info.properties")) {
-            if (input != null) values.load(input);
+            if (input != null) values.load(new java.io.InputStreamReader(input,StandardCharsets.UTF_8));
         } catch (IOException failure) { /* Display an honest unavailable value; do not fail the dialog. */ }
         return values;
     }

@@ -1,5 +1,90 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Splash encolhendo no launcher nativo: reproduzido/corrigido — 2026-10-27
+
+Relato com print confirmado no host JNI: a tela 200% mudava fisicamente de
+(820,552),1240×600 para (410,276),620×300 quando Glass inicializava, enquanto
+getters AWT permaneciam iguais. Testes via java.exe não cobriam esse contexto.
+Manifesto PerMonitorV2 incorporado por windres/RC define o DPI antes da JVM,
+evita a mudança tardia e conserva o quadro nas telas 200%/100%, GPU/Software.
+Sem reposicionamento forçado no timer. Regressão NativeSplashTransitionTest
+compila o host de produção com entrypoint de teste e observador físico Win32
+do próprio processo; handshake antes de Glass. Minimizou-se para Canvas
+offscreen, sem Stage/projetos/preferências. Red antes, green depois, red ao
+omitir recurso, dez reinícios consecutivos estáveis. Build principal/probe
+aprovados. Integral: 2115 aprovações, 18 skips opcionais, zero falhas/erros
+(2133 registros), `target/native-splash-dpi-verify.log`/JSON. Fixture isolado
+posterior também confirmou red sem recurso e green nas quatro combinações
+(`native-splash-clean-revert.log`/`native-splash-clean-green.log`).
+Evidências e comando: [STARTUP_SPLASH_DPI.md](STARTUP_SPLASH_DPI.md).
+
+## Tema inicial Branco puro e splash branca/preta — 2026-10-27
+
+Padrão de fábrica centralizado em ThemeOption.DEFAULT=CLASSIC_LIGHT, usado
+pela janela, launcher/splash, fallback de tooltips e Restaurar padrão. Nomes
+Branco puro/Preto puro na interface; IDs persistidos e escolhas salvas mantidos.
+Splash clássica com fundo uniforme #FFFFFF/#000000, texto/logotipo adaptados;
+temas Gelo continuam disponíveis. Teste antigo de gradiente agora exige o
+fundo puro nas variantes clássicas, preservando a verificação do texto.
+Preferências/reset e migração existentes atualizados para o novo padrão.
+Focada: 102 aprovações (`target/pure-themes-focused.log`). Integral: 2114
+aprovações, 18 skips opcionais, zero falhas/erros (2132 registros),
+`target/pure-themes-verify.log`/JSON. Nativo sincronizado/probe aprovado
+(`target/pure-themes-native-build.log`). Renders branco/preto conferidos.
+
+## Splash: acentos, GPU/Software e leitura — 2026-10-27
+
+Nova solicitação substitui o fechamento imediato da primeira versão: agora
+5 segundos após o primeiro desenho completo, clique antecipa quando pronta;
+carregamento não consome esse prazo. Timer EDT, JavaFX livre e saída/falha
+fecham imediatamente. Launcher consulta GraphicsRuntimeInfo da janela real
+após dois pulsos: GPU + nome ativo, Software/CPU ou indisponível. Não presume
+placa dedicada; API atual não comprova integrada/dedicada. Consulta assíncrona
+com timeout existente de 3 s. Unicode NFC, fallback de fonte, truncamento por
+cluster e metadados UTF-8. Focada inicial: 110 aprovações. Probes reais GPU
+Intel Arc/Software: 5067/5047 ms e 250/252 callbacks FX durante leitura; não FPS.
+Matriz DPI ampliada para texto gráfico acentuado. Integral final: 2114
+aprovações, 18 skips opcionais, zero falhas/erros (2132 registros),
+`target/startup-splash-reading-verify.log`/JSON. Probes extras em módulo JavaFX
+com exports/opens do launcher: GPU/Software 5049/5066 ms, sem bloquear FX.
+Nativo sincronizado/probe aprovado (`target/startup-splash-reading-native-build.log`).
+Documentação e evidências: [STARTUP_SPLASH.md](STARTUP_SPLASH.md).
+
+## Splash: monitores, resoluções e DPI — 2026-10-27
+
+Janela nativa verificada nas duas telas conectadas: 2880×1800/200% principal e
+1920×1080/100% à esquerda com deslocamento vertical. Centralização, área útil,
+dispositivo/DPI, posição nativa, máscara e fallback de monitor ausente aprovados.
+Outras JVMs forçaram AWT em 100/125/150/175/200/250/300%, sem alterar Windows
+ou preferências. 40 verificações nativas, distintas de 1120 disposições
+simuladas em dez resoluções (70 pares resolução/escala). Arte em quatro temas,
+sete escalas e dois tamanhos (56 PNGs), considerando suavização de glifos.
+Corrigida máscara arredondada que cortava a borda do cartão reduzido: regressão
+reproduzida em oito pares antes, todos aprovados depois. Focada: 80 testes
+aprovados (`target/startup-splash-displays.log`). Integral posterior: 2109
+aprovações, 18 skips opcionais, zero falhas/erros (2127 registros),
+`target/startup-splash-dpi-verify.log`/JSON. Nativo sincronizado/probe aprovado
+(`target/startup-splash-dpi-native-build.log`). Evidências, comando e limites:
+[STARTUP_SPLASH_DPI.md](STARTUP_SPLASH_DPI.md). Não equivale a trocar resolução
+física/cabos nem a testar toda a janela JavaFX durante arrasto entre telas.
+
+## Tela de abertura — 2026-10-27
+
+Splash do FX implementada antes do toolkit JavaFX, com EDT independente, marca,
+versão, fases reais e animação indeterminada. Respeita quatro temas, monitor
+lembrado ou principal e preferência em Geral (ativada por padrão). Não captura
+foco, não força espera e fecha nos primeiros pulsos da janela ou em falha.
+Probes/headless/--no-splash não mostram; propriedade JVM permite opt-out.
+Corrigido sombreamento de dimensões por ImageObserver no JPanel; teste exige
+texto desenhado, além do fundo. Arte revisada em quatro temas/1x/2x, janela
+principal e opção Geral conferidas com preferências isoladas. Splash transitória
+não capturada isoladamente pela automação; ciclo de vida testado. DPI físico
+continua pendente. Scripts só abrem a splash após Maven e início da JVM.
+Focada: 33 aprovações. Integral: **2037 aprovações, 18 skips opcionais, zero
+falhas/erros** (2055 registros), `target/startup-splash-verify.log`/JSON.
+Build nativo sincronizado/probe aprovado (`target/startup-splash-native-build.log`).
+[STARTUP_SPLASH.md](STARTUP_SPLASH.md).
+
 ## Série de interação/importação, item 2 — 2026-10-27
 
 Item 1 commitado em `f87635e0`. Leitor Excellon agora interpreta G91/G90 em

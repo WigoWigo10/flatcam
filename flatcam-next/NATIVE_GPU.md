@@ -107,3 +107,16 @@ critério de escolha da GPU, o fallback SW ou a precisão CAM.
   jars de execução; sem isso, jars antigos ficavam no `module path`.
 - **Qual GPU o D3D usou:** `.\run-native.cmd --verbose-gpu` e procure `D3D Driver Information`. O launcher nativo só
   pede a GPU de alto desempenho; opções do Windows e do driver podem prevalecer.
+
+## DPI da splash antes do JavaFX
+
+O build usa `windres` (binutils do MSYS2 UCRT64), junto do g++, para incorporar
+`native-launcher/FlatCAMFX.manifest` via `FlatCAMFX.rc`. A escala PerMonitorV2
+é declarada no executável antes de iniciar JVM/AWT/Glass. Sem essa declaração,
+foi reproduzida uma redução da splash de 1240×600 para 620×300 ao iniciar Glass
+na tela 200%, com deslocamento de (820,552) para (410,276).
+
+O teste anterior via java.exe não exercitava esse contexto do host JNI. A nova
+regressão compila o host nativo e mede o HWND em pixels físicos durante a
+transição. Falhou sem o recurso e passou com ele, inclusive em Software.
+Comandos, logs, repetição e limites: [STARTUP_SPLASH_DPI.md](STARTUP_SPLASH_DPI.md).

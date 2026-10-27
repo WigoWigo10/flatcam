@@ -298,7 +298,7 @@ final class PanelTooltips {
         }
         if (context.equals("Preferencias")) {
             return switch (name) {
-                case "tema" -> "Seleciona Branco, Preto, Branco gelo ou Preto gelo. Aplicar salva a escolha; não modifica o projeto nem os dados CAM.";
+                case "tema" -> "Seleciona Branco puro, Preto puro, Branco gelo ou Preto gelo. Branco puro é o padrão inicial. Aplicar salva a escolha; não modifica o projeto nem os dados CAM.";
                 case "passo x", "passo y" -> "Distância positiva entre posições do snap neste eixo. O passo Y é ignorado quando os eixos estão vinculados." + LINEAR;
                 case "ativar snap na grade" -> "Ajusta cliques e desenhos aos pontos da grade. Pode permanecer ativo mesmo com a grade visual oculta.";
                 case "usar passo x tambem em y" -> "Vincula os dois eixos ao passo X; o campo Y fica desabilitado enquanto essa opção estiver ativa.";

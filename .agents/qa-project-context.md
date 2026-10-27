@@ -1,5 +1,16 @@
 # QA project context — FlatCAM FX
 
+Native splash DPI incident (2026-10-27): java.exe-hosted AWT checks missed the
+JNI exe's DPI-unaware initial context. Reproduced physical HWND shrink from
+1240x600 at (820,552) to 620x300 at (410,276) when Glass starts on the 200%
+screen, while AWT getters stayed unchanged. Embedded PerMonitorV2 manifest
+fixes the context before JNI/AWT. NativeSplashTransitionTest compiles the host
+with an isolated Maven runtime and own-process physical Win32 observer. Red,
+green, manifest-omitted red, restored green; ten stable native repeats and
+four hardware/software + 200%/100% combinations. Full verify: 2115 passed,
+18 optional skips, zero failures/errors (2133 records). See
+flatcam-next/STARTUP_SPLASH_DPI.md. Build now needs windres beside g++.
+
 Observed 2026-10-23. Sources: `flatcam-next/pom.xml`, module `src/test`
 directories, `CNC_PARAMETER_PARITY.md`, `MARLIN_PARITY.md`, and recorded Maven
 logs under `flatcam-next/target`. This is a desktop app, not a Next.js website.

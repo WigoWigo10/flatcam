@@ -8,10 +8,12 @@ import javafx.scene.Scene;
  * white/charcoal interface; ICE uses the newer pale-blue/navy visual system.
  */
 public enum ThemeOption {
-    CLASSIC_LIGHT("Branco", "vars-classic-light.css", "components-classic.css"),
-    CLASSIC_DARK("Preto", "vars-classic-dark.css", "components-classic.css"),
+    CLASSIC_LIGHT("Branco puro", "vars-classic-light.css", "components-classic.css"),
+    CLASSIC_DARK("Preto puro", "vars-classic-dark.css", "components-classic.css"),
     ICE_LIGHT("Branco gelo", "vars-ice-light.css", "components.css"),
     ICE_DARK("Preto gelo", "vars-ice-dark.css", "components.css");
+
+    static final ThemeOption DEFAULT=CLASSIC_LIGHT;
 
     private final String label;
     private final String varsResource;

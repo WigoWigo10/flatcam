@@ -22,7 +22,7 @@ Os critérios e roteiro manual dos fluxos principais estão em
 
 - JDK 25 (LTS). Testado com Java 25.0.4 (Oracle) e Temurin 25.0.2; `JAVA_HOME` deve apontar para um JDK 25.
 - Nenhuma instalação global de Maven: use `mvnw`/`mvnw.cmd`.
-- Opcional, no Windows: o `g++` do MSYS2 UCRT64 (`pacman -S mingw-w64-ucrt-x86_64-gcc`), para o launcher nativo
+- Opcional, no Windows: o `g++` e o `windres` (binutils) do MSYS2 UCRT64 (`pacman -S mingw-w64-ucrt-x86_64-gcc`), para o launcher nativo
   que pede a GPU de alto desempenho (ver [`NATIVE_GPU.md`](NATIVE_GPU.md)). Sem ele `run.cmd` usa o `javafx:run`.
 - Depois de mudar o `JAVA_HOME`, reabra o terminal e o VS Code: eles herdam as variáveis na abertura.
 
