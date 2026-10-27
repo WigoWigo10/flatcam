@@ -2,6 +2,13 @@
 
 ## Fluxos protegidos
 
+- Scripts (2026-10-26): fechar a aba, Arquivo > Sair e fechar a janela oferecem
+  Salvar / Descartar / Cancelar para cada script não salvo. Cancelar ou falhar ao
+  salvar impede a saída, sem remover abas já examinadas. Scripts são arquivos
+  independentes: salvar o projeto não os salva. Aprovações são revalidadas para
+  não descartar textos alterados ou novas abas criadas durante diálogos modais.
+  Projeto Novo/Abrir conservam as abas de scripts; não as descartam.
+
 - Abrir projeto pelo menu e Recentes: Salvar projeto / Não salvar / Cancelar.
   O arquivo escolhido só substitui o atual depois de validação completa.
   Consentir em não salvar não apaga o projeto atual se o alvo falhar ao carregar.

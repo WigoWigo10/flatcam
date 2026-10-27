@@ -8656,6 +8656,7 @@ final class MainWindow implements TclFlatcamHost {
     void requestClose(Runnable close) {
         protectProjectTransition(() -> {
             if(!confirmToolsDatabaseClose())return;
+            if(!confirmScriptsClose())return;
             if(fluidTooltips!=null)fluidTooltips.closeNow(); close.run();
         });
     }
@@ -9369,7 +9370,7 @@ final class MainWindow implements TclFlatcamHost {
         tab.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(panel::title, panel.dirtyProperty()));
         tab.setContent(panel);
         tab.setOnCloseRequest(event -> {
-            if (panel.isDirty() && !scriptDiscardDecision.test(panel)) event.consume();
+            if (!confirmScriptClose(panel)) event.consume();
         });
         centerTabs.getTabs().add(tab);
         centerTabs.getSelectionModel().select(tab);
@@ -9379,17 +9380,45 @@ final class MainWindow implements TclFlatcamHost {
     private java.util.function.Predicate<ScriptEditorPanel> scriptDiscardDecision = this::askDiscardScript;
     void setScriptDiscardDecision(java.util.function.Predicate<ScriptEditorPanel> decision) { scriptDiscardDecision = decision; }
 
+    private boolean confirmScriptClose(ScriptEditorPanel script) {
+        if (!script.isDirty()) return true;
+        String draft = script.text();
+        return scriptDiscardDecision.test(script) && (!script.isDirty() || draft.equals(script.text()));
+    }
+
+    /** Dialogs run nested FX event loops: a previous approval must not discard a newer draft. */
+    private boolean confirmScriptsClose() {
+        Map<ScriptEditorPanel,String> approved = new java.util.IdentityHashMap<>();
+        for (Tab tab : List.copyOf(centerTabs.getTabs())) {
+            if (tab.getContent() instanceof ScriptEditorPanel script && script.isDirty()) {
+                String draft = script.text();
+                if (!confirmScriptClose(script)) return false;
+                approved.put(script, draft);
+            }
+        }
+        for (Tab tab : centerTabs.getTabs()) {
+            if (tab.getContent() instanceof ScriptEditorPanel script && script.isDirty()
+                    && !script.text().equals(approved.get(script))) {
+                appendConsole("Um script mudou durante a confirmação. Revise-o antes de sair.");
+                return false;
+            }
+        }
+        return true;
+    }
+
     private boolean askDiscardScript(ScriptEditorPanel panel) {
         if (scene == null || scene.getWindow() == null) return false;
         var dialog = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
         dialog.initOwner(scene.getWindow());
         dialog.setTitle("Script não salvo");
         dialog.setHeaderText(null);
-        dialog.setContentText("O script \"" + panel.title().replace(" *", "") + "\" tem alterações não salvas. Fechar e descartá-las?");
+        dialog.setContentText("O script \"" + panel.title().replace(" *", "") + "\" tem alterações não salvas. Deseja salvá-las antes de fechar?");
+        var save = new javafx.scene.control.ButtonType("Salvar", javafx.scene.control.ButtonBar.ButtonData.YES);
         var discard = new javafx.scene.control.ButtonType("Descartar", javafx.scene.control.ButtonBar.ButtonData.NO);
-        dialog.getButtonTypes().setAll(discard, javafx.scene.control.ButtonType.CANCEL);
+        dialog.getButtonTypes().setAll(save, discard, javafx.scene.control.ButtonType.CANCEL);
         dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
-        return dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL) == discard;
+        var choice = dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL);
+        return choice == discard || choice == save && panel.save() && !panel.isDirty();
     }
 
     /** Opens (or re-selects) the Tcl Terminal tab - see {@link TerminalPanel} for its scope. */

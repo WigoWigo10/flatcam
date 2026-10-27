@@ -1,5 +1,19 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Saída com scripts não salvos — 2026-10-26
+
+Sobre `2877fbd8`: corrigida saída que ignorava abas ScriptEditorPanel não salvas.
+Janela/Sair agora verificam todos os scripts depois da proteção de projeto e
+Tools Database; Salvar/Descartar/Cancelar também no fechamento individual da aba.
+Falha/cancelamento do save impede saída, sem apagar os outros rascunhos.
+Revalidação do texto aprovado e de novas abas protege contra mudanças nos loops
+modais. Projeto Novo/Abrir mantêm scripts abertos; scripts não são objetos salvos
+no projeto. Seis regressões adicionais; cinco falharam antes da correção.
+Suítes ScriptingTest, ProjectUnsavedUiTest e UnsavedChangesGuardTest aprovadas
+após a correção, sem falhas/erros; suíte integral será repetida ao final da série.
+Logs em `target/session-review-20261026`. Próxima etapa: investigar a representação
+Python dos dois erros NCC Offset, sem alterar o algoritmo ou tolerâncias do legado.
+
 ## NCC: componentes que se tocam em pontos — 2026-10-24
 
 Continuação do commit `79f2aedd`, consolidada em commit separado (ver git log).

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeUnit;
 import java.util.prefs.Preferences;
 import javafx.scene.control.Tab;
@@ -132,5 +133,109 @@ class ScriptingTest {
             assertEquals(List.of(target), stream.toList(), "no staging files left behind");
         }
         assertNotNull(Map.of());
+    }
+
+    @Test void applicationExitCannotDiscardAnUnsavedScriptWithoutConfirmation() throws Exception {
+        try (var s = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                s.window.newScript();
+                ScriptEditorPanel script = (ScriptEditorPanel) s.tabs().getSelectionModel().getSelectedItem().getContent();
+                AtomicBoolean exited = new AtomicBoolean();
+                List<ScriptEditorPanel> asked = new ArrayList<>();
+                s.window.setScriptDiscardDecision(panel -> { asked.add(panel); return false; });
+                s.window.setApplicationClose(() -> exited.set(true));
+                s.window.requestApplicationClose();
+                assertEquals(List.of(script), asked);
+                assertFalse(exited.get());
+                assertTrue(script.isDirty());
+                assertTrue(s.tabs().getTabs().stream().anyMatch(tab -> tab.getContent() == script));
+                return null;
+            });
+        }
+    }
+
+    @Test void exitChecksEveryDirtyScriptButDoesNotDiscardTabsWhenALaterOneCancels() throws Exception {
+        try (var s = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                s.window.newScript(); s.window.newScript();
+                var scripts = s.tabs().getTabs().stream().map(Tab::getContent)
+                        .filter(ScriptEditorPanel.class::isInstance).map(ScriptEditorPanel.class::cast).toList();
+                List<ScriptEditorPanel> asked = new ArrayList<>(); AtomicBoolean exited = new AtomicBoolean();
+                s.window.setScriptDiscardDecision(panel -> { asked.add(panel); return asked.size() == 1; });
+                s.window.requestClose(() -> exited.set(true));
+                assertEquals(scripts, asked); assertFalse(exited.get());
+                assertTrue(scripts.stream().allMatch(ScriptEditorPanel::isDirty));
+                assertEquals(2, s.tabs().getTabs().stream().filter(tab -> tab.getContent() instanceof ScriptEditorPanel).count());
+                asked.clear(); s.window.setScriptDiscardDecision(panel -> { asked.add(panel); return true; });
+                s.window.requestClose(() -> exited.set(true));
+                assertTrue(exited.get()); assertEquals(scripts, asked);
+                return null;
+            });
+        }
+    }
+
+    @Test void anAlreadySavedScriptDoesNotAskToDiscardOnExit() throws Exception {
+        try (var s = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                var clean = standaloneScript("set a 1", directory.resolve("saved.tcl"), directory.resolve("saved.tcl"));
+                s.tabs().getTabs().add(new Tab("saved", clean));
+                s.window.setScriptDiscardDecision(panel -> fail("A clean script must not prompt"));
+                AtomicBoolean exited = new AtomicBoolean(); s.window.requestClose(() -> exited.set(true));
+                assertTrue(exited.get()); clean.close(); return null;
+            });
+        }
+    }
+
+    private static ScriptEditorPanel standaloneScript(String text, Path file, Path saveTarget) {
+        return new ScriptEditorPanel(text, file, new ScriptEditorPanel.Host() {
+            public boolean run(String script, String label) { return false; }
+            public Path chooseSaveTarget(Path suggested) { return saveTarget; }
+            public void log(String message) { }
+        });
+    }
+
+    @Test void savingAScriptDuringTheExitDecisionMustSucceedBeforeClosing() throws Exception {
+        try (var s = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                Path destination = directory.resolve("exit.tcl");
+                var script = standaloneScript("set a 1", null, destination);
+                s.tabs().getTabs().add(new Tab("script", script));
+                s.window.setScriptDiscardDecision(ScriptEditorPanel::save);
+                AtomicBoolean exited = new AtomicBoolean(); s.window.requestClose(() -> exited.set(true));
+                assertTrue(exited.get()); assertFalse(script.isDirty());
+                assertEquals("set a 1", Files.readString(destination)); script.close(); return null;
+            });
+        }
+    }
+
+    @Test void failedScriptSaveCancelsExitAndRetainsTheDraft() throws Exception {
+        try (var s = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                var script = standaloneScript("set a 1", null, directory.resolve("missing/exit.tcl"));
+                s.tabs().getTabs().add(new Tab("script", script));
+                s.window.setScriptDiscardDecision(ScriptEditorPanel::save);
+                AtomicBoolean exited = new AtomicBoolean(); s.window.requestClose(() -> exited.set(true));
+                assertFalse(exited.get()); assertTrue(script.isDirty()); script.close(); return null;
+            });
+        }
+    }
+
+    @Test void editsOrNewDraftsDuringOtherExitDialogsRequireANewDecision() throws Exception {
+        for (boolean createAnother : List.of(false, true)) try (var s = new Session()) {
+            TerminalPanelTest.fx(() -> {
+                s.window.newScript();
+                ScriptEditorPanel first = (ScriptEditorPanel) s.tabs().getSelectionModel().getSelectedItem().getContent();
+                s.window.newScript();
+                s.window.setScriptDiscardDecision(panel -> {
+                    if (panel != first) {
+                        if (createAnother) s.window.newScript();
+                        else ((CodeEditor) first.lookup("#script-editor-code")).setText("set changed 1");
+                    }
+                    return true;
+                });
+                AtomicBoolean exited = new AtomicBoolean(); s.window.requestClose(() -> exited.set(true));
+                assertFalse(exited.get()); assertTrue(first.isDirty()); return null;
+            });
+        }
     }
 }
