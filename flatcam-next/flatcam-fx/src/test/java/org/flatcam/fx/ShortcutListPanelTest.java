@@ -17,6 +17,23 @@ import org.junit.jupiter.api.condition.OS;
 @EnabledOnOs(OS.WINDOWS)
 class ShortcutListPanelTest {
 
+    @Test void longShortcutDescriptionsWrapInsteadOfBeingLostBehindEllipses() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var panel = new ShortcutListPanel();
+            new javafx.scene.Scene(panel, 420, 550);
+            ThemeOption.ICE_LIGHT.applyTo(panel.getScene());
+            panel.applyCss(); panel.layout();
+            var table = (TableView<?>) panel.lookup("#shortcut-table");
+            var cells = table.lookupAll(".table-cell").stream()
+                    .filter(javafx.scene.control.TableCell.class::isInstance)
+                    .map(javafx.scene.control.TableCell.class::cast).filter(cell -> !cell.isEmpty()).toList();
+            assertFalse(cells.isEmpty());
+            assertTrue(cells.stream().allMatch(cell -> cell.getGraphic() instanceof javafx.scene.control.Label label
+                    && label.isWrapText() && cell.getText() == null));
+            return null;
+        });
+    }
+
     @Test void listsTheMainWindowShortcutsAndOpensOnceAsATab() throws Exception {
         List<String> keys = ShortcutListPanel.GROUPS.values().stream().flatMap(List::stream)
                 .map(ShortcutListPanel.Shortcut::keys).toList();

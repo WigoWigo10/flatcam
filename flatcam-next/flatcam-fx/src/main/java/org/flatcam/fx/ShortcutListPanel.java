@@ -7,6 +7,7 @@ import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.geometry.Insets;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableColumn;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.VBox;
@@ -97,6 +98,21 @@ final class ShortcutListPanel extends VBox {
             int column = index;
             TableColumn<List<String>, String> col = new TableColumn<>(headers[index]);
             col.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().get(column)));
+            col.setCellFactory(ignored -> new TableCell<>() {
+                private final Label label = new Label();
+                {
+                    label.setWrapText(true);
+                    label.setMinHeight(javafx.scene.layout.Region.USE_PREF_SIZE);
+                    label.prefWidthProperty().bind(col.widthProperty().subtract(12));
+                    label.maxWidthProperty().bind(label.prefWidthProperty());
+                }
+                @Override protected void updateItem(String text, boolean empty) {
+                    super.updateItem(text, empty);
+                    setText(null);
+                    label.setText(empty ? null : text);
+                    setGraphic(empty ? null : label);
+                }
+            });
             col.setSortable(false);
             col.setPrefWidth(index == 2 ? 360 : 190);
             table.getColumns().add(col);

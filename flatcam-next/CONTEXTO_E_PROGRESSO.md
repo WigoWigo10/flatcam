@@ -1,5 +1,16 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Fluxos visuais integrados — 2026-10-26
+
+Sobre `9831e3d5`: 121 testes de 16 suítes aprovados; snapshots JavaFX reais do
+workspace e painéis nos quatro temas, com inspeção direta dos exemplos listados
+em [WORKSPACE_VISUAL_REVIEW.md](WORKSPACE_VISUAL_REVIEW.md). Novo teste do workspace
+mantém scripts enquanto alterna Atalhos/Medir, sem alterar preferências.
+Lista de Atalhos agora quebra descrições longas em vez de escondê-las em reticências.
+Cinco regressões adicionais. Capturas em target, sem projetos privados; não é
+validação de todos os cliques, comparação visual Python ou certificação física.
+Próxima etapa: benchmark do Plot com identificação real da GPU neste notebook.
+
 ## NCC Offset após carregamento Python real — 2026-10-26
 
 Sobre `cfbefb21`: diagnóstico `open_in_python_app.py --probe-ncc-offset` abriu
