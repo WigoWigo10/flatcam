@@ -203,3 +203,12 @@ círculo. Os 12 padrões adicionais são lidos na abertura; mm/in independentes.
 Campos sem efeito no modo atual ficam ocultos/desabilitados e seus rascunhos
 não impedem gerar outro modo. Comprimento é total, incluindo tampas redondas.
 [EXCELLON_ARRAYS.md](EXCELLON_ARRAYS.md) descreve evidências e diferenças Qt.
+
+
+### Importação Excellon — 2026-10-27
+
+Dígitos inteiros IN/MM e convenção LZ/TZ quando ausente agora têm efeito no
+leitor, inclusive nos slots. Máscaras/comentários e cabeçalhos declarados têm
+prioridade; ponto explícito é literal. Save recusa valores fora dos intervalos.
+Gerber mantém suas duas opções existentes; buffering Qt não ganhou controles
+inertes. [IMPORT_FORMATS.md](IMPORT_FORMATS.md) contém exemplos e evidências.

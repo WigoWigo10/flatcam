@@ -34,14 +34,10 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
  *       config needed at all.</li>
  * </ul>
  *
- * <p>Per-token decoding checks for a literal '.' and switches behavior
- * accordingly, so both styles are handled by the same code path without
- * needing to detect the file's style up front. This also matches the
- * legacy Python parser's actual number-decoding behavior on every
- * well-formed (fixed-width) file in the Fase 0 corpus - see
- * ExcellonParserBaselineTest for why the leading/trailing zero distinction
- * itself doesn't need to be tracked (both reduce to the same formula once
- * a tool always emits full-width digit strings, which they do in practice).
+ * <p>Per-token decimals are read literally. Implicit decimals use the declared
+ * LZ/TZ convention and integer/fractional widths; preferences only fill absent
+ * declarations. Full-width files keep their previous decoding. Short LZ tokens
+ * now correctly retain leading zeros and pad the missing trailing digits.
  *
  * <p>Scope: drilling, G85 slots and straight routed slots (G00 to the start,
  * M15 plunge, G01 to the end, M16/M17 retract, G05 back to drilling - the
@@ -79,7 +75,11 @@ public final class ExcellonParser {
      * @param lowerDigitsInch decimal digits of an inch coordinate written without a decimal point
      * @param lowerDigitsMm   the same for millimetres
      */
-    public record Options(String defaultUnits, int lowerDigitsInch, int lowerDigitsMm) {
+    public record Options(String defaultUnits, int lowerDigitsInch, int lowerDigitsMm,
+                          int upperDigitsInch, int upperDigitsMm, String defaultZeros) {
+        public Options(String defaultUnits,int lowerDigitsInch,int lowerDigitsMm) {
+            this(defaultUnits,lowerDigitsInch,lowerDigitsMm,2,3,"TZ");
+        }
         public Options {
             if (defaultUnits != null && !defaultUnits.equals("IN") && !defaultUnits.equals("MM")) {
                 throw new IllegalArgumentException("Units must be IN, MM or null: " + defaultUnits);
@@ -87,6 +87,10 @@ public final class ExcellonParser {
             if (lowerDigitsInch < 0 || lowerDigitsInch > 9 || lowerDigitsMm < 0 || lowerDigitsMm > 9) {
                 throw new IllegalArgumentException("Decimal digits must be between 0 and 9");
             }
+            if(upperDigitsInch<1 || upperDigitsInch>9 || upperDigitsMm<1 || upperDigitsMm>9)
+                throw new IllegalArgumentException("Integer digits must be between 1 and 9");
+            if(!"LZ".equals(defaultZeros) && !"TZ".equals(defaultZeros))
+                throw new IllegalArgumentException("Zeros must be LZ (leading kept) or TZ (trailing kept)");
         }
 
         public static Options standard() {
@@ -139,6 +143,8 @@ public final class ExcellonParser {
         progressCallback.report(0);
         String units = null;
         Integer formatLowerOverride = null;
+        Integer formatUpperOverride = null;
+        String zeros=options.defaultZeros();
         Map<Integer, Double> toolDiameters = new LinkedHashMap<>();
         List<Geometry> shapes = new ArrayList<>();
         List<ExcellonImage.Drill> drills = new ArrayList<>();
@@ -189,16 +195,26 @@ public final class ExcellonParser {
             if (line.startsWith(";")) {
                 Matcher format = FORMAT_OVERRIDE.matcher(line);
                 if (format.matches()) {
+                    formatUpperOverride = Integer.parseInt(format.group(1));
                     formatLowerOverride = Integer.parseInt(format.group(2));
+                    validateFormat(formatUpperOverride,formatLowerOverride);
                 }
                 continue; // any other comment, including KiCad's "; #@!" X2 attributes.
             }
-            if (line.equals("METRIC") || line.startsWith("METRIC,")) {
-                units = "MM";
-                continue;
+            if(line.equals("LZ") || line.equals("TZ") || line.equals("L") || line.equals("T")) {
+                zeros=line.startsWith("L") ? "LZ" : "TZ"; continue;
             }
-            if (line.equals("INCH") || line.startsWith("INCH,")) {
-                units = "IN";
+            if(line.equals("METRIC") || line.startsWith("METRIC,") || line.equals("INCH") || line.startsWith("INCH,")) {
+                units=line.startsWith("METRIC") ? "MM" : "IN";
+                String[] parts=line.split(",");
+                for(int i=1;i<parts.length;i++) {
+                    String part=parts[i].strip();
+                    if(part.equals("LZ") || part.equals("TZ") || part.equals("L") || part.equals("T")) zeros=part.startsWith("L") ? "LZ" : "TZ";
+                    else if(part.matches("0+\\.0+")) {
+                        int dot=part.indexOf('.'); formatUpperOverride=dot; formatLowerOverride=part.length()-dot-1;
+                        validateFormat(formatUpperOverride,formatLowerOverride);
+                    } else if(!part.isEmpty()) throw new ExcellonParseException("Unsupported units/format declaration: "+line);
+                }
                 continue;
             }
 
@@ -218,10 +234,11 @@ public final class ExcellonParser {
             if (slot.matches()) {
                 units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
-                double x1 = slot.group(1) != null ? decode(slot.group(1), lower) : posX;
-                double y1 = slot.group(2) != null ? decode(slot.group(2), lower) : posY;
-                double x2 = slot.group(3) != null ? decode(slot.group(3), lower) : x1;
-                double y2 = slot.group(4) != null ? decode(slot.group(4), lower) : y1;
+                int upper = resolveUpperDigits(units, formatUpperOverride);
+                double x1 = slot.group(1) != null ? decode(slot.group(1), upper, lower, zeros) : posX;
+                double y1 = slot.group(2) != null ? decode(slot.group(2), upper, lower, zeros) : posY;
+                double x2 = slot.group(3) != null ? decode(slot.group(3), upper, lower, zeros) : x1;
+                double y2 = slot.group(4) != null ? decode(slot.group(4), upper, lower, zeros) : y1;
                 double diameter = requireToolDiameter(toolDiameters, currentTool, line);
 
                 shapes.add(geometryFactory
@@ -251,8 +268,9 @@ public final class ExcellonParser {
                 }
                 units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
-                double x = target.group(first) != null ? decode(target.group(first), lower) : posX;
-                double y = target.group(first + 1) != null ? decode(target.group(first + 1), lower) : posY;
+                int upper = resolveUpperDigits(units, formatUpperOverride);
+                double x = target.group(first) != null ? decode(target.group(first), upper, lower, zeros) : posX;
+                double y = target.group(first + 1) != null ? decode(target.group(first + 1), upper, lower, zeros) : posY;
                 if (routeLinear && toolDown) {
                     double diameter = requireToolDiameter(toolDiameters, currentTool, line);
                     shapes.add(geometryFactory
@@ -269,8 +287,9 @@ public final class ExcellonParser {
             if (coordLine) {
                 units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
-                double x = coord.group(1) != null ? decode(coord.group(1), lower) : posX;
-                double y = coord.group(2) != null ? decode(coord.group(2), lower) : posY;
+                int upper = resolveUpperDigits(units, formatUpperOverride);
+                double x = coord.group(1) != null ? decode(coord.group(1), upper, lower, zeros) : posX;
+                double y = coord.group(2) != null ? decode(coord.group(2), upper, lower, zeros) : posY;
                 double diameter = requireToolDiameter(toolDiameters, currentTool, line);
 
                 shapes.add(geometryFactory.createPoint(new Coordinate(x, y)).buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
@@ -302,25 +321,24 @@ public final class ExcellonParser {
         }
     }
 
-    /**
-     * Decodes one coordinate token. A literal '.' means the modern decimal
-     * style - parse directly. Otherwise, a fixed-width digit string: divide
-     * by 10^lowerDigits, which is correct for both leading- and
-     * trailing-zero suppression as long as the writer always emits
-     * full-width digit strings (true of every real-world tool checked) -
-     * see this class's doc comment.
-     */
-    private static double decode(String token, int lowerDigits) {
-        if (token.indexOf('.') >= 0) {
-            return Double.parseDouble(token);
+    /** Explicit decimals win. LZ retains leading digits and pads missing trailing zeros;
+     * TZ retains trailing digits and pads missing leading zeros. Signs do not count as digits. */
+    private static double decode(String token, int upper, int lower,String zeros) {
+        double value;
+        if(token.indexOf('.')>=0) value=Double.parseDouble(token);
+        else {
+            int digits=token.length()-((token.startsWith("-") || token.startsWith("+")) ? 1 : 0);
+            int scale="LZ".equals(zeros) ? digits-upper : lower;
+            value=new java.math.BigDecimal(token).movePointLeft(scale).doubleValue();
         }
-        boolean negative = token.startsWith("-");
-        String digits = (negative || token.startsWith("+")) ? token.substring(1) : token;
-        if (digits.isEmpty()) {
-            return 0.0;
-        }
-        double value = Long.parseLong(digits) / Math.pow(10, lowerDigits);
-        return negative ? -value : value;
+        if(!Double.isFinite(value)) throw new ExcellonParseException("Non-finite coordinate: "+token);
+        return value;
+    }
+    private static void validateFormat(int upper,int lower) {
+        if(upper<1 || upper>9 || lower<0 || lower>9) throw new ExcellonParseException("Coordinate format must have 1–9 integer digits and 0–9 decimal digits");
+    }
+    private int resolveUpperDigits(String units,Integer override) {
+        return override!=null ? override : "MM".equals(units) ? options.upperDigitsMm() : options.upperDigitsInch();
     }
 
     private int resolveLowerDigits(String units, Integer override) {

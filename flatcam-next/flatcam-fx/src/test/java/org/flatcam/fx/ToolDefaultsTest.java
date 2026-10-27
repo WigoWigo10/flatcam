@@ -190,6 +190,19 @@ class ToolDefaultsTest {
         }
     }
 
+    @Test void importIntegerWidthsAndZerosPersistAndAreConsumedByTheParser() {
+        ToolDefaults.set("import.excellon.units",true,"IN");
+        ToolDefaults.set("import.excellon.integer.in",true,"3");
+        ToolDefaults.set("import.excellon.zeros",true,"LZ");
+        var saved=ToolDefaults.export(); ToolDefaults.resetAll(); ToolDefaults.importFrom(saved);
+        var parser=new org.flatcam.cam.excellon.ExcellonParser(ToolDefaults.excellonImport());
+        var silent=parser.parse(java.util.List.of("M48","T1C0.01","%","T1","X0012Y0.0","M30"));
+        assertEquals(1.2,silent.drills().getFirst().x(),1e-12);
+        var declared=parser.parse(java.util.List.of("M48","INCH,TZ,00.0000","T1C0.01","%","T1","X0012Y0.0","M30"));
+        assertEquals(.0012,declared.drills().getFirst().x(),1e-12);
+        for(String value:java.util.List.of("0","10")) assertThrows(IllegalArgumentException.class,()->ToolDefaults.set("import.excellon.integer.mm",true,value));
+    }
+
     @Test
     void importOptionsFollowThePreferencesAndFallBackWhenOutOfRange() {
         assertEquals(org.flatcam.cam.gerber.GerberParser.Options.standard(), ToolDefaults.gerberImport());
@@ -200,10 +213,14 @@ class ToolDefaultsTest {
         ToolDefaults.set("import.excellon.decimals.mm", true, "4");
         assertEquals(new org.flatcam.cam.gerber.GerberParser.Options("MM", 128), ToolDefaults.gerberImport());
         assertEquals(new org.flatcam.cam.excellon.ExcellonParser.Options("MM", 4, 4), ToolDefaults.excellonImport());
-        // An integer the parser does not accept: the parser's own options are used instead of failing every import.
-        ToolDefaults.set("import.gerber.circlesteps", true, "2");
-        ToolDefaults.set("import.excellon.decimals.in", true, "40");
-        assertEquals(org.flatcam.cam.gerber.GerberParser.Options.standard(), ToolDefaults.gerberImport());
-        assertEquals(org.flatcam.cam.excellon.ExcellonParser.Options.standard(), ToolDefaults.excellonImport());
+        assertThrows(IllegalArgumentException.class,()->ToolDefaults.set("import.gerber.circlesteps", true, "2"));
+        assertThrows(IllegalArgumentException.class,()->ToolDefaults.set("import.excellon.decimals.in", true, "40"));
+        assertEquals(new org.flatcam.cam.gerber.GerberParser.Options("MM",128),ToolDefaults.gerberImport());
+        assertEquals(new org.flatcam.cam.excellon.ExcellonParser.Options("MM",4,4),ToolDefaults.excellonImport());
+        // Corrupt pre-existing store entries still fall back, without requiring a new write.
+        var corrupt=ToolDefaults.memoryStore(); corrupt.put("import.gerber.circlesteps","2"); corrupt.put("import.excellon.decimals.in","40");
+        ToolDefaults.useStore(corrupt);
+        assertEquals(org.flatcam.cam.gerber.GerberParser.Options.standard(),ToolDefaults.gerberImport());
+        assertEquals(org.flatcam.cam.excellon.ExcellonParser.Options.standard(),ToolDefaults.excellonImport());
     }
 }

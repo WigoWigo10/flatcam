@@ -1,5 +1,20 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série seguinte, item 3 concluído: importação — 2026-10-27
+
+Inteiros IN/MM e LZ/TZ configuráveis no Excellon. Leitor corrige tokens LZ
+abreviados, respeita sinais, ponto literal, FILE_FORMAT/Format e máscaras
+INCH/METRIC; cabeçalhos explícitos prevalecem. Mesma leitura em furos, G85 e
+roteamento/modal. Arquivos de largura completa conservam resultados. Unidades
+silenciosas continuam RECUSAR ou fallback escolhido. Dígitos/segmentação Gerber
+validados no Save; corrupção antiga tem fallback por campo. União Gerber/NCC e
+buffering do backend não alterados. [IMPORT_FORMATS.md](IMPORT_FORMATS.md).
+48 controles contra ORIGINAL parse_number: zero diferenças. 42 CAM +136 UI
+aprovados e um skip na regressão focada. Integral: **2007 aprovações,
+18 skips opcionais, zero falhas/erros** (2025 registros),
+`target/import-format-verify.log`. Próximo autorizado: conferir janelas Qt/FX,
+com cópia do projeto e preferências isoladas, sem salvar no original.
+
 ## Série seguinte, item 2 concluído: arrays Excellon — 2026-10-27
 
 Novos arrays LINEAR/CIRCULAR para furos e slots, sem exigir seleção; X/Y/ângulo,

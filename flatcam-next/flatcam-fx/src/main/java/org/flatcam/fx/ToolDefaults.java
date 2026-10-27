@@ -289,6 +289,9 @@ final class ToolDefaults {
                 "RECUSAR", "IN", "MM");
         integer("import.excellon.decimals.in", excellonImport, "Casas decimais sem ponto (polegadas)", 4);
         integer("import.excellon.decimals.mm", excellonImport, "Casas decimais sem ponto (mm)", 3);
+        integer("import.excellon.integer.in",excellonImport,"Dígitos inteiros sem ponto (polegadas)",2);
+        integer("import.excellon.integer.mm",excellonImport,"Dígitos inteiros sem ponto (mm)",3);
+        choice("import.excellon.zeros",excellonImport,"Zeros quando o arquivo não declara","TZ","TZ","LZ");
     }
 
     // --- definitions ---------------------------------------------------------------------------------------------
@@ -512,7 +515,8 @@ final class ToolDefaults {
         try {
             String units = choice("import.excellon.units");
             return new org.flatcam.cam.excellon.ExcellonParser.Options("RECUSAR".equals(units) ? null : units,
-                    integer("import.excellon.decimals.in"), integer("import.excellon.decimals.mm"));
+                    integer("import.excellon.decimals.in"), integer("import.excellon.decimals.mm"),
+                    integer("import.excellon.integer.in"),integer("import.excellon.integer.mm"),choice("import.excellon.zeros"));
         } catch (IllegalArgumentException invalid) {
             return org.flatcam.cam.excellon.ExcellonParser.Options.standard();
         }
@@ -581,6 +585,9 @@ final class ToolDefaults {
             case INTEGER -> {
                 try {
                     int parsed = Integer.parseInt(value);
+                    if(setting.key().equals("import.gerber.circlesteps") && (parsed<8 || parsed>1024)) return "deve estar entre 8 e 1024";
+                    if(setting.key().startsWith("import.excellon.decimals.") && (parsed<0 || parsed>9)) return "deve estar entre 0 e 9";
+                    if(setting.key().startsWith("import.excellon.integer.") && (parsed<1 || parsed>9)) return "deve estar entre 1 e 9";
                     if (setting.key().equals("editor.excellon.count") && (parsed<1 || parsed>10000)) return "deve estar entre 1 e 10000";
                     if (setting.key().startsWith("export.") && (parsed < 1 || parsed > 6)) return "deve estar entre 1 e 6";
                     if (setting.key().startsWith("editor.") && (parsed < 1 || parsed > 100000)) return "deve estar entre 1 e 100000";

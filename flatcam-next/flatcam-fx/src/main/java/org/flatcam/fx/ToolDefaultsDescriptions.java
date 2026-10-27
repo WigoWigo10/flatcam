@@ -128,8 +128,10 @@ final class ToolDefaultsDescriptions {
         if (key.startsWith("import.")) return switch (key) {
             case "import.gerber.units" -> "Unidade de fallback somente quando o Gerber não declara unidades. Uma declaração no arquivo tem prioridade. Não converte projetos já abertos.";
             case "import.gerber.circlesteps" -> "Segmentação usada para aproximar arcos e círculos do Gerber. Mais segmentos aumentam detalhe, memória e custo de cálculo; não aumentam a precisão física da máquina.";
+            case "import.excellon.integer.in", "import.excellon.integer.mm" -> "Dígitos inteiros (1–9) usados em coordenadas Excellon sem ponto com LZ, quando o arquivo não declara formato. LZ mantém os zeros à esquerda e pode omitir os finais. Declarações FILE_FORMAT ou INCH/METRIC com máscara têm prioridade. Não afeta números com ponto nem projetos abertos.";
+            case "import.excellon.zeros" -> "Convenção somente quando o arquivo não declara: TZ mantém zeros à direita e permite omitir os iniciais; LZ mantém zeros à esquerda e permite omitir os finais. Exemplo IN 2:4: 0012 significa 0,12 em LZ, e 0,0012 em TZ. Um ponto explícito ignora esta opção. O cabeçalho LZ/TZ no arquivo sempre tem prioridade.";
             case "import.excellon.units" -> "RECUSAR impede importar um Excellon sem unidade declarada. IN/MM definem o fallback explícito para esse caso; a unidade declarada no arquivo tem prioridade.";
-            case "import.excellon.decimals.in", "import.excellon.decimals.mm" -> "Casas decimais para coordenadas Excellon sem ponto, quando o arquivo não declara formato suficiente. Um ponto decimal explícito ou formato declarado tem prioridade. Só afeta novas importações na unidade indicada.";
+            case "import.excellon.decimals.in", "import.excellon.decimals.mm" -> "Casas decimais (0–9) para coordenadas Excellon sem ponto em TZ, quando o arquivo não declara formato suficiente. Em LZ, os dígitos inteiros definem a posição do ponto. Um ponto decimal explícito ou formato declarado tem prioridade. Só afeta novas importações na unidade indicada.";
             default -> null;
         };
         if (key.startsWith("rules.")) {
