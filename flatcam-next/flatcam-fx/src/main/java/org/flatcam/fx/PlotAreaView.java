@@ -398,6 +398,7 @@ final class PlotAreaView extends StackPane {
     private final Map<Object, ArrowLevels> arrows = new LinkedHashMap<>();
     private final Map<Object, List<Annotation>> annotations = new LinkedHashMap<>();
     private Geometry editorHighlightGeometry;
+    private Color editorHighlightColor = EDITOR_HIGHLIGHT_COLOR;
     /** A faint, dashed "where it was" companion to the editor highlight (e.g. the un-mirrored outline). */
     private Geometry editorReferenceGeometry;
     private static final Color EDITOR_REFERENCE_COLOR = Color.web("#0000FF38");
@@ -888,6 +889,11 @@ final class PlotAreaView extends StackPane {
     }
 
     void setEditorHighlight(Geometry geometry, boolean strokeOnly) {
+        setEditorHighlight(geometry, strokeOnly, EDITOR_HIGHLIGHT_COLOR);
+    }
+
+    void setEditorHighlight(Geometry geometry, boolean strokeOnly, Color color) {
+        editorHighlightColor = java.util.Objects.requireNonNull(color);
         coverageResidualHighlight = false;
         if (geometry != editorHighlightGeometry) {
             forgetOverlay(HIGHLIGHT_KEY);
@@ -2250,7 +2256,7 @@ final class PlotAreaView extends StackPane {
             gc.beginPath();
             gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
             gc.clip();
-            Color ink = coverageResidualHighlight ? Color.web(palette.background().getBrightness() < .5 ? "#FFAA33" : "#C95100") : EDITOR_HIGHLIGHT_COLOR;
+            Color ink = coverageResidualHighlight ? Color.web(palette.background().getBrightness() < .5 ? "#FFAA33" : "#C95100") : editorHighlightColor;
             drawOverlay(gc, HIGHLIGHT_KEY, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
                     ink, ink, true, LayerCategory.OVERLAY, true, false),
                     viewBounds, contentWidth, contentHeight);

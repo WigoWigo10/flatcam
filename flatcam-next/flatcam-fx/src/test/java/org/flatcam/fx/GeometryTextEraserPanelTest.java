@@ -108,6 +108,22 @@ class GeometryTextEraserPanelTest {
             catch (ReflectiveOperationException error) { throw new AssertionError(error); }
         }
     }
+    @Test void editorColorsAndSelectionThresholdAreCapturedAtOpening() throws Exception {
+        ToolDefaults.set("editor.geometry.selected",true,"#12AB3480");
+        ToolDefaults.set("editor.geometry.selectionlimit",true,"1");
+        fx(()-> {
+            var factory=new GeometryFactory();
+            var h=new Harness(factory.createGeometryCollection(new Geometry[]{
+                factory.toGeometry(new Envelope(0,2,0,2)), factory.toGeometry(new Envelope(4,6,0,2))}),List.of());
+            h.table().getSelectionModel().selectAll();
+            assertEquals(Color.web("#12AB3480"),h.plotField("editorHighlightColor"));
+            assertTrue((boolean)h.plotField("editorHighlightStrokeOnly"));
+            ToolDefaults.set("editor.geometry.selected",true,"#FF0000");
+            h.table().getSelectionModel().clearAndSelect(0);
+            assertEquals(Color.web("#12AB3480"),h.plotField("editorHighlightColor"));
+            h.controller.cancel(); return null;
+        });
+    }
     @Test void fontsAreNotEnumeratedUntilTextOpensAndClosedEditorsIgnoreCompletions() throws Exception {
         var tasks = new java.util.concurrent.LinkedBlockingQueue<Runnable>();
         var calls = new java.util.concurrent.atomic.AtomicInteger();

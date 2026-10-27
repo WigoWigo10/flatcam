@@ -1,5 +1,18 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série de paridade visual, item 2: editores — 2026-10-27
+
+21 padrões ligados aos controles/operações existentes: cores RGBA dos três editores,
+limites de destaque detalhado Geometry/Excellon, abertura inicial Gerber, array de
+pads, escala/buffer Gerber, diâmetro novo Excellon e array retangular. Comprimentos
+mm/in separados. Configuração capturada na abertura, sem substituir ferramentas
+existentes ou alterar rascunhos abertos. Limites de destaque são os anteriores do
+FX (2000/500), não copiam o limite 30 do Qt por ter backend diferente.
+Gerber mantém seleção exata. Array Excellon retangular continua extensão FX;
+não representa os arrays lineares/circulares separados do Python.
+56 testes focados e pacote aprovados (`target/editor-defaults-final.log`).
+Próximo item autorizado: exportação Gerber/Excellon; depois transformações.
+
 ## Série de paridade visual, item 1: CNC Job — 2026-10-27
 
 Preferências CNC de cores RGBA corte/deslocamento, Plot/Kind, anotações/setas,

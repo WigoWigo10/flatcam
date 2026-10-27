@@ -138,9 +138,24 @@ CncNativePrecisionTest**, sem alterar sua asserção. Os 16 casos novos passaram
 a suíte integral continua reprovada.
 
 É um incremento da paridade visual/organização, não port completo das preferências
-Python. Continuam faltando cores/estilo CNC, opções avançadas completas de
-importação/editores, exportação e outras preferências gerais do legado. Buffering
+Python. Continuam faltando opções avançadas completas de
+importação/editores e exportação e outras preferências gerais do legado. Buffering
 e Delayed Buffering do Gerber Python não foram copiados para o backend FX, que
 possui outra preparação/renderização. Não foram
 criados controles sem efeito para representar esses campos. Falta validação da
 janela real em diferentes DPI/monitores e comparação visual lado a lado com Qt.
+
+
+### Série seguinte, item 2: padrões dos editores
+
+Cores de desenho/seleção nos três editores; limite de destaque detalhado em
+Geometry/Excellon; tamanho/tipo de abertura Gerber, quantidade/passo/ângulos de
+array e fator de escala/buffer; diâmetro inicial e colunas/linhas/passos Excellon.
+Valores de abertura (0,8 mm), quantidade Gerber (5), passo Gerber (0,1 mm) e
+passo Excellon (2,54 mm) seguem o Python. Arrays Excellon continuam retangulares;
+não foram adicionados controles inertes para os arrays circulares do legado.
+Os padrões só são lidos ao abrir o editor. Ferramentas existentes têm prioridade.
+Cores incluem opacidade; limites de seleção só simplificam o destaque, sem
+limitar a seleção. Os limites FX existentes (2000/500) foram mantidos.
+Validação, roundtrip mm/in e consumo na UI cobertos por 56 testes focados e
+empacotamento aprovados em `target/editor-defaults-final.log`.

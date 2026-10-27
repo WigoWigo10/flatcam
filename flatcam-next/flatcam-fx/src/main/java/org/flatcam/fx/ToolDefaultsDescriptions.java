@@ -6,6 +6,13 @@ final class ToolDefaultsDescriptions {
 
     static String text(ToolDefaults.Setting setting, boolean metric) {
         String body = specific(setting);
+        if (setting.key().startsWith("editor.")) {
+            body = "Valor inicial de " + setting.label() + ", usado ao abrir o editor correspondente.";
+            if (setting.key().endsWith(".selectionlimit")) body += " Acima deste total o destaque usa uma caixa; todas as formas continuam selecionadas.";
+            if (setting.key().startsWith("editor.excellon.") && (setting.key().contains("pitch") || setting.key().endsWith("rows") || setting.key().endsWith("columns"))) body += " O array deste editor no FX é retangular, com passos entre centros.";
+            if (setting.key().endsWith(".diameter")) body += " Só usado se não há ferramenta existente selecionada; diâmetros existentes são preservados.";
+            if (setting.kind() == ToolDefaults.Kind.COLOR) body += " AA define a opacidade: 00 transparente, FF opaco.";
+        }
         if (body == null) {
             String caption = caption(setting);
             body = PanelTooltips.help(context(setting), caption);

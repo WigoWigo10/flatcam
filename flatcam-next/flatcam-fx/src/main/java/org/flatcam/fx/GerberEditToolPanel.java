@@ -152,6 +152,15 @@ final class GerberEditToolPanel {
                         Consumer<TransformRequest> onTransform,
                         Runnable onCancelPlacement, Runnable onUndo, Runnable onRedo,
                         Runnable onApply, Runnable onCancel) {
+        boolean metric = !"IN".equalsIgnoreCase(units);
+        apertureWidthField.setText(ToolDefaults.text("editor.gerber.size", metric));
+        apertureHeightField.setText(ToolDefaults.text("editor.gerber.size", metric));
+        arrayCountField.setText(ToolDefaults.text("editor.gerber.count", true));
+        arraySpacingField.setText(ToolDefaults.text("editor.gerber.pitch", metric));
+        arrayAngleField.setText(ToolDefaults.text("editor.gerber.angle", true));
+        arrayStepField.setText(ToolDefaults.text("editor.gerber.step", true));
+        scaleFactorField.setText(ToolDefaults.text("editor.gerber.scale", true));
+        bufferDistanceField.setText(ToolDefaults.text("editor.gerber.buffer", metric));
         editable = !shapesApproximated;
         Label info = new Label("Editando: " + objectName);
         Label help = new Label("Clique seleciona a forma sob o cursor; Ctrl+clique alterna. "
@@ -268,9 +277,6 @@ final class GerberEditToolPanel {
         selectionLabel.setWrapText(true);
         showSelection(0, java.util.List.of());
         apertureTable = buildApertureTable(apertures);
-        String defaultSize = "MM".equalsIgnoreCase(units) ? "1.0" : "0.040";
-        apertureWidthField.setText(defaultSize);
-        apertureHeightField.setText(defaultSize);
         apertureWidthField.setPrefColumnCount(6);
         apertureHeightField.setPrefColumnCount(6);
         apertureVerticesField.setPrefColumnCount(4);
@@ -278,7 +284,7 @@ final class GerberEditToolPanel {
         apertureWidthField.setMinWidth(0);
         apertureHeightField.setMinWidth(0);
         apertureTypeBox.getItems().setAll("C", "R", "O", "P");
-        apertureTypeBox.getSelectionModel().select("C");
+        apertureTypeBox.getSelectionModel().select(ToolDefaults.choice("editor.gerber.type"));
         apertureTypeBox.setOnAction(event -> updateApertureFields(units));
         updateApertureFields(units);
         addApertureButton.setOnAction(event -> {

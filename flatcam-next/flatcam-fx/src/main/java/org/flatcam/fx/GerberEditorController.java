@@ -57,8 +57,8 @@ final class GerberEditorController {
 
     private static final LayerKey SHAPES_LAYER = new LayerKey("gerber-editor-shapes");
     private static final LayerKey SELECTION_LAYER = new LayerKey("gerber-editor-selection");
-    private static final Color SHAPE_COLOR = Color.web("#FF0000AF");
-    private static final Color SELECTED_COLOR = Color.web("#0000FFAF");
+    private Color shapeColor = Color.web("#FF0000AF");
+    private Color selectionColor = Color.web("#0000FFAF");
     private static final GeometryFactory GEOMETRY_FACTORY = new GeometryFactory();
 
     private final PlotAreaView plotArea;
@@ -79,6 +79,9 @@ final class GerberEditorController {
             return;
         }
         item = sourceItem;
+        Color drawColor = ToolDefaults.color("editor.gerber.draw");
+        shapeColor = drawColor;
+        selectionColor = ToolDefaults.color("editor.gerber.selected");
         session = new GerberEditSession(sourceItem.getValue(), image);
         panel = new GerberEditToolPanel(sourceItem.getValue(), image.units(), image.apertures(),
                 session.shapesApproximated(), host::icon,
@@ -96,9 +99,9 @@ final class GerberEditorController {
 
         host.setObjectVisible(sourceItem, false);
         plotArea.putLayer(SHAPES_LAYER, PlotAreaView.LayerCategory.OVERLAY, GEOMETRY_FACTORY.createGeometryCollection(),
-                SHAPE_COLOR, SHAPE_COLOR, false);
+                shapeColor, shapeColor, false);
         plotArea.putLayer(SELECTION_LAYER, PlotAreaView.LayerCategory.OVERLAY, GEOMETRY_FACTORY.createGeometryCollection(),
-                SELECTED_COLOR, SELECTED_COLOR, false);
+                selectionColor, selectionColor, false);
         refreshSelection();
         plotArea.setSelectionHandler(new PlotAreaView.SelectionHandler() {
             @Override

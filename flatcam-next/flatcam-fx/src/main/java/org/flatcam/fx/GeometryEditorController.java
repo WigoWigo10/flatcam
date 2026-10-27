@@ -69,8 +69,9 @@ final class GeometryEditorController {
     }
 
     private static final LayerKey SHAPES_LAYER = new LayerKey("geometry-editor-shapes");
-    private static final Color SHAPE_COLOR = Color.web("#FF0000AF");
-    private static final int EXACT_HIGHLIGHT_LIMIT = 2_000;
+    private Color shapeColor = Color.web("#FF0000AF");
+    private int exactHighlightLimit = 500;
+    private Color selectedColor = Color.BLUE;
     private static final javafx.css.PseudoClass ERASER_ACTIVE = javafx.css.PseudoClass.getPseudoClass("eraser-active");
 
     private final PlotAreaView plotArea;
@@ -190,6 +191,10 @@ final class GeometryEditorController {
         }
         item = sourceItem;
         this.units = units;
+        Color drawColor = ToolDefaults.color("editor.geometry.draw");
+        shapeColor = drawColor;
+        selectedColor = ToolDefaults.color("editor.geometry.selected");
+        exactHighlightLimit = ToolDefaults.integer("editor.geometry.selectionlimit");
         session = new GeometryEditSession(geometry, tools);
         session.setClimbMilling(AppPreferences.loadGeometryEditorClimb());
         implicitToolIndex = tools.isEmpty() ? -1 : 0;
@@ -197,7 +202,7 @@ final class GeometryEditorController {
         this.strokeOnly = strokeOnly;
         host.setObjectVisible(sourceItem, false);
         plotArea.putLayer(SHAPES_LAYER, PlotAreaView.LayerCategory.OVERLAY,
-                session.resultGeometry(), SHAPE_COLOR, SHAPE_COLOR, strokeOnly);
+                session.resultGeometry(), shapeColor, shapeColor, strokeOnly);
         plotArea.setSelectionHandler(new PlotAreaView.SelectionHandler() {
             @Override
             public void onClick(double x, double y, boolean additive) {
@@ -1133,7 +1138,7 @@ final class GeometryEditorController {
         }
         GeometryEditSession editing = session;
         Set<Integer> selectedAtStart = editing.selectedIndices();
-        boolean simplified = editing.selectedCount() > EXACT_HIGHLIGHT_LIMIT;
+        boolean simplified = editing.selectedCount() > exactHighlightLimit;
         Geometry preview = simplified ? editing.selectedBounds() : editing.selectedGeometry();
         boolean started = plotArea.beginEditorPlacement(List.of(preview), strokeOnly || simplified,
                 new PlotAreaView.PlacementHandler() {
@@ -1379,9 +1384,9 @@ final class GeometryEditorController {
             }
             syncingTable = false;
         }
-        boolean simplified = session.selectedCount() > EXACT_HIGHLIGHT_LIMIT;
+        boolean simplified = session.selectedCount() > exactHighlightLimit;
         plotArea.setEditorHighlight(simplified ? session.selectedBounds() : session.selectedGeometry(),
-                strokeOnly || simplified);
+                strokeOnly || simplified, selectedColor);
         status.setText(session.shapeCount() + " formas; " + session.selectedCount() + " selecionadas"
                 + (simplified ? "; destaque simplificado por contorno" : "")
                 + (session.isDirty() ? "; alteracoes pendentes." : "; sem alteracoes."));

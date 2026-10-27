@@ -49,6 +49,27 @@ final class ToolDefaults {
     }
 
     static {
+        for (String editor : List.of("gerber", "excellon", "geometry")) {
+            String group = "Editor " + switch(editor) { case "gerber" -> "Gerber"; case "excellon" -> "Excellon"; default -> "Geometry"; };
+            color("editor."+editor+".draw", group, "Cor das formas em edição", "#FF0000AF");
+            color("editor."+editor+".selected", group, "Cor da seleção", editor.equals("gerber") ? "#0000FFAF" : "#0000FFFF");
+            if (!editor.equals("gerber")) integer("editor."+editor+".selectionlimit", group, "Limite de seleção detalhada", editor.equals("geometry") ? 2000 : 500);
+        }
+        String gerberEditor="Editor Gerber";
+        millimetres("editor.gerber.size",gerberEditor,"Tamanho de nova abertura","0.8");
+        choice("editor.gerber.type",gerberEditor,"Tipo de nova abertura","C","C","R","O","P");
+        integer("editor.gerber.count",gerberEditor,"Quantidade no array de pads",5);
+        millimetres("editor.gerber.pitch",gerberEditor,"Passo do array linear","0.1");
+        number("editor.gerber.angle",gerberEditor,"Ângulo do array linear (graus)","0");
+        number("editor.gerber.step",gerberEditor,"Passo angular circular (graus)","90");
+        number("editor.gerber.scale",gerberEditor,"Fator de escala inicial","1.0");
+        millimetres("editor.gerber.buffer",gerberEditor,"Distância de buffer inicial","0.1");
+        String excellonEditor="Editor Excellon";
+        millimetres("editor.excellon.diameter",excellonEditor,"Diâmetro de nova ferramenta","1.0");
+        integer("editor.excellon.columns",excellonEditor,"Colunas do array retangular",2);
+        integer("editor.excellon.rows",excellonEditor,"Linhas do array retangular",2);
+        millimetres("editor.excellon.pitchx",excellonEditor,"Passo X do array retangular","2.54");
+        millimetres("editor.excellon.pitchy",excellonEditor,"Passo Y do array retangular","2.54");
         String cncDisplay="CNC Job: Exibição";
         flag("display.cnc.plot",cncDisplay,"Plotar novos CNC Jobs",true);
         choice("display.cnc.kind",cncDisplay,"Plot Kind","ALL","ALL","CUT","TRAVEL");
@@ -524,7 +545,9 @@ final class ToolDefaults {
             }
             case NUMBER -> {
                 try {
-                    if (!Double.isFinite(Double.parseDouble(value))) {
+                    double parsed = Double.parseDouble(value);
+                    if (setting.key().startsWith("editor.") && (setting.key().endsWith(".size") || setting.key().endsWith(".diameter") || setting.key().endsWith(".scale")) && parsed <= 0) return "deve ser positivo";
+                    if (!Double.isFinite(parsed)) {
                         return "deve ser um número";
                     }
                 } catch (NumberFormatException invalid) {
@@ -534,6 +557,7 @@ final class ToolDefaults {
             case INTEGER -> {
                 try {
                     int parsed = Integer.parseInt(value);
+                    if (setting.key().startsWith("editor.") && (parsed < 1 || parsed > 100000)) return "deve estar entre 1 e 100000";
                     if (setting.key().equals("display.cnc.fontsize") && (parsed<1 || parsed>72)) return "deve estar entre 1 e 72";
                     if (setting.key().equals("geometry.editorcirclesteps")) {
                         try { org.flatcam.cam.geometry.EditorArc.validateSteps(parsed); }

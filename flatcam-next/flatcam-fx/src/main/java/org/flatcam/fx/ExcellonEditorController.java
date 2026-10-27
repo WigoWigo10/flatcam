@@ -29,7 +29,8 @@ import org.locationtech.jts.geom.GeometryFactory;
 /** Drill/slot editing on the canvas with a synchronized ID table. */
 final class ExcellonEditorController {
 
-    private static final int EXACT_HIGHLIGHT_LIMIT = 500;
+    private int exactHighlightLimit = 500;
+    private Color selectedColor = Color.BLUE;
 
     interface Host {
         void openToolPanel(String label, Node content);
@@ -84,11 +85,14 @@ final class ExcellonEditorController {
             return;
         }
         item = sourceItem;
+        Color drawColor = ToolDefaults.color("editor.excellon.draw");
+        selectedColor = ToolDefaults.color("editor.excellon.selected");
+        exactHighlightLimit = ToolDefaults.integer("editor.excellon.selectionlimit");
         session = new ExcellonEditSession(image);
         initiallyVisible = plotArea.isLayerVisible(sourceItem);
         host.setObjectVisible(sourceItem, false);
         plotArea.putLayer(SHAPES_LAYER, PlotAreaView.LayerCategory.OVERLAY,
-                session.geometry(), Color.web("#FF0000AF"), Color.web("#FF0000AF"), false);
+                session.geometry(), drawColor, drawColor, false);
         plotArea.setSelectionHandler(new PlotAreaView.SelectionHandler() {
             @Override
             public void onClick(double x, double y, boolean additive) {
@@ -129,15 +133,15 @@ final class ExcellonEditorController {
         toolChoice.getItems().addAll(image.toolDiameters().keySet().stream().sorted().toList());
         toolChoice.getSelectionModel().selectFirst();
         toolChoice.setMaxWidth(Double.MAX_VALUE);
-        diameterField = new TextField(toolChoice.getValue() == null ? ""
+        diameterField = new TextField(toolChoice.getValue() == null ? ToolDefaults.text("editor.excellon.diameter", image.units().equals("MM"))
                 : Double.toString(session.toolDiameters().get(toolChoice.getValue())));
         toolChoice.valueProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) diameterField.setText(Double.toString(session.toolDiameters().get(newValue)));
         });
-        columnsField = new TextField("2");
-        rowsField = new TextField("2");
-        pitchXField = new TextField("1");
-        pitchYField = new TextField("1");
+        columnsField = new TextField(ToolDefaults.text("editor.excellon.columns", image.units().equals("MM")));
+        rowsField = new TextField(ToolDefaults.text("editor.excellon.rows", image.units().equals("MM")));
+        pitchXField = new TextField(ToolDefaults.text("editor.excellon.pitchx", image.units().equals("MM")));
+        pitchYField = new TextField(ToolDefaults.text("editor.excellon.pitchy", image.units().equals("MM")));
         for (TextField field : List.of(diameterField, columnsField, rowsField, pitchXField, pitchYField))
             field.setPrefColumnCount(6);
         status = new Label();
@@ -288,7 +292,7 @@ final class ExcellonEditorController {
             return;
         }
         Set<Long> selectedAtStart = session.selectedIds();
-        Geometry preview = session.selectedCount() > EXACT_HIGHLIGHT_LIMIT
+        Geometry preview = session.selectedCount() > exactHighlightLimit
                 ? session.selectedBounds() : session.selectedGeometry();
         if (plotArea.beginEditorPlacement(List.of(preview), new PlotAreaView.PlacementHandler() {
             @Override public void onCommit(double dx, double dy) {
@@ -356,8 +360,8 @@ final class ExcellonEditorController {
                 if (ids.contains(table.getItems().get(i).id())) table.getSelectionModel().select(i);
         }
         syncing = false;
-        boolean simplified = session.selectedCount() > EXACT_HIGHLIGHT_LIMIT;
-        plotArea.setEditorHighlight(simplified ? session.selectedBounds() : session.selectedGeometry(), simplified);
+        boolean simplified = session.selectedCount() > exactHighlightLimit;
+        plotArea.setEditorHighlight(simplified ? session.selectedBounds() : session.selectedGeometry(), simplified, selectedColor);
         status.setText(session.size() + " furos/slots; " + session.selectedCount()
                 + " selecionados" + (session.isDirty() ? "; alteracoes pendentes." : "; sem alteracoes."));
         deleteButton.setDisable(session.selectedCount() == 0);
