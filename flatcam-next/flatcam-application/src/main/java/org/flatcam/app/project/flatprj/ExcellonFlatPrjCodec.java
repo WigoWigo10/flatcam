@@ -71,6 +71,11 @@ public final class ExcellonFlatPrjCodec {
                 JSONObject slotJson = new JSONObject();
                 slotJson.put("start", WktJson.wrap(FACTORY.createPoint(new Coordinate(slot.x1(), slot.y1()))));
                 slotJson.put("stop", WktJson.wrap(FACTORY.createPoint(new Coordinate(slot.x2(), slot.y2()))));
+                if (slot.hasPath()) {
+                    JSONArray path=new JSONArray();
+                    for (var point:slot.path()) path.put(new JSONArray().put(point.x()).put(point.y()));
+                    slotJson.put("_fx_path",path);
+                }
                 slotsJson.put(slotJson);
             }
             toolJson.put("slots", slotsJson);
@@ -140,7 +145,27 @@ public final class ExcellonFlatPrjCodec {
                         if (start != null && stop != null) {
                             Coordinate s = start.getCoordinate();
                             Coordinate e = stop.getCoordinate();
-                            slots.add(new ExcellonImage.Slot(toolId, s.x, s.y, e.x, e.y));
+                            List<ExcellonImage.RoutePoint> path=List.of();
+                            if (slotJson.has("_fx_path")) {
+                                JSONArray encoded=slotJson.getJSONArray("_fx_path");
+                                if(encoded.length()<2) throw new IllegalArgumentException("Invalid Excellon routed centreline");
+                                var points=new ArrayList<ExcellonImage.RoutePoint>();
+                                for(int point=0;point<encoded.length();point++) {
+                                    JSONArray xy=encoded.getJSONArray(point);
+                                    if(xy.length()!=2) throw new IllegalArgumentException("Invalid Excellon route point");
+                                    points.add(new ExcellonImage.RoutePoint(xy.getDouble(0),xy.getDouble(1)));
+                                }
+                                path=List.copyOf(points);
+                                var a=path.getFirst(); var b=path.getLast();
+                                if(!Double.isFinite(s.x) || !Double.isFinite(s.y) || !Double.isFinite(e.x) || !Double.isFinite(e.y))
+                                    throw new IllegalArgumentException("Non-finite Excellon routed endpoint");
+                                double tolerance=1e-12*Math.max(1,Math.max(Math.max(Math.abs(s.x),Math.abs(s.y)),Math.max(Math.abs(e.x),Math.abs(e.y))));
+                                if(s.distance(new Coordinate(a.x(),a.y()))>tolerance || e.distance(new Coordinate(b.x(),b.y()))>tolerance)
+                                    throw new IllegalArgumentException("Excellon routed endpoints disagree with centreline");
+                                // JSON doubles preserve the exact route; WKT's decimal formatting can round its redundant endpoints.
+                                s=new Coordinate(a.x(),a.y()); e=new Coordinate(b.x(),b.y());
+                            }
+                            slots.add(new ExcellonImage.Slot(toolId, s.x, s.y, e.x, e.y,path));
                         }
                     }
                 }

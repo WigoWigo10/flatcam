@@ -118,6 +118,8 @@ public final class ExcellonExporter {
         }
         for (ExcellonImage.Slot slot : image.slots()) {
             requireTool(diameters, slot.toolId());
+            if (slot.hasPath() && slotStyle==SlotStyle.G85)
+                throw new IllegalArgumentException("G85 cannot represent a curved routed slot; choose routed slots (G00/M15/G01/M16)");
         }
         StringBuilder output = new StringBuilder("M48\n");
         output.append(unitsHeader);
@@ -148,7 +150,12 @@ public final class ExcellonExporter {
                 String start = position(coordinate, slot.x1(), slot.y1());
                 String end = position(coordinate, slot.x2(), slot.y2());
                 if (slotStyle == SlotStyle.ROUTED) {
-                    output.append("G00").append(start).append("\nM15\nG01").append(end).append("\nM16\nG05\n");
+                    output.append("G00").append(start).append("\nM15\n");
+                    if (slot.hasPath()) {
+                        for (var point : slot.path().subList(1,slot.path().size()))
+                            output.append("G01").append(position(coordinate,point.x(),point.y())).append('\n');
+                    } else output.append("G01").append(end).append('\n');
+                    output.append("M16\nG05\n");
                 } else {
                     output.append(start).append("G85").append(end).append('\n');
                 }

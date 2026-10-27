@@ -162,6 +162,7 @@ final class CncPreflight {
         for (int id : result.orderedToolIds()) {
             var p = result.settingsByTool().get(id);
             int[] count = counts.getOrDefault(id, new int[2]);
+            long curved=image.slots().stream().filter(slot->slot.toolId()==id && slot.hasPath()).count();
             var details = new ArrayList<>(List.of(value("Furos / rasgos", count[0] + " / " + count[1], id, "drill-tools"),
                     value(profile.isRoland() ? "Profundidade solicitada" : "Profundidade efetiva", number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z + Offset Z)", id, "drill-cut-z"),
                     value("Offset Z", number(p.offsetZ()), id, "drill-offset-z"),
@@ -181,6 +182,7 @@ final class CncPreflight {
                 feedText=nativeValue(details,issues,image.units(),id,"drill-feed-z","Feed Z",p.feedRate(),true,false);
                 if(p.multiDepth()) nativeValue(details,issues,image.units(),id,"drill-depth-per-pass","Primeiro passe Z",-Math.min(p.effectiveDepth(),p.depthPerPass()),false,false);
             }
+            if(curved>0) details.add(value("Trajetos curvos",curved+"; percorridos por segmentos. Aproximação original da importação: 0,001 mm, antes de transformações e arredondamento do perfil de saída.",id,"drill-tools"));
             rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? " (vazia)" : ""), number(image.toolDiameters().get(id)),cutText,
                     travelText, "—",feedText, profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
             if (count[0] + count[1] == 0) issues.add(new Issue(false, "T" + id + " não contém furos nem rasgos.", target(id, "drill-tools")));

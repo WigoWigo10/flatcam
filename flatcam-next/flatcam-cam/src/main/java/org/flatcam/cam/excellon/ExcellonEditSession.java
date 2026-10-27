@@ -22,12 +22,16 @@ public final class ExcellonEditSession {
     public record Row(long id, String type, int toolId, String coordinates) {
     }
 
-    private record Hit(long id, int toolId, boolean slot, double x1, double y1, double x2, double y2) {
+    private record Hit(long id, int toolId, boolean slot, double x1, double y1, double x2, double y2, List<ExcellonImage.RoutePoint> path) {
+        Hit(long id,int toolId,boolean slot,double x1,double y1,double x2,double y2) {
+            this(id,toolId,slot,x1,y1,x2,y2,List.of());
+        }
         Hit translated(long newId, double dx, double dy) {
-            return new Hit(newId, toolId, slot, x1 + dx, y1 + dy, x2 + dx, y2 + dy);
+            return new Hit(newId, toolId, slot, x1 + dx, y1 + dy, x2 + dx, y2 + dy,
+                    path.stream().map(p->new ExcellonImage.RoutePoint(p.x()+dx,p.y()+dy)).toList());
         }
         Hit withTool(int newToolId) {
-            return new Hit(id, newToolId, slot, x1, y1, x2, y2);
+            return new Hit(id, newToolId, slot, x1, y1, x2, y2,path);
         }
     }
 
@@ -58,7 +62,7 @@ public final class ExcellonEditSession {
         }
         for (ExcellonImage.Slot slot : source.slots()) {
             initial.add(new Hit(nextId++, slot.toolId(), true,
-                    slot.x1(), slot.y1(), slot.x2(), slot.y2()));
+                    slot.x1(), slot.y1(), slot.x2(), slot.y2(),slot.path()));
         }
         hits = List.copyOf(initial);
         rebuildIndex();
@@ -73,7 +77,7 @@ public final class ExcellonEditSession {
     public Set<Long> selectedIds() { return Set.copyOf(selected); }
 
     public List<Row> rows() {
-        return hits.stream().map(hit -> new Row(hit.id(), hit.slot() ? "Slot" : "Drill", hit.toolId(),
+        return hits.stream().map(hit -> new Row(hit.id(), hit.slot() ? hit.path().isEmpty() ? "Slot" : "Routed slot" : "Drill", hit.toolId(),
                 hit.slot() ? format(hit.x1(), hit.y1()) + " → " + format(hit.x2(), hit.y2())
                         : format(hit.x1(), hit.y1()))).toList();
     }
@@ -291,7 +295,7 @@ public final class ExcellonEditSession {
         List<ExcellonImage.Drill> drills = new ArrayList<>();
         List<ExcellonImage.Slot> slots = new ArrayList<>();
         for (Hit hit : hits) {
-            if (hit.slot()) slots.add(new ExcellonImage.Slot(hit.toolId(), hit.x1(), hit.y1(), hit.x2(), hit.y2()));
+            if (hit.slot()) slots.add(new ExcellonImage.Slot(hit.toolId(), hit.x1(), hit.y1(), hit.x2(), hit.y2(),hit.path()));
             else drills.add(new ExcellonImage.Drill(hit.toolId(), hit.x1(), hit.y1()));
         }
         return ExcellonImage.of(units, toolDiameters, drills, slots, geometry());
@@ -304,8 +308,7 @@ public final class ExcellonEditSession {
 
     private Geometry footprint(Hit hit) {
         double radius = toolDiameters.get(hit.toolId()) / 2.0;
-        return hit.slot() ? factory.createLineString(new Coordinate[]{
-                new Coordinate(hit.x1(), hit.y1()), new Coordinate(hit.x2(), hit.y2())}).buffer(radius, 16)
+        return hit.slot() ? new ExcellonImage.Slot(hit.toolId(),hit.x1(),hit.y1(),hit.x2(),hit.y2(),hit.path()).centerline(factory).buffer(radius, 16)
                 : factory.createPoint(new Coordinate(hit.x1(), hit.y1())).buffer(radius, 16);
     }
 

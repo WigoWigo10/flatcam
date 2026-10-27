@@ -59,11 +59,12 @@ public final class AlignObjects {
         for (ExcellonImage.Slot slot : excellon.slots()) {
             Double diameter = excellon.toolDiameters().get(slot.toolId());
             double reach = (diameter == null ? 0 : diameter / 2) + extraReach;
-            double distance = org.locationtech.jts.algorithm.Distance.pointToSegment(click,
-                    new Coordinate(slot.x1(), slot.y1()), new Coordinate(slot.x2(), slot.y2()));
+            var path=slot.centerline(FACTORY);
+            double distance = path.distance(FACTORY.createPoint(click));
             if (distance <= reach && distance < bestDistance) {
                 bestDistance = distance;
-                best = new Coordinate((slot.x1() + slot.x2()) / 2, (slot.y1() + slot.y2()) / 2);
+                best = slot.hasPath() ? new org.locationtech.jts.linearref.LengthIndexedLine(path).extractPoint(path.getLength()/2)
+                        : new Coordinate((slot.x1() + slot.x2()) / 2, (slot.y1() + slot.y2()) / 2);
             }
         }
         return best;

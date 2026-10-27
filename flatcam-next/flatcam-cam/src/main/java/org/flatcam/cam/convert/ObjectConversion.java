@@ -76,8 +76,7 @@ public final class ObjectConversion {
             if (diameter == null) {
                 continue;
             }
-            LineString path = FACTORY.createLineString(new Coordinate[] {new Coordinate(slot.x1(), slot.y1()),
-                    new Coordinate(slot.x2(), slot.y2())});
+            LineString path = slot.centerline(FACTORY);
             shapes.add(new GerberShape(codeByTool.get(slot.toolId()), path.buffer(diameter / 2, STEPS), false, path));
         }
         return build(excellon.units(), apertures, shapes, "O Excellon nao tem furos nem slots");

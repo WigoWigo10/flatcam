@@ -48,4 +48,5 @@ são opções de outro backend; não foram criados controles sem efeito no FX.
 A estratégia gerber_use_buffer_for_union do Python também não foi transplantada:
 a política de união robusta do FX foi mantida, sem novo buffer(0) ou alteração
 do NCC. Isso não representa o catálogo integral de preferências Qt.
-Excellon continua recusando G91 e arcos de roteamento não implementados.
+G91 e arcos de roteamento G02/G03 foram implementados no incremento seguinte;
+formatos aceitos, precisão, representação e limites em [EXCELLON_ROUTING.md](EXCELLON_ROUTING.md).

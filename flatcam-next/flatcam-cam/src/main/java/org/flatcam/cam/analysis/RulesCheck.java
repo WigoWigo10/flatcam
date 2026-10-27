@@ -452,8 +452,7 @@ public final class RulesCheck {
         for (ExcellonImage.Slot slot : excellon.slots()) {
             Double diameter = excellon.toolDiameters().get(slot.toolId());
             if (diameter != null) {
-                holes.add(FACTORY.createLineString(new Coordinate[] {new Coordinate(slot.x1(), slot.y1()),
-                        new Coordinate(slot.x2(), slot.y2())}).buffer(diameter / 2, 16));
+                holes.add(slot.centerline(FACTORY).buffer(diameter / 2, 16));
             }
         }
         return holes;

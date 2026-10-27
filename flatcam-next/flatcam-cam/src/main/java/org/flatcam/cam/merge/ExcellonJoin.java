@@ -66,8 +66,7 @@ public final class ExcellonJoin {
                 drills.add(new ExcellonImage.Drill(ids.getOrDefault(drill.toolId(), drill.toolId()), drill.x(), drill.y()));
             }
             for (ExcellonImage.Slot slot : image.slots()) {
-                slots.add(new ExcellonImage.Slot(ids.getOrDefault(slot.toolId(), slot.toolId()),
-                        slot.x1(), slot.y1(), slot.x2(), slot.y2()));
+                slots.add(slot.withTool(ids.getOrDefault(slot.toolId(), slot.toolId())));
             }
             if (image.solidGeometry() != null && !image.solidGeometry().isEmpty()) {
                 solids.add(image.solidGeometry());

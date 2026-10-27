@@ -1,11 +1,9 @@
 package org.flatcam.cam.excellon;
 
 /**
- * Raised for Excellon input outside what this parser supports - notably
- * routing mode (G00/G01/G02/G03 with actual route moves) and incremental
- * positioning (G91). Matches the legacy Python parser's own stated scope:
- * "FlatCAM supports only the drilling subset of Excellon. Routing is not
- * supported." (flatcam.org/fileformats).
+ * Raised for malformed, ambiguous or unsupported Excellon input.
+ * G90/G91 and linear/circular routing are supported within the documented
+ * reader subset; unsupported canned cycles and invalid arcs are refused.
  */
 public class ExcellonParseException extends RuntimeException {
 

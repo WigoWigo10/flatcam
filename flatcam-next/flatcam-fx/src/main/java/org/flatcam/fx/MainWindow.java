@@ -6179,7 +6179,7 @@ final class MainWindow implements TclFlatcamHost {
             }
         } else {
             Optional<ExcellonExporter.Format> format =
-                    CamExportDialog.askExcellonFormat(scene.getWindow(), excellon.units());
+                    CamExportDialog.askExcellonFormat(scene.getWindow(), excellon.units(),excellon.slots().stream().anyMatch(ExcellonImage.Slot::hasPath));
             File destination = format.isEmpty() ? null : chooseExportFile("Exportar Excellon", item, ".drl",
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
             if (destination != null) {

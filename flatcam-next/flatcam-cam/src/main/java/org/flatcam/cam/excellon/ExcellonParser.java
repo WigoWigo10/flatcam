@@ -42,8 +42,9 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
  * <p>Scope: drilling, G85 slots and straight routed slots (G00 to the start,
  * M15 plunge, G01 to the end, M16/M17 retract, G05 back to drilling - the
  * form FlatCAM Python's own Excellon export writes by default). Each routed
- * G01 move with the tool down becomes one slot. No arcs (G02/G03) and no
- * incremental positioning (G91). X2-style attribute comments ("; #@! TA...."/"; #@! TF...",
+ * move with the tool down becomes one slot. Circular G02/G03 routs retain
+ * sampled centrelines (A radius or CNC-7 I/J offsets, <=180 degrees).
+ * G90/G91 switch absolute/incremental XY; scalar radius/centre offsets do not accumulate. X2-style attribute comments ("; #@! TA...."/"; #@! TF...",
  * KiCad 6+) are ignored like any other comment.
  */
 public final class ExcellonParser {
@@ -59,11 +60,12 @@ public final class ExcellonParser {
     private static final Pattern SLOT_LINE =
             Pattern.compile("^(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?G85(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?$");
     private static final Pattern ROUTE_LINE =
-            Pattern.compile("^G0?([01])(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?$");
+            Pattern.compile("^(?:G0?([0-3]))?((?:[XYAIJ][+-]?[0-9.]+)*)$");
+    private static final Pattern ROUTE_WORD = Pattern.compile("([XYAIJ])([+-]?[0-9.]+)");
     private static final Pattern COORD_LINE = Pattern.compile("^(?:X([+-]?[0-9.]+))?(?:Y([+-]?[0-9.]+))?$");
 
     private static final java.util.Set<String> IGNORABLE_EXACT = java.util.Set.of(
-            "M48", "FMAT,1", "FMAT,2", "G90", "M00", "M30", "%", "M95"
+            "M48", "FMAT,1", "FMAT,2", "M00", "%", "M95"
     );
 
     private final GeometryFactory geometryFactory = new GeometryFactory();
@@ -155,7 +157,9 @@ public final class ExcellonParser {
         double posY = 0;
         boolean routeMode = false;
         boolean toolDown = false;
-        boolean routeLinear = false;
+        int routeMotion = 0;
+        boolean incremental = false;
+        ExcellonRouteArc.Spec arcSpec = null;
 
         for (int lineIndex = 0; lineIndex < rawLines.size(); lineIndex++) {
             cancellationToken.throwIfCancellationRequested();
@@ -164,6 +168,10 @@ public final class ExcellonParser {
             String line = rawLine.strip();
             if (line.isEmpty() || IGNORABLE_EXACT.contains(line)) {
                 continue;
+            }
+            if (line.equals("M30")) break;
+            if (line.equals("G90") || line.equals("G91")) {
+                incremental = line.equals("G91"); continue;
             }
             if (line.equals("M71")) {
                 units = "MM";
@@ -188,9 +196,6 @@ public final class ExcellonParser {
             if (line.equals("M16") || line.equals("M17")) {
                 toolDown = false;
                 continue;
-            }
-            if (line.equals("G91")) {
-                throw new ExcellonParseException("Incremental positioning (G91) is not supported");
             }
             if (line.startsWith(";")) {
                 Matcher format = FORMAT_OVERRIDE.matcher(line);
@@ -235,10 +240,10 @@ public final class ExcellonParser {
                 units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
                 int upper = resolveUpperDigits(units, formatUpperOverride);
-                double x1 = slot.group(1) != null ? decode(slot.group(1), upper, lower, zeros) : posX;
-                double y1 = slot.group(2) != null ? decode(slot.group(2), upper, lower, zeros) : posY;
-                double x2 = slot.group(3) != null ? decode(slot.group(3), upper, lower, zeros) : x1;
-                double y2 = slot.group(4) != null ? decode(slot.group(4), upper, lower, zeros) : y1;
+                double x1 = position(slot.group(1), posX, incremental, upper, lower, zeros);
+                double y1 = position(slot.group(2), posY, incremental, upper, lower, zeros);
+                double x2 = position(slot.group(3), x1, incremental, upper, lower, zeros);
+                double y2 = position(slot.group(4), y1, incremental, upper, lower, zeros);
                 double diameter = requireToolDiameter(toolDiameters, currentTool, line);
 
                 shapes.add(geometryFactory
@@ -253,34 +258,41 @@ public final class ExcellonParser {
 
             Matcher route = ROUTE_LINE.matcher(line);
             Matcher coord = COORD_LINE.matcher(line);
-            boolean routeCommand = route.matches();
             boolean coordLine = coord.matches() && (coord.group(1) != null || coord.group(2) != null);
-            if (routeCommand || (routeMode && coordLine)) {
-                // A bare coordinate while routing repeats the last G00/G01 (modal).
-                if (routeCommand) {
-                    routeMode = true;
-                    routeLinear = route.group(1).equals("1");
-                }
-                Matcher target = routeCommand ? route : coord;
-                int first = routeCommand ? 2 : 1;
-                if (target.group(first) == null && target.group(first + 1) == null) {
-                    continue;
-                }
+            boolean routeWords = route.matches();
+            boolean routeCommand = routeWords && route.group(1)!=null;
+            boolean parameters = routeWords && (line.indexOf('A')>=0 || line.indexOf('I')>=0 || line.indexOf('J')>=0);
+            if (routeCommand || routeWords && (routeMode || parameters)) {
+                if (routeCommand) { routeMode = true; routeMotion = Integer.parseInt(route.group(1)); }
                 units = unitsOrDefault(units, line);
-                int lower = resolveLowerDigits(units, formatLowerOverride);
-                int upper = resolveUpperDigits(units, formatUpperOverride);
-                double x = target.group(first) != null ? decode(target.group(first), upper, lower, zeros) : posX;
-                double y = target.group(first + 1) != null ? decode(target.group(first + 1), upper, lower, zeros) : posY;
-                if (routeLinear && toolDown) {
-                    double diameter = requireToolDiameter(toolDiameters, currentTool, line);
-                    shapes.add(geometryFactory
-                            .createLineString(new Coordinate[]{new Coordinate(posX, posY), new Coordinate(x, y)})
-                            .buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
-                    cancellationToken.throwIfCancellationRequested();
-                    slots.add(new ExcellonImage.Slot(currentTool, posX, posY, x, y));
+                int lower=resolveLowerDigits(units,formatLowerOverride), upper=resolveUpperDigits(units,formatUpperOverride);
+                Map<Character,String> words = new LinkedHashMap<>();
+                Matcher word = ROUTE_WORD.matcher(route.group(2));
+                while(word.find()) {
+                    char key=word.group(1).charAt(0);
+                    if(words.put(key,word.group(2))!=null) throw new ExcellonParseException("Repeated route word: "+line);
                 }
-                posX = x;
-                posY = y;
+                if(words.containsKey('A')) {
+                    if(words.containsKey('I') || words.containsKey('J')) throw new ExcellonParseException("Use A or I/J, not both: "+line);
+                    arcSpec=new ExcellonRouteArc.Spec(decode(words.get('A'),upper,lower,zeros),null,null);
+                } else if(words.containsKey('I') || words.containsKey('J')) {
+                    if(!words.containsKey('I') || !words.containsKey('J')) throw new ExcellonParseException("Excellon circular rout requires both I and J: "+line);
+                    arcSpec=new ExcellonRouteArc.Spec(null,decode(words.get('I'),upper,lower,zeros),decode(words.get('J'),upper,lower,zeros));
+                }
+                if (!words.containsKey('X') && !words.containsKey('Y')) continue;
+                if (!routeMode) throw new ExcellonParseException("Circular parameters outside route mode: "+line);
+                double x=position(words.get('X'),posX,incremental,upper,lower,zeros);
+                double y=position(words.get('Y'),posY,incremental,upper,lower,zeros);
+                if (routeMotion!=0) {
+                    double diameter = requireToolDiameter(toolDiameters, currentTool, line);
+                    ExcellonImage.Slot routed = routeMotion==1 ? new ExcellonImage.Slot(currentTool,posX,posY,x,y)
+                            : ExcellonRouteArc.build(currentTool,posX,posY,x,y,routeMotion==2,arcSpec,units,cancellationToken);
+                    if(toolDown) {
+                        shapes.add(routed.centerline(geometryFactory).buffer(diameter/2,CIRCLE_QUADRANT_SEGMENTS));
+                        cancellationToken.throwIfCancellationRequested(); slots.add(routed);
+                    }
+                }
+                posX=x; posY=y;
                 continue;
             }
 
@@ -288,8 +300,8 @@ public final class ExcellonParser {
                 units = unitsOrDefault(units, line);
                 int lower = resolveLowerDigits(units, formatLowerOverride);
                 int upper = resolveUpperDigits(units, formatUpperOverride);
-                double x = coord.group(1) != null ? decode(coord.group(1), upper, lower, zeros) : posX;
-                double y = coord.group(2) != null ? decode(coord.group(2), upper, lower, zeros) : posY;
+                double x = position(coord.group(1), posX, incremental, upper, lower, zeros);
+                double y = position(coord.group(2), posY, incremental, upper, lower, zeros);
                 double diameter = requireToolDiameter(toolDiameters, currentTool, line);
 
                 shapes.add(geometryFactory.createPoint(new Coordinate(x, y)).buffer(diameter / 2.0, CIRCLE_QUADRANT_SEGMENTS));
@@ -333,6 +345,12 @@ public final class ExcellonParser {
         }
         if(!Double.isFinite(value)) throw new ExcellonParseException("Non-finite coordinate: "+token);
         return value;
+    }
+    private static double position(String token,double previous,boolean incremental,int upper,int lower,String zeros) {
+        if(token==null) return previous;
+        double decoded=decode(token,upper,lower,zeros), result=incremental ? previous+decoded : decoded;
+        if(!Double.isFinite(result)) throw new ExcellonParseException("Incremental coordinate overflow: "+token);
+        return result;
     }
     private static void validateFormat(int upper,int lower) {
         if(upper<1 || upper>9 || lower<0 || lower>9) throw new ExcellonParseException("Coordinate format must have 1–9 integer digits and 0–9 decimal digits");

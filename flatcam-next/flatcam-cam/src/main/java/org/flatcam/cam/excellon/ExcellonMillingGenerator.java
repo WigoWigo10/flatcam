@@ -51,8 +51,7 @@ public final class ExcellonMillingGenerator {
                 if (!toolIds.contains(slot.toolId())) continue;
                 double radius = Math.max(MIN_RADIUS,
                         (image.toolDiameters().get(slot.toolId()) - millDiameter) / 2);
-                LineString centre = FACTORY.createLineString(new Coordinate[]{
-                        new Coordinate(slot.x1(), slot.y1()), new Coordinate(slot.x2(), slot.y2())});
+                LineString centre = slot.centerline(FACTORY);
                 paths.add((LineString) centre.buffer(radius, 32).getBoundary());
             }
         }

@@ -270,8 +270,7 @@ public final class GCodeGenerator {
                     progress.report((double) ++completed / workCount);
                 }
                 for (var slot : slotsByTool.getOrDefault(id, List.of())) {
-                    planner.validateCut(GEOMETRY_FACTORY.createLineString(new Coordinate[]{
-                            new Coordinate(slot.x1(), slot.y1()), new Coordinate(slot.x2(), slot.y2())}));
+                    planner.validateCut(slot.centerline(GEOMETRY_FACTORY));
                     progress.report((double) ++completed / workCount);
                 }
             }
@@ -428,7 +427,8 @@ public final class GCodeGenerator {
             for (ExcellonImage.Slot slot : slotsByTool.getOrDefault(toolId, List.of())) {
                 cancellation.throwIfCancellationRequested();
                 if (!preprocessor.requiresProbe()) {
-                    cutShapes.addBuffered(strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
+                    cutShapes.addBuffered(slot.hasPath() ? slot.centerline(GEOMETRY_FACTORY).buffer(radius, STROKE_QUADRANT_SEGMENTS)
+                            : strokeSegment(slot.x1(), slot.y1(), slot.x2(), slot.y2(), radius));
                 }
                 exclusionTravel(gcode, travelShapes, lastX, lastY, slot.x1(), slot.y1(), radius,
                         params.safeZ(), preprocessor, planners.get(toolId), image.units());
@@ -444,7 +444,12 @@ public final class GCodeGenerator {
                         else line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmtCoordinate(slot.x1(), image.units()), fmtCoordinate(slot.y1(), image.units()));
                     }
                     line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depths.get(pass)), fmt(params.feedRate()));
-                    line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(slot.x2(), image.units()), fmtCoordinate(slot.y2(), image.units()), fmt(params.feedRate()));
+                    if (slot.hasPath()) {
+                        for (var point : slot.path().subList(1,slot.path().size())) {
+                            cancellation.throwIfCancellationRequested();
+                            line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(point.x(),image.units()),fmtCoordinate(point.y(),image.units()),fmt(params.feedRate()));
+                        }
+                    } else line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(slot.x2(), image.units()), fmtCoordinate(slot.y2(), image.units()), fmt(params.feedRate()));
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
                 progress.report((double) ++completed / workCount);

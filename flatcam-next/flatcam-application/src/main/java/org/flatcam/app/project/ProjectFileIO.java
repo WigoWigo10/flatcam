@@ -56,6 +56,8 @@ import org.locationtech.jts.io.WKTWriter;
 public final class ProjectFileIO {
 
     private static final int CURRENT_VERSION = 2;
+    /** Older readers must refuse curved slots, rather than loading only their redundant endpoints. */
+    private static final int CURVED_SLOT_VERSION = 3;
     private static final int LEGACY_V1_VERSION = 1;
     // Interactive saves prioritize latency over the last few percent of compression.
     // Same XZ/JSON format; no rounding, simplification or loss of project data.
@@ -103,7 +105,8 @@ public final class ProjectFileIO {
         JSONObject root = new JSONObject();
         root.put("objs", objs);
         root.put("options", new JSONObject());
-        root.put("version", CURRENT_VERSION);
+        root.put("version", project.excellons().stream().flatMap(e->e.image().slots().stream())
+                .anyMatch(org.flatcam.cam.excellon.ExcellonImage.Slot::hasPath) ? CURVED_SLOT_VERSION : CURRENT_VERSION);
 
         JSONArray jobs = new JSONArray();
         for (ProjectFile.CncJobRecord job : project.cncJobs()) {
@@ -232,7 +235,7 @@ public final class ProjectFileIO {
         if (version == LEGACY_V1_VERSION) {
             return loadLegacyV1(root);
         }
-        if (version != CURRENT_VERSION) {
+        if (version != CURRENT_VERSION && version != CURVED_SLOT_VERSION) {
             throw new IOException("Unsupported project file version: " + version);
         }
 
@@ -250,7 +253,10 @@ public final class ProjectFileIO {
                                 decoded.filled(), decoded.multicolor(), decoded.followMode()));
                     }
                     case "excellon" -> {
-                        ExcellonFlatPrjCodec.Decoded decoded = ExcellonFlatPrjCodec.fromJson(obj);
+                        ExcellonFlatPrjCodec.Decoded decoded;
+                        try {
+                            decoded = ExcellonFlatPrjCodec.fromJson(obj);
+                        } catch (RuntimeException invalid) { throw new IOException("Invalid Excellon object in native project",invalid); }
                         excellons.add(new ProjectFile.ExcellonEntry(decoded.name(), decoded.image(),
                                 decoded.fillColorWeb(), decoded.strokeColorWeb(), decoded.visible(),
                                 decoded.filled(), decoded.multicolor(),

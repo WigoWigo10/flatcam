@@ -57,6 +57,10 @@ final class CamExportDialog {
     }
 
     static Optional<ExcellonExporter.Format> askExcellonFormat(Window owner, String objectUnits) {
+        return askExcellonFormat(owner,objectUnits,false);
+    }
+
+    static Optional<ExcellonExporter.Format> askExcellonFormat(Window owner, String objectUnits, boolean curvedSlots) {
         ExcellonExporter.Format initial = loadExcellon();
         Dialog<ExcellonExporter.Format> dialog = dialog(owner, "Exportar Excellon");
 
@@ -72,6 +76,8 @@ final class CamExportDialog {
         ComboBox<String> slots = new ComboBox<>();
         slots.getItems().addAll("Roteado (G00/M15/G01/M16)", "Furado (G85)");
         slots.getSelectionModel().select(initial.slots() == ExcellonExporter.SlotStyle.ROUTED ? 0 : 1);
+        if (curvedSlots) { slots.getSelectionModel().select(0); slots.setDisable(true); }
+        ToolDescriptions.apply(slots,"Formato dos rasgos","Roteado mantém os trajetos com movimentos contínuos. G85 representa somente rasgos retos e fica indisponível quando o objeto contém trajetos curvos.");
         Runnable syncZeros = () -> {
             boolean decimal = style.getSelectionModel().getSelectedIndex() == 0;
             zeros.setDisable(decimal);
@@ -92,6 +98,10 @@ final class CamExportDialog {
         grid.addRow(4, new Label("Zeros:"), zeros);
         grid.addRow(5, new Label("Slots:"), slots);
         grid.add(note(objectUnits), 0, 6, 2, 1);
+        if (curvedSlots) {
+            Label curveNote=new Label("Este objeto contém rasgos curvos. O formato roteado mantém o trajeto por segmentos; G85 só representa rasgos retos.");
+            curveNote.setWrapText(true); curveNote.setMaxWidth(400); grid.add(curveNote,0,7,2,1);
+        }
         dialog.getDialogPane().setContent(grid);
         dialog.setResultConverter(button -> button.getButtonData() != ButtonBar.ButtonData.OK_DONE ? null
                 : new ExcellonExporter.Format(isInch(units) ? "IN" : "MM",

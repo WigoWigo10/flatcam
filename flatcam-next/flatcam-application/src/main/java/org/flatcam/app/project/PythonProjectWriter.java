@@ -45,6 +45,8 @@ public final class PythonProjectWriter {
                 || project.excellons().stream().map(ProjectFile.ExcellonEntry::cncSettings).filter(java.util.Objects::nonNull)
                     .map(s -> List.of(s.preprocessor(),s.options(),s.toolOrder())).distinct().count()>1;
         for (var entry : project.excellons()) {
+            if (entry.image().slots().stream().anyMatch(org.flatcam.cam.excellon.ExcellonImage.Slot::hasPath))
+                throw new IOException("Rasgos curvos Excellon não possuem representação de trajeto no projeto Python. Salve em .fcnproj ou exporte Excellon roteado. Objeto: "+entry.name());
             if (!globallyDifferent) continue;
             var legacy = project.pythonLegacy();
             if (legacy != null && original == null) original = PythonProjectIO.decode(legacy.original());

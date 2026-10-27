@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Excellon incremental e circular — 2026-10-27
+
+G91/G90 em furos, G85 e roteamento; G02/G03 A/IJ até 180°, aproximação com erro
+físico limitado. Caminho completo conservado nos fluxos CAM/CNC e no nativo v3;
+exportação Python/G85 recusada em curvas. Arquivos antigos sem curvas mantêm v2.
+Probe do leitor Python original: 1 MATCH_LINEAR, 1 DIFFERENT e 2 curvas não
+suportadas; não aumenta uma porcentagem de concordância com o legado.
+[EXCELLON_ROUTING.md](EXCELLON_ROUTING.md). Sem ensaio físico ou GUI nesta rodada.
+Integral final: 2030 aprovações, 18 skips opcionais, zero falhas/erros (2048 registros).
+
 ## Interação do Editor Geometry — 2026-10-27
 
 Jump fora do arco ligado ao Editor Geometry, incluindo comandos da barra/menu

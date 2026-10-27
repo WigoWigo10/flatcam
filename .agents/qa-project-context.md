@@ -6,7 +6,17 @@ logs under `flatcam-next/target`. This is a desktop app, not a Next.js website.
 
 ## Product
 
-Latest serial review (2026-10-27): full verify 2026 records, 2008 passed,
+Latest serial implementation (2026-10-27): Geometry Jump/drag rotation committed
+as f87635e0 (2032 records, 2014 passed, 18 skips); next increment adds G91 and
+sampled circular Excellon routes, preserving their full path through CAM/CNC.
+Final verify: 2048 records, 2030 passed, 18 optional skips, zero failures/errors.
+Native projects with routed paths use version 3 so old v2 readers refuse them;
+unchanged straight-slot projects still write v2. Python/G85 export refuses
+curved routes. Original Python reader probe: one linear match, one G91 difference,
+two unsupported curves, not parity. See flatcam-next/EXCELLON_ROUTING.md.
+These new gestures/routes were tested programmatically, not in a fresh GUI session.
+
+Earlier real-window review (2026-10-27): full verify 2026 records, 2008 passed,
 18 optional skips, zero failures/errors. Real FX GUI exercised four themes,
 new Excellon array preview/confirm/undo/redo/cancel and import fields on a copy
 of the 21-object project. Python GUI loaded/rendered its copy, but window

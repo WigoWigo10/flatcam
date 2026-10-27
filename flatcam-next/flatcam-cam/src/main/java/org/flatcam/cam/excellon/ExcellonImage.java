@@ -20,7 +20,33 @@ public final class ExcellonImage {
     public record Drill(int toolId, double x, double y) {
     }
 
-    public record Slot(int toolId, double x1, double y1, double x2, double y2) {
+    /** Immutable sampled centreline vertices for a routed slot; empty on legacy straight slots. */
+    public record RoutePoint(double x, double y) {
+        public RoutePoint {
+            if (!Double.isFinite(x) || !Double.isFinite(y)) throw new IllegalArgumentException("Non-finite route point");
+        }
+    }
+
+    public record Slot(int toolId, double x1, double y1, double x2, double y2, List<RoutePoint> path) {
+        public Slot(int toolId,double x1,double y1,double x2,double y2) { this(toolId,x1,y1,x2,y2,List.of()); }
+        public Slot {
+            path = path==null ? List.of() : List.copyOf(path);
+            if (!path.isEmpty() && (path.size()<2 || path.getFirst().x()!=x1 || path.getFirst().y()!=y1
+                    || path.getLast().x()!=x2 || path.getLast().y()!=y2))
+                throw new IllegalArgumentException("Routed slot endpoints do not match its centreline");
+        }
+        public boolean hasPath() { return !path.isEmpty(); }
+        public org.locationtech.jts.geom.LineString centerline(org.locationtech.jts.geom.GeometryFactory factory) {
+            return factory.createLineString(hasPath() ? path.stream().map(p->new Coordinate(p.x(),p.y())).toArray(Coordinate[]::new)
+                    : new Coordinate[]{new Coordinate(x1,y1),new Coordinate(x2,y2)});
+        }
+        public Slot withTool(int id) { return new Slot(id,x1,y1,x2,y2,path); }
+        public Slot transformed(TransformOp op) {
+            Coordinate from=op.apply(new Coordinate(x1,y1)), to=op.apply(new Coordinate(x2,y2));
+            return new Slot(toolId,from.x,from.y,to.x,to.y,path.stream().map(p->{
+                Coordinate point=op.apply(new Coordinate(p.x(),p.y())); return new RoutePoint(point.x,point.y);
+            }).toList());
+        }
     }
 
     private final String units;
@@ -108,7 +134,7 @@ public final class ExcellonImage {
             var factory=solidGeometry == null ? new org.locationtech.jts.geom.GeometryFactory() : solidGeometry.getFactory();
             List<Geometry> footprints = new java.util.ArrayList<>();
             for (var drill : drills) footprints.add(factory.createPoint(new Coordinate(drill.x(),drill.y())).buffer(diameters.get(drill.toolId())/2,16));
-            for (var slot : slots) footprints.add(factory.createLineString(new Coordinate[]{new Coordinate(slot.x1(),slot.y1()),new Coordinate(slot.x2(),slot.y2())}).buffer(diameters.get(slot.toolId())/2,16));
+            for (var slot : slots) footprints.add(slot.centerline(factory).buffer(diameters.get(slot.toolId())/2,16));
             return new ExcellonImage(units,diameters,drills,slots,factory.buildGeometry(footprints));
         }
         List<Drill> newDrills = drills.stream()
@@ -117,13 +143,7 @@ public final class ExcellonImage {
                     return new Drill(drill.toolId(), p.x, p.y);
                 })
                 .toList();
-        List<Slot> newSlots = slots.stream()
-                .map(slot -> {
-                    Coordinate p1 = op.apply(new Coordinate(slot.x1(), slot.y1()));
-                    Coordinate p2 = op.apply(new Coordinate(slot.x2(), slot.y2()));
-                    return new Slot(slot.toolId(), p1.x, p1.y, p2.x, p2.y);
-                })
-                .toList();
+        List<Slot> newSlots = slots.stream().map(slot -> slot.transformed(op)).toList();
         return new ExcellonImage(units, toolDiameters, newDrills, newSlots,
                 solidGeometry == null ? null : op.apply(solidGeometry));
     }

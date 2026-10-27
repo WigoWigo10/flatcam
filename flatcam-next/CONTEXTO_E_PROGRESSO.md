@@ -1,5 +1,24 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série de interação/importação, item 2 — 2026-10-27
+
+Item 1 commitado em `f87635e0`. Leitor Excellon agora interpreta G91/G90 em
+furos/G85/roteamento, G02/G03 com A ou par I/J, comandos modais e tool-up.
+Cada arco conserva uma linha central amostrada, usada em edição, painel,
+transformações, conversão, Milling, Drill slots e CNC; exclusões validam a curva.
+Erro de corda na importação 0,001 mm, orçamento numérico e limite explícito.
+Nativo com curvas usa v3 para leitores v2 recusarem; pontos JSON exatos.
+`.FlatPrj`/G85 recusados para curvas; UI oferece roteado, que lineariza o caminho.
+Reimportar esse arquivo pode mudar agrupamento/mergulhos; nativo preserva ambos.
+Probe original Python: 1 controle equivalente, 1 diferente (G91 não acumulado),
+2 curvas não suportadas. Não contar como concordância global. Testes e limites:
+[EXCELLON_ROUTING.md](EXCELLON_ROUTING.md). Sem nova janela Qt/máquina nesta etapa.
+Integral final: **2030 aprovações, 18 skips opcionais, zero falhas/erros**
+(2048 registros), `target/excellon-advanced-routing-final-verify.log` e JSON
+homônimo. Rodada focada antes dos últimos refinamentos: 70 CAM +28 aplicação
+aprovados (`target/excellon-routing-focused-final.log`); asserts antigos intactos.
+Build nativo sincronizado e probe aprovado (`target/excellon-routing-native-build.log`).
+
 ## Série de interação/importação, item 1 — 2026-10-27
 
 Jump J e comando da barra/menu agora funcionam em todo o Editor Geometry,
