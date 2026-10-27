@@ -67,7 +67,7 @@ final class PreferencesPane extends BorderPane {
                 case "Importação: Gerber", "Gerber: Exibição", "Gerber: Avançadas" -> "Gerber";
                 case "Importação: Excellon", "Excellon: Exibição" -> "Excellon";
                 case "Editor Geometry", "Geometry: Exibição" -> "Geometry";
-                case "CNC Job (geral)", "Geometry CNC", "Drilling", "Excellon Milling" -> "CNC Job";
+                case "CNC Job (geral)", "Geometry CNC", "Drilling", "Excellon Milling", "CNC Job: Exibição" -> "CNC Job";
                 default -> "Ferramentas";
             };
             String icon = switch (category) {

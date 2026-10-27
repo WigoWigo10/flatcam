@@ -162,7 +162,9 @@ final class PlotAreaView extends StackPane {
         }
     }
 
-    record Annotation(double x, double y, String text) {
+    record Annotation(double x, double y, String text, Color color, int fontSize) {
+        Annotation(double x,double y,String text) { this(x,y,text,null,11); }
+        Annotation { if(fontSize<1 || fontSize>72) throw new IllegalArgumentException("Tamanho de anotação inválido"); }
     }
 
     /** CNCJob "Display Annotation" colors: Python's cncjob_annotation_fontcolor, and its dark-theme inversion. */
@@ -175,6 +177,7 @@ final class PlotAreaView extends StackPane {
     private static final double ARROW_MIN_SEGMENT = 14;
     private static final Color ANNOTATION_DARK = Color.web("#66FFFF");
     private static final javafx.scene.text.Font ANNOTATION_FONT = javafx.scene.text.Font.font(11);
+    private static final Map<Integer,javafx.scene.text.Font> ANNOTATION_FONTS=new java.util.HashMap<>();
     /** Screen cell a label claims; later labels landing in a claimed cell are skipped instead of piling up. */
     private static final double ANNOTATION_CELL_WIDTH = 22;
     private static final double ANNOTATION_CELL_HEIGHT = 13;
@@ -2476,6 +2479,8 @@ final class PlotAreaView extends StackPane {
             for (Map.Entry<Object, List<Annotation>> entry : annotations.entrySet()) {
                 Map<Integer, Integer> roles = focus ? stepView.markRoles(entry.getKey()) : Map.of();
                 for (Annotation label : entry.getValue()) {
+                    gc.setFont(ANNOTATION_FONTS.computeIfAbsent(label.fontSize(),javafx.scene.text.Font::font));
+                    Color labelColor=label.color()==null || label.color().equals(ANNOTATION_LIGHT) ? annotationColor : label.color();
                     Integer role = focus ? roles.get(parseMarkNumber(label.text())) : null;
                     if ((pass == 0) != (role != null) && focus) {
                         continue;
@@ -2496,19 +2501,20 @@ final class PlotAreaView extends StackPane {
                         gc.setFont(ANNOTATION_FONT);
                         continue;
                     }
-                    double textWidth = label.text().length() * 6.4;
+                    double textWidth = label.text().length() * label.fontSize() * .62;
+                    double badgeHeight=label.fontSize()+4;
                     double badgeX = ax + 4;
-                    double badgeY = ay - 4 - 13;
+                    double badgeY = ay - 4 - badgeHeight;
                     gc.setGlobalAlpha(focus ? 0.35 : 1);
-                    gc.setFill(annotationColor);
+                    gc.setFill(labelColor);
                     gc.fillOval(ax - 1.5, ay - 1.5, 3, 3);
                     gc.setFill(badgeFill);
-                    gc.fillRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
+                    gc.fillRoundRect(badgeX, badgeY, textWidth + 6, badgeHeight, 6, 6);
                     gc.setLineWidth(1);
-                    gc.setStroke(annotationColor.deriveColor(0, 1, 1, 0.7));
-                    gc.strokeRoundRect(badgeX, badgeY, textWidth + 6, 13, 6, 6);
-                    gc.setFill(annotationColor);
-                    gc.fillText(label.text(), badgeX + 3, badgeY + 10);
+                    gc.setStroke(labelColor.deriveColor(0, 1, 1, 0.7));
+                    gc.strokeRoundRect(badgeX, badgeY, textWidth + 6, badgeHeight, 6, 6);
+                    gc.setFill(labelColor);
+                    gc.fillText(label.text(), badgeX + 3, badgeY + label.fontSize()+1);
                     gc.setGlobalAlpha(1);
                 }
             }

@@ -49,6 +49,17 @@ final class ToolDefaults {
     }
 
     static {
+        String cncDisplay="CNC Job: Exibição";
+        flag("display.cnc.plot",cncDisplay,"Plotar novos CNC Jobs",true);
+        choice("display.cnc.kind",cncDisplay,"Plot Kind","ALL","ALL","CUT","TRAVEL");
+        color("display.cnc.cutfill",cncDisplay,"Preenchimento de corte","#5E6CFFFF");
+        color("display.cnc.cutline",cncDisplay,"Linhas de corte","#4650BDFF");
+        color("display.cnc.travelfill",cncDisplay,"Preenchimento de deslocamento","#F0E24D4C");
+        color("display.cnc.travelline",cncDisplay,"Linhas de deslocamento","#B5AB3A4C");
+        flag("display.cnc.annotations",cncDisplay,"Anotações",true);
+        flag("display.cnc.arrows",cncDisplay,"Setas de direção",true);
+        integer("display.cnc.fontsize",cncDisplay,"Tamanho das anotações",9);
+        color("display.cnc.fontcolor",cncDisplay,"Cor das anotações","#990000");
         for (String kind : List.of("gerber", "excellon", "geometry")) {
             String title = switch (kind) { case "gerber" -> "Gerber"; case "excellon" -> "Excellon"; default -> "Geometry"; };
             String group = title + ": Exibição";
@@ -523,6 +534,7 @@ final class ToolDefaults {
             case INTEGER -> {
                 try {
                     int parsed = Integer.parseInt(value);
+                    if (setting.key().equals("display.cnc.fontsize") && (parsed<1 || parsed>72)) return "deve estar entre 1 e 72";
                     if (setting.key().equals("geometry.editorcirclesteps")) {
                         try { org.flatcam.cam.geometry.EditorArc.validateSteps(parsed); }
                         catch (IllegalArgumentException invalid) { return invalid.getMessage(); }

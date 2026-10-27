@@ -1,5 +1,17 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série de paridade visual, item 1: CNC Job — 2026-10-27
+
+Preferências CNC de cores RGBA corte/deslocamento, Plot/Kind, anotações/setas,
+fonte/cor implementadas. Estilo persistido por objeto com campos opcionais;
+legado usa apresentação anterior, novos jobs usam defaults configurados.
+Reabertura, cópia e edição do G-code conservam estilo/Kind; visibilidade da
+árvore respeita Kind. Fontes em cache no renderer, sem recriar por anotação.
+`.FlatPrj` usa extensão FX para os detalhes visuais por objeto, não paridade Qt.
+37 testes focados e pacote passaram (`target/cnc-display-commit-check.log`).
+Suíte integral será rodada após a série; falha End Z conhecida continua aberta.
+Próximo item autorizado: padrões dos editores. Sem push solicitado.
+
 ## Preferências: exibição e opções avançadas por objeto — 2026-10-27
 
 Etapa por categorias commitada em `ae16ddb5`; rotação em `ebacf0ad`.

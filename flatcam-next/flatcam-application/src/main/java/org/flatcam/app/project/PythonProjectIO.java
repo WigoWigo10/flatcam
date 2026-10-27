@@ -317,7 +317,9 @@ public final class PythonProjectIO {
         if (gcode == null || gcode.isBlank())
             throw new IllegalArgumentException("CNC Job sem G-code embutido: " + name);
         String safeName = name.replaceAll("[\\\\/:*?\"<>|]", "_");
-        return new ProjectFile.CncJobRecord(name, "", safeName + ".nc", gcode, plot(object));
+        JSONObject plotOptions=object.optJSONObject("options");
+        return new ProjectFile.CncJobRecord(name, "", safeName + ".nc", gcode, plot(object),
+                CncPlotSettings.fromJson(plotOptions==null?null:plotOptions.optJSONObject("fx_plot_settings")));
     }
 
     private static String name(JSONObject object, String fallback) {

@@ -22,6 +22,39 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class ObjectPlotDefaultsTest {
+    @ParameterizedTest @ValueSource(strings={".fcnproj",".FlatPrj"})
+    void cncStylesAndPlotKindSurviveCopyEditAndReopen(String extension,@TempDir Path directory) throws Exception {
+        ToolDefaults.set("display.cnc.kind",true,"CUT"); ToolDefaults.set("display.cnc.cutfill",true,"#12345680");
+        ToolDefaults.set("display.cnc.fontsize",true,"18"); ToolDefaults.set("display.cnc.fontcolor",true,"#ABCDEF");
+        ToolDefaults.set("display.cnc.annotations",true,"false");
+        String code="G21\nG90\nG0 X1 Y1 Z2\nG1 Z-1 F60\nG1 X5 Y1 F100\nG0 Z2\nG0 X0 Y0\n";
+        try(var session=new Session()) {
+            var parsed=org.flatcam.cam.gcode.GCodeToolpathParser.parse(code,org.flatcam.cam.CancellationToken.none(),p->{});
+            TerminalPanelTest.fx(()->{
+                var key=invoke(session.host,"addCncJobToProject",new Class<?>[]{String.class,String.class,Path.class,String.class,Geometry.class,Geometry.class},
+                        "job","",directory.resolve("job.nc"),code,parsed.travelGeometry(),parsed.cutGeometry());
+                var record=((org.flatcam.app.project.ProjectFile)invoke(session.host,"snapshotProject",new Class<?>[]{})).cncJobs().getFirst();
+                assertEquals("CUT",record.plotSettings().kind()); assertEquals(18,record.plotSettings().fontSize()); assertFalse(record.plotSettings().annotations());
+                assertEquals(Color.web("#12345680"),Color.web(record.plotSettings().cutFill()));
+                var previous=((Map<?,?>)field("cncJobByItem").get(session.host)).get(key);
+                invoke(session.host,"updateCncJob",new Class<?>[]{TreeItem.class,previous.getClass(),String.class,org.flatcam.cam.gcode.GCodeToolpathParser.Result.class},key,previous,code,parsed);
+                var updated=((org.flatcam.app.project.ProjectFile)invoke(session.host,"snapshotProject",new Class<?>[]{})).cncJobs().getFirst();
+                assertEquals(record.plotSettings(),updated.plotSettings());
+                invoke(session.host,"copyObject",new Class<?>[]{TreeItem.class},key);
+                var records=((org.flatcam.app.project.ProjectFile)invoke(session.host,"snapshotProject",new Class<?>[]{})).cncJobs();
+                assertEquals(records.getFirst().plotSettings(),records.getLast().plotSettings());
+                return null;
+            });
+            Path saved=directory.resolve("cnc"+extension); session.host.saveProject(saved);
+            ToolDefaults.set("display.cnc.kind",true,"ALL"); ToolDefaults.set("display.cnc.cutfill",true,"#FF0000");
+            session.host.openProject(saved,true);
+            TerminalPanelTest.fx(()->{
+                var records=((org.flatcam.app.project.ProjectFile)invoke(session.host,"snapshotProject",new Class<?>[]{})).cncJobs();
+                assertEquals("CUT",records.getFirst().plotSettings().kind()); assertEquals(Color.web("#12345680"),Color.web(records.getFirst().plotSettings().cutFill()));
+                assertEquals(18,records.getFirst().plotSettings().fontSize()); return null;
+            });
+        }
+    }
     @BeforeEach @AfterEach void store() { ToolDefaults.useStore(ToolDefaults.memoryStore()); }
     static Field field(String name) throws Exception { var f=MainWindow.class.getDeclaredField(name); f.setAccessible(true); return f; }
     static Object invoke(MainWindow host, String name, Class<?>[] types, Object... args) throws Exception {

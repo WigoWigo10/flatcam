@@ -253,6 +253,7 @@ public final class PythonProjectWriter {
         double dia = preview.stats() == null || preview.stats().cutterDiameter() == null ? 0 : preview.stats().cutterDiameter();
         JSONObject options = options(job.name() == null ? Path.of(job.outputPath()).getFileName().toString() : job.name(),
                 job.visible(), preview.cutGeometry()).put("tooldia", dia).put("type", "Geometry");
+        if (job.plotSettings()!=null) options.put("fx_plot_settings",job.plotSettings().toJson());
         return new JSONObject().put("kind","cncjob").put("units",preview.units()).put("options",options)
                 .put("gcode",job.gcode()).put("gcode_parsed",parsed).put("solid_geometry",WktJson.wrap(preview.cutGeometry()))
                 .put("follow_geometry",new JSONArray()).put("tools",new JSONObject()).put("multitool",false)

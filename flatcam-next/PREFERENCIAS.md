@@ -97,6 +97,21 @@ das preferências globais de um `.FlatPrj` para o store do FX.
 
 ## Verificação e limites de paridade
 
+### Série seguinte, item 1: CNC Job
+
+`CNC Job > CNC Job: Exibição` configura cores/transparência independentes de
+corte/deslocamento, Plot inicial, All/Cut/Travel, anotações, setas e fonte/cor
+das anotações. A fonte padrão de novos jobs é 9, como no Python, limitada a
+1–72 pixels lógicos. A cor padrão adapta o contraste ao tema; cores personalizadas
+são usadas como escolhidas. Isso só modifica a apresentação, nunca o G-code.
+Jobs existentes mantêm os valores ao copiar, editar código ou reabrir projetos.
+O estado visual é opcional no formato nativo, mantendo leitura de arquivos antigos.
+No `.FlatPrj`, os detalhes por objeto são uma extensão FX `fx_plot_settings`;
+não se afirma que o Python use todos esses detalhes visuais ao abrir o arquivo.
+Controles All/Travel/Cut e anotações/setas das propriedades continuam funcionando.
+37 testes focados e empacotamento passaram; log `target/cnc-display-commit-check.log`.
+
+
 Na etapa por categorias (`ae16ddb5`), dez cenários novos verificam roteamento de todos os grupos, busca e navegação,
 rascunhos mm/in, erros ocultos pela busca, reset restrito, aplicação do Plot,
 tema e layout de 680 px nos quatro temas. Os testes usam store em memória e

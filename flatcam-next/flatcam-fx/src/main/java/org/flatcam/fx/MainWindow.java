@@ -229,7 +229,7 @@ final class MainWindow implements TclFlatcamHost {
                                 Geometry travelGeometry, Geometry cutGeometry,
                                 Geometry travelCenterlines, Geometry cutCenterlines,
                                 double previewStrokeWidth, String units, boolean visible,
-                                GCodeToolpathParser.ToolpathStats stats) {
+                                GCodeToolpathParser.ToolpathStats stats, org.flatcam.app.project.CncPlotSettings plotSettings) {
     }
 
     /** A Geometry CNC Job plus the totals read back from its own text (see GCodeToolpathParser.ToolpathStats). */
@@ -289,6 +289,7 @@ final class MainWindow implements TclFlatcamHost {
     private final Set<TreeItem<String>> cncAnnotationsOff = new LinkedHashSet<>();
     /** CNC Jobs whose cutting-direction arrows were switched off (on by default). */
     private final Set<TreeItem<String>> cncArrowsOff = new LinkedHashSet<>();
+    private final Map<TreeItem<String>, org.flatcam.app.project.CncPlotSettings> cncPlotSettings = new LinkedHashMap<>();
     /** Caption of the lit route leg in the CNC Job properties, when that panel is showing. */
     private Label cncStepLabel;
     /** Conversion caveats remain attached when an imported Python project is saved as native .fcnproj. */
@@ -626,6 +627,7 @@ final class MainWindow implements TclFlatcamHost {
         CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
         boolean hadPlot = previous.cutGeometry() != null || previous.travelGeometry() != null;
         boolean visible = !hadPlot || plotAreaView.isLayerVisible(cutKey) || plotAreaView.isLayerVisible(travelKey);
+        var appearance=snapshotCncPlotSettings(item);
         double previewWidth = previewWidthFor(parsed);
         cncJobByItem.put(item, new CncJobEntry(previous.sourceName(), previous.outputFile(), text,
                 parsed.travelGeometry(), parsed.cutGeometry(), parsed.travelCenterlines(),
@@ -654,7 +656,7 @@ final class MainWindow implements TclFlatcamHost {
         } finally {
             plotAreaView.endBatchUpdate();
         }
-        refreshCncAnnotations(item);
+        applyCncPlotSettings(item,appearance,visible);
         refreshPlotSelectionOutline();
         if (projectTree.getSelectionModel().getSelectedItem() == item) {
             showProperties(item);
@@ -5570,8 +5572,9 @@ final class MainWindow implements TclFlatcamHost {
     /** Mutation only: callers changing several objects refresh the tree/selection once, inside a Plot batch. */
     private void applyObjectVisibility(TreeItem<String> item, boolean visible) {
         if (cncJobByItem.containsKey(item)) {
-            plotAreaView.setLayerVisible(new CncTravelLayerKey(item), visible);
-            plotAreaView.setLayerVisible(new CncCutLayerKey(item), visible);
+            String kind=cncPlotSettings.getOrDefault(item,org.flatcam.app.project.CncPlotSettings.legacy()).kind();
+            plotAreaView.setLayerVisible(new CncTravelLayerKey(item), visible && !kind.equals("CUT"));
+            plotAreaView.setLayerVisible(new CncCutLayerKey(item), visible && !kind.equals("TRAVEL"));
             refreshCncAnnotations(item);
         } else {
             plotAreaView.setLayerVisible(item, visible);
@@ -6450,6 +6453,7 @@ final class MainWindow implements TclFlatcamHost {
                     cncJob.cutCenterlines(), cncJob.previewStrokeWidth(), cncJob.stats());
             copyLayerAppearance(new CncTravelLayerKey(sourceItem), new CncTravelLayerKey(copyItem));
             copyLayerAppearance(new CncCutLayerKey(sourceItem), new CncCutLayerKey(copyItem));
+            applyCncPlotSettings(copyItem,snapshotCncPlotSettings(sourceItem),isObjectVisible(sourceItem));
             refreshCncAnnotations(copyItem);
         } else {
             return null;
@@ -6563,7 +6567,10 @@ final class MainWindow implements TclFlatcamHost {
         } finally {
             plotAreaView.endBatchUpdate();
         }
-        refreshCncAnnotations(item);
+        applyCncPlotSettings(item,restoringProject ? org.flatcam.app.project.CncPlotSettings.legacy() : new org.flatcam.app.project.CncPlotSettings(
+                ToolDefaults.text("display.cnc.cutfill"),ToolDefaults.text("display.cnc.cutline"),ToolDefaults.text("display.cnc.travelfill"),ToolDefaults.text("display.cnc.travelline"),
+                ToolDefaults.choice("display.cnc.kind"),ToolDefaults.flag("display.cnc.annotations"),ToolDefaults.flag("display.cnc.arrows"),ToolDefaults.integer("display.cnc.fontsize"),ToolDefaults.text("display.cnc.fontcolor")),
+                restoringProject || ToolDefaults.flag("display.cnc.plot"));
         return item;
     }
 
@@ -6620,7 +6627,25 @@ final class MainWindow implements TclFlatcamHost {
      * Python's "Display Annotation": the start and end of every travel move numbered in
      * program order, shown while the job is plotted.
      */
+    private org.flatcam.app.project.CncPlotSettings snapshotCncPlotSettings(TreeItem<String> item) {
+        var base=cncPlotSettings.getOrDefault(item,org.flatcam.app.project.CncPlotSettings.legacy());
+        Color[] cut=plotAreaView.layerColors(new CncCutLayerKey(item)), travel=plotAreaView.layerColors(new CncTravelLayerKey(item));
+        return new org.flatcam.app.project.CncPlotSettings(cut==null?base.cutFill():cut[0].toString().replace("0x","#"),cut==null?base.cutLine():cut[1].toString().replace("0x","#"),
+                travel==null?base.travelFill():travel[0].toString().replace("0x","#"),travel==null?base.travelLine():travel[1].toString().replace("0x","#"),base.kind(),
+                !cncAnnotationsOff.contains(item),!cncArrowsOff.contains(item),base.fontSize(),base.fontColor());
+    }
+
+    private void applyCncPlotSettings(TreeItem<String> item,org.flatcam.app.project.CncPlotSettings settings,boolean visible) {
+        cncPlotSettings.put(item,settings);
+        if(settings.annotations())cncAnnotationsOff.remove(item);else cncAnnotationsOff.add(item);
+        if(settings.arrows())cncArrowsOff.remove(item);else cncArrowsOff.add(item);
+        plotAreaView.setLayerColors(new CncCutLayerKey(item),Color.web(settings.cutFill()),Color.web(settings.cutLine()));
+        plotAreaView.setLayerColors(new CncTravelLayerKey(item),Color.web(settings.travelFill()),Color.web(settings.travelLine()));
+        applyObjectVisibility(item,visible);
+    }
+
     private void refreshCncAnnotations(TreeItem<String> item) {
+        var appearance=cncPlotSettings.getOrDefault(item,org.flatcam.app.project.CncPlotSettings.legacy());
         CncAnnotationKey key = new CncAnnotationKey(item);
         CncJobEntry entry = cncJobByItem.get(item);
         boolean showArrows = entry != null && entry.stats() != null && !cncArrowsOff.contains(item)
@@ -6648,7 +6673,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         plotAreaView.setAnnotations(key, entry.stats().pathMarks().stream()
                 .filter(mark -> !hiddenPositions.contains(List.of(mark.x(), mark.y())))
-                .map(mark -> new PlotAreaView.Annotation(mark.x(), mark.y(), Integer.toString(mark.sequence())))
+                .map(mark -> new PlotAreaView.Annotation(mark.x(), mark.y(), Integer.toString(mark.sequence()),Color.web(appearance.fontColor()),appearance.fontSize()))
                 .toList());
     }
 
@@ -7720,6 +7745,7 @@ final class MainWindow implements TclFlatcamHost {
         hiddenCncTools.remove(item);
         cncAnnotationsOff.remove(item);
         cncArrowsOff.remove(item);
+        cncPlotSettings.remove(item);
         refreshPlotSelectionOutline();
         appendConsole("Removido do projeto: " + item.getValue());
     }
@@ -8098,7 +8124,8 @@ final class MainWindow implements TclFlatcamHost {
         ComboBox<String> kindCombo = new ComboBox<>();
         kindCombo.setId("object-plot-kind");
         kindCombo.getItems().addAll("All", "Travel", "Cut");
-        kindCombo.setValue(travelVisible == cutVisible ? "All" : cutVisible ? "Cut" : "Travel");
+        String storedKind=cncPlotSettings.getOrDefault(item,org.flatcam.app.project.CncPlotSettings.legacy()).kind();
+        kindCombo.setValue(storedKind.equals("ALL")?"All":storedKind.equals("CUT")?"Cut":"Travel");
         kindCombo.setDisable(!hasGeometry);
 
         CheckBox plotCb = new CheckBox();
@@ -8110,6 +8137,8 @@ final class MainWindow implements TclFlatcamHost {
             if (Boolean.TRUE.equals(kindCombo.getProperties().get("syncing-plot-kind"))) return;
             boolean visible = plotCb.isSelected();
             String kind = kindCombo.getValue();
+            var previous=snapshotCncPlotSettings(item);
+            cncPlotSettings.put(item,new org.flatcam.app.project.CncPlotSettings(previous.cutFill(),previous.cutLine(),previous.travelFill(),previous.travelLine(),kind.toUpperCase(java.util.Locale.ROOT),previous.annotations(),previous.arrows(),previous.fontSize(),previous.fontColor()));
             plotAreaView.setLayerVisible(travelKey, visible && !"Cut".equals(kind));
             plotAreaView.setLayerVisible(cutKey, visible && !"Travel".equals(kind));
             refreshCncAnnotations(item);
@@ -10139,7 +10168,7 @@ final class MainWindow implements TclFlatcamHost {
         List<ProjectFile.CncJobRecord> jobs = cncJobByItem.entrySet().stream()
                 .map(entry -> new ProjectFile.CncJobRecord(entry.getKey().getValue(),
                         entry.getValue().sourceName(), entry.getValue().outputFile().toString(),
-                        entry.getValue().gcode(), isObjectVisible(entry.getKey())))
+                        entry.getValue().gcode(), isObjectVisible(entry.getKey()),snapshotCncPlotSettings(entry.getKey())))
                 .toList();
         List<ProjectFile.GeometryEntry> geometries = new ArrayList<>();
         for (Map.Entry<TreeItem<String>, GeometryEntry> entry : geometryByItem.entrySet()) {
@@ -10294,7 +10323,7 @@ final class MainWindow implements TclFlatcamHost {
                 String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
                 cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode,
                         travel, cut, travelCenterlines, cutCenterlines,
-                        previewStrokeWidth, units, job.visible(), stats));
+                        previewStrokeWidth, units, job.visible(), stats, job.plotSettings()));
             } catch (IOException e) {
                 warnings.add("Aviso: nao foi possivel ler G-code " + outputPath + ": " + e.getMessage());
             }
@@ -10370,6 +10399,7 @@ final class MainWindow implements TclFlatcamHost {
                         loaded.travelCenterlines(), loaded.cutCenterlines(), loaded.previewStrokeWidth(),
                         loaded.stats());
                 rememberPythonOrigin(item, "cncjob");
+                applyCncPlotSettings(item,loaded.plotSettings()==null?org.flatcam.app.project.CncPlotSettings.legacy():loaded.plotSettings(),loaded.visible());
                 if (!loaded.visible()) setObjectVisible(item, false);
                 if (loaded.units() != null) {
                     setDisplayUnits(loaded.units());
@@ -10461,6 +10491,7 @@ final class MainWindow implements TclFlatcamHost {
         hiddenCncTools.clear();
         cncAnnotationsOff.clear();
         cncArrowsOff.clear();
+        cncPlotSettings.clear();
         gerberFollowItems.clear();
         sourcePathByItem.clear();
         currentProjectImportWarnings = List.of();

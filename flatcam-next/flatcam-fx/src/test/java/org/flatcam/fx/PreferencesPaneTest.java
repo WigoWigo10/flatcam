@@ -157,6 +157,7 @@ class PreferencesPaneTest {
             search(view).setText("gerber cor"); view.pane.applyCss(); view.pane.layout();
             assertEquals("#12345680",field(view,id+"-hex").getText());
             button(view,"tool-defaults-save").fire(); assertEquals("#12345680",ToolDefaults.text("display.gerber.fill",true));
+            view.pane.applyCss(); view.pane.layout();
             if(Boolean.getBoolean("flatcam.tests.snapshots")) saveSnapshot(view,"preferences-colors-"+theme);
             field(view,id+"-hex").setText("invalid"); button(view,"tool-defaults-save").fire();
             assertEquals("#12345680",ToolDefaults.text("display.gerber.fill",true));

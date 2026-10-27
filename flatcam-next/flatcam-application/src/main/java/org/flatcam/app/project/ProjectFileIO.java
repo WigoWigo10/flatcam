@@ -114,6 +114,7 @@ public final class ProjectFileIO {
             jobJson.put("sourceName", job.sourceName());
             jobJson.put("outputPath", job.outputPath());
             jobJson.put("visible", job.visible());
+            if (job.plotSettings()!=null) jobJson.put("plotSettings",job.plotSettings().toJson());
             if (job.gcode() != null) {
                 jobJson.put("gcode", job.gcode());
             }
@@ -534,7 +535,7 @@ public final class ProjectFileIO {
                 JSONObject jobJson = jobsArray.getJSONObject(i);
                 jobs.add(new ProjectFile.CncJobRecord(jobJson.optString("name", null),
                         jobJson.getString("sourceName"), jobJson.getString("outputPath"),
-                        jobJson.optString("gcode", null), jobJson.optBoolean("visible", true)));
+                        jobJson.optString("gcode", null), jobJson.optBoolean("visible", true), CncPlotSettings.fromJson(jobJson.optJSONObject("plotSettings"))));
             }
         }
         return jobs;
