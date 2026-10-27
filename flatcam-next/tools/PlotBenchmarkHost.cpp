@@ -64,7 +64,7 @@ int wmain(int argc, wchar_t** argv) {
     std::getline(classFile, classPath);
     if (!classPath.empty() && classPath.back() == '\r') classPath.pop_back();
     if (classPath.empty()) { std::cerr << "Missing test classpath\n"; return 2; }
-    std::vector<std::string> values{"-Djava.class.path=" + classPath, "--enable-native-access=ALL-UNNAMED"};
+    std::vector<std::string> values{"-Djava.class.path=" + classPath, "--enable-native-access=ALL-UNNAMED", "-XX:+UnlockDiagnosticVMOptions", "-XX:DisableIntrinsic=_indexOfUL"};
     std::ifstream optionsFile{fs::path(argv[3])};
     if (!optionsFile) return 2;
     for (std::string line; std::getline(optionsFile, line);) {

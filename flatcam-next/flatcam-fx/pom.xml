@@ -104,7 +104,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <!-- Surefire loads JavaFX on the classpath, unlike the application launcher. -->
-                    <argLine>--enable-native-access=ALL-UNNAMED ${argLine}</argLine>
+                    <argLine>--enable-native-access=ALL-UNNAMED ${flatcam.jvm.stringSearchWorkaround} ${argLine}</argLine>
                 </configuration>
             </plugin>
             <plugin>
@@ -116,6 +116,8 @@
                     <commandlineArgs>${flatcam.args}</commandlineArgs>
                     <options>
                         <option>--enable-native-access=javafx.graphics</option>
+                        <option>-XX:+UnlockDiagnosticVMOptions</option>
+                        <option>-XX:DisableIntrinsic=_indexOfUL</option>
                         <!-- Optional read-only renderer bridge; keep in sync with the native launcher. -->
                         <option>--add-exports=javafx.graphics/com.sun.prism=ALL-UNNAMED</option>
                         <option>--add-exports=javafx.graphics/com.sun.javafx.tk=ALL-UNNAMED</option>

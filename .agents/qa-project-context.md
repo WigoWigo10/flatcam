@@ -42,6 +42,17 @@ Observed execution on Windows/PowerShell. No real CNC controller connected or
 validated. Public/synthetic fixtures are preferred. Legacy live-app tests must
 isolate settings/offscreen UI and must not modify private projects/preferences.
 
+## Latest runtime finding — 2026-10-27
+
+The unexplained End Z assertion is now isolated: a standalone HotSpot 25.0.4.1
+AVX2 probe returns false for an ASCII substring inside the correct UTF16 text.
+10/10 red without workaround, 10/10 green disabling only _indexOfUL. All other
+AVX/CompactStrings/GPU paths remain enabled. CNC assertion unchanged; runtime
+guard red-before/green-after. Full verify: 1989 passes, 18 optional skips,
+zero failures/errors, 2007 records. See flatcam-next/JVM_STRING_SEARCH.md.
+Do not describe the prior failure as unconfirmed CNC rounding or random flakiness.
+User authorized four serial stages with one commit each; no remote push requested.
+
 ## Quality Goals
 
 Continuation after `79f2aedd`: NCC point-touch preparation fix completed,

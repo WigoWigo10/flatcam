@@ -1,5 +1,20 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série seguinte, item 1 concluído: End Z / JVM — 2026-10-27
+
+Causa reproduzida fora do FlatCAM: HotSpot 25.0.4.1 AVX2 devolve falso negativo
+em String.contains ao procurar substring Latin1 em texto UTF16 após aquecimento.
+O End Z e seu rótulo estavam corretos. Probe independente vermelho 10/10, verde
+10/10 com apenas -XX:DisableIntrinsic=_indexOfUL; AVX/GPU restantes mantidos.
+Asserção CNC original intacta; JvmStringSearchTest novo também foi vermelho sem
+contorno e passou com ele. Aplicado a Surefire, Maven launcher, launcher nativo
+e host de benchmark. Sem troca do JDK do usuário ou alteração de valores CNC.
+Integral aprovada: **1989 testes passaram, 18 skips opcionais, zero falhas/erros**
+(2007 registros). `target/end-z-workaround-verify.log`.
+Repro e limitações: [JVM_STRING_SEARCH.md](JVM_STRING_SEARCH.md).
+Validação dos executáveis/janelas fica no item 4 desta série. Próximo: arrays
+lineares/circulares Excellon, depois importação e conferência real Qt/FX.
+
 ## Série de paridade visual concluída, item 4: transformações — 2026-10-27
 
 Itens anteriores commitados: `9dd76a58` CNC; `24774447` editores;
