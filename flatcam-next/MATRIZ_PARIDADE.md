@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Interação do Editor Geometry — 2026-10-27
+
+Jump fora do arco ligado ao Editor Geometry, incluindo comandos da barra/menu
+e referência abs/rel persistida compartilhada com o Jump geral. Sem inserir
+âncoras ao posicionar. Rotação por arrasto com caixa leve, preparação exata ao
+soltar e confirmação/histórico. Cancelamento não restaura a seleção antiga na
+tabela. Testes de eventos e matemática; validação física/DPI ainda pendente.
+O gesto com caixa é UX do FX, não equivalência literal de interação Qt.
+[GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+
 ## Importação e conferência das janelas — 2026-10-27
 
 Excellon: inteiros IN/MM e LZ/TZ configuráveis, leitura de tokens abreviados,

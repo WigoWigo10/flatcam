@@ -9,6 +9,24 @@ import org.locationtech.jts.geom.Coordinate;
 
 @EnabledOnOs(OS.WINDOWS)
 class ArcCoordinateDialogTest {
+    @Test void generalJumpRestoresReferenceAndDoesNotOfferInsertion() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var d = new ArcCoordinateDialog(null,new Coordinate(10,20),"MM",false,true);
+            try {
+                assertTrue(d.relative.isSelected()); assertEquals("0",d.x.getText());
+                assertFalse(d.getDialogPane().getButtonTypes().contains(d.insert));
+                d.x.setText("2.5"); d.y.setText("-3");
+                var choice = d.getResultConverter().call(d.preview);
+                assertTrue(choice.relative()); assertFalse(choice.insert());
+                assertEquals(new Coordinate(12.5,17),choice.point());
+                assertNull(d.getResultConverter().call(d.insert));
+                d.relative.setSelected(false); assertEquals("10",d.x.getText());
+                assertFalse(d.getResultConverter().call(d.preview).relative());
+                assertNull(d.getResultConverter().call(javafx.scene.control.ButtonType.CANCEL));
+                return null;
+            } finally { d.close(); }
+        });
+    }
     @Test void absoluteAndRelativeCoordinatesAcceptDecimalCommaAndRejectNonfiniteOrExpressions() {
         Coordinate origin = new Coordinate(10.25,-5);
         assertEquals(new Coordinate(1.25,-2.5),ArcCoordinateDialog.resolve("1,25","-2.5",false,origin));

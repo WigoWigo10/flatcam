@@ -44,6 +44,10 @@ class GeometryTextEraserPanelTest {
         Consumer<String> failed;
         Consumer<ArcCoordinateDialog.Choice> coordinateReply;
         Coordinate coordinateReference, movedCursor;
+        boolean coordinatesAllowInsert;
+        public void requestCoordinates(Coordinate cursor,String units,boolean allowInsert,Consumer<ArcCoordinateDialog.Choice> selected) {
+            coordinatesAllowInsert=allowInsert; requestArcCoordinates(cursor,units,selected);
+        }
         public void requestArcCoordinates(Coordinate cursor,String units,Consumer<ArcCoordinateDialog.Choice> selected) {
             coordinateReference = new Coordinate(cursor); coordinateReply = selected;
         }
@@ -94,6 +98,16 @@ class GeometryTextEraserPanelTest {
         void move(double x,double y) {
             double sx=plot.cameraSnapshot().screenX(x), sy=plot.cameraSnapshot().screenY(y);
             plot.fireEvent(new MouseEvent(MouseEvent.MOUSE_MOVED,sx,sy,sx,sy,MouseButton.NONE,0,
+                    false,false,false,false,false,false,false,false,false,true,null));
+        }
+        void drag(double x1,double y1,double x2,double y2) {
+            double sx=plot.cameraSnapshot().screenX(x1), sy=plot.cameraSnapshot().screenY(y1);
+            plot.fireEvent(new MouseEvent(MouseEvent.MOUSE_PRESSED,sx,sy,sx,sy,MouseButton.PRIMARY,1,
+                    false,false,false,false,true,false,false,false,false,true,null));
+            sx=plot.cameraSnapshot().screenX(x2); sy=plot.cameraSnapshot().screenY(y2);
+            plot.fireEvent(new MouseEvent(MouseEvent.MOUSE_DRAGGED,sx,sy,sx,sy,MouseButton.PRIMARY,1,
+                    false,false,false,false,true,false,false,false,false,true,null));
+            plot.fireEvent(new MouseEvent(MouseEvent.MOUSE_RELEASED,sx,sy,sx,sy,MouseButton.PRIMARY,1,
                     false,false,false,false,false,false,false,false,false,true,null));
         }
         double area() { return reflectedSession().resultGeometry().getArea(); }
@@ -516,6 +530,75 @@ class GeometryTextEraserPanelTest {
         } finally { fx(() -> { h.controller.cancel(); return null; }); }
     }
 
+    @Test void jumpWorksDuringCircleAndPathWithoutAddingAnchorsAndRejectsOldReplies() throws Exception {
+        var h=fx(() -> new Harness(new GeometryFactory().createGeometryCollection(),List.of()));
+        try {
+            fx(() -> {
+                h.controller.startCircle(); h.click(50,40); h.move(53,40);
+                assertTrue(h.controller.requestCoordinates()); assertFalse(h.coordinatesAllowInsert);
+                h.plot.setGridSnap(true,2,2);
+                h.coordinateReply.accept(new ArcCoordinateDialog.Choice(new Coordinate(55.1,40.1),false));
+                assertEquals(new Coordinate(56,40),h.movedCursor);
+                assertEquals(0,h.table().getItems().size()); assertTrue(h.plot.isPlacementActive());
+                assertEquals(50.0,h.plotField("placementAnchorWorldX"));
+                assertArrayEquals(new double[]{56,40},h.plot.viewCenter(),1e-12);
+                h.click(56,40); assertEquals(1,h.table().getItems().size());
+                h.controller.startPath(); h.click(50,40);
+                h.controller.requestCoordinates(); var old=h.coordinateReply;
+                h.controller.startCircle();
+                old.accept(new ArcCoordinateDialog.Choice(new Coordinate(500,500),false));
+                assertArrayEquals(new double[]{56,40},h.plot.viewCenter(),1e-12);
+                h.plot.cancelPlacement();
+                h.controller.requestCoordinates(); old=h.coordinateReply;
+                h.controller.cancel(); old.accept(new ArcCoordinateDialog.Choice(new Coordinate(700,700),false));
+                assertArrayEquals(new double[]{56,40},h.plot.viewCenter(),1e-12);
+                return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void angularDragOnlyCalculatesOnReleaseAndRequiresConfirmationWithAtomicUndo() throws Exception {
+        var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
+        var h=fx(() -> new Harness(source,List.of(new ToolGeometry(.8,source))));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.rotationButton("drag").fire();
+                assertNull(h.request); h.drag(52,31,42,21); // Clockwise quarter turn around (42,31).
+                assertNotNull(h.request); assertEquals(90,Double.parseDouble(h.rotationField("angle").getText()),1e-10);
+                assertFalse(h.controller.hasUnappliedChanges()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertNotNull(h.plotField("editorReferenceGeometry")); assertFalse(h.controller.hasUnappliedChanges());
+                h.rotationButton("confirm").fire();
+                assertEquals(new Envelope(41,43,29,33),h.reflectedSession().resultGeometry().getEnvelopeInternal());
+                assertEquals(.8,h.reflectedSession().resultTools().getFirst().toolDiameter());
+                assertTrue(h.controller.undoFromShortcut()); assertTrue(source.equalsExact(h.reflectedSession().resultGeometry().getGeometryN(0),1e-10));
+                assertTrue(h.controller.redoFromShortcut());
+                h.rotationButton("drag").fire(); h.click(42,31); // A pivot click is not a drag.
+                assertNull(h.request); assertTrue(h.controller.cancelRotationFromShortcut());
+                assertNull(h.plotField("angularPlacementHandler")); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
+    @Test void changingSelectionOrEscCancelsAngularDragAndLateExactPreview() throws Exception {
+        var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
+        var h=fx(() -> new Harness(source,List.of()));
+        try {
+            fx(() -> {
+                h.table().getSelectionModel().select(0); h.rotationButton("drag").fire();
+                h.table().getSelectionModel().clearSelection();
+                assertFalse(h.plot.isPlacementActive()); assertNull(h.request);
+                h.table().getSelectionModel().select(0); h.rotationButton("drag").fire();
+                h.drag(52,31,42,21); assertTrue(h.controller.cancelRotationFromShortcut()); return null;
+            }); h.finish();
+            fx(() -> {
+                assertFalse(h.controller.hasUnappliedChanges()); assertFalse(h.plot.isPlacementActive());
+                assertNull(h.plotField("editorReferenceGeometry")); return null;
+            });
+        } finally { fx(() -> { h.controller.cancel(); return null; }); }
+    }
+
     @Test void rotationPreviewIsFixedAndRequiresConfirmationWithOneUndoTransaction() throws Exception {
         var source=new GeometryFactory().toGeometry(new Envelope(40,44,30,32));
         var h=fx(() -> new Harness(source,List.of(new ToolGeometry(.8,source))));
@@ -527,6 +610,10 @@ class GeometryTextEraserPanelTest {
             fx(() -> {
                 assertFalse(h.controller.hasUnappliedChanges()); assertNotNull(h.plotField("editorReferenceGeometry"));
                 assertFalse(h.rotationButton("confirm").isDisabled());
+                h.controller.requestCoordinates();
+                h.coordinateReply.accept(new ArcCoordinateDialog.Choice(new Coordinate(60,40),false));
+                assertEquals(0.0,h.plotField("placementCurrentWorldX"),"Jump must not translate the fixed preview's pivot marker");
+                assertEquals(0.0,h.plotField("placementCurrentWorldY"));
                 ((Button)h.panel.lookup("#geometry-paint-confirm")).fire(); // Must not confirm a rotation.
                 assertFalse(h.controller.hasUnappliedChanges());
                 h.click(80,60); // The confirmation click must not translate the rotated shape.

@@ -239,6 +239,19 @@ final class PlotAreaView extends StackPane {
         void onCancel();
     }
 
+    interface AngularPlacementHandler {
+        void onAngleChanged(double clockwiseDegrees);
+        void onRelease(double clockwiseDegrees);
+        void onCancel();
+    }
+
+    private AngularPlacementHandler angularPlacementHandler;
+    private EditorAngularDrag angularDrag;
+    private Coordinate angularPivot;
+    private Geometry angularBounds;
+    private long placementRevision;
+    long placementRevision() { return placementRevision; }
+
     enum TwoPointShape {
         RECTANGLE, CIRCLE, SLOT
     }
@@ -1469,18 +1482,43 @@ final class PlotAreaView extends StackPane {
         if (threePointHandler != null && placementAnchorChosen)
             return new Coordinate(placementCurrentWorldX,placementCurrentWorldY);
         if (cursorInsidePlot) { double[] p = snappedWorld(cursorScreenX,cursorScreenY); return new Coordinate(p[0],p[1]); }
-        return new Coordinate(viewCenterX,viewCenterY);
+        double[] last = lastPointerWorld();
+        return new Coordinate(last[0],last[1]);
     }
 
     Coordinate previewEditorThreePointAt(Coordinate point) {
-        if (threePointHandler == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)) return null;
+        if (threePointHandler == null) return null;
+        return previewEditorCursorAt(point);
+    }
+
+    /** Jump changes the view/preview, never the anchors or the draft. */
+    Coordinate previewEditorCursorAt(Coordinate point) {
+        if (point == null || !Double.isFinite(point.x) || !Double.isFinite(point.y)) return null;
         Coordinate p = new Coordinate(point);
         if (gridSnapEnabled) { p.x = snapCoordinate(p.x,gridStepX); p.y = snapCoordinate(p.y,gridStepY); }
-        placementCurrentWorldX = p.x; placementCurrentWorldY = p.y;
+        if (!Double.isFinite(p.x) || !Double.isFinite(p.y)) return null;
+        if (!placementFixedPreview && angularPlacementHandler==null) {
+            placementCurrentWorldX = p.x; placementCurrentWorldY = p.y;
+        }
         // Keep the existing zoom; unlike an actual click, a jump never adds an anchor.
         viewCenterX = p.x; viewCenterY = p.y;
         PlotCamera camera = cameraSnapshot(); updateCoordLabel(camera.screenX(p.x),camera.screenY(p.y));
-        refreshEditorThreePointPreview(); redraw(); return p;
+        lastPointerWorldX = p.x; lastPointerWorldY = p.y; pointerSeen = true;
+        if (threePointHandler != null) refreshEditorThreePointPreview();
+        else if (cursorPlacementHandler != null) cursorPlacementPreview = cursorPlacementHandler.preview(p.x,p.y);
+        redraw(); return p;
+    }
+
+    boolean beginEditorAngularPlacement(Coordinate pivot, Geometry bounds, AngularPlacementHandler handler) {
+        if (selectionHandler == null || handler == null || bounds == null || bounds.isEmpty()) return false;
+        if (!startPlacement(List.of(),List.of(),pivot.x,pivot.y,true,new PlacementHandler() {
+            public void onCommit(double x,double y) { }
+            public void onCancel() { handler.onCancel(); }
+        })) return false;
+        angularPlacementHandler = handler;
+        angularPivot = new Coordinate(pivot); angularBounds = bounds;
+        angularDrag = new EditorAngularDrag(pivot);
+        drawEditorHighlight(); return true;
     }
 
     boolean acceptEditorThreePoint(Coordinate point) {
@@ -1525,6 +1563,7 @@ final class PlotAreaView extends StackPane {
         placementCurrentWorldY = anchorWorldY;
         placementAnchorChosen = anchorChosen;
         placementHandler = handler;
+        ++placementRevision;
         setCursor(Cursor.CROSSHAIR);
         redraw();
         return true;
@@ -1592,7 +1631,9 @@ final class PlotAreaView extends StackPane {
     }
 
     private void clearPlacement() {
+        ++placementRevision;
         placementHandler = null;
+        angularPlacementHandler = null; angularDrag = null; angularBounds = null; angularPivot = null;
         cursorPlacementHandler = null;
         cursorPlacementPreview = null;
         threePointHandler = null;
@@ -1666,6 +1707,11 @@ final class PlotAreaView extends StackPane {
         updateCoordLabel(event.getX(), event.getY());
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             placementPrimaryPressed = insidePlot(event.getX(), event.getY());
+            if (angularPlacementHandler != null && placementPrimaryPressed) {
+                double[] world = snappedWorld(event.getX(),event.getY());
+                angularDrag.begin(new Coordinate(world[0],world[1]),worldPerPixel()*3);
+                drawEditorHighlight();
+            }
         }
         if (placementHandler == null && activeSelectionHandler() != null && event.getButton() == MouseButton.PRIMARY
                 && insidePlot(event.getX(), event.getY())) {
@@ -1724,7 +1770,13 @@ final class PlotAreaView extends StackPane {
         if (placementHandler != null && event.getButton() == MouseButton.PRIMARY) {
             if (placementPrimaryPressed && insidePlot(event.getX(), event.getY())) {
                 double[] world = snappedWorld(event.getX(), event.getY());
-                if (threePointHandler != null) {
+                if (angularPlacementHandler != null) {
+                    updateAngularDrag(event.getX(),event.getY());
+                    if (angularDrag.started() && Math.abs(angularDrag.degrees()) > 1e-9) {
+                        var handler = angularPlacementHandler; double angle = angularDrag.degrees();
+                        clearPlacement(); handler.onRelease(angle);
+                    }
+                } else if (threePointHandler != null) {
                     acceptEditorThreePoint(new Coordinate(world[0],world[1]));
                 } else if (cursorPlacementHandler != null) {
                     cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
@@ -1810,7 +1862,8 @@ final class PlotAreaView extends StackPane {
 
     private void handleDrag(MouseEvent event) {
         if (placementHandler != null && event.isPrimaryButtonDown()) {
-            updatePlacement(event.getX(), event.getY());
+            if (angularPlacementHandler != null) updateAngularDrag(event.getX(),event.getY());
+            else updatePlacement(event.getX(), event.getY());
             updateCoordLabel(event.getX(), event.getY());
             return;
         }
@@ -1876,6 +1929,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private void updatePlacement(double screenX, double screenY) {
+        if (angularPlacementHandler != null) return;
         if (placementHandler != null && !placementFixedPreview && placementAnchorChosen && insidePlot(screenX, screenY)) {
             double[] world = snappedWorld(screenX, screenY);
             placementCurrentWorldX = world[0];
@@ -1883,6 +1937,15 @@ final class PlotAreaView extends StackPane {
             if (threePointHandler != null) { refreshEditorThreePointPreview(); return; }
             if (cursorPlacementHandler != null)
                 cursorPlacementPreview = cursorPlacementHandler.preview(world[0], world[1]);
+            drawEditorHighlight();
+        }
+    }
+
+    private void updateAngularDrag(double screenX,double screenY) {
+        if (!placementPrimaryPressed || !insidePlot(screenX,screenY)) return;
+        double[] world = snappedWorld(screenX,screenY);
+        if (angularDrag.update(new Coordinate(world[0],world[1]),worldPerPixel()*3)) {
+            angularPlacementHandler.onAngleChanged(angularDrag.degrees());
             drawEditorHighlight();
         }
     }
@@ -2309,6 +2372,17 @@ final class PlotAreaView extends StackPane {
         gc.beginPath();
         gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
         gc.clip();
+        if (angularPlacementHandler != null) {
+            Geometry box = org.locationtech.jts.geom.util.AffineTransformation.rotationInstance(
+                    Math.toRadians(-angularDrag.degrees()),angularPivot.x,angularPivot.y).transform(angularBounds);
+            Color ink = editorReferenceColor(palette.background().getBrightness()<.5);
+            drawLayer(gc,new RenderLayer(box,true,ink,ink,true,LayerCategory.OVERLAY,true,false),contentWidth,contentHeight);
+            double[] p = worldToScreen(angularPivot.x,angularPivot.y,contentWidth,contentHeight);
+            double x = p[0]+RULER_LEFT_WIDTH, y = p[1]+RULER_TOP_HEIGHT;
+            gc.setStroke(ink); gc.setLineWidth(1.5);
+            gc.strokeLine(x-5,y,x+5,y); gc.strokeLine(x,y-5,x,y+5);
+            gc.restore(); return;
+        }
         if (threePointHandler != null) {
             if (threePointPreview != null && !threePointPreview.isEmpty())
                 drawLayer(gc, new RenderLayer(threePointPreview, true, PLACEMENT_FILL,

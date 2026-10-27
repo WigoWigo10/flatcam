@@ -1,5 +1,21 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série de interação/importação, item 1 — 2026-10-27
+
+Jump J e comando da barra/menu agora funcionam em todo o Editor Geometry,
+preservando pontos/gesto, zoom e prévias fixas. Referência abs/rel compartilhada
+com o Jump geral e salva após confirmação. Inserção exata permanece exclusiva
+do arco; respostas atrasadas são recusadas. Rotação ganhou botão Girar por
+arrasto: caixa/ângulo durante o gesto, uma preparação exata em worker ao soltar,
+depois confirmação e um passo de undo/redo. Corrigida reentrada na seleção da
+tabela ao cancelar prévia. Ver [GEOMETRY_EDITOR.md](GEOMETRY_EDITOR.md).
+Testes de matemática, eventos, histórico e cancelamento; sem nova validação
+física de mouse/DPI ou alegação de gesto Qt idêntico. Próximo autorizado, após
+commit deste item: G91 e arcos de roteamento Excellon.
+Validação final integral: **2014 aprovações, 18 skips opcionais, zero falhas/erros**
+(2032 registros), `target/geometry-gestures-final-verify.log`. Focada: 37 testes
+aprovados, `target/geometry-gestures-focused-final.log`.
+
 ## Série seguinte, item 4 concluído com limites registrados: janelas — 2026-10-27
 
 Itens 1–3 commitados: `c5a1daf7` runtime, `d3015117` arrays, `b92c9389` importação.

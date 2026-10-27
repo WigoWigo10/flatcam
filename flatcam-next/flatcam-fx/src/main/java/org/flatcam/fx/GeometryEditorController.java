@@ -61,6 +61,9 @@ final class GeometryEditorController {
         void log(String message);
 
         default void requestArcCoordinates(Coordinate cursor, String units, Consumer<ArcCoordinateDialog.Choice> selected) { }
+        default void requestCoordinates(Coordinate cursor, String units, boolean allowInsert, Consumer<ArcCoordinateDialog.Choice> selected) {
+            requestArcCoordinates(cursor,units,selected);
+        }
         default void movePlotCursor(Coordinate point) { }
     }
 
@@ -142,6 +145,7 @@ final class GeometryEditorController {
     private Button rotationConfirm, rotationCancel;
     private Object rotationGesture;
     private boolean rotationReady;
+    private long coordinateRevision;
 
     enum RotationReference {
         SELECTION("Centro da seleção"), ORIGIN("Origem (0, 0)"), POINT("Ponto X/Y"),
@@ -260,15 +264,15 @@ final class GeometryEditorController {
                 return;
             }
             Set<Integer> current = new LinkedHashSet<>(shapeTable.getSelectionModel().getSelectedIndices());
-            plotArea.cancelPlacement();
-            tableSelectionOrder.retainAll(current);
-            for (int index : current) {
-                tableSelectionOrder.add(index);
-            }
             syncingTable = true;
-            session.selectIndices(tableSelectionOrder);
-            refreshSelection();
-            syncingTable = false;
+            try {
+                // Cancel callbacks may refresh the panel; do not let them restore the old table selection.
+                plotArea.cancelPlacement();
+                tableSelectionOrder.retainAll(current);
+                for (int index : current) tableSelectionOrder.add(index);
+                session.selectIndices(tableSelectionOrder);
+                refreshSelection();
+            } finally { syncingTable = false; }
         });
         Button selectButton = new Button("Selecionar");
         Button pathButton = new Button("Caminho");
@@ -521,19 +525,23 @@ final class GeometryEditorController {
         skewX=transformField("skew-x","0"); skewY=transformField("skew-y","0");
         offsetX=transformField("offset-x","0"); offsetY=transformField("offset-y","0");
         Button rotate = new Button("Pré-visualizar transformação"); rotate.setId("geometry-rotation-preview");
+        Button dragRotate = new Button("Girar por arrasto"); dragRotate.setId("geometry-rotation-drag");
         Button pickPivot = new Button("Escolher pivô no plot"); pickPivot.setId("geometry-rotation-pick");
         rotationConfirm = new Button("Confirmar transformação"); rotationConfirm.setId("geometry-rotation-confirm");
         rotationCancel = new Button("Cancelar prévia"); rotationCancel.setId("geometry-rotation-cancel");
         ToolDescriptions.apply(rotationAngle,"Ângulo da rotação",GeometryEditorDescriptions.of("rotate").text());
         ToolDescriptions.apply(pickPivot,"Pivô no desenho","Escolha a transformação e os valores, clique neste botão e depois no pivô no Plot Area. O Snap da barra inferior é respeitado. A prévia é calculada após o clique; Esc/botão direito cancela sem mudar o rascunho.");
         rotate.setOnAction(event -> previewTransform());
+        dragRotate.setOnAction(event -> startAngularRotation());
+        ToolDescriptions.apply(dragRotate,"Rotação por arrasto","Usa o pivô escolhido. Pressione longe do pivô, arraste ao redor e solte para calcular a prévia exata. Durante o arrasto, somente a caixa gira para manter a fluidez; o ângulo aparece na instrução. O Snap vale para os pontos. Confira e confirme a transformação; soltar não altera o rascunho. Esc/botão direito cancela.");
         pickPivot.setOnAction(event -> pickRotationPivot());
         rotationConfirm.setOnAction(event -> { if (rotationReady) plotArea.confirmEditorFixedPreview(); });
         rotationCancel.setOnAction(event -> cancelRotationFromShortcut());
         for (var property : List.<javafx.beans.value.ObservableValue<?>>of(rotationAngle.textProperty(),rotationX.textProperty(),rotationY.textProperty(),rotationReference.valueProperty(),
                 transformKind.valueProperty(),scaleX.textProperty(),scaleY.textProperty(),skewX.textProperty(),skewY.textProperty(),offsetX.textProperty(),offsetY.textProperty()))
             property.addListener((obs, old, value) -> { if (rotationGesture != null) cancelRotationFromShortcut(); });
-        for (Button button : List.of(rotate, pickPivot)) button.disableProperty().bind(transformButton.disableProperty());
+        for (Button button : List.of(rotate, pickPivot, dragRotate)) button.disableProperty().bind(transformButton.disableProperty());
+        transformRow(dragRotate,TransformKind.ROTATE);
         var angleRow=new HBox(8,new Label("Graus (+horário):"),rotationAngle);
         var scaleRow=new HBox(8,new Label("Fator X:"),scaleX,new Label("Y:"),scaleY);
         var skewRow=new HBox(8,new Label("Graus X:"),skewX,new Label("Y:"),skewY);
@@ -551,7 +559,7 @@ final class GeometryEditorController {
             node.managedProperty().bind(node.visibleProperty());
         }
         VBox transformControls = new VBox(8,transformKind,angleRow,scaleRow,skewRow,offsetRow,rotationReference,
-                pivotRow,pickPivot,rotate,rotationConfirm,rotationCancel);
+                pivotRow,pickPivot,dragRotate,rotate,rotationConfirm,rotationCancel);
         transformsPane = new TitledPane("Transformacoes das selecionadas", transformControls);
         transformsPane.setExpanded(false);
         transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
@@ -734,6 +742,35 @@ final class GeometryEditorController {
         } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
     }
 
+    private void startAngularRotation() {
+        if (!readyForTool() || session.selectedCount()==0) return;
+        plotArea.cancelPlacement();
+        try {
+            Coordinate pivot = rotationPivot();
+            GeometryEditSession editing = session;
+            var selected = editing.selectedIndexOrder();
+            Object gesture = new Object(); rotationGesture = gesture; rotationReady = false;
+            boolean started = plotArea.beginEditorAngularPlacement(pivot,editing.selectedBounds(),new PlotAreaView.AngularPlacementHandler() {
+                public void onAngleChanged(double degrees) {
+                    if (rotationGesture==gesture) instruction.setText(String.format(java.util.Locale.ROOT,
+                            "Rotação: %.3f° (+horário). Solte para calcular a prévia exata; Esc cancela.",degrees));
+                }
+                public void onRelease(double degrees) {
+                    if (session!=editing || rotationGesture!=gesture || !selected.equals(editing.selectedIndexOrder())) return;
+                    rotationGesture = null;
+                    rotationAngle.setText(Double.toString(degrees));
+                    previewTransform();
+                }
+                public void onCancel() { stopRotation(gesture,"Arrasto cancelado; nenhuma forma alterada."); }
+            });
+            if (!started) stopRotation(gesture,"Não foi possível iniciar a rotação por arrasto.");
+            else {
+                refreshSelection();
+                instruction.setText("Pressione longe do pivô, arraste ao redor e solte. A caixa acompanha o ângulo; depois confira a prévia exata e confirme. Esc/botão direito cancela.");
+            }
+        } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
+    }
+
     boolean cancelRotationFromShortcut() {
         if (rotationGesture==null) return false;
         Object gesture=rotationGesture;
@@ -835,7 +872,7 @@ final class GeometryEditorController {
     boolean handleArcKey(javafx.scene.input.KeyCode key) {
         if (arcGesture == null) return false;
         return switch (key) {
-            case J -> { requestArcCoordinates(); yield true; }
+            case J -> { requestCoordinates(); yield true; }
             case M -> { arcMode.setValue(EditorArc.Mode.values()[(arcMode.getValue().ordinal() + 1) % 3]); yield true; }
             case D -> {
                 if (arcMode.getValue() != EditorArc.Mode.START_END_THROUGH) arcClockwise.setSelected(!arcClockwise.isSelected());
@@ -853,17 +890,28 @@ final class GeometryEditorController {
         catch (IllegalArgumentException invalid) { throw new IllegalArgumentException("Resolução deve ser um inteiro entre 4 e 4096 segmentos por círculo."); }
     }
 
-    private void requestArcCoordinates() {
+    boolean requestCoordinates() {
+        if (!isActive()) return false;
+        if (busy) { host.log("Aguarde o cálculo antes de posicionar o cursor."); return true; }
+        GeometryEditSession editing = session;
         Object gesture = arcGesture;
         long revision = arcPointRevision;
-        host.requestArcCoordinates(plotArea.editorCursorPoint(),units,choice -> {
-            if (choice == null || arcGesture != gesture || arcPointRevision != revision || busy) return;
-            if (choice.insert()) plotArea.acceptEditorThreePoint(choice.point());
-            else {
-                Coordinate cursor = plotArea.previewEditorThreePointAt(choice.point());
-                if (cursor != null) { host.movePlotCursor(cursor); instruction.setText("Cursor posicionado; clique para confirmar o próximo ponto ou use J > Adicionar ponto."); }
+        long placement = plotArea.placementRevision(), draft = coordinateRevision;
+        var selected = editing.selectedIndexOrder();
+        host.requestCoordinates(plotArea.editorCursorPoint(),units,gesture!=null,choice -> {
+            if (choice == null || session!=editing || arcGesture != gesture || arcPointRevision != revision || busy
+                    || plotArea.placementRevision()!=placement || coordinateRevision!=draft || !selected.equals(editing.selectedIndexOrder())) return;
+            if (choice.insert() && gesture!=null) plotArea.acceptEditorThreePoint(choice.point());
+            else if (!choice.insert()) {
+                Coordinate cursor = plotArea.previewEditorCursorAt(choice.point());
+                if (cursor != null) {
+                    host.movePlotCursor(cursor);
+                    instruction.setText(gesture!=null ? "Cursor posicionado; clique para confirmar o próximo ponto ou use J > Adicionar ponto."
+                            : "Cursor posicionado; o gesto e seus pontos foram preservados. Continue pelo Plot Area.");
+                }
             }
         });
+        return true;
     }
 
     private static String arcModeLabel(EditorArc.Mode mode) {
@@ -1377,6 +1425,7 @@ final class GeometryEditorController {
     }
 
     private void refreshGeometry() {
+        ++coordinateRevision;
         syncingTable = true;
         shapeTable.getItems().setAll(session.shapeRows());
         syncingTable = false;

@@ -1,5 +1,35 @@
 # Arcos, Texto e Borracha no Editor Geometry
 
+## Jump geral no editor e rotação por arrasto — 2026-10-27
+
+**J**, fora de campos de texto, agora abre coordenadas em todo o Editor Geometry:
+seleção, círculo, retângulo, caminho/polígono, mover/copiar e prévias. O comando
+da barra/menu usa o mesmo fluxo. X/Y separados aceitam vírgula decimal; relativo
+usa o cursor capturado ao abrir. A escolha abs/rel é compartilhada com o Jump
+fora do editor e salva somente ao confirmar. Posicionar centraliza mantendo
+zoom, respeita Snap e atualiza a prévia sem inserir âncoras nem confirmar formas.
+Adicionar ponto exato continua exclusivo do arco. Respostas antigas são ignoradas
+se gesto, rascunho, seleção ou sessão mudou; durante cálculo o comando aguarda.
+
+Em **Transformações > Rotação > Girar por arrasto**, use o pivô do formulário,
+pressione longe dele e arraste ao redor. O ângulo atravessa o eixo negativo
+sem saltar 360°; positivo é horário. Pontos do mouse respeitam Snap. Durante o
+arrasto gira apenas a caixa da seleção: custo independente dos vértices selecionados.
+Ao soltar, um pedido calcula a geometria exata no worker e mostra a prévia fixa.
+Só **Confirmar transformação** ou outro clique aplica, em uma transação de
+undo/redo, conservando ferramentas/IDs/seleção. Clique no pivô, ângulo zero e
+volta completa não alteram o rascunho. Esc/botão direito, troca de seleção ou
+parâmetros descartam o gesto; Esc durante o worker impede publicação atrasada.
+
+Também corrigida a seleção da tabela ao cancelar prévias: callbacks de cancelamento
+não podem restaurar a linha anterior enquanto a nova seleção está sendo aplicada.
+São testes automatizados de controlador, eventos e matemática; não houve nova
+validação física do mouse/DPI. O arrasto com caixa e confirmação é uma escolha
+de UX do FX, não uma alegação de gesto idêntico no Qt.
+
+Validação integral final: **2014 aprovações, 18 skips opcionais, zero falhas/erros**
+(2032 registros), `target/geometry-gestures-final-verify.log`.
+
 Disponíveis na barra e no menu **Geo Editor**. As alterações continuam sendo
 rascunho até **Salvar e sair do editor**; Descartar não modifica o objeto.
 
@@ -81,9 +111,10 @@ Aceita ponto/vírgula decimal, mas não expressões ou separadores de milhares.
 
 Se o sistema não permitir mover o cursor físico, a prévia fica posicionada e
 o terminal informa para usar **J > Adicionar ponto**. Não há leitura/execução
-de expressões da área de transferência. A referência relativa volta ao padrão
-absoluto em cada diálogo, diferente da preferência global lembrada pelo Python.
-J nesta etapa é do arco; Jump geral no plot e nos outros editores continua pendente.
+de expressões da área de transferência. A referência absoluta/relativa agora é compartilhada com o Jump geral e lembrada
+após confirmar; cancelar não a altera. No Editor Geometry, J também funciona
+sem arco ativo, conforme a atualização abaixo. Outros editores não estão incluídos
+nesse novo gesto.
 
 ### Resolução de novas curvas — 2026-10-24
 
@@ -141,8 +172,8 @@ de FPS nesta etapa. Testes MM/IN, Z preservado, ferramenta/IDs/histórico, overf
 cancelamento em uma forma de 20.000 vértices, cliques e referências são automatizados.
 Ainda falta avaliar visualmente na janela real.
 
-O ângulo desta etapa é digitado; escolha angular por arrasto e atalhos globais
-de transformação continuam pendentes. Escala X/Y, espelhar X ou Y e inclinação
+Além do ângulo digitado, existe escolha angular por arrasto (atualização abaixo).
+Atalhos globais de transformação continuam pendentes. Escala X/Y, espelhar X ou Y e inclinação
 agora compartilham o pivô e o fluxo de prévia. Deslocamento X/Y também tem prévia,
 mas soma os valores nas unidades do objeto, independentemente do pivô.
 A API antiga `rotateSelected` continua anti-horária para os chamadores existentes;
@@ -248,8 +279,9 @@ ou botão. Esc/botão direito cancela; Ctrl+Z desfaz a inserção inteira. Ferra
 associadas conservam o diâmetro (selecione uma por vez); sem associação, confira
 o diâmetro ao gerar CNC. Resultados vazios/incompletos são recusados atomicamente.
 Arcos agora têm os três modos, M/D/Backspace, J e resolução configurável.
-Jump fora do arco, referência persistida, arrasto angular e as demais
-transformações com prévia ainda não reproduzem integralmente os gestos Python.
+Jump fora do arco e referência absoluta/relativa persistida foram ligados ao
+Editor Geometry, e a rotação ganhou arrasto angular. A comparação interativa
+integral dos gestos Python continua pendente.
 Estas entregas não tornam o editor 100% equivalente.
 
 Testes de núcleo, controles, cliques no plot, cancelamento, undo/redo, 10.000 formas

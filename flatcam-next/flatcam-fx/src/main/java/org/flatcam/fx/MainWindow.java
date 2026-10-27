@@ -412,9 +412,12 @@ final class MainWindow implements TclFlatcamHost {
                 }
 
                 @Override
-                public void requestArcCoordinates(Coordinate cursor, String units, Consumer<ArcCoordinateDialog.Choice> selected) {
-                    new ArcCoordinateDialog(scene.getWindow(),cursor,units).showAndWait().ifPresent(choice ->
-                            Platform.runLater(() -> { plotAreaView.requestFocus(); selected.accept(choice); }));
+                public void requestCoordinates(Coordinate cursor, String units, boolean allowInsert, Consumer<ArcCoordinateDialog.Choice> selected) {
+                    new ArcCoordinateDialog(scene.getWindow(),cursor,units,allowInsert,
+                            "rel".equals(AppPreferences.loadText("jump.reference"))).showAndWait().ifPresent(choice -> {
+                        AppPreferences.saveText("jump.reference",choice.relative() ? "rel" : "abs");
+                        Platform.runLater(() -> { plotAreaView.requestFocus(); selected.accept(choice); });
+                    });
                 }
 
                 @Override
@@ -425,7 +428,7 @@ final class MainWindow implements TclFlatcamHost {
                     if (screen == null) return;
                     try { new javafx.scene.robot.Robot().mouseMove(screen); }
                     catch (RuntimeException unavailable) {
-                        appendConsole("Prévia posicionada, mas não foi possível mover o mouse. Use J > Adicionar ponto para inserir as coordenadas exatas.");
+                        appendConsole("Prévia posicionada, mas não foi possível mover o mouse. Confira o destino no plot; no arco, J > Adicionar ponto permite inserir as coordenadas exatas.");
                     }
                 }
 
@@ -896,6 +899,9 @@ final class MainWindow implements TclFlatcamHost {
                 if (excellonEditor.isActive()) excellonEditor.deleteFromShortcut();
                 else geometryEditor.deleteFromShortcut();
                 event.consume();
+            } else if (geometryEditor.isActive() && event.getCode()==KeyCode.J && !event.isControlDown() && !event.isAltDown()
+                    && !event.isMetaDown() && !event.isShiftDown() && !isTextInputTarget(event.getTarget())) {
+                geometryEditor.requestCoordinates(); event.consume();
             } else if (geometryEditor.isArcActive() && !event.isControlDown() && !event.isAltDown()
                     && !event.isMetaDown() && !event.isShiftDown() && !isTextInputTarget(event.getTarget())
                     && geometryEditor.handleArcKey(event.getCode())) {
@@ -1927,7 +1933,7 @@ final class MainWindow implements TclFlatcamHost {
                 tipped(chromeItem("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin), "Mover para Origem",
                         "Desloca os objetos selecionados para que o canto inferior esquerdo do conjunto fique em (0,0).\n\nAtalho: Shift+O."),
                 tipped(chromeItem("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation), "Ir para Localização",
-                        "Centraliza a vista num ponto X,Y absoluto, ou relativo à última posição do cursor no Plot.\n\nAtalho: J."),
+                        "Centraliza a vista num ponto X/Y absoluto ou relativo ao cursor e lembra essa referência. No Editor Geometry, também posiciona o cursor e atualiza a prévia sem inserir pontos nem encerrar o gesto. O Snap ativo é respeitado no editor.\n\nAtalho: J (fora de campos de texto)."),
                 tipped(chromeItem("Localizar no Objeto", "locate32.png", this::askLocateInObject), "Localizar no Objeto",
                         "Centraliza a vista num canto ou no centro do objeto selecionado.\n\nAtalho: Shift+J."),
                 new SeparatorMenuItem(),
@@ -3191,6 +3197,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void askJumpToLocation() {
+        if (geometryEditor.requestCoordinates()) return;
         var dialog = new javafx.scene.control.Dialog<double[]>();
         if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
         dialog.setTitle("Ir para Localizacao");
