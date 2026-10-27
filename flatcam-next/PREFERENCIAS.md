@@ -193,3 +193,13 @@ Suíte integral da série: 1987 aprovações/18 skips/1 falha End Z já conhecid
 2006 registros; log `target/parity-preferences-series-verify.log`. O último ajuste
 somente do modo offset foi coberto pela rodada `target/editor-affine-final.log`.
 O integral continua reprovado; não foi alterada a asserção de End Z.
+
+
+### Arrays Excellon novos — 2026-10-27
+
+Editor Excellon tem LINEAR/CIRCULAR/GRID, quantidade, passo/eixo/ângulo linear,
+raio/início/passo/sentido circular, comprimento/ângulo do slot e rotação com o
+círculo. Os 12 padrões adicionais são lidos na abertura; mm/in independentes.
+Campos sem efeito no modo atual ficam ocultos/desabilitados e seus rascunhos
+não impedem gerar outro modo. Comprimento é total, incluindo tampas redondas.
+[EXCELLON_ARRAYS.md](EXCELLON_ARRAYS.md) descreve evidências e diferenças Qt.

@@ -453,6 +453,10 @@ final class MainWindow implements TclFlatcamHost {
                 @Override public void setObjectVisible(TreeItem<String> item, boolean visible) {
                     MainWindow.this.setObjectVisible(item, visible);
                 }
+                @Override public boolean prepareArray(org.flatcam.cam.excellon.ExcellonArray.Parameters p,
+                        Consumer<org.flatcam.cam.excellon.ExcellonArray.Prepared> done,Consumer<String> failed) {
+                    return runExcellonArray(p,done,failed);
+                }
                 @Override public void apply(TreeItem<String> item, ExcellonImage image) {
                     excellonByItem.put(item, image);
                     plotAreaView.updateLayerGeometry(item, image.solidGeometry());
@@ -553,6 +557,26 @@ final class MainWindow implements TclFlatcamHost {
             });
             return null;
         });
+        return true;
+    }
+
+    private boolean runExcellonArray(org.flatcam.cam.excellon.ExcellonArray.Parameters params,
+            Consumer<org.flatcam.cam.excellon.ExcellonArray.Prepared> done,Consumer<String> failed) {
+        if(runningJob!=null) return false;
+        String message="Calculando array Excellon..."; beginJob(message);
+        JobHandle<?>[] owner=new JobHandle<?>[1];
+        var handle=jobExecutor.submit(context -> org.flatcam.cam.excellon.ExcellonArray.generate(params,context::isCancelled,
+                fraction->context.reportProgress(fraction,message)),cncPreviewProgress(owner));
+        owner[0]=handle; runningJob=handle;
+        handle.completion().thenAccept(result->Platform.runLater(()-> {
+            if(runningJob!=handle) return;
+            onJobFinished(); updateProgress(1); setStatus("Prévia Excellon concluída.",IDLE_COLOR); done.accept(result);
+        })).exceptionally(error-> { Platform.runLater(()-> {
+            if(runningJob!=handle) return;
+            reportJobError(error,"Falha no array Excellon: "); onJobFinished();
+            Throwable cause=error.getCause()==null ? error : error.getCause();
+            failed.accept(isCancellation(error) ? "Array cancelado." : "Falha no array: "+cause.getMessage());
+        }); return null; });
         return true;
     }
 
@@ -858,7 +882,7 @@ final class MainWindow implements TclFlatcamHost {
                     return;
                 }
             }
-            if (event.getCode() == KeyCode.ESCAPE && (geometryEditor.cancelEraserFromShortcut() || geometryEditor.cancelRotationFromShortcut())) {
+            if (event.getCode() == KeyCode.ESCAPE && (geometryEditor.cancelEraserFromShortcut() || geometryEditor.cancelRotationFromShortcut() || excellonEditor.cancelArrayFromShortcut())) {
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();

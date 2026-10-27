@@ -82,6 +82,18 @@ final class ToolDefaults {
                 choice("export.excellon.slots",group,"Exportar slots","ROUTED","ROUTED","G85");
             }
         }
+        choice("editor.excellon.arraymode",excellonEditor,"Tipo de array","LINEAR","LINEAR","CIRCULAR","GRID");
+        integer("editor.excellon.count",excellonEditor,"Quantidade no novo array",5);
+        millimetres("editor.excellon.pitch",excellonEditor,"Passo do novo array linear","2.54");
+        choice("editor.excellon.axis",excellonEditor,"Eixo do array linear","X","X","Y","ANGLE");
+        number("editor.excellon.angle",excellonEditor,"Ângulo do array linear (graus)","0");
+        millimetres("editor.excellon.radius",excellonEditor,"Raio do array circular","5");
+        number("editor.excellon.startangle",excellonEditor,"Ângulo inicial circular (graus)","0");
+        number("editor.excellon.stepangle",excellonEditor,"Passo angular circular (graus)","12");
+        flag("editor.excellon.clockwise",excellonEditor,"Array circular horário (CW)",true);
+        millimetres("editor.excellon.slotlength",excellonEditor,"Comprimento total do novo slot","5");
+        number("editor.excellon.slotangle",excellonEditor,"Ângulo inicial do slot (graus)","0");
+        flag("editor.excellon.rotateslots",excellonEditor,"Girar slots com o array circular",true);
         String cncDisplay="CNC Job: Exibição";
         flag("display.cnc.plot",cncDisplay,"Plotar novos CNC Jobs",true);
         choice("display.cnc.kind",cncDisplay,"Plot Kind","ALL","ALL","CUT","TRAVEL");
@@ -569,6 +581,7 @@ final class ToolDefaults {
             case INTEGER -> {
                 try {
                     int parsed = Integer.parseInt(value);
+                    if (setting.key().equals("editor.excellon.count") && (parsed<1 || parsed>10000)) return "deve estar entre 1 e 10000";
                     if (setting.key().startsWith("export.") && (parsed < 1 || parsed > 6)) return "deve estar entre 1 e 6";
                     if (setting.key().startsWith("editor.") && (parsed < 1 || parsed > 100000)) return "deve estar entre 1 e 100000";
                     if (setting.key().equals("display.cnc.fontsize") && (parsed<1 || parsed>72)) return "deve estar entre 1 e 72";

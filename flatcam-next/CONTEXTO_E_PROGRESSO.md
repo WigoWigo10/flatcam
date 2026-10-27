@@ -1,5 +1,24 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Série seguinte, item 2 concluído: arrays Excellon — 2026-10-27
+
+Novos arrays LINEAR/CIRCULAR para furos e slots, sem exigir seleção; X/Y/ângulo,
+quantidade total, passo, centro, raio, início e CW/CCW; comprimento total e
+orientação de slots. Escolha no plot com Snap, dois cliques em círculo, atan2
+nos quatro quadrantes. Prévia cancelável em worker e overlay indexado; confirmar
+preserva a posição. Array e eventual ferramenta nova entram numa transação de
+undo/redo; diâmetro existente é reutilizado. Cache evita refazer buffers no FX
+ao confirmar/desfazer/refazer. Resultados pendentes são invalidados por mudanças
+ou fechamento. GRID mantém a replicação direta anterior da seleção.
+12 novos padrões de editor ligados ao formulário. Documentação e help atualizados.
+6 testes novos CAM, 5 UI; regressão focada: 51 aprovações, sem skips.
+Última rodada após ajustes de campos/ajuda: 11 CAM +9 UI aprovados e pacote.
+Logs `target/excellon-arrays-final.log`, `target/excellon-arrays-commit-check.log`.
+256 controles de distribuição/orientação contra métodos ORIGINAIS por AST:
+zero divergências; maior distância 6,41e-15 mm. Não cobre polygon tessellation,
+points_edit ou cliques Qt. [EXCELLON_ARRAYS.md](EXCELLON_ARRAYS.md).
+Próximos itens autorizados: importação, depois validação real de janelas Qt/FX.
+
 ## Série seguinte, item 1 concluído: End Z / JVM — 2026-10-27
 
 Causa reproduzida fora do FlatCAM: HotSpot 25.0.4.1 AVX2 devolve falso negativo

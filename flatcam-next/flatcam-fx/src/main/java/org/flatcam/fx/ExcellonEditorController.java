@@ -9,6 +9,10 @@ import javafx.collections.ListChangeListener;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
+import javafx.scene.control.TitledPane;
+import javafx.scene.layout.HBox;
+import java.util.function.Consumer;
+import org.flatcam.cam.excellon.ExcellonArray;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.SelectionMode;
@@ -41,6 +45,7 @@ final class ExcellonEditorController {
         void apply(TreeItem<String> item, ExcellonImage image);
         Node icon(String fileName);
         void log(String message);
+        default boolean prepareArray(ExcellonArray.Parameters p,Consumer<ExcellonArray.Prepared> done,Consumer<String> failed) { return false; }
     }
 
     private static final Object SHAPES_LAYER = new Object();
@@ -68,7 +73,10 @@ final class ExcellonEditorController {
     private TextField rowsField;
     private TextField pitchXField;
     private TextField pitchYField;
-    private boolean syncing;
+    private boolean syncing,busy,arrayReady;
+    private Object arrayGesture;
+    private ExcellonArrayPanel arrays;
+    private TitledPane arrayPane;
 
     ExcellonEditorController(PlotAreaView plotArea, Host host) {
         this.plotArea = plotArea;
@@ -84,6 +92,7 @@ final class ExcellonEditorController {
             host.log("Ja existe um Editor Excellon ativo.");
             return;
         }
+        busy=false; arrayReady=false; arrayGesture=null;
         item = sourceItem;
         Color drawColor = ToolDefaults.color("editor.excellon.draw");
         selectedColor = ToolDefaults.color("editor.excellon.selected");
@@ -107,6 +116,7 @@ final class ExcellonEditorController {
             }
         });
         table = new TableView<>(FXCollections.observableArrayList(session.rows()));
+        table.setId("excellon-shapes");
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         TableColumn<ExcellonEditSession.Row, String> id = new TableColumn<>("ID");
         id.setCellValueFactory(cell -> new ReadOnlyStringWrapper(Long.toString(cell.getValue().id())));
@@ -135,6 +145,7 @@ final class ExcellonEditorController {
         toolChoice.setMaxWidth(Double.MAX_VALUE);
         diameterField = new TextField(toolChoice.getValue() == null ? ToolDefaults.text("editor.excellon.diameter", image.units().equals("MM"))
                 : Double.toString(session.toolDiameters().get(toolChoice.getValue())));
+        diameterField.setId("excellon-new-diameter");
         toolChoice.valueProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) diameterField.setText(Double.toString(session.toolDiameters().get(newValue)));
         });
@@ -144,6 +155,9 @@ final class ExcellonEditorController {
         pitchYField = new TextField(ToolDefaults.text("editor.excellon.pitchy", image.units().equals("MM")));
         for (TextField field : List.of(diameterField, columnsField, rowsField, pitchXField, pitchYField))
             field.setPrefColumnCount(6);
+        for(var field:List.of(columnsField,rowsField)) ToolDescriptions.apply(field,"Grade de cópias","Quantidade inteira de linhas/colunas, incluindo a posição original. GRID replica somente os furos/slots selecionados; no máximo 10.000 novas formas. Ctrl+Z desfaz a replicação inteira.");
+        ToolDescriptions.apply(pitchXField,"Passo X da grade","Distância horizontal entre cópias nas unidades do objeto. Deve ser finita e não nula para várias colunas; valores negativos distribuem para a esquerda.");
+        ToolDescriptions.apply(pitchYField,"Passo Y da grade","Distância vertical entre cópias nas unidades do objeto. Deve ser finita e não nula para várias linhas; valores negativos distribuem para baixo.");
         status = new Label();
         instruction = new Label("Selecione furos/slots na tabela ou no desenho; Ctrl adiciona a selecao.");
         instruction.setWrapText(true);
@@ -176,19 +190,98 @@ final class ExcellonEditorController {
         controls.setHgap(6);
         controls.setVgap(6);
         controls.addRow(0, new Label("Novo diametro:"), diameterField);
-        controls.addRow(1, new Label("Colunas / linhas:"), columnsField, rowsField);
-        controls.addRow(2, new Label("Passo X / Y:"), pitchXField, pitchYField);
+        var grid=new VBox(6,new Label("GRID replica a seleção atual; aplicação direta."),
+                new HBox(6,new Label("Colunas:"),columnsField,new Label("Linhas:"),rowsField),
+                new HBox(6,new Label("Passo X:"),pitchXField,new Label("Y:"),pitchYField));
+        arrays=new ExcellonArrayPanel(image.units().equals("MM"),grid,
+                ()->startArray(arrays.slots()),this::pickArrayOrigin,()->plotArea.confirmEditorFixedPreview(),
+                this::cancelArrayFromShortcut,()-> { cancelArrayFromShortcut(); if(session!=null) refreshSelection(); });
+        diameterField.textProperty().addListener((o,a,b)->cancelArrayFromShortcut());
+        arrayPane=new TitledPane("Arrays de furos e slots",arrays); arrayPane.setId("excellon-array-panel"); arrayPane.setExpanded(false);
         VBox panel = new VBox(8, new Label("Excellon Editor"), table,
                 new Label("Ferramenta para novos furos/slots:"), toolChoice, controls,
                 button("Redimensionar selecionados", "resize16.png", this::resizeSelected),
-                button("Array de furos selecionados", "addarray16.png", () -> startArray(false)),
-                button("Array de slots selecionados", "slot_array26.png", () -> startArray(true)),
+                arrayPane,
                 status, instruction, applyPanel, discardPanel);
         panel.setPadding(new Insets(12));
         host.openToolPanel("Editor Excellon", panel);
         host.showToolbar(new ToolBar(selectButton, drillButton, slotButton,
                 drillArrayButton, slotArrayButton, resizeButton, moveButton,
                 copyButton, deleteButton, undoButton, redoButton, applyButton, cancelButton));
+        refreshSelection();
+    }
+
+    void startArray(boolean slots) {
+        if(!isActive() || busy) return;
+        arrayPane.setExpanded(true); arrays.slots(slots);
+        if(arrays.grid()) { replicateGrid(slots); return; }
+        cancelArrayFromShortcut(); plotArea.cancelPlacement();
+        try {
+            var params=arrays.parameters(parseDecimal(diameterField.getText()));
+            var editing=session; long revision=editing.revision(); Object gesture=new Object();
+            arrayGesture=gesture; arrayReady=false; busy=true; refreshSelection();
+            instruction.setText("Calculando prévia do array...");
+            boolean accepted=host.prepareArray(params,result-> {
+                if(session!=editing) return;
+                busy=false;
+                if(arrayGesture!=gesture || editing.revision()!=revision) { if(arrayGesture==gesture) stopArray(gesture); refreshSelection(); return; }
+                boolean started=plotArea.beginEditorFixedPreview(arrayCross(params.x(),params.y()),new PlotAreaView.PlacementHandler() {
+                    public void onCommit(double x,double y) {
+                        if(session!=editing || arrayGesture!=gesture) return;
+                        arrayGesture=null; arrayReady=false; plotArea.setEditorReference(null);
+                        try { int count=editing.addArray(result,revision); refreshGeometry(); instruction.setText(count+" elementos adicionados. Ctrl+Z desfaz o array inteiro."); }
+                        catch(IllegalArgumentException error) { refreshSelection(); instruction.setText(error.getMessage()); }
+                    }
+                    public void onCancel() { if(arrayGesture==gesture) stopArray(gesture); }
+                });
+                if(!started) { stopArray(gesture); instruction.setText("Não foi possível exibir a prévia."); return; }
+                plotArea.setEditorReference(result.geometry()); arrayReady=true; refreshSelection();
+                instruction.setText(params.count()+" novos elementos na prévia. Confirme pelo botão ou clique; Esc cancela.");
+            },error-> { if(session==editing) { busy=false; stopArray(gesture); refreshSelection(); instruction.setText(error); } });
+            if(!accepted) { busy=false; stopArray(gesture); instruction.setText("Não foi possível iniciar o cálculo do array."); }
+        } catch(IllegalArgumentException error) { instruction.setText("Array: "+error.getMessage()); }
+    }
+    private Geometry arrayCross(double x,double y) {
+        double r=plotArea.worldPerPixel()*5;
+        return FACTORY.buildGeometry(List.of(FACTORY.createLineString(new Coordinate[]{new Coordinate(x-r,y),new Coordinate(x+r,y)}),
+                FACTORY.createLineString(new Coordinate[]{new Coordinate(x,y-r),new Coordinate(x,y+r)})));
+    }
+    boolean cancelArrayFromShortcut() {
+        if(arrayGesture==null) return false;
+        Object gesture=arrayGesture; stopArray(gesture); plotArea.cancelPlacement(); return true;
+    }
+    private void stopArray(Object gesture) {
+        if(arrayGesture!=gesture) return;
+        arrayGesture=null; arrayReady=false; plotArea.setEditorReference(null); refreshSelection();
+        instruction.setText("Prévia do array descartada; rascunho preservado.");
+    }
+    private void pickArrayOrigin() {
+        if(!isActive() || busy || arrays.grid()) return;
+        cancelArrayFromShortcut(); plotArea.cancelPlacement();
+        Object gesture=new Object(); arrayGesture=gesture; var editing=session;
+        if(arrays.circular()) {
+            double[] centre=new double[2];
+            plotArea.beginEditorTwoPointPlacement(PlotAreaView.TwoPointShape.CIRCLE,new PlotAreaView.PlacementHandler() {
+                public void onAnchorChosen(double x,double y) { centre[0]=x; centre[1]=y; instruction.setText("Clique no centro do primeiro elemento do círculo."); }
+                public void onCommit(double dx,double dy) {
+                    if(session!=editing || arrayGesture!=gesture) return;
+                    arrayGesture=null; arrays.origin(centre[0],centre[1]);
+                    arrays.radius.setText(Double.toString(Math.hypot(dx,dy))); arrays.start.setText(Double.toString(Math.toDegrees(Math.atan2(dy,dx))));
+                    startArray(arrays.slots());
+                }
+                public void onCancel() { if(arrayGesture==gesture) stopArray(gesture); }
+            });
+            instruction.setText("Clique no centro do array; depois no primeiro elemento. Esc cancela.");
+        } else {
+            plotArea.beginEditorFlashPlacement(arrayCross(0,0),new PlotAreaView.PlacementHandler() {
+                public void onCommit(double x,double y) {
+                    if(session!=editing || arrayGesture!=gesture) return;
+                    arrayGesture=null; arrays.origin(x,y); startArray(arrays.slots());
+                }
+                public void onCancel() { if(arrayGesture==gesture) stopArray(gesture); }
+            });
+            instruction.setText("Clique no primeiro centro do array linear. Esc cancela.");
+        }
         refreshSelection();
     }
 
@@ -206,12 +299,12 @@ final class ExcellonEditorController {
 
     void startSelection() {
         if (!isActive()) return;
-        plotArea.cancelPlacement();
+        cancelArrayFromShortcut(); plotArea.cancelPlacement();
         instruction.setText("Clique ou arraste no desenho; Ctrl adiciona a selecao.");
     }
 
-    void startArray(boolean slots) {
-        if (!isActive()) return;
+    private void replicateGrid(boolean slots) {
+        if (!isActive() || busy) return;
         plotArea.cancelPlacement();
         try {
             int added = session.arraySelected(slots,
@@ -228,7 +321,7 @@ final class ExcellonEditorController {
     }
 
     void resizeSelected() {
-        if (!isActive()) return;
+        if (!isActive() || busy) return;
         plotArea.cancelPlacement();
         try {
             int id = session.resizeSelected(parseDecimal(diameterField.getText()));
@@ -247,7 +340,7 @@ final class ExcellonEditorController {
     }
 
     void startDrill() {
-        if (!isActive()) return;
+        if (!isActive() || busy) return;
         try {
             int id = selectedTool();
             double radius = session.toolDiameters().get(id) / 2.0;
@@ -264,7 +357,7 @@ final class ExcellonEditorController {
     }
 
     void startSlot() {
-        if (!isActive()) return;
+        if (!isActive() || busy) return;
         try {
             int id = selectedTool();
             double[] first = new double[2];
@@ -287,7 +380,7 @@ final class ExcellonEditorController {
     }
 
     void startMoveOrCopy(boolean copy) {
-        if (!isActive() || session.selectedCount() == 0) {
+        if (!isActive() || busy || session.selectedCount() == 0) {
             if (isActive()) instruction.setText("Selecione ao menos um furo ou slot.");
             return;
         }
@@ -311,7 +404,7 @@ final class ExcellonEditorController {
     boolean redoFromShortcut() { return redo(); }
 
     private boolean deleteSelected() {
-        if (!isActive()) return false;
+        if (!isActive() || busy) return false;
         plotArea.cancelPlacement();
         if (!session.deleteSelected()) return false;
         refreshGeometry();
@@ -319,7 +412,7 @@ final class ExcellonEditorController {
     }
 
     private boolean undo() {
-        if (!isActive()) return false;
+        if (!isActive() || busy) return false;
         plotArea.cancelPlacement();
         if (!session.undo()) return false;
         refreshGeometry();
@@ -327,7 +420,7 @@ final class ExcellonEditorController {
     }
 
     private boolean redo() {
-        if (!isActive()) return false;
+        if (!isActive() || busy) return false;
         plotArea.cancelPlacement();
         if (!session.redo()) return false;
         refreshGeometry();
@@ -365,18 +458,20 @@ final class ExcellonEditorController {
         status.setText(session.size() + " furos/slots; " + session.selectedCount()
                 + " selecionados" + (session.isDirty() ? "; alteracoes pendentes." : "; sem alteracoes."));
         deleteButton.setDisable(session.selectedCount() == 0);
-        drillArrayButton.setDisable(session.selectedCount() == 0);
-        slotArrayButton.setDisable(session.selectedCount() == 0);
+        boolean needsSelection=arrays!=null && arrays.grid();
+        drillArrayButton.setDisable(busy || needsSelection && session.selectedCount()==0);
+        slotArrayButton.setDisable(busy || needsSelection && session.selectedCount()==0);
+        if(arrays!=null) arrays.state(busy,arrayGesture!=null,arrayReady,session.selectedCount()>0);
         resizeButton.setDisable(session.selectedCount() == 0);
         moveButton.setDisable(session.selectedCount() == 0);
         copyButton.setDisable(session.selectedCount() == 0);
         undoButton.setDisable(!session.canUndo());
         redoButton.setDisable(!session.canRedo());
-        applyButton.setDisable(!session.isDirty());
+        applyButton.setDisable(busy || !session.isDirty());
     }
 
     void apply() {
-        if (!isActive()) return;
+        if (!isActive() || busy) return;
         plotArea.cancelPlacement();
         if (session.isDirty()) host.apply(item, session.resultImage());
         end();
@@ -391,6 +486,7 @@ final class ExcellonEditorController {
     }
 
     private void end() {
+        arrayGesture=null; busy=false; arrayReady=false; plotArea.setEditorReference(null);
         plotArea.cancelPlacement();
         plotArea.setSelectionHandler(null);
         plotArea.removeLayer(SHAPES_LAYER);

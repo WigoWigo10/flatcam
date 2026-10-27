@@ -1,12 +1,24 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Arrays Excellon e correção do runtime — 2026-10-27
+
+Editor Excellon agora cria arrays lineares/circulares novos, de furos e slots,
+com quantidade/passo/eixos/ângulos/CW/CCW, centro/raio e escolha no plot; prévia
+em worker, confirmação e um passo de undo/redo. GRID anterior preservado.
+256 controles contra métodos originais de distribuição/orientação passaram;
+não equivale a testar o armazenamento points_edit nem os cliques Qt.
+[EXCELLON_ARRAYS.md](EXCELLON_ARRAYS.md).
+End Z era falso negativo de String.contains da JVM, reproduzido sem FlatCAM.
+Contorno estreito da intrinsic aplicado; integral verde após item 1:
+1989 aprovações, 18 skips, zero falhas. [JVM_STRING_SEARCH.md](JVM_STRING_SEARCH.md).
+
 ## Série visual: CNC, editores, exportação e transformações — 2026-10-27
 
 CNC: cores RGBA corte/deslocamento, Kind, Plot e fontes/anotações/setas; estilo
 por objeto preservado em cópia, edição e reabertura. `.FlatPrj` usa extensão FX
 para detalhes por objeto; não afirma que Qt consome os estilos da extensão.
 Editores: 21 padrões ligados a operações reais, cores/limites/aberturas/arrays/
-escala/buffer/diâmetro. Excellon ainda tem array retangular, não circular Qt.
+escala/buffer/diâmetro. Excellon ganhou os arrays lineares/circulares no incremento descrito acima.
 Exportação: dez padrões Python compartilhados por Preferências, diálogo,
 Terminal e Salvar como, com migração dos formatos anteriores e roundtrip de
 arquivos MM/IN. Reparos FX em zeros/slots mantidos, sem equivalência byte a byte.

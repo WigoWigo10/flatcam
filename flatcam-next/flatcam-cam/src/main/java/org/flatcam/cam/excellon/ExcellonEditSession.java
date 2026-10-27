@@ -31,7 +31,7 @@ public final class ExcellonEditSession {
         }
     }
 
-    private record Snapshot(List<Hit> hits, Set<Long> selected, Map<Integer, Double> tools, boolean dirty) {
+    private record Snapshot(List<Hit> hits, Set<Long> selected, Map<Integer, Double> tools, boolean dirty, Geometry geometry) {
     }
 
     private final GeometryFactory factory = new GeometryFactory();
@@ -44,6 +44,9 @@ public final class ExcellonEditSession {
     private STRtree index;
     private long nextId = 1;
     private boolean dirty;
+    private long revision;
+    private Geometry cachedGeometry;
+    public long revision() { return revision; }
 
     public ExcellonEditSession(ExcellonImage source) {
         Objects.requireNonNull(source, "source");
@@ -115,7 +118,38 @@ public final class ExcellonEditSession {
         for (Hit hit : candidates) if (footprint(hit).intersects(box)) selected.add(hit.id());
     }
 
-    public Geometry geometry() { return geometryOf(hits); }
+    public Geometry geometry() {
+        if(cachedGeometry==null) cachedGeometry=geometryOf(hits);
+        return cachedGeometry;
+    }
+
+    /** Installs a worker array once, atomically with any newly required tool. */
+    public int addArray(ExcellonArray.Prepared prepared,long expectedRevision) {
+        if(revision!=expectedRevision) throw new IllegalArgumentException("O rascunho mudou; gere outra prévia.");
+        var p=prepared.parameters();
+        if(prepared.elements().size()!=p.count() || prepared.geometry()==null || prepared.geometry().isEmpty())
+            throw new IllegalArgumentException("Resultado de array incompleto.");
+        int tool=toolDiameters.entrySet().stream().filter(e->Double.compare(e.getValue(),p.diameter())==0)
+                .mapToInt(Map.Entry::getKey).min().orElse(-1);
+        Map<Integer,Double> tools=new LinkedHashMap<>(toolDiameters);
+        if(tool<0) { tool=toolDiameters.keySet().stream().mapToInt(Integer::intValue).max().orElse(0)+1; tools.put(tool,p.diameter()); }
+        var next=new ArrayList<>(hits); var selection=new LinkedHashSet<Long>(); long id=nextId;
+        for(var e:prepared.elements()) {
+            requireFiniteArray(e);
+            var hit=new Hit(id++,tool,p.slots(),e.x1(),e.y1(),e.x2(),e.y2());
+            next.add(hit); selection.add(hit.id());
+        }
+        var geometries=new ArrayList<Geometry>(); var before=geometry();
+        for(int i=0;i<before.getNumGeometries();i++) if(!before.getGeometryN(i).isEmpty()) geometries.add(before.getGeometryN(i));
+        for(int i=0;i<prepared.geometry().getNumGeometries();i++) geometries.add(prepared.geometry().getGeometryN(i));
+        commit(next,selection,tools); nextId=id;
+        cachedGeometry=factory.buildGeometry(geometries);
+        return prepared.elements().size();
+    }
+    private static void requireFiniteArray(ExcellonArray.Element e) {
+        for(double v:new double[]{e.x1(),e.y1(),e.x2(),e.y2()})
+            if(!Double.isFinite(v)) throw new IllegalArgumentException("Coordenadas do array devem ser finitas.");
+    }
 
     public Geometry selectedGeometry() {
         return geometryOf(hits.stream().filter(hit -> selected.contains(hit.id())).toList());
@@ -275,7 +309,7 @@ public final class ExcellonEditSession {
                 : factory.createPoint(new Coordinate(hit.x1(), hit.y1())).buffer(radius, 16);
     }
 
-    private Snapshot snapshot() { return new Snapshot(hits, Set.copyOf(selected), Map.copyOf(toolDiameters), dirty); }
+    private Snapshot snapshot() { return new Snapshot(hits, Set.copyOf(selected), Map.copyOf(toolDiameters), dirty, cachedGeometry); }
 
     private void commit(List<Hit> changed, Collection<Long> nextSelection) {
         commit(changed, nextSelection, toolDiameters);
@@ -286,6 +320,7 @@ public final class ExcellonEditSession {
         undo.push(snapshot());
         redo.clear();
         hits = List.copyOf(changed);
+        revision++; cachedGeometry=null;
         selected.clear();
         selected.addAll(retainedSelection);
         if (nextTools != toolDiameters) {
@@ -298,6 +333,7 @@ public final class ExcellonEditSession {
 
     private void restore(Snapshot snapshot) {
         hits = snapshot.hits();
+        revision++; cachedGeometry=snapshot.geometry();
         selected.clear();
         selected.addAll(snapshot.selected());
         toolDiameters.clear();
