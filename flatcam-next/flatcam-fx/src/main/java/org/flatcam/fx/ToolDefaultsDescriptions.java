@@ -18,7 +18,8 @@ final class ToolDefaultsDescriptions {
         if (!setting.choices().isEmpty()) body += "\n\nOpções: " + String.join(", ", setting.choices()) + ".";
         return body + "\n\nPadrão de fábrica: " + setting.factory(metric)
                 + ". Só é persistido ao salvar os padrões; vale para painéis abertos depois. "
-                + "Não altera objetos, CNC Jobs nem painéis já abertos. A validação completa ocorre ao gerar a operação.";
+                + "Não altera objetos, CNC Jobs nem painéis já abertos. "
+                + (setting.key().startsWith("display.") ? "A validação completa destes padrões ocorre ao salvar." : "A validação completa ocorre ao gerar a operação.");
     }
 
     private static boolean isFeed(ToolDefaults.Setting s) {
@@ -89,6 +90,14 @@ final class ToolDefaultsDescriptions {
 
     private static String specific(ToolDefaults.Setting s) {
         String key = s.key();
+        if (key.startsWith("display.")) {
+            if (key.equals("display.gerber.follow")) return "Exibe inicialmente as linhas centrais do Gerber (Follow), em vez do cobre preenchido. A geometria sólida original continua disponível para CAM. Vale para novos objetos; projetos reabertos e cópias conservam seu estado. Pode ser alternado nas propriedades sem perder a cor.";
+            if (key.equals("display.gerber.aperturetable")) return "Abre a tabela de aberturas expandida nos próximos painéis Gerber Object. Recolher/expandir na própria seção não modifica a geometria. É um padrão do painel; esse estado de expansão não é salvo por objeto no projeto.";
+            if (s.kind() == ToolDefaults.Kind.COLOR) return "Cor inicial de novos objetos desta categoria. O seletor e o hexadecimal são equivalentes. Use #RRGGBB ou #RRGGBBAA: AA vai de 00 (transparente) a FF (opaco), por exemplo #BBF268BF. A opacidade é independente para preenchimento e linhas. Projetos reabertos, cópias e objetos existentes conservam suas cores; não altera CAM nem G-code.";
+            if (key.endsWith(".plot")) return "Visibilidade inicial ao adicionar novos objetos desta categoria. Objetos ocultos continuam no projeto e podem ser ativados pela árvore ou propriedades. Não altera objetos existentes nem o estado salvo em projetos reabertos.";
+            if (key.endsWith(".solid")) return "Preenche inicialmente os polígonos de novos objetos; desmarcado mostra seus contornos. Furos continuam vazados. A opção afeta o desenho, sem modificar a geometria usada no CAM.";
+            if (key.endsWith(".multicolor")) return "Desenha inicialmente as partes do objeto com cores diferentes. Substitui visualmente a cor única enquanto ativo, preservando a cor escolhida para quando for desativado. Não representa identificação elétrica de redes.";
+        }
         if (key.equals("geometry.editorcirclesteps"))
             return "Número de segmentos por volta completa para novos arcos e círculos do Editor Geometry, de 4 a 4096. Círculos usam o múltiplo de 4 inferior, como no Python: 65 resulta em 64. Mais segmentos aproximam melhor a curva e aumentam memória/custo da prévia. Não modifica formas existentes nem garante precisão física da máquina. O editor permite ajustar o valor localmente antes de desenhar.";
         if (key.equals("ncc.tooldia") || key.equals("paint.tooldia"))

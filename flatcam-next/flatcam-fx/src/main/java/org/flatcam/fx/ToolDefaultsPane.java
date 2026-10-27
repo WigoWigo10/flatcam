@@ -81,6 +81,10 @@ final class ToolDefaultsPane {
                     label.setMinWidth(0);
                     if (editor instanceof javafx.scene.layout.Region region) { region.setMinWidth(0); region.setMaxWidth(Double.MAX_VALUE); }
                     ToolDescriptions.apply(editor, setting.tool() + " — " + setting.label(), help);
+                    if (setting.kind() == ToolDefaults.Kind.COLOR && editor instanceof VBox colorEditor) {
+                        colorEditor.getChildren().forEach(child -> ToolDescriptions.apply(child, setting.label(), help));
+                        label.setLabelFor(colorEditor.getChildren().getFirst());
+                    }
                     ToolDescriptions.apply(label, setting.label(), help);
                     if (editor instanceof javafx.scene.control.Control control) label.setLabelFor(control);
                     grid.addRow(row++, label, editor);
@@ -154,12 +158,36 @@ final class ToolDefaultsPane {
             ToolDescriptions.apply(reset, "Restaurar esta seção", "Pede confirmação antes de remover os padrões personalizados somente desta seção, em mm e in. Não modifica outras seções nem objetos do projeto.");
         }
         var actions = new javafx.scene.layout.FlowPane(8, 8, save, reset, confirmReset);
-        VBox box = new VBox(8, new HBox(10, new Label("Unidades dos comprimentos:"), millimetres, inches), groups,
+        HBox unitControls = new HBox(10, new Label("Unidades dos comprimentos:"), millimetres, inches);
+        unitControls.setId("tool-defaults-units");
+        boolean hasLengths = ToolDefaults.settings().stream().anyMatch(s -> included.contains(s.tool()) && s.perUnit());
+        unitControls.setVisible(hasLengths); unitControls.setManaged(hasLengths);
+        VBox box = new VBox(8, unitControls, groups,
                 actions, feedback);
         return box;
     }
 
     private static Node editor(ToolDefaults.Setting setting, String value, java.util.function.Consumer<String> onEdit) {
+        if (setting.kind() == ToolDefaults.Kind.COLOR) {
+            javafx.scene.paint.Color initial = value.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")
+                    ? javafx.scene.paint.Color.web(value) : ToolDefaults.color(setting.key());
+            var picker = new javafx.scene.control.ColorPicker(initial);
+            var hex = new TextField(value);
+            String id = "tool-default-" + setting.key().replace('.', '-');
+            picker.setId(id + "-picker"); hex.setId(id + "-hex");
+            picker.setMinWidth(0); picker.setMaxWidth(Double.MAX_VALUE);
+            hex.setMinWidth(0); hex.setPrefColumnCount(9);
+            hex.textProperty().addListener((o, before, now) -> {
+                onEdit.accept(now);
+                if (now.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) picker.setValue(javafx.scene.paint.Color.web(now));
+            });
+            picker.setOnAction(e -> {
+                var color = picker.getValue();
+                hex.setText(String.format(java.util.Locale.ROOT, "#%02X%02X%02X%02X", Math.round(color.getRed()*255),
+                        Math.round(color.getGreen()*255), Math.round(color.getBlue()*255), Math.round(color.getOpacity()*255)));
+            });
+            return new VBox(4, picker, hex);
+        }
         if (setting.kind() == ToolDefaults.Kind.FLAG) {
             CheckBox box = new CheckBox();
             box.setSelected(Boolean.parseBoolean(value));

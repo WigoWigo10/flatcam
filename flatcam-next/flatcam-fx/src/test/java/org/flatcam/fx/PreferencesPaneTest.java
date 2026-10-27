@@ -140,8 +140,43 @@ class PreferencesPaneTest {
             assertEquals(1, view.host.themeWrites); assertEquals(ThemeOption.ICE_LIGHT, view.host.theme);
             assertTrue(PreferencesSearch.matches("SOBREPOSICAO ncc", "NCC", "Sobreposição (%)"));
             assertFalse(PreferencesSearch.matches("ncc xyz", "NCC", "Sobreposição"));
+            assertFalse(PreferencesSearch.matches("cor", "A validação ocorre ao salvar"));
+            assertTrue(PreferencesSearch.matches("cor", "Cores do Gerber"));
             return null;
         });
+    }
+
+    @ParameterizedTest @EnumSource(ThemeOption.class)
+    void colorPreferencesKeepAlphaAndValidateHiddenDraftsAcrossThemes(ThemeOption theme) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            View view=view(theme); select(view,"Gerber: Exibição");
+            assertFalse(view.pane.lookup("#tool-defaults-units").isVisible());
+            String id="tool-default-display-gerber-fill";
+            field(view,id+"-hex").setText("#12345680");
+            assertEquals(128.0/255,((ColorPicker)view.pane.lookup("#"+id+"-picker")).getValue().getOpacity(),1e-7);
+            search(view).setText("gerber cor"); view.pane.applyCss(); view.pane.layout();
+            assertEquals("#12345680",field(view,id+"-hex").getText());
+            button(view,"tool-defaults-save").fire(); assertEquals("#12345680",ToolDefaults.text("display.gerber.fill",true));
+            if(Boolean.getBoolean("flatcam.tests.snapshots")) saveSnapshot(view,"preferences-colors-"+theme);
+            field(view,id+"-hex").setText("invalid"); button(view,"tool-defaults-save").fire();
+            assertEquals("#12345680",ToolDefaults.text("display.gerber.fill",true));
+            assertTrue(((Label)view.pane.lookup("#tool-defaults-feedback")).getText().startsWith("Não salvo"));
+            search(view).clear(); select(view,"Excellon: Exibição");
+            select(view,"Gerber: Exibição"); assertEquals("invalid",field(view,id+"-hex").getText());
+            button(view,"tool-defaults-reset").fire(); button(view,"tool-defaults-reset-confirm").fire();
+            assertEquals("#BBF268BF",ToolDefaults.text("display.gerber.fill",true));
+            return null;
+        });
+    }
+
+    private static void saveSnapshot(View view,String name) throws Exception {
+        WritableImage image=view.pane.snapshot(null,null);
+        int width=(int)image.getWidth(),height=(int)image.getHeight();
+        var png=new java.awt.image.BufferedImage(width,height,java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        int[] pixels=new int[width*height];
+        image.getPixelReader().getPixels(0,0,width,height,javafx.scene.image.PixelFormat.getIntArgbInstance(),pixels,0,width);
+        png.setRGB(0,0,width,height,pixels,0,width);
+        javax.imageio.ImageIO.write(png,"png",Path.of("target/"+name+".png").toFile());
     }
 
     @ParameterizedTest @EnumSource(ThemeOption.class)

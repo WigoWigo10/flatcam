@@ -163,6 +163,7 @@ public final class PythonProjectWriter {
         JSONObject object = new JSONObject().put("kind", "geometry").put("units", entry.units())
                 .put("solid_geometry", parts(entry.geometry())).put("follow_geometry", new JSONArray())
                 .put("multigeo", !entry.tools().isEmpty()).put("options", options(entry.name(), entry.visible(), entry.geometry()));
+        object.getJSONObject("options").put("multicolored", entry.multicolor());
         if (entry.geometry() == null || entry.geometry().isEmpty()) {
             // A blank Geometry, written the way the Python application writes its own ("New Geometry"): no solid
             // geometry at all, multigeo, zero bounds. With an empty list instead, Python computes infinite bounds

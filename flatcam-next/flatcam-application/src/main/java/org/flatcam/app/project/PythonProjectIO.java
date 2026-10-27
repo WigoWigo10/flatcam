@@ -159,7 +159,8 @@ public final class PythonProjectIO {
         return new ProjectFile.GeometryEntry(name, "", org.flatcam.app.project.flatprj.LegacyUnits.normalize(object.optString("units", "MM")),
                 geometry, geometry.getDimension() < 2, List.copyOf(tools),
                 object.optString("fill_color", null), object.optString("outline_color", null), plot(object),
-                readGeometryCncDefaults(toolJson, object.optJSONObject("options")), readGeometrySettings(toolJson, object.optJSONObject("options")));
+                readGeometryCncDefaults(toolJson, object.optJSONObject("options")), readGeometrySettings(toolJson, object.optJSONObject("options")),
+                null, object.optJSONObject("options") != null && object.getJSONObject("options").optBoolean("multicolored", false));
     }
 
     private static GeometryCncSettings readGeometrySettings(JSONObject tools, JSONObject options) {

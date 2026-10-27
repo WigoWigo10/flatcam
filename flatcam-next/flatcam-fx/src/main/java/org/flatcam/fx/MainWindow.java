@@ -787,6 +787,8 @@ final class MainWindow implements TclFlatcamHost {
     private PlotStatusControls statusControls;
     private boolean consoleCollapsed = !AppPreferences.loadConsoleOpen(true);
     private ThemeOption currentTheme = AppPreferences.loadTheme(ThemeOption.ICE_LIGHT);
+    /** Saved projects restore their own presentation, independently of defaults for newly added objects. */
+    private boolean restoringProject;
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
     private ContextMenu plotContextMenu;
@@ -5624,7 +5626,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
-        Menu colorMenu = buildLayerColorMenu(item, GERBER_FILL, GERBER_STROKE);
+        Menu colorMenu = buildLayerColorMenu(item, ToolDefaults.color("display.gerber.fill"), ToolDefaults.color("display.gerber.stroke"));
 
         MenuItem editItem = new MenuItem("Editar");
         setLegacyMenuIcon(editItem, "edit_ok32.png");
@@ -5677,7 +5679,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
-        Menu colorMenu = buildLayerColorMenu(item, DRILL_FILL, DRILL_STROKE);
+        Menu colorMenu = buildLayerColorMenu(item, ToolDefaults.color("display.excellon.fill"), ToolDefaults.color("display.excellon.stroke"));
 
         MenuItem editItem = new MenuItem("Editar Excellon");
         setLegacyMenuIcon(editItem, "edit_file32.png");
@@ -5726,7 +5728,7 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
-        Menu colorMenu = buildLayerColorMenu(item, GEOMETRY_FILL, GEOMETRY_STROKE);
+        Menu colorMenu = buildLayerColorMenu(item, ToolDefaults.color("display.geometry.stroke"), ToolDefaults.color("display.geometry.stroke"));
 
         MenuItem cncItem = new MenuItem("Criar CNC Job...");
         setLegacyMenuIcon(cncItem, "cnc32.png");
@@ -6423,11 +6425,7 @@ final class MainWindow implements TclFlatcamHost {
 
         if (gerber != null) {
             copyItem = addGerberToProject(copyName, sourcePathByItem.get(sourceItem), gerber);
-            if (gerberFollowItems.contains(sourceItem)) {
-                gerberFollowItems.add(copyItem);
-                plotAreaView.putLayer(copyItem, PlotAreaView.LayerCategory.GERBER,
-                        gerber.followGeometry(), GERBER_FILL, GERBER_STROKE, true);
-            }
+            setGerberFollow(copyItem, gerber, gerberFollowItems.contains(sourceItem));
             copyLayerAppearance(sourceItem, copyItem);
         } else if (excellon != null) {
             copyItem = addExcellonToProject(copyName, sourcePathByItem.get(sourceItem), excellon,
@@ -7789,15 +7787,7 @@ final class MainWindow implements TclFlatcamHost {
         followCb.setTooltip(new Tooltip("Exibe a linha central das trilhas Gerber."));
         followCb.setSelected(gerberFollowItems.contains(item));
         followCb.setOnAction(e -> {
-            boolean follow = followCb.isSelected();
-            if (follow) {
-                gerberFollowItems.add(item);
-            } else {
-                gerberFollowItems.remove(item);
-            }
-            plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER,
-                    follow ? image.followGeometry() : image.solidGeometry(),
-                    GERBER_FILL, GERBER_STROKE, follow);
+            setGerberFollow(item, image, followCb.isSelected());
             refreshPlotSelectionOutline();
         });
         box.getChildren().add(labeledRow("Plot:", plotCb, followCb));
@@ -7823,8 +7813,11 @@ final class MainWindow implements TclFlatcamHost {
 
         box.getChildren().add(buildGerberUtilities(item, image));
 
-        box.getChildren().add(new Label("Apertures Table:"));
-        box.getChildren().add(buildAperturesTableSection(item, image));
+        TitledPane apertures = new TitledPane("Apertures Table", buildAperturesTableSection(item, image));
+        apertures.setId("gerber-apertures-pane");
+        apertures.setExpanded(ToolDefaults.flag("display.gerber.aperturetable"));
+        ToolDescriptions.apply(apertures, "Mostrar/ocultar aberturas", "Expanda para consultar e marcar aberturas; recolha para liberar espaço no painel. Não modifica o Gerber. O estado inicial vem de Preferências > Gerber > Avançadas.");
+        box.getChildren().add(apertures);
 
         box.getChildren().add(new Label("Transformations:"));
         box.getChildren().add(transformationsSection(item));
@@ -10157,7 +10150,7 @@ final class MainWindow implements TclFlatcamHost {
                     geometry.units(), geometry.geometry(), geometry.strokeOnly(), geometry.tools(),
                     colors != null ? colors[0].toString() : null,
                     colors != null ? colors[1].toString() : null, plotAreaView.isLayerVisible(item),
-                    geometry.cncDefaults(), geometryCncSettingsByItem.get(item), geometry.machiningTarget()));
+                    geometry.cncDefaults(), geometryCncSettingsByItem.get(item), geometry.machiningTarget(), plotAreaView.isLayerMulticolor(item)));
         }
         ProjectFile.PythonLegacy legacy = currentPythonLegacy;
         if (legacy != null) {
@@ -10329,6 +10322,8 @@ final class MainWindow implements TclFlatcamHost {
     /** FX-only publication. Tcl replacement must not cancel its own running script. */
     private void restoreProject(LoadedProject project, boolean cancelTerminal) {
         long restoreStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
+        boolean previousRestoring = restoringProject;
+        restoringProject = true;
         plotAreaView.beginBatchUpdate();
         try {
             clearProject(cancelTerminal);
@@ -10359,6 +10354,7 @@ final class MainWindow implements TclFlatcamHost {
                             entry.strokeOnly(), entry.tools(), entry.cncDefaults(), loaded.machiningTarget()));
                 }
                 rememberPythonOrigin(item, "geometry");
+                plotAreaView.setLayerMulticolor(item, loaded.multicolor());
                 if (loaded.fillColorWeb() != null && loaded.strokeColorWeb() != null) {
                     plotAreaView.setLayerColors(item, Color.web(loaded.fillColorWeb()),
                             Color.web(loaded.strokeColorWeb()));
@@ -10380,6 +10376,7 @@ final class MainWindow implements TclFlatcamHost {
                 }
             }
         } finally {
+            restoringProject = previousRestoring;
             plotAreaView.endBatchUpdate();
         }
         plotAreaView.logPerformancePhase("project restore (FX thread)", restoreStart);
@@ -10484,6 +10481,7 @@ final class MainWindow implements TclFlatcamHost {
         sourcePathByItem.put(item, sourcePath);
         gerbersNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER, image.solidGeometry(), GERBER_FILL, GERBER_STROKE, false);
+        applyNewPlotDefaults(item, "gerber");
         return item;
     }
 
@@ -10503,6 +10501,7 @@ final class MainWindow implements TclFlatcamHost {
         sourcePathByItem.put(item, sourcePath);
         excellonNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.EXCELLON, image.solidGeometry(), DRILL_FILL, DRILL_STROKE, false);
+        applyNewPlotDefaults(item, "excellon");
         return item;
     }
 
@@ -10524,7 +10523,32 @@ final class MainWindow implements TclFlatcamHost {
         geometryNode.getChildren().add(item);
         plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GEOMETRY, geometry,
                 GEOMETRY_FILL, GEOMETRY_STROKE, strokeOnly);
+        applyNewPlotDefaults(item, "geometry");
         return item;
+    }
+
+    private void applyNewPlotDefaults(TreeItem<String> item, String kind) {
+        if (restoringProject) return;
+        String prefix = "display." + kind + ".";
+        Color stroke = ToolDefaults.color(prefix + "stroke");
+        Color fill = kind.equals("geometry") ? stroke : ToolDefaults.color(prefix + "fill");
+        plotAreaView.beginBatchUpdate();
+        try {
+            plotAreaView.setLayerColors(item, fill, stroke);
+            if (!kind.equals("geometry")) plotAreaView.setLayerFilled(item, ToolDefaults.flag(prefix + "solid"));
+            plotAreaView.setLayerMulticolor(item, ToolDefaults.flag(prefix + "multicolor"));
+            plotAreaView.setLayerVisible(item, ToolDefaults.flag(prefix + "plot"));
+            if (kind.equals("gerber") && ToolDefaults.flag("display.gerber.follow"))
+                setGerberFollow(item, gerberByItem.get(item), true);
+        } finally { plotAreaView.endBatchUpdate(); }
+    }
+
+    private void setGerberFollow(TreeItem<String> item, GerberImage image, boolean follow) {
+        if (follow) gerberFollowItems.add(item); else gerberFollowItems.remove(item);
+        Color[] colors = plotAreaView.layerColors(item);
+        plotAreaView.putLayer(item, PlotAreaView.LayerCategory.GERBER,
+                follow ? image.followGeometry() : image.solidGeometry(),
+                colors == null ? GERBER_FILL : colors[0], colors == null ? GERBER_STROKE : colors[1], follow);
     }
 
     private void cancelDemoJob() {

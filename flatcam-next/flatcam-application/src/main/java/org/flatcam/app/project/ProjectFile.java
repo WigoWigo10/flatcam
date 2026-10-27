@@ -119,7 +119,14 @@ public record ProjectFile(
                                 boolean strokeOnly, List<ToolGeometry> tools,
                                 String fillColorWeb, String strokeColorWeb, boolean visible,
                                 GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings,
-                                org.flatcam.cam.gcode.MachiningTarget machiningTarget) {
+                                org.flatcam.cam.gcode.MachiningTarget machiningTarget, boolean multicolor) {
+        public GeometryEntry(String name, String sourceName, String units, Geometry geometry,
+                             boolean strokeOnly, List<ToolGeometry> tools, String fillColorWeb, String strokeColorWeb,
+                             boolean visible, GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings,
+                             org.flatcam.cam.gcode.MachiningTarget machiningTarget) {
+            this(name, sourceName, units, geometry, strokeOnly, tools, fillColorWeb, strokeColorWeb,
+                    visible, cncDefaults, cncSettings, machiningTarget, false);
+        }
         public GeometryEntry(String name, String sourceName, String units, Geometry geometry,
                              boolean strokeOnly, List<ToolGeometry> tools, String fillColorWeb, String strokeColorWeb,
                              boolean visible, GeometryGCodeParameters cncDefaults, GeometryCncSettings cncSettings) {

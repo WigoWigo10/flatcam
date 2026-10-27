@@ -131,6 +131,7 @@ public final class ProjectFileIO {
             geometryJson.put("units", entry.units());
             geometryJson.put("wkt", wktWriter.write(entry.geometry()));
             geometryJson.put("strokeOnly", entry.strokeOnly());
+            geometryJson.put("multicolor", entry.multicolor());
             geometryJson.put("visible", entry.visible());
             if (entry.cncDefaults() != null) {
                 GeometryGCodeParameters defaults = entry.cncDefaults();
@@ -441,7 +442,7 @@ public final class ProjectFileIO {
                         value.optString("strokeColor", null), value.optBoolean("visible", true),
                         readGeometryCncDefaults(value.optJSONObject("cncDefaults")),
                         readGeometrySettings(optionalObject(value, "cncSettings")),
-                        readTarget(optionalObject(value, "machiningTarget"))));
+                        readTarget(optionalObject(value, "machiningTarget")), value.optBoolean("multicolor", false)));
             }
         } catch (ParseException | JSONException | IllegalArgumentException invalid) {
             throw new IOException("Invalid embedded Geometry object", invalid);

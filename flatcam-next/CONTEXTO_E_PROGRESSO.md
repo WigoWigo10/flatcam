@@ -1,5 +1,29 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Preferências: exibição e opções avançadas por objeto — 2026-10-27
+
+Etapa por categorias commitada em `ae16ddb5`; rotação em `ebacf0ad`.
+Sobre essa base: quinze padrões Python de Gerber/Excellon/Geometry portados
+com efeito no Plot: cores RGBA, Plot/Solid/Multi-Color, Follow Gerber e tabela
+de aberturas recolhível. Valores de fábrica conferidos no defaults.py original.
+Seletores de cor e hexadecimal, validação, alpha independente; seções sem
+comprimentos ocultam mm/in. Busca usa início de palavra para evitar que cor
+encontre ocorre. Menu Padrão lê as cores configuradas. Follow preserva cores.
+Novos objetos usam os padrões; cópias e reabertura conservam o estado da origem/
+projeto. Guard de restauração impede sobrescrever estilos com padrões novos.
+Geometry ganhou Multi-Color opcional na persistência nativa e opção Python
+multicolored, com construtores anteriores e fallback false para arquivos antigos.
+Estado de expansão da tabela é do painel FX, não persistido por objeto.
+16 casos novos; pacote e 55 testes focados finais passaram, sem skips.
+Regressão anterior com Terminal: 118 aprovações e um skip opcional.
+Verificação integral final: 1991 registros, 1972 aprovados, 18 skips opcionais,
+somente a falha End Z já conhecida de CncNativePrecisionTest. Os 16 casos novos
+passaram; nenhuma asserção alterada/afrouxada. Integral continua reprovado.
+Log: `target/preferences-advanced-final-verify.log`.
+Capturas de cores nos quatro temas; sem janela Qt, preferências reais ou projetos
+privados alterados. Avançados consolidados nesta entrega (ver git log), sem push. Próximos grupos:
+cores CNC, opções de importação/editor e exportação. [PREFERENCIAS.md](PREFERENCIAS.md).
+
 ## Preferências por categoria — 2026-10-27
 
 Sobre `3d395253`: substituído o formulário único por árvore lateral, busca e

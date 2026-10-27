@@ -18,7 +18,7 @@ import java.util.Properties;
  */
 final class ToolDefaults {
 
-    enum Kind { NUMBER, INTEGER, FLAG, CHOICE }
+    enum Kind { NUMBER, INTEGER, FLAG, CHOICE, COLOR }
 
     /** {@code inches} is null for a value that does not depend on the units (a percentage, a count, a switch). */
     record Setting(String key, String tool, String label, Kind kind, String millimetres, String inches,
@@ -49,6 +49,17 @@ final class ToolDefaults {
     }
 
     static {
+        for (String kind : List.of("gerber", "excellon", "geometry")) {
+            String title = switch (kind) { case "gerber" -> "Gerber"; case "excellon" -> "Excellon"; default -> "Geometry"; };
+            String group = title + ": Exibição";
+            flag("display." + kind + ".plot", group, "Plotar novos objetos", true);
+            if (!kind.equals("geometry")) flag("display." + kind + ".solid", group, "Solid (preenchido)", true);
+            flag("display." + kind + ".multicolor", group, "Multi-Color", false);
+            if (!kind.equals("geometry")) color("display." + kind + ".fill", group, "Cor do preenchimento", kind.equals("gerber") ? "#BBF268BF" : "#C40000BF");
+            color("display." + kind + ".stroke", group, "Cor das linhas", switch (kind) { case "gerber" -> "#006E20BF"; case "excellon" -> "#750000BF"; default -> "#FF0000"; });
+        }
+        flag("display.gerber.follow", "Gerber: Avançadas", "Follow (linhas centrais)", false);
+        flag("display.gerber.aperturetable", "Gerber: Avançadas", "Abrir tabela de aberturas expandida", false);
         integer("geometry.editorcirclesteps", "Editor Geometry", "Segmentos por círculo (arcos e círculos)", 64);
         String cutout = "Cutout";
         length("cutout.tooldia", cutout, "Diâmetro da ferramenta", "2.4", "0.094");
@@ -257,6 +268,10 @@ final class ToolDefaults {
         define(new Setting(key, tool, label, Kind.FLAG, Boolean.toString(value), null, List.of()));
     }
 
+    private static void color(String key, String tool, String label, String value) {
+        define(new Setting(key, tool, label, Kind.COLOR, value, null, List.of()));
+    }
+
     private static void choice(String key, String tool, String label, String value, String... choices) {
         define(new Setting(key, tool, label, Kind.CHOICE, value, null, List.of(choices)));
     }
@@ -343,6 +358,10 @@ final class ToolDefaults {
 
     static boolean flag(String key) {
         return Boolean.parseBoolean(text(key, true));
+    }
+
+    static javafx.scene.paint.Color color(String key) {
+        return javafx.scene.paint.Color.web(text(key, true));
     }
 
     static String choice(String key) {
@@ -481,6 +500,7 @@ final class ToolDefaults {
         return switch (setting.kind()) {
             case NUMBER -> text.replace(',', '.');
             case FLAG -> text.toLowerCase(Locale.ROOT);
+            case COLOR -> text.toUpperCase(Locale.ROOT);
             default -> text;
         };
     }
@@ -488,6 +508,9 @@ final class ToolDefaults {
     /** Why {@code value} cannot be this setting, or null when it can. */
     private static String problem(Setting setting, String value) {
         switch (setting.kind()) {
+            case COLOR -> {
+                if (!value.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) return "use #RRGGBB ou #RRGGBBAA (AA é a opacidade)";
+            }
             case NUMBER -> {
                 try {
                     if (!Double.isFinite(Double.parseDouble(value))) {

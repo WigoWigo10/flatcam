@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Preferências avançadas de exibição — 2026-10-27
+
+Quinze padrões de Gerber/Excellon/Geometry: cores/transparência, Plot/Solid/
+Multi-Color, Follow e expansão da tabela de aberturas. Aplicados a novos objetos,
+sem sobrescrever estilos de cópias/projetos reabertos. Geometry Multi-Color salvo
+em .fcnproj e na opção Python multicolored; leitura de arquivos antigos testada.
+Expansão da tabela é do painel, não uma opção persistida por objeto. 16 casos
+novos; testes/capturas nos quatro temas. Grupos avançados completos de importação,
+editores, exportação e CNC ainda parciais. [PREFERENCIAS.md](PREFERENCIAS.md).
+
 ## Preferências por categoria — 2026-10-27
 
 Navegação Geral/Plot/Gerber/Excellon/Geometry/CNC/Ferramentas e busca sem acentos

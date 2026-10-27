@@ -14,7 +14,8 @@ final class PreferencesSearch {
         String haystack = normalize(String.join(" ", values));
         String normalized = normalize(query);
         if (normalized.isEmpty()) return true;
-        for (String word : normalized.split("\\s+")) if (!haystack.contains(word)) return false;
+        for (String word : normalized.split("\\s+"))
+            if (!java.util.regex.Pattern.compile("(^|[^\\p{L}\\p{N}])" + java.util.regex.Pattern.quote(word)).matcher(haystack).find()) return false;
         return true;
     }
 }

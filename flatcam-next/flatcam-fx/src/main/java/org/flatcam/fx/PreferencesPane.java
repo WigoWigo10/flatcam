@@ -64,9 +64,9 @@ final class PreferencesPane extends BorderPane {
         sections.add(new Section("plot", "Plot Area", null, null, "replot32.png"));
         for (String group : ToolDefaults.byTool().keySet()) {
             String category = switch (group) {
-                case "Importação: Gerber" -> "Gerber";
-                case "Importação: Excellon" -> "Excellon";
-                case "Editor Geometry" -> "Geometry";
+                case "Importação: Gerber", "Gerber: Exibição", "Gerber: Avançadas" -> "Gerber";
+                case "Importação: Excellon", "Excellon: Exibição" -> "Excellon";
+                case "Editor Geometry", "Geometry: Exibição" -> "Geometry";
                 case "CNC Job (geral)", "Geometry CNC", "Drilling", "Excellon Milling" -> "CNC Job";
                 default -> "Ferramentas";
             };

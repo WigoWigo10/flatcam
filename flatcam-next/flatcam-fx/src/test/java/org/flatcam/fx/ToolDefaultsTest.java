@@ -13,6 +13,30 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ToolDefaultsTest {
+    @Test void colorsNormalizeValidateAndRoundTripAlphaWithoutUnits() {
+        ToolDefaults.useStore(ToolDefaults.memoryStore());
+        ToolDefaults.set("display.gerber.fill",true," #123abc80 ");
+        assertEquals("#123ABC80",ToolDefaults.text("display.gerber.fill",true));
+        assertEquals("#123ABC80",ToolDefaults.text("display.gerber.fill",false));
+        assertEquals(128.0/255,ToolDefaults.color("display.gerber.fill").getOpacity(),1e-7);
+        var exported=ToolDefaults.export(); ToolDefaults.resetAll(); ToolDefaults.importFrom(exported);
+        assertEquals("#123ABC80",ToolDefaults.text("display.gerber.fill",true));
+        for(String bad:new String[]{"red","#123","#1234567","#123456GG","0x12345678","#123456789"})
+            assertThrows(IllegalArgumentException.class,()->ToolDefaults.set("display.gerber.fill",true,bad),bad);
+        assertEquals("#123ABC80",ToolDefaults.text("display.gerber.fill",true));
+    }
+
+    @Test void displayFactoriesMatchPythonAndCorruptColorsFallBack() {
+        var saved=ToolDefaults.memoryStore(); ToolDefaults.useStore(saved);
+        assertEquals("#BBF268BF",ToolDefaults.text("display.gerber.fill",true));
+        assertEquals("#006E20BF",ToolDefaults.text("display.gerber.stroke",true));
+        assertEquals("#C40000BF",ToolDefaults.text("display.excellon.fill",true));
+        assertEquals("#750000BF",ToolDefaults.text("display.excellon.stroke",true));
+        assertEquals("#FF0000",ToolDefaults.text("display.geometry.stroke",true));
+        assertFalse(ToolDefaults.flag("display.gerber.follow")); assertFalse(ToolDefaults.flag("display.gerber.aperturetable"));
+        saved.put("display.gerber.fill","invalid");
+        assertEquals("#BBF268BF",ToolDefaults.text("display.gerber.fill",true));
+    }
 
     @BeforeEach
     @AfterEach
