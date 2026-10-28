@@ -46,8 +46,8 @@ final class ExcellonObjectToolsTable {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.getColumns().addAll(numberColumn, diameterColumn, drillsColumn, slotsColumn);
         table.getItems().setAll(rows);
-        table.setFixedCellSize(27);
-        table.setPrefHeight(30 + rows.size() * 27 + 2);
+        table.setFixedCellSize(UiFonts.rowHeight(27));
+        table.setPrefHeight(30 + rows.size() * UiFonts.rowHeight(27) + 2);
         table.setMinHeight(table.getPrefHeight());
         table.setMaxHeight(table.getPrefHeight());
         table.getSelectionModel().clearSelection();

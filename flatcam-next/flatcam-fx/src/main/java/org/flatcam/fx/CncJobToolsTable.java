@@ -82,8 +82,8 @@ final class CncJobToolsTable {
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.getColumns().addAll(List.of(numberColumn, diameterColumn, drillsColumn, slotsColumn, cutZColumn, plotColumn));
         table.getItems().setAll(rows);
-        table.setFixedCellSize(27);
-        table.setPrefHeight(30 + rows.size() * 27 + 2);
+        table.setFixedCellSize(UiFonts.rowHeight(27));
+        table.setPrefHeight(30 + rows.size() * UiFonts.rowHeight(27) + 2);
         table.setMinHeight(table.getPrefHeight());
         table.setMaxHeight(table.getPrefHeight());
         table.getSelectionModel().clearSelection();

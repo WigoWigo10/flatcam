@@ -270,8 +270,9 @@ final class PlotAreaView extends StackPane {
     private static final Color PLACEMENT_FILL = Color.web("#00bfff", 0.30);
     private static final Color PLACEMENT_STROKE = Color.web("#00bfff", 0.95);
 
-    private static final double RULER_TOP_HEIGHT = 20;
-    private static final double RULER_LEFT_WIDTH = 44;
+    private final double rulerTopHeight = UiFonts.rulerTop();
+    private final double rulerLeftWidth = UiFonts.rulerLeft();
+    private final javafx.scene.text.Font rulerFont=javafx.scene.text.Font.font(Math.max(1,UiFonts.settings().axisSize()));
     private static final double MIN_SCALE = 0.001;
     private static final double MAX_SCALE = 10_000;
     private static final double ZOOM_STEP = 1.1;
@@ -343,7 +344,7 @@ final class PlotAreaView extends StackPane {
     }
     boolean renderFailed() { return indexCache.failed(); }
     PlotCamera cameraSnapshot() {
-        return camera(Math.max(1, getWidth() - RULER_LEFT_WIDTH), Math.max(1, getHeight() - RULER_TOP_HEIGHT));
+        return camera(Math.max(1, getWidth() - rulerLeftWidth), Math.max(1, getHeight() - rulerTopHeight));
     }
     /** Diagnostic/camera restoration entry: same coalesced scheduling as pan/zoom input. */
     void setCamera(PlotCamera camera) {
@@ -354,7 +355,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private PlotCamera camera(double width, double height) {
-        return new PlotCamera(viewCenterX, viewCenterY, scale, width, height, RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
+        return new PlotCamera(viewCenterX, viewCenterY, scale, width, height, rulerLeftWidth, rulerTopHeight);
     }
     private final AnimationTimer interactionRedrawTimer = new AnimationTimer() {
         @Override
@@ -750,8 +751,8 @@ final class PlotAreaView extends StackPane {
         if (box == null || box.isNull()) {
             return;
         }
-        double contentWidth = Math.max(1, getWidth() - RULER_LEFT_WIDTH);
-        double contentHeight = Math.max(1, getHeight() - RULER_TOP_HEIGHT);
+        double contentWidth = Math.max(1, getWidth() - rulerLeftWidth);
+        double contentHeight = Math.max(1, getHeight() - rulerTopHeight);
         Envelope view = visibleWorldBounds(viewCenterX, viewCenterY, scale, contentWidth, contentHeight);
         boolean fits = box.getWidth() <= view.getWidth() && box.getHeight() <= view.getHeight();
         if (fits ? !view.covers(box) : !view.intersects(box)) {
@@ -1163,7 +1164,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private double[] snappedWorld(double screenX, double screenY) {
-        double[] world = screenToWorld(screenX - RULER_LEFT_WIDTH, screenY - RULER_TOP_HEIGHT);
+        double[] world = screenToWorld(screenX - rulerLeftWidth, screenY - rulerTopHeight);
         if (gridSnapEnabled) {
             world[0] = snapCoordinate(world[0], gridStepX);
             world[1] = snapCoordinate(world[1], gridStepY);
@@ -1241,8 +1242,8 @@ final class PlotAreaView extends StackPane {
     }
 
     private void fitToEnvelope(Envelope envelope) {
-        double contentWidth = Math.max(1, getWidth() - RULER_LEFT_WIDTH);
-        double contentHeight = Math.max(1, getHeight() - RULER_TOP_HEIGHT);
+        double contentWidth = Math.max(1, getWidth() - rulerLeftWidth);
+        double contentHeight = Math.max(1, getHeight() - rulerTopHeight);
         double margin = 20;
         double scaleX = envelope.getWidth() > 0 ? (contentWidth - 2 * margin) / envelope.getWidth() : scale;
         double scaleY = envelope.getHeight() > 0 ? (contentHeight - 2 * margin) / envelope.getHeight() : scale;
@@ -1665,10 +1666,10 @@ final class PlotAreaView extends StackPane {
         if (newScale == scale) {
             return;
         }
-        double contentX = event.getX() - RULER_LEFT_WIDTH;
-        double contentY = event.getY() - RULER_TOP_HEIGHT;
-        double contentWidth = getWidth() - RULER_LEFT_WIDTH;
-        double contentHeight = getHeight() - RULER_TOP_HEIGHT;
+        double contentX = event.getX() - rulerLeftWidth;
+        double contentY = event.getY() - rulerTopHeight;
+        double contentWidth = getWidth() - rulerLeftWidth;
+        double contentHeight = getHeight() - rulerTopHeight;
 
         double factorInverse = 1.0 / scale - 1.0 / newScale;
         viewCenterX += (contentX - contentWidth / 2.0) * factorInverse;
@@ -1761,7 +1762,7 @@ final class PlotAreaView extends StackPane {
                 event.consume();
             } else if (rightPressed && !rightDragged && selectionHandler == null
                     && contextRequestHandler != null && insidePlot(event.getX(), event.getY())) {
-                double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+                double[] world = screenToWorld(event.getX() - rulerLeftWidth, event.getY() - rulerTopHeight);
                 contextRequestHandler.onContextRequest(world[0], world[1], event.getScreenX(), event.getScreenY());
                 event.consume();
             }
@@ -1826,7 +1827,7 @@ final class PlotAreaView extends StackPane {
             stepPressArmed = false;
             if (selectionHandler == null && Math.hypot(event.getX() - stepPressX, event.getY() - stepPressY)
                     <= CLICK_DRAG_THRESHOLD_PX && insidePlot(event.getX(), event.getY())) {
-                double[] world = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+                double[] world = screenToWorld(event.getX() - rulerLeftWidth, event.getY() - rulerTopHeight);
                 if (!stepView.isEmpty() && stepView.hit(world[0], world[1], scale)) {
                     stopWalk();
                     selecting = false;
@@ -1847,10 +1848,10 @@ final class PlotAreaView extends StackPane {
             return;
         }
         selecting = false;
-        double[] press = screenToWorld(selectionPressScreenX - RULER_LEFT_WIDTH, selectionPressScreenY - RULER_TOP_HEIGHT);
+        double[] press = screenToWorld(selectionPressScreenX - rulerLeftWidth, selectionPressScreenY - rulerTopHeight);
         boolean additive = event.isControlDown();
         if (selectionDragged) {
-            double[] release = screenToWorld(event.getX() - RULER_LEFT_WIDTH, event.getY() - RULER_TOP_HEIGHT);
+            double[] release = screenToWorld(event.getX() - rulerLeftWidth, event.getY() - rulerTopHeight);
             activeSelectionHandler().onBox(press[0], press[1], release[0], release[1], additive);
         } else if (event.getClickCount() == 2 && !additive && selectionHandler == null
                 && insidePlot(event.getX(), event.getY())) {
@@ -1989,7 +1990,7 @@ final class PlotAreaView extends StackPane {
     }
 
     private boolean insidePlot(double screenX, double screenY) {
-        return screenX >= RULER_LEFT_WIDTH && screenY >= RULER_TOP_HEIGHT
+        return screenX >= rulerLeftWidth && screenY >= rulerTopHeight
                 && screenX < getWidth() && screenY < getHeight();
     }
 
@@ -2007,22 +2008,22 @@ final class PlotAreaView extends StackPane {
     private void drawSnapCursor() {
         GraphicsContext gc = snapCursorCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, snapCursorCanvas.getWidth(), snapCursorCanvas.getHeight());
-        if (!gridSnapEnabled || !cursorInsidePlot || getWidth() <= RULER_LEFT_WIDTH
-                || getHeight() <= RULER_TOP_HEIGHT) {
+        if (!gridSnapEnabled || !cursorInsidePlot || getWidth() <= rulerLeftWidth
+                || getHeight() <= rulerTopHeight) {
             return;
         }
         double[] world = snappedWorld(cursorScreenX, cursorScreenY);
         double[] screen = worldToScreen(world[0], world[1],
-                getWidth() - RULER_LEFT_WIDTH, getHeight() - RULER_TOP_HEIGHT);
-        double x = screen[0] + RULER_LEFT_WIDTH;
-        double y = screen[1] + RULER_TOP_HEIGHT;
+                getWidth() - rulerLeftWidth, getHeight() - rulerTopHeight);
+        double x = screen[0] + rulerLeftWidth;
+        double y = screen[1] + rulerTopHeight;
         if (!insidePlot(x, y)) {
             return;
         }
         gc.save();
         gc.beginPath();
-        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT,
-                getWidth() - RULER_LEFT_WIDTH, getHeight() - RULER_TOP_HEIGHT);
+        gc.rect(rulerLeftWidth, rulerTopHeight,
+                getWidth() - rulerLeftWidth, getHeight() - rulerTopHeight);
         gc.clip();
         // Match both the cursor and its halo to the canvas theme, including over copper fills.
         gc.setStroke(palette.snapOutline());
@@ -2044,17 +2045,17 @@ final class PlotAreaView extends StackPane {
 
     private double[] worldToScreen(double worldX, double worldY, double contentWidth, double contentHeight) {
         PlotCamera camera = camera(contentWidth, contentHeight);
-        return new double[]{camera.screenX(worldX) - RULER_LEFT_WIDTH, camera.screenY(worldY) - RULER_TOP_HEIGHT};
+        return new double[]{camera.screenX(worldX) - rulerLeftWidth, camera.screenY(worldY) - rulerTopHeight};
     }
 
     private CncStepView.View stepViewTransform(double contentWidth, double contentHeight) {
         return new CncStepView.View(viewCenterX, viewCenterY, scale, contentWidth, contentHeight,
-                RULER_LEFT_WIDTH, RULER_TOP_HEIGHT);
+                rulerLeftWidth, rulerTopHeight);
     }
 
     private double[] screenToWorld(double contentX, double contentY) {
         PlotCamera camera = cameraSnapshot();
-        return new double[]{camera.worldX(contentX + RULER_LEFT_WIDTH), camera.worldY(contentY + RULER_TOP_HEIGHT)};
+        return new double[]{camera.worldX(contentX + rulerLeftWidth), camera.worldY(contentY + rulerTopHeight)};
     }
 
     // --- Drawing --------------------------------------------------------
@@ -2082,8 +2083,8 @@ final class PlotAreaView extends StackPane {
         long redrawStart = profiling || renderObserver != null ? System.nanoTime() : 0;
         double width = canvas.getWidth();
         double height = canvas.getHeight();
-        double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
-        double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+        double contentWidth = Math.max(1, width - rulerLeftWidth);
+        double contentHeight = Math.max(1, height - rulerTopHeight);
         Envelope viewBounds = visibleWorldBounds(viewCenterX, viewCenterY, scale,
                 contentWidth, contentHeight);
 
@@ -2193,10 +2194,10 @@ final class PlotAreaView extends StackPane {
             // Focus: fade everything drawn so far, then light up the chosen leg and its neighbours.
             Color background = palette.background();
             gc.setFill(Color.color(background.getRed(), background.getGreen(), background.getBlue(), 0.62));
-            gc.fillRect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.fillRect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
             gc.save();
             gc.beginPath();
-            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
             gc.clip();
             stepView.drawLegs(gc, stepViewTransform(contentWidth, contentHeight), background);
             gc.restore();
@@ -2279,15 +2280,15 @@ final class PlotAreaView extends StackPane {
         double height = editorHighlightCanvas.getHeight();
         GraphicsContext gc = editorHighlightCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, width, height);
-        double contentWidth = Math.max(1, width - RULER_LEFT_WIDTH);
-        double contentHeight = Math.max(1, height - RULER_TOP_HEIGHT);
+        double contentWidth = Math.max(1, width - rulerLeftWidth);
+        double contentHeight = Math.max(1, height - rulerTopHeight);
         Envelope viewBounds = visibleWorldBounds(viewCenterX, viewCenterY, scale, contentWidth, contentHeight);
         for (Geometry[] fill : new Geometry[][]{{editorReferenceFillGeometry, null}, {editorFillGeometry, null}}) {
             if (fill[0] != null && !fill[0].isEmpty()) {
                 Color color = fill[0] == editorFillGeometry ? EDITOR_FILL_COLOR : EDITOR_REFERENCE_FILL_COLOR;
                 gc.save();
                 gc.beginPath();
-                gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+                gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
                 gc.clip();
                 drawOverlay(gc, fill[0] == editorFillGeometry ? FILL_KEY : REFERENCE_FILL_KEY,
                         new RenderLayer(fill[0], false, color, Color.TRANSPARENT, true, LayerCategory.OVERLAY,
@@ -2298,7 +2299,7 @@ final class PlotAreaView extends StackPane {
         if (toolPreviewContents.isEmpty() && editorContentGeometry != null && !editorContentGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
-            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
             gc.clip();
             drawOverlay(gc, CONTENT_KEY, new RenderLayer(editorContentGeometry, false, EDITOR_CONTENT_FILL_COLOR,
                     EDITOR_CONTENT_STROKE_COLOR, true, LayerCategory.OVERLAY, true, false),
@@ -2308,7 +2309,7 @@ final class PlotAreaView extends StackPane {
         if (editorReferenceGeometry != null && !editorReferenceGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
-            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
             gc.clip();
             gc.setLineDashes(8, 6);
             Color referenceInk=editorReferenceColor(palette.background().getBrightness()<.5);
@@ -2320,7 +2321,7 @@ final class PlotAreaView extends StackPane {
         if (editorHighlightGeometry != null && !editorHighlightGeometry.isEmpty()) {
             gc.save();
             gc.beginPath();
-            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
             gc.clip();
             Color ink = coverageResidualHighlight ? Color.web(palette.background().getBrightness() < .5 ? "#FFAA33" : "#C95100") : editorHighlightColor;
             drawOverlay(gc, HIGHLIGHT_KEY, new RenderLayer(editorHighlightGeometry, editorHighlightStrokeOnly,
@@ -2331,7 +2332,7 @@ final class PlotAreaView extends StackPane {
         if (!toolPreviewContents.isEmpty()) {
             gc.save();
             gc.beginPath();
-            gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+            gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
             gc.clip();
             for (PreviewLayer layer : toolPreviewContents) {
                 if (layer.geometry().isEmpty()) continue;
@@ -2370,7 +2371,7 @@ final class PlotAreaView extends StackPane {
         }
         gc.save();
         gc.beginPath();
-        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
         gc.clip();
         if (angularPlacementHandler != null) {
             Geometry box = org.locationtech.jts.geom.util.AffineTransformation.rotationInstance(
@@ -2378,7 +2379,7 @@ final class PlotAreaView extends StackPane {
             Color ink = editorReferenceColor(palette.background().getBrightness()<.5);
             drawLayer(gc,new RenderLayer(box,true,ink,ink,true,LayerCategory.OVERLAY,true,false),contentWidth,contentHeight);
             double[] p = worldToScreen(angularPivot.x,angularPivot.y,contentWidth,contentHeight);
-            double x = p[0]+RULER_LEFT_WIDTH, y = p[1]+RULER_TOP_HEIGHT;
+            double x = p[0]+rulerLeftWidth, y = p[1]+rulerTopHeight;
             gc.setStroke(ink); gc.setLineWidth(1.5);
             gc.strokeLine(x-5,y,x+5,y); gc.strokeLine(x,y-5,x,y+5);
             gc.restore(); return;
@@ -2401,10 +2402,10 @@ final class PlotAreaView extends StackPane {
                     contentWidth, contentHeight);
             double[] second = worldToScreen(placementCurrentWorldX, placementCurrentWorldY,
                     contentWidth, contentHeight);
-            double firstX = first[0] + RULER_LEFT_WIDTH;
-            double firstY = first[1] + RULER_TOP_HEIGHT;
-            double secondX = second[0] + RULER_LEFT_WIDTH;
-            double secondY = second[1] + RULER_TOP_HEIGHT;
+            double firstX = first[0] + rulerLeftWidth;
+            double firstY = first[1] + rulerTopHeight;
+            double secondX = second[0] + rulerLeftWidth;
+            double secondY = second[1] + rulerTopHeight;
             gc.setStroke(PLACEMENT_STROKE);
             gc.setFill(PLACEMENT_FILL);
             gc.setLineWidth(1.5);
@@ -2452,11 +2453,11 @@ final class PlotAreaView extends StackPane {
                 double[] first = worldToScreen(previewPoints.get(0).x, previewPoints.get(0).y,
                         contentWidth, contentHeight);
                 gc.beginPath();
-                gc.moveTo(first[0] + RULER_LEFT_WIDTH, first[1] + RULER_TOP_HEIGHT);
+                gc.moveTo(first[0] + rulerLeftWidth, first[1] + rulerTopHeight);
                 for (int i = 1; i < previewPoints.size(); i++) {
                     double[] point = worldToScreen(previewPoints.get(i).x, previewPoints.get(i).y,
                             contentWidth, contentHeight);
-                    gc.lineTo(point[0] + RULER_LEFT_WIDTH, point[1] + RULER_TOP_HEIGHT);
+                    gc.lineTo(point[0] + rulerLeftWidth, point[1] + rulerTopHeight);
                 }
                 gc.closePath();
                 gc.setFill(PLACEMENT_FILL);
@@ -2467,16 +2468,16 @@ final class PlotAreaView extends StackPane {
                         contentWidth, contentHeight);
                 double[] end = worldToScreen(previewPoints.get(i).x, previewPoints.get(i).y,
                         contentWidth, contentHeight);
-                gc.strokeLine(start[0] + RULER_LEFT_WIDTH, start[1] + RULER_TOP_HEIGHT,
-                        end[0] + RULER_LEFT_WIDTH, end[1] + RULER_TOP_HEIGHT);
+                gc.strokeLine(start[0] + rulerLeftWidth, start[1] + rulerTopHeight,
+                        end[0] + rulerLeftWidth, end[1] + rulerTopHeight);
             }
             if (placementRegion && previewPoints.size() >= 3) {
                 double[] last = worldToScreen(previewPoints.get(previewPoints.size() - 1).x,
                         previewPoints.get(previewPoints.size() - 1).y, contentWidth, contentHeight);
                 double[] first = worldToScreen(previewPoints.get(0).x, previewPoints.get(0).y,
                         contentWidth, contentHeight);
-                gc.strokeLine(last[0] + RULER_LEFT_WIDTH, last[1] + RULER_TOP_HEIGHT,
-                        first[0] + RULER_LEFT_WIDTH, first[1] + RULER_TOP_HEIGHT);
+                gc.strokeLine(last[0] + rulerLeftWidth, last[1] + rulerTopHeight,
+                        first[0] + rulerLeftWidth, first[1] + rulerTopHeight);
             }
             gc.restore();
             return;
@@ -2509,7 +2510,7 @@ final class PlotAreaView extends StackPane {
         }
         gc.save();
         gc.beginPath();
-        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
         gc.clip();
         gc.setLineWidth(2.5);
         gc.setStroke(palette.background());
@@ -2520,8 +2521,8 @@ final class PlotAreaView extends StackPane {
                     continue;
                 }
                 double[] screen = worldToScreen(arrow.x(), arrow.y(), contentWidth, contentHeight);
-                double cx = screen[0] + RULER_LEFT_WIDTH;
-                double cy = screen[1] + RULER_TOP_HEIGHT;
+                double cx = screen[0] + rulerLeftWidth;
+                double cy = screen[1] + rulerTopHeight;
                 double ux = arrow.dx();
                 double uy = -arrow.dy(); // screen Y grows downward
                 double px = -uy;
@@ -2549,7 +2550,7 @@ final class PlotAreaView extends StackPane {
         }
         gc.save();
         gc.beginPath();
-        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
         gc.clip();
         gc.setFont(ANNOTATION_FONT);
         gc.setTextAlign(TextAlignment.LEFT);
@@ -2577,8 +2578,8 @@ final class PlotAreaView extends StackPane {
                     if (!claimed.add(cellX * 1_000_003L + cellY)) {
                         continue;
                     }
-                    double ax = screen[0] + RULER_LEFT_WIDTH;
-                    double ay = screen[1] + RULER_TOP_HEIGHT;
+                    double ax = screen[0] + rulerLeftWidth;
+                    double ay = screen[1] + rulerTopHeight;
                     if (role != null) {
                         CncStepView.drawRoleBadge(gc, ax, ay, label.text(), role, background);
                         gc.setFont(ANNOTATION_FONT);
@@ -2612,8 +2613,8 @@ final class PlotAreaView extends StackPane {
         for (Envelope bounds : selectedObjectBounds) {
             double[] topLeft = worldToScreen(bounds.getMinX(), bounds.getMaxY(), contentWidth, contentHeight);
             double[] bottomRight = worldToScreen(bounds.getMaxX(), bounds.getMinY(), contentWidth, contentHeight);
-            double x = topLeft[0] + RULER_LEFT_WIDTH;
-            double y = topLeft[1] + RULER_TOP_HEIGHT;
+            double x = topLeft[0] + rulerLeftWidth;
+            double y = topLeft[1] + rulerTopHeight;
             double width = Math.max(6, bottomRight[0] - topLeft[0]);
             double height = Math.max(6, bottomRight[1] - topLeft[1]);
             gc.strokeRect(x - 3, y - 3, width + 6, height + 6);
@@ -2647,12 +2648,12 @@ final class PlotAreaView extends StackPane {
         double worldBottom = screenToWorld(0, contentHeight)[1];
 
         for (double x = Math.floor(worldLeft / step) * step; x <= worldRight; x += step) {
-            double sx = worldToScreen(x, 0, contentWidth, contentHeight)[0] + RULER_LEFT_WIDTH;
-            gc.strokeLine(sx, RULER_TOP_HEIGHT, sx, canvas.getHeight());
+            double sx = worldToScreen(x, 0, contentWidth, contentHeight)[0] + rulerLeftWidth;
+            gc.strokeLine(sx, rulerTopHeight, sx, canvas.getHeight());
         }
         for (double y = Math.floor(worldBottom / step) * step; y <= worldTop; y += step) {
-            double sy = worldToScreen(0, y, contentWidth, contentHeight)[1] + RULER_TOP_HEIGHT;
-            gc.strokeLine(RULER_LEFT_WIDTH, sy, canvas.getWidth(), sy);
+            double sy = worldToScreen(0, y, contentWidth, contentHeight)[1] + rulerTopHeight;
+            gc.strokeLine(rulerLeftWidth, sy, canvas.getWidth(), sy);
         }
     }
 
@@ -2660,10 +2661,10 @@ final class PlotAreaView extends StackPane {
         gc.setStroke(palette.axisLine());
         gc.setLineWidth(1.5);
         double[] origin = worldToScreen(0, 0, contentWidth, contentHeight);
-        double ox = origin[0] + RULER_LEFT_WIDTH;
-        double oy = origin[1] + RULER_TOP_HEIGHT;
-        gc.strokeLine(RULER_LEFT_WIDTH, oy, canvas.getWidth(), oy);
-        gc.strokeLine(ox, RULER_TOP_HEIGHT, ox, canvas.getHeight());
+        double ox = origin[0] + rulerLeftWidth;
+        double oy = origin[1] + rulerTopHeight;
+        gc.strokeLine(rulerLeftWidth, oy, canvas.getWidth(), oy);
+        gc.strokeLine(ox, rulerTopHeight, ox, canvas.getHeight());
     }
 
     private void drawWorkspace(GraphicsContext gc, double contentWidth, double contentHeight) {
@@ -2673,12 +2674,12 @@ final class PlotAreaView extends StackPane {
         double[] upperRight = worldToScreen(width, height, contentWidth, contentHeight);
         gc.save();
         gc.beginPath();
-        gc.rect(RULER_LEFT_WIDTH, RULER_TOP_HEIGHT, contentWidth, contentHeight);
+        gc.rect(rulerLeftWidth, rulerTopHeight, contentWidth, contentHeight);
         gc.clip();
         gc.setStroke(palette.axisLine());
         gc.setLineWidth(1.2);
         gc.setLineDashes(7, 4);
-        gc.strokeRect(lowerLeft[0] + RULER_LEFT_WIDTH, upperRight[1] + RULER_TOP_HEIGHT,
+        gc.strokeRect(lowerLeft[0] + rulerLeftWidth, upperRight[1] + rulerTopHeight,
                 upperRight[0] - lowerLeft[0], lowerLeft[1] - upperRight[1]);
         gc.restore();
     }
@@ -2724,25 +2725,34 @@ final class PlotAreaView extends StackPane {
 
     private void drawRulers(GraphicsContext gc, double width, double height, double contentWidth, double contentHeight, double step) {
         gc.setFill(palette.rulerBackground());
-        gc.fillRect(0, 0, width, RULER_TOP_HEIGHT);
-        gc.fillRect(0, 0, RULER_LEFT_WIDTH, height);
+        gc.fillRect(0, 0, width, rulerTopHeight);
+        gc.fillRect(0, 0, rulerLeftWidth, height);
+
+        int size=UiFonts.settings().axisSize();
+        if (size==0) return;
+        gc.setFont(rulerFont);
 
         gc.setFill(palette.rulerText());
         gc.setTextAlign(TextAlignment.CENTER);
 
         double worldLeft = screenToWorld(0, 0)[0];
         double worldRight = screenToWorld(contentWidth, 0)[0];
+        double lastRight=Double.NEGATIVE_INFINITY;
         for (double x = Math.floor(worldLeft / step) * step; x <= worldRight; x += step) {
-            double sx = worldToScreen(x, 0, contentWidth, contentHeight)[0] + RULER_LEFT_WIDTH;
-            gc.fillText(formatTick(x), sx, RULER_TOP_HEIGHT - 6);
+            double sx = worldToScreen(x, 0, contentWidth, contentHeight)[0] + rulerLeftWidth;
+            String text=formatTick(x); double textWidth=text.length()*size*.7;
+            if (sx-textWidth/2<Math.max(rulerLeftWidth,lastRight+6)) continue;
+            gc.fillText(text, sx, rulerTopHeight - 6); lastRight=sx+textWidth/2;
         }
 
         double worldTop = screenToWorld(0, 0)[1];
         double worldBottom = screenToWorld(0, contentHeight)[1];
         gc.setTextAlign(TextAlignment.RIGHT);
+        double lastY=Double.POSITIVE_INFINITY;
         for (double y = Math.floor(worldBottom / step) * step; y <= worldTop; y += step) {
-            double sy = worldToScreen(0, y, contentWidth, contentHeight)[1] + RULER_TOP_HEIGHT;
-            gc.fillText(formatTick(y), RULER_LEFT_WIDTH - 4, sy + 4);
+            double sy = worldToScreen(0, y, contentWidth, contentHeight)[1] + rulerTopHeight;
+            if (lastY-sy<size+4 || sy<rulerTopHeight+size/2.0) continue;
+            gc.fillText(formatTick(y), rulerLeftWidth - 4, sy + Math.max(4,size*.3),rulerLeftWidth-8); lastY=sy;
         }
     }
 

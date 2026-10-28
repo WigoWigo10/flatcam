@@ -85,6 +85,18 @@ final class AppPreferences {
         flush();
     }
     static void saveSplashScreen(boolean enabled) { PREFS.putBoolean(KEY_SPLASH,enabled); flush(); }
+    static UiFonts.Settings loadFontSettings() {
+        var defaults=UiFonts.Settings.DEFAULT;
+        return new UiFonts.Settings(fontSize("uiFontSize",defaults.interfaceSize(),8),fontSize("textFontSize",defaults.textSize(),8),
+                fontSize("axisFontSize",defaults.axisSize(),0),fontSize("hudFontSize",defaults.hudSize(),8));
+    }
+    private static int fontSize(String key,int fallback,int minimum) {
+        int value=PREFS.getInt(key,fallback); return value>=minimum && value<=40 ? value : fallback;
+    }
+    static void saveFontSettings(UiFonts.Settings fonts) {
+        PREFS.putInt("uiFontSize",fonts.interfaceSize()); PREFS.putInt("textFontSize",fonts.textSize());
+        PREFS.putInt("axisFontSize",fonts.axisSize()); PREFS.putInt("hudFontSize",fonts.hudSize()); flush();
+    }
 
     static void saveTheme(ThemeOption option) {
         PREFS.put(KEY_THEME, option.name());

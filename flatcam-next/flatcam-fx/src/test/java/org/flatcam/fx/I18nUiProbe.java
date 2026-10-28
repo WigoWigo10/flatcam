@@ -43,7 +43,7 @@ public class I18nUiProbe {
                     @SuppressWarnings("unchecked") var languageChoice = (ComboBox<UiLanguage>)view.pane().lookup("#preferences-language");
                     languageChoice.setValue(language);
                     assertNotNull(view.pane().lookup("#preferences-language"));
-                    for(String section:List.of("general","numbers")) {
+                    for(String section:List.of("general","numbers","fonts")) {
                         PreferencesPaneTest.select(view,section);
                         view.pane().setPrefSize(1024,800); view.pane().resize(1024,800); view.pane().applyCss(); view.pane().layout();
                         var image = view.pane().snapshot(null,null);
@@ -53,7 +53,7 @@ public class I18nUiProbe {
                         var buffered=new java.awt.image.BufferedImage(width,height,java.awt.image.BufferedImage.TYPE_INT_ARGB);
                         buffered.setRGB(0,0,width,height,pixels,0,width);
                         javax.imageio.ImageIO.write(buffered,"png",output.resolve(language.tag+"-"+theme.name()
-                                +(section.equals("general") ? "" : "-numbers")+".png").toFile());
+                                +(section.equals("general") ? "" : "-"+section)+".png").toFile());
                     }
                 }
                 var jobs = new JobExecutor(1); var window = new MainWindow(jobs);

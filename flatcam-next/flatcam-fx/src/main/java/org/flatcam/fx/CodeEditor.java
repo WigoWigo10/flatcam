@@ -62,7 +62,7 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         area.setParagraphGraphicFactory(index -> {
             var number = new javafx.scene.text.Text();
             number.getStyleClass().add("code-line-number");
-            number.setFont(javafx.scene.text.Font.font("Monospaced", 13)); number.setFill(javafx.scene.paint.Color.GRAY);
+            number.setFont(javafx.scene.text.Font.font("Monospaced", UiFonts.settings().textSize())); number.setFill(javafx.scene.paint.Color.GRAY);
             var gutter = new javafx.scene.layout.StackPane(number); gutter.getStyleClass().add("lineno");
             gutter.setAlignment(javafx.geometry.Pos.TOP_RIGHT);
             number.textProperty().bind(paragraphCount.map(count -> String.format(java.util.Locale.ROOT,

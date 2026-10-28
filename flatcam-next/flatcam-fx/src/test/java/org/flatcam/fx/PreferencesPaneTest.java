@@ -24,6 +24,10 @@ class PreferencesPaneTest {
         int languageWrites;
         UiNumbers.Settings numbers = UiNumbers.Settings.DEFAULT;
         int numberWrites;
+        UiFonts.Settings fonts=UiFonts.Settings.DEFAULT;
+        int fontWrites;
+        @Override public UiFonts.Settings fontSettings() { return fonts; }
+        @Override public void applyFontSettings(UiFonts.Settings settings) { fonts=settings; fontWrites++; }
         @Override public UiNumbers.Settings numericSettings() { return numbers; }
         @Override public void applyNumericSettings(UiNumbers.Settings settings) { numbers=settings; numberWrites++; }
         @Override public UiLanguage language() { return language; }
@@ -67,7 +71,7 @@ class PreferencesPaneTest {
             View view = view();
             assertEquals(ToolDefaults.byTool().keySet(), view.pane.sections().stream().filter(s -> s.group() != null)
                     .map(PreferencesPane.Section::group).collect(java.util.stream.Collectors.toSet()));
-            assertEquals(ToolDefaults.byTool().size() + 3, view.pane.sections().size());
+            assertEquals(ToolDefaults.byTool().size() + 4, view.pane.sections().size());
             for (var section : view.pane.sections()) select(view, section.id());
             assertEquals(0, view.host.themeWrites); assertEquals(0, view.host.plotWrites);
             return null;
@@ -115,6 +119,34 @@ class PreferencesPaneTest {
             assertEquals("MM",units.getValue()); assertEquals("4",field(view,"preferences-decimals-in").getText());
             button(view,"preferences-numbers-apply").fire(); assertEquals(UiNumbers.Settings.DEFAULT,view.host.numbers);
             assertEquals(0,view.host.themeWrites); assertEquals(0,view.host.plotWrites);
+            return null;
+        });
+    }
+
+    @Test void fontDraftsPreviewWithoutApplyingValidateTogetherAndResetSeparately() throws Exception {
+        TerminalPanelTest.fx(()-> {
+            var view=view(); select(view,"fonts");
+            field(view,"preferences-font-interface").setText("24");
+            field(view,"preferences-font-text").setText("26"); field(view,"preferences-font-axis").setText("0");
+            field(view,"preferences-font-hud").setText("41");
+            button(view,"preferences-fonts-apply").fire(); assertEquals(0,view.host.fontWrites);
+            select(view,"plot");select(view,"fonts");
+            assertEquals("41",field(view,"preferences-font-hud").getText());
+            assertEquals(UiFonts.Settings.DEFAULT,UiFonts.settings(),"local samples cannot alter application fonts");
+            for(String invalid:new String[]{"7","8.5","NaN","","2147483648"}) {
+                field(view,"preferences-font-hud").setText(invalid);button(view,"preferences-fonts-apply").fire();
+                assertEquals(0,view.host.fontWrites);
+            }
+            field(view,"preferences-font-hud").setText("20");button(view,"preferences-fonts-apply").fire();
+            assertEquals(new UiFonts.Settings(24,26,0,20),view.host.fonts);
+            assertEquals(UiFonts.Settings.DEFAULT,UiFonts.settings(),"saving takes effect on next startup");
+            button(view,"preferences-fonts-reset").fire();assertEquals(1,view.host.fontWrites);
+            assertEquals("12",field(view,"preferences-font-interface").getText());
+            assertEquals("13",field(view,"preferences-font-text").getText());
+            assertEquals("13",field(view,"preferences-font-axis").getText());
+            assertEquals("11",field(view,"preferences-font-hud").getText());
+            button(view,"preferences-fonts-apply").fire();assertEquals(UiFonts.Settings.DEFAULT,view.host.fonts);
+            assertEquals(0,view.host.numberWrites);assertEquals(0,view.host.themeWrites);assertEquals(0,view.host.plotWrites);
             return null;
         });
     }

@@ -26428,5 +26428,145 @@
       "PreferencesPane.java"
     ],
     "canonical": false
+  },
+  "preferences.fonts.title": {
+    "source": "Tamanhos das fontes",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.search": {
+    "source": "fontes tamanhos letras interface painel lateral caixas texto terminal código eixos réguas HUD coordenadas",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.description": {
+    "source": "Ajuste os tamanhos e confira as amostras abaixo. As mudanças valem após reabrir o aplicativo.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.interface": {
+    "source": "Interface e painéis",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.text": {
+    "source": "Caixas de texto e código",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.axis": {
+    "source": "Números dos eixos",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.hud": {
+    "source": "Coordenadas do HUD",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.interface.help": {
+    "source": "Tamanho de 8 a 40 nos controles da interface, incluindo árvore, painéis e preferências. O padrão do FX é 12.\n\nReferência: valores maiores ocupam mais espaço; as páginas continuam com rolagem. A escolha vale ao reabrir o aplicativo.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.text.help": {
+    "source": "Tamanho de 8 a 40 nas caixas de texto, saída do terminal e editores de código. O padrão do FX é 13.\n\nResultado: código e números de linha acompanham o mesmo tamanho. A fonte monoespaçada e o conteúdo são preservados.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.axis.help": {
+    "source": "Tamanho de 0 a 40 nos números das réguas do Plot. O padrão do FX é 13. Zero oculta somente os números.\n\nResultado: fontes maiores ampliam as faixas das réguas e espaçam os rótulos. A grade e as coordenadas do desenho são preservadas.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.hud.help": {
+    "source": "Tamanho de 8 a 40 nas coordenadas X, Y, Dx e Dy do HUD sobre o Plot. O padrão do FX é 11.\n\nReferência: não altera as anotações CNC, que possuem sua própria configuração de fonte.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.samples": {
+    "source": "Amostras dos tamanhos",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.sample": {
+    "source": "Área de trabalho — 0123456789",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.hidden": {
+    "source": "números ocultos",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.apply.help": {
+    "source": "Valida e salva os quatro tamanhos desta seção. Abra o aplicativo novamente para aplicá-los em todas as áreas. As amostras são locais e não alteram o tamanho atual da interface.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.reset.help": {
+    "source": "Prepara os tamanhos atuais de fábrica do FX: interface 12, texto 13, eixos 13 e HUD 11. Use Aplicar e salvar para confirmar.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.reset": {
+    "source": "Tamanhos de fábrica preparados. Aplique para salvar.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.saved": {
+    "source": "Tamanhos das fontes salvos.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.restart": {
+    "source": "Tamanhos salvos. Abra o aplicativo novamente para aplicá-los.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
+  },
+  "preferences.fonts.invalid": {
+    "source": "%s: use um número inteiro de %d a %d.",
+    "locations": [
+      "PreferencesPane.java"
+    ],
+    "canonical": false
   }
 }

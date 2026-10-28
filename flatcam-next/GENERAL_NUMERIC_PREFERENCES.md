@@ -65,3 +65,5 @@ tolerâncias geométricas, exportação ou arredondamento do G-code.
 Próximas preferências gerais de maior efeito visual: fontes independentes da
 interface/HUD/eixos e personalização de mouse/cursor. O inventário atualizado
 está em [PREFERENCIAS.md](PREFERENCIAS.md).
+
+As fontes foram implementadas na etapa seguinte: [FONT_PREFERENCES.md](FONT_PREFERENCES.md).

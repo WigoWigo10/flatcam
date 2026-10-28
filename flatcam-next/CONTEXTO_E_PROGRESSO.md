@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Preferências de tamanhos de fonte — 2026-10-28
+
+Nova seção com interface, texto/código, números dos eixos e HUD. Padrões FX
+12/13/13/11, faixa 8–40 (eixos 0–40), exemplos locais, rascunho preservado,
+validação conjunta, reset sem escrita e aplicação na próxima abertura.
+Caixas de texto agora compartilham 13 com o código. Famílias não alteradas;
+splash, status compacto, tooltips e anotações/passos CNC têm regras próprias.
+
+Réguas ampliam suas faixas e espaçam rótulos; tamanho zero oculta números.
+Câmera e overlays usam os mesmos recuos, sem alterar geometria. Tabelas
+compactas aumentam a altura das linhas. Valores extremos ainda podem exigir
+mais largura/rolagem; não é certificação global de layout/DPI a tamanho 40.
+
+Probes isolados em memória verificam padrões, fontes grandes, máximo e eixos
+ocultos, quatro temas, fontes reais/glifos/gutter, pixels das réguas,
+persistência/fallback, câmera e texto/desfazer preservados. Catálogos com
+3686 entradas completas por idioma. [FONT_PREFERENCES.md](FONT_PREFERENCES.md).
+Integral: 2132 aprovações, 18 skips opcionais, zero falhas/erros (2150 registros).
+Logs/JSON: `target/font-verify.*`. Auditorias: 1508 controles com ajuda por
+idioma, zero ausências. Build/probe nativo aprovado: `target/font-native-build.log`.
+Próxima lacuna geral: personalização de cursor/mouse. Sem push solicitado.
+
 ## Preferências gerais: unidades iniciais e precisão de leitura — 2026-10-28
 
 Nova página Unidades e precisão: MM/IN inicial e casas independentes 2–16,

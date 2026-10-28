@@ -82,7 +82,7 @@ public enum ThemeOption {
         }
         scene.getStylesheets().setAll(
                 resource(varsResource),
-                resource(componentsResource), resource("code-editor.css")
+                resource(componentsResource), resource("code-editor.css"), UiFonts.stylesheet()
         );
     }
 

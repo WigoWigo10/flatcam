@@ -31,8 +31,8 @@ final class CncReviewDialog extends Dialog<CncReviewDialog.Decision> {
         var detailRight = new ColumnConstraints(); detailRight.setPercentWidth(50);
         toolDetails.getColumnConstraints().setAll(detailLeft, detailRight);
         TableView<CncPreflight.Tool> table = new TableView<>(); table.setId("cnc-review-tools");
-        table.getItems().setAll(report.tools()); table.setMinWidth(0); table.setFixedCellSize(28);
-        table.setPrefHeight(Math.min(200, 32 + 28 * Math.max(1, report.tools().size())));
+        table.getItems().setAll(report.tools()); table.setMinWidth(0); table.setFixedCellSize(UiFonts.rowHeight(28));
+        table.setPrefHeight(Math.min(200, 32 + UiFonts.rowHeight(28) * Math.max(1, report.tools().size())));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         column(table, I18n.text("ui.c188272ba40c"), CncPreflight.Tool::name);
         column(table, I18n.text("ui.7cd23abc62e0"), CncPreflight.Tool::diameter);

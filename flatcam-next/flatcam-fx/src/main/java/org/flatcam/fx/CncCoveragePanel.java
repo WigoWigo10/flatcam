@@ -28,9 +28,9 @@ final class CncCoveragePanel extends VBox {
         setId("cnc-coverage-panel"); setMinWidth(0);
         var title = new Label(I18n.text("ui.925522398d63") + source); title.setWrapText(true); title.getStyleClass().add("tool-title");
         status.setId("cnc-coverage-status"); status.setWrapText(true);
-        table.setId("cnc-coverage-tools"); table.setMinWidth(0); table.setPrefHeight(Math.min(200, 32 + tools.size() * 28));
+        table.setId("cnc-coverage-tools"); table.setMinWidth(0); table.setPrefHeight(Math.min(200, 32 + tools.size() * UiFonts.rowHeight(28)));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
-        table.setFixedCellSize(28);
+        table.setFixedCellSize(UiFonts.rowHeight(28));
         column(I18n.text("ui.6438c29c6536"), step -> "T" + (step.toolIndex() + 1) + " · " + CncPreflight.number(tools.get(step.toolIndex()).toolDiameter()));
         column("Individual", step -> step.hasIndividualTarget() ? area(step.ownRemainingArea()) : I18n.text("ui.dd9c7b6b0456"));
         column(I18n.text("ui.ab91481c454e"), step -> area(step.cumulativeRemainingArea()));

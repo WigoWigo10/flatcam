@@ -12,7 +12,7 @@ final class CompactToolsTable {
         table.getStyleClass().add("compact-tools-table");
         table.setMinWidth(0);
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
-        table.setFixedCellSize(28);
+        table.setFixedCellSize(UiFonts.rowHeight(28));
         number.setMinWidth(32);
         number.setPrefWidth(32);
         number.setMaxWidth(32);

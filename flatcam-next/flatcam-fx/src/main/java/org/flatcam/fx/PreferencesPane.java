@@ -23,6 +23,8 @@ final class PreferencesPane extends BorderPane {
         void applyLanguage(UiLanguage language);
         UiNumbers.Settings numericSettings();
         void applyNumericSettings(UiNumbers.Settings settings);
+        UiFonts.Settings fontSettings();
+        void applyFontSettings(UiFonts.Settings settings);
     }
     record Section(String id, String label, String category, String group, String icon) {
         @Override public String label() { return I18n.caption(label); }
@@ -69,6 +71,7 @@ final class PreferencesPane extends BorderPane {
         setCenter(split);
         sections.add(new Section("general", I18n.text("ui.2130a3b5e09e"), null, null, "settings18.png"));
         sections.add(new Section("numbers", I18n.text("preferences.numbers.title"), null, null, "settings18.png"));
+        sections.add(new Section("fonts", I18n.text("preferences.fonts.title"), null, null, "settings18.png"));
         sections.add(new Section("plot", "Plot Area", null, null, "replot32.png"));
         for (String group : ToolDefaults.byTool().keySet()) {
             String category = switch (group) {
@@ -105,7 +108,8 @@ final class PreferencesPane extends BorderPane {
     private boolean matches(Section section) {
         if (section.group() == null) return PreferencesSearch.matches(search.getText(), section.label(),
                 section.id().equals("general") ? I18n.text("ui.4faae991c5c8")
-                        : section.id().equals("numbers") ? I18n.text("preferences.numbers.search") : I18n.text("ui.5862761850cf"));
+                        : section.id().equals("numbers") ? I18n.text("preferences.numbers.search")
+                        : section.id().equals("fonts") ? I18n.text("preferences.fonts.search") : I18n.text("ui.5862761850cf"));
         return ToolDefaults.byTool().get(section.group()).stream().anyMatch(s -> PreferencesSearch.matches(search.getText(),
                 s.tool(), s.label(), s.key(), ToolDefaultsDescriptions.text(s, true), ToolDefaultsDescriptions.text(s, false)));
     }
@@ -151,16 +155,70 @@ final class PreferencesPane extends BorderPane {
         Label heading = new Label(section.category() == null ? section.label() : section.category() + " › " + section.label());
         heading.getStyleClass().add("tool-title");
         Label description = new Label(section.group() == null
-                ? I18n.text(section.id().equals("numbers") ? "preferences.numbers.description" : "ui.d4c406979fce")
+                ? I18n.text(section.id().equals("numbers") ? "preferences.numbers.description"
+                        : section.id().equals("fonts") ? "preferences.fonts.description" : "ui.d4c406979fce")
                 : I18n.text("ui.1a7db3f67ad0"));
         description.setWrapText(true);
         Node form = section.group() != null ? ToolDefaultsPane.build(List.of(section.group()), search.textProperty())
-                : section.id().equals("general") ? appearance() : section.id().equals("numbers") ? numbers() : plot();
+                : switch(section.id()) { case "general" -> appearance(); case "numbers" -> numbers(); case "fonts" -> fonts(); default -> plot(); };
         VBox page = new VBox(12, heading, description, new Separator(), form);
         page.setMinWidth(0); page.setPadding(new Insets(12)); page.getStyleClass().add("preferences-page");
         ScrollPane scroll = new ScrollPane(page); scroll.setFitToWidth(true); scroll.setMinWidth(0);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         return scroll;
+    }
+
+    private Node fonts() {
+        var saved=host.fontSettings();
+        Map<String,TextField> fields=new LinkedHashMap<>();
+        GridPane grid=new GridPane(); grid.setHgap(10); grid.setVgap(10);
+        VBox samples=new VBox(6);
+        String[] names={"interface","text","axis","hud"};
+        int[] sizes={saved.interfaceSize(),saved.textSize(),saved.axisSize(),saved.hudSize()};
+        for(int row=0;row<names.length;row++) {
+            String name=names[row],title=I18n.text("preferences.fonts."+name);
+            TextField field=new TextField(Integer.toString(sizes[row])); field.setId("preferences-font-"+name);
+            field.setPrefColumnCount(3); field.setMaxWidth(100); fields.put(name,field);
+            help(field,title,I18n.text("preferences.fonts."+name+".help"));
+            Label label=new Label(title+":"); label.setMinWidth(0); label.setWrapText(true); label.setLabelFor(field);
+            grid.addRow(row,label,field);
+            Label sample=new Label(); sample.setWrapText(true); sample.setMinWidth(0); samples.getChildren().add(sample);
+            Runnable update=()-> {
+                try {
+                    int value=Integer.parseInt(field.getText().trim());
+                    if(value<(name.equals("axis") ? 0 : 8) || value>40) return;
+                    sample.setText(title+": "+I18n.text(value==0 ? "preferences.fonts.hidden" : "preferences.fonts.sample"));
+                    sample.setStyle("-fx-font-size: "+(value==0 ? 12 : value)+"px;"
+                            +(name.equals("text") ? "-fx-font-family: 'Monospaced';" : ""));
+                } catch(NumberFormatException invalid) { /* Preserve the last valid local sample. */ }
+            };
+            field.textProperty().addListener((o,was,text)->update.run()); update.run();
+        }
+        Label feedback=new Label(); feedback.setWrapText(true); feedback.setId("preferences-fonts-feedback");
+        Button apply=button(I18n.text("ui.7a3e61cf6af5"),"preferences-fonts-apply",()-> {
+            try {
+                var next=new UiFonts.Settings(fontSize(fields.get("interface"),"interface",8),fontSize(fields.get("text"),"text",8),
+                        fontSize(fields.get("axis"),"axis",0),fontSize(fields.get("hud"),"hud",8));
+                host.applyFontSettings(next);
+                feedback.setText(I18n.text(next.equals(UiFonts.settings()) ? "preferences.fonts.saved" : "preferences.fonts.restart"));
+            } catch(IllegalArgumentException invalid) { feedback.setText(invalid.getMessage()); }
+        },I18n.text("preferences.fonts.apply.help"));
+        Button reset=button(I18n.text("ui.ae9f4b2807bc"),"preferences-fonts-reset",()-> {
+            var defaults=UiFonts.Settings.DEFAULT; int[] values={defaults.interfaceSize(),defaults.textSize(),defaults.axisSize(),defaults.hudSize()};
+            for(int i=0;i<names.length;i++) fields.get(names[i]).setText(Integer.toString(values[i]));
+            feedback.setText(I18n.text("preferences.fonts.reset"));
+        },I18n.text("preferences.fonts.reset.help"));
+        return new VBox(12,grid,new Label(I18n.text("preferences.fonts.samples")),samples,new FlowPane(8,8,apply,reset),feedback);
+    }
+
+    private static int fontSize(TextField field,String name,int minimum) {
+        try {
+            int size=Integer.parseInt(field.getText().trim());
+            if(size>=minimum && size<=40) return size;
+        } catch(NumberFormatException invalid) { /* Keep the invalid draft for correction. */ }
+        field.requestFocus();
+        throw new IllegalArgumentException(String.format(java.util.Locale.ROOT,I18n.text("preferences.fonts.invalid"),
+                I18n.text("preferences.fonts."+name),minimum,40));
     }
 
     private Node numbers() {

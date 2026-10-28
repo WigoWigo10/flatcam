@@ -8380,6 +8380,8 @@ final class MainWindow implements TclFlatcamHost {
             @Override public void applyLanguage(UiLanguage language) { AppPreferences.saveLanguage(language); }
             @Override public UiNumbers.Settings numericSettings() { return AppPreferences.loadNumericSettings(); }
             @Override public void applyNumericSettings(UiNumbers.Settings settings) { AppPreferences.saveNumericSettings(settings); }
+            @Override public UiFonts.Settings fontSettings() { return AppPreferences.loadFontSettings(); }
+            @Override public void applyFontSettings(UiFonts.Settings fonts) { AppPreferences.saveFontSettings(fonts); }
             @Override public ThemeOption theme() { return currentTheme; }
             @Override public AppPreferences.PlotStatusSettings plotSettings() { return AppPreferences.loadPlotStatusSettings(); }
             @Override public void applyTheme(ThemeOption theme) {

@@ -1,5 +1,19 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Fontes da interface, texto, eixos e HUD — 2026-10-28
+
+Quatro tamanhos persistidos com prévia local, validação e aplicação na próxima
+abertura. Texto/código inclui números de linha. Réguas acomodam fontes maiores;
+zero oculta seus números. Tabelas compactas ajustam a altura das linhas.
+Probes isolados nos quatro temas cobrem fontes reais, pixels das réguas,
+câmera, persistência e edição/desfazer. Padrões visuais FX conservados, com
+caixas de texto padronizadas em 13. Não inclui seleção de famílias ou
+certificação de todo o layout a tamanho 40/DPI físico.
+[FONT_PREFERENCES.md](FONT_PREFERENCES.md). Integral: 2132 aprovações,
+18 skips opcionais, zero falhas/erros (2150 registros). Auditorias: 1508
+controles com ajuda por idioma. Build/probe nativo aprovado.
+Próxima área geral: cursor/mouse.
+
 ## Unidades e precisão das leituras — 2026-10-28
 
 Página de preferências com unidade inicial e casas MM/IN independentes de 2 a
