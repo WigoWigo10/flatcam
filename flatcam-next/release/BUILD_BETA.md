@@ -10,6 +10,19 @@ esses requisitos são só de quem gera a distribuição.
 .\test-beta.ps1
 ```
 
+Para validar também a atualização da Beta anterior, use o MSI realmente
+distribuído na rodada anterior:
+
+```powershell
+.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.1-windows-x64-setup.msi"
+```
+
+O teste recusa substituir uma instalação do usuário. Instala a versão antiga
+em uma pasta temporária, atualiza pela mesma família de upgrade, confere a
+remoção do produto/JAR antigo e a preservação de um projeto de teste, executa
+os probes no atualizado e desinstala. Sem `-PreviousMsi`, essa verificação fica
+explicitamente `NOT_RUN` em `validation.json`.
+
 `build-beta.ps1` exige árvore Git limpa. Roda `mvnw verify`, sincroniza o
 launcher nativo/jars e gera um runtime reduzido com `jlink`. Downloads fixados:
 Temurin 25.0.5+8 e WiX 3.14.1, com SHA-256 conferido antes da extração.
@@ -55,6 +68,8 @@ Java incluído. Ele abre a interface em janela invisível, verifica a versão e
 o commit, abre o guia Outline, importa arquivos sintéticos Gerber/Excellon,
 converte contorno em área, paneliza com referência comum, confere furos/rasgos,
 gera Isolation/NCC/Cutout/CNC/Drilling, exporta e reabre `.fcnproj`/`.FlatPrj`.
+Também exerce os formulários reais de NCC/Isolation, a edição precisa do
+diâmetro e a troca Seed → Standard com preservação do rascunho após gerar.
 Os arquivos originais sintéticos não podem mudar. Preferências ficam em memória.
 O probe de diagnósticos também deve produzir uma gravação JFR válida com o
 runtime incluído, tanto no portátil quanto no instalado.

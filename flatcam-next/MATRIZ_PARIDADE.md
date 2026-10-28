@@ -1,5 +1,12 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Candidata Beta 0.1.0-beta.2 — 2026-10-28
+
+Atualização de usabilidade: manter rascunhos CAM após gerar e editar diâmetros
+nas tabelas NCC/Isolation, com valores do usuário e parâmetros preservados.
+A distribuição MSI conserva a família de upgrade da Beta 1. Não amplia por si
+só a paridade dos algoritmos ou a validação física CNC. [Notas da Beta 2](release/BETA-0.1.0-beta.2.md).
+
 ## Candidata Beta 0.1.0-beta.1 — 2026-10-28
 
 Versão explícita no app e infraestrutura para ZIP/EXE/MSI Windows x64 com

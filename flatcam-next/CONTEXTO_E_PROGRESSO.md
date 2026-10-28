@@ -1,5 +1,20 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Beta 2: correções e atualização MSI — 2026-10-28
+
+Correções consolidadas em 673d3b16. Reactor, launcher e identificação do app
+passam para 0.1.0-beta.2; Windows Installer 0.1.2, com a mesma família de upgrade
+por usuário da Beta 1. Notas em release/BETA-0.1.0-beta.2.md. Não há push ou
+publicação automática; os pacotes são entregues localmente para o testador.
+
+O probe de distribuição passa a exercer os botões reais de NCC/Isolation:
+editar diâmetro com precisão, gerar, manter o formulário e trocar Seed por
+Standard no NCC. test-beta.ps1 aceita -PreviousMsi para instalar uma Beta
+anterior em pasta temporária, atualizá-la com o MSI novo, executar o mesmo
+smoke e conferir a remoção do produto anterior e a preservação de um projeto.
+Árvore limpa e suíte integral são exigidas pelo gerador; o resultado efetivo,
+as tentativas e os hashes ficam nos relatórios e na tag anotada após validar.
+
 ## Feedback da Beta: editar diâmetro na Tools Table — 2026-10-28
 
 NCC e Isolation permitem editar a célula de diâmetro por duplo clique ou F2;

@@ -1,4 +1,4 @@
-param([string]$BuildDirectory,[switch]$SkipInstallation)
+param([string]$BuildDirectory,[switch]$SkipInstallation,[string]$PreviousMsi)
 $ErrorActionPreference='Stop'
 function Run-Isolated([string]$Program,[string[]]$Arguments,[string]$Log,[string]$WorkingDirectory) {
     $info=[Diagnostics.ProcessStartInfo]::new($Program)
@@ -40,8 +40,60 @@ function Smoke-Image([string]$Image,[string]$Report,[string]$Classes,[string]$Ve
     if(!(Test-Path -LiteralPath (Join-Path $diagnostic 'session.jfr')) -or
         (Get-Item -LiteralPath (Join-Path $diagnostic 'session.jfr')).Length -eq 0) {throw 'Bundled runtime did not capture JFR diagnostics.'}
 }
+function Read-MsiProperty([string]$Path,[string]$Property) {
+    $installer=New-Object -ComObject WindowsInstaller.Installer
+    $database=$installer.OpenDatabase($Path,0)
+    $query=$database.OpenView('SELECT `Value` FROM `Property` WHERE `Property` = '''+$Property+'''')
+    $query.Execute();$record=$query.Fetch()
+    if(!$record) {throw "Missing MSI property: $Property"}
+    $value=$record.StringData(1);$query.Close();return $value
+}
+function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[string]$Classes,$Manifest,[string]$Revision) {
+    $oldProduct=Read-MsiProperty $Previous 'ProductCode'
+    $newProduct=Read-MsiProperty $Current 'ProductCode'
+    if($oldProduct -eq $newProduct -or
+        (Read-MsiProperty $Previous 'UpgradeCode') -ne (Read-MsiProperty $Current 'UpgradeCode')) {
+        throw 'Upgrade test requires different products from the same upgrade family.'
+    }
+    $report=Join-Path $Outside 'upgrade';New-Item -ItemType Directory -Path $report | Out-Null
+    $installed=Join-Path $report 'instalado'
+    $owned=[Collections.Generic.List[string]]::new()
+    $uninstallRoot='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
+    $oldVersion=$null
+    try {
+        Run-Isolated "$env:SystemRoot\System32\msiexec.exe" @('/i',$Previous,'/qn','/norestart',"INSTALLDIR=$installed",'/l*v',(Join-Path $report 'install-old.log')) (Join-Path $report 'install-old-process.log') $report
+        $owned.Add($oldProduct)
+        $oldManifest=Get-Content -LiteralPath (Join-Path $installed 'flatcam-release.json') -Raw | ConvertFrom-Json
+        $oldVersion=$oldManifest.version
+        if($oldVersion -eq $Manifest.version) {throw 'Previous installer must be an older Beta.'}
+        # A test-owned project inside the install directory must survive both upgrade and uninstall.
+        $project=Join-Path $installed 'tester-project.fcnproj'
+        Copy-Item -LiteralPath (Join-Path $Outside 'portable-smoke\Painel-testado.fcnproj') -Destination $project
+        $projectHash=(Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash
+        $owned.Add($newProduct)
+        Run-Isolated "$env:SystemRoot\System32\msiexec.exe" @('/i',$Current,'/qn','/norestart',"INSTALLDIR=$installed",'/l*v',(Join-Path $report 'upgrade.log')) (Join-Path $report 'upgrade-process.log') $report
+        if(Test-Path -LiteralPath (Join-Path $uninstallRoot $oldProduct)) {throw 'Previous MSI product remained registered after upgrade.'}
+        if(!(Test-Path -LiteralPath (Join-Path $uninstallRoot $newProduct))) {throw 'New MSI product is not registered.'}
+        if((Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash -ne $projectHash) {throw 'Upgrade modified the test project.'}
+        if(Test-Path -LiteralPath (Join-Path $installed "app\flatcam-fx-$oldVersion.jar")) {throw 'Upgrade left the previous application JAR installed.'}
+        Smoke-Image $installed (Join-Path $report 'upgraded-smoke') $Classes $Manifest.version $Revision
+    } finally {
+        foreach($product in @($newProduct,$oldProduct)) {
+            if($owned.Contains($product) -and (Test-Path -LiteralPath (Join-Path $uninstallRoot $product))) {
+                Run-Isolated "$env:SystemRoot\System32\msiexec.exe" @('/x',$product,'/qn','/norestart','/l*v',(Join-Path $report "uninstall-$product.log")) (Join-Path $report "uninstall-$product-process.log") $report
+            }
+        }
+    }
+    if(Test-Path -LiteralPath (Join-Path $installed 'FlatCAM FX Beta.exe')) {throw 'Upgrade uninstall left the executable installed.'}
+    if((Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash -ne $projectHash) {throw 'Uninstall modified the test project.'}
+    return $oldVersion
+}
 Push-Location $PSScriptRoot
 try {
+    if($PreviousMsi) {
+        if($SkipInstallation) {throw '-PreviousMsi requires installation testing.'}
+        $PreviousMsi=(Resolve-Path -LiteralPath $PreviousMsi).Path
+    }
     if(!$BuildDirectory) {$BuildDirectory=(Get-Content -LiteralPath 'target\beta-latest.txt' -Raw).Trim()}
     $BuildDirectory=(Resolve-Path -LiteralPath $BuildDirectory).Path
     $artifacts=Get-Content -LiteralPath (Join-Path $BuildDirectory 'artifacts.json') -Raw | ConvertFrom-Json
@@ -94,9 +146,15 @@ try {
         if(Test-Path -LiteralPath (Join-Path $installed 'FlatCAM FX Beta.exe')) {throw 'Uninstaller left the executable installed.'}
         $installResult='PASS'
     }
+    $upgradeResult='NOT_RUN';$previousVersion=$null
+    if($PreviousMsi) {
+        $previousVersion=Test-Upgrade $PreviousMsi (Join-Path $BuildDirectory $msi.file) $outside $classes $manifest $revision
+        $upgradeResult='PASS'
+    }
     $report=[ordered]@{status='PASS';version=$manifest.version;sourceCommit=$manifest.sourceCommit;dirty=$manifest.dirty;
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
+        camDraftAndDiameterEditing='PASS';perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
         fullVerification=$(if($manifest.verification){$manifest.verification}else{'NOT_RUN'});
         environment='Windows x64 on build machine, outside repository; no VM/second PC or physical CNC test'}
     [IO.File]::WriteAllText((Join-Path $BuildDirectory 'validation.json'),($report | ConvertTo-Json),[Text.UTF8Encoding]::new($false))

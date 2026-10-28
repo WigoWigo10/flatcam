@@ -6,6 +6,8 @@ import java.util.concurrent.*;
 import java.util.prefs.*;
 import javafx.application.Platform;
 import javafx.scene.control.TreeItem;
+import javafx.scene.control.*;
+import javafx.scene.input.*;
 import javafx.stage.*;
 import org.flatcam.app.job.JobExecutor;
 import org.flatcam.cam.cutout.GapPattern;
@@ -58,6 +60,8 @@ public final class BetaSmokeProbe {
             check(panel.drills().size()==8 && panel.slots().size()==4,"Panelized drill/slot counts differ");
             for(double dx:new double[]{0,13})for(double dy:new double[]{0,11})
                 check(panel.drills().stream().anyMatch(d->Math.abs(d.x()-(2+dx))<1e-9 && Math.abs(d.y()-(2+dy))<1e-9),"Shared panel pitch lost");
+            checkCamDraftAndDiameter("NCC");
+            checkCamDraftAndDiameter("Isolation");
             String iso=window.isolate("Copper_panelized","Isolation",.4,1,.1,IsolationType.BOTH);
             String ncc=window.nccClear("Copper_panelized","NCC",List.of(.8),.4,1,NccMethod.STANDARD,true,true,false,new NccBoundary.Itself());
             String cutout=window.cutoutRectangular("Edge_Cuts_area","Cutout",.8,.1,1,GapPattern.FOUR);
@@ -81,7 +85,8 @@ public final class BetaSmokeProbe {
             Files.writeString(output.resolve("smoke.json"),new JSONObject().put("status","PASS").put("version",AboutInfo.version()).put("revision",args[2])
                     .put("appJar",location.toString()).put("objects",names.size()).put("panelDrills",8).put("panelSlots",4).put("programs",programs.size())
                     .put("checks",List.of("invisible main window","offline Outline guide","Gerber/Excellon import","Outline to Area","shared 2x2 panel",
-                            "Isolation","NCC","Cutout","CNC and Drilling export","native and Python project reopen","source files unchanged")).toString(2));
+                            "Isolation","NCC","Cutout","CNC and Drilling export","native and Python project reopen","source files unchanged",
+                            "NCC Seed to Standard with preserved draft","NCC and Isolation edited diameter reaches generated geometry")).toString(2));
             System.out.println("PASS beta smoke "+AboutInfo.version()+" "+args[2]);
         } catch(Throwable error) {error.printStackTrace();exit=1;}
         finally {
@@ -89,6 +94,56 @@ public final class BetaSmokeProbe {
             if(jobs!=null)jobs.shutdown();Platform.exit();
         }
         System.exit(exit);
+    }
+    private static void checkCamDraftAndDiameter(String tool) throws Exception {
+        double diameter=.1981234567;
+        var source=fx(()->item("gerberByItem","Copper"));
+        ScrollPane content=fx(()-> {
+            call(tool.equals("NCC") ? "generateNcc" : "generateIsolation",new Class<?>[]{TreeItem.class,GerberImage.class},source,(GerberImage)map("gerberByItem").get(source));
+            var scroll=(ScrollPane)((Tab)field("toolTab")).getContent();
+            stage.getScene().getRoot().applyCss();stage.getScene().getRoot().layout();
+            return scroll;
+        });
+        var form=content.getContent();
+        for(int run=0;run<(tool.equals("NCC") ? 2 : 1);run++) {
+            int current=run;
+            var before=fx(()->Set.copyOf(map("geometryByItem").keySet()));
+            fx(()-> {
+                var table=(TableView<?>)form.lookup(tool.equals("NCC") ? "#ncc-tools" : "#isolation-tools");
+                check(table!=null,"Missing editable tools table");table.getSelectionModel().clearAndSelect(0);
+                if(current==0) {
+                    table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.F2,false,false,false,false));
+                    stage.getScene().getRoot().applyCss();stage.getScene().getRoot().layout();
+                    var editor=(TextField)table.lookup("#tool-diameter-editor");check(editor!=null,"F2 did not open the diameter editor");
+                    editor.setText("0,1981234567");
+                }
+                if(tool.equals("NCC")) {
+                    ((ComboBox<NccMethod>)form.lookup("#ncc-method")).setValue(current==0 ? NccMethod.SEED : NccMethod.STANDARD);
+                    if(current==0) {
+                        ((Spinner<?>)form.lookup("#ncc-margin")).getEditor().setText("1.7");
+                        ((Spinner<?>)form.lookup("#ncc-overlap")).getEditor().setText("37.5");
+                    }
+                }
+                ((Button)form.lookup(tool.equals("NCC") ? "#ncc-generate" : "#isolation-generate")).fire();
+                check(field("runningJob")!=null,"Generate did not submit the edited CAM request");return null;
+            });
+            awaitJob();
+            fx(()-> {
+                var tab=(Tab)field("toolTab");check(tab.getContent()==content,"CAM completion discarded the draft");
+                var tabs=(TabPane)field("leftTabs");tabs.getSelectionModel().select((Tab)field("propertiesTab"));tabs.getSelectionModel().select(tab);
+                var created=map("geometryByItem").entrySet().stream().filter(e->!before.contains(e.getKey())).toList();
+                check(created.size()==1,"CAM request did not publish exactly one geometry");
+                var method=created.getFirst().getValue().getClass().getDeclaredMethod("tools");method.setAccessible(true);
+                var tools=(List<org.flatcam.cam.geometry.ToolGeometry>)method.invoke(created.getFirst().getValue());
+                check(tools.size()==1 && tools.getFirst().toolDiameter()==diameter,"Generated geometry lost the user diameter");
+                if(tool.equals("NCC")) {
+                    check(((ComboBox<?>)form.lookup("#ncc-method")).getValue()==(current==0 ? NccMethod.SEED : NccMethod.STANDARD),"NCC method reset");
+                    check(((Spinner<?>)form.lookup("#ncc-margin")).getEditor().getText().equals("1.7"),"NCC margin reset");
+                    check(((Spinner<?>)form.lookup("#ncc-overlap")).getEditor().getText().equals("37.5"),"NCC overlap reset");
+                }
+                return null;
+            });
+        }
     }
     private static void check(boolean value,String message) {if(!value)throw new IllegalStateException(message);}
     private static <T> T fx(Callable<T> action) throws Exception {var task=new FutureTask<T>(action);Platform.runLater(task);return task.get(20,TimeUnit.SECONDS);}
