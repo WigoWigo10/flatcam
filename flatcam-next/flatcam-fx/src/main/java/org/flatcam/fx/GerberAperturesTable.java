@@ -69,7 +69,7 @@ final class GerberAperturesTable {
     static Node build(GerberImage image, BiConsumer<String, Boolean> onMarkToggle) {
         List<ApertureRow> rows = image.apertures().entrySet().stream()
                 .sorted(Comparator.comparingInt(entry -> parseCodeSafe(entry.getKey())))
-                .map(entry -> toRow(entry.getKey(), entry.getValue()))
+                .map(entry -> toRow(entry.getKey(), entry.getValue(),image.units()))
                 .toList();
         for (ApertureRow row : rows) {
             row.markedProperty().addListener((obs, wasMarked, isMarked) -> onMarkToggle.accept(row.getCode(), isMarked));
@@ -83,6 +83,13 @@ final class GerberAperturesTable {
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("type"));
         TableColumn<ApertureRow, Number> sizeColumn = new TableColumn<>("Tam.");
         sizeColumn.setCellValueFactory(new PropertyValueFactory<>("size"));
+        sizeColumn.setCellFactory(column -> new javafx.scene.control.TableCell<>() {
+            @Override protected void updateItem(Number value, boolean empty) {
+                super.updateItem(value,empty);
+                setText(empty || value == null ? null : UiNumbers.fixed(value.doubleValue(),image.units()));
+                setTooltip(getText() == null ? null : new javafx.scene.control.Tooltip(getText()));
+            }
+        });
         TableColumn<ApertureRow, String> dimColumn = new TableColumn<>("Dim");
         dimColumn.setCellValueFactory(new PropertyValueFactory<>("dim"));
         TableColumn<ApertureRow, Boolean> markColumn = new TableColumn<>("M");
@@ -123,7 +130,7 @@ final class GerberAperturesTable {
         return new VBox(6, markAllCb, table);
     }
 
-    private static ApertureRow toRow(String code, Aperture aperture) {
+    private static ApertureRow toRow(String code, Aperture aperture, String units) {
         String type = switch (aperture.kind) {
             case CIRCLE -> "C";
             case RECTANGLE -> "R";
@@ -133,8 +140,8 @@ final class GerberAperturesTable {
         };
         double size = aperture.kind == ApertureKind.MACRO ? 0 : aperture.width;
         String dim = switch (aperture.kind) {
-            case RECTANGLE, OBROUND -> String.format("%.4f x %.4f", aperture.width, aperture.height);
-            case POLYGON -> String.format("%.4f x %d @ %.2f deg", aperture.width,
+            case RECTANGLE, OBROUND -> UiNumbers.fixed(aperture.width,units) + " x " + UiNumbers.fixed(aperture.height,units);
+            case POLYGON -> UiNumbers.fixed(aperture.width,units) + String.format(java.util.Locale.ROOT," x %d @ %.2f deg",
                     aperture.polygonVertices(), aperture.polygonRotation());
             default -> "";
         };

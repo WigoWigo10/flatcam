@@ -42,15 +42,19 @@ public class I18nUiProbe {
                     PreferencesPaneTest.select(view, "general");
                     @SuppressWarnings("unchecked") var languageChoice = (ComboBox<UiLanguage>)view.pane().lookup("#preferences-language");
                     languageChoice.setValue(language);
-                    view.pane().setPrefSize(1024,800); view.pane().resize(1024,800); view.pane().applyCss(); view.pane().layout();
-                    var image = view.pane().snapshot(null,null);
-                    int width=(int)image.getWidth(),height=(int)image.getHeight();
-                    int[] pixels=new int[width*height];
-                    image.getPixelReader().getPixels(0,0,width,height,javafx.scene.image.PixelFormat.getIntArgbInstance(),pixels,0,width);
-                    var buffered=new java.awt.image.BufferedImage(width,height,java.awt.image.BufferedImage.TYPE_INT_ARGB);
-                    buffered.setRGB(0,0,width,height,pixels,0,width);
-                    javax.imageio.ImageIO.write(buffered,"png",output.resolve(language.tag+"-"+theme.name()+".png").toFile());
                     assertNotNull(view.pane().lookup("#preferences-language"));
+                    for(String section:List.of("general","numbers")) {
+                        PreferencesPaneTest.select(view,section);
+                        view.pane().setPrefSize(1024,800); view.pane().resize(1024,800); view.pane().applyCss(); view.pane().layout();
+                        var image = view.pane().snapshot(null,null);
+                        int width=(int)image.getWidth(),height=(int)image.getHeight();
+                        int[] pixels=new int[width*height];
+                        image.getPixelReader().getPixels(0,0,width,height,javafx.scene.image.PixelFormat.getIntArgbInstance(),pixels,0,width);
+                        var buffered=new java.awt.image.BufferedImage(width,height,java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                        buffered.setRGB(0,0,width,height,pixels,0,width);
+                        javax.imageio.ImageIO.write(buffered,"png",output.resolve(language.tag+"-"+theme.name()
+                                +(section.equals("general") ? "" : "-numbers")+".png").toFile());
+                    }
                 }
                 var jobs = new JobExecutor(1); var window = new MainWindow(jobs);
                 try {

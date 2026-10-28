@@ -9,6 +9,7 @@ a 460 px. As páginas são criadas quando abertas e mantidas enquanto a aba exis
 | Categoria | Configurações já consumidas pelo FX |
 | --- | --- |
 | Geral | Português (Brasil)/English, quatro temas da interface e tela de abertura |
+| Unidades e precisão | Unidade inicial MM/IN e precisão independente das leituras MM/IN, aplicadas na próxima abertura |
 | Plot Area | Grade, snap, passos X/Y vinculados ou independentes, eixos, HUD e referência A4 |
 | Gerber | Plot/Solid/Multi-Color, cores/transparência, Follow, abertura da tabela e opções de importação |
 | Excellon | Plot/Solid/Multi-Color, cores/transparência e opções de importação |
@@ -34,6 +35,10 @@ Os valores em mm/in continuam independentes, sem conversão ao alternar unidades
 
 ## Aplicar, salvar e restaurar
 
+- Unidades e precisão: **Aplicar e salvar** valida os dois campos e persiste
+  a seção; os valores entram em vigor na próxima abertura. Restaurar prepara
+  MM e quatro casas nas duas unidades. Escopo e testes em
+  [GENERAL_NUMERIC_PREFERENCES.md](GENERAL_NUMERIC_PREFERENCES.md).
 - Geral e Plot: **Aplicar e salvar** atualiza a interface e persiste somente essa
   seção. O idioma é aplicado na próxima abertura; a confirmação informa quando
   é preciso reiniciar. Os dois passos da grade são validados antes de qualquer aplicação;
@@ -159,7 +164,7 @@ Comparação com `GeneralAppPrefGroupUI.py`, `GeneralAPPSetGroupUI.py` e
 | Área | Situação atual no FX |
 | --- | --- |
 | Idioma | Português (Brasil) e English; demais catálogos do Python pendentes. Veja [I18N.md](I18N.md). |
-| Unidades/precisão globais | Existem unidades por objeto/fluxo e formatos CAM configuráveis; falta a configuração geral de partida e precisão MM/IN de toda a UI. |
+| Unidades/precisão globais | MM/IN inicial e casas 2–16 independentes nas leituras principais implementadas em 2026-10-28. Painéis especializados ainda têm formatos próprios; veja [GENERAL_NUMERIC_PREFERENCES.md](GENERAL_NUMERIC_PREFERENCES.md). |
 | Fontes da interface | Fonte/tamanho de anotações CNC existem; preferências independentes de fonte do notebook, eixos, caixas de texto e HUD ainda não. |
 | Mouse/cursor | Snap, seleção, pan e cursores funcionam; faltam os controles gerais de forma/tamanho/espessura/cor e remapeamento de pan/seleção do Python. |
 | Aparência/interação gerais | Quatro temas e tooltips com política compartilhada existem; faltam os ajustes de cores de hover/seleção por direção e várias preferências de comportamento geral do legado. |
@@ -175,8 +180,9 @@ Cores de desenho/seleção nos três editores; limite de destaque detalhado em
 Geometry/Excellon; tamanho/tipo de abertura Gerber, quantidade/passo/ângulos de
 array e fator de escala/buffer; diâmetro inicial e colunas/linhas/passos Excellon.
 Valores de abertura (0,8 mm), quantidade Gerber (5), passo Gerber (0,1 mm) e
-passo Excellon (2,54 mm) seguem o Python. Arrays Excellon continuam retangulares;
-não foram adicionados controles inertes para os arrays circulares do legado.
+passo Excellon (2,54 mm) seguem o Python. Este incremento começou com arrays
+retangulares; arrays lineares/circulares de furos/slots foram portados depois,
+com prévia e confirmação. Estado atual em [EXCELLON_ARRAYS.md](EXCELLON_ARRAYS.md).
 Os padrões só são lidos ao abrir o editor. Ferramentas existentes têm prioridade.
 Cores incluem opacidade; limites de seleção só simplificam o destaque, sem
 limitar a seleção. Os limites FX existentes (2000/500) foram mantidos.

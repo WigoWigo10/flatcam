@@ -367,7 +367,7 @@ final class PlotAreaView extends StackPane {
     private boolean interactionRedrawPending;
     private final Canvas editorHighlightCanvas = new Canvas();
     private final Canvas snapCursorCanvas = new Canvas();
-    private final Label coordLabel = new Label("Dx: 0.0000 [mm]\nDy: 0.0000 [mm]\n\nX: 0.0000 [mm]\nY: 0.0000 [mm]");
+    private final Label coordLabel = new Label(formatHud(0,0,0,0,UiNumbers.initialUnits()));
     private java.util.function.Consumer<String> coordinateListener = ignored -> {};
     private final Map<Object, RenderLayer> layers = new LinkedHashMap<>();
     /**
@@ -453,7 +453,7 @@ final class PlotAreaView extends StackPane {
     private boolean axisVisible = true;
     private boolean hudVisible = true;
     private boolean workspaceVisible;
-    private String units = "MM";
+    private String units = UiNumbers.initialUnits();
     private boolean cursorInsidePlot;
     private double cursorScreenX;
     private double cursorScreenY;
@@ -1152,9 +1152,10 @@ final class PlotAreaView extends StackPane {
 
     static String formatHud(double dx, double dy, double x, double y, String units) {
         String suffix = units == null ? "mm" : units.toLowerCase(java.util.Locale.ROOT);
+        String number = UiNumbers.pattern(units);
         return String.format(java.util.Locale.ROOT,
-                "Dx: %.4f [%s]%nDy: %.4f [%s]%n%nX: %.4f [%s]%nY: %.4f [%s]",
-                dx, suffix, dy, suffix, x, suffix, y, suffix);
+                "Dx: " + number + " [%s]%nDy: " + number + " [%s]%n%nX: " + number + " [%s]%nY: " + number + " [%s]",
+                dx,suffix,dy,suffix,x,suffix,y,suffix);
     }
 
     static double snapCoordinate(double coordinate, double step) {
@@ -1999,8 +2000,7 @@ final class PlotAreaView extends StackPane {
         double[] world = snappedWorld(screenX, screenY);
         coordLabel.setText(formatHud(world[0] - referenceWorldX, world[1] - referenceWorldY,
                 world[0], world[1], units));
-        coordinateListener.accept(String.format(java.util.Locale.ROOT,
-                "X: %.4f   Y: %.4f", world[0], world[1]));
+        coordinateListener.accept(UiNumbers.coordinates(world[0], world[1], units));
         drawSnapCursor();
     }
 

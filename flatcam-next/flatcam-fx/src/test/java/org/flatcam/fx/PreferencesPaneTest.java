@@ -22,6 +22,10 @@ class PreferencesPaneTest {
         int splashWrites;
         UiLanguage language = UiLanguage.PT_BR;
         int languageWrites;
+        UiNumbers.Settings numbers = UiNumbers.Settings.DEFAULT;
+        int numberWrites;
+        @Override public UiNumbers.Settings numericSettings() { return numbers; }
+        @Override public void applyNumericSettings(UiNumbers.Settings settings) { numbers=settings; numberWrites++; }
         @Override public UiLanguage language() { return language; }
         @Override public void applyLanguage(UiLanguage selected) { language = selected; languageWrites++; }
         @Override public boolean splashEnabled() { return splash; }
@@ -63,7 +67,7 @@ class PreferencesPaneTest {
             View view = view();
             assertEquals(ToolDefaults.byTool().keySet(), view.pane.sections().stream().filter(s -> s.group() != null)
                     .map(PreferencesPane.Section::group).collect(java.util.stream.Collectors.toSet()));
-            assertEquals(ToolDefaults.byTool().size() + 2, view.pane.sections().size());
+            assertEquals(ToolDefaults.byTool().size() + 3, view.pane.sections().size());
             for (var section : view.pane.sections()) select(view, section.id());
             assertEquals(0, view.host.themeWrites); assertEquals(0, view.host.plotWrites);
             return null;
@@ -86,6 +90,31 @@ class PreferencesPaneTest {
             assertEquals(UiLanguage.EN, view.host.language, "reset is still only a draft");
             button(view, "preferences-general-apply").fire();
             assertEquals(UiLanguage.PT_BR, view.host.language);
+            return null;
+        });
+    }
+
+    @Test void numberValidationIsAtomicDraftsSurviveAndResetDoesNotSave() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            View view = view(); select(view,"numbers");
+            @SuppressWarnings("unchecked") var units = (ComboBox<String>)view.pane.lookup("#preferences-initial-units");
+            units.setValue("IN"); field(view,"preferences-decimals-mm").setText("2");
+            field(view,"preferences-decimals-in").setText("17");
+            button(view,"preferences-numbers-apply").fire();
+            assertEquals(0,view.host.numberWrites); assertEquals(UiNumbers.Settings.DEFAULT,view.host.numbers);
+            select(view,"plot"); select(view,"numbers");
+            assertEquals("17",field(view,"preferences-decimals-in").getText());
+            for(String invalid : new String[]{"1","2.5","NaN","","2147483648"}) {
+                field(view,"preferences-decimals-in").setText(invalid); button(view,"preferences-numbers-apply").fire();
+                assertEquals(0,view.host.numberWrites);
+            }
+            field(view,"preferences-decimals-in").setText("8"); button(view,"preferences-numbers-apply").fire();
+            assertEquals(new UiNumbers.Settings("IN",2,8),view.host.numbers);
+            assertEquals(UiNumbers.Settings.DEFAULT,UiNumbers.settings(),"saving must not change current readouts");
+            button(view,"preferences-numbers-reset").fire(); assertEquals(1,view.host.numberWrites);
+            assertEquals("MM",units.getValue()); assertEquals("4",field(view,"preferences-decimals-in").getText());
+            button(view,"preferences-numbers-apply").fire(); assertEquals(UiNumbers.Settings.DEFAULT,view.host.numbers);
+            assertEquals(0,view.host.themeWrites); assertEquals(0,view.host.plotWrites);
             return null;
         });
     }

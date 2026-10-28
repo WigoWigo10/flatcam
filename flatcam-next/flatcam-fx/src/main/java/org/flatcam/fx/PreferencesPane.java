@@ -21,6 +21,8 @@ final class PreferencesPane extends BorderPane {
         default void applySplash(boolean enabled) { AppPreferences.saveSplashScreen(enabled); }
         UiLanguage language();
         void applyLanguage(UiLanguage language);
+        UiNumbers.Settings numericSettings();
+        void applyNumericSettings(UiNumbers.Settings settings);
     }
     record Section(String id, String label, String category, String group, String icon) {
         @Override public String label() { return I18n.caption(label); }
@@ -66,6 +68,7 @@ final class PreferencesPane extends BorderPane {
         split.setId("preferences-split"); split.setDividerPositions(.24);
         setCenter(split);
         sections.add(new Section("general", I18n.text("ui.2130a3b5e09e"), null, null, "settings18.png"));
+        sections.add(new Section("numbers", I18n.text("preferences.numbers.title"), null, null, "settings18.png"));
         sections.add(new Section("plot", "Plot Area", null, null, "replot32.png"));
         for (String group : ToolDefaults.byTool().keySet()) {
             String category = switch (group) {
@@ -101,7 +104,8 @@ final class PreferencesPane extends BorderPane {
 
     private boolean matches(Section section) {
         if (section.group() == null) return PreferencesSearch.matches(search.getText(), section.label(),
-                section.id().equals("general") ? I18n.text("ui.4faae991c5c8") : I18n.text("ui.5862761850cf"));
+                section.id().equals("general") ? I18n.text("ui.4faae991c5c8")
+                        : section.id().equals("numbers") ? I18n.text("preferences.numbers.search") : I18n.text("ui.5862761850cf"));
         return ToolDefaults.byTool().get(section.group()).stream().anyMatch(s -> PreferencesSearch.matches(search.getText(),
                 s.tool(), s.label(), s.key(), ToolDefaultsDescriptions.text(s, true), ToolDefaultsDescriptions.text(s, false)));
     }
@@ -147,16 +151,65 @@ final class PreferencesPane extends BorderPane {
         Label heading = new Label(section.category() == null ? section.label() : section.category() + " › " + section.label());
         heading.getStyleClass().add("tool-title");
         Label description = new Label(section.group() == null
-                ? I18n.text("ui.d4c406979fce")
+                ? I18n.text(section.id().equals("numbers") ? "preferences.numbers.description" : "ui.d4c406979fce")
                 : I18n.text("ui.1a7db3f67ad0"));
         description.setWrapText(true);
         Node form = section.group() != null ? ToolDefaultsPane.build(List.of(section.group()), search.textProperty())
-                : section.id().equals("general") ? appearance() : plot();
+                : section.id().equals("general") ? appearance() : section.id().equals("numbers") ? numbers() : plot();
         VBox page = new VBox(12, heading, description, new Separator(), form);
         page.setMinWidth(0); page.setPadding(new Insets(12)); page.getStyleClass().add("preferences-page");
         ScrollPane scroll = new ScrollPane(page); scroll.setFitToWidth(true); scroll.setMinWidth(0);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         return scroll;
+    }
+
+    private Node numbers() {
+        UiNumbers.Settings saved = host.numericSettings();
+        ComboBox<String> units = new ComboBox<>(); units.getItems().setAll("MM","IN"); units.setValue(saved.initialUnits());
+        units.setId("preferences-initial-units");
+        units.setConverter(new javafx.util.StringConverter<>() {
+            @Override public String toString(String value) {
+                return value == null ? "" : I18n.text(value.equals("IN") ? "preferences.numbers.in" : "preferences.numbers.mm");
+            }
+            @Override public String fromString(String value) { return units.getValue(); }
+        });
+        TextField metric = new TextField(Integer.toString(saved.metricDecimals())); metric.setId("preferences-decimals-mm");
+        TextField inches = new TextField(Integer.toString(saved.inchDecimals())); inches.setId("preferences-decimals-in");
+        for (TextField field : List.of(metric,inches)) { field.setPrefColumnCount(4); field.setMaxWidth(100); }
+        help(units,I18n.text("preferences.numbers.units"),I18n.text("preferences.numbers.units.help"));
+        help(metric,I18n.text("preferences.numbers.metric"),I18n.text("preferences.numbers.precision.help"));
+        help(inches,I18n.text("preferences.numbers.inch"),I18n.text("preferences.numbers.precision.help"));
+        GridPane grid = new GridPane(); grid.setHgap(10); grid.setVgap(10);
+        for (var row : List.of(new Object[]{"preferences.numbers.units",units},new Object[]{"preferences.numbers.metric",metric},
+                new Object[]{"preferences.numbers.inch",inches})) {
+            Label label = new Label(I18n.text((String)row[0])+":"); label.setWrapText(true); label.setMinWidth(0);
+            label.setLabelFor((Node)row[1]); grid.addRow(grid.getRowCount(),label,(Node)row[1]);
+        }
+        Label scope = new Label(I18n.text("preferences.numbers.scope")); scope.setWrapText(true);
+        Label feedback = new Label(); feedback.setWrapText(true); feedback.setId("preferences-numbers-feedback");
+        Button apply = button(I18n.text("ui.7a3e61cf6af5"),"preferences-numbers-apply",() -> {
+            try {
+                int mm = precision(metric,I18n.text("preferences.numbers.metric"));
+                int in = precision(inches,I18n.text("preferences.numbers.inch"));
+                var next = new UiNumbers.Settings(units.getValue(),mm,in);
+                host.applyNumericSettings(next);
+                feedback.setText(I18n.text(next.equals(UiNumbers.settings()) ? "preferences.numbers.saved" : "preferences.numbers.restart"));
+            } catch (IllegalArgumentException invalid) { feedback.setText(invalid.getMessage()); }
+        },I18n.text("preferences.numbers.apply.help"));
+        Button reset = button(I18n.text("ui.ae9f4b2807bc"),"preferences-numbers-reset",() -> {
+            units.setValue("MM"); metric.setText("4"); inches.setText("4");
+            feedback.setText(I18n.text("preferences.numbers.reset"));
+        },I18n.text("preferences.numbers.reset.help"));
+        return new VBox(12,grid,scope,new FlowPane(8,8,apply,reset),feedback);
+    }
+
+    private static int precision(TextField field, String label) {
+        try {
+            int value = Integer.parseInt(field.getText().trim());
+            if (UiNumbers.validPrecision(value)) return value;
+        } catch (NumberFormatException invalid) { /* Keep the draft, including invalid text. */ }
+        field.requestFocus();
+        throw new IllegalArgumentException(I18n.text("preferences.numbers.invalid").formatted(label));
     }
 
     private Node appearance() {

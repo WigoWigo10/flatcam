@@ -55,6 +55,7 @@ final class PlotStatusControls {
 
         coordinates.setTooltip(new Tooltip(I18n.text("ui.25a5a72ab81e")));
         coordinates.getStyleClass().add("status-coordinates");
+        coordinates.setMinWidth(0);
 
         gridSnap = toggle(icon.apply("grid32.png"), I18n.text("ui.281fa099ff7d"), saved.gridSnap());
         gridSnap.getStyleClass().add("status-grid-snap");

@@ -52,6 +52,7 @@ final class MeasurementToolPanel extends VBox {
     }
 
     private final boolean minimum;
+    private final String units;
     private final TextField start = output("measure-start");
     private final TextField stop = output("measure-stop");
     private final TextField dx = output("measure-dx");
@@ -66,6 +67,7 @@ final class MeasurementToolPanel extends VBox {
     MeasurementToolPanel(boolean minimum, String units, Runnable measure, java.util.function.Consumer<double[]> jumpTo,
                          Runnable close) {
         this.minimum = minimum;
+        this.units = units;
         setSpacing(8);
         setPadding(new Insets(8));
         Label title = new Label(minimum ? I18n.text("ui.61ff53fbc31f") : I18n.text("ui.475f2d0d401e"));
@@ -139,10 +141,10 @@ final class MeasurementToolPanel extends VBox {
         current = measurement;
         start.setText(point(measurement.x1(), measurement.y1()));
         stop.setText(point(measurement.x2(), measurement.y2()));
-        dx.setText(number(measurement.dx()));
-        dy.setText(number(measurement.dy()));
-        angle.setText(number(minimum ? measurement.minimumAngle() : measurement.angle()));
-        distance.setText(number(measurement.distance()));
+        dx.setText(display(measurement.dx()));
+        dy.setText(display(measurement.dy()));
+        angle.setText(display(minimum ? measurement.minimumAngle() : measurement.angle()));
+        distance.setText(display(measurement.distance()));
         double[] h = measurement.distance() != 0 ? measurement.halfPoint() : new double[]{0, 0};
         half.setText(point(h[0], h[1]));
         jumpHalf.setDisable(!minimum || measurement.distance() == 0);
@@ -156,17 +158,15 @@ final class MeasurementToolPanel extends VBox {
     }
 
     String summary(Measurement measurement) {
-        return I18n.text("ui.d9910db83cb2") + number(measurement.dx()) + " | D(y) = " + number(measurement.dy())
-                + I18n.text("ui.5e32900fa6e9") + number(measurement.distance());
+        return I18n.text("ui.d9910db83cb2") + display(measurement.dx()) + " | D(y) = " + display(measurement.dy())
+                + I18n.text("ui.5e32900fa6e9") + display(measurement.distance());
     }
 
-    private static String point(double x, double y) {
-        return "(" + number(x) + ", " + number(y) + ")";
+    private String point(double x, double y) {
+        return "(" + display(x) + ", " + display(y) + ")";
     }
 
-    static String number(double value) {
-        return String.format(Locale.ROOT, "%.4f", value);
-    }
+    private String display(double value) { return UiNumbers.fixed(value,units); }
 
     private static TextField output(String id) {
         TextField field = new TextField();

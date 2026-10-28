@@ -47,6 +47,7 @@ public class MainApp extends Application {
     @Override
     public void start(Stage primaryStage) {
         I18n.initialize(AppPreferences.loadLanguage());
+        UiNumbers.initialize(AppPreferences.loadNumericSettings());
         FlatCamLauncher.startupMessage(I18n.text("ui.d5463ee600be"));
         FlatCamLauncher.monitorUi();
         jobExecutor = new JobExecutor();

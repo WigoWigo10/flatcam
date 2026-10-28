@@ -26,7 +26,7 @@ final class ExcellonObjectToolsTable {
                     int drills = drillCounts.getOrDefault(entry.getKey(), 0);
                     int slots = slotCounts.getOrDefault(entry.getKey(), 0);
                     rows.add(new Row(Integer.toString(entry.getKey()),
-                            String.format(java.util.Locale.ROOT, "%.4f", entry.getValue()),
+                            UiNumbers.fixed(entry.getValue(),image.units()),
                             drills == 0 ? "" : Integer.toString(drills),
                             slots == 0 ? "" : Integer.toString(slots), false));
                 });

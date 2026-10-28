@@ -1,5 +1,28 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Preferências gerais: unidades iniciais e precisão de leitura — 2026-10-28
+
+Nova página Unidades e precisão: MM/IN inicial e casas independentes 2–16,
+com MM/4/4 de fábrica, conferidos no Python. Aplicação na próxima abertura;
+validação de todos os campos antes de gravar, rascunhos preservados e reset
+sem escrita até aplicar. Novos objetos usam a unidade corrente; importações
+preservam as próprias unidades e projeto vazio volta à unidade inicial ativa.
+
+Precisão aplicada ao HUD/status, medição e tabelas de objetos Gerber/Excellon/CNC,
+diâmetros de Geometry e distância de CNC. Campos CAM e formatos de arquivo
+permanecem independentes, sem arredondar geometria, profundidades ou avanços.
+Não é a precisão de todos os painéis Python; formatos especializados continuam
+separados. [GENERAL_NUMERIC_PREFERENCES.md](GENERAL_NUMERIC_PREFERENCES.md).
+
+Processos isolados com preferências em memória verificam MM/4/4 e IN/2/8,
+importação MM, novos objetos, reinício, tabelas e G-code/CSV iguais byte a byte.
+Nova página com ajuda própria em Português/Inglês e capturas nos quatro temas.
+Integral: 2128 aprovações, 18 skips opcionais, zero falhas/erros (2146 registros).
+Auditoria: 1502 ocorrências com ajuda em cada idioma. A medição sem painel usa
+a unidade corrente após importação, coberta por regressão isolada adicional.
+Logs `target/numeric-verify.log`/JSON e `target/numeric-cross-units.log`.
+Próximas lacunas visuais gerais: fontes/HUD/eixos e personalização de cursor/mouse.
+
 ## Catálogos e seleção de idioma — 2026-10-27
 
 Revisão de textos/tooltips anterior commitada em `9bd84fa2`. A etapa seguinte

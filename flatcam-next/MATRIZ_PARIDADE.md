@@ -1,5 +1,19 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Unidades e precisão das leituras — 2026-10-28
+
+Página de preferências com unidade inicial e casas MM/IN independentes de 2 a
+16, padrão MM/4/4. Persistência, validação atômica e aplicação na próxima abertura.
+HUD/status, medição e tabelas principais usam a precisão por unidade; importação
+e novos objetos respeitam a precedência da sessão. G-code/CSV não mudam com a
+preferência. Não equivale a todas as opções de precisão/SpinBoxes Python;
+campos CAM e formatos especializados conservam suas próprias regras.
+[GENERAL_NUMERIC_PREFERENCES.md](GENERAL_NUMERIC_PREFERENCES.md).
+
+Integral: 2128 aprovações, 18 skips opcionais, zero falhas/erros (2146 registros).
+Regressão adicional da medição após mudar unidades e auditorias de 1502
+ocorrências por idioma aprovadas.
+
 ## Idiomas e revisão do inventário de preferências — 2026-10-27
 
 Catálogos UTF-8 com 3649 entradas por idioma; Português (Brasil) e English em

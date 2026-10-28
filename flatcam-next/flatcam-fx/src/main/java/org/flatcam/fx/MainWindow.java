@@ -832,6 +832,7 @@ final class MainWindow implements TclFlatcamHost {
     MainWindow(JobExecutor jobExecutor, RecentFiles recentFiles) {
         this.jobExecutor = jobExecutor;
         this.recentFiles = recentFiles;
+        setDisplayUnits(UiNumbers.initialUnits());
         centerTabs.getTabs().addListener((javafx.collections.ListChangeListener<Tab>) change -> {
             while (change.next()) for (Tab removed : change.getRemoved())
                 if (removed.getContent() instanceof CodeEditor code) code.close();
@@ -3334,7 +3335,7 @@ final class MainWindow implements TclFlatcamHost {
                 new Coordinate(measurement.x1(), measurement.y1()), new Coordinate(measurement.x2(), measurement.y2())}) : null, true);
         String text = measurement.distance() == 0
                 ? I18n.text("ui.6f26658bd2eb")
-                : (panel != null ? panel.summary(measurement) : I18n.text("ui.3da10b96c423") + MeasurementToolPanel.number(measurement.distance()));
+                : (panel != null ? panel.summary(measurement) : I18n.text("ui.3da10b96c423") + UiNumbers.fixed(measurement.distance(),currentDisplayUnits()));
         appendConsole(text);
         setStatus(text, IDLE_COLOR);
         return measurement;
@@ -8136,7 +8137,7 @@ final class MainWindow implements TclFlatcamHost {
         double[] bounds = entry.geometry().isEmpty() ? null
                 : new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
         String toolText = entry.tools().isEmpty() ? "" : String.format(I18n.text("ui.49e219c9bb85"), entry.tools().stream()
-                .map(tool -> String.format("%.4f", tool.toolDiameter())).collect(java.util.stream.Collectors.joining(", ")));
+                .map(tool -> UiNumbers.fixed(tool.toolDiameter(),entry.units())).collect(java.util.stream.Collectors.joining(", ")));
         box.getChildren().add(propertiesSection(String.format(
                 I18n.text("ui.3ed193e32442"),
                 entry.sourceName(), entry.units(), toolText, entry.geometry().getArea(), entry.geometry().getLength(),
@@ -8244,7 +8245,7 @@ final class MainWindow implements TclFlatcamHost {
             }
             String units = stats.units().toLowerCase(java.util.Locale.ROOT);
             box.getChildren().add(labeledRow("Travelled distance:",
-                    new Label(String.format(java.util.Locale.ROOT, "%.4f %s", stats.xyDistance(), units))));
+                    new Label(UiNumbers.fixed(stats.xyDistance(),units) + " " + units)));
             box.getChildren().add(labeledRow("Estimated time:",
                     new Label(CncJobToolsTable.formatDuration(stats.estimatedMinutes()))));
             if (stats.hasTools()) {
@@ -8252,7 +8253,7 @@ final class MainWindow implements TclFlatcamHost {
                 toolsLabel.setStyle("-fx-font-weight: bold;");
                 Set<Integer> hidden = hiddenCncTools.computeIfAbsent(item, ignored -> new LinkedHashSet<>());
                 box.getChildren().addAll(toolsLabel,
-                        CncJobToolsTable.build(stats, hidden, () -> applyCncToolVisibility(item)));
+                        CncJobToolsTable.build(stats, units, hidden, () -> applyCncToolVisibility(item)));
             }
         }
 
@@ -8377,6 +8378,8 @@ final class MainWindow implements TclFlatcamHost {
         return new PreferencesPane(new PreferencesPane.Host() {
             @Override public UiLanguage language() { return AppPreferences.loadLanguage(); }
             @Override public void applyLanguage(UiLanguage language) { AppPreferences.saveLanguage(language); }
+            @Override public UiNumbers.Settings numericSettings() { return AppPreferences.loadNumericSettings(); }
+            @Override public void applyNumericSettings(UiNumbers.Settings settings) { AppPreferences.saveNumericSettings(settings); }
             @Override public ThemeOption theme() { return currentTheme; }
             @Override public AppPreferences.PlotStatusSettings plotSettings() { return AppPreferences.loadPlotStatusSettings(); }
             @Override public void applyTheme(ThemeOption theme) {
@@ -10544,7 +10547,7 @@ final class MainWindow implements TclFlatcamHost {
         currentPythonLegacy = null;
         pythonOriginByItem.clear();
         plotAreaView.clearLayers();
-        setDisplayUnits("MM");
+        setDisplayUnits(UiNumbers.initialUnits());
     }
 
     /** Adds the tree item and, since every opened object gets its own layer now, its plot too - visible immediately. */

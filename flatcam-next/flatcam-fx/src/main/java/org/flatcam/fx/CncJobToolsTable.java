@@ -24,6 +24,10 @@ final class CncJobToolsTable {
     private CncJobToolsTable() { }
 
     static Node build(GCodeToolpathParser.ToolpathStats stats, Set<Integer> hiddenTools, Runnable onToggle) {
+        return build(stats,"MM",hiddenTools,onToggle);
+    }
+
+    static Node build(GCodeToolpathParser.ToolpathStats stats, String units, Set<Integer> hiddenTools, Runnable onToggle) {
         List<GCodeToolpathParser.ToolUsage> rows = stats.tools();
 
         TableColumn<GCodeToolpathParser.ToolUsage, String> numberColumn =
@@ -31,7 +35,7 @@ final class CncJobToolsTable {
         numberColumn.setMinWidth(34);
         numberColumn.setMaxWidth(34);
         TableColumn<GCodeToolpathParser.ToolUsage, String> diameterColumn = column("Dia", tool ->
-                tool.diameter() == null ? "" : String.format(Locale.ROOT, "%.4f", tool.diameter()));
+                tool.diameter() == null ? "" : UiNumbers.fixed(tool.diameter(),units));
         TableColumn<GCodeToolpathParser.ToolUsage, String> drillsColumn =
                 column("Drills", tool -> tool.drills() == 0 ? "" : Integer.toString(tool.drills()));
         drillsColumn.setMinWidth(52);
@@ -39,7 +43,7 @@ final class CncJobToolsTable {
                 column("Slots", tool -> tool.slots() == 0 ? "" : Integer.toString(tool.slots()));
         slotsColumn.setMinWidth(46);
         TableColumn<GCodeToolpathParser.ToolUsage, String> cutZColumn =
-                column("Cut Z", tool -> String.format(Locale.ROOT, "%.4f", tool.deepestZ()));
+                column("Cut Z", tool -> UiNumbers.fixed(tool.deepestZ(),units));
 
         TableColumn<GCodeToolpathParser.ToolUsage, GCodeToolpathParser.ToolUsage> plotColumn = new TableColumn<>("P");
         plotColumn.setSortable(false);

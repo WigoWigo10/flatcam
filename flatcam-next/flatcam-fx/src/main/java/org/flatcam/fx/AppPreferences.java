@@ -72,6 +72,18 @@ final class AppPreferences {
     static boolean loadSplashScreen() { return PREFS.getBoolean(KEY_SPLASH,true); }
     static UiLanguage loadLanguage() { return UiLanguage.fromTag(PREFS.get(KEY_LANGUAGE, UiLanguage.PT_BR.tag)); }
     static void saveLanguage(UiLanguage language) { PREFS.put(KEY_LANGUAGE, language.tag); flush(); }
+    static UiNumbers.Settings loadNumericSettings() {
+        String units = PREFS.get("initialUnits", "MM");
+        if (!units.equals("MM") && !units.equals("IN")) units = "MM";
+        int mm = PREFS.getInt("displayDecimalsMetric",4), in = PREFS.getInt("displayDecimalsInch",4);
+        return new UiNumbers.Settings(units,UiNumbers.validPrecision(mm) ? mm : 4,UiNumbers.validPrecision(in) ? in : 4);
+    }
+    static void saveNumericSettings(UiNumbers.Settings settings) {
+        PREFS.put("initialUnits",settings.initialUnits());
+        PREFS.putInt("displayDecimalsMetric",settings.metricDecimals());
+        PREFS.putInt("displayDecimalsInch",settings.inchDecimals());
+        flush();
+    }
     static void saveSplashScreen(boolean enabled) { PREFS.putBoolean(KEY_SPLASH,enabled); flush(); }
 
     static void saveTheme(ThemeOption option) {
