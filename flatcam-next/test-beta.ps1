@@ -115,8 +115,10 @@ try {
         if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $hash) {throw "Package file mismatch: $relative"}
     }
     $classes=Join-Path $outside 'smoke-classes';New-Item -ItemType Directory -Path $classes | Out-Null
-    & "$env:JAVA_HOME\bin\javac.exe" --release 25 --module-path (Join-Path $image 'app') --add-modules javafx.controls -cp (Join-Path $image 'app\*') -d $classes tools\BetaSmokeProbe.java
-    if($LASTEXITCODE -ne 0) {throw 'Packaged smoke probe compilation failed.'}
+    # Capture benign compiler notes without PowerShell 5 turning native stderr into a terminating error.
+    Run-Isolated "$env:JAVA_HOME\bin\javac.exe" @('--release','25','--module-path',(Join-Path $image 'app'),
+        '--add-modules','javafx.controls','-cp',(Join-Path $image 'app\*'),'-d',$classes,
+        (Join-Path $PSScriptRoot 'tools\BetaSmokeProbe.java')) (Join-Path $outside 'probe-compile.log') $PSScriptRoot
     Smoke-Image $image (Join-Path $outside 'portable-smoke') $classes $manifest.version $revision
     $installResult='NOT_RUN'
     if(!$SkipInstallation) {
