@@ -58,11 +58,12 @@ function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[strin
     $report=Join-Path $Outside 'upgrade';New-Item -ItemType Directory -Path $report | Out-Null
     $installed=Join-Path $report 'instalado'
     $owned=[Collections.Generic.List[string]]::new()
-    $uninstallRoot='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall'
+    $installer=New-Object -ComObject WindowsInstaller.Installer
     $oldVersion=$null
     try {
         Run-Isolated "$env:SystemRoot\System32\msiexec.exe" @('/i',$Previous,'/qn','/norestart',"INSTALLDIR=$installed",'/l*v',(Join-Path $report 'install-old.log')) (Join-Path $report 'install-old-process.log') $report
         $owned.Add($oldProduct)
+        if($installer.ProductInfo($oldProduct,'AssignmentType') -ne '0') {throw 'Previous test installation is not per-user.'}
         $oldManifest=Get-Content -LiteralPath (Join-Path $installed 'flatcam-release.json') -Raw | ConvertFrom-Json
         $oldVersion=$oldManifest.version
         if($oldVersion -eq $Manifest.version) {throw 'Previous installer must be an older Beta.'}
@@ -72,14 +73,15 @@ function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[strin
         $projectHash=(Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash
         $owned.Add($newProduct)
         Run-Isolated "$env:SystemRoot\System32\msiexec.exe" @('/i',$Current,'/qn','/norestart',"INSTALLDIR=$installed",'/l*v',(Join-Path $report 'upgrade.log')) (Join-Path $report 'upgrade-process.log') $report
-        if(Test-Path -LiteralPath (Join-Path $uninstallRoot $oldProduct)) {throw 'Previous MSI product remained registered after upgrade.'}
-        if(!(Test-Path -LiteralPath (Join-Path $uninstallRoot $newProduct))) {throw 'New MSI product is not registered.'}
+        if($installer.ProductState($oldProduct) -ne -1) {throw 'Previous MSI product remained registered after upgrade.'}
+        if($installer.ProductState($newProduct) -ne 5) {throw 'New MSI product is not registered.'}
+        if($installer.ProductInfo($newProduct,'AssignmentType') -ne '0') {throw 'Upgraded test installation is not per-user.'}
         if((Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash -ne $projectHash) {throw 'Upgrade modified the test project.'}
         if(Test-Path -LiteralPath (Join-Path $installed "app\flatcam-fx-$oldVersion.jar")) {throw 'Upgrade left the previous application JAR installed.'}
         Smoke-Image $installed (Join-Path $report 'upgraded-smoke') $Classes $Manifest.version $Revision
     } finally {
         foreach($product in @($newProduct,$oldProduct)) {
-            if($owned.Contains($product) -and (Test-Path -LiteralPath (Join-Path $uninstallRoot $product))) {
+            if($owned.Contains($product) -and $installer.ProductState($product) -ne -1) {
                 Run-Isolated "$env:SystemRoot\System32\msiexec.exe" @('/x',$product,'/qn','/norestart','/l*v',(Join-Path $report "uninstall-$product.log")) (Join-Path $report "uninstall-$product-process.log") $report
             }
         }
@@ -124,10 +126,11 @@ try {
     if(!$SkipInstallation) {
         $msi=$artifacts | Where-Object {$_.file.EndsWith('.msi')} | Select-Object -First 1
         if(!$msi) {throw 'MSI artifact missing. Use -SkipInstallation only for an explicit portable-only check.'}
-        $existing=Get-ChildItem HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall -ErrorAction SilentlyContinue |
-            Get-ItemProperty -ErrorAction SilentlyContinue | Where-Object {$_.DisplayName -eq 'FlatCAM FX Beta'}
-        if($existing) {throw 'An existing Beta is installed for this user. Refusing to replace it for a smoke test.'}
         $installer=New-Object -ComObject WindowsInstaller.Installer
+        $family=Read-MsiProperty (Join-Path $BuildDirectory $msi.file) 'UpgradeCode'
+        foreach($registered in $installer.RelatedProducts($family)) {
+            if($installer.ProductState([string]$registered) -ne -1) {throw 'An existing Beta is installed. Refusing to replace it for a smoke test.'}
+        }
         $database=$installer.OpenDatabase((Join-Path $BuildDirectory $msi.file),0)
         $query=$database.OpenView('SELECT `Value` FROM `Property` WHERE `Property` = ''ProductCode''');$query.Execute()
         $product=$query.Fetch().StringData(1);$query.Close()
@@ -138,6 +141,7 @@ try {
             $installArgs=@('/i',(Join-Path $BuildDirectory $msi.file),'/qn','/norestart',"INSTALLDIR=$installed",'/l*v',(Join-Path $outside 'install.log'))
             Run-Isolated "$env:SystemRoot\System32\msiexec.exe" $installArgs (Join-Path $outside 'install-process.log') $outside
             $didInstall=$true
+            if($installer.ProductState($product) -ne 5 -or $installer.ProductInfo($product,'AssignmentType') -ne '0') {throw 'Test MSI did not install per-user.'}
             if(!(Test-Path -LiteralPath (Join-Path $installed 'FlatCAM FX Beta.exe'))) {throw 'Installer did not use the isolated installation directory.'}
             Smoke-Image $installed (Join-Path $outside 'installed-smoke') $classes $manifest.version $revision
         } finally {
