@@ -35,7 +35,7 @@ class NativeSplashTransitionTest {
         try(var input=Objects.requireNonNull(getClass().getResourceAsStream("/native-splash-observer.cpp.inc"))) {
             observer=new String(input.readAllBytes(),StandardCharsets.UTF_8);
         }
-        cpp=replaceOnce(cpp,"int wmain(int argc, wchar_t** argv) {",observer+"\nint wmain(int argc, wchar_t** argv) {");
+        cpp=replaceOnce(cpp,"int launchApplication(int argc, wchar_t** argv) {",observer+"\nint launchApplication(int argc, wchar_t** argv) {");
         cpp=replaceOnce(cpp,"jclass applicationClass = env->FindClass", "SplashObserver observer; std::thread watcher([&] { observer.watch(); });\n    jclass applicationClass = env->FindClass");
         cpp=replaceOnce(cpp,"vm->DestroyJavaVM();", "observer.stop=true; watcher.join();\n    if(observer.initial.empty() || observer.changed) failed=true;\n    else std::cout << \"PASS native physical bounds stable\" << std::endl;\n    vm->DestroyJavaVM();");
         // A fresh host root deliberately has no copied runtime/dependencies of its own.
@@ -47,7 +47,8 @@ class NativeSplashTransitionTest {
         Path manifest=root.resolve("native-launcher/FlatCAMFX.manifest");
         if(Files.isRegularFile(manifest) && !Boolean.getBoolean("flatcam.test.omitDpiManifest")) {
             Path resource=output.resolve("dpi-resource.o");
-            run(List.of(compiler.resolveSibling("windres.exe").toString(),"-I",root.resolve("native-launcher").toString(),"-i",root.resolve("native-launcher/FlatCAMFX.rc").toString(),"-o",resource.toString()),root,output.resolve("resource.log"),Map.of());
+            run(List.of(compiler.resolveSibling("windres.exe").toString(),"-I",root.resolve("native-launcher").toString(),
+                    "-I",root.resolve("../assets/resources").normalize().toString(),"-i",root.resolve("native-launcher/FlatCAMFX.rc").toString(),"-o",resource.toString()),root,output.resolve("resource.log"),Map.of());
             command.add(resource.toString());
         }
         command.addAll(List.of("-o",executable.toString()));
