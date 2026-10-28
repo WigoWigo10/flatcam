@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.flatcam.next</groupId>
         <artifactId>flatcam-next</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.1.0-beta.1</version>
     </parent>
     <artifactId>flatcam-test-support</artifactId>
     <name>FlatCAM FX - Test support</name>

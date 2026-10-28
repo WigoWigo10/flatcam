@@ -1,5 +1,12 @@
 # FlatCAM FX
 
+## Beta 0.1.0-beta.1
+
+Pacotes Windows x64 com Java incluído: instalador EXE/MSI por usuário e ZIP
+portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.1.md),
+[geração e validação](release/BUILD_BETA.md). Artefatos são gerados localmente
+em `target/releases`; não há publicação automática ou paridade integral prometida.
+
 Reimplementação gradual do FlatCAM Python/PyQt5 em Java 25 + JavaFX. O projeto
 já oferece uma fatia funcional para carregar e exibir Gerber/Excellon, executar
 operações CAM e gerar CNC Jobs; ele ainda cresce ao lado do aplicativo legado e

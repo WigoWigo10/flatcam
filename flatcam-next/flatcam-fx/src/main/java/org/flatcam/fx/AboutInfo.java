@@ -34,6 +34,12 @@ final class AboutInfo {
         return values;
     }
 
+    static String version() { return build().getProperty("appVersion", I18n.text("ui.d25d2f15d8b7")); }
+    static String channel(String version) {
+        if(version.toLowerCase(java.util.Locale.ROOT).contains("-beta.")) return I18n.text("release.beta");
+        return I18n.text(version.endsWith("-SNAPSHOT") ? "release.development" : "release.published");
+    }
+
     static String technicalSummary() {
         return technicalSummary(null, null);
     }
@@ -45,7 +51,8 @@ final class AboutInfo {
 
     static String systemSummary(SystemHardwareInfo hardware, GraphicsRuntimeInfo graphics) {
         Properties info = build();
-        return "FlatCAM FX " + info.getProperty("appVersion", I18n.text("ui.60d46c71d964")) + " — em desenvolvimento\n"
+        return "FlatCAM FX " + info.getProperty("appVersion", I18n.text("ui.60d46c71d964")) + " — " + channel(version()) + "\n"
+                + "Commit: " + info.getProperty("sourceRevision", "development") + "\n"
                 + "Build (UTC): " + info.getProperty("buildTimeUtc", I18n.text("ui.d25d2f15d8b7")) + "\n"
                 + "Java: " + System.getProperty("java.runtime.version") + " (" + System.getProperty("java.vendor") + ")\n"
                 + "JavaFX: " + info.getProperty("javafxVersion", System.getProperty("javafx.runtime.version", I18n.text("ui.d25d2f15d8b7"))) + "\n"

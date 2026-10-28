@@ -6,7 +6,7 @@
 
     <groupId>org.flatcam.next</groupId>
     <artifactId>flatcam-next</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0-beta.1</version>
     <packaging>pom</packaging>
 
     <name>FlatCAM FX (parent)</name>
@@ -22,6 +22,7 @@
         <junit.version>6.1.3</junit.version>
         <!-- Allow callers to add JVM test arguments without overriding native access. -->
         <argLine></argLine>
+        <flatcam.build.revision>development</flatcam.build.revision>
         <!-- HotSpot 25.0.4.1 on AVX2 can return false for UTF16.contains(Latin1).
              Repro: tools/JdkStringSearchProbe.java. Keep other CPU/GPU acceleration enabled. -->
         <flatcam.jvm.stringSearchWorkaround>-XX:+UnlockDiagnosticVMOptions -XX:DisableIntrinsic=_indexOfUL</flatcam.jvm.stringSearchWorkaround>

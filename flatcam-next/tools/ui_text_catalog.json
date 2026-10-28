@@ -27359,5 +27359,26 @@
       "HelpGuideCatalog.java"
     ],
     "canonical": false
+  },
+  "release.beta": {
+    "source": "Beta para testes",
+    "locations": [
+      "AboutInfo.java"
+    ],
+    "canonical": false
+  },
+  "release.development": {
+    "source": "Em desenvolvimento",
+    "locations": [
+      "AboutInfo.java"
+    ],
+    "canonical": false
+  },
+  "release.published": {
+    "source": "Versão publicada",
+    "locations": [
+      "AboutInfo.java"
+    ],
+    "canonical": false
   }
 }

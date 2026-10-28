@@ -1,5 +1,15 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Candidata Beta 0.1.0-beta.1 — 2026-10-28
+
+Versão explícita no app e infraestrutura para ZIP/EXE/MSI Windows x64 com
+runtime incluído. Smoke externo exercita os JARs distribuídos, panelização,
+CAM/CNC, reabertura, GPU/Software e instalação por usuário. UTF-8 do manifesto
+corrige abertura em pastas acentuadas. Isso não aumenta a paridade CAM nem
+certifica CNC física. [Notas da Beta](release/BETA-0.1.0-beta.1.md) e
+[procedimento de geração/validação](release/BUILD_BETA.md). Resultado final
+vinculado ao commit limpo na tag anotada e nos relatórios dos artefatos.
+
 ## Guia de uso dentro do FX — 2026-10-28
 
 Ajuda > Guia de uso / F1, treze artigos locais PT/EN para os fluxos principais,

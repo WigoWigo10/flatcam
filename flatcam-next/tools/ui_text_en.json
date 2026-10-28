@@ -3797,5 +3797,8 @@
   "guide.topic.outline.steps": "Open the Edge_Cuts/Outline Gerber, enable its Plot and check that the perimeter and internal cutouts match the board.\nTo obtain the board surface, select this Gerber in the tree and use **Edit > Convert > Outline → Area**. The result appears under Geometry with the _area suffix. Conversion also accepts Geometry outlines.\nCheck the created area: the board interior should be filled and internal cutouts should remain empty. Separate boards remain distinct regions.\nIn Panelize Tool, select the outline as **Another object box** to set copy pitch. Also select the preview outline to display the perimeter and internal cutouts. These selectors have different purposes.\nIn NCC, use the Geometry area as a reference to limit clearing to the board shape. For cutting, use the appropriate outline/area in Cutout and configure the cutter, margin and tabs before generating CNC.",
   "guide.topic.outline.check": "Distinguish **outline lines**, **filled board area** and **cutter-compensated path**. If conversion reports an open or invalid outline, correct the source artwork or editor segments; do not replace the shape with a box without checking the result.",
   "guide.topic.outline.note": "The **Bounding box** in Gerber utilities creates a rectangular envelope, with margin/corner options. It does not automatically reconstruct an irregular shape or internal Outline cutouts. Outline → Area conversion also does not apply cutter-radius compensation or generate G-code.",
-  "guide.topic.outline.keywords": "outline edge_cuts edge cuts boundary edge perimeter area convert internal cutouts box reference"
+  "guide.topic.outline.keywords": "outline edge_cuts edge cuts boundary edge perimeter area convert internal cutouts box reference",
+  "release.beta": "Beta testing",
+  "release.development": "In development",
+  "release.published": "Release"
 }

@@ -48,7 +48,7 @@ final class AboutDialog extends Dialog<Void> {
         pane.setPrefSize(700, 510); pane.setMinSize(360, 340);
         var build = AboutInfo.build();
         Label title = label("FlatCAM FX"); title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
-        Label version = label(I18n.text("ui.9f8f7a58141b") + build.getProperty("appVersion", I18n.text("ui.d25d2f15d8b7")) + I18n.text("ui.7226735a16da"));
+        Label version = label(I18n.text("ui.9f8f7a58141b") + build.getProperty("appVersion", I18n.text("ui.d25d2f15d8b7")) + " • " + AboutInfo.channel(AboutInfo.version()));
         Label description = label(I18n.text("ui.b3ef5361775d"));
         description.setId("about-description");
         VBox identity = new VBox(5, title, version, description); identity.setMinWidth(0);

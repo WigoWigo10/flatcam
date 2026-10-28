@@ -1,5 +1,8 @@
 #include <windows.h>
 #include <jni.h>
+#ifdef FLATCAM_GUI_HOST
+#include <shellapi.h>
+#endif
 
 #include <filesystem>
 #include <fstream>
@@ -78,7 +81,8 @@ struct RuntimePaths {
 
 RuntimePaths runtimePaths(const fs::path& root) {
     RuntimePaths paths;
-    for (const fs::path& classes : {
+    const bool packaged = fs::exists(root / "flatcam-release.json");
+    if (!packaged) for (const fs::path& classes : {
             root / "flatcam-fx" / "target" / "classes",
             root / "flatcam-application" / "target" / "classes",
             root / "flatcam-cam" / "target" / "classes"}) {
@@ -86,7 +90,7 @@ RuntimePaths runtimePaths(const fs::path& root) {
         if (!paths.classPath.empty()) paths.classPath += L';';
         paths.classPath += classes.wstring();
     }
-    const fs::path dependencies = root / "flatcam-fx" / "target" / "dependency";
+    const fs::path dependencies = packaged ? root / "app" : root / "flatcam-fx" / "target" / "dependency";
     if (!fs::is_directory(dependencies)) return {};
     int modules = 0;
     for (const auto& entry : fs::directory_iterator(dependencies)) {
@@ -100,7 +104,7 @@ RuntimePaths runtimePaths(const fs::path& root) {
                 paths.modulePath += entry.path().wstring();
                 ++modules;
             } else if (!javaFxJar) {
-                paths.classPath += L';';
+                if (!paths.classPath.empty()) paths.classPath += L';';
                 paths.classPath += entry.path().wstring();
             }
         }
@@ -145,7 +149,7 @@ fs::path createDiagnosticSession() {
 
 }  // namespace
 
-int wmain(int argc, wchar_t** argv) {
+int launchApplication(int argc, wchar_t** argv) {
     bool probe = false;
     bool software = false;
     bool verbose = false;
@@ -160,13 +164,17 @@ int wmain(int argc, wchar_t** argv) {
         else applicationArgs.push_back(arg);
     }
 
-    // target/native/FlatCAMFX.exe -> reactor root
-    const fs::path root = executablePath().parent_path().parent_path().parent_path();
-    const fs::path javaHome = findJavaHome();
+    // Packaged installations are self-contained; a broken bundled runtime must not fall back to a user's Java.
+    const fs::path executableDirectory = executablePath().parent_path();
+    const bool packaged = fs::exists(executableDirectory / "flatcam-release.json")
+            || fs::is_directory(executableDirectory / "runtime");
+    const fs::path root = packaged ? executableDirectory : executableDirectory.parent_path().parent_path();
+    const fs::path javaHome = packaged ? root / "runtime" : findJavaHome();
     const RuntimePaths paths = runtimePaths(root);
-    if (javaHome.empty() || paths.classPath.empty() || paths.modulePath.empty()) {
-        std::cerr << "FlatCAM FX native launcher: JDK or built dependencies not found. "
-                     "Run build-native.cmd first.\n";
+    if (javaHome.empty() || !fs::exists(javaHome / "bin" / "server" / "jvm.dll")
+            || paths.classPath.empty() || paths.modulePath.empty()) {
+        std::cerr << (packaged ? "FlatCAM FX: installation is incomplete. Extract or reinstall the complete package.\n"
+                : "FlatCAM FX native launcher: JDK or built dependencies not found. Run build-native.cmd first.\n");
         return 2;
     }
     SetCurrentDirectoryW(root.c_str());
@@ -236,6 +244,7 @@ int wmain(int argc, wchar_t** argv) {
 
     std::cout << "FlatCAM FX native launcher: " << (software ? "software requested" : "D3D then software")
               << "; high-performance GPU requested from hybrid drivers." << std::endl;
+    if (probe) std::cout << "Windows process code page: " << GetACP() << std::endl;
     jclass applicationClass = env->FindClass("javafx/application/Application");
     bool failed = describeJavaError(env, "loading JavaFX") || applicationClass == nullptr;
     if (!failed && probe) {
@@ -275,3 +284,23 @@ int wmain(int argc, wchar_t** argv) {
     vm->DestroyJavaVM();
     return failed ? 1 : 0;
 }
+
+#ifdef FLATCAM_GUI_HOST
+int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int) {
+    int argc = 0;
+    wchar_t** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (argv == nullptr) return 2;
+    bool probe = false;
+    for (int i = 1; i < argc; ++i) if (std::wstring(argv[i]) == L"--probe") probe = true;
+    int result = 2;
+    try { result = launchApplication(argc, argv); }
+    catch (const std::exception& failure) { std::cerr << failure.what() << '\n'; }
+    LocalFree(argv);
+    if (result != 0 && !probe) MessageBoxW(nullptr,
+            L"FlatCAM FX could not start. Check the diagnostic logs or reinstall the complete package.",
+            L"FlatCAM FX", MB_OK | MB_ICONERROR);
+    return result;
+}
+#else
+int wmain(int argc, wchar_t** argv) { return launchApplication(argc, argv); }
+#endif

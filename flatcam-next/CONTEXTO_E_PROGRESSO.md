@@ -1,5 +1,42 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Primeira Beta: versão e distribuição Windows — 2026-10-28
+
+Guia consolidado em 74c811e0. Reactor versionado como 0.1.0-beta.1; título,
+Sobre, splash e diagnóstico identificam a Beta. sourceRevision acompanha o
+JAR e o manifesto da distribuição. Host nativo aceita imagem autocontida e
+runtime incluído, preservando exports de GPU, DPI e diagnósticos. Variante
+GUI sem console; identidade/ícone/versão no executável Windows.
+
+build-beta.ps1 fixa Temurin 25.0.5+8 e WiX 3.14.1 por SHA-256, roda verify,
+jlink e jpackage e gera ZIP/EXE/MSI com hashes. Instalador por usuário,
+atalhos e família de upgrade própria da Beta; versão numérica Windows 0.1.1.
+Não copia o Oracle JDK de desenvolvimento nem publica arquivos/tags.
+
+Probes em test-beta.ps1 extraem fora do repositório, invalidam Java/PATH do
+sistema, usam preferências em memória e executam UI/CAM/reabertura com os
+JARs e runtime distribuídos. A instalação MSI é isolada e desfeita ao final;
+cliques do assistente EXE, VM limpa, segundo PC, segurança e CNC física não
+são cobertos. Relatórios ficam na pasta de cada geração, sem inventar aprovação
+para opções SkipTests/SkipInstallation ou builds dirty.
+
+Primeiro empacotamento detectou launcher jpackage ReadOnly; segundo gerou
+artefatos, mas a extração acentuada falhou no módulo JavaFX. Causa: JNI usa
+a página de código do processo para opções da JVM. Manifesto agora declara
+UTF-8 antes da JVM; a prova mantém a pasta acentuada e confere GetACP=65001.
+A contraprova com o executável antigo na mesma pasta acentuada voltou a
+falhar (exit 1/module not found), enquanto o novo passou. Distribuição
+preliminar passou importação/painelização/CAM/CNC/reabertura e instalação/
+desinstalação MSI; JFR do runtime incluído conferido. Erro inicial do harness
+MSI era a citação dos switches/propriedades na linha de comando, corrigida.
+Esses ensaios dirty/skipped são intermediários, não a release final.
+
+Procedimento, critérios e limites: [release/BUILD_BETA.md](release/BUILD_BETA.md)
+e [release/BETA-0.1.0-beta.1.md](release/BETA-0.1.0-beta.1.md). A tag anotada deve
+apontar ao commit limpo aprovado por verify + distribuição/instalação; o resultado
+e os hashes efetivos ficam na anotação da tag e nos relatórios dos artefatos.
+Sem push/publicação autorizados nesta rodada.
+
 ## Guia de uso local e Outline — 2026-10-28
 
 Ajuda > Guia de uso / F1 abre uma única aba fechável com busca em título e

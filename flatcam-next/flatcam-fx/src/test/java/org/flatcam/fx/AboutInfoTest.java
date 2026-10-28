@@ -8,6 +8,14 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class AboutInfoTest {
+    @Test void releaseIdentityDistinguishesBetaDevelopmentAndPublishedBuilds() {
+        assertEquals(I18n.text("release.beta"),AboutInfo.channel("0.1.0-beta.1"));
+        assertEquals(I18n.text("release.development"),AboutInfo.channel("0.2.0-SNAPSHOT"));
+        assertEquals(I18n.text("release.published"),AboutInfo.channel("0.1.0"));
+        assertEquals(AboutInfo.build().getProperty("appVersion"),AboutInfo.version());
+        assertNotNull(AboutInfo.build().getProperty("sourceRevision"));
+        assertTrue(AboutInfo.systemSummary(null,null).contains(AboutInfo.version()));
+    }
     @Test void packagedLicenseIsTheActualRepositoryLicenseIncludingCopyright() throws Exception {
         assertEquals(Files.readString(Path.of("..", "..", "LICENSE")).replace("\r\n", "\n"),
                 AboutInfo.resource("LICENSE").replace("\r\n", "\n"));

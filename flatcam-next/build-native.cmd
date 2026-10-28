@@ -3,7 +3,7 @@ setlocal
 pushd "%~dp0" || exit /b 1
 
 rem Keep application modules and the copied runtime jars in sync with the source.
-call ".\mvnw.cmd" -q install -DskipTests
+call ".\mvnw.cmd" -q install -DskipTests %*
 if errorlevel 1 goto failure
 rem Start from an empty folder: jars of an older JavaFX (or a dropped dependency) must not stay on the launcher paths.
 if exist "flatcam-fx\target\dependency" rmdir /s /q "flatcam-fx\target\dependency"
@@ -27,7 +27,7 @@ rem Declare DPI awareness before the JVM/AWT/Glass creates the first native wind
 rem Without this resource, Glass can change the process DPI after the splash exists.
 for %%C in ("%FLATCAM_CXX%") do set "FLATCAM_WINDRES=%%~dpCwindres.exe"
 if not exist "%FLATCAM_WINDRES%" set "FLATCAM_WINDRES=windres.exe"
-"%FLATCAM_WINDRES%" -I"native-launcher" -i "native-launcher\FlatCAMFX.rc" -o "target\native\FlatCAMFX-res.o"
+"%FLATCAM_WINDRES%" -I"native-launcher" -I"..\assets\resources" -i "native-launcher\FlatCAMFX.rc" -o "target\native\FlatCAMFX-res.o"
 if errorlevel 1 goto failure
 set "FLATCAM_JNI_INCLUDE=%JAVA_HOME%\include"
 if not exist "%FLATCAM_JNI_INCLUDE%\jni.h" (

@@ -213,7 +213,7 @@ final class StartupSplash implements AutoCloseable {
                 g.setFont(new Font("Segoe UI",Font.PLAIN,15)); g.setColor(palette.secondary());
                 g.drawString(I18n.text("ui.e2c057e95ee9"),34,137);
                 g.setFont(new Font("Segoe UI",Font.PLAIN,13));
-                g.drawString(version+I18n.text("ui.f90585d35e22"),34,164);
+                g.drawString(version+"  ·  "+AboutInfo.channel(version),34,164);
                 g.setColor(palette.text());
                 drawText(g,graphicsStatus.mode(),Font.BOLD,13,186);
                 g.setColor(palette.secondary());
