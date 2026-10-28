@@ -105,6 +105,10 @@
                 <configuration>
                     <!-- Surefire loads JavaFX on the classpath, unlike the application launcher. -->
                     <argLine>--enable-native-access=ALL-UNNAMED ${flatcam.jvm.stringSearchWorkaround} ${argLine}</argLine>
+                    <!-- UI generation tests must not read or write the developer's registry preferences. -->
+                    <systemPropertyVariables>
+                        <java.util.prefs.PreferencesFactory>org.flatcam.fx.StartupSplashTest$MemoryFactory</java.util.prefs.PreferencesFactory>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>

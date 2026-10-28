@@ -14,6 +14,10 @@ anterior em pasta temporária, atualizá-la com o MSI novo, executar o mesmo
 smoke e conferir a remoção do produto anterior e a preservação de um projeto.
 Árvore limpa e suíte integral são exigidas pelo gerador; o resultado efetivo,
 as tentativas e os hashes ficam nos relatórios e na tag anotada após validar.
+Surefire do módulo FX agora isola preferências em memória por padrão, como
+os ensaios focados já faziam. A primeira verificação da Beta 2 foi interrompida
+intencionalmente antes dos testes de geração novos para aplicar esse isolamento;
+o log foi mantido e não conta como uma rodada integral aprovada.
 
 ## Feedback da Beta: editar diâmetro na Tools Table — 2026-10-28
 

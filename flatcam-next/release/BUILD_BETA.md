@@ -28,6 +28,8 @@ launcher nativo/jars e gera um runtime reduzido com `jlink`. Downloads fixados:
 Temurin 25.0.5+8 e WiX 3.14.1, com SHA-256 conferido antes da extração.
 O JDK Oracle local não é copiado para o pacote. Pode-se fornecer outro OpenJDK
 GPL 25 x64 com `-RuntimeJdk`, registrado como override no manifesto.
+O módulo FX executa os testes com PreferencesFactory em memória por padrão,
+evitando dependência ou gravação nas preferências reais do Windows.
 
 O `jpackage` cria a imagem e os instaladores MSI/EXE. O launcher da imagem
 é substituído pelo host JNI do FX, compilado sem janela de console. Ele mantém
