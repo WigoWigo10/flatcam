@@ -201,7 +201,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private final ProgressBar progressBar = new ProgressBar(0);
     private final Label progressPercentLabel = new Label("0%");
-    private final Label statusLabel = new Label("Pronto.");
+    private final Label statusLabel = new Label(I18n.text("ui.45a489c52210"));
     private final Circle statusDot = new Circle(5, Color.web("#4caf50"));
     private final Label activityLabel = new Label("Idle.");
     private final Label unitsLabel = new Label("[mm]");
@@ -212,7 +212,7 @@ final class MainWindow implements TclFlatcamHost {
     private final TextArea console = new TextArea();
     private final TabPane centerTabs = new TabPane();
     private final StackPane propertiesContainer = new StackPane();
-    private final Label propertiesPlaceholder = new Label("Selecione um objeto\npara ver seus parâmetros.");
+    private final Label propertiesPlaceholder = new Label(I18n.text("ui.78962f43c05e"));
 
     /**
      * A generated G-code file, tracked in the "CNC Jobs" tree category once GCodeGenerator
@@ -374,7 +374,7 @@ final class MainWindow implements TclFlatcamHost {
 
                 @Override
                 public void showEditorToolbar(Node toolbar) {
-                    PanelTooltips.install(toolbar, "Editor Geometry");
+                    PanelTooltips.install(toolbar, I18n.text("ui.73031cbbeabc"));
                     MainWindow.this.showGeometryEditorToolbar(toolbar);
                 }
 
@@ -428,7 +428,7 @@ final class MainWindow implements TclFlatcamHost {
                     if (screen == null) return;
                     try { new javafx.scene.robot.Robot().mouseMove(screen); }
                     catch (RuntimeException unavailable) {
-                        appendConsole("Prévia posicionada, mas não foi possível mover o mouse. Confira o destino no plot; no arco, J > Adicionar ponto permite inserir as coordenadas exatas.");
+                        appendConsole(I18n.text("ui.a9b69a98914f"));
                     }
                 }
 
@@ -445,7 +445,7 @@ final class MainWindow implements TclFlatcamHost {
                 }
                 @Override public void closeToolPanel() { MainWindow.this.closeToolPanel(); }
                 @Override public void showToolbar(Node toolbar) {
-                    PanelTooltips.install(toolbar, "Editor Excellon");
+                    PanelTooltips.install(toolbar, I18n.text("ui.0e54aac8a039"));
                     topBars.getChildren().set(2, toolbar);
                     excellonEditorMenu.setVisible(true);
                 }
@@ -501,13 +501,13 @@ final class MainWindow implements TclFlatcamHost {
     private boolean generateEditedGerber(GerberEditSession.ApplyRequest request,
             Consumer<GerberEditSession.ApplyResult> onSuccess, Runnable onFailure) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return false;
         }
-        beginJob("Aplicando edição Gerber...");
+        beginJob(I18n.text("ui.3235d08ce5ca"));
         JobHandle<GerberEditSession.ApplyResult> handle = jobExecutor.submit(context ->
                 request.generate(context::isCancelled,
-                        fraction -> context.reportProgress(fraction, "Aplicando edição Gerber...")),
+                        fraction -> context.reportProgress(fraction, I18n.text("ui.3235d08ce5ca"))),
                 (fraction, message) -> Platform.runLater(() -> {
                     updateProgress(fraction);
                     statusLabel.setText(message);
@@ -516,11 +516,11 @@ final class MainWindow implements TclFlatcamHost {
         handle.completion().thenAccept(result -> Platform.runLater(() -> {
             onJobFinished();
             updateProgress(1);
-            setStatus("Edição Gerber concluída.", IDLE_COLOR);
+            setStatus(I18n.text("ui.a465a6d19d33"), IDLE_COLOR);
             onSuccess.accept(result);
         })).exceptionally(error -> {
             Platform.runLater(() -> {
-                reportJobError(error, "Falha ao aplicar edição Gerber: ");
+                reportJobError(error, I18n.text("ui.62a710d38219"));
                 onJobFinished();
                 onFailure.run();
             });
@@ -532,10 +532,10 @@ final class MainWindow implements TclFlatcamHost {
     private boolean runGeometryOperation(GeometryEditSession.OperationRequest request,
             Consumer<GeometryEditSession.OperationResult> onSuccess, Consumer<String> onFailure) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return false;
         }
-        String message = "Calculando " + request.operation().name().toLowerCase(java.util.Locale.ROOT) + "...";
+        String message = I18n.text("ui.94394dd7b8e2") + request.operation().name().toLowerCase(java.util.Locale.ROOT) + "...";
         beginJob(message);
         JobHandle<GeometryEditSession.OperationResult> handle = jobExecutor.submit(context ->
                 request.execute(context::isCancelled,
@@ -548,15 +548,15 @@ final class MainWindow implements TclFlatcamHost {
         handle.completion().thenAccept(result -> Platform.runLater(() -> {
             onJobFinished();
             updateProgress(1);
-            setStatus("Operação Geometry concluída.", IDLE_COLOR);
+            setStatus(I18n.text("ui.b59b89b0c853"), IDLE_COLOR);
             onSuccess.accept(result);
         })).exceptionally(error -> {
             Platform.runLater(() -> {
-                reportJobError(error, "Falha na operação Geometry: ");
+                reportJobError(error, I18n.text("ui.83341c266009"));
                 onJobFinished();
                 Throwable cause = error.getCause() == null ? error : error.getCause();
-                onFailure.accept(isCancellation(error) ? "Operação cancelada."
-                        : "Falha na operação: " + cause.getMessage());
+                onFailure.accept(isCancellation(error) ? I18n.text("ui.f102bb211dda")
+                        : I18n.text("ui.24a376d6ed1b") + cause.getMessage());
             });
             return null;
         });
@@ -566,19 +566,19 @@ final class MainWindow implements TclFlatcamHost {
     private boolean runExcellonArray(org.flatcam.cam.excellon.ExcellonArray.Parameters params,
             Consumer<org.flatcam.cam.excellon.ExcellonArray.Prepared> done,Consumer<String> failed) {
         if(runningJob!=null) return false;
-        String message="Calculando array Excellon..."; beginJob(message);
+        String message=I18n.text("ui.bd17b8448894"); beginJob(message);
         JobHandle<?>[] owner=new JobHandle<?>[1];
         var handle=jobExecutor.submit(context -> org.flatcam.cam.excellon.ExcellonArray.generate(params,context::isCancelled,
                 fraction->context.reportProgress(fraction,message)),cncPreviewProgress(owner));
         owner[0]=handle; runningJob=handle;
         handle.completion().thenAccept(result->Platform.runLater(()-> {
             if(runningJob!=handle) return;
-            onJobFinished(); updateProgress(1); setStatus("Prévia Excellon concluída.",IDLE_COLOR); done.accept(result);
+            onJobFinished(); updateProgress(1); setStatus(I18n.text("ui.3c01b31677fc"),IDLE_COLOR); done.accept(result);
         })).exceptionally(error-> { Platform.runLater(()-> {
             if(runningJob!=handle) return;
-            reportJobError(error,"Falha no array Excellon: "); onJobFinished();
+            reportJobError(error,I18n.text("ui.2287911f438e")); onJobFinished();
             Throwable cause=error.getCause()==null ? error : error.getCause();
-            failed.accept(isCancellation(error) ? "Array cancelado." : "Falha no array: "+cause.getMessage());
+            failed.accept(isCancellation(error) ? I18n.text("ui.064325826214") : I18n.text("ui.6239176f8487")+cause.getMessage());
         }); return null; });
         return true;
     }
@@ -602,16 +602,16 @@ final class MainWindow implements TclFlatcamHost {
                                    Consumer<String> onFailure) {
         CncJobEntry original = cncJobByItem.get(item);
         if (runningJob != null || original == null) {
-            appendConsole(runningJob != null ? "Já existe uma operação em andamento."
-                    : "O CNC Job não está mais no projeto.");
+            appendConsole(runningJob != null ? I18n.text("ui.df12b110e3bb")
+                    : I18n.text("ui.982652d6caff"));
             return false;
         }
         long epoch = tclProjectEpoch;
         JobHandle<?>[] progressOwner = {null};
-        beginJob("Analisando G-code editado...");
+        beginJob(I18n.text("ui.e18608c6246a"));
         JobHandle<GCodeToolpathParser.Result> handle = jobExecutor.submit(context ->
                 GCodeToolpathParser.parse(text, context::isCancelled,
-                        fraction -> context.reportProgress(fraction, "Analisando G-code editado...")),
+                        fraction -> context.reportProgress(fraction, I18n.text("ui.e18608c6246a"))),
                 cncPreviewProgress(progressOwner));
         runningJob = handle;
         progressOwner[0] = handle;
@@ -619,28 +619,28 @@ final class MainWindow implements TclFlatcamHost {
             if (runningJob != handle) return;
             onJobFinished();
             if (handle.isCancelled()) {
-                setStatus("Analise cancelada.", IDLE_COLOR);
-                onFailure.accept("Analise cancelada; nenhuma alteração aplicada.");
+                setStatus(I18n.text("ui.94ee72fe53b0"), IDLE_COLOR);
+                onFailure.accept(I18n.text("ui.9007d30a0cd9"));
                 return;
             }
             if (tclProjectEpoch != epoch || cncJobByItem.get(item) != original) {
-                setStatus("Resultado G-code descartado: origem/projeto alterado.", IDLE_COLOR);
-                onFailure.accept("O CNC Job/projeto foi removido ou alterado durante a edição.");
+                setStatus(I18n.text("ui.0c233ee4094f"), IDLE_COLOR);
+                onFailure.accept(I18n.text("ui.62195c445fbc"));
                 return;
             }
             updateCncJob(item, original, text, parsed);
             updateProgress(1);
-            setStatus("G-code atualizado.", IDLE_COLOR);
-            appendConsole("Editor G-Code: " + item.getValue() + " atualizado em memória."
+            setStatus(I18n.text("ui.23b02b31bb39"), IDLE_COLOR);
+            appendConsole(I18n.text("ui.11bf8245329f") + item.getValue() + I18n.text("ui.6ab454731796")
                     + (parsed.warning() == null ? "" : " " + parsed.warning()));
             onSuccess.run();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
                 if (runningJob != handle) return;
-                reportJobError(error, "Falha ao aplicar G-code: ");
+                reportJobError(error, I18n.text("ui.a7bdc32482c4"));
                 onJobFinished();
-                onFailure.accept(isCancellation(error) ? "Analise cancelada; nenhuma alteração aplicada."
-                        : "Falha ao analisar G-code: "
+                onFailure.accept(isCancellation(error) ? I18n.text("ui.9007d30a0cd9")
+                        : I18n.text("ui.6cea211a24d7")
                                 + (error.getCause() == null ? error : error.getCause()).getMessage());
             });
             return null;
@@ -689,7 +689,7 @@ final class MainWindow implements TclFlatcamHost {
             showProperties(item);
         }
         for (Tab openTab : centerTabs.getTabs()) {
-            if ((openTab.getText().equals("Fonte - " + item.getValue())
+            if ((openTab.getText().equals(I18n.text("ui.04ee0affc04e") + item.getValue())
                     || openTab.getText().equals(item.getValue()))
                     && openTab.getContent() instanceof CodeEditor viewer && !viewer.isEditable()) {
                 viewer.setText(text);
@@ -700,9 +700,9 @@ final class MainWindow implements TclFlatcamHost {
     private boolean saveGCodeDraftAs(String text, Consumer<String> onComplete) {
         String extension = GCodeToolpathParser.isIcpProgram(text) ? ".imf" : GCodeToolpathParser.isHpglProgram(text)
                 ? ".plt" : GCodeToolpathParser.isRolandProgram(text) ? ".rml" : ".nc";
-        return saveReviewedProgram("Rascunho do editor", "program_edit" + extension,
+        return saveReviewedProgram(I18n.text("ui.506598c4212b"), "program_edit" + extension,
                 () -> new PendingCncProgram(text, null,
-                        "Rascunho: salvar esta cópia não aplica as alterações ao CNC Job nem altera o arquivo de origem.", path -> {}),
+                        I18n.text("ui.dd3a87f029e5"), path -> {}),
                 () -> true, onComplete);
     }
 
@@ -713,9 +713,9 @@ final class MainWindow implements TclFlatcamHost {
         return decision != null && decision.proceed();
     };
     private java.util.function.BiFunction<String,String,File> cncExportDestination = (name, text) -> {
-        FileChooser chooser = new FileChooser(); chooser.setTitle("Salvar programa CNC revisado");
+        FileChooser chooser = new FileChooser(); chooser.setTitle(I18n.text("ui.995308a91ca5"));
         chooser.setInitialFileName(name);
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programas CNC",
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.dc244cbb1ee5"),
                 "*.nc", "*.gcode", "*.tap", "*.ngc", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
         File initial = new File(AppPreferences.loadLastCamDirectory("."));
         if (initial != null && initial.isDirectory()) chooser.setInitialDirectory(initial);
@@ -727,57 +727,57 @@ final class MainWindow implements TclFlatcamHost {
     boolean saveReviewedProgram(String name, String filename, java.util.function.Supplier<PendingCncProgram> prepare,
             BooleanSupplier valid, Consumer<String> complete) {
         if (runningJob != null || terminalPanel != null && terminalPanel.isBusy()) {
-            appendConsole("Aguarde a operação atual antes de revisar/exportar CNC."); return false;
+            appendConsole(I18n.text("ui.ac7b76696bc0")); return false;
         }
         long epoch = tclProjectEpoch;
         BooleanSupplier current = () -> tclProjectEpoch == epoch && valid.getAsBoolean();
-        beginJob("Preparando revisão CNC...");
+        beginJob(I18n.text("ui.26c949209791"));
         var analysis = jobExecutor.submit(context -> TclExecution.run(context, () -> {
             TclExecution.cancellation().throwIfCancellationRequested();
             PendingCncProgram program = prepare.get();
             return new ReviewedCncProgram(program, CncReviewedFile.review(name, program.text(), program.stats(),
-                    program.warning(), context::isCancelled, f -> context.reportProgress(f, "Revisando programa CNC...")));
+                    program.warning(), context::isCancelled, f -> context.reportProgress(f, I18n.text("ui.d6961c363f02"))));
         }), (fraction,message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
         runningJob = analysis;
         analysis.completion().whenComplete((reviewed,error) -> Platform.runLater(() -> {
-            if (runningJob != analysis) { complete.accept("Revisão descartada."); return; }
+            if (runningJob != analysis) { complete.accept(I18n.text("ui.e77b02c77ec2")); return; }
             onJobFinished();
-            if (error != null) { reportJobError(error,"Falha na revisão CNC: "); complete.accept("Revisão cancelada ou falhou; nenhum arquivo gravado."); return; }
-            updateProgress(1); setStatus("Revisão CNC pronta.", IDLE_COLOR);
+            if (error != null) { reportJobError(error,I18n.text("ui.d24b102a0c86")); complete.accept(I18n.text("ui.4cec24d0c5ab")); return; }
+            updateProgress(1); setStatus(I18n.text("ui.f4a886782bea"), IDLE_COLOR);
             try {
-                if (!current.getAsBoolean()) { complete.accept("Origem alterada; revisão descartada."); return; }
+                if (!current.getAsBoolean()) { complete.accept(I18n.text("ui.5ee605dbe9f9")); return; }
                 if (!cncExportDecision.test(reviewed.report()) || !reviewed.report().canContinue()) {
-                    setStatus("Exportação cancelada.",IDLE_COLOR); complete.accept("Exportação cancelada; nenhum arquivo gravado."); return;
+                    setStatus(I18n.text("ui.2d89cfee4d37"),IDLE_COLOR); complete.accept(I18n.text("ui.27d1a7c672e9")); return;
                 }
-                if (!current.getAsBoolean()) { complete.accept("Origem alterada; revisão descartada."); return; }
+                if (!current.getAsBoolean()) { complete.accept(I18n.text("ui.5ee605dbe9f9")); return; }
                 File selected = cncExportDestination.apply(filename, reviewed.program().text());
-                if (selected == null) { setStatus("Exportação cancelada.",IDLE_COLOR); complete.accept("Destino não escolhido; nenhum arquivo gravado."); return; }
+                if (selected == null) { setStatus(I18n.text("ui.2d89cfee4d37"),IDLE_COLOR); complete.accept(I18n.text("ui.b7a0fe342c6b")); return; }
                 if (!current.getAsBoolean() || runningJob != null || terminalPanel != null && terminalPanel.isBusy()) {
-                    complete.accept("Estado alterado; exportação descartada."); return;
+                    complete.accept(I18n.text("ui.15cef3c93b56")); return;
                 }
-                beginJob("Salvando programa revisado...");
+                beginJob(I18n.text("ui.765b55fdb744"));
                 var saving = jobExecutor.submit(context -> TclExecution.run(context, () ->
                         CncReviewedFile.write(reviewed.program().text(), selected.toPath(), context::isCancelled, () ->
                                 TclExecution.onFx(() -> {
-                                    if (!current.getAsBoolean()) throw new IllegalStateException("Origem alterada; arquivo anterior preservado.");
+                                    if (!current.getAsBoolean()) throw new IllegalStateException(I18n.text("ui.84fed0b04b6d"));
                                     return null;
                                 }))), null);
                 runningJob = saving;
                 saving.completion().whenComplete((path,failure) -> Platform.runLater(() -> {
-                    if (runningJob != saving) { complete.accept("Publicação encerrada; confira o destino escolhido."); return; }
+                    if (runningJob != saving) { complete.accept(I18n.text("ui.b1154fb9d439")); return; }
                     onJobFinished();
-                    if (failure != null) { reportJobError(failure,"Falha ao salvar CNC: "); complete.accept("Gravação cancelada ou falhou; arquivo anterior preservado."); return; }
+                    if (failure != null) { reportJobError(failure,I18n.text("ui.692b6e23b2f5")); complete.accept(I18n.text("ui.52ada1852cfe")); return; }
                     try { cncExportRemember.accept(path); }
-                    catch (RuntimeException preferenceFailure) { appendConsole("Arquivo salvo; não foi possível lembrar a pasta: " + preferenceFailure.getMessage()); }
-                    appendConsole("Programa CNC revisado salvo em " + path);
-                    updateProgress(1); setStatus("Concluído.",IDLE_COLOR);
+                    catch (RuntimeException preferenceFailure) { appendConsole(I18n.text("ui.fdf372a19a3c") + preferenceFailure.getMessage()); }
+                    appendConsole(I18n.text("ui.f84cb83978b5") + path);
+                    updateProgress(1); setStatus(I18n.text("ui.98c459e50406"),IDLE_COLOR);
                     // The file has been published. A changed source must not publish a stale preview into the project.
                     try { if (current.getAsBoolean()) reviewed.program().saved().accept(path); }
-                    catch (RuntimeException previewFailure) { appendConsole("Arquivo salvo; falha na prévia: " + previewFailure.getMessage()); }
-                    complete.accept("Arquivo salvo em " + path + ".");
+                    catch (RuntimeException previewFailure) { appendConsole(I18n.text("ui.e6e5a44fbf25") + previewFailure.getMessage()); }
+                    complete.accept(I18n.text("ui.3d589d922af8") + path + ".");
                 }));
             } catch (RuntimeException failure) {
-                reportJobError(failure,"Falha na exportação CNC: "); complete.accept("Exportação interrompida; confira as mensagens do Terminal.");
+                reportJobError(failure,I18n.text("ui.c72be5121787")); complete.accept(I18n.text("ui.59927971fe40"));
             }
         }));
         return true;
@@ -1164,8 +1164,8 @@ final class MainWindow implements TclFlatcamHost {
 
     private HBox buildMenuRow() {
         sidebarToggle = new ToggleButton(null, legacyIcon("notebook32.png", 16));
-        sidebarToggle.setTooltip(new Tooltip("Mostrar/ocultar painel lateral"));
-        sidebarToggle.setAccessibleText("Mostrar ou ocultar Projeto, Propriedades e Ferramenta");
+        sidebarToggle.setTooltip(new Tooltip(I18n.text("ui.baa81a88f254")));
+        sidebarToggle.setAccessibleText(I18n.text("ui.b3ec75f86d9c"));
         sidebarToggle.getStyleClass().add("sidebar-toggle");
         sidebarToggle.setSelected(true);
         sidebarToggle.setOnAction(event -> toggleSidebar());
@@ -1181,9 +1181,9 @@ final class MainWindow implements TclFlatcamHost {
 
     private Button chromeButton(String label, String icon, Runnable action) {
         Button button = new Button(null, legacyIcon(icon, 18));
-        button.setTooltip(new Tooltip(label + (action == null ? " — em desenvolvimento" : "")));
+        button.setTooltip(new Tooltip(label + (action == null ? I18n.text("ui.af814f12eeff") : "")));
         String commandHelp = CommandHelpCatalog.help(label);
-        if (action == null) commandHelp = "Esta função ainda não está implementada no FX. O botão não executa uma operação.";
+        if (action == null) commandHelp = I18n.text("ui.4e622683282a");
         if (commandHelp != null) ToolDescriptions.apply(button, label, commandHelp);
         button.setDisable(action == null);
         if (action == null) {
@@ -1202,13 +1202,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void editSelectedGerber() {
         if (gcodeEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive()) {
-            appendConsole("Conclua ou cancele o editor atual antes de abrir outro editor.");
+            appendConsole(I18n.text("ui.e613b5675fd3"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage image = gerberByItem.get(item);
         if (image == null) {
-            appendConsole("Selecione um Gerber para editar.");
+            appendConsole(I18n.text("ui.de0d39308315"));
         } else {
             gerberEditor.start(item, image);
         }
@@ -1229,13 +1229,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void editSelectedExcellon() {
         if (gerberEditor.isActive() || geometryEditor.isActive() || gcodeEditor.isActive()) {
-            appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor Excellon.");
+            appendConsole(I18n.text("ui.6d917ff27aff"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         ExcellonImage image = excellonByItem.get(item);
         if (image == null) {
-            appendConsole("Selecione um objeto Excellon para editar.");
+            appendConsole(I18n.text("ui.4c0e026548e6"));
             return;
         }
         excellonEditor.start(item, image);
@@ -1243,13 +1243,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void editSelectedGeometry() {
         if (gerberEditor.isActive() || gcodeEditor.isActive() || excellonEditor.isActive()) {
-            appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor Geometry.");
+            appendConsole(I18n.text("ui.cbc0c8b47d95"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GeometryEntry entry = geometryByItem.get(item);
         if (entry == null) {
-            appendConsole("Selecione um objeto Geometry para editar.");
+            appendConsole(I18n.text("ui.2e0443892924"));
             return;
         }
         geometryEditor.start(item, entry.geometry(), entry.tools(), entry.strokeOnly(), entry.units());
@@ -1257,13 +1257,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void editSelectedGCode() {
         if (gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive()) {
-            appendConsole("Conclua ou cancele o editor atual antes de abrir o Editor G-Code.");
+            appendConsole(I18n.text("ui.a3b87351c688"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         CncJobEntry entry = cncJobByItem.get(item);
         if (entry == null) {
-            appendConsole("Selecione um CNC Job para editar o G-code.");
+            appendConsole(I18n.text("ui.64e056852205"));
             return;
         }
         gcodeEditor.start(item, entry.gcode());
@@ -1279,7 +1279,7 @@ final class MainWindow implements TclFlatcamHost {
         } else if (gerberEditor.isActive()) {
             gerberEditor.saveAndClose();
         } else {
-            appendConsole("Nenhum editor está aberto.");
+            appendConsole(I18n.text("ui.506fafe44359"));
         }
     }
 
@@ -1287,14 +1287,14 @@ final class MainWindow implements TclFlatcamHost {
     private void joinSelectedGerbers() {
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.size() < 2) {
-            appendConsole("Juntar exige pelo menos dois objetos. Selecionados agora: " + selected.size());
+            appendConsole(I18n.text("ui.05b08f4d5acd") + selected.size());
             return;
         }
         List<GerberImage> images = new ArrayList<>();
         for (TreeItem<String> item : selected) {
             GerberImage image = gerberByItem.get(item);
             if (image == null) {
-                appendConsole("Falhou. Juntar Gerbers funciona apenas com objetos Gerber.");
+                appendConsole(I18n.text("ui.3013a8627750"));
                 return;
             }
             images.add(image);
@@ -1304,10 +1304,10 @@ final class MainWindow implements TclFlatcamHost {
             TreeItem<String> created = addGerberToProject(uniqueDerivedName("Combo_Gerber"), null, joined);
             selectProjectItem(created);
             plotAreaView.fitToLayer(created);
-            appendConsole("Gerbers unidos em " + created.getValue() + " (" + images.size() + " objetos)"
-                    + (joined.shapes().isEmpty() ? "; o resultado não é editável no Gerber Editor." : "."));
+            appendConsole(I18n.text("ui.6ee437661092") + created.getValue() + " (" + images.size() + I18n.text("ui.3cdae7796b26")
+                    + (joined.shapes().isEmpty() ? I18n.text("ui.0aeb5eebb038") : "."));
         } catch (IllegalArgumentException failed) {
-            appendConsole("Falhou ao juntar: " + failed.getMessage());
+            appendConsole(I18n.text("ui.2ad7a609d2bf") + failed.getMessage());
         }
     }
 
@@ -1315,14 +1315,14 @@ final class MainWindow implements TclFlatcamHost {
     private void joinSelectedExcellons() {
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.size() < 2) {
-            appendConsole("Juntar exige pelo menos dois objetos. Selecionados agora: " + selected.size());
+            appendConsole(I18n.text("ui.05b08f4d5acd") + selected.size());
             return;
         }
         List<ExcellonImage> images = new ArrayList<>();
         for (TreeItem<String> item : selected) {
             ExcellonImage image = excellonByItem.get(item);
             if (image == null) {
-                appendConsole("Falhou. Juntar Excellons funciona apenas com objetos Excellon.");
+                appendConsole(I18n.text("ui.12026d5196f8"));
                 return;
             }
             images.add(image);
@@ -1332,10 +1332,10 @@ final class MainWindow implements TclFlatcamHost {
             TreeItem<String> created = addExcellonToProject(uniqueDerivedName("Combo_Excellon"), null, joined);
             selectProjectItem(created);
             plotAreaView.fitToLayer(created);
-            appendConsole("Excellons unidos em " + created.getValue() + " (" + joined.totalDrills() + " furos, "
-                    + joined.totalSlots() + " slots, " + joined.toolDiameters().size() + " ferramentas).");
+            appendConsole(I18n.text("ui.f4c7b6d72bc5") + created.getValue() + " (" + joined.totalDrills() + I18n.text("ui.0de52914c0ab")
+                    + joined.totalSlots() + " slots, " + joined.toolDiameters().size() + I18n.text("ui.9aa367e06483"));
         } catch (IllegalArgumentException failed) {
-            appendConsole("Falhou ao juntar: " + failed.getMessage());
+            appendConsole(I18n.text("ui.2ad7a609d2bf") + failed.getMessage());
         }
     }
 
@@ -1343,7 +1343,7 @@ final class MainWindow implements TclFlatcamHost {
     private void joinSelectedToGeometry() {
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.size() < 2) {
-            appendConsole("Juntar exige pelo menos dois objetos. Selecionados agora: " + selected.size());
+            appendConsole(I18n.text("ui.05b08f4d5acd") + selected.size());
             return;
         }
         List<GeometryJoin.Source> sources = new ArrayList<>();
@@ -1359,7 +1359,7 @@ final class MainWindow implements TclFlatcamHost {
                 sources.add(new GeometryJoin.Source(geometry.units(), geometry.geometry(), geometry.strokeOnly(),
                         geometry.tools()));
             } else {
-                appendConsole("Falhou. Somente objetos Geometry, Gerber ou Excellon podem ser unidos em um Geometry.");
+                appendConsole(I18n.text("ui.d9f31bd782a1"));
                 return;
             }
         }
@@ -1370,10 +1370,10 @@ final class MainWindow implements TclFlatcamHost {
                     joined.geometry(), joined.strokeOnly(), joined.tools());
             selectProjectItem(created);
             plotAreaView.fitToLayer(created);
-            appendConsole("Objetos unidos em " + created.getValue() + " (" + selected.size() + " objetos"
-                    + (joined.tools().isEmpty() ? "" : ", " + joined.tools().size() + " ferramentas") + ").");
+            appendConsole(I18n.text("ui.0077a78914c7") + created.getValue() + " (" + selected.size() + I18n.text("ui.2a2acc2ff337")
+                    + (joined.tools().isEmpty() ? "" : ", " + joined.tools().size() + I18n.text("ui.ee5aa162eac7")) + ").");
         } catch (IllegalArgumentException failed) {
-            appendConsole("Falhou ao juntar: " + failed.getMessage());
+            appendConsole(I18n.text("ui.2ad7a609d2bf") + failed.getMessage());
         }
     }
 
@@ -1441,7 +1441,7 @@ final class MainWindow implements TclFlatcamHost {
     private void convertSelected(String target, Conversion conversion) {
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.isEmpty()) {
-            appendConsole("Nenhum objeto selecionado.");
+            appendConsole(I18n.text("ui.32a4794184b7"));
             return;
         }
         TreeItem<String> last = null;
@@ -1449,10 +1449,10 @@ final class MainWindow implements TclFlatcamHost {
             try {
                 TreeItem<String> created = conversion.convert(item);
                 if (created == null) {
-                    appendConsole(item.getValue() + ": este objeto não pode ser convertido em " + target + ".");
+                    appendConsole(item.getValue() + I18n.text("ui.3c3241f3a3ed") + target + ".");
                     continue;
                 }
-                appendConsole("Convertido em " + target + ": " + created.getValue() + ".");
+                appendConsole(I18n.text("ui.e850a9ee398c") + target + ": " + created.getValue() + ".");
                 last = created;
             } catch (IllegalArgumentException failed) {
                 appendConsole(item.getValue() + ": " + failed.getMessage());
@@ -1474,7 +1474,7 @@ final class MainWindow implements TclFlatcamHost {
                 continue;
             }
             if (diameter == null) {
-                diameter = promptNumber("Single → Multi-Geometry", "Diâmetro da ferramenta:", 0.1);
+                diameter = promptNumber("Single → Multi-Geometry", I18n.text("ui.4c6e267a7370"), 0.1);
                 if (diameter == null) {
                     return;
                 }
@@ -1510,10 +1510,10 @@ final class MainWindow implements TclFlatcamHost {
 
     private void finishGeometryConversion(int converted, String from, String to) {
         if (converted == 0) {
-            appendConsole("Falhou. Selecione um objeto Geometry " + from + " e tente de novo.");
+            appendConsole(I18n.text("ui.c8d67608f477") + from + I18n.text("ui.57cc47cd5e51"));
             return;
         }
-        appendConsole(converted + " Geometry convertida(s) para " + to + ".");
+        appendConsole(converted + I18n.text("ui.aeb3369e5452") + to + ".");
         TreeItem<String> current = projectTree.getSelectionModel().getSelectedItem();
         if (current != null) {
             showProperties(current);
@@ -1540,19 +1540,19 @@ final class MainWindow implements TclFlatcamHost {
         } catch (NumberFormatException ignored) {
             // falls through to the message
         }
-        appendConsole(title + ": use um número positivo.");
+        appendConsole(title + I18n.text("ui.09ac227cd52b"));
         return null;
     }
 
     /** Edit > Conversion > Outline to Area: a filled Geometry from each selected closed Gerber/Geometry outline. */
     private void convertOutlineToArea() {
         if (runningJob != null || camEditorActive()) {
-            appendConsole("Conclua a operação e feche os editores antes de converter contornos.");
+            appendConsole(I18n.text("ui.620de2c68efd"));
             return;
         }
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.isEmpty()) {
-            appendConsole("Nenhum objeto selecionado.");
+            appendConsole(I18n.text("ui.32a4794184b7"));
             return;
         }
         List<OutlineConversion> requests = new ArrayList<>();
@@ -1560,7 +1560,7 @@ final class MainWindow implements TclFlatcamHost {
             GerberImage gerber = gerberByItem.get(item);
             GeometryEntry entry = geometryByItem.get(item);
             if (gerber == null && entry == null) {
-                appendConsole("Somente objetos Gerber ou Geometry podem ser convertidos de contorno para área.");
+                appendConsole(I18n.text("ui.f2c6a844b170"));
                 continue;
             }
             Geometry source = gerber != null && gerber.followGeometry() != null && !gerber.followGeometry().isEmpty()
@@ -1571,22 +1571,22 @@ final class MainWindow implements TclFlatcamHost {
         if (requests.isEmpty()) return;
         CamGenerationState before = new CamGenerationState(tclProjectEpoch,
                 requests.stream().map(OutlineConversion::input).toList(), toolTab.getContent());
-        beginJob("Convertendo contornos para área...");
+        beginJob(I18n.text("ui.a35779299fb0"));
         activeCamGeneration = before;
         JobHandle<List<OutlineConversionOutcome>> handle = jobExecutor.submit(context -> {
             List<OutlineConversionOutcome> results = new ArrayList<>();
             for (int i = 0; i < requests.size(); i++) {
                 context.checkCancelled();
                 OutlineConversion request = requests.get(i);
-                context.reportProgress(.9 * i / requests.size(), "Convertendo " + request.input().name() + "...");
+                context.reportProgress(.9 * i / requests.size(), I18n.text("ui.a84d3f996194") + request.input().name() + "...");
                 try {
                     results.add(new OutlineConversionOutcome(request, OutlineToArea.convert(request.source(), context::isCancelled), null));
                 } catch (IllegalArgumentException invalid) {
-                    results.add(new OutlineConversionOutcome(request, null, Objects.toString(invalid.getMessage(), "Contorno inválido.")));
+                    results.add(new OutlineConversionOutcome(request, null, Objects.toString(invalid.getMessage(), I18n.text("ui.219a624f0141"))));
                 }
             }
             context.checkCancelled();
-            context.reportProgress(.95, "Publicando áreas dos contornos...");
+            context.reportProgress(.95, I18n.text("ui.a1ba5b094850"));
             return List.copyOf(results);
         }, camProgress(before));
         runningJob = handle;
@@ -1610,16 +1610,16 @@ final class MainWindow implements TclFlatcamHost {
                         int holes = 0;
                         for (int i = 0; i < area.getNumGeometries(); i++)
                             holes += ((org.locationtech.jts.geom.Polygon) area.getGeometryN(i)).getNumInteriorRing();
-                        appendConsole("Área do contorno criada: " + last.getValue() + String.format(java.util.Locale.ROOT,
-                                " (%.4f %s^2; %d área(s), %d recorte(s) interno(s) preservados)",
+                        appendConsole(I18n.text("ui.15dd6cba2124") + last.getValue() + String.format(java.util.Locale.ROOT,
+                                I18n.text("ui.bd022d299134"),
                                 area.getArea(), request.units().toLowerCase(java.util.Locale.ROOT), area.getNumGeometries(), holes));
                     }
                     if (last != null) selectProjectItem(last);
                 } finally { plotAreaView.endBatchUpdate(); }
                 updateProgress(1);
-                setStatus(last != null ? "Áreas criadas." : "Nenhuma área criada; confira os contornos.", last != null ? IDLE_COLOR : ERROR_COLOR);
+                setStatus(last != null ? I18n.text("ui.c8b1ce6a5f14") : I18n.text("ui.e01178b18511"), last != null ? IDLE_COLOR : ERROR_COLOR);
             } catch (Exception error) {
-                reportJobError(error, "Falha ao converter contornos: ");
+                reportJobError(error, I18n.text("ui.c51b4e08578b"));
             } finally {
                 if (runningJob == handle) onJobFinished();
             }
@@ -1634,7 +1634,7 @@ final class MainWindow implements TclFlatcamHost {
         if (!selected.isEmpty()) {
             copySelection(selected);
         } else {
-            appendConsole("Selecione um objeto para copiar.");
+            appendConsole(I18n.text("ui.a413460854d7"));
         }
     }
 
@@ -1643,7 +1643,7 @@ final class MainWindow implements TclFlatcamHost {
         if (!selected.isEmpty()) {
             removeSelectionFromProject(selected);
         } else {
-            appendConsole("Selecione um objeto para excluir.");
+            appendConsole(I18n.text("ui.766bea2e1450"));
         }
     }
 
@@ -1652,7 +1652,7 @@ final class MainWindow implements TclFlatcamHost {
         if (item != null && isPlottable(item)) {
             focusLayer(item);
         } else {
-            appendConsole("Selecione um objeto para enquadrar.");
+            appendConsole(I18n.text("ui.0a84ada7d1d6"));
         }
     }
 
@@ -1661,7 +1661,7 @@ final class MainWindow implements TclFlatcamHost {
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage image = gerberByItem.get(item);
         if (image == null) {
-            appendConsole("Selecione um Gerber para " + label + ".");
+            appendConsole(I18n.text("ui.b957f7260ae4") + label + ".");
         } else {
             action.accept(item, image);
         }
@@ -1671,7 +1671,7 @@ final class MainWindow implements TclFlatcamHost {
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         ExcellonImage image = excellonByItem.get(item);
         if (image == null) {
-            appendConsole("Selecione um Excellon para a ferramenta de furação.");
+            appendConsole(I18n.text("ui.c92039b8ea59"));
         } else {
             generateDrillGCode(item, image);
         }
@@ -1689,14 +1689,14 @@ final class MainWindow implements TclFlatcamHost {
             generateNcc(item, geometry);
             return;
         }
-        appendConsole("Selecione um Gerber ou Geometry para NCC.");
+        appendConsole(I18n.text("ui.6c519c87b783"));
     }
 
     private Runnable toolAction(String id) {
         return switch (id) {
             case "cutout" -> () -> openSelectedGerberTool("Cutout", this::generateCutout);
             case "ncc" -> this::openSelectedNccTool;
-            case "isolation" -> () -> openSelectedGerberTool("Isolamento", this::generateIsolation);
+            case "isolation" -> () -> openSelectedGerberTool(I18n.text("ui.2fd3145b90e7"), this::generateIsolation);
             case "drilling" -> this::openSelectedDrillingTool;
             case "calculators" -> () -> openToolPanel("Calculators", CalculatorsPanel.build());
             case "transform" -> this::openTransformTool;
@@ -1799,36 +1799,35 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private MenuBar buildMenuBar() {
-        Menu fileMenu = new Menu("Arquivo");
-        Menu newMenu = new Menu("Novo");
+        Menu fileMenu = new Menu(I18n.text("ui.ba8a452f2f83"));
+        Menu newMenu = new Menu(I18n.text("ui.2b1d9b4b4ba4"));
         setLegacyMenuIcon(newMenu, "new_file32.png");
         newMenu.getItems().addAll(
-                tipped(chromeItem("Novo Projeto", "new_file32.png", this::newProject), "Novo Projeto",
-                        "Fecha todos os objetos e começa um projeto vazio. Com alterações não salvas, pergunta antes "
-                        + "(Salvar / Não salvar / Cancelar). Preferências e o Terminal são mantidos.\n\nAtalho: Ctrl+N."),
-                tipped(chromeItem("Geometry", "geometry32.png", this::newEmptyGeometryObject), "Nova Geometry",
-                        "Cria uma Geometry vazia (new_geo) nas unidades atuais e a seleciona; use Editar Objeto para desenhar."),
-                tipped(chromeItem("Excellon", "drill32.png", this::newEmptyExcellonObject), "Novo Excellon",
-                        "Cria um Excellon vazio (new_exc) nas unidades atuais e o seleciona; use Editar Objeto para adicionar furos."),
+                tipped(chromeItem(I18n.text("ui.c7694e95e3a3"), "new_file32.png", this::newProject), I18n.text("ui.c7694e95e3a3"),
+                        I18n.text("ui.abcf32faadce")),
+                tipped(chromeItem("Geometry", "geometry32.png", this::newEmptyGeometryObject), I18n.text("ui.1264f2c2b06b"),
+                        I18n.text("ui.39ba6885692b")),
+                tipped(chromeItem("Excellon", "drill32.png", this::newEmptyExcellonObject), I18n.text("ui.4bc0ac357e88"),
+                        I18n.text("ui.f16b5da25d43")),
                 plannedItem("Document", "notebook32.png"));
-        Menu openMenu = new Menu("Abrir");
+        Menu openMenu = new Menu(I18n.text("ui.a01a5fce396e"));
         setLegacyMenuIcon(openMenu, "folder32.png");
         openMenu.getItems().addAll(
-                chromeItem("Projeto...", "folder32.png", this::openProject),
+                chromeItem(I18n.text("ui.e04714bfceef"), "folder32.png", this::openProject),
                 chromeItem("Gerber...", "flatcam_icon32.png", this::openGerberPrototype),
                 chromeItem("Excellon...", "drill32.png", this::openExcellonPrototype),
                 chromeItem("G-Code...", "cnc32.png", this::openGCode),
                 plannedItem("Configuracao...", "settings18.png"));
-        Menu importMenu = new Menu("Importar");
+        Menu importMenu = new Menu(I18n.text("ui.e7f0e6d956c1"));
         setLegacyMenuIcon(importMenu, "import.png");
         importMenu.getItems().addAll(
-                chromeItem("SVG como Geometry...", "svg32.png", () -> importDrawing(DrawingFormat.SVG, false)),
-                chromeItem("SVG como Gerber...", "svg32.png", () -> importDrawing(DrawingFormat.SVG, true)),
-                chromeItem("DXF como Geometry...", "dxf16.png", () -> importDrawing(DrawingFormat.DXF, false)),
-                chromeItem("DXF como Gerber...", "dxf16.png", () -> importDrawing(DrawingFormat.DXF, true)),
+                chromeItem(I18n.text("ui.b55822d49b07"), "svg32.png", () -> importDrawing(DrawingFormat.SVG, false)),
+                chromeItem(I18n.text("ui.b6ce9247cebd"), "svg32.png", () -> importDrawing(DrawingFormat.SVG, true)),
+                chromeItem(I18n.text("ui.ef24c785d4f4"), "dxf16.png", () -> importDrawing(DrawingFormat.DXF, false)),
+                chromeItem(I18n.text("ui.a993d8dd9ce4"), "dxf16.png", () -> importDrawing(DrawingFormat.DXF, true)),
                 chromeItem("HPGL2...", "import.png", () -> importDrawing(DrawingFormat.HPGL, false)),
                 chromeItem("PDF...", "pdf32.png", this::importPdf));
-        Menu exportMenu = new Menu("Exportar");
+        Menu exportMenu = new Menu(I18n.text("ui.292f20ee64bc"));
         setLegacyMenuIcon(exportMenu, "export.png");
         exportMenu.getItems().addAll(
                 chromeItem("SVG...", "svg32.png", this::exportSelectedSvg),
@@ -1839,72 +1838,60 @@ final class MainWindow implements TclFlatcamHost {
         Menu scriptMenu = new Menu("Scripting");
         setLegacyMenuIcon(scriptMenu, "script16.png");
         scriptMenu.getItems().addAll(
-                tipped(chromeItem("Novo Script", "script_new24.png", this::newScript), "Novo Script",
-                        "Abre um script Tcl novo no editor, com o modelo do FlatCAM Python. Executar envia o texto ao Terminal."),
-                tipped(chromeItem("Abrir Script...", "open_script32.png", this::openScripts), "Abrir Script",
-                        "Abre um ou mais arquivos .FlatScript/.tcl/.txt no editor de scripts, sem executá-los."),
-                tipped(chromeItem("Executar Script...", "script16.png", this::runScriptFile), "Executar Script",
-                        "Escolhe um arquivo de script e o executa no Terminal Tcl (dialeto reduzido do FX), "
-                        + "como Arquivo > Run Script do Python."));
+                tipped(chromeItem(I18n.text("ui.04832ec9d8c8"), "script_new24.png", this::newScript), I18n.text("ui.04832ec9d8c8"),
+                        I18n.text("ui.d4f38d4d29b4")),
+                tipped(chromeItem(I18n.text("ui.9bf49376674c"), "open_script32.png", this::openScripts), I18n.text("ui.013b5406590f"),
+                        I18n.text("ui.975763bb7978")),
+                tipped(chromeItem(I18n.text("ui.fcc5161acca7"), "script16.png", this::runScriptFile), I18n.text("ui.d64e8d0bbe2d"),
+                        I18n.text("ui.f1cff60a1bf1")));
         Menu backupMenu = new Menu("Backup");
         setLegacyMenuIcon(backupMenu, "backup24.png");
         backupMenu.getItems().addAll(
-                chromeItem("Importar preferências", "backup_import24.png", this::importToolDefaults),
-                chromeItem("Exportar preferências", "backup_export24.png", this::exportToolDefaults));
-        MenuItem printPdf = tipped(chromeItem("Imprimir como PDF…", "pdf32.png", this::printSelectedPdf),
-                "Imprimir como PDF", "Gera uma página PDF vetorial com os objetos selecionados, em escala física 1:1. Não é uma captura da grade do Plot.\n\nAtalho: Ctrl+P. Ao imprimir, use Tamanho real / 100%.");
+                chromeItem(I18n.text("ui.0fc4eccb4c46"), "backup_import24.png", this::importToolDefaults),
+                chromeItem(I18n.text("ui.274da9b3ab3d"), "backup_export24.png", this::exportToolDefaults));
+        MenuItem printPdf = tipped(chromeItem(I18n.text("ui.5b4d84680302"), "pdf32.png", this::printSelectedPdf),
+                I18n.text("ui.217ce43fce3a"), I18n.text("ui.f25db0cc902a"));
         printPdf.setId("print-pdf-menu-item");
         printPdf.setAccelerator(new javafx.scene.input.KeyCodeCombination(KeyCode.P, javafx.scene.input.KeyCombination.CONTROL_DOWN));
         fileMenu.getItems().addAll(newMenu, openMenu, RecentFilesMenu.build(recentFiles,this::openRecent,this::legacyIcon),
                 new SeparatorMenuItem(),
-                tipped(chromeItem("Salvar Projeto...", "project_save32.png", this::saveProject), "Salvar Projeto",
-                        "Grava no arquivo .fcnproj atual sem perguntar; sem arquivo ou com projeto Python .FlatPrj, "
-                        + "pergunta o destino (o original Python nunca é substituído em silêncio).\n\nAtalho: Ctrl+S."),
-                tipped(chromeItem("Salvar Projeto Como...", "save_as.png", this::saveProjectAs), "Salvar Projeto Como",
-                        "Sempre pergunta destino e formato (.fcnproj ou .FlatPrj).\n\nAtalho: Ctrl+Shift+S."),
+                tipped(chromeItem(I18n.text("ui.f9e7dca283b3"), "project_save32.png", this::saveProject), I18n.text("ui.7e0a780ac03b"),
+                        I18n.text("ui.648e941706f3")),
+                tipped(chromeItem(I18n.text("ui.3c26ec8a71b1"), "save_as.png", this::saveProjectAs), I18n.text("ui.dbdd6b57d23d"),
+                        I18n.text("ui.6707d4e855b5")),
                 new SeparatorMenuItem(),
                 importMenu, exportMenu, scriptMenu, backupMenu,
                 printPdf, new SeparatorMenuItem(),
-                chromeItem("Sair", "power16.png", this::requestApplicationClose));
+                chromeItem(I18n.text("ui.2d023dea2a9d"), "power16.png", this::requestApplicationClose));
 
-        Menu editMenu = new Menu("Editar");
-        Menu conversionsMenu = new Menu("Converter");
+        Menu editMenu = new Menu(I18n.text("ui.2eba946b2e1e"));
+        Menu conversionsMenu = new Menu(I18n.text("ui.e18a39d085ea"));
         setLegacyMenuIcon(conversionsMenu, "convert32.png");
         conversionsMenu.getItems().addAll(
-                tipped(chromeItem("Contorno → Área", "geometry32.png", this::convertOutlineToArea),
-                        "Contorno → Área", "Fecha o contorno de um Gerber ou Geometry e cria uma Geometry com a "
-                        + "área de todas as placas, preservando recortes internos e ilhas. "
-                        + "Funciona também após panelizar o contorno. Trechos abertos recusam a conversão "
-                        + "do objeto, sem criar uma área parcial; o cálculo é feito em segundo plano."),
+                tipped(chromeItem(I18n.text("ui.6494f73a898b"), "geometry32.png", this::convertOutlineToArea),
+                        I18n.text("ui.6494f73a898b"), I18n.text("ui.f8030ef949f9")),
                 tipped(chromeItem("Single → Multi-Geometry", "geometry32.png", this::convertSingleToMultiGeometry),
-                        "Single → Multi-Geometry", "Coloca a geometria sob uma ferramenta de diâmetro escolhido, "
-                        + "tornando-a multi-ferramenta."),
+                        "Single → Multi-Geometry", I18n.text("ui.8dd14674e0e3")),
                 tipped(chromeItem("Multi → Single-Geometry", "geometry32.png", this::convertMultiToSingleGeometry),
-                        "Multi → Single-Geometry", "Une a geometria de todas as ferramentas numa só; a informação "
-                        + "de ferramenta é descartada."),
-                tipped(chromeItem("Objeto → Geometry", "geometry32.png", this::convertSelectedToGeometry),
-                        "Objeto → Geometry", "Cria uma Geometry a partir de um Gerber, Excellon ou Geometry."),
-                tipped(chromeItem("Objeto → Gerber", "flatcam_icon32.png", this::convertSelectedToGerber),
-                        "Objeto → Gerber", "Cria um Gerber a partir de um Excellon (furos e slots) ou de uma "
-                        + "Geometry (regiões e linhas com a largura da ferramenta)."),
-                tipped(chromeItem("Objeto → Excellon", "drill32.png", this::convertSelectedToExcellon),
-                        "Objeto → Excellon", "Cria furos nos centros das formas fechadas de uma Geometry ou dos "
-                        + "flashes de um Gerber (traços de 2 pontos viram slots)."));
-        Menu joinMenu = new Menu("Juntar Objetos");
+                        "Multi → Single-Geometry", I18n.text("ui.67cf8ed9edf9")),
+                tipped(chromeItem(I18n.text("ui.b803f3348350"), "geometry32.png", this::convertSelectedToGeometry),
+                        I18n.text("ui.b803f3348350"), I18n.text("ui.1a546a84cfac")),
+                tipped(chromeItem(I18n.text("ui.5451b5591b78"), "flatcam_icon32.png", this::convertSelectedToGerber),
+                        I18n.text("ui.5451b5591b78"), I18n.text("ui.1fe209e03d5e")),
+                tipped(chromeItem(I18n.text("ui.745598a5f117"), "drill32.png", this::convertSelectedToExcellon),
+                        I18n.text("ui.745598a5f117"), I18n.text("ui.78447fb5a8ee")));
+        Menu joinMenu = new Menu(I18n.text("ui.ad7b1232ade4"));
         setLegacyMenuIcon(joinMenu, "union32.png");
         joinMenu.getItems().addAll(
                 tipped(chromeItem("Geo/Gerber/Exc → Geo", "geometry32.png", this::joinSelectedToGeometry),
-                        "Juntar em Geometry", "Une os objetos selecionados (Geometry, Gerber ou Excellon) numa "
-                        + "só Geometry."),
+                        I18n.text("ui.a9b87a9ceb6f"), I18n.text("ui.cfeda342e7f8")),
                 tipped(chromeItem("Excellon(s) → Excellon", "drill32.png", this::joinSelectedExcellons),
-                        "Juntar Excellons", "Une os Excellons selecionados; ferramentas de mesmo diâmetro "
-                        + "viram uma só."),
+                        I18n.text("ui.36313e43b7a3"), I18n.text("ui.7a2a166e10a7")),
                 tipped(chromeItem("Gerber(s) → Gerber", "flatcam_icon32.png", this::joinSelectedGerbers),
-                        "Juntar Gerbers", "Une os Gerbers selecionados num só, juntando aberturas, formas e "
-                        + "geometria."));
-        Menu editorToolsMenu = new Menu("Ferramentas dos editores");
+                        I18n.text("ui.dae03df29175"), I18n.text("ui.341a3dc70ee5")));
+        Menu editorToolsMenu = new Menu(I18n.text("ui.281a7ac22459"));
         setLegacyMenuIcon(editorToolsMenu, "edit_file32.png");
-        excellonEditorMenu = new Menu("Editor Excellon");
+        excellonEditorMenu = new Menu(I18n.text("ui.0e54aac8a039"));
         setLegacyMenuIcon(excellonEditorMenu, "drill32.png");
         addExcellonEditorCommands(excellonEditorMenu);
         excellonEditorMenu.setVisible(false);
@@ -1914,33 +1901,32 @@ final class MainWindow implements TclFlatcamHost {
         geometryEditorMenu.setVisible(false);
         editorToolsMenu.getItems().add(excellonEditorMenu);
         editMenu.getItems().addAll(
-                chromeItem("Editar Objeto", "edit_file32.png", this::editSelectedObject),
-                chromeItem("Salvar e Fechar Editor", "close_edit_file32.png", this::saveAndCloseEditor),
-                chromeItem("Editor de G-Code", "code_editor32.png", this::editSelectedGCode),
+                chromeItem(I18n.text("ui.eb7aab64ae0e"), "edit_file32.png", this::editSelectedObject),
+                chromeItem(I18n.text("ui.fad321b43da7"), "close_edit_file32.png", this::saveAndCloseEditor),
+                chromeItem(I18n.text("ui.b9c4772b62bd"), "code_editor32.png", this::editSelectedGCode),
                 editorToolsMenu,
                 new SeparatorMenuItem(),
-                chromeItem("Copiar", "copy_file32.png", this::copySelectedObjects),
-                chromeItem("Excluir", "trash32.png", this::deleteSelectedObjects),
+                chromeItem(I18n.text("ui.39dcf1cbeb5a"), "copy_file32.png", this::copySelectedObjects),
+                chromeItem(I18n.text("ui.8b19518ff49b"), "trash32.png", this::deleteSelectedObjects),
                 conversionsMenu, joinMenu,
                 new SeparatorMenuItem(),
-                tipped(chromeItem("Medir Distância", "distance32.png", this::openMeasureTool), "Medir Distância",
-                        "Clique em dois pontos do Plot: mostra Dx, Dy, ângulo e distância.\n\nAtalho: Ctrl+M."),
-                tipped(chromeItem("Distância Mínima", "distance_min32.png", this::openMinimumDistanceTool), "Distância Mínima",
-                        "Menor distância entre os dois objetos selecionados, com os pontos mais próximos e o ponto médio.\n\nAtalho: Shift+M."),
-                tipped(chromeItem("Definir Origem", "origin32.png", this::beginSetOrigin), "Definir Origem",
-                        "Clique no Plot: todos os objetos são deslocados para que o ponto clicado vire (0,0). "
-                        + "Usa o snap da grade quando ativo. Esc cancela. Projetos com CNC Job são recusados.\n\nAtalho: O."),
-                tipped(chromeItem("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin), "Mover para Origem",
-                        "Desloca os objetos selecionados para que o canto inferior esquerdo do conjunto fique em (0,0).\n\nAtalho: Shift+O."),
-                tipped(chromeItem("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation), "Ir para Localização",
-                        "Centraliza a vista num ponto X/Y absoluto ou relativo ao cursor e lembra essa referência. No Editor Geometry, também posiciona o cursor e atualiza a prévia sem inserir pontos nem encerrar o gesto. O Snap ativo é respeitado no editor.\n\nAtalho: J (fora de campos de texto)."),
-                tipped(chromeItem("Localizar no Objeto", "locate32.png", this::askLocateInObject), "Localizar no Objeto",
-                        "Centraliza a vista num canto ou no centro do objeto selecionado.\n\nAtalho: Shift+J."),
+                tipped(chromeItem(I18n.text("ui.475f2d0d401e"), "distance32.png", this::openMeasureTool), I18n.text("ui.475f2d0d401e"),
+                        I18n.text("ui.14f406ab079c")),
+                tipped(chromeItem(I18n.text("ui.61ff53fbc31f"), "distance_min32.png", this::openMinimumDistanceTool), I18n.text("ui.61ff53fbc31f"),
+                        I18n.text("ui.93067ebb3e28")),
+                tipped(chromeItem(I18n.text("ui.a5a452cd4bb9"), "origin32.png", this::beginSetOrigin), I18n.text("ui.a5a452cd4bb9"),
+                        I18n.text("ui.564f364b5657")),
+                tipped(chromeItem(I18n.text("ui.ccf3e8a254ff"), "origin2_32.png", this::moveSelectionToOrigin), I18n.text("ui.ccf3e8a254ff"),
+                        I18n.text("ui.13cd4222199c")),
+                tipped(chromeItem(I18n.text("ui.31cfc316cf52"), "jump_to16.png", this::askJumpToLocation), I18n.text("ui.e1a40ac7311e"),
+                        I18n.text("ui.89bfc1279fce")),
+                tipped(chromeItem(I18n.text("ui.e556833d7e75"), "locate32.png", this::askLocateInObject), I18n.text("ui.e556833d7e75"),
+                        I18n.text("ui.147abf5190f4")),
                 new SeparatorMenuItem(),
-                plannedItem("Alternar Unidades", "toggle_units32.png"),
-                chromeItem("Preferências", "settings18.png", this::openPreferences));
+                plannedItem(I18n.text("ui.51d0ebc35e85"), "toggle_units32.png"),
+                chromeItem(I18n.text("ui.6706dbe8b723"), "settings18.png", this::openPreferences));
 
-        Menu optionsMenu = new Menu("Opções");
+        Menu optionsMenu = new Menu(I18n.text("ui.eadb377837ef"));
         MenuItem toolsDbItem = chromeItem("Tools Database", "search_db32.png", this::openToolsDatabase);
         MenuItem calculatorsItem = chromeItem("Calculators", "calculator24.png",
                 () -> openToolPanel("Calculators", CalculatorsPanel.build()));
@@ -1951,141 +1937,139 @@ final class MainWindow implements TclFlatcamHost {
         // (rotate.png/skewX.png/skewY.png/flipx.png/flipy.png). Python also binds bare Shift+R/
         // Shift+X/Shift+Y/X/Y accelerators; the bare X/Y ones are skipped here since a scene-global
         // accelerator with no modifier would hijack typing "x"/"y" into any text field.
-        MenuItem rotateItem = new MenuItem("Girar Seleção");
+        MenuItem rotateItem = new MenuItem(I18n.text("ui.653c9279cb57"));
         rotateItem.setGraphic(legacyIcon("rotate.png", 16));
         rotateItem.setOnAction(e -> {
             if (!anyProjectObjectSelected()) {
-                appendConsole("Selecione ao menos um objeto para girar.");
+                appendConsole(I18n.text("ui.c1d7f1b2effb"));
                 return;
             }
-            Double angle = promptAngle("Girar Seleção", "Ângulo (graus, positivo = sentido horario):", 90);
+            Double angle = promptAngle(I18n.text("ui.653c9279cb57"), I18n.text("ui.3bbcf0c20ee2"), 90);
             if (angle != null) {
                 // UI-positive = clockwise; negate before building Rotate (positive = CCW there),
                 // exactly like Python's own on_rotate() (obj.rotate(-num, point)).
                 applyTransformToSelection(selected -> new TransformOp.Rotate(-angle, selectionCenterOrOrigin(selected)));
             }
         });
-        MenuItem skewXItem = new MenuItem("Inclinar em X");
+        MenuItem skewXItem = new MenuItem(I18n.text("ui.04e21a077291"));
         skewXItem.setGraphic(legacyIcon("skewX.png", 16));
         skewXItem.setOnAction(e -> {
             if (!anyProjectObjectSelected()) {
-                appendConsole("Selecione ao menos um objeto para inclinar.");
+                appendConsole(I18n.text("ui.bf68377ef88a"));
                 return;
             }
-            Double angle = promptAngle("Inclinar em X", "Ângulo (graus):", 0);
+            Double angle = promptAngle(I18n.text("ui.04e21a077291"), I18n.text("ui.fa69ece3eafa"), 0);
             if (angle != null) {
                 applyTransformToSelection(selected -> new TransformOp.Skew(angle, 0, selectionCenterOrOrigin(selected)));
             }
         });
-        MenuItem skewYItem = new MenuItem("Inclinar em Y");
+        MenuItem skewYItem = new MenuItem(I18n.text("ui.fde21af76971"));
         skewYItem.setGraphic(legacyIcon("skewY.png", 16));
         skewYItem.setOnAction(e -> {
             if (!anyProjectObjectSelected()) {
-                appendConsole("Selecione ao menos um objeto para inclinar.");
+                appendConsole(I18n.text("ui.bf68377ef88a"));
                 return;
             }
-            Double angle = promptAngle("Inclinar em Y", "Ângulo (graus):", 0);
+            Double angle = promptAngle(I18n.text("ui.fde21af76971"), I18n.text("ui.fa69ece3eafa"), 0);
             if (angle != null) {
                 applyTransformToSelection(selected -> new TransformOp.Skew(0, angle, selectionCenterOrOrigin(selected)));
             }
         });
-        MenuItem flipXItem = new MenuItem("Espelhar em X");
+        MenuItem flipXItem = new MenuItem(I18n.text("ui.9b88de14b6a8"));
         flipXItem.setGraphic(legacyIcon("flipx.png", 16));
         flipXItem.setOnAction(e -> {
             if (!anyProjectObjectSelected()) {
-                appendConsole("Selecione ao menos um objeto para espelhar.");
+                appendConsole(I18n.text("ui.82e7aebc6d3d"));
                 return;
             }
             applyTransformToSelection(selected -> new TransformOp.MirrorX(selectionCenterOrOrigin(selected)));
         });
-        MenuItem flipYItem = new MenuItem("Espelhar em Y");
+        MenuItem flipYItem = new MenuItem(I18n.text("ui.ddc43feadc34"));
         flipYItem.setGraphic(legacyIcon("flipy.png", 16));
         flipYItem.setOnAction(e -> {
             if (!anyProjectObjectSelected()) {
-                appendConsole("Selecione ao menos um objeto para espelhar.");
+                appendConsole(I18n.text("ui.82e7aebc6d3d"));
                 return;
             }
             applyTransformToSelection(selected -> new TransformOp.MirrorY(selectionCenterOrOrigin(selected)));
         });
 
         optionsMenu.getItems().addAll(toolsDbItem, calculatorsItem,
-                chromeItem("Ver Fonte", "source32.png", () -> {
+                chromeItem(I18n.text("ui.4f4d2adf3dfb"), "source32.png", () -> {
                     TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
                     if (item != null && isProjectObject(item)) {
                         viewObjectSource(item);
                     } else {
-                        appendConsole("Selecione um objeto para ver a fonte.");
+                        appendConsole(I18n.text("ui.422e8a544d03"));
                     }
                 }), new SeparatorMenuItem(),
                 rotateItem, skewXItem, skewYItem, flipXItem, flipYItem);
 
-        Menu viewMenu = new Menu("Exibir");
+        Menu viewMenu = new Menu(I18n.text("ui.ac39c7f377e1"));
         viewMenu.getItems().addAll(
-                tipped(chromeItem("Replotar Tudo", "replot32.png", this::replotAllObjects), "Replotar Tudo",
-                        "Redesenha todos os objetos ativos (inclusive depois de Limpar Plot) e enquadra a vista. "
-                        + "Não altera o estado Plot de cada objeto."),
-                tipped(chromeItem("Limpar Plot", "clear_plot32.png", this::clearAllPlots), "Limpar Plot",
-                        "Retira os desenhos do Plot sem desmarcar o Plot de cada objeto, como no Python. "
-                        + "Replotar Tudo, reativar ou alterar um objeto o desenha de novo."),
-                tipped(chromeItem("Aproximar", "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)), "Aproximar",
-                        "Aproxima 1,5× em torno do centro da vista.\n\nAtalho: = (com o foco fora de campos de texto)."),
-                tipped(chromeItem("Afastar", "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)), "Afastar",
-                        "Afasta 1,5× em torno do centro da vista.\n\nAtalho: - (com o foco fora de campos de texto)."),
-                chromeItem("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject),
+                tipped(chromeItem(I18n.text("ui.ab788130b65e"), "replot32.png", this::replotAllObjects), I18n.text("ui.ab788130b65e"),
+                        I18n.text("ui.6722ab47c201")),
+                tipped(chromeItem(I18n.text("ui.a7b5139835d5"), "clear_plot32.png", this::clearAllPlots), I18n.text("ui.a7b5139835d5"),
+                        I18n.text("ui.879500dc29db")),
+                tipped(chromeItem(I18n.text("ui.0e37130c17e3"), "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)), I18n.text("ui.0e37130c17e3"),
+                        I18n.text("ui.cffd9d308d26")),
+                tipped(chromeItem(I18n.text("ui.e45cb1f6faa7"), "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)), I18n.text("ui.e45cb1f6faa7"),
+                        I18n.text("ui.c766ac4c4a09")),
+                chromeItem(I18n.text("ui.90e33a7729f0"), "zoom_fit32.png", this::focusSelectedObject),
                 new SeparatorMenuItem(),
-                chromeItem("Snap na grade", "grid32.png", () -> statusControls.toggleGrid()),
-                chromeItem("Eixos", "axis32.png", () -> statusControls.toggleAxis()),
+                chromeItem(I18n.text("ui.5000c1262593"), "grid32.png", () -> statusControls.toggleGrid()),
+                chromeItem(I18n.text("ui.1f488bab17b5"), "axis32.png", () -> statusControls.toggleAxis()),
                 chromeItem("Workspace", "workspace24.png", () -> statusControls.toggleWorkspace()),
                 chromeItem("HUD", "hud_32.png", () -> statusControls.toggleHud()),
                 new SeparatorMenuItem(),
-                chromeItem("Mostrar/ocultar painel lateral", "notebook32.png", this::toggleSidebar),
+                chromeItem(I18n.text("ui.baa81a88f254"), "notebook32.png", this::toggleSidebar),
                 buildToolbarsMenu(),
                 new SeparatorMenuItem(), buildThemeMenu());
 
-        Menu objectsMenu = new Menu("Objetos");
+        Menu objectsMenu = new Menu(I18n.text("ui.54a54a384ffb"));
         objectsMenu.getItems().addAll(
-                tipped(chromeItem("Selecionar Todos", "select_all.png", this::selectAllObjects), "Selecionar Todos",
-                        "Seleciona todos os objetos do projeto.\n\nAtalho: Ctrl+A (fora de campos de texto e editores)."),
-                tipped(chromeItem("Desmarcar Todos", "deselect_all32.png", this::deselectAllObjects), "Desmarcar Todos",
-                        "Limpa a seleção de objetos do projeto."),
+                tipped(chromeItem(I18n.text("ui.f388dff7124d"), "select_all.png", this::selectAllObjects), I18n.text("ui.f388dff7124d"),
+                        I18n.text("ui.121dd81e92dd")),
+                tipped(chromeItem(I18n.text("ui.e3c3b9cf74c6"), "deselect_all32.png", this::deselectAllObjects), I18n.text("ui.e3c3b9cf74c6"),
+                        I18n.text("ui.0d1c2100e1d2")),
                 new SeparatorMenuItem(),
-                chromeItem("Copiar Selecionados", "copy32.png", this::copySelectedObjects),
-                chromeItem("Excluir Selecionados", "trash32.png", this::deleteSelectedObjects));
+                chromeItem(I18n.text("ui.aae9a2ff2cfc"), "copy32.png", this::copySelectedObjects),
+                chromeItem(I18n.text("ui.5915e01aca50"), "trash32.png", this::deleteSelectedObjects));
 
-        Menu toolsMenu = new Menu("Ferramentas");
-        Menu preparationMenu = new Menu("Preparacao da placa");
+        Menu toolsMenu = new Menu(I18n.text("ui.b96a67bfde3e"));
+        Menu preparationMenu = new Menu(I18n.text("ui.f8c4add98bcb"));
         addToolCommands(preparationMenu, LegacyUiManifest.TOOLS_PREPARATION);
-        Menu camMenu = new Menu("CAM / Fabricacao");
+        Menu camMenu = new Menu(I18n.text("ui.3d375cd5388b"));
         addToolCommands(camMenu, LegacyUiManifest.TOOLS_CAM);
-        Menu utilitiesMenu = new Menu("Utilitários");
+        Menu utilitiesMenu = new Menu(I18n.text("ui.849d2880152c"));
         addToolCommands(utilitiesMenu, LegacyUiManifest.TOOLS_UTILITIES);
-        toolsMenu.getItems().addAll(chromeItem("Linha de Comando Tcl", "shell32.png", this::openTerminal),
+        toolsMenu.getItems().addAll(chromeItem(I18n.text("ui.42ddf25409aa"), "shell32.png", this::openTerminal),
                 new SeparatorMenuItem(), preparationMenu, camMenu, utilitiesMenu);
 
-        Menu helpMenu = new Menu("Ajuda");
-        Menu diagnosticsMenu = new Menu("Diagnósticos");
+        Menu helpMenu = new Menu(I18n.text("ui.fe0addd70781"));
+        Menu diagnosticsMenu = new Menu(I18n.text("ui.ab82b7fdb8e4"));
         setLegacyMenuIcon(diagnosticsMenu, "bug32.png");
         diagnosticsMenu.setDisable(FlatCamLauncher.diagnosticDirectory() == null);
         diagnosticsMenu.getItems().addAll(
-                chromeItem("Abrir pasta desta sessão", "folder32.png", () -> FlatCamLauncher.openDiagnosticDirectory(this::appendConsole)),
-                chromeItem("Capturar estado agora", "project_save32.png", () -> appendConsole(FlatCamLauncher.captureNow()
-                        ? "Captura de diagnóstico solicitada em segundo plano."
-                        : "Diagnósticos indisponiveis ou limite de cinco incidentes atingido.")));
-        MenuItem demoJobItem = new MenuItem("Executar job de demonstracao");
+                chromeItem(I18n.text("ui.754e5fa34dff"), "folder32.png", () -> FlatCamLauncher.openDiagnosticDirectory(this::appendConsole)),
+                chromeItem(I18n.text("ui.df4894568b70"), "project_save32.png", () -> appendConsole(FlatCamLauncher.captureNow()
+                        ? I18n.text("ui.c7c28e170c09")
+                        : I18n.text("ui.ba305012548c"))));
+        MenuItem demoJobItem = new MenuItem(I18n.text("ui.09997b84e8a8"));
         demoJobItem.setOnAction(e -> runDemoJob());
         demoJobItem.disableProperty().bind(runDemoJobButton.disableProperty());
         helpMenu.getItems().addAll(
-                plannedItem("Ajuda Online", "help.png"),
+                plannedItem(I18n.text("ui.506bd07713b1"), "help.png"),
                 plannedItem("Bookmarks", "bookmarks32.png"),
-                tipped(chromeItem("Lista de Atalhos", "shortcuts24.png", this::openShortcutList), "Lista de Atalhos",
-                        "Abre uma aba com os atalhos de teclado e mouse que o FlatCAM FX implementa."),
-                plannedItem("Como Usar", "videohelp24.png"),
-                plannedItem("Reportar Problema", "bug32.png"),
+                tipped(chromeItem(I18n.text("ui.627e2a1aede0"), "shortcuts24.png", this::openShortcutList), I18n.text("ui.627e2a1aede0"),
+                        I18n.text("ui.221f493eb7d5")),
+                plannedItem(I18n.text("ui.76dd64e93cce"), "videohelp24.png"),
+                plannedItem(I18n.text("ui.ac8c8f081adb"), "bug32.png"),
                 new SeparatorMenuItem(),
                 diagnosticsMenu,
                 demoJobItem,
-                chromeItem("Sobre", "about32.png", () -> new AboutDialog(scene.getWindow(), currentTheme).showAndWait()),
-                chromeItem("Executar job de demonstracao", "code.png", this::runDemoJob));
+                chromeItem(I18n.text("ui.97a0fa0947ad"), "about32.png", () -> new AboutDialog(scene.getWindow(), currentTheme).showAndWait()),
+                chromeItem(I18n.text("ui.09997b84e8a8"), "code.png", this::runDemoJob));
 
         return new MenuBar(fileMenu, editMenu, optionsMenu, viewMenu, objectsMenu, toolsMenu, helpMenu,
                 geometryEditorMenu);
@@ -2095,19 +2079,19 @@ final class MainWindow implements TclFlatcamHost {
     private Menu buildThemeMenu() {
         ToggleGroup themeGroup = new ToggleGroup();
 
-        Menu classicMenu = new Menu("Original");
+        Menu classicMenu = new Menu(I18n.text("ui.88d759ea02ce"));
         classicMenu.getItems().addAll(
                 themeItem(ThemeOption.CLASSIC_LIGHT, themeGroup),
                 themeItem(ThemeOption.CLASSIC_DARK, themeGroup)
         );
 
-        Menu iceMenu = new Menu("Gelo");
+        Menu iceMenu = new Menu(I18n.text("ui.fa1439e25b42"));
         iceMenu.getItems().addAll(
                 themeItem(ThemeOption.ICE_LIGHT, themeGroup),
                 themeItem(ThemeOption.ICE_DARK, themeGroup)
         );
 
-        Menu themeMenu = new Menu("Tema");
+        Menu themeMenu = new Menu(I18n.text("ui.d5df3708bc68"));
         themeMenu.getItems().addAll(classicMenu, iceMenu);
         themeMenu.setOnShowing(event -> {
             for (Menu submenu : List.of(classicMenu, iceMenu)) {
@@ -2158,46 +2142,46 @@ final class MainWindow implements TclFlatcamHost {
      */
     private ToolBar buildToolBar() {
         runDemoJobButton.setGraphic(Icons.play(16));
-        runDemoJobButton.setTooltip(new Tooltip("Executar job de demonstracao"));
+        runDemoJobButton.setTooltip(new Tooltip(I18n.text("ui.09997b84e8a8")));
         runDemoJobButton.setOnAction(e -> runDemoJob());
 
         cancelJobButton.setGraphic(Icons.cancel(14));
         cancelJobButton.getStyleClass().add("job-cancel-button");
-        cancelJobButton.setTooltip(new Tooltip("Cancelar a operação em andamento"));
+        cancelJobButton.setTooltip(new Tooltip(I18n.text("ui.bafa9a59c966")));
         cancelJobButton.setDisable(true);
         cancelJobButton.setOnAction(e -> cancelDemoJob());
 
         ToolBar bar = new ToolBar();
         toolbarGroup(bar, TOOLBAR_FILE, false,
-                chromeButton("Abrir Gerber", "flatcam_icon32.png", this::openGerberPrototype),
-                chromeButton("Abrir Excellon", "drill32.png", this::openExcellonPrototype),
+                chromeButton(I18n.text("ui.f52dc2edecf0"), "flatcam_icon32.png", this::openGerberPrototype),
+                chromeButton(I18n.text("ui.17e7d1d04a6e"), "drill32.png", this::openExcellonPrototype),
                 new Separator(),
-                chromeButton("Abrir Projeto", "folder32.png", this::openProject),
-                chromeButton("Salvar Projeto", "project_save32.png", this::saveProject));
+                chromeButton(I18n.text("ui.0c49c87c5cb7"), "folder32.png", this::openProject),
+                chromeButton(I18n.text("ui.7e0a780ac03b"), "project_save32.png", this::saveProject));
         toolbarGroup(bar, TOOLBAR_EDIT, true,
                 chromeButton("Editor", "edit_file32.png", this::editSelectedObject),
-                chromeButton("Salvar e Fechar Editor", "close_edit_file32.png", this::saveAndCloseEditor),
+                chromeButton(I18n.text("ui.fad321b43da7"), "close_edit_file32.png", this::saveAndCloseEditor),
                 new Separator(),
-                chromeButton("Copiar", "copy_file32.png", this::copySelectedObjects),
-                chromeButton("Excluir", "trash32.png", this::deleteSelectedObjects),
+                chromeButton(I18n.text("ui.39dcf1cbeb5a"), "copy_file32.png", this::copySelectedObjects),
+                chromeButton(I18n.text("ui.8b19518ff49b"), "trash32.png", this::deleteSelectedObjects),
                 new Separator(),
-                chromeButton("Medir Distância", "distance32.png", this::openMeasureTool),
-                chromeButton("Distância Mínima", "distance_min32.png", this::openMinimumDistanceTool),
-                chromeButton("Definir Origem", "origin32.png", this::beginSetOrigin),
-                chromeButton("Mover para Origem", "origin2_32.png", this::moveSelectionToOrigin),
-                chromeButton("Ir para Localizacao", "jump_to16.png", this::askJumpToLocation),
-                chromeButton("Localizar no Objeto", "locate32.png", this::askLocateInObject));
+                chromeButton(I18n.text("ui.475f2d0d401e"), "distance32.png", this::openMeasureTool),
+                chromeButton(I18n.text("ui.61ff53fbc31f"), "distance_min32.png", this::openMinimumDistanceTool),
+                chromeButton(I18n.text("ui.a5a452cd4bb9"), "origin32.png", this::beginSetOrigin),
+                chromeButton(I18n.text("ui.ccf3e8a254ff"), "origin2_32.png", this::moveSelectionToOrigin),
+                chromeButton(I18n.text("ui.31cfc316cf52"), "jump_to16.png", this::askJumpToLocation),
+                chromeButton(I18n.text("ui.e556833d7e75"), "locate32.png", this::askLocateInObject));
         toolbarGroup(bar, TOOLBAR_VIEW, true,
-                chromeButton("Replotar", "replot32.png", this::replotAllObjects),
-                chromeButton("Limpar Plot", "clear_plot32.png", this::clearAllPlots),
-                chromeButton("Aproximar", "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)),
-                chromeButton("Afastar", "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)),
-                chromeButton("Enquadrar Objeto", "zoom_fit32.png", this::focusSelectedObject));
+                chromeButton(I18n.text("ui.a97223c34623"), "replot32.png", this::replotAllObjects),
+                chromeButton(I18n.text("ui.a7b5139835d5"), "clear_plot32.png", this::clearAllPlots),
+                chromeButton(I18n.text("ui.0e37130c17e3"), "zoom_in32.png", () -> plotAreaView.zoomBy(MENU_ZOOM_RATIO)),
+                chromeButton(I18n.text("ui.e45cb1f6faa7"), "zoom_out32.png", () -> plotAreaView.zoomBy(1 / MENU_ZOOM_RATIO)),
+                chromeButton(I18n.text("ui.90e33a7729f0"), "zoom_fit32.png", this::focusSelectedObject));
         toolbarGroup(bar, TOOLBAR_SHELL, true,
-                chromeButton("Linha de Comando", "shell32.png", this::openTerminal),
-                chromeButton("Novo Script", "script_new24.png", this::newScript),
-                chromeButton("Abrir Script", "open_script32.png", this::openScripts),
-                chromeButton("Executar Script", "script16.png", this::runScriptFile));
+                chromeButton(I18n.text("ui.27f6a42b463f"), "shell32.png", this::openTerminal),
+                chromeButton(I18n.text("ui.04832ec9d8c8"), "script_new24.png", this::newScript),
+                chromeButton(I18n.text("ui.013b5406590f"), "open_script32.png", this::openScripts),
+                chromeButton(I18n.text("ui.d64e8d0bbe2d"), "script16.png", this::runScriptFile));
         applyToolbarView();
         return bar;
     }
@@ -2230,7 +2214,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** View > Toolbars: one check item per toolbar, remembered between sessions like Python's global_toolbar_view. */
     private Menu buildToolbarsMenu() {
-        Menu menu = new Menu("Barras de ferramentas");
+        Menu menu = new Menu(I18n.text("ui.222f95fcca05"));
         Object[][] entries = {
                 {"File", TOOLBAR_FILE}, {"Edit", TOOLBAR_EDIT}, {"View", TOOLBAR_VIEW},
                 {"Shell", TOOLBAR_SHELL}, {"Tools", TOOLBAR_TOOLS}};
@@ -2284,7 +2268,7 @@ final class MainWindow implements TclFlatcamHost {
     /** Python's fixed infobar: feedback, coordinates, grid, canvas controls, units and activity. */
     private HBox buildStatusBar() {
         ToggleButton consoleToggle = new ToggleButton(null, legacyIcon("shell20.png", 16));
-        consoleToggle.setTooltip(new Tooltip("Mostrar/ocultar console"));
+        consoleToggle.setTooltip(new Tooltip(I18n.text("ui.c340d5728a27")));
         consoleToggle.getStyleClass().addAll("status-bar-toggle", "status-console");
         consoleToggle.setSelected(!consoleCollapsed);
         consoleToggle.setOnAction(e -> toggleConsole(consoleToggle.isSelected()));
@@ -2292,7 +2276,7 @@ final class MainWindow implements TclFlatcamHost {
         statusControls = new PlotStatusControls(plotAreaView,
                 file -> legacyIcon(file, 16), consoleToggle,
                 statusLabel::setText, this::openPreferences);
-        unitsLabel.setTooltip(new Tooltip("Unidades do projeto"));
+        unitsLabel.setTooltip(new Tooltip(I18n.text("ui.68f94529cc46")));
         statusLabel.setMinWidth(0);
         statusLabel.setMaxWidth(Double.MAX_VALUE);
         HBox.setHgrow(statusLabel, Priority.NEVER);
@@ -2386,11 +2370,11 @@ final class MainWindow implements TclFlatcamHost {
      * a separate window.
      */
     private TabPane buildLeftTabs() {
-        projectTab = new Tab("Projeto", buildProjectTree());
+        projectTab = new Tab(I18n.text("ui.4c7877d7558f"), buildProjectTree());
         propertiesPlaceholder.setTextAlignment(TextAlignment.CENTER);
         propertiesContainer.getChildren().add(propertiesPlaceholder);
-        propertiesTab = new Tab("Propriedades", propertiesContainer);
-        toolTab = new Tab("Ferramenta", centeredPlaceholder("Nenhuma ferramenta ativa."));
+        propertiesTab = new Tab(I18n.text("ui.ecaf3589f2b5"), propertiesContainer);
+        toolTab = new Tab(I18n.text("ui.c188272ba40c"), centeredPlaceholder(I18n.text("ui.2bfeb04164a2")));
 
         leftTabs = new TabPane(projectTab, propertiesTab, toolTab);
         leftTabs.getTabs().forEach(tab -> tab.setClosable(false));
@@ -2451,8 +2435,8 @@ final class MainWindow implements TclFlatcamHost {
      */
     private void closeToolPanel() {
         releaseActiveTool();
-        toolTab.setText("Ferramenta");
-        toolTab.setContent(centeredPlaceholder("Nenhuma ferramenta ativa."));
+        toolTab.setText(I18n.text("ui.c188272ba40c"));
+        toolTab.setContent(centeredPlaceholder(I18n.text("ui.2bfeb04164a2")));
         leftTabs.getSelectionModel().select(propertiesTab);
     }
 
@@ -2477,7 +2461,7 @@ final class MainWindow implements TclFlatcamHost {
      * editing remains tied to the future editor subsystem.
      */
     private TreeView<String> buildProjectTree() {
-        TreeItem<String> root = new TreeItem<>("Projeto");
+        TreeItem<String> root = new TreeItem<>(I18n.text("ui.4c7877d7558f"));
         root.setExpanded(true);
         gerbersNode = new TreeItem<>("Gerbers");
         gerbersNode.setExpanded(true);
@@ -2664,7 +2648,7 @@ final class MainWindow implements TclFlatcamHost {
                         String pathText = sourcePath != null ? sourcePath.toString()
                                 : cncJob != null ? cncJob.outputFile().toString() : value;
                         new TooltipContent(List.of(new TooltipContent.Span(pathText + "\n", TooltipContent.Style.NORMAL),
-                                new TooltipContent.Span(isObjectVisible(item) ? "Plot ativo" : "Plot desativado", TooltipContent.Style.ACCENT)))
+                                new TooltipContent.Span(isObjectVisible(item) ? I18n.text("ui.4ca438f36edb") : I18n.text("ui.8122dd6d7d00"), TooltipContent.Style.ACCENT)))
                                 .installNative(objectTooltip, currentTheme);
                         setTooltip(objectTooltip);
                     }
@@ -2748,7 +2732,7 @@ final class MainWindow implements TclFlatcamHost {
         });
         plotAreaView.setStepListener(text -> {
             if (cncStepLabel != null) {
-                cncStepLabel.setText(text.isEmpty() ? "ou clique num número ou linha do plot" : text);
+                cncStepLabel.setText(text.isEmpty() ? I18n.text("ui.0dd81daf877c") : text);
             }
         });
         plotAreaView.setDefaultSelectionHandler(new PlotAreaView.SelectionHandler() {
@@ -2880,10 +2864,10 @@ final class MainWindow implements TclFlatcamHost {
             plotContextMenu = buildContextMenuFor(hit);
             addPlotPlacementActions(plotContextMenu, hit, worldX, worldY);
         } else {
-            MenuItem fitAll = new MenuItem("Enquadrar tudo");
+            MenuItem fitAll = new MenuItem(I18n.text("ui.db1937d6c29b"));
             setLegacyMenuIcon(fitAll, "zoom_fit32.png");
             fitAll.setOnAction(e -> plotAreaView.fitAllVisible());
-            MenuItem clearSelection = new MenuItem("Limpar seleção");
+            MenuItem clearSelection = new MenuItem(I18n.text("ui.33a042c0fd07"));
             setLegacyMenuIcon(clearSelection, "deselect_all32.png");
             clearSelection.setOnAction(e -> projectTree.getSelectionModel().clearSelection());
             clearSelection.setDisable(!anyProjectObjectSelected());
@@ -2903,12 +2887,12 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> targets = selected.contains(hit) ? selected : List.of(hit);
         boolean available = !targets.isEmpty() && targets.stream().allMatch(this::isPlotPlacementTarget);
 
-        MenuItem move = new MenuItem("Mover no Plot Area");
+        MenuItem move = new MenuItem(I18n.text("ui.c689507a9905"));
         setLegacyMenuIcon(move, "move32.png");
         move.setDisable(!available);
         move.setOnAction(e -> startPlotPlacement(targets, anchorX, anchorY, false));
 
-        MenuItem copy = new MenuItem("Copiar no Plot Area");
+        MenuItem copy = new MenuItem(I18n.text("ui.5d048f660cef"));
         setLegacyMenuIcon(copy, "copy32.png");
         copy.setDisable(!available);
         copy.setOnAction(e -> startPlotPlacement(targets, anchorX, anchorY, true));
@@ -2927,7 +2911,7 @@ final class MainWindow implements TclFlatcamHost {
     private void startPlotPlacement(List<TreeItem<String>> targets, double anchorX, double anchorY, boolean copy) {
         List<TreeItem<String>> snapshot = List.copyOf(targets);
         if (snapshot.isEmpty() || !snapshot.stream().allMatch(this::isPlotPlacementTarget)) {
-            appendConsole("Mover/copiar no Plot Area requer Gerber, Excellon ou Geometry visível.");
+            appendConsole(I18n.text("ui.6bd9587443e5"));
             return;
         }
         boolean started = plotAreaView.beginPlacement(snapshot, anchorX, anchorY, new PlotAreaView.PlacementHandler() {
@@ -2938,23 +2922,23 @@ final class MainWindow implements TclFlatcamHost {
 
             @Override
             public void onCancel() {
-                setStatus("Posicionamento cancelado.", CANCELLED_COLOR);
+                setStatus(I18n.text("ui.441792596876"), CANCELLED_COLOR);
             }
         });
         if (started) {
-            setStatus((copy ? "Copiar" : "Mover") + ": clique no destino; Esc cancela.", RUNNING_COLOR);
+            setStatus((copy ? I18n.text("ui.39dcf1cbeb5a") : I18n.text("ui.6624c0d31888")) + I18n.text("ui.ab76c11c1cba"), RUNNING_COLOR);
             plotAreaView.requestFocus();
         }
     }
 
     private void commitPlotPlacement(List<TreeItem<String>> sources, double dx, double dy, boolean copy) {
         if (!sources.stream().allMatch(this::isPlotPlacementTarget)) {
-            appendConsole("Posicionamento cancelado: um objeto de origem mudou ou foi removido.");
-            setStatus("Posicionamento cancelado.", CANCELLED_COLOR);
+            appendConsole(I18n.text("ui.6816eff4a70f"));
+            setStatus(I18n.text("ui.441792596876"), CANCELLED_COLOR);
             return;
         }
         if (!copy && dx == 0 && dy == 0) {
-            setStatus("Nenhum deslocamento.", IDLE_COLOR);
+            setStatus(I18n.text("ui.c9907d918596"), IDLE_COLOR);
             return;
         }
         TransformOp.Offset offset = new TransformOp.Offset(dx, dy);
@@ -2979,9 +2963,9 @@ final class MainWindow implements TclFlatcamHost {
                 projectTree.getSelectionModel().select(rowForPlotObject(item));
             }
         }
-        appendConsole((copy ? "Copiado(s)" : "Movido(s)") + " " + placed.size()
-                + " objeto(s) no Plot Area: dx=" + dx + ", dy=" + dy + ".");
-        setStatus("Concluido.", IDLE_COLOR);
+        appendConsole((copy ? I18n.text("ui.54ca306e891b") : I18n.text("ui.de35a12cc1c4")) + " " + placed.size()
+                + I18n.text("ui.5b5cc46af13e") + dx + ", dy=" + dy + ".");
+        setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
     }
 
     private boolean undoPlotMove() {
@@ -3000,7 +2984,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         if (!move.targets().stream().allMatch(this::isProjectObject)) {
             plotMoveHistory.clear();
-            setStatus("Historico de movimento indisponível.", CANCELLED_COLOR);
+            setStatus(I18n.text("ui.f58b78bf1a0b"), CANCELLED_COLOR);
             return true;
         }
         applyingPlotMove = true;
@@ -3013,7 +2997,7 @@ final class MainWindow implements TclFlatcamHost {
         } finally {
             applyingPlotMove = false;
         }
-        setStatus(forward ? "Movimento refeito." : "Movimento desfeito.", IDLE_COLOR);
+        setStatus(forward ? I18n.text("ui.e4dc6115d767") : I18n.text("ui.06ce98adf73c"), IDLE_COLOR);
         return true;
     }
 
@@ -3041,7 +3025,7 @@ final class MainWindow implements TclFlatcamHost {
         try {
             return Double.parseDouble(result.get().trim().replace(',', '.'));
         } catch (NumberFormatException ex) {
-            appendConsole(title + ": ângulo inválido.");
+            appendConsole(title + I18n.text("ui.861988921a9a"));
             return null;
         }
     }
@@ -3082,7 +3066,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> selected = projectTree.getSelectionModel().getSelectedItems().stream()
                 .filter(this::isProjectObject).toList();
         if (selected.isEmpty()) {
-            appendConsole("Selecione ao menos um objeto para transformar.");
+            appendConsole(I18n.text("ui.53775f88b4af"));
             return;
         }
         TransformOp op = opFactory.apply(selected);
@@ -3097,7 +3081,7 @@ final class MainWindow implements TclFlatcamHost {
             }
         }
         if (applied > 0) {
-            appendConsole(applied + " objeto(s) transformado(s).");
+            appendConsole(applied + I18n.text("ui.c58dabadfc80"));
             showProperties(projectTree.getSelectionModel().getSelectedItem());
         }
     }
@@ -3108,20 +3092,19 @@ final class MainWindow implements TclFlatcamHost {
     private void beginSetOrigin() {
         String refusal = setOriginRefusal(allProjectObjects());
         if (refusal != null) { appendConsole(refusal); return; }
-        setStatus("Clique no Plot para definir a origem (Esc cancela)...", RUNNING_COLOR);
+        setStatus(I18n.text("ui.0b22cb384c29"), RUNNING_COLOR);
         beginPointPick(point -> {
-            if (point == null) { setStatus("Definir origem cancelado.", IDLE_COLOR); return; }
+            if (point == null) { setStatus(I18n.text("ui.31e14a4fb784"), IDLE_COLOR); return; }
             setOrigin(point.x, point.y);
         });
     }
 
     private String setOriginRefusal(List<TreeItem<String>> objects) {
-        if (runningJob != null) return "Já existe uma operação em andamento.";
-        if (anyObjectEditorActive()) return "Conclua ou cancele o editor antes de mover objetos.";
-        if (objects.isEmpty()) return "Nenhum objeto no projeto.";
+        if (runningJob != null) return I18n.text("ui.df12b110e3bb");
+        if (anyObjectEditorActive()) return I18n.text("ui.bd7017354c0a");
+        if (objects.isEmpty()) return I18n.text("ui.c0cdf51f181b");
         if (objects.stream().anyMatch(cncJobByItem::containsKey))
-            return "Definir origem desloca todos os objetos, e um CNC Job não pode ser deslocado sem reescrever "
-                    + "seu G-code. Exclua ou exporte os CNC Jobs antes.";
+            return I18n.text("ui.9b31675a6c22");
         return null;
     }
 
@@ -3130,22 +3113,22 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> objects = allProjectObjects();
         String refusal = setOriginRefusal(objects);
         if (refusal != null) { appendConsole(refusal); return false; }
-        if (!Double.isFinite(x) || !Double.isFinite(y)) { appendConsole("Origem inválida."); return false; }
+        if (!Double.isFinite(x) || !Double.isFinite(y)) { appendConsole(I18n.text("ui.ffa3047c234a")); return false; }
         offsetObjects(objects, -x, -y);
         plotAreaView.fitAllVisible();
-        appendConsole(String.format(java.util.Locale.ROOT, "Origem definida em (%.4f, %.4f).", x, y));
-        setStatus("Origem definida.", IDLE_COLOR);
+        appendConsole(String.format(java.util.Locale.ROOT, I18n.text("ui.4aed845eb87f"), x, y));
+        setStatus(I18n.text("ui.dfadd620e16b"), IDLE_COLOR);
         return true;
     }
 
     /** Python on_move2origin: the selection's lower-left corner moves to (0,0). */
     boolean moveSelectionToOrigin() {
         List<TreeItem<String>> selected = selectedObjects();
-        if (selected.isEmpty()) { appendConsole("Selecione ao menos um objeto para mover para a origem."); return false; }
-        if (runningJob != null) { appendConsole("Já existe uma operação em andamento."); return false; }
-        if (anyObjectEditorActive()) { appendConsole("Conclua ou cancele o editor antes de mover objetos."); return false; }
+        if (selected.isEmpty()) { appendConsole(I18n.text("ui.33e597150197")); return false; }
+        if (runningJob != null) { appendConsole(I18n.text("ui.df12b110e3bb")); return false; }
+        if (anyObjectEditorActive()) { appendConsole(I18n.text("ui.bd7017354c0a")); return false; }
         if (selected.stream().anyMatch(cncJobByItem::containsKey)) {
-            appendConsole("CNC Job não pode ser movido sem reescrever seu G-code; remova-o da seleção.");
+            appendConsole(I18n.text("ui.6c3447255b9b"));
             return false;
         }
         double minX = Double.POSITIVE_INFINITY, minY = Double.POSITIVE_INFINITY;
@@ -3156,12 +3139,12 @@ final class MainWindow implements TclFlatcamHost {
             minY = Math.min(minY, bounds[1]);
         }
         if (!Double.isFinite(minX) || !Double.isFinite(minY)) {
-            appendConsole("Os objetos selecionados estão vazios; nada a mover.");
+            appendConsole(I18n.text("ui.42d4c73d4f80"));
             return false;
         }
-        if (minX == 0 && minY == 0) { appendConsole("A seleção já está na origem."); return true; }
+        if (minX == 0 && minY == 0) { appendConsole(I18n.text("ui.e7884221ff0c")); return true; }
         offsetObjects(selected, -minX, -minY);
-        appendConsole(String.format(java.util.Locale.ROOT, "%d objeto(s) movido(s) para a origem (deslocamento %.4f, %.4f).",
+        appendConsole(String.format(java.util.Locale.ROOT, I18n.text("ui.85b8af44ca41"),
                 selected.size(), -minX, -minY));
         return true;
     }
@@ -3189,11 +3172,11 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Python on_jump_to: centers the view on an absolute point, or one relative to the last pointer position. */
     void jumpTo(double x, double y, boolean relative) {
-        if (!Double.isFinite(x) || !Double.isFinite(y)) throw new IllegalArgumentException("Coordenadas inválidas.");
+        if (!Double.isFinite(x) || !Double.isFinite(y)) throw new IllegalArgumentException(I18n.text("ui.772b24ccd8d1"));
         double[] base = relative ? plotAreaView.lastPointerWorld() : new double[]{0, 0};
         double targetX = base[0] + x, targetY = base[1] + y;
         plotAreaView.centerOn(targetX, targetY);
-        setStatus(String.format(java.util.Locale.ROOT, "Vista centralizada em (%.4f, %.4f).", targetX, targetY), IDLE_COLOR);
+        setStatus(String.format(java.util.Locale.ROOT, I18n.text("ui.8a8dbe263388"), targetX, targetY), IDLE_COLOR);
     }
 
     private void askJumpToLocation() {
@@ -3209,26 +3192,25 @@ final class MainWindow implements TclFlatcamHost {
     javafx.scene.control.Dialog<double[]> jumpLocationDialog() {
         var dialog = new javafx.scene.control.Dialog<double[]>();
         if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
-        dialog.setTitle("Ir para Localização");
+        dialog.setTitle(I18n.text("ui.e1a40ac7311e"));
         dialog.setHeaderText(null);
         TextField coordinates = new TextField();
         coordinates.setPromptText("X,Y");
         coordinates.setId("jump-coordinates");
-        RadioButton absolute = new RadioButton("Absoluto");
-        RadioButton relative = new RadioButton("Relativo ao cursor");
+        RadioButton absolute = new RadioButton(I18n.text("ui.f15be065b1e3"));
+        RadioButton relative = new RadioButton(I18n.text("ui.bd8cadb8c654"));
         absolute.setId("jump-absolute"); relative.setId("jump-relative");
-        ToolDescriptions.apply(coordinates, "Coordenadas de destino",
-                "Digite X,Y usando ponto decimal, por exemplo 12.5,-3. Parênteses são opcionais; expressões não são aceitas.\n\n"
-                + "Unidades: " + currentDisplayUnits() + ". A referência Absoluto/Relativo determina como os valores são interpretados.");
-        ToolDescriptions.apply(absolute, "Referência absoluta", "X e Y são coordenadas do projeto, medidas a partir da origem. Centraliza a vista sem mover os objetos.");
-        ToolDescriptions.apply(relative, "Referência relativa", "X e Y são deslocamentos a partir da última posição do cursor no Plot Area. Centraliza a vista sem mover os objetos.\n\nReferência: a escolha é lembrada ao confirmar.");
+        ToolDescriptions.apply(coordinates, I18n.text("ui.289976344399"),
+                I18n.text("ui.ea780ff7f036") + currentDisplayUnits() + I18n.text("ui.96cd3158445f"));
+        ToolDescriptions.apply(absolute, I18n.text("ui.1c7832833afc"), I18n.text("ui.6aad695c41e1"));
+        ToolDescriptions.apply(relative, I18n.text("ui.ed07552319f4"), I18n.text("ui.74f74ebb5440"));
         ToggleGroup reference = new ToggleGroup();
         absolute.setToggleGroup(reference); relative.setToggleGroup(reference);
         absolute.setSelected(!"rel".equals(AppPreferences.loadText("jump.reference")));
         relative.setSelected(!absolute.isSelected());
         Label error = new Label();
         error.getStyleClass().add("error-label");
-        VBox content = new VBox(8, new Label("Digite as coordenadas no formato X,Y:"), coordinates,
+        VBox content = new VBox(8, new Label(I18n.text("ui.23e3d71854d8")), coordinates,
                 new HBox(12, absolute, relative), error);
         content.setPadding(new Insets(8));
         dialog.getDialogPane().setContent(content);
@@ -3237,16 +3219,16 @@ final class MainWindow implements TclFlatcamHost {
         Node ok = dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.OK);
         ok.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             if (parseXY(coordinates.getText()) == null) {
-                error.setText("Use dois números finitos: X,Y (parênteses opcionais).");
+                error.setText(I18n.text("ui.9db09fc8b7e7"));
                 event.consume();
             }
         });
         dialog.setResultConverter(button -> button == javafx.scene.control.ButtonType.OK ? parseXY(coordinates.getText()) : null);
-        ToolDescriptions.apply(ok, "Ir para localização", "Centraliza a vista nas coordenadas informadas e lembra a referência escolhida. Não move objetos nem adiciona pontos ao desenho.\n\nAtalho: J abre este diálogo fora do editor; no editor usa o diálogo do gesto em andamento.");
+        ToolDescriptions.apply(ok, I18n.text("ui.939467b35f12"), I18n.text("ui.7f9e2cf5bca6"));
         ToolDescriptions.apply(dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.CANCEL),
-                "Cancelar navegação", "Fecha sem centralizar a vista nem salvar a referência escolhida.");
+                I18n.text("ui.7d79664c272b"), I18n.text("ui.e4f87c82ba98"));
         dialog.setOnShown(event -> javafx.application.Platform.runLater(coordinates::requestFocus));
-        FluidTooltips.install(dialog, "Ir para localização");
+        FluidTooltips.install(dialog, I18n.text("ui.939467b35f12"));
         return dialog;
     }
 
@@ -3257,7 +3239,7 @@ final class MainWindow implements TclFlatcamHost {
         TreeItem<String> item = addGeometryToProject(uniqueDerivedName("new_geo"), "", currentDisplayUnits().toUpperCase(java.util.Locale.ROOT),
                 CNC_GEOMETRY_FACTORY.createGeometryCollection(), false);
         selectOnly(item);
-        appendConsole("Geometry vazia criada: " + item.getValue() + ".");
+        appendConsole(I18n.text("ui.625b7e939e59") + item.getValue() + ".");
         return item;
     }
 
@@ -3267,7 +3249,7 @@ final class MainWindow implements TclFlatcamHost {
                 List.of(), List.of(), CNC_GEOMETRY_FACTORY.createGeometryCollection());
         TreeItem<String> item = addExcellonToProject(uniqueDerivedName("new_exc"), null, image);
         selectOnly(item);
-        appendConsole("Excellon vazio criado: " + item.getValue() + ".");
+        appendConsole(I18n.text("ui.40ec157b973c") + item.getValue() + ".");
         return item;
     }
 
@@ -3284,7 +3266,7 @@ final class MainWindow implements TclFlatcamHost {
     void openMeasureTool() {
         MeasurementToolPanel panel = new MeasurementToolPanel(false, currentDisplayUnits(), this::startMeasurement,
                 xy -> jumpTo(xy[0], xy[1], false), this::closeToolPanel);
-        openToolPanel("Medir Distância", panel); // releases the previous tool before this one becomes current
+        openToolPanel(I18n.text("ui.475f2d0d401e"), panel); // releases the previous tool before this one becomes current
         measurePanel = panel;
         activeToolCleanup = () -> { clearToolOverlays(); if (measurePanel == panel) measurePanel = null; };
         startMeasurement();
@@ -3295,14 +3277,14 @@ final class MainWindow implements TclFlatcamHost {
         if (panel == null) return;
         panel.clear();
         plotAreaView.setEditorHighlight(null, false);
-        panel.showMessage("Clique no ponto INICIAL...");
-        setStatus("Medir distância: clique no ponto inicial (Esc cancela).", RUNNING_COLOR);
+        panel.showMessage(I18n.text("ui.8c326faa4523"));
+        setStatus(I18n.text("ui.77bfadac5022"), RUNNING_COLOR);
         beginPointPick(first -> {
-            if (first == null || measurePanel != panel) { setStatus("Medição cancelada.", IDLE_COLOR); return; }
+            if (first == null || measurePanel != panel) { setStatus(I18n.text("ui.41954cfd9e7d"), IDLE_COLOR); return; }
             panel.showStart(first.x, first.y);
-            setStatus("Medir distância: clique no ponto final (Esc cancela).", RUNNING_COLOR);
+            setStatus(I18n.text("ui.b4ceca290c06"), RUNNING_COLOR);
             beginPointPick(second -> {
-                if (second == null || measurePanel != panel) { setStatus("Medição cancelada.", IDLE_COLOR); return; }
+                if (second == null || measurePanel != panel) { setStatus(I18n.text("ui.41954cfd9e7d"), IDLE_COLOR); return; }
                 finishMeasurement(panel, new MeasurementToolPanel.Measurement(first.x, first.y, second.x, second.y));
             });
         });
@@ -3323,7 +3305,7 @@ final class MainWindow implements TclFlatcamHost {
     void openMinimumDistanceTool() {
         MeasurementToolPanel panel = new MeasurementToolPanel(true, currentDisplayUnits(), this::measureMinimumDistance,
                 xy -> jumpTo(xy[0], xy[1], false), this::closeToolPanel);
-        openToolPanel("Distância Mínima", panel); // releases the previous tool before this one becomes current
+        openToolPanel(I18n.text("ui.61ff53fbc31f"), panel); // releases the previous tool before this one becomes current
         measurePanel = panel;
         activeToolCleanup = () -> { clearToolOverlays(); if (measurePanel == panel) measurePanel = null; };
         measureMinimumDistance();
@@ -3333,7 +3315,7 @@ final class MainWindow implements TclFlatcamHost {
         MeasurementToolPanel panel = measurePanel;
         List<TreeItem<String>> selected = selectedObjects();
         if (selected.size() != 2) {
-            String text = "Selecione exatamente dois objetos. Selecionados agora: " + selected.size() + ".";
+            String text = I18n.text("ui.684942713175") + selected.size() + ".";
             if (panel != null) { panel.clear(); panel.showMessage(text); }
             appendConsole(text);
             plotAreaView.setEditorHighlight(null, false);
@@ -3341,7 +3323,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         Geometry first = measurableGeometry(selected.get(0)), second = measurableGeometry(selected.get(1));
         if (first == null || second == null) {
-            String text = "Um dos objetos selecionados não tem geometria para medir.";
+            String text = I18n.text("ui.7e680f45ca98");
             if (panel != null) { panel.clear(); panel.showMessage(text); }
             appendConsole(text);
             return null;
@@ -3351,8 +3333,8 @@ final class MainWindow implements TclFlatcamHost {
         plotAreaView.setEditorHighlight(measurement.distance() > 0 ? CNC_GEOMETRY_FACTORY.createLineString(new Coordinate[]{
                 new Coordinate(measurement.x1(), measurement.y1()), new Coordinate(measurement.x2(), measurement.y2())}) : null, true);
         String text = measurement.distance() == 0
-                ? "Os objetos se intersectam ou se tocam."
-                : (panel != null ? panel.summary(measurement) : "Distância mínima " + MeasurementToolPanel.number(measurement.distance()));
+                ? I18n.text("ui.6f26658bd2eb")
+                : (panel != null ? panel.summary(measurement) : I18n.text("ui.3da10b96c423") + MeasurementToolPanel.number(measurement.distance()));
         appendConsole(text);
         setStatus(text, IDLE_COLOR);
         return measurement;
@@ -3391,30 +3373,29 @@ final class MainWindow implements TclFlatcamHost {
 
     private void askLocateInObject() {
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
-        if (item == null || !isProjectObject(item)) { appendConsole("Nenhum objeto selecionado."); return; }
+        if (item == null || !isProjectObject(item)) { appendConsole(I18n.text("ui.32a4794184b7")); return; }
         locateObjectDialog().showAndWait().ifPresent(point -> {
             AppPreferences.saveText("locate.point", point.name());
-            if (locateInObject(item, point) == null) appendConsole("O objeto selecionado está vazio.");
+            if (locateInObject(item, point) == null) appendConsole(I18n.text("ui.8c5de8761c29"));
         });
     }
 
     javafx.scene.control.Dialog<LocatePoint> locateObjectDialog() {
         var dialog = new javafx.scene.control.Dialog<LocatePoint>();
         if (scene != null && scene.getWindow() != null) dialog.initOwner(scene.getWindow());
-        dialog.setTitle("Localizar no Objeto");
+        dialog.setTitle(I18n.text("ui.e556833d7e75"));
         dialog.setHeaderText(null);
         ToggleGroup group = new ToggleGroup();
         VBox options = new VBox(6);
         LocatePoint remembered;
         try { remembered = LocatePoint.valueOf(AppPreferences.loadText("locate.point")); }
         catch (RuntimeException absent) { remembered = LocatePoint.BOTTOM_LEFT; }
-        String[] labels = {"Inferior esquerdo", "Superior esquerdo", "Inferior direito", "Superior direito", "Centro"};
+        String[] labels = {I18n.text("ui.74bd046f8134"), I18n.text("ui.f3fa393016ae"), I18n.text("ui.67e7480bdc76"), I18n.text("ui.4cd508015d68"), I18n.text("ui.fed34f0449c2")};
         for (LocatePoint point : LocatePoint.values()) {
             RadioButton radio = new RadioButton(labels[point.ordinal()]);
             radio.setUserData(point); radio.setToggleGroup(group); radio.setSelected(point == remembered);
             ToolDescriptions.apply(radio, labels[point.ordinal()],
-                    "Escolhe " + labels[point.ordinal()].toLowerCase(java.util.Locale.ROOT) + " da caixa que envolve o objeto selecionado.\n\n"
-                    + "Referência: usa os limites do objeto, não o contorno exato do cobre. Apenas centraliza a vista; não altera a geometria.");
+                    I18n.text("ui.354f680fe81a") + labels[point.ordinal()].toLowerCase(java.util.Locale.ROOT) + I18n.text("ui.0d0449ed5fd4"));
             options.getChildren().add(radio);
         }
         options.setPadding(new Insets(8));
@@ -3424,10 +3405,10 @@ final class MainWindow implements TclFlatcamHost {
         dialog.setResultConverter(button -> button == javafx.scene.control.ButtonType.OK && group.getSelectedToggle() != null
                 ? (LocatePoint) group.getSelectedToggle().getUserData() : null);
         ToolDescriptions.apply(dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.OK),
-                "Localizar no objeto", "Centraliza a vista no ponto escolhido da caixa do objeto e lembra essa escolha.\n\nAtalho: Shift+J abre este diálogo. Um objeto vazio não fornece um ponto para localizar.");
+                I18n.text("ui.430484a2c23f"), I18n.text("ui.8b770ff292d7"));
         ToolDescriptions.apply(dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.CANCEL),
-                "Cancelar localização", "Fecha sem mudar a vista nem salvar a escolha.");
-        FluidTooltips.install(dialog, "Localizar no objeto");
+                I18n.text("ui.5ac39e38dd26"), I18n.text("ui.5daf721e832b"));
+        FluidTooltips.install(dialog, I18n.text("ui.430484a2c23f"));
         return dialog;
     }
 
@@ -3497,7 +3478,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Fiducials: carregue um Gerber.");
+            appendConsole(I18n.text("ui.c4f373ae7d5b"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -3522,13 +3503,13 @@ final class MainWindow implements TclFlatcamHost {
                               double thickness) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     GerberImage result = Fiducials.add(source, points, type, size, thickness);
                     TreeItem<String> created = addGerberToProject(uniqueDerivedName(withoutExtension(item.getValue()) + "_fid"),
                             null, result);
-                    appendConsole("Fiduciais adicionados: " + created.getValue() + " (" + points.size() + " pontos).");
+                    appendConsole(I18n.text("ui.cb581d437c6c") + created.getValue() + " (" + points.size() + I18n.text("ui.b9ceb0cdbacd"));
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -3541,13 +3522,13 @@ final class MainWindow implements TclFlatcamHost {
             public String addOpenings(TreeItem<String> item, List<Coordinate> points, double diameter) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     GerberImage result = Fiducials.add(source, points, Fiducials.Type.CIRCULAR, diameter, 0);
                     TreeItem<String> created = addGerberToProject(uniqueDerivedName(withoutExtension(item.getValue()) + "_fid"),
                             null, result);
-                    appendConsole("Aberturas de máscara adicionadas: " + created.getValue() + ".");
+                    appendConsole(I18n.text("ui.0f2d5635d795") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -3578,7 +3559,7 @@ final class MainWindow implements TclFlatcamHost {
         everything.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item)
                 && !geometryByItem.containsKey(item));
         if (everything.isEmpty()) {
-            appendConsole("Calibration: carregue um objeto.");
+            appendConsole(I18n.text("ui.cd5fa12b7020"));
             return;
         }
         org.locationtech.jts.geom.GeometryFactory factory = new org.locationtech.jts.geom.GeometryFactory();
@@ -3635,11 +3616,11 @@ final class MainWindow implements TclFlatcamHost {
 
             @Override
             public String saveGCode(String gcode) {
-                return saveReviewedProgram("Calibration — verificação", "fc_ver_gcode.nc",
+                return saveReviewedProgram(I18n.text("ui.3d08edbaa09d"), "fc_ver_gcode.nc",
                         () -> new PendingCncProgram(gcode,null,
-                                "Calibração: confira os quatro pontos, Z de verificação e origem. A prévia não mede a máquina nem verifica a montagem.", path -> {}),
+                                I18n.text("ui.78597008f7ee"), path -> {}),
                         () -> true, message -> appendConsole("Calibration: " + message))
-                        ? null : "Aguarde a operação atual antes de exportar.";
+                        ? null : I18n.text("ui.6288fa16f055");
             }
 
             @Override
@@ -3673,9 +3654,9 @@ final class MainWindow implements TclFlatcamHost {
                         created = addGeometryToProject(uniqueDerivedName(name), geometry.sourceName(), geometry.units(),
                                 result, geometry.strokeOnly(), tools, geometry.cncDefaults());
                     } else {
-                        return "O objeto foi removido";
+                        return I18n.text("ui.0d061133f193");
                     }
-                    appendConsole("Objeto calibrado: " + created.getValue() + ".");
+                    appendConsole(I18n.text("ui.92d3046ded98") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -3696,7 +3677,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Copper Thieving: carregue um Gerber.");
+            appendConsole(I18n.text("ui.b2de7220729f"));
             return;
         }
         List<TreeItem<String>> references = new ArrayList<>(gerbers);
@@ -3727,11 +3708,11 @@ final class MainWindow implements TclFlatcamHost {
                                CopperThieving.Options options, Consumer<String> onDone) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    onDone.accept("O Gerber foi removido");
+                    onDone.accept(I18n.text("ui.4fb8642a3de5"));
                     return;
                 }
                 if (runningJob != null) {
-                    onDone.accept("Já existe uma operação em andamento");
+                    onDone.accept(I18n.text("ui.47c22bbc729c"));
                     return;
                 }
                 org.locationtech.jts.geom.Geometry referenceGeometry = null;
@@ -3751,7 +3732,7 @@ final class MainWindow implements TclFlatcamHost {
                 }
                 org.locationtech.jts.geom.Geometry fixedReference = referenceGeometry;
                 boolean fixedGerber = referenceIsGerber;
-                beginJob("Copper Thieving: preenchendo...");
+                beginJob(I18n.text("ui.b1f8de03a298"));
                 JobHandle<List<org.locationtech.jts.geom.Polygon>> handle = jobExecutor.submit(context ->
                         CopperThieving.thieve(source.solidGeometry(), fixedReference, fixedGerber, options,
                                 context::isCancelled,
@@ -3768,8 +3749,8 @@ final class MainWindow implements TclFlatcamHost {
                     GerberImage result = CopperThieving.withThieving(source, thieving);
                     TreeItem<String> created = addGerberToProject(
                             uniqueDerivedName(withoutExtension(item.getValue()) + "_thief"), null, result);
-                    setStatus("Copper Thieving concluído.", IDLE_COLOR);
-                    appendConsole("Copper Thieving: " + thieving.size() + " áreas em " + created.getValue() + ".");
+                    setStatus(I18n.text("ui.bc15daf5a1cd"), IDLE_COLOR);
+                    appendConsole("Copper Thieving: " + thieving.size() + I18n.text("ui.17656af0cd26") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     onDone.accept(null);
@@ -3787,7 +3768,7 @@ final class MainWindow implements TclFlatcamHost {
             public String robberBar(TreeItem<String> item, double margin, double thickness) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     CopperThieving.Robber robber = CopperThieving.robberBar(source.solidGeometry(), margin, thickness);
@@ -3795,7 +3776,7 @@ final class MainWindow implements TclFlatcamHost {
                     TreeItem<String> created = addGerberToProject(
                             uniqueDerivedName(withoutExtension(item.getValue()) + "_robber"), null,
                             CopperThieving.withRobber(source, robber));
-                    appendConsole("Robber bar adicionada: " + created.getValue() + ".");
+                    appendConsole(I18n.text("ui.8c61571e8b78") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -3809,7 +3790,7 @@ final class MainWindow implements TclFlatcamHost {
                                         double robberThickness) {
                 GerberImage mask = gerberByItem.get(item);
                 if (mask == null) {
-                    return new Object[] {0.0, "O Gerber foi removido"};
+                    return new Object[] {0.0, I18n.text("ui.4fb8642a3de5")};
                 }
                 try {
                     CopperThieving.PlatingMask result = CopperThieving.platingMask(mask, clearance, lastThieving,
@@ -3818,7 +3799,7 @@ final class MainWindow implements TclFlatcamHost {
                     TreeItem<String> created = addGerberToProject(uniqueDerivedName(stem + "_plating_mask"), null,
                             result.image());
                     appendConsole(String.format(java.util.Locale.ROOT,
-                            "Máscara de galvanoplastia: %s, área galvanizada %.4f.", created.getValue(),
+                            I18n.text("ui.9c0627d23d62"), created.getValue(),
                             result.platedArea()));
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
@@ -3860,7 +3841,7 @@ final class MainWindow implements TclFlatcamHost {
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         List<TreeItem<String>> excellons = new ArrayList<>(excellonByItem.keySet());
         if (gerbers.isEmpty() && excellons.isEmpty()) {
-            appendConsole("Rules Check: carregue Gerbers ou Excellons.");
+            appendConsole(I18n.text("ui.24e5404dd28c"));
             return;
         }
         openToolPanel("Rules Check Tool", RulesCheckToolPanel.build(new RulesCheckToolPanel.Host() {
@@ -3878,17 +3859,17 @@ final class MainWindow implements TclFlatcamHost {
             public void check(RulesCheckToolPanel.Selection selection, Map<RulesCheck.Rule, RulesCheck.Setting> settings,
                               Consumer<List<RulesCheck.RuleResult>> onResult, Consumer<String> onError) {
                 if (runningJob != null) {
-                    onError.accept("Já existe uma operação em andamento");
+                    onError.accept(I18n.text("ui.47c22bbc729c"));
                     return;
                 }
                 RulesCheck.Board board = new RulesCheck.Board(named(selection.copperTop()), named(selection.copperBottom()),
                         named(selection.silkTop()), named(selection.silkBottom()), named(selection.maskTop()),
                         named(selection.maskBottom()), named(selection.outline()), namedDrills(selection.drills1()),
                         namedDrills(selection.drills2()));
-                beginJob("Rules Check: verificando regras...");
+                beginJob(I18n.text("ui.c05cdfe832ea"));
                 JobHandle<List<RulesCheck.RuleResult>> handle = jobExecutor.submit(context ->
                         RulesCheck.check(board, settings, context::isCancelled,
-                                fraction -> context.reportProgress(fraction, "Verificando regras...")),
+                                fraction -> context.reportProgress(fraction, I18n.text("ui.7adc4b968c08"))),
                         (fraction, message) -> Platform.runLater(() -> {
                             updateProgress(fraction);
                             statusLabel.setText(message);
@@ -3896,11 +3877,11 @@ final class MainWindow implements TclFlatcamHost {
                 runningJob = handle;
                 handle.completion().thenAccept(results -> Platform.runLater(() -> {
                     updateProgress(1);
-                    setStatus("Rules Check concluído.", IDLE_COLOR);
+                    setStatus(I18n.text("ui.7f934c69885b"), IDLE_COLOR);
                     onJobFinished();
                     for (RulesCheck.RuleResult result : results) {
-                        appendConsole("Rules Check: " + result.title() + " - " + (!result.ran() ? "não executada ("
-                                + result.error() + ")" : result.failed() ? "FALHOU" : "OK"));
+                        appendConsole("Rules Check: " + result.title() + " - " + (!result.ran() ? I18n.text("ui.758d6ad84b25")
+                                + result.error() + ")" : result.failed() ? I18n.text("ui.beb22b19c0ce") : "OK"));
                     }
                     onResult.accept(results);
                 })).exceptionally(error -> {
@@ -3950,7 +3931,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Optimal: carregue um Gerber.");
+            appendConsole(I18n.text("ui.5ffedd63843a"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -3970,17 +3951,17 @@ final class MainWindow implements TclFlatcamHost {
                              Consumer<String> onError) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    onError.accept("O Gerber foi removido");
+                    onError.accept(I18n.text("ui.4fb8642a3de5"));
                     return;
                 }
                 if (runningJob != null) {
-                    onError.accept("Já existe uma operação em andamento");
+                    onError.accept(I18n.text("ui.47c22bbc729c"));
                     return;
                 }
-                beginJob("Optimal: procurando a menor distância...");
+                beginJob(I18n.text("ui.7d1aa2be17bb"));
                 JobHandle<MinimumDistance.Result> handle = jobExecutor.submit(context ->
                         MinimumDistance.find(source.solidGeometry(), precision, context::isCancelled,
-                                fraction -> context.reportProgress(fraction, "Comparando elementos de cobre...")),
+                                fraction -> context.reportProgress(fraction, I18n.text("ui.5e6727ca7ddc"))),
                         (fraction, message) -> Platform.runLater(() -> {
                             updateProgress(fraction);
                             statusLabel.setText(message);
@@ -3988,10 +3969,10 @@ final class MainWindow implements TclFlatcamHost {
                 runningJob = handle;
                 handle.completion().thenAccept(result -> Platform.runLater(() -> {
                     updateProgress(1);
-                    setStatus("Optimal concluído.", IDLE_COLOR);
+                    setStatus(I18n.text("ui.fcf1a9662c9f"), IDLE_COLOR);
                     onJobFinished();
                     appendConsole(String.format(java.util.Locale.ROOT,
-                            "Optimal: menor distância %." + precision + "f (%d par(es)) entre %d elementos de cobre.",
+                            I18n.text("ui.3cefca84f777") + precision + I18n.text("ui.336812b8f8eb"),
                             result.minimum(), result.frequency(), result.features()));
                     onResult.accept(result);
                 })).exceptionally(error -> {
@@ -4028,7 +4009,7 @@ final class MainWindow implements TclFlatcamHost {
         objects.addAll(excellonNode.getChildren());
         objects.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item));
         if (objects.size() < 2) {
-            appendConsole("Align Objects: carregue ao menos dois objetos (Gerber ou Excellon).");
+            appendConsole(I18n.text("ui.447477c2609b"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(objects::contains).findFirst().orElse(null);
@@ -4073,10 +4054,10 @@ final class MainWindow implements TclFlatcamHost {
                         ok &= applyTransformToItem(aligned, operation);
                     }
                     if (!ok) {
-                        return "Não foi possível transformar " + aligned.getValue();
+                        return I18n.text("ui.caa8747b55c6") + aligned.getValue();
                     }
-                    appendConsole("Objeto alinhado: " + aligned.getValue() + " ("
-                            + (operations.size() == 1 ? "translacao" : "translação e rotação") + ").");
+                    appendConsole(I18n.text("ui.aff6a49258e9") + aligned.getValue() + " ("
+                            + (operations.size() == 1 ? I18n.text("ui.26bab876eb07") : I18n.text("ui.2511a23cfe46")) + ").");
                     selectProjectItem(aligned);
                     projectTree.refresh();
                     return null;
@@ -4092,7 +4073,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("SolderPaste: carregue o Gerber da máscara de pasta.");
+            appendConsole(I18n.text("ui.1bb1cbb2fe00"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4123,7 +4104,7 @@ final class MainWindow implements TclFlatcamHost {
             public String createGeometry(TreeItem<String> item, List<Double> nozzles) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null || source.solidGeometry() == null) {
-                    return "O Gerber foi removido ou está vazio";
+                    return I18n.text("ui.4ce10e94fe7e");
                 }
                 try {
                     SolderPaste.Generated generated = SolderPaste.generateGeometry(source.solidGeometry(), nozzles,
@@ -4134,10 +4115,10 @@ final class MainWindow implements TclFlatcamHost {
                     TreeItem<String> created = addGeometryToProject(
                             uniqueDerivedName(withoutExtension(item.getValue()) + "_solderpaste"), item.getValue(),
                             source.units(), combined, true, generated.tools());
-                    appendConsole("Geometria de pasta criada: " + created.getValue() + " ("
-                            + (generated.pads() - generated.unserved()) + " de " + generated.pads() + " pads).");
+                    appendConsole(I18n.text("ui.258b9976a9d2") + created.getValue() + " ("
+                            + (generated.pads() - generated.unserved()) + I18n.text("ui.553c27d45c0c") + generated.pads() + " pads).");
                     if (generated.unserved() > 0) {
-                        appendConsole("Aviso: " + generated.unserved() + " pad(s) não cabem em nenhum bico da tabela.");
+                        appendConsole(I18n.text("ui.3e9a08c5414d") + generated.unserved() + I18n.text("ui.ebf4b3d46ee9"));
                     }
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
@@ -4151,7 +4132,7 @@ final class MainWindow implements TclFlatcamHost {
             public String createJob(TreeItem<String> item, SolderPaste.Parameters parameters) {
                 GeometryEntry entry = geometryByItem.get(item);
                 if (entry == null || entry.tools().isEmpty()) {
-                    return "A geometria foi removida ou não é uma geometria de pasta";
+                    return I18n.text("ui.ac93f13c0a01");
                 }
                 String sourceName = item.getValue();
                 return saveReviewedProgram("SolderPaste — " + sourceName, sourceName + "_cnc_solderpaste.nc", () -> {
@@ -4181,14 +4162,14 @@ final class MainWindow implements TclFlatcamHost {
                     }
                     Geometry cutBodies = factory.buildGeometry(bodies);
                     return new PendingCncProgram(program.gcode(), null,
-                            "Dispensação de pasta (Paste_1), não fresagem: M3/M4 comandam avanço/reversão do dispensador. Confira bico, alturas, velocidades e tempos; a prévia não simula volume nem pressão.", destination -> {
+                            I18n.text("ui.1081e64a4d16"), destination -> {
                                 TreeItem<String> created = addCncJobToProject(destination.getFileName().toString(), sourceName,
                                         destination, program.gcode(), travelLines, cutBodies, travelLines, cutLines, thinnest);
-                                appendConsole("G-code de pasta salvo em " + destination + " (" + program.paths().size() + " caminhos).");
+                                appendConsole(I18n.text("ui.2676ae143ffd") + destination + " (" + program.paths().size() + I18n.text("ui.f54cea355c2c"));
                                 selectProjectItem(created);
                             });
                 }, () -> geometryByItem.get(item) == entry && Objects.equals(item.getValue(),sourceName),
-                        message -> appendConsole("SolderPaste: " + message)) ? null : "Aguarde a operação atual antes de exportar.";
+                        message -> appendConsole("SolderPaste: " + message)) ? null : I18n.text("ui.6288fa16f055");
             }
         }, this::closeToolPanel));
     }
@@ -4198,7 +4179,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("QRCode: carregue um Gerber.");
+            appendConsole(I18n.text("ui.21e308994420"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4227,13 +4208,13 @@ final class MainWindow implements TclFlatcamHost {
             public String place(TreeItem<String> item, QrCodeMarker.Options options, Coordinate centre) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     GerberImage result = QrCodeMarker.place(source, options, centre);
                     TreeItem<String> created = addGerberToProject(
                             uniqueDerivedName(withoutExtension(item.getValue()) + "_qrcode"), null, result);
-                    appendConsole("QR Code adicionado: " + created.getValue() + ".");
+                    appendConsole(I18n.text("ui.f98f5a5c00c8") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -4249,7 +4230,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Corner Markers: carregue um Gerber.");
+            appendConsole(I18n.text("ui.46faa7a2a36d"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4270,13 +4251,13 @@ final class MainWindow implements TclFlatcamHost {
                 GerberImage source = gerberByItem.get(item);
                 double[] bounds = boundsOf(item);
                 if (source == null || bounds == null) {
-                    return "O Gerber foi removido ou está vazio";
+                    return I18n.text("ui.4ce10e94fe7e");
                 }
                 try {
                     GerberImage result = CornerMarkers.add(source, bounds, corners, style, thickness, length, margin);
                     TreeItem<String> created = addGerberToProject(
                             uniqueDerivedName(withoutExtension(item.getValue()) + "_corners"), null, result);
-                    appendConsole("Marcadores de canto adicionados: " + created.getValue() + ".");
+                    appendConsole(I18n.text("ui.0d485d11f1fe") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -4291,14 +4272,14 @@ final class MainWindow implements TclFlatcamHost {
                 GerberImage source = gerberByItem.get(item);
                 double[] bounds = boundsOf(item);
                 if (source == null || bounds == null) {
-                    return "O Gerber foi removido ou está vazio";
+                    return I18n.text("ui.4ce10e94fe7e");
                 }
                 try {
                     ExcellonImage drills = CornerMarkers.drills(source.units(), bounds, corners, thickness, margin,
                             diameter);
                     TreeItem<String> created = addExcellonToProject(
                             uniqueDerivedName(withoutExtension(item.getValue()) + "_corner_drills"), null, drills);
-                    appendConsole("Furos de canto criados: " + created.getValue() + ".");
+                    appendConsole(I18n.text("ui.11ccdf96b38d") + created.getValue() + ".");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -4315,7 +4296,7 @@ final class MainWindow implements TclFlatcamHost {
         films.addAll(geometryNode.getChildren());
         films.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item));
         if (films.isEmpty()) {
-            appendConsole("Film: carregue um Gerber ou Geometry.");
+            appendConsole(I18n.text("ui.bb8b0d4869f2"));
             return;
         }
         List<TreeItem<String>> boxes = new ArrayList<>(films);
@@ -4358,25 +4339,25 @@ final class MainWindow implements TclFlatcamHost {
             @Override
             public String export(FilmToolPanel.Request request) {
                 if (runningJob != null) {
-                    return "Já existe uma operação em andamento";
+                    return I18n.text("ui.47c22bbc729c");
                 }
                 org.locationtech.jts.geom.Geometry filmGeometry = filmGeometryOf(request.film());
                 org.locationtech.jts.geom.Geometry boxGeometry = filmGeometryOf(request.box());
                 if (filmGeometry == null || boxGeometry == null) {
-                    return "Um dos objetos foi removido";
+                    return I18n.text("ui.7fcb69591191");
                 }
                 GerberImage punched = null;
                 try {
                     if (request.punch() != FilmToolPanel.Punch.NONE) {
                         GerberImage source = gerberByItem.get(request.film());
                         if (source == null) {
-                            return "Furar só vale para Gerbers";
+                            return I18n.text("ui.75f12531f0b2");
                         }
                         Set<String> codes = new java.util.HashSet<>(source.apertures().keySet());
                         if (request.punch() == FilmToolPanel.Punch.EXCELLON) {
                             ExcellonImage drills = excellonByItem.get(request.excellon());
                             if (drills == null) {
-                                return "O Excellon foi removido";
+                                return I18n.text("ui.ba2e22a38d88");
                             }
                             punched = Punch.byExcellon(source, drills, codes);
                         } else {
@@ -4392,14 +4373,14 @@ final class MainWindow implements TclFlatcamHost {
                 FilmExporter.Options options = request.options();
                 String extension = "." + options.fileType().name().toLowerCase(java.util.Locale.ROOT);
                 String kind = options.fileType().name();
-                File destination = chooseExportFile("Exportar filme " + kind, request.film(), "_film" + extension,
+                File destination = chooseExportFile(I18n.text("ui.16ec34b3465b") + kind, request.film(), "_film" + extension,
                         new FileChooser.ExtensionFilter(kind, "*" + extension));
                 if (destination == null) {
                     return null;
                 }
                 String units = unitsOf(request.film());
                 org.locationtech.jts.geom.Geometry finalFilm = filmGeometry;
-                runExport(request.film().getValue(), "Filme " + kind, destination,
+                runExport(request.film().getValue(), I18n.text("ui.2742bc2e396f") + kind, destination,
                         path -> FilmExporter.write(finalFilm, boxGeometry, units, options, path));
                 return null;
             }
@@ -4422,7 +4403,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Etch Compensation: carregue um Gerber.");
+            appendConsole(I18n.text("ui.1e6a38771a46"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4447,13 +4428,13 @@ final class MainWindow implements TclFlatcamHost {
             public String compensate(TreeItem<String> item, double offset) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     GerberImage result = EtchCompensation.compensate(source, offset);
                     TreeItem<String> created = addGerberToProject(uniqueDerivedName(item.getValue() + "_comp"), null,
                             result);
-                    appendConsole("Gerber compensado criado: " + created.getValue() + " (deslocamento "
+                    appendConsole(I18n.text("ui.c7da496fd835") + created.getValue() + I18n.text("ui.bcd9802766f7")
                             + String.format(java.util.Locale.ROOT, "%.5f", offset) + " "
                             + source.units().toLowerCase(java.util.Locale.ROOT) + ").");
                     selectProjectItem(created);
@@ -4473,7 +4454,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> excellons = new ArrayList<>(excellonNode.getChildren());
         excellons.removeIf(item -> !excellonByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Punch Gerber: carregue um Gerber.");
+            appendConsole(I18n.text("ui.2a52d0622172"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4511,14 +4492,14 @@ final class MainWindow implements TclFlatcamHost {
                                 Set<String> codes) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     GerberImage punched;
                     if (excellon != null) {
                         ExcellonImage drills = excellonByItem.get(excellon);
                         if (drills == null) {
-                            return "O Excellon foi removido";
+                            return I18n.text("ui.ba2e22a38d88");
                         }
                         punched = Punch.byExcellon(source, drills, codes);
                     } else {
@@ -4530,8 +4511,8 @@ final class MainWindow implements TclFlatcamHost {
                         base = base.substring(0, dot);
                     }
                     TreeItem<String> created = addGerberToProject(uniqueDerivedName(base + "_punched"), null, punched);
-                    appendConsole("Gerber furado criado: " + created.getValue() + " ("
-                            + (punched.shapes().size() - source.shapes().size()) + " furos).");
+                    appendConsole(I18n.text("ui.62927ebcb817") + created.getValue() + " ("
+                            + (punched.shapes().size() - source.shapes().size()) + I18n.text("ui.72c8cf9bf560"));
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -4547,7 +4528,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Extract Drills: carregue um Gerber.");
+            appendConsole(I18n.text("ui.111b7a575492"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4566,7 +4547,7 @@ final class MainWindow implements TclFlatcamHost {
             public String extract(TreeItem<String> item, ExtractDrills.Options options) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     ExcellonImage drills = ExtractDrills.extract(source, options);
@@ -4576,8 +4557,8 @@ final class MainWindow implements TclFlatcamHost {
                         base = base.substring(0, dot);
                     }
                     TreeItem<String> created = addExcellonToProject(uniqueDerivedName(base + "_drills"), null, drills);
-                    appendConsole("Furos extraidos: " + created.getValue() + " (" + drills.totalDrills()
-                            + " furos, " + drills.toolDiameters().size() + " ferramentas).");
+                    appendConsole(I18n.text("ui.edc1c4ad66d7") + created.getValue() + " (" + drills.totalDrills()
+                            + I18n.text("ui.0de52914c0ab") + drills.toolDiameters().size() + I18n.text("ui.9aa367e06483"));
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
                     return null;
@@ -4595,7 +4576,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> geometries = new ArrayList<>(geometryNode.getChildren());
         geometries.removeIf(item -> !geometryByItem.containsKey(item));
         if (gerbers.isEmpty() && geometries.isEmpty()) {
-            appendConsole("Subtract: carregue Gerbers ou Geometrys.");
+            appendConsole(I18n.text("ui.7a46141cfe8d"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream()
@@ -4621,10 +4602,10 @@ final class MainWindow implements TclFlatcamHost {
                 GerberImage targetImage = gerberByItem.get(target);
                 GerberImage subtractorImage = gerberByItem.get(subtractor);
                 if (targetImage == null || subtractorImage == null) {
-                    return "Um dos objetos foi removido";
+                    return I18n.text("ui.7fcb69591191");
                 }
                 if (!targetImage.units().equals(subtractorImage.units())) {
-                    return "Os Gerbers tem unidades diferentes; converta um deles antes";
+                    return I18n.text("ui.6b1e9ba5adf0");
                 }
                 try {
                     GerberImage result = Subtract.gerber(targetImage, subtractorImage);
@@ -4643,13 +4624,13 @@ final class MainWindow implements TclFlatcamHost {
                 GeometryEntry targetEntry = geometryByItem.get(target);
                 GeometryEntry subtractorEntry = geometryByItem.get(subtractor);
                 if (targetEntry == null || subtractorEntry == null) {
-                    return "Um dos objetos foi removido";
+                    return I18n.text("ui.7fcb69591191");
                 }
                 if (!subtractorEntry.tools().isEmpty()) {
-                    return "No momento o subtraendo não pode ser um Geometry multi-ferramenta";
+                    return I18n.text("ui.bfb899a069ef");
                 }
                 if (!targetEntry.units().equals(subtractorEntry.units())) {
-                    return "Os Geometrys tem unidades diferentes; converta um deles antes";
+                    return I18n.text("ui.20f825b5b23d");
                 }
                 try {
                     Subtract.GeometryResult result = Subtract.geometry(targetEntry.geometry(), targetEntry.tools(),
@@ -4667,7 +4648,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void finishSubtract(TreeItem<String> created, List<TreeItem<String>> sources, boolean deleteSources) {
-        appendConsole("Subtracao criada: " + created.getValue() + ".");
+        appendConsole(I18n.text("ui.bf0bc11ed48d") + created.getValue() + ".");
         if (deleteSources) {
             removeSelectionFromProject(new ArrayList<>(sources));
         }
@@ -4680,7 +4661,7 @@ final class MainWindow implements TclFlatcamHost {
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
-            appendConsole("Invert Gerber: carregue um Gerber.");
+            appendConsole(I18n.text("ui.f20888219e1d"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(gerbers::contains).findFirst().orElse(null);
@@ -4699,13 +4680,13 @@ final class MainWindow implements TclFlatcamHost {
             public String invert(TreeItem<String> item, double margin, InvertGerber.JoinStyle style) {
                 GerberImage source = gerberByItem.get(item);
                 if (source == null) {
-                    return "O Gerber foi removido";
+                    return I18n.text("ui.4fb8642a3de5");
                 }
                 try {
                     GerberImage inverted = InvertGerber.invert(source, margin, style);
                     TreeItem<String> created = addGerberToProject(uniqueDerivedName(item.getValue() + "_inverted"), null,
                             inverted);
-                    appendConsole("Gerber invertido criado: " + created.getValue() + " ("
+                    appendConsole(I18n.text("ui.00365e496658") + created.getValue() + " ("
                             + InvertGerberToolPanel.describe(inverted.solidGeometry().getArea(), inverted.units()) + ").");
                     selectProjectItem(created);
                     plotAreaView.fitToLayer(created);
@@ -4725,7 +4706,7 @@ final class MainWindow implements TclFlatcamHost {
         sources.addAll(geometryNode.getChildren());
         sources.removeIf(item -> boundsOf(item) == null);
         if (sources.isEmpty()) {
-            appendConsole("Panelize: carregue um Gerber, um Excellon ou um Geometry.");
+            appendConsole(I18n.text("ui.22751f77f1a8"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
@@ -4828,26 +4809,26 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private CamGenerationState capturePanelizeState(PanelizeToolPanel.Request request, TreeItem<String> contour, boolean generation) {
-        if (generation && runningJob != null) throw new IllegalStateException("Já existe uma operação em andamento.");
-        if (generation && camEditorActive()) throw new IllegalStateException("Feche/aplique os editores antes de panelizar.");
+        if (generation && runningJob != null) throw new IllegalStateException(I18n.text("ui.df12b110e3bb"));
+        if (generation && camEditorActive()) throw new IllegalStateException(I18n.text("ui.6217d3d13fc6"));
         var items = new LinkedHashSet<>(request.sources());
         if (request.reference() != null) items.add(request.reference());
         if (contour != null) items.add(contour);
         String units = panelizeUnits(request.source());
-        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException("Unidades não reconhecidas.");
+        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException(I18n.text("ui.f287c2d8185a"));
         List<CamInput> inputs = new ArrayList<>();
         for (TreeItem<String> item : items) {
-            if (!units.equals(panelizeUnits(item))) throw new IllegalArgumentException("Panelizacao exige as mesmas unidades em objetos/referencia/contorno.");
+            if (!units.equals(panelizeUnits(item))) throw new IllegalArgumentException(I18n.text("ui.6b1789024dda"));
             inputs.add(captureCamInput(item, panelizeContent(item)));
         }
         Envelope actual = new Envelope();
         for (TreeItem<String> item : request.reference() == null ? request.sources() : List.of(request.reference())) {
             double[] box = boundsOf(item);
-            if (box == null) throw new IllegalStateException("Objeto/referencia sem geometria.");
+            if (box == null) throw new IllegalStateException(I18n.text("ui.eacc24156caa"));
             actual.expandToInclude(new Envelope(box[0], box[2], box[1], box[3]));
         }
         if (!Arrays.equals(request.referenceBox(), new double[]{actual.getMinX(), actual.getMinY(), actual.getMaxX(), actual.getMaxY()}))
-            throw new IllegalStateException("Caixa de referência alterada; atualize a configuração.");
+            throw new IllegalStateException(I18n.text("ui.7b6e45efe9dc"));
         return new CamGenerationState(tclProjectEpoch, List.copyOf(inputs), toolTab.getContent());
     }
 
@@ -4858,13 +4839,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runPanelize(PanelizeToolPanel.Request request) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         CamGenerationState before = capturePanelizeState(request, null, true);
         List<CamInput> sources = before.inputs().stream().filter(input -> request.sources().contains(input.item())).toList();
         JobHandle<?>[] owner = {null};
-        beginJob("Criando painel...");
+        beginJob(I18n.text("ui.d11c5dd522e9"));
         activeCamGeneration = before;
         JobHandle<List<PanelizeOutcome>> handle = jobExecutor.submit(context -> {
             List<PanelizeOutcome> outcomes = new ArrayList<>();
@@ -4873,7 +4854,7 @@ final class MainWindow implements TclFlatcamHost {
                 CamInput input = sources.get(index);
                 int position = index;
                 org.flatcam.cam.ProgressCallback progress = fraction -> context.reportProgress(
-                        (position + fraction) / sources.size(), "Panelizando " + input.name() + "...");
+                        (position + fraction) / sources.size(), I18n.text("ui.afe5b21d52c1") + input.name() + "...");
                 if (input.version() instanceof GerberImage gerber) {
                     GerberImage panel = Panelize.gerber(gerber, request.layout(), context::isCancelled, progress);
                     outcomes.add(new PanelizeOutcome(request.gerberAsGeometry() ? null : panel, null,
@@ -4901,21 +4882,21 @@ final class MainWindow implements TclFlatcamHost {
                             TreeItem<String> created = publishPanelized(sources.get(index), outcomes.get(index));
                             if (first == null) first = created;
                             Panelize.Layout layout = request.layout();
-                            appendConsole("Painel criado: " + created.getValue() + " (" + layout.columns() + " x "
-                                    + layout.rows() + " cópias" + (layout.constrained() ? ", reduzido pelo limite" : "") + ").");
+                            appendConsole(I18n.text("ui.eee447f47550") + created.getValue() + " (" + layout.columns() + " x "
+                                    + layout.rows() + I18n.text("ui.ab05fc923cec") + (layout.constrained() ? I18n.text("ui.5ed98fa9a87d") : "") + ").");
                         }
                     } finally { plotAreaView.endBatchUpdate(); }
                     if (toolTab.getContent() == before.panel()) {
                         selectProjectItem(first); plotAreaView.fitToLayer(first); closeToolPanel();
                     }
-                    setStatus("Concluido.", IDLE_COLOR);
+                    setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     updateProgress(1);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (runningJob != handle) return;
-                        reportJobError(error, "Falha ao criar o painel: ");
+                        reportJobError(error, I18n.text("ui.9b64b45a6c87"));
                         onJobFinished();
                     });
                     return null;
@@ -4954,7 +4935,7 @@ final class MainWindow implements TclFlatcamHost {
         sources.addAll(geometryNode.getChildren());
         sources.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item));
         if (sources.isEmpty()) {
-            appendConsole("Paint: carregue um Gerber ou um Geometry.");
+            appendConsole(I18n.text("ui.26494608921b"));
             return;
         }
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
@@ -5032,12 +5013,12 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
-        beginJob("Pintando polígonos...");
+        beginJob(I18n.text("ui.1ad65b51bd48"));
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
-            var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,"Pintando polígonos..."));
+            var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,I18n.text("ui.1ad65b51bd48")));
             var paths=result.toolResults().stream().filter(tool -> !tool.isEmpty()).map(tool -> new ToolGeometry(tool.toolDiameter(),tool.geometry())).toList();
             var areas=new LinkedHashMap<Integer,Geometry>(); int index=0;
             for (var tool:result.toolResults()) if (!tool.isEmpty()) { if (tool.targetArea()!=null) areas.put(index,tool.targetArea().copy()); index++; }
@@ -5055,8 +5036,8 @@ final class MainWindow implements TclFlatcamHost {
                     if (runningJob!=handle) return;
                     var result=outcome.result();
                     if (result.isEmpty()) {
-                        appendConsole("Paint não gerou caminhos. A ferramenta pode ser grande demais para os polígonos.");
-                        setStatus("Sem caminhos.", ERROR_COLOR);
+                        appendConsole(I18n.text("ui.e06fe2d2f5dd"));
+                        setStatus(I18n.text("ui.712cdeb8cbda"), ERROR_COLOR);
                     } else {
                         List<ToolGeometry> tools = result.toolResults().stream()
                                 .filter(toolResult -> !toolResult.isEmpty())
@@ -5068,21 +5049,21 @@ final class MainWindow implements TclFlatcamHost {
                         var entry=geometryByItem.get(generated);
                         geometryByItem.put(generated,new GeometryEntry(entry.sourceName(),entry.units(),entry.geometry(),entry.strokeOnly(),entry.tools(),entry.cncDefaults(),outcome.target()));
                         appendConsole(String.format(java.util.Locale.ROOT,
-                                "Paint: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d.",
+                                I18n.text("ui.75543b5fbb07"),
                                 result.pathCount(), result.totalLength(), tools.size(),
                                 result.totalFailedPolygonCount()));
                         selectProjectItem(generated);
                         plotAreaView.fitToLayer(generated);
                         plotAreaView.setEditorHighlight(null, false);
                         closeToolPanel();
-                        setStatus("Concluido.", IDLE_COLOR);
+                        setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     }
                     updateProgress(1);
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao pintar: ");
+                        reportJobError(error, I18n.text("ui.c2720c540081"));
                         onJobFinished();
                     });
                     return null;
@@ -5092,7 +5073,7 @@ final class MainWindow implements TclFlatcamHost {
     /** Edit > Tools > 2-Sided Tool: mirror objects and make alignment holes for a double-sided board. */
     private void openDoubleSidedTool() {
         releaseActiveTool();
-        openToolPanel("2-Sided Tool", DoubleSidedToolPanel.build(new DoubleSidedToolPanel.Host() {
+        openToolPanel(I18n.text("ui.b595bfb73393"), DoubleSidedToolPanel.build(new DoubleSidedToolPanel.Host() {
             @Override
             public List<TreeItem<String>> objects() {
                 List<TreeItem<String>> all = new ArrayList<>();
@@ -5167,7 +5148,7 @@ final class MainWindow implements TclFlatcamHost {
                         last = target;
                     }
                 }
-                appendConsole(done + " objeto(s) " + (asCopy ? "copiado(s) e espelhado(s)." : "espelhado(s)."));
+                appendConsole(done + I18n.text("ui.a0a9bd3a3e47") + (asCopy ? I18n.text("ui.a1a4dcde7409") : I18n.text("ui.75d33b585f7b")));
                 if (last != null) {
                     selectProjectItem(last);
                 }
@@ -5190,7 +5171,7 @@ final class MainWindow implements TclFlatcamHost {
                 TreeItem<String> created = addExcellonToProject(uniqueDerivedName("Alignment Drills"), null, image);
                 selectProjectItem(created);
                 plotAreaView.fitToLayer(created);
-                appendConsole("Excellon com furos de alinhamento criado (" + drills.size() + " furos).");
+                appendConsole(I18n.text("ui.9660996c6d38") + drills.size() + I18n.text("ui.72c8cf9bf560"));
             }
 
             @Override
@@ -5267,17 +5248,17 @@ final class MainWindow implements TclFlatcamHost {
     /** Buffer is expensive: compute all outputs first, then publish atomically if inputs still match. */
     private void runTransformBuffer(List<TreeItem<String>> items, TransformOp.Buffer buffer) {
         if (runningJob != null || geometryEditor.isActive() || gerberEditor.isActive() || excellonEditor.isActive()) {
-            appendConsole("Conclua a operação ou edição atual antes de Buffer."); return;
+            appendConsole(I18n.text("ui.f5ef47a2637d")); return;
         }
         Map<TreeItem<String>,Object> inputs=new LinkedHashMap<>();
         for (var item : items) {
             Object source=transformSource(item);
-            if (source == null) throw new IllegalArgumentException("Buffer não aceita CNC Job.");
+            if (source == null) throw new IllegalArgumentException(I18n.text("ui.ce79d799e09a"));
             inputs.put(item,source);
         }
         long unitCount=inputs.values().stream().map(source -> source instanceof GerberImage g ? g.units()
                 : source instanceof ExcellonImage e ? e.units() : ((GeometryEntry)source).units()).distinct().count();
-        if (unitCount != 1) throw new IllegalArgumentException("Buffer exige objetos na mesma unidade.");
+        if (unitCount != 1) throw new IllegalArgumentException(I18n.text("ui.f1035b1b6d86"));
         beginJob("Aplicando Buffer...");
         JobHandle<Map<TreeItem<String>,Object>> handle=jobExecutor.submit(context -> {
             Map<TreeItem<String>,Object> outputs=new LinkedHashMap<>();
@@ -5293,10 +5274,10 @@ final class MainWindow implements TclFlatcamHost {
                     var g=(GeometryEntry)source;
                     List<ToolGeometry> tools=g.tools().stream().map(t -> t.transformed(buffer)).toList();
                     shape=tools.isEmpty() ? buffer.apply(g.geometry()) : g.geometry().getFactory().buildGeometry(tools.stream().map(ToolGeometry::geometry).toList());
-                    if (tools.stream().anyMatch(t -> t.geometry().isEmpty())) throw new IllegalArgumentException("Buffer elimina caminhos de uma ferramenta.");
+                    if (tools.stream().anyMatch(t -> t.geometry().isEmpty())) throw new IllegalArgumentException(I18n.text("ui.9918ece09bf6"));
                     result=new GeometryEntry(g.sourceName(),g.units(),shape,false,tools,g.cncDefaults());
                 }
-                if (shape == null || shape.isEmpty() || !shape.isValid()) throw new IllegalArgumentException("Buffer eliminou o objeto ou produziu geometria inválida.");
+                if (shape == null || shape.isEmpty() || !shape.isValid()) throw new IllegalArgumentException(I18n.text("ui.ca4a030fc02a"));
                 outputs.put(entry.getKey(),result);
                 context.reportProgress((double)outputs.size()/inputs.size(),"Aplicando Buffer...");
             }
@@ -5306,7 +5287,7 @@ final class MainWindow implements TclFlatcamHost {
         handle.completion().thenAccept(outputs -> Platform.runLater(() -> {
             onJobFinished();
             if (inputs.entrySet().stream().anyMatch(entry -> transformSource(entry.getKey()) != entry.getValue())) {
-                appendConsole("Objetos mudaram durante Buffer; resultado descartado."); return;
+                appendConsole(I18n.text("ui.7983b5dbafea")); return;
             }
             plotMoveHistory.clear();
             outputs.forEach((item,result) -> {
@@ -5315,8 +5296,8 @@ final class MainWindow implements TclFlatcamHost {
                 else { var g=(GeometryEntry)result; geometryByItem.put(item,g); plotAreaView.updateLayerGeometry(item,g.geometry()); }
             });
             refreshPlotSelectionOutline(); showProperties(projectTree.getSelectionModel().getSelectedItem());
-            updateProgress(1); setStatus("Buffer concluído.",IDLE_COLOR); appendConsole(outputs.size()+" objeto(s) alterado(s) por Buffer; revise antes de CNC.");
-        })).exceptionally(error -> { Platform.runLater(() -> { reportJobError(error,"Buffer não aplicado: "); onJobFinished(); }); return null; });
+            updateProgress(1); setStatus(I18n.text("ui.b4f76f6a4e42"),IDLE_COLOR); appendConsole(outputs.size()+I18n.text("ui.916f67146bf3"));
+        })).exceptionally(error -> { Platform.runLater(() -> { reportJobError(error,I18n.text("ui.770908b1944c")); onJobFinished(); }); return null; });
     }
 
     /**
@@ -5330,7 +5311,7 @@ final class MainWindow implements TclFlatcamHost {
         TextField scaleField = new TextField("1.0");
         scaleField.setPrefColumnCount(6);
         scaleField.setMinWidth(0);
-        Button scaleButton = new Button("Escalar");
+        Button scaleButton = new Button(I18n.text("ui.7450c09d30e8"));
         scaleButton.setOnAction(e -> {
             try {
                 double factor = Double.parseDouble(scaleField.getText().trim().replace(',', '.'));
@@ -5338,7 +5319,7 @@ final class MainWindow implements TclFlatcamHost {
                     showProperties(item);
                 }
             } catch (NumberFormatException ex) {
-                appendConsole("Scale: número inválido.");
+                appendConsole(I18n.text("ui.a23af783cdf0"));
             }
         });
         TextField offsetXField = new TextField("0.0");
@@ -5347,10 +5328,10 @@ final class MainWindow implements TclFlatcamHost {
         offsetYField.setPrefColumnCount(6);
         offsetXField.setMinWidth(0);
         offsetYField.setMinWidth(0);
-        Button offsetButton = new Button("Deslocar");
-        ToolDescriptions.apply(offsetXField, "Deslocamento horizontal", "Translação X aplicada ao objeto ao clicar em Deslocar. Positivo desloca para a direita; negativo para a esquerda.\n\nUnidades: unidade do objeto (mm ou in). Não é a posição absoluta nem a compensação do raio da fresa.");
-        ToolDescriptions.apply(offsetYField, "Deslocamento vertical", "Translação Y aplicada ao objeto ao clicar em Deslocar. Positivo desloca para cima; negativo para baixo.\n\nUnidades: unidade do objeto (mm ou in). Aceita ponto ou vírgula decimal.");
-        ToolDescriptions.apply(offsetButton, "Aplicar deslocamento X/Y", "Aplica os deslocamentos horizontal e vertical informados ao objeto e atualiza suas propriedades. Zero mantém a posição naquele eixo.\n\nAtenção: altera o objeto em memória; confira as outras camadas alinhadas antes de salvar o projeto.");
+        Button offsetButton = new Button(I18n.text("ui.813908d94cb1"));
+        ToolDescriptions.apply(offsetXField, I18n.text("ui.a70a6848cb04"), I18n.text("ui.f19bb461fdb4"));
+        ToolDescriptions.apply(offsetYField, I18n.text("ui.e01265310b57"), I18n.text("ui.ca109ef0962a"));
+        ToolDescriptions.apply(offsetButton, I18n.text("ui.9d47ee6c1ca0"), I18n.text("ui.46b21bb37b8c"));
         offsetButton.setOnAction(e -> {
             try {
                 double dx = Double.parseDouble(offsetXField.getText().trim().replace(',', '.'));
@@ -5359,17 +5340,17 @@ final class MainWindow implements TclFlatcamHost {
                     showProperties(item);
                 }
             } catch (NumberFormatException ex) {
-                appendConsole("Offset: número inválido.");
+                appendConsole(I18n.text("ui.2f0d1e1dae01"));
             }
         });
-        Button transformationsButton = new Button("Transformações");
+        Button transformationsButton = new Button(I18n.text("ui.32788c0c09e0"));
         transformationsButton.setGraphic(legacyIcon("transform.png", 18));
         transformationsButton.setMaxWidth(Double.MAX_VALUE);
         transformationsButton.setOnAction(e -> openTransformTool());
 
-        FlowPane scaleRow = new FlowPane(8, 6, new HBox(6, new Label("Escala:"), scaleField), scaleButton);
+        FlowPane scaleRow = new FlowPane(8, 6, new HBox(6, new Label(I18n.text("ui.33c281329b94")), scaleField), scaleButton);
         FlowPane offsetRow = new FlowPane(8, 6,
-                new HBox(6, new Label("Deslocamento X:"), offsetXField),
+                new HBox(6, new Label(I18n.text("ui.121c10d778e4")), offsetXField),
                 new HBox(6, new Label("Y:"), offsetYField), offsetButton);
         return new VBox(6, scaleRow, offsetRow, transformationsButton);
     }
@@ -5380,7 +5361,7 @@ final class MainWindow implements TclFlatcamHost {
             plotMoveHistory.clear();
         }
         if (cncJobByItem.containsKey(item)) {
-            appendConsole("CNC Job não pode ser transformado: " + item.getValue());
+            appendConsole(I18n.text("ui.1ef26fd2c6fc") + item.getValue());
             return false;
         }
         GerberImage gerber = gerberByItem.get(item);
@@ -5487,11 +5468,11 @@ final class MainWindow implements TclFlatcamHost {
      * object.
      */
     private List<MenuItem> buildBulkContextMenuItems(List<TreeItem<String>> selected) {
-        MenuItem removeItem = new MenuItem("Remover (" + selected.size() + ")");
+        MenuItem removeItem = new MenuItem(I18n.text("ui.b8d9e0238018") + selected.size() + ")");
         setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeSelectionFromProject(selected));
 
-        MenuItem copyItem = new MenuItem("Copiar (" + selected.size() + ")");
+        MenuItem copyItem = new MenuItem(I18n.text("ui.20b9ddc7d377") + selected.size() + ")");
         setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copySelection(selected));
 
@@ -5508,7 +5489,7 @@ final class MainWindow implements TclFlatcamHost {
             List<TreeItem<String>> targets = selected.stream().filter(this::isPlottable)
                     .filter(item -> isObjectVisible(item) != visible).toList();
             if (targets.isEmpty()) continue;
-            String text = visible ? "Ativar Plot" : "Desativar Plot";
+            String text = visible ? I18n.text("ui.bada68deb0ed") : I18n.text("ui.e1a06e018b57");
             if (selected.size() > 1) text += " (" + targets.size() + ")";
             MenuItem action = new MenuItem(text);
             setLegacyMenuIcon(action, visible ? "replot32.png" : "clear_plot32.png");
@@ -5592,7 +5573,7 @@ final class MainWindow implements TclFlatcamHost {
     /** Python Ctrl+A on_selectall: every project object becomes selected. */
     private void selectAllObjects() {
         if (anyObjectEditorActive()) {
-            appendConsole("Conclua ou cancele o editor atual antes de selecionar todos os objetos.");
+            appendConsole(I18n.text("ui.1f3e5c60f538"));
             return;
         }
         List<TreeItem<String>> objects = allProjectObjects();
@@ -5600,7 +5581,7 @@ final class MainWindow implements TclFlatcamHost {
         model.clearSelection();
         int[] rows = objects.stream().mapToInt(this::rowForPlotObject).filter(row -> row >= 0).sorted().toArray();
         if (rows.length == 0) {
-            appendConsole("Nenhum objeto no projeto para selecionar.");
+            appendConsole(I18n.text("ui.ec65a5f4218c"));
             return;
         }
         model.selectIndices(rows[0], java.util.Arrays.copyOfRange(rows, 1, rows.length));
@@ -5608,7 +5589,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void deselectAllObjects() {
         if (anyObjectEditorActive()) {
-            appendConsole("Conclua ou cancele o editor atual antes de desmarcar os objetos.");
+            appendConsole(I18n.text("ui.7fb9456a3d9e"));
             return;
         }
         projectTree.getSelectionModel().clearSelection();
@@ -5687,17 +5668,17 @@ final class MainWindow implements TclFlatcamHost {
      * action appropriate for the object's current visibility, as requested.
      */
     private List<MenuItem> gerberContextMenuItems(TreeItem<String> item, GerberImage image) {
-        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        MenuItem showItem = new MenuItem(I18n.text("ui.f61ad3865610"));
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
         Menu colorMenu = buildLayerColorMenu(item, ToolDefaults.color("display.gerber.fill"), ToolDefaults.color("display.gerber.stroke"));
 
-        MenuItem editItem = new MenuItem("Editar");
+        MenuItem editItem = new MenuItem(I18n.text("ui.2eba946b2e1e"));
         setLegacyMenuIcon(editItem, "edit_ok32.png");
         editItem.setOnAction(e -> gerberEditor.start(item, gerberByItem.getOrDefault(item, image)));
 
-        MenuItem isolationItem = new MenuItem("Gerar Geometry de Isolamento...");
+        MenuItem isolationItem = new MenuItem(I18n.text("ui.387688e2d97d"));
         setLegacyMenuIcon(isolationItem, "iso_16.png");
         isolationItem.setOnAction(e -> generateIsolation(item, image));
 
@@ -5705,31 +5686,31 @@ final class MainWindow implements TclFlatcamHost {
         setLegacyMenuIcon(cutoutItem, "cut32_bis.png");
         cutoutItem.setOnAction(e -> generateCutout(item, image));
 
-        Menu createGeometryMenu = new Menu("Criar Geometry");
+        Menu createGeometryMenu = new Menu(I18n.text("ui.76a9076aef72"));
         setLegacyMenuIcon(createGeometryMenu, "geometry32.png");
         createGeometryMenu.getItems().addAll(isolationItem, cutoutItem);
 
-        MenuItem viewSourceItem = new MenuItem("Ver Fonte");
+        MenuItem viewSourceItem = new MenuItem(I18n.text("ui.4f4d2adf3dfb"));
         setLegacyMenuIcon(viewSourceItem, "source32.png");
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
-        MenuItem renameItem = new MenuItem("Renomear");
+        MenuItem renameItem = new MenuItem(I18n.text("ui.48eadfc22613"));
         setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
 
-        MenuItem copyItem = new MenuItem("Copiar");
+        MenuItem copyItem = new MenuItem(I18n.text("ui.39dcf1cbeb5a"));
         setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
 
-        MenuItem removeItem = new MenuItem("Remover");
+        MenuItem removeItem = new MenuItem(I18n.text("ui.a3037dc71a43"));
         setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, gerberByItem));
 
-        MenuItem saveItem = new MenuItem("Salvar como...");
+        MenuItem saveItem = new MenuItem(I18n.text("ui.63f54e88032c"));
         setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
 
-        MenuItem propertiesItem = new MenuItem("Propriedades");
+        MenuItem propertiesItem = new MenuItem(I18n.text("ui.ecaf3589f2b5"));
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
@@ -5740,44 +5721,44 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Same legacy project-menu shape as Gerber, with Excellon's drilling CNC workflow. */
     private List<MenuItem> excellonContextMenuItems(TreeItem<String> item, ExcellonImage image) {
-        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        MenuItem showItem = new MenuItem(I18n.text("ui.f61ad3865610"));
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
         Menu colorMenu = buildLayerColorMenu(item, ToolDefaults.color("display.excellon.fill"), ToolDefaults.color("display.excellon.stroke"));
 
-        MenuItem editItem = new MenuItem("Editar Excellon");
+        MenuItem editItem = new MenuItem(I18n.text("ui.56ea8270adb2"));
         setLegacyMenuIcon(editItem, "edit_file32.png");
         editItem.setOnAction(e -> {
             selectProjectItem(item);
             editSelectedExcellon();
         });
 
-        MenuItem gcodeItem = new MenuItem("Criar CNC Job...");
+        MenuItem gcodeItem = new MenuItem(I18n.text("ui.466244338a76"));
         setLegacyMenuIcon(gcodeItem, "cnc32.png");
         gcodeItem.setOnAction(e -> generateDrillGCode(item, image));
 
-        MenuItem viewSourceItem = new MenuItem("Ver Fonte");
+        MenuItem viewSourceItem = new MenuItem(I18n.text("ui.4f4d2adf3dfb"));
         setLegacyMenuIcon(viewSourceItem, "source32.png");
         viewSourceItem.setOnAction(e -> viewObjectSource(item));
 
-        MenuItem renameItem = new MenuItem("Renomear");
+        MenuItem renameItem = new MenuItem(I18n.text("ui.48eadfc22613"));
         setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
 
-        MenuItem copyItem = new MenuItem("Copiar");
+        MenuItem copyItem = new MenuItem(I18n.text("ui.39dcf1cbeb5a"));
         setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
 
-        MenuItem removeItem = new MenuItem("Remover");
+        MenuItem removeItem = new MenuItem(I18n.text("ui.a3037dc71a43"));
         setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, excellonByItem));
 
-        MenuItem saveItem = new MenuItem("Salvar como...");
+        MenuItem saveItem = new MenuItem(I18n.text("ui.63f54e88032c"));
         setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
 
-        MenuItem propertiesItem = new MenuItem("Propriedades");
+        MenuItem propertiesItem = new MenuItem(I18n.text("ui.ecaf3589f2b5"));
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
@@ -5789,43 +5770,43 @@ final class MainWindow implements TclFlatcamHost {
     /** Project-tree actions for Gerber-derived Geometry objects. */
     private List<MenuItem> geometryContextMenuItems(TreeItem<String> item) {
         GeometryEntry entry = geometryByItem.get(item);
-        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        MenuItem showItem = new MenuItem(I18n.text("ui.f61ad3865610"));
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setOnAction(e -> focusLayer(item));
 
         Menu colorMenu = buildLayerColorMenu(item, ToolDefaults.color("display.geometry.stroke"), ToolDefaults.color("display.geometry.stroke"));
 
-        MenuItem cncItem = new MenuItem("Criar CNC Job...");
+        MenuItem cncItem = new MenuItem(I18n.text("ui.466244338a76"));
         setLegacyMenuIcon(cncItem, "cnc32.png");
         cncItem.setOnAction(e -> generateGeometryCncJob(item, entry));
 
-        MenuItem nccItem = new MenuItem("Gerar NCC...");
+        MenuItem nccItem = new MenuItem(I18n.text("ui.3486ddd828a8"));
         setLegacyMenuIcon(nccItem, "ncc16.png");
         nccItem.setOnAction(e -> generateNcc(item, entry));
 
-        MenuItem editItem = new MenuItem("Editar Geometry");
+        MenuItem editItem = new MenuItem(I18n.text("ui.aa5faa2dd7cd"));
         setLegacyMenuIcon(editItem, "edit_file32.png");
         editItem.setOnAction(e -> {
             selectProjectItem(item);
             editSelectedGeometry();
         });
 
-        MenuItem viewItem = new MenuItem("Ver WKT");
+        MenuItem viewItem = new MenuItem(I18n.text("ui.8766f746ce41"));
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
-        MenuItem renameItem = new MenuItem("Renomear");
+        MenuItem renameItem = new MenuItem(I18n.text("ui.48eadfc22613"));
         setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
-        MenuItem copyItem = new MenuItem("Copiar");
+        MenuItem copyItem = new MenuItem(I18n.text("ui.39dcf1cbeb5a"));
         setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
-        MenuItem removeItem = new MenuItem("Remover");
+        MenuItem removeItem = new MenuItem(I18n.text("ui.a3037dc71a43"));
         setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, geometryByItem));
-        MenuItem saveItem = new MenuItem("Salvar WKT como...");
+        MenuItem saveItem = new MenuItem(I18n.text("ui.064a6cadba1f"));
         setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
-        MenuItem propertiesItem = new MenuItem("Propriedades");
+        MenuItem propertiesItem = new MenuItem(I18n.text("ui.ecaf3589f2b5"));
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
@@ -5853,26 +5834,26 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private Menu buildLayerColorMenu(TreeItem<String> item, Color defaultFill, Color defaultStroke) {
-        Menu menu = new Menu("Definir Cor");
+        Menu menu = new Menu(I18n.text("ui.d109ed9d1f5e"));
         setLegacyMenuIcon(menu, "set_color32.png");
         Map<RadioMenuItem, Color> presets = new LinkedHashMap<>();
         // Exact RGB values from app_Main.py:on_set_color_action_triggered().
-        presets.put(addColorPreset(menu, item, "Vermelho", Color.web("#FF0000")), Color.web("#FF0000"));
-        presets.put(addColorPreset(menu, item, "Azul", Color.web("#0000FF")), Color.web("#0000FF"));
-        presets.put(addColorPreset(menu, item, "Amarelo", Color.web("#FFDF00")), Color.web("#FFDF00"));
-        presets.put(addColorPreset(menu, item, "Verde", Color.web("#00FF00")), Color.web("#00FF00"));
-        presets.put(addColorPreset(menu, item, "Roxo", Color.web("#FF00FF")), Color.web("#FF00FF"));
-        presets.put(addColorPreset(menu, item, "Marrom", Color.web("#A52A2A")), Color.web("#A52A2A"));
-        presets.put(addColorPreset(menu, item, "Branco", Color.WHITE), Color.WHITE);
-        presets.put(addColorPreset(menu, item, "Preto", Color.BLACK), Color.BLACK);
+        presets.put(addColorPreset(menu, item, I18n.text("ui.6741b8b5e1c2"), Color.web("#FF0000")), Color.web("#FF0000"));
+        presets.put(addColorPreset(menu, item, I18n.text("ui.b0bf526b23af"), Color.web("#0000FF")), Color.web("#0000FF"));
+        presets.put(addColorPreset(menu, item, I18n.text("ui.1875203bcdcc"), Color.web("#FFDF00")), Color.web("#FFDF00"));
+        presets.put(addColorPreset(menu, item, I18n.text("ui.40598e1cb1d2"), Color.web("#00FF00")), Color.web("#00FF00"));
+        presets.put(addColorPreset(menu, item, I18n.text("ui.57a73ede5f6f"), Color.web("#FF00FF")), Color.web("#FF00FF"));
+        presets.put(addColorPreset(menu, item, I18n.text("ui.6c4eae2375dc"), Color.web("#A52A2A")), Color.web("#A52A2A"));
+        presets.put(addColorPreset(menu, item, I18n.text("ui.3683a74222dd"), Color.WHITE), Color.WHITE);
+        presets.put(addColorPreset(menu, item, I18n.text("ui.4b652af43d8d"), Color.BLACK), Color.BLACK);
 
         RadioMenuItem customItem = new RadioMenuItem("Personalizada...");
         setLegacyMenuIcon(customItem, "set_color32.png");
         customItem.setOnAction(e -> editLayerColor(item));
-        MenuItem opacityItem = new MenuItem("Opacidade...");
+        MenuItem opacityItem = new MenuItem(I18n.text("ui.bfaafd1c473b"));
         setLegacyMenuIcon(opacityItem, "set_color32.png");
         opacityItem.setOnAction(e -> editLayerOpacity(item));
-        RadioMenuItem defaultItem = new RadioMenuItem("Padrão");
+        RadioMenuItem defaultItem = new RadioMenuItem(I18n.text("ui.0758c00e6ea0"));
         defaultItem.setGraphic(colorSwatch(defaultFill));
         defaultItem.setOnAction(e -> plotAreaView.setLayerColors(item, defaultFill, defaultStroke));
         menu.getItems().addAll(new SeparatorMenuItem(), customItem, new SeparatorMenuItem(), opacityItem, defaultItem);
@@ -5975,39 +5956,39 @@ final class MainWindow implements TclFlatcamHost {
     private List<MenuItem> cncJobContextMenuItems(TreeItem<String> item, CncJobEntry entry) {
         boolean plottable = isPlottable(item);
 
-        MenuItem showItem = new MenuItem("Exibir no Plot Area");
+        MenuItem showItem = new MenuItem(I18n.text("ui.f61ad3865610"));
         setLegacyMenuIcon(showItem, "zoom_fit32.png");
         showItem.setDisable(!plottable);
         showItem.setOnAction(e -> focusCncJob(item, entry));
 
-        MenuItem viewItem = new MenuItem("Ver G-code");
+        MenuItem viewItem = new MenuItem(I18n.text("ui.13f6cd934186"));
         setLegacyMenuIcon(viewItem, "source32.png");
         viewItem.setOnAction(e -> viewObjectSource(item));
 
-        MenuItem editItem = new MenuItem("Editar G-code");
+        MenuItem editItem = new MenuItem(I18n.text("ui.fb1b561e4268"));
         setLegacyMenuIcon(editItem, "code_editor32.png");
         editItem.setOnAction(e -> {
             selectProjectItem(item);
             editSelectedGCode();
         });
 
-        MenuItem renameItem = new MenuItem("Renomear");
+        MenuItem renameItem = new MenuItem(I18n.text("ui.48eadfc22613"));
         setLegacyMenuIcon(renameItem, "edit16.png");
         renameItem.setOnAction(e -> beginRename(item));
 
-        MenuItem copyItem = new MenuItem("Copiar");
+        MenuItem copyItem = new MenuItem(I18n.text("ui.39dcf1cbeb5a"));
         setLegacyMenuIcon(copyItem, "copy32.png");
         copyItem.setOnAction(e -> copyObject(item));
 
-        MenuItem removeItem = new MenuItem("Remover");
+        MenuItem removeItem = new MenuItem(I18n.text("ui.a3037dc71a43"));
         setLegacyMenuIcon(removeItem, "delete32.png");
         removeItem.setOnAction(e -> removeFromProject(item, cncJobByItem));
 
-        MenuItem saveItem = new MenuItem("Salvar como...");
+        MenuItem saveItem = new MenuItem(I18n.text("ui.63f54e88032c"));
         setLegacyMenuIcon(saveItem, "save_as.png");
         saveItem.setOnAction(e -> saveObjectAs(item));
 
-        MenuItem propertiesItem = new MenuItem("Propriedades");
+        MenuItem propertiesItem = new MenuItem(I18n.text("ui.ecaf3589f2b5"));
         setLegacyMenuIcon(propertiesItem, "properties32.png");
         propertiesItem.setOnAction(e -> showObjectProperties(item));
 
@@ -6036,13 +6017,13 @@ final class MainWindow implements TclFlatcamHost {
     private boolean renameProjectItem(TreeItem<String> item, String requestedName) {
         String newName = requestedName == null ? "" : requestedName.trim();
         if (newName.isEmpty()) {
-            appendConsole("O nome do objeto não pode ficar vazio.");
+            appendConsole(I18n.text("ui.2f9984921804"));
             projectTree.refresh();
             return false;
         }
         boolean duplicate = !newName.equals(item.getValue()) && projectObjectNameExists(newName);
         if (duplicate) {
-            appendConsole("Já existe um objeto chamado " + newName + ".");
+            appendConsole(I18n.text("ui.4da3aa2cdd1c") + newName + ".");
             projectTree.refresh();
             return false;
         }
@@ -6065,9 +6046,9 @@ final class MainWindow implements TclFlatcamHost {
         CncJobEntry cncJob = cncJobByItem.get(item);
         GeometryEntry geometry = geometryByItem.get(item);
         if (geometry != null) {
-            openAuxiliaryTab("Fonte - " + item.getValue(), () -> {
+            openAuxiliaryTab(I18n.text("ui.04ee0affc04e") + item.getValue(), () -> {
                 CodeEditor viewer = new CodeEditor("", CodeSyntax.Language.GEOMETRY, false);
-                viewer.loadText(() -> geometry.geometry().toText(), message -> appendConsole("Falha ao exibir Geometry: " + message));
+                viewer.loadText(() -> geometry.geometry().toText(), message -> appendConsole(I18n.text("ui.238fcfb536b7") + message));
                 return viewer;
             });
             return;
@@ -6076,20 +6057,20 @@ final class MainWindow implements TclFlatcamHost {
         } else {
             Path path = sourcePathByItem.get(item);
             if (path == null) {
-                appendConsole("Fonte indisponível para " + item.getValue() + ".");
+                appendConsole(I18n.text("ui.082bd0523a63") + item.getValue() + ".");
                 return;
             }
             var language = item.getParent() == gerbersNode ? CodeSyntax.Language.GERBER : CodeSyntax.Language.EXCELLON;
-            openAuxiliaryTab("Fonte - " + item.getValue(), () -> {
+            openAuxiliaryTab(I18n.text("ui.04ee0affc04e") + item.getValue(), () -> {
                 CodeEditor viewer = new CodeEditor("", language, false);
                 viewer.loadFile(path, message -> {
-                    appendConsole("Falha ao ler a fonte " + path + ": " + message); setStatus("Falhou.", ERROR_COLOR);
+                    appendConsole(I18n.text("ui.0314c8146f18") + path + ": " + message); setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
                 });
                 return viewer;
             });
             return;
         }
-        String tabTitle = "Fonte - " + item.getValue();
+        String tabTitle = I18n.text("ui.04ee0affc04e") + item.getValue();
         openAuxiliaryTab(tabTitle, () -> new CodeEditor(source, CodeSyntax.Language.MACHINE, false));
     }
 
@@ -6101,12 +6082,12 @@ final class MainWindow implements TclFlatcamHost {
         ExcellonImage excellon = excellonByItem.get(item);
         Path sourcePath = sourcePathByItem.get(item);
         if (cncJob == null && geometry == null && gerber == null && excellon == null && sourcePath == null) {
-            appendConsole("Não há conteúdo exportavel para " + item.getValue() + ".");
+            appendConsole(I18n.text("ui.40565e2c39c9") + item.getValue() + ".");
             return;
         }
 
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar objeto como");
+        chooser.setTitle(I18n.text("ui.8b7be4a2192b"));
         String suggestedName = item.getValue();
         if (gerber != null) {
             // The editor names objects "board.gbr_edit"; suggest a real
@@ -6130,7 +6111,7 @@ final class MainWindow implements TclFlatcamHost {
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
         } else {
             chooser.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Programas CNC", "*.nc", "*.gcode", "*.tap", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
+                    new FileChooser.ExtensionFilter(I18n.text("ui.dc244cbb1ee5"), "*.nc", "*.gcode", "*.tap", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
         }
 
         Path suggestedParent = cncJob != null ? cncJob.outputFile().getParent()
@@ -6160,11 +6141,11 @@ final class MainWindow implements TclFlatcamHost {
             if (parent != null) {
                 AppPreferences.saveLastCamDirectory(parent.getAbsolutePath());
             }
-            appendConsole("Objeto salvo em " + target);
-            setStatus("Concluido.", IDLE_COLOR);
+            appendConsole(I18n.text("ui.257241430473") + target);
+            setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
         } catch (IOException | IllegalArgumentException e) {
-            appendConsole("Falha ao salvar " + target + ": " + e.getMessage());
-            setStatus("Falhou.", ERROR_COLOR);
+            appendConsole(I18n.text("ui.b4fd6ceb9110") + target + ": " + e.getMessage());
+            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
         }
     }
 
@@ -6184,37 +6165,37 @@ final class MainWindow implements TclFlatcamHost {
      */
     private void exportSelectedCam(boolean asGerber) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage gerber = item == null ? null : gerberByItem.get(item);
         ExcellonImage excellon = item == null ? null : excellonByItem.get(item);
         if (!isProjectObject(item)) {
-            appendConsole("Nenhum objeto selecionado.");
+            appendConsole(I18n.text("ui.32a4794184b7"));
             return;
         }
         if (asGerber ? gerber == null : excellon == null) {
-            appendConsole(asGerber ? "Falhou. Somente objetos Gerber podem ser exportados como Gerber."
-                    : "Falhou. Somente objetos Excellon podem ser exportados como Excellon.");
-            setStatus("Falhou.", ERROR_COLOR);
+            appendConsole(asGerber ? I18n.text("ui.c53755bccba8")
+                    : I18n.text("ui.e0bc17abf2b9"));
+            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
             return;
         }
         if (asGerber) {
             Optional<GerberExporter.Format> format = CamExportDialog.askGerberFormat(scene.getWindow(), gerber.units());
-            File destination = format.isEmpty() ? null : chooseExportFile("Exportar Gerber", item, ".gbr",
+            File destination = format.isEmpty() ? null : chooseExportFile(I18n.text("ui.b36acceab0dc"), item, ".gbr",
                     new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.gtl", "*.gbl", "*.gm1", "*.cmp", "*.txt"));
             if (destination != null) {
-                runExport(item.getValue(), "Arquivo Gerber", destination,
+                runExport(item.getValue(), I18n.text("ui.17c9bcf1da4d"), destination,
                         path -> new GerberExporter().write(gerber, format.get(), path));
             }
         } else {
             Optional<ExcellonExporter.Format> format =
                     CamExportDialog.askExcellonFormat(scene.getWindow(), excellon.units(),excellon.slots().stream().anyMatch(ExcellonImage.Slot::hasPath));
-            File destination = format.isEmpty() ? null : chooseExportFile("Exportar Excellon", item, ".drl",
+            File destination = format.isEmpty() ? null : chooseExportFile(I18n.text("ui.8c2af341accc"), item, ".drl",
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
             if (destination != null) {
-                runExport(item.getValue(), "Arquivo Excellon", destination,
+                runExport(item.getValue(), I18n.text("ui.bfb85b024b34"), destination,
                         path -> new ExcellonExporter().write(excellon, format.get(), path));
             }
         }
@@ -6226,31 +6207,31 @@ final class MainWindow implements TclFlatcamHost {
      */
     private void exportSelectedSvg() {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         if (!isProjectObject(item)) {
-            appendConsole("Nenhum objeto selecionado.");
+            appendConsole(I18n.text("ui.32a4794184b7"));
             return;
         }
         GerberImage gerber = gerberByItem.get(item);
         ExcellonImage excellon = excellonByItem.get(item);
         GeometryEntry geometry = geometryByItem.get(item);
         CncJobEntry cncJob = cncJobByItem.get(item);
-        File destination = chooseExportFile("Exportar SVG", item, ".svg",
+        File destination = chooseExportFile(I18n.text("ui.b2bef9041714"), item, ".svg",
                 new FileChooser.ExtensionFilter("SVG", "*.svg"));
         if (destination == null) {
             return;
         }
-        runExport(item.getValue(), "Arquivo SVG", destination, path -> {
+        runExport(item.getValue(), I18n.text("ui.45a24a8900bd"), destination, path -> {
             List<SvgExporter.Layer> layers;
             String units;
             if (cncJob != null) {
                 GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(cncJob.gcode(),
                         CancellationToken.none(), fraction -> { });
                 if (!parsed.plotAvailable()) {
-                    throw new IllegalArgumentException("o G-code não pode ser plotado");
+                    throw new IllegalArgumentException(I18n.text("ui.d16adc7bdafa"));
                 }
                 // Python: the tool diameter, else scale_stroke_factor 0.01 (a 0.02 wide line).
                 double width = parsed.stats() == null ? 0 : parsed.stats().tools().stream()
@@ -6303,44 +6284,44 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void printSelectedPdf() {
-        if (runningJob != null) { appendConsole("Já existe uma operação em andamento."); return; }
-        if (hasEditorChanges()) { appendConsole("Aplique ou descarte o rascunho do editor antes de imprimir os objetos."); return; }
+        if (runningJob != null) { appendConsole(I18n.text("ui.df12b110e3bb")); return; }
+        if (hasEditorChanges()) { appendConsole(I18n.text("ui.0de42d68e9ea")); return; }
         List<TreeItem<String>> selected = selectedObjects();
-        if (selected.isEmpty()) { appendConsole("Selecione um ou mais objetos para imprimir como PDF."); return; }
+        if (selected.isEmpty()) { appendConsole(I18n.text("ui.9c29adf0daf1")); return; }
         var options = new PrintPdfDialog(scene.getWindow(),selected.size()).showAndWait();
         if (options.isEmpty()) return;
         PrintSelection snapshot = capturePrintSelection();
-        File file = chooseExportFile("Imprimir como PDF",selected.getFirst(),".pdf",new FileChooser.ExtensionFilter("PDF","*.pdf"));
+        File file = chooseExportFile(I18n.text("ui.217ce43fce3a"),selected.getFirst(),".pdf",new FileChooser.ExtensionFilter("PDF","*.pdf"));
         if (file == null) return;
         Path destination = file.toPath();
         if (!file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) {
             // Do not silently change the destination after the chooser's overwrite confirmation.
-            appendConsole("Escolha um nome terminado em .pdf para imprimir."); return;
+            appendConsole(I18n.text("ui.b920a5152fa6")); return;
         }
-        beginJob("Gerando PDF...");
+        beginJob(I18n.text("ui.f3f5a02b89c0"));
         JobHandle<Path> handle = jobExecutor.submit(context -> {
             CancellationToken cancellation = context::isCancelled;
             List<PrintPdfExporter.Layer> layers = new ArrayList<>(snapshot.layers());
             for (PrintCnc source : snapshot.cncJobs()) {
                 GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(source.job().gcode(),cancellation,
-                        fraction -> context.reportProgress(Double.NaN,"Preparando CNC Job para PDF..."));
-                if (!parsed.plotAvailable()) throw new IllegalArgumentException("CNC Job sem prévia imprimível: " + parsed.warning());
+                        fraction -> context.reportProgress(Double.NaN,I18n.text("ui.d690ecd40ed1")));
+                if (!parsed.plotAvailable()) throw new IllegalArgumentException(I18n.text("ui.9ef5f791e31e") + parsed.warning());
                 if (parsed.travelGeometry()!=null) layers.add(new PrintPdfExporter.Layer(parsed.travelGeometry(),parsed.units(),source.travelColor(),true));
                 if (parsed.cutGeometry()!=null) layers.add(new PrintPdfExporter.Layer(parsed.cutGeometry(),parsed.units(),source.cutColor(),true));
             }
             PrintPdfExporter.write(layers,options.get(),destination,cancellation,
-                    fraction -> context.reportProgress(fraction,"Gerando PDF vetorial..."));
+                    fraction -> context.reportProgress(fraction,I18n.text("ui.d06cd6e0bffa")));
             return destination;
         },(fraction,message) -> Platform.runLater(() -> { updateProgress(fraction); statusLabel.setText(message); }));
         runningJob = handle;
         handle.completion().whenComplete((saved,failure) -> Platform.runLater(() -> {
             if (runningJob != handle) return;
             try {
-                if (failure != null) reportJobError(failure,"Falha ao imprimir PDF: ");
+                if (failure != null) reportJobError(failure,I18n.text("ui.cb869adb3729"));
                 else {
                     AppPreferences.saveLastCamDirectory(saved.toAbsolutePath().getParent().toString());
-                    appendConsole("PDF salvo em " + saved + ". Ao imprimir, use Tamanho real / 100%.");
-                    updateProgress(1); setStatus("PDF salvo.",IDLE_COLOR);
+                    appendConsole(I18n.text("ui.d15f687fc4e4") + saved + I18n.text("ui.11850d323284"));
+                    updateProgress(1); setStatus(I18n.text("ui.01470e2951c4"),IDLE_COLOR);
                 }
             } finally { onJobFinished(); }
         }));
@@ -6352,23 +6333,23 @@ final class MainWindow implements TclFlatcamHost {
      */
     private void exportSelectedDxf() {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         if (!isProjectObject(item)) {
-            appendConsole("Nenhum objeto selecionado.");
+            appendConsole(I18n.text("ui.32a4794184b7"));
             return;
         }
         GerberImage gerber = gerberByItem.get(item);
         ExcellonImage excellon = excellonByItem.get(item);
         GeometryEntry geometry = geometryByItem.get(item);
         if (geometry == null && gerber == null && excellon == null) {
-            appendConsole("Somente objetos Geometry, Gerber e Excellon podem ser usados.");
-            setStatus("Falhou.", ERROR_COLOR);
+            appendConsole(I18n.text("ui.46eab66d3dc1"));
+            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
             return;
         }
-        File destination = chooseExportFile("Exportar DXF", item, ".dxf",
+        File destination = chooseExportFile(I18n.text("ui.d11385cb7dd1"), item, ".dxf",
                 new FileChooser.ExtensionFilter("DXF", "*.dxf"));
         if (destination == null) {
             return;
@@ -6376,17 +6357,17 @@ final class MainWindow implements TclFlatcamHost {
         Geometry shapes = geometry != null ? geometry.geometry()
                 : gerber != null ? gerber.solidGeometry() : excellon.solidGeometry();
         String units = geometry != null ? geometry.units() : gerber != null ? gerber.units() : excellon.units();
-        runExport(item.getValue(), "Arquivo DXF", destination, path -> new DxfExporter().write(shapes, units, path));
+        runExport(item.getValue(), I18n.text("ui.904991019f9d"), destination, path -> new DxfExporter().write(shapes, units, path));
     }
 
     /** File > Exportar > PNG - app_Main.py's on_file_exportpng; no object needs to be selected. */
     private void exportPlotPng() {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Exportar imagem PNG");
+        chooser.setTitle(I18n.text("ui.8ccf4f62c24e"));
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("PNG", "*.png"));
         chooser.setInitialFileName("png_" + java.time.LocalDateTime.now()
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".png");
@@ -6401,7 +6382,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         // Captured before the progress UI changes anything; only the encoding runs in the background.
         PlotPngExporter.Capture capture = PlotPngExporter.capture(plotAreaView, scene.getWindow().getOutputScaleX());
-        runExport("a área de plotagem", "Imagem PNG", destination, path -> PlotPngExporter.write(capture, path));
+        runExport(I18n.text("ui.a7e88cd23d99"), I18n.text("ui.48ad327f9995"), destination, path -> PlotPngExporter.write(capture, path));
     }
 
     /** Save dialog for an export, named after the object and opened in the last CAM folder. */
@@ -6429,23 +6410,23 @@ final class MainWindow implements TclFlatcamHost {
     /** Saves the CNC Job's route (leg, marks, coordinates, length, time) as a CSV spreadsheet. */
     private void exportCncSteps(TreeItem<String> item, GCodeToolpathParser.ToolpathStats stats) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
-        File destination = chooseExportFile("Exportar sequência do trajeto (CSV)", item, "_sequencia.csv",
+        File destination = chooseExportFile(I18n.text("ui.66fb95efd71a"), item, "_sequencia.csv",
                 new FileChooser.ExtensionFilter("CSV", "*.csv"));
         if (destination == null) {
             return;
         }
         List<GCodeToolpathParser.PathStep> steps = stats.steps();
         String units = stats.units();
-        runExport(item.getValue(), "Sequência do trajeto (CSV)", destination,
+        runExport(item.getValue(), I18n.text("ui.810284b7ee57"), destination,
                 path -> CncStepCsv.write(steps, units, path));
     }
 
     /** Writes an export off the JavaFX thread; the writers publish atomically, so there is no cancel point. */
     private void runExport(String subject, String fileKind, File destination, ExportWriter writer) {
-        beginJob("Exportando " + subject + "...");
+        beginJob(I18n.text("ui.3d817c6b9ba2") + subject + "...");
         cancelJobButton.setDisable(true);
         JobHandle<Path> handle = jobExecutor.submit(context -> {
             context.reportProgress(Double.NaN, "Exportando...");
@@ -6458,13 +6439,13 @@ final class MainWindow implements TclFlatcamHost {
         runningJob = handle;
         handle.completion().thenAccept(path -> Platform.runLater(() -> {
             AppPreferences.saveLastCamDirectory(destination.getParentFile().getAbsolutePath());
-            appendConsole(fileKind + " exportado para " + path);
+            appendConsole(fileKind + I18n.text("ui.c78f2282e008") + path);
             updateProgress(1);
             setStatus("Exportado.", IDLE_COLOR);
             onJobFinished();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
-                reportJobError(error, "Não foi possível exportar: ");
+                reportJobError(error, I18n.text("ui.cced6cc568fc"));
                 onJobFinished();
             });
             return null;
@@ -6521,7 +6502,7 @@ final class MainWindow implements TclFlatcamHost {
             return null;
         }
 
-        appendConsole("Objeto copiado: " + sourceItem.getValue() + " -> " + copyName);
+        appendConsole(I18n.text("ui.794d08a224f1") + sourceItem.getValue() + " -> " + copyName);
         selectProjectItem(copyItem);
         return copyItem;
     }
@@ -6802,7 +6783,7 @@ final class MainWindow implements TclFlatcamHost {
         DrillGCodeToolPanel.SourceCandidate initialSource = sources.stream()
                 .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
         if (initialSource == null) {
-            appendConsole("Drilling Tool: o Excellon selecionado não está disponível.");
+            appendConsole(I18n.text("ui.c02ce0077a0d"));
             return;
         }
         openToolPanel("Drilling Tool", DrillGCodeToolPanel.build(sources, initialSource,
@@ -6817,13 +6798,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image, DrillGCodeToolPanel.Result result) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         if (!confirmCncReview(CncPreflight.drilling(result))) return;
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar G-code de furação");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
+        chooser.setTitle(I18n.text("ui.6234ff419d94"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.abef442239ce") + I18n.caption(result.preprocessor().label()),
                 result.preprocessor().filePatterns()));
         chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_drill" + result.preprocessor().fileExtension());
         String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
@@ -6841,7 +6822,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void startDrillGCodeGeneration(TreeItem<String> item, ExcellonImage image,
                                            DrillGCodeToolPanel.Result result, Path output) {
-        if (runningJob != null) throw new IllegalStateException("Já existe uma operação em andamento.");
+        if (runningJob != null) throw new IllegalStateException(I18n.text("ui.df12b110e3bb"));
         CamGenerationState before = captureCamGeneration(item, image.solidGeometry(), null, null);
         long epoch = tclProjectEpoch;
         String sourceName = item.getValue();
@@ -6852,12 +6833,12 @@ final class MainWindow implements TclFlatcamHost {
             if (tclProjectEpoch != epoch || excellonByItem.get(item) != image || !sourceName.equals(item.getValue())
                     || !Objects.equals(savedDefaults, drillDefaultsByItem.get(item))
                     || !Objects.equals(savedSettings, drillCncSettingsByItem.get(item)))
-                throw new IllegalStateException("A origem/projeto ou parâmetros Drilling mudaram; resultado descartado.");
+                throw new IllegalStateException(I18n.text("ui.501c20079689"));
             if (gerberEditor.isActive() || excellonEditor.isActive() || geometryEditor.isActive() || gcodeEditor.isActive())
-                throw new IllegalStateException("Feche os editores antes de gerar Drilling.");
+                throw new IllegalStateException(I18n.text("ui.c77afe9d63d7"));
         };
         validate.run();
-        beginJob("Gerando CNC Job de furação...");
+        beginJob(I18n.text("ui.f9c5f37b2a8f"));
         activeCamGeneration = before;
         JobHandle<DrillCncGeneration.Generated> handle = jobExecutor.submit(context -> TclExecution.run(context,
                 () -> DrillCncGeneration.generate(image, result.settingsByTool(), result.orderedToolIds(), result.options(),
@@ -6876,20 +6857,20 @@ final class MainWindow implements TclFlatcamHost {
                 drillDefaultsByItem.put(item, Map.copyOf(updatedDefaults));
                 drillCncSettingsByItem.put(item, result.cncSettings());
                 AppPreferences.saveLastCamDirectory(output.toAbsolutePath().getParent().toString());
-                appendConsole("G-code de furação salvo em " + output + " (" + job.gcode().lines().count() + " linhas).");
+                appendConsole(I18n.text("ui.6b349ed1a94b") + output + " (" + job.gcode().lines().count() + I18n.text("ui.d1862403f7c1"));
                 GCodeToolpathParser.Result preview = generated.preview();
                 if (preview != null && preview.warning() != null) appendConsole(output.getFileName() + ": " + preview.warning());
                 addCncJobToProject(output.getFileName().toString(), sourceName, output, job.gcode(),
                         job.travelGeometry(), job.cutGeometry(), null, null, 0, preview == null ? null : preview.stats());
                 if (toolTab.getContent() == toolContent) closeToolPanel();
                 updateProgress(1);
-                setStatus("Concluido.", IDLE_COLOR);
-            } catch (RuntimeException failure) { reportJobError(failure, "Falha ao publicar Drilling: "); }
+                setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
+            } catch (RuntimeException failure) { reportJobError(failure, I18n.text("ui.8125d6ade168")); }
             finally { onJobFinished(); }
         })).exceptionally(error -> {
             Platform.runLater(() -> {
                 if (runningJob != handle) return;
-                reportJobError(error, "Falha ao gerar/salvar G-code: "); onJobFinished();
+                reportJobError(error, I18n.text("ui.722c2f87025e")); onJobFinished();
             });
             return null;
         });
@@ -6910,7 +6891,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runExcellonMilling(ExcellonMillingToolPanel.Result result) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         TreeItem<String> item = result.source().item();
@@ -6918,22 +6899,22 @@ final class MainWindow implements TclFlatcamHost {
         CamGenerationState before;
         try { before = captureCamGeneration(item, image.solidGeometry(), null, null); }
         catch (IllegalStateException invalid) { reportJobError(invalid, "Milling: "); return; }
-        beginJob("Gerando Geometry de fresagem Excellon...");
+        beginJob(I18n.text("ui.8b1b3da67767"));
         activeCamGeneration = before;
         JobHandle<Geometry> handle = jobExecutor.submit(context -> {
-            context.reportProgress(0.1, "Calculando caminhos de fresagem...");
+            context.reportProgress(0.1, I18n.text("ui.5fa008176b6f"));
             Geometry geometry = ExcellonMillingGenerator.generate(image, result.toolIds(),
                     result.millDiameter(), result.kind(), context::isCancelled);
             context.checkCancelled();
-            context.reportProgress(0.95, "Preparando Geometry...");
+            context.reportProgress(0.95, I18n.text("ui.37af4a7ea2dc"));
             return geometry;
         }, camProgress(before));
         runningJob = handle;
         handle.completion().thenAccept(geometry -> Platform.runLater(() -> {
             if (!acceptCamGeneration(before, handle)) return;
             if (geometry.isEmpty()) {
-                appendConsole("Nenhum caminho foi gerado para as ferramentas selecionadas.");
-                setStatus("Sem caminhos.", ERROR_COLOR);
+                appendConsole(I18n.text("ui.a4f65ab4d51a"));
+                setStatus(I18n.text("ui.712cdeb8cbda"), ERROR_COLOR);
             } else {
                 String suffix = result.kind() == ExcellonMillingGenerator.Kind.DRILLS ? "_mill_drills" : "_mill_slots";
                 String name = uniqueDerivedName(item.getValue() + suffix);
@@ -6948,16 +6929,16 @@ final class MainWindow implements TclFlatcamHost {
                             null, db.tip() == null ? Map.of() : Map.of(0, db.tip()), Map.of(), db.profile(),
                             db.jobDefaults().isEmpty() ? Map.of() : Map.of(0, db.jobDefaults())));
                 }
-                appendConsole("Geometry de fresagem criada: " + name + ". Revise os caminhos antes de gerar CNC Job.");
+                appendConsole(I18n.text("ui.1f920178ca3a") + name + I18n.text("ui.5157a405833f"));
                 finishCamPanel(before, generated);
-                setStatus("Geometry de fresagem concluída.", IDLE_COLOR);
+                setStatus(I18n.text("ui.53e331e8301c"), IDLE_COLOR);
             }
             updateProgress(1);
             onJobFinished();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
                 if (runningJob != handle) return;
-                reportJobError(error, "Falha ao gerar Geometry de fresagem: ");
+                reportJobError(error, I18n.text("ui.492b9dce65c7"));
                 onJobFinished();
             });
             return null;
@@ -6987,19 +6968,19 @@ final class MainWindow implements TclFlatcamHost {
                 : version instanceof ExcellonImage image ? image.solidGeometry()
                 : version instanceof GeometryEntry entry ? entry.geometry() : null;
         if (version == null || current == null || current != expected)
-            throw new IllegalStateException("Origem ou referência alterada/removida; reabra a ferramenta antes de gerar.");
+            throw new IllegalStateException(I18n.text("ui.e4c6ee392984"));
         return new CamInput(item, item.getValue(), version);
     }
 
     /** Only computation inputs: changing Plot colors, visibility or unrelated objects is harmless. */
     private CamGenerationState captureCamGeneration(TreeItem<String> item, Geometry source,
                                                      TreeItem<String> reference, Geometry referenceGeometry) {
-        if (runningJob != null) throw new IllegalStateException("Já existe uma operação em andamento.");
-        if (camEditorActive()) throw new IllegalStateException("Aplique/cancele e feche os editores antes de gerar Geometry.");
+        if (runningJob != null) throw new IllegalStateException(I18n.text("ui.df12b110e3bb"));
+        if (camEditorActive()) throw new IllegalStateException(I18n.text("ui.85f2e9fd04fb"));
         List<CamInput> inputs = new ArrayList<>();
         inputs.add(captureCamInput(item, source));
         if (referenceGeometry != null) {
-            if (reference == null) throw new IllegalStateException("Referência indisponível; reabra a ferramenta.");
+            if (reference == null) throw new IllegalStateException(I18n.text("ui.515a2db8f2ee"));
             inputs.add(captureCamInput(reference, referenceGeometry));
         }
         return new CamGenerationState(tclProjectEpoch, List.copyOf(inputs), toolTab.getContent());
@@ -7011,13 +6992,13 @@ final class MainWindow implements TclFlatcamHost {
         try {
             if (handle.isCancelled()) throw new CancellationException();
             if (before.epoch() != tclProjectEpoch || camEditorActive())
-                throw new IllegalStateException("Projeto ou editor mudou; Geometry descartada. Gere novamente.");
+                throw new IllegalStateException(I18n.text("ui.bede605dfdf8"));
             for (CamInput input : before.inputs())
                 if (tclVersion(input.item()) != input.version() || !input.name().equals(input.item().getValue()))
-                    throw new IllegalStateException("Origem ou referência alterada/removida; Geometry descartada. Gere novamente.");
+                    throw new IllegalStateException(I18n.text("ui.0c5cdb7e8ec4"));
             return true;
         } catch (IllegalStateException invalid) {
-            reportJobError(invalid, "Resultado CAM descartado: ");
+            reportJobError(invalid, I18n.text("ui.31a915cb6ee9"));
             onJobFinished();
             return false;
         }
@@ -7040,7 +7021,7 @@ final class MainWindow implements TclFlatcamHost {
         IsolationToolPanel.SourceCandidate initialSource = sources.stream()
                 .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
         if (initialSource == null) {
-            appendConsole("Isolation: o Gerber selecionado não está disponível.");
+            appendConsole(I18n.text("ui.3f4188352aa7"));
             return;
         }
         List<IsolationToolPanel.ExceptionArea> exceptionAreas = geometryByItem.entrySet().stream()
@@ -7069,17 +7050,17 @@ final class MainWindow implements TclFlatcamHost {
     private void runIsolationGeneration(TreeItem<String> item, GerberImage image, IsolationToolPanel.Result params) {
         CamGenerationState before;
         try {
-            if (gerberByItem.get(item) != image) throw new IllegalStateException("Gerber alterado; reabra Isolation.");
+            if (gerberByItem.get(item) != image) throw new IllegalStateException(I18n.text("ui.4a08a0b9775e"));
             var reference = params.exceptionReference();
             before = captureCamGeneration(item, image.solidGeometry(), reference == null ? null : reference.item(),
                     reference == null ? null : reference.geometry());
         } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
-        beginJob("Gerando Geometry de isolamento...");
+        beginJob(I18n.text("ui.7d837b7cf072"));
         activeCamGeneration = before;
         record IsolationJobOutcome(List<IsolationGenerator.ToolResult> results, OptionalDouble clearance) { }
         JobHandle<IsolationJobOutcome> handle = jobExecutor.submit(context -> {
-            context.reportProgress(0.05, "Calculando caminhos de isolamento...");
+            context.reportProgress(0.05, I18n.text("ui.471ec412c179"));
             OptionalDouble clearance = params.checkValidity()
                     ? NccGenerator.minimumCopperClearance(image.solidGeometry()) : OptionalDouble.empty();
             List<IsolationGenerator.ToolResult> results;
@@ -7101,7 +7082,7 @@ final class MainWindow implements TclFlatcamHost {
                                 context::isCancelled), result.remainingCopperCount())).toList();
             }
             context.checkCancelled();
-            context.reportProgress(0.95, "Preparando Geometry de isolamento...");
+            context.reportProgress(0.95, I18n.text("ui.0c5aca294cb2"));
             return new IsolationJobOutcome(results, clearance);
         }, camProgress(before));
         runningJob = handle;
@@ -7114,21 +7095,19 @@ final class MainWindow implements TclFlatcamHost {
                         boolean anySuitable = params.tools().stream()
                                 .anyMatch(tool -> tool.toolDiameter() <= clearance);
                         appendConsole(String.format(java.util.Locale.ROOT,
-                                anySuitable ? "Isolation: ao menos uma ferramenta pode isolar completamente "
-                                        + "(distância mínima %.4f)."
-                                        : "Isolation: nenhuma ferramenta pode isolar completamente "
-                                        + "(distância mínima %.4f).", clearance));
+                                anySuitable ? I18n.text("ui.f1a927b1a6b6")
+                                        : I18n.text("ui.d530f23167e1"), clearance));
                     });
                     if (gerberByItem.get(item) != image) {
-                        appendConsole("O Gerber de origem foi removido; Geometry de isolamento descartada.");
-                        setStatus("Origem removida.", ERROR_COLOR);
+                        appendConsole(I18n.text("ui.5a63da8c04a8"));
+                        setStatus(I18n.text("ui.a81cddec6216"), ERROR_COLOR);
                     } else if (results.stream().allMatch(result -> result.isolation().isEmpty())) {
-                        appendConsole("Isolation não gerou caminhos (origem vazia ou área de exceção cobriu tudo).");
+                        appendConsole(I18n.text("ui.a0000aa0301f"));
                         if (params.restMachining() && results.get(results.size() - 1).remainingCopperCount() > 0) {
-                            appendConsole("Aviso: " + results.get(results.size() - 1).remainingCopperCount()
-                                    + " regiões de cobre não foram isoladas por nenhuma ferramenta selecionada.");
+                            appendConsole(I18n.text("ui.3e9a08c5414d") + results.get(results.size() - 1).remainingCopperCount()
+                                    + I18n.text("ui.3ef28654ec33"));
                         }
-                        setStatus("Sem caminhos.", ERROR_COLOR);
+                        setStatus(I18n.text("ui.712cdeb8cbda"), ERROR_COLOR);
                     } else {
                         String suffix = params.follow() ? "_follow" : switch (params.tools().get(0).type()) {
                             case EXTERIOR -> "_ext_iso";
@@ -7171,21 +7150,20 @@ final class MainWindow implements TclFlatcamHost {
                                 }
                             }
                         }
-                        appendConsole(String.format("Isolation: %d elementos, comprimento total=%.4f, bounds=%s",
+                        appendConsole(String.format(I18n.text("ui.ff837fbcb16b"),
                                 results.stream().mapToInt(result -> result.isolation().ringCount()).sum(),
                                 results.stream().mapToDouble(result -> result.isolation().totalLength()).sum(),
-                                lastGenerated == null ? "vazio"
+                                lastGenerated == null ? I18n.text("ui.28d1a7953a9c")
                                         : geometryByItem.get(lastGenerated).geometry().getEnvelopeInternal()));
-                        appendConsole("Isolation criou " + created + " Geometry(s). Confira os caminhos "
-                                + "e gere o CNC Job pela Geometry quando estiver pronto.");
+                        appendConsole(I18n.text("ui.78efefd4d8aa") + created + I18n.text("ui.27b0230949be"));
                         if (params.restMachining() && results.get(results.size() - 1).remainingCopperCount() > 0) {
-                            appendConsole("Aviso: " + results.get(results.size() - 1).remainingCopperCount()
-                                    + " regiões de cobre não foram isoladas por nenhuma ferramenta selecionada.");
+                            appendConsole(I18n.text("ui.3e9a08c5414d") + results.get(results.size() - 1).remainingCopperCount()
+                                    + I18n.text("ui.3ef28654ec33"));
                         }
                         if (lastGenerated != null) {
                             finishCamPanel(before, lastGenerated);
                         }
-                        setStatus("Geometry de isolamento concluída.", IDLE_COLOR);
+                        setStatus(I18n.text("ui.eb989299965a"), IDLE_COLOR);
                     }
                     updateProgress(1);
                     onJobFinished();
@@ -7193,7 +7171,7 @@ final class MainWindow implements TclFlatcamHost {
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (runningJob != handle) return;
-                        reportJobError(error, "Falha ao gerar Geometry de isolamento: ");
+                        reportJobError(error, I18n.text("ui.cf9868d530ec"));
                         onJobFinished();
                     });
                     return null;
@@ -7226,7 +7204,7 @@ final class MainWindow implements TclFlatcamHost {
                 entry.strokeOnly(), entry.tools(), defaults, entry.machiningTarget()));
         geometryCncSettingsByItem.put(item, new GeometryCncSettings(GCodePreprocessor.FX_PORTABLE, null, tips, parameters,
                 org.flatcam.cam.geometry.ToolProfile.C1, jobDefaults));
-        appendConsole("Parâmetros de corte/V-Tip e configurações comuns explícitas da DB preservados. Confira unidades e resolva conflitos no CNC; offset Path evita compensação dupla.");
+        appendConsole(I18n.text("ui.e0409cafeadb"));
     }
 
     private void generateCutout(TreeItem<String> item, GerberImage image) {
@@ -7240,7 +7218,7 @@ final class MainWindow implements TclFlatcamHost {
     private void openCutoutTool(TreeItem<String> item, String units, Geometry source,
                                 BooleanSupplier sourceAvailable) {
         if (source == null || source.isEmpty() || source.getDimension() != 2) {
-            appendConsole("Cutout exige um Gerber ou Geometry preenchida como origem.");
+            appendConsole(I18n.text("ui.db1f6976be38"));
             return;
         }
         var gaps = new CutoutGapPlacementController(plotAreaView, jobExecutor, units, source, sourceAvailable);
@@ -7252,7 +7230,7 @@ final class MainWindow implements TclFlatcamHost {
                 () -> toolsDatabaseTools(LegacyToolsDatabase::cutoutTools),
                 gaps::begin,
                 result -> {
-                    if (gaps.isBusy()) throw new IllegalArgumentException("Aguarde o cálculo da ponte antes de gerar ou conclua com Esc para cancelar o cálculo pendente.");
+                    if (gaps.isBusy()) throw new IllegalArgumentException(I18n.text("ui.f296966a67c9"));
                     gaps.cancel();
                     runCutoutGeneration(item, units, source, sourceAvailable, result);
                 }, () -> {
@@ -7269,14 +7247,14 @@ final class MainWindow implements TclFlatcamHost {
                                      BooleanSupplier sourceAvailable, CutoutToolPanel.Result result) {
         CamGenerationState before;
         try {
-            if (!sourceAvailable.getAsBoolean()) throw new IllegalStateException("Origem alterada; reabra Cutout.");
+            if (!sourceAvailable.getAsBoolean()) throw new IllegalStateException(I18n.text("ui.1170a4131948"));
             before = captureCamGeneration(item, source, null, null);
         } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
-        beginJob("Gerando Geometry de cutout...");
+        beginJob(I18n.text("ui.118d77f1ef2a"));
         activeCamGeneration = before;
         JobHandle<CutoutJobOutcome> handle = jobExecutor.submit(context -> {
-            context.reportProgress(0.05, "Calculando caminhos de cutout...");
+            context.reportProgress(0.05, I18n.text("ui.e4eb5e7c7a1b"));
             CutoutResult cutout = CutoutGenerator.generate(
                     units, source, result.cutoutParams(),
                     result.manualGapAreas(), context::isCancelled);
@@ -7286,7 +7264,7 @@ final class MainWindow implements TclFlatcamHost {
                             result.manualGapAreas(), context::isCancelled)
                     : null;
             context.checkCancelled();
-            context.reportProgress(0.95, "Preparando Geometry de cutout...");
+            context.reportProgress(0.95, I18n.text("ui.381985c81e88"));
             return new CutoutJobOutcome(cutout, mouseBites);
         }, camProgress(before));
         runningJob = handle;
@@ -7296,13 +7274,13 @@ final class MainWindow implements TclFlatcamHost {
                     if (!acceptCamGeneration(before, handle)) return;
                     CutoutResult cutout = outcome.cutout();
                     if (!sourceAvailable.getAsBoolean()) {
-                        appendConsole("A origem foi removida ou alterada; Geometry de cutout descartada.");
-                        setStatus("Origem removida.", ERROR_COLOR);
+                        appendConsole(I18n.text("ui.b84c886cb4a7"));
+                        setStatus(I18n.text("ui.a81cddec6216"), ERROR_COLOR);
                     } else if (cutout.isEmpty()) {
-                        appendConsole("Cutout não gerou nenhum caminho (geometria de cobre vazia?).");
-                        setStatus("Sem caminhos.", ERROR_COLOR);
+                        appendConsole(I18n.text("ui.ee3e020dba15"));
+                        setStatus(I18n.text("ui.712cdeb8cbda"), ERROR_COLOR);
                     } else {
-                        appendConsole(String.format("Cutout: %d caminhos, comprimento total=%.4f, bounds=%s",
+                        appendConsole(String.format(I18n.text("ui.16e9baccfea1"),
                                 cutout.partCount(), cutout.totalLength(), Arrays.toString(cutout.bounds())));
                         String name = uniqueDerivedName(item.getValue() + "_cutout");
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
@@ -7311,7 +7289,7 @@ final class MainWindow implements TclFlatcamHost {
                         preserveSingleJobDefaults(generated, result.jobDefaults());
                         if (result.gapType() == CutoutToolPanel.GapType.THIN) {
                             if (cutout.gapGeometry().isEmpty()) {
-                                appendConsole("Thin: nenhuma ponte restante para usinagem rasa.");
+                                appendConsole(I18n.text("ui.5720b3bde76b"));
                             } else {
                                 String thinName = uniqueDerivedName(item.getValue() + "_cutout_thin");
                                 TreeItem<String> thinItem = addGeometryToProject(thinName, item.getValue(), units,
@@ -7319,20 +7297,20 @@ final class MainWindow implements TclFlatcamHost {
                                         List.of(new ToolGeometry(result.cutoutParams().toolDiameter(),
                                                 cutout.gapGeometry(), result.profile())), result.thinMachining());
                                 preserveSingleJobDefaults(thinItem, result.jobDefaults());
-                                appendConsole("Thin criou Geometry para as pontes: " + thinName
-                                        + ". Thin Depth preservado; revise e gere seu CNC Job separado.");
+                                appendConsole(I18n.text("ui.7a0e492eef1d") + thinName
+                                        + I18n.text("ui.d5a9a8ecb5a8"));
                             }
                         }
                         if (outcome.mouseBites() != null && !outcome.mouseBites().isEmpty()) {
                             String biteName = uniqueDerivedName(item.getValue() + "_mouse_bites");
                             addExcellonToProject(biteName, null, outcome.mouseBites());
-                            appendConsole("M-Bites criou Excellon com " + outcome.mouseBites().totalDrills()
-                                    + " furos: " + biteName);
+                            appendConsole(I18n.text("ui.4823e3300c8b") + outcome.mouseBites().totalDrills()
+                                    + I18n.text("ui.e381fe53f8ca") + biteName);
                         }
-                        appendConsole("Geometry de cutout criada: " + name
-                                + ". Gere o CNC Job pela Geometry após revisar os caminhos.");
+                        appendConsole(I18n.text("ui.37c122337b49") + name
+                                + I18n.text("ui.d6624cdc5528"));
                         finishCamPanel(before, generated);
-                        setStatus("Geometry de cutout concluída.", IDLE_COLOR);
+                        setStatus(I18n.text("ui.22dda4595045"), IDLE_COLOR);
                     }
                     updateProgress(1);
                     onJobFinished();
@@ -7340,7 +7318,7 @@ final class MainWindow implements TclFlatcamHost {
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (runningJob != handle) return;
-                        reportJobError(error, "Falha ao gerar Geometry de cutout: ");
+                        reportJobError(error, I18n.text("ui.09cc9fd6693a"));
                         onJobFinished();
                     });
                     return null;
@@ -7363,7 +7341,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void openNccTool(TreeItem<String> item, String units, Geometry source) {
         if (source == null || source.isEmpty() || source.getDimension() != 2) {
-            appendConsole("NCC exige um Gerber ou Geometry preenchida como origem.");
+            appendConsole(I18n.text("ui.b58a53fe6493"));
             return;
         }
         List<NccToolPanel.SourceCandidate> sourceCandidates = new ArrayList<>();
@@ -7384,7 +7362,7 @@ final class MainWindow implements TclFlatcamHost {
         NccToolPanel.SourceCandidate initialSource = sourceCandidates.stream()
                 .filter(candidate -> candidate.item() == item).findFirst().orElse(null);
         if (initialSource == null) {
-            appendConsole("NCC: a origem selecionada não está disponível.");
+            appendConsole(I18n.text("ui.c44273b5a3e7"));
             return;
         }
         List<NccToolPanel.ReferenceCandidate> referenceCandidates = new ArrayList<>();
@@ -7433,7 +7411,7 @@ final class MainWindow implements TclFlatcamHost {
                         ring.remove(ring.size() - 1);
                     }
                     if (ring.size() < 3) {
-                        appendConsole("NCC: o polígono precisa de pelo menos três vértices distintos.");
+                        appendConsole(I18n.text("ui.92a62cacb47a"));
                         onCancelled.run();
                         return;
                     }
@@ -7441,11 +7419,11 @@ final class MainWindow implements TclFlatcamHost {
                     try {
                         Geometry area = source.getFactory().createPolygon(ring.toArray(new Coordinate[0]));
                         if (!area.isValid() || area.getArea() <= 0) {
-                            throw new IllegalArgumentException("polígono sem área valida");
+                            throw new IllegalArgumentException(I18n.text("ui.6a1377c2a0aa"));
                         }
                         onSelected.accept(area);
                     } catch (RuntimeException error) {
-                        appendConsole("NCC: seleção poligonal inválida: " + error.getMessage());
+                        appendConsole(I18n.text("ui.9d72af057bc5") + error.getMessage());
                         onCancelled.run();
                     }
                 }
@@ -7486,7 +7464,7 @@ final class MainWindow implements TclFlatcamHost {
         CamGenerationState before;
         try {
             if (gerberSource != gerberByItem.containsKey(item))
-                throw new IllegalStateException("Tipo da origem alterado; reabra NCC.");
+                throw new IllegalStateException(I18n.text("ui.594d9869fd6d"));
             var reference = panelResult.reference();
             Geometry referenceGeometry = panelResult.parameters().boundary() instanceof NccBoundary.ReferenceGerber area
                     ? area.geometry() : panelResult.parameters().boundary() instanceof NccBoundary.ReferenceGeometry area
@@ -7495,7 +7473,7 @@ final class MainWindow implements TclFlatcamHost {
         } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
         NccParameters params = panelResult.parameters();
-        beginJob("Gerando Non-Copper Clearing...");
+        beginJob(I18n.text("ui.6aba42688d88"));
         activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
             OptionalDouble minClearance = gerberSource && panelResult.checkValidity()
@@ -7503,7 +7481,7 @@ final class MainWindow implements TclFlatcamHost {
                     : OptionalDouble.empty();
             NccResult result = NccGenerator.generate(units, source, params,
                     context::isCancelled,
-                    fraction -> context.reportProgress(fraction, "Gerando Non-Copper Clearing..."));
+                    fraction -> context.reportProgress(fraction, I18n.text("ui.6aba42688d88")));
             context.checkCancelled();
             var ordered = result.toolResults().stream().filter(tool -> !tool.isEmpty())
                     .map(tool -> new ToolGeometry(tool.toolDiameter(), tool.geometry())).toList();
@@ -7522,8 +7500,8 @@ final class MainWindow implements TclFlatcamHost {
                 .thenAccept(outcome -> Platform.runLater(() -> {
                     if (!acceptCamGeneration(before, handle)) return;
                     if (gerberSource ? !gerberByItem.containsKey(item) : !geometryByItem.containsKey(item)) {
-                        appendConsole("A origem do NCC foi removida; resultado descartado.");
-                        setStatus("Origem removida.", ERROR_COLOR);
+                        appendConsole(I18n.text("ui.397db2003da2"));
+                        setStatus(I18n.text("ui.a81cddec6216"), ERROR_COLOR);
                         onJobFinished();
                         return;
                     }
@@ -7533,23 +7511,22 @@ final class MainWindow implements TclFlatcamHost {
                                 params.isolationToolDiameters().stream()).anyMatch(d -> d <= minClearance);
                         appendConsole(String.format(java.util.Locale.ROOT,
                                 anySuitable
-                                        ? "Verificação de validade: ao menos uma ferramenta consegue fazer isolamento completo (distância mínima de cobre = %.4f)."
-                                        : "Verificação de validade: nenhuma ferramenta selecionada consegue fazer isolamento completo (distância mínima de cobre = %.4f).",
+                                        ? I18n.text("ui.0bc88807eb14")
+                                        : I18n.text("ui.180ecdcc9672"),
                                 minClearance));
                     });
                     for (var toolResult : result.toolResults()) {
                         if (toolResult.operation() == NccOperation.ISO && toolResult.isEmpty()) {
-                            appendConsole("NCC: a ferramenta ISO de diâmetro " + toolResult.toolDiameter()
-                                    + " não gerou contorno dentro do limite selecionado.");
+                            appendConsole(I18n.text("ui.ca5836c6bd4e") + toolResult.toolDiameter()
+                                    + I18n.text("ui.71a41d97bc9f"));
                         }
                     }
                     if (params.isolationToolDiameters().stream().anyMatch(d -> d > params.margin())) {
-                        appendConsole("NCC: a margem e menor que o diâmetro de uma ferramenta ISO; "
-                                + "confira se os contornos não foram cortados pelo limite.");
+                        appendConsole(I18n.text("ui.f278fd2166e3"));
                     }
                     if (result.isEmpty()) {
-                        appendConsole("NCC não gerou caminhos. A ferramenta pode ser grande demais para a área livre.");
-                        setStatus("Sem caminhos.", ERROR_COLOR);
+                        appendConsole(I18n.text("ui.f0f8f91651f8"));
+                        setStatus(I18n.text("ui.712cdeb8cbda"), ERROR_COLOR);
                     } else {
                         String name = uniqueDerivedName(item.getValue() + "_ncc");
                         List<ToolGeometry> tools = result.toolResults().stream()
@@ -7565,11 +7542,11 @@ final class MainWindow implements TclFlatcamHost {
                         geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), created.geometry(),
                                 created.strokeOnly(), created.tools(), created.cncDefaults(), outcome.target()));
                         appendConsole(String.format(
-                                "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
+                                I18n.text("ui.cb92cd552a9f"),
                                 result.pathCount(), result.totalLength(), result.toolResults().size(),
                                 result.totalFailedPolygonCount(), Arrays.toString(result.bounds())));
                         finishCamPanel(before, generated);
-                        setStatus("Concluido.", IDLE_COLOR);
+                        setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     }
                     updateProgress(1);
                     onJobFinished();
@@ -7577,7 +7554,7 @@ final class MainWindow implements TclFlatcamHost {
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (runningJob != handle) return;
-                        reportJobError(error, "Falha ao gerar Non-Copper Clearing: ");
+                        reportJobError(error, I18n.text("ui.e20b661a7e7c"));
                         onJobFinished();
                     });
                     return null;
@@ -7608,7 +7585,7 @@ final class MainWindow implements TclFlatcamHost {
     private void runGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
                                           GeometryCncToolPanel.Result result) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
 
@@ -7617,8 +7594,8 @@ final class MainWindow implements TclFlatcamHost {
                         ? null : () -> showCncCoverage(item, entry, result))) return;
 
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar G-code de Geometry");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Programa " + result.preprocessor().label(),
+        chooser.setTitle(I18n.text("ui.34806b17f23b"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.abef442239ce") + I18n.caption(result.preprocessor().label()),
                 result.preprocessor().filePatterns()));
         chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cnc" + result.preprocessor().fileExtension());
         String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
@@ -7643,7 +7620,7 @@ final class MainWindow implements TclFlatcamHost {
         var decision = new CncReviewDialog(scene.getWindow(), currentTheme, report, coverage != null).showAndWait().orElse(null);
         if (decision == null) return false;
         if (epoch != tclProjectEpoch || panel != toolTab.getContent() || runningJob != null) {
-            appendConsole("Projeto/painel alterado durante a revisão CNC. Revise novamente os parâmetros.");
+            appendConsole(I18n.text("ui.b052bb65b800"));
             return false;
         }
         if (decision.edit() != null) {
@@ -7651,7 +7628,7 @@ final class MainWindow implements TclFlatcamHost {
             setSidebarVisible(true); leftTabs.getSelectionModel().select(toolTab);
             Platform.runLater(() -> {
                 if (panel == toolTab.getContent() && !CncReviewNavigation.focus(panel, decision.edit()))
-                    appendConsole("Campo indisponível neste perfil: " + decision.edit().field());
+                    appendConsole(I18n.text("ui.d6b8d9c51a8e") + decision.edit().field());
             });
         }
         return decision.proceed() && report.canContinue();
@@ -7659,21 +7636,21 @@ final class MainWindow implements TclFlatcamHost {
 
     private void showCncCoverage(TreeItem<String> item, GeometryEntry entry, GeometryCncToolPanel.Result draft) {
         if (entry.machiningTarget() == null || geometryByItem.get(item) != entry || runningJob != null)
-            throw new IllegalStateException("Origem/área-alvo mudou; reabra o CNC.");
+            throw new IllegalStateException(I18n.text("ui.9e02c0636f5d"));
         if (draft.preprocessor().isLaser() || draft.preprocessor().isPlotter() || draft.preprocessor().requiresProbe())
-            throw new IllegalArgumentException("Cobertura CAM exige perfil de fresagem sem sondagem.");
+            throw new IllegalArgumentException(I18n.text("ui.35a7f2b8cfd7"));
         var owned = new java.util.concurrent.atomic.AtomicReference<JobHandle<?>>();
         var panel = new CncCoveragePanel(item.getValue(), entry.units(), draft.tools(), plotAreaView::setCoverageResidual,
                 () -> {
                     if (geometryByItem.get(item) == entry) generateGeometryCncJob(item, entry, draft);
-                    else { appendConsole("Origem alterada: reabra o CNC para revisar."); closeToolPanel(); }
+                    else { appendConsole(I18n.text("ui.c2179dabf8e0")); closeToolPanel(); }
                 }, () -> { var handle = owned.get(); if (handle != null) handle.cancel(); });
-        openToolPanel("Cobertura "+entry.machiningTarget().operation(), panel);
+        openToolPanel(I18n.text("ui.0a2d821cb334")+entry.machiningTarget().operation(), panel);
         var before = captureCamGeneration(item, entry.geometry(), null, null);
-        beginJob("Calculando resíduos nominais NCC..."); activeCamGeneration = before;
+        beginJob(I18n.text("ui.e2b90d554a97")); activeCamGeneration = before;
         var handle = jobExecutor.submit(context -> org.flatcam.cam.gcode.MachiningCoverage.calculate(entry.machiningTarget(),
                 entry.units(), draft.tools(), draft.parameters(), draft.parametersByTool(), context::isCancelled,
-                fraction -> context.reportProgress(fraction, "Calculando resíduos nominais por fresa...")), camProgress(before));
+                fraction -> context.reportProgress(fraction, I18n.text("ui.92eeeaa49996"))), camProgress(before));
         owned.set(handle); runningJob = handle;
         activeToolCleanup = () -> { handle.cancel(); clearToolOverlays(); };
         handle.completion().thenAccept(value -> Platform.runLater(() -> {
@@ -7681,16 +7658,16 @@ final class MainWindow implements TclFlatcamHost {
             if (toolTab.getContent() != before.panel()) { onJobFinished(); return; }
             try {
                 if (acceptCamGeneration(before, handle) && toolTab.getContent() == before.panel()) {
-                    panel.complete(value); setStatus("Cobertura nominal calculada.", IDLE_COLOR);
-                } else panel.failed("Origem/painel alterado; análise descartada. Reabra o CNC.");
-            } catch (CancellationException cancelled) { panel.failed("Cálculo cancelado. Parâmetros preservados."); }
+                    panel.complete(value); setStatus(I18n.text("ui.6839c6faa51a"), IDLE_COLOR);
+                } else panel.failed(I18n.text("ui.52cf908bfb62"));
+            } catch (CancellationException cancelled) { panel.failed(I18n.text("ui.e1999244252c")); }
             finally { if (runningJob == handle) onJobFinished(); }
         })).exceptionally(error -> {
             Platform.runLater(() -> {
                 if (runningJob != handle) return;
-                if (toolTab.getContent() == before.panel()) panel.failed(isCancellation(error) ? "Cálculo cancelado. Parâmetros preservados."
-                        : "Não foi possível avaliar a cobertura: " + (error.getCause() == null ? error.getMessage() : error.getCause().getMessage()));
-                reportJobError(error, "Análise de cobertura: "); onJobFinished();
+                if (toolTab.getContent() == before.panel()) panel.failed(isCancellation(error) ? I18n.text("ui.e1999244252c")
+                        : I18n.text("ui.641b33a381cd") + (error.getCause() == null ? error.getMessage() : error.getCause().getMessage()));
+                reportJobError(error, I18n.text("ui.3ffe8b4e4541")); onJobFinished();
             }); return null;
         });
     }
@@ -7704,17 +7681,17 @@ final class MainWindow implements TclFlatcamHost {
     private void startGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
                                             GeometryCncToolPanel.Result result, Path output) {
         CamGenerationState before = captureCamGeneration(item, entry.geometry(), null, null);
-        if (geometryByItem.get(item) != entry) throw new IllegalStateException("Geometry alterada; reabra a ferramenta.");
+        if (geometryByItem.get(item) != entry) throw new IllegalStateException(I18n.text("ui.d427bbb9ab55"));
         GeometryCncSettings savedSettings = geometryCncSettingsByItem.get(item);
         Runnable validate = () -> {
             if (tclProjectEpoch != before.epoch() || geometryByItem.get(item) != entry
                     || !before.inputs().getFirst().name().equals(item.getValue())
                     || !Objects.equals(savedSettings, geometryCncSettingsByItem.get(item)) || camEditorActive())
-                throw new IllegalStateException("Geometry/projeto/parâmetros/editor mudou; resultado descartado.");
+                throw new IllegalStateException(I18n.text("ui.00b1758ad34c"));
         };
         validate.run();
         String sourceName = item.getValue();
-        beginJob("Gerando CNC Job de Geometry...");
+        beginJob(I18n.text("ui.abecd4197ad1"));
         activeCamGeneration = before;
         JobHandle<GeometryCncGeneration.Generated> handle = jobExecutor.submit(context -> TclExecution.run(context,
                 () -> GeometryCncGeneration.generate(entry.units(), result.tools(), result.parameters(), result.vTools(),
@@ -7735,8 +7712,8 @@ final class MainWindow implements TclFlatcamHost {
                                 entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
                                 result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
                         AppPreferences.saveLastCamDirectory(output.toAbsolutePath().getParent().toString());
-                        appendConsole("G-code de Geometry salvo em " + output
-                                + " (" + job.gcode().lines().count() + " linhas).");
+                        appendConsole(I18n.text("ui.d81048624959") + output
+                                + " (" + job.gcode().lines().count() + I18n.text("ui.d1862403f7c1"));
                         GCodeToolpathParser.Result preview = generated.preview();
                         if (preview != null && preview.warning() != null)
                             appendConsole(output.getFileName() + ": " + preview.warning());
@@ -7755,14 +7732,14 @@ final class MainWindow implements TclFlatcamHost {
                             closeToolPanel();
                         }
                         updateProgress(1);
-                        setStatus("Concluido.", IDLE_COLOR);
-                    } catch (RuntimeException failure) { reportJobError(failure, "Falha ao publicar Geometry CNC: "); }
+                        setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
+                    } catch (RuntimeException failure) { reportJobError(failure, I18n.text("ui.a5ec074cf002")); }
                     finally { onJobFinished(); }
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (runningJob != handle) return;
-                        reportJobError(error, "Falha ao gerar/salvar CNC Job de Geometry: ");
+                        reportJobError(error, I18n.text("ui.81ef77c5da86"));
                         onJobFinished();
                     });
                     return null;
@@ -7771,19 +7748,19 @@ final class MainWindow implements TclFlatcamHost {
 
     private void removeFromProject(TreeItem<String> item, Map<TreeItem<String>, ?> byItem) {
         if (geometryEditor.isEditing(item) && geometryEditor.isBusy()) {
-            appendConsole("Aguarde ou cancele a operação Geometry antes de remover este objeto.");
+            appendConsole(I18n.text("ui.30c1ee6293f7"));
             return;
         }
         if (gcodeEditor.isEditing(item) && gcodeEditor.hasUnappliedChanges()) {
-            appendConsole("Aplique ou cancele a edição de G-code antes de remover este CNC Job.");
+            appendConsole(I18n.text("ui.e5b6dd53f80b"));
             return;
         }
         if (geometryEditor.isEditing(item) && geometryEditor.hasUnappliedChanges()) {
-            appendConsole("Aplique ou cancele a edição de Geometry antes de remover este objeto.");
+            appendConsole(I18n.text("ui.a8b38c6cf6d2"));
             return;
         }
         if (excellonEditor.isEditing(item) && excellonEditor.hasUnappliedChanges()) {
-            appendConsole("Aplique ou cancele a edição de Excellon antes de remover este objeto.");
+            appendConsole(I18n.text("ui.bc0bc8c6a6cb"));
             return;
         }
         plotMoveHistory.clear();
@@ -7809,7 +7786,7 @@ final class MainWindow implements TclFlatcamHost {
         cncArrowsOff.remove(item);
         cncPlotSettings.remove(item);
         refreshPlotSelectionOutline();
-        appendConsole("Removido do projeto: " + item.getValue());
+        appendConsole(I18n.text("ui.7a3b7f7244b1") + item.getValue());
     }
 
     /**
@@ -7857,13 +7834,13 @@ final class MainWindow implements TclFlatcamHost {
     private Node buildGerberPropertiesPanel(TreeItem<String> item, GerberImage image) {
         VBox box = objectPropertiesHeader("Gerber Object", GERBER_FILL, "flatcam_icon32.png");
 
-        CheckBox solidCb = new CheckBox("Sólido");
+        CheckBox solidCb = new CheckBox(I18n.text("ui.40ca66a274a1"));
         solidCb.setSelected(plotAreaView.isLayerFilled(item));
         solidCb.setOnAction(e -> plotAreaView.setLayerFilled(item, solidCb.isSelected()));
-        CheckBox multicolorCb = new CheckBox("Multicor");
+        CheckBox multicolorCb = new CheckBox(I18n.text("ui.1cb879e1057d"));
         multicolorCb.setSelected(plotAreaView.isLayerMulticolor(item));
         multicolorCb.setOnAction(e -> plotAreaView.setLayerMulticolor(item, multicolorCb.isSelected()));
-        box.getChildren().add(labeledRow("Visualização:", solidCb, multicolorCb));
+        box.getChildren().add(labeledRow(I18n.text("ui.24bf083c7f90"), solidCb, multicolorCb));
 
         box.getChildren().add(nameRow(item));
 
@@ -7872,7 +7849,7 @@ final class MainWindow implements TclFlatcamHost {
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         CheckBox followCb = new CheckBox("Follow");
-        followCb.setTooltip(new Tooltip("Exibe a linha central das trilhas Gerber."));
+        followCb.setTooltip(new Tooltip(I18n.text("ui.c0705881d87d")));
         followCb.setSelected(gerberFollowItems.contains(item));
         followCb.setOnAction(e -> {
             setGerberFollow(item, image, followCb.isSelected());
@@ -7904,14 +7881,14 @@ final class MainWindow implements TclFlatcamHost {
         TitledPane apertures = new TitledPane("Apertures Table", buildAperturesTableSection(item, image));
         apertures.setId("gerber-apertures-pane");
         apertures.setExpanded(ToolDefaults.flag("display.gerber.aperturetable"));
-        ToolDescriptions.apply(apertures, "Mostrar/ocultar aberturas", "Expanda para consultar e marcar aberturas; recolha para liberar espaço no painel. Não modifica o Gerber. O estado inicial vem de Preferências > Gerber > Avançadas.");
+        ToolDescriptions.apply(apertures, I18n.text("ui.77288c427fa7"), I18n.text("ui.4f01d857e180"));
         box.getChildren().add(apertures);
 
-        box.getChildren().add(new Label("Transformações:"));
+        box.getChildren().add(new Label(I18n.text("ui.ff15712ed443")));
         box.getChildren().add(transformationsSection(item));
 
         box.getChildren().add(propertiesSection(String.format(
-                "Unidades: %s%nAperturas: %d%nArea total: %.4f%nBounds: %s",
+                I18n.text("ui.84957fe534de"),
                 image.units(), image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())
         )));
         return box;
@@ -7922,27 +7899,27 @@ final class MainWindow implements TclFlatcamHost {
         VBox content = new VBox(7);
         content.setPadding(new Insets(8));
 
-        Button followButton = new Button("Gerar Geometry Follow");
+        Button followButton = new Button(I18n.text("ui.510485b4ef3e"));
         followButton.setGraphic(legacyIcon("geometry32.png", 16));
         followButton.setMaxWidth(Double.MAX_VALUE);
         followButton.setOnAction(e -> addDerivedGeometry(item, image, "_follow", image.followGeometry(), true));
 
-        Label nonCopperLabel = new Label("Regiões sem cobre");
+        Label nonCopperLabel = new Label(I18n.text("ui.7033045b83cc"));
         nonCopperLabel.setStyle("-fx-font-weight: bold;");
         TextField nonCopperMargin = marginField();
-        CheckBox nonCopperRounded = new CheckBox("Cantos arredondados");
-        Button nonCopperButton = new Button("Gerar Geometry");
-        ToolDescriptions.apply(nonCopperButton,"Gerar regiões sem cobre", "Cria uma Geometry com a área livre entre o cobre e a caixa delimitadora, usando Boundary Margin e Rounded. Não gera caminhos NCC nem G-code; a origem é preservada.\n\nUnidades: unidade do Gerber (mm ou in).");
+        CheckBox nonCopperRounded = new CheckBox(I18n.text("ui.6851e7e583e8"));
+        Button nonCopperButton = new Button(I18n.text("ui.57e96635630c"));
+        ToolDescriptions.apply(nonCopperButton,I18n.text("ui.6d7b3965e71a"), I18n.text("ui.2d7f6178d48c"));
         nonCopperButton.setGraphic(legacyIcon("geometry32.png", 18));
         nonCopperButton.setOnAction(e -> generateGerberUtility(item, image, "_noncopper",
                 nonCopperMargin, nonCopperRounded.isSelected(), true));
 
-        Label bboxLabel = new Label("Caixa delimitadora");
+        Label bboxLabel = new Label(I18n.text("ui.2aaecdfdfac4"));
         bboxLabel.setStyle("-fx-font-weight: bold;");
         TextField bboxMargin = marginField();
-        CheckBox bboxRounded = new CheckBox("Cantos arredondados");
-        Button bboxButton = new Button("Gerar Geometry");
-        ToolDescriptions.apply(bboxButton,"Gerar caixa delimitadora", "Cria uma Geometry da caixa que envolve o Gerber, com Boundary Margin e cantos Rounded quando marcados. Não gera automaticamente recorte, pontes ou G-code; a origem é preservada.\n\nUnidades: unidade do Gerber (mm ou in).");
+        CheckBox bboxRounded = new CheckBox(I18n.text("ui.6851e7e583e8"));
+        Button bboxButton = new Button(I18n.text("ui.57e96635630c"));
+        ToolDescriptions.apply(bboxButton,I18n.text("ui.1d65802d2957"), I18n.text("ui.bfb4fa3f1bdd"));
         bboxButton.setGraphic(legacyIcon("geometry32.png", 18));
         bboxButton.setOnAction(e -> generateGerberUtility(item, image, "_bbox",
                 bboxMargin, bboxRounded.isSelected(), false));
@@ -7951,7 +7928,7 @@ final class MainWindow implements TclFlatcamHost {
                 labeledRow("Boundary Margin:", nonCopperMargin),
                 labeledRow("", nonCopperRounded, nonCopperButton), new Separator(), bboxLabel,
                 labeledRow("Boundary Margin:", bboxMargin), labeledRow("", bboxRounded, bboxButton));
-        TitledPane pane = new TitledPane("UTILITÁRIOS", content);
+        TitledPane pane = new TitledPane(I18n.text("ui.66fbad458b07"), content);
         pane.setGraphic(legacyIcon("settings18.png", 18));
         pane.setExpanded(false);
         return pane;
@@ -7972,24 +7949,24 @@ final class MainWindow implements TclFlatcamHost {
                     : GerberGeometryGenerator.boundingBox(image, margin, rounded);
             addDerivedGeometry(item, image, suffix, generated, false);
         } catch (RuntimeException ex) {
-            appendConsole("Falha ao gerar Geometry: " + ex.getMessage());
-            setStatus("Falhou.", ERROR_COLOR);
+            appendConsole(I18n.text("ui.4bf6a942bd12") + ex.getMessage());
+            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
         }
     }
 
     private void addDerivedGeometry(TreeItem<String> sourceItem, GerberImage image, String suffix,
                                     Geometry geometry, boolean strokeOnly) {
         if (geometry == null || geometry.isEmpty()) {
-            appendConsole("Geometry " + suffix + " ficou vazia.");
-            setStatus("Falhou.", ERROR_COLOR);
+            appendConsole("Geometry " + suffix + I18n.text("ui.49d1a6915ac4"));
+            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
             return;
         }
         String name = uniqueDerivedName(sourceItem.getValue() + suffix);
         TreeItem<String> generated = addGeometryToProject(name, sourceItem.getValue(), image.units(), geometry, strokeOnly);
-        appendConsole("Geometry gerada: " + name);
+        appendConsole(I18n.text("ui.2ba217335e67") + name);
         selectProjectItem(generated);
         plotAreaView.fitToLayer(generated);
-        setStatus("Concluido.", IDLE_COLOR);
+        setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
     }
 
     private String uniqueDerivedName(String base) {
@@ -8039,13 +8016,13 @@ final class MainWindow implements TclFlatcamHost {
     private Node buildExcellonPropertiesPanel(TreeItem<String> item, ExcellonImage image) {
         VBox box = objectPropertiesHeader("Excellon Object", DRILL_FILL, "drill32.png");
 
-        CheckBox solidCb = new CheckBox("Sólido");
+        CheckBox solidCb = new CheckBox(I18n.text("ui.40ca66a274a1"));
         solidCb.setSelected(plotAreaView.isLayerFilled(item));
         solidCb.setOnAction(e -> plotAreaView.setLayerFilled(item, solidCb.isSelected()));
-        CheckBox multicolorCb = new CheckBox("Multicor");
+        CheckBox multicolorCb = new CheckBox(I18n.text("ui.1cb879e1057d"));
         multicolorCb.setSelected(plotAreaView.isLayerMulticolor(item));
         multicolorCb.setOnAction(e -> plotAreaView.setLayerMulticolor(item, multicolorCb.isSelected()));
-        box.getChildren().add(labeledRow("Visualização:", solidCb, multicolorCb));
+        box.getChildren().add(labeledRow(I18n.text("ui.24bf083c7f90"), solidCb, multicolorCb));
 
         box.getChildren().add(nameRow(item));
 
@@ -8059,16 +8036,16 @@ final class MainWindow implements TclFlatcamHost {
         box.getChildren().add(editButton);
 
         box.getChildren().add(propertiesSection(String.format(
-                "Unidades: %s%nFuros totais: %d%nSlots totais: %d%nBounds: %s",
+                I18n.text("ui.96f3610043b2"),
                 image.units(), image.totalDrills(), image.totalSlots(), Arrays.toString(image.bounds())
         )));
 
         CheckBox plotCb = new CheckBox("Plot");
         plotCb.setId("object-plot");
         plotCb.setSelected(plotAreaView.isLayerVisible(item));
-        plotCb.setTooltip(new Tooltip("Exibe ou oculta este objeto Excellon no desenho."));
+        plotCb.setTooltip(new Tooltip(I18n.text("ui.bfcaabfdbb64")));
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
-        Label tableLabel = new Label("Ferramentas");
+        Label tableLabel = new Label(I18n.text("ui.b96a67bfde3e"));
         tableLabel.setStyle("-fx-font-weight: bold;");
         Region tableHeaderSpacer = new Region();
         HBox.setHgrow(tableHeaderSpacer, Priority.ALWAYS);
@@ -8078,7 +8055,7 @@ final class MainWindow implements TclFlatcamHost {
         box.getChildren().add(ExcellonObjectToolsTable.build(image));
 
         box.getChildren().add(new Separator());
-        Label toolsLabel = new Label("FERRAMENTAS");
+        Label toolsLabel = new Label(I18n.text("ui.429e6b85ecff"));
         toolsLabel.setStyle("-fx-font-weight: bold;");
         box.getChildren().add(toolsLabel);
 
@@ -8092,22 +8069,22 @@ final class MainWindow implements TclFlatcamHost {
         Button millingButton = new Button("Milling Tool");
         millingButton.setGraphic(legacyIcon("milling_tool32.png", 18));
         millingButton.setMaxWidth(Double.MAX_VALUE);
-        millingButton.setTooltip(new Tooltip("Cria Geometry editável para fresar furos ou slots selecionados."));
+        millingButton.setTooltip(new Tooltip(I18n.text("ui.0bcad6293908")));
         millingButton.setOnAction(e -> generateExcellonMilling(item, image));
         box.getChildren().add(millingButton);
 
         VBox utilitiesContent = new VBox(8);
         utilitiesContent.setPadding(new Insets(8));
-        Label utilitiesNote = new Label("Mill Drills e Mill Slots estão no Milling Tool acima.");
+        Label utilitiesNote = new Label(I18n.text("ui.8e3eb6a1c297"));
         utilitiesNote.setWrapText(true);
         utilitiesContent.getChildren().add(utilitiesNote);
-        TitledPane utilities = new TitledPane("UTILITÁRIOS", utilitiesContent);
+        TitledPane utilities = new TitledPane(I18n.text("ui.66fbad458b07"), utilitiesContent);
         utilities.setGraphic(legacyIcon("settings18.png", 18));
         utilities.setExpanded(false);
         box.getChildren().add(new Separator());
         box.getChildren().add(utilities);
 
-        box.getChildren().add(new Label("Transformações"));
+        box.getChildren().add(new Label(I18n.text("ui.32788c0c09e0")));
         box.getChildren().add(transformationsSection(item));
         return box;
     }
@@ -8122,7 +8099,7 @@ final class MainWindow implements TclFlatcamHost {
         plotCb.setOnAction(e -> setObjectVisible(item, plotCb.isSelected()));
         box.getChildren().add(labeledRow("Plot:", plotCb));
 
-        Button cncButton = new Button("Gerar CNC Job");
+        Button cncButton = new Button(I18n.text("ui.3037c711edf6"));
         cncButton.getStyleClass().add("primary-action");
         cncButton.setGraphic(legacyIcon("cnc16.png", 16));
         cncButton.setMaxWidth(Double.MAX_VALUE);
@@ -8143,7 +8120,7 @@ final class MainWindow implements TclFlatcamHost {
             box.getChildren().add(cutoutButton);
         }
 
-        Button editButton = new Button("Editar Geometry");
+        Button editButton = new Button(I18n.text("ui.aa5faa2dd7cd"));
         editButton.setGraphic(legacyIcon("edit_file32.png", 16));
         editButton.setMaxWidth(Double.MAX_VALUE);
         editButton.setOnAction(e -> {
@@ -8152,16 +8129,16 @@ final class MainWindow implements TclFlatcamHost {
         });
         box.getChildren().add(editButton);
 
-        box.getChildren().add(new Label("Transformações:"));
+        box.getChildren().add(new Label(I18n.text("ui.ff15712ed443")));
         box.getChildren().add(transformationsSection(item));
 
         Envelope envelope = entry.geometry().getEnvelopeInternal();
         double[] bounds = entry.geometry().isEmpty() ? null
                 : new double[]{envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY()};
-        String toolText = entry.tools().isEmpty() ? "" : String.format("%nFerramentas: %s", entry.tools().stream()
+        String toolText = entry.tools().isEmpty() ? "" : String.format(I18n.text("ui.49e219c9bb85"), entry.tools().stream()
                 .map(tool -> String.format("%.4f", tool.toolDiameter())).collect(java.util.stream.Collectors.joining(", ")));
         box.getChildren().add(propertiesSection(String.format(
-                "Origem: %s%nUnidades: %s%s%nArea: %.4f%nComprimento: %.4f%nBounds: %s",
+                I18n.text("ui.3ed193e32442"),
                 entry.sourceName(), entry.units(), toolText, entry.geometry().getArea(), entry.geometry().getLength(),
                 Arrays.toString(bounds))));
         return box;
@@ -8215,7 +8192,7 @@ final class MainWindow implements TclFlatcamHost {
         GCodeToolpathParser.ToolpathStats stats = entry.stats();
         if (stats != null) {
             if (!stats.pathMarks().isEmpty()) {
-                CheckBox annotationCb = new CheckBox("Exibir anotações");
+                CheckBox annotationCb = new CheckBox(I18n.text("ui.81f9d4f73270"));
                 annotationCb.setSelected(!cncAnnotationsOff.contains(item));
                 annotationCb.setOnAction(e -> {
                     if (annotationCb.isSelected()) {
@@ -8229,31 +8206,31 @@ final class MainWindow implements TclFlatcamHost {
             }
             if (!stats.steps().isEmpty()) {
                 CncAnnotationKey routeKey = new CncAnnotationKey(item);
-                Button startWalk = new Button("Percorrer");
+                Button startWalk = new Button(I18n.text("ui.e446824a0596"));
                 startWalk.setOnAction(e -> plotAreaView.selectStep(routeKey, 0));
                 Button previousLeg = new Button("<");
                 previousLeg.setOnAction(e -> plotAreaView.stepBy(-1));
                 Button nextLeg = new Button(">");
                 nextLeg.setOnAction(e -> plotAreaView.stepBy(1));
-                Button clearLegs = new Button("Limpar");
+                Button clearLegs = new Button(I18n.text("ui.5585ca453806"));
                 clearLegs.setOnAction(e -> plotAreaView.clearStepSelection());
-                cncStepLabel = new Label(plotAreaView.hasStepSelection() ? "" : "ou clique num número ou linha do plot");
-                Button playWalk = new Button("Reproduzir");
+                cncStepLabel = new Label(plotAreaView.hasStepSelection() ? "" : I18n.text("ui.0dd81daf877c"));
+                Button playWalk = new Button(I18n.text("ui.13e746eb73b0"));
                 playWalk.setOnAction(e -> {
                     if (!plotAreaView.hasStepSelection()) {
                         plotAreaView.selectStep(routeKey, 0);
                     }
                     plotAreaView.toggleWalk();
                 });
-                Button exportSteps = new Button("Exportar CSV");
+                Button exportSteps = new Button(I18n.text("ui.2f7cd80aedf2"));
                 exportSteps.setOnAction(e -> exportCncSteps(item, stats));
                 HBox walkRow = new HBox(6, startWalk, previousLeg, nextLeg, clearLegs);
-                box.getChildren().add(labeledRow("Trajeto passo a passo:", walkRow));
-                box.getChildren().add(labeledRow("Reproducao / sequência:", new HBox(6, playWalk, exportSteps)));
+                box.getChildren().add(labeledRow(I18n.text("ui.a4e8eda16648"), walkRow));
+                box.getChildren().add(labeledRow(I18n.text("ui.fc0c25a4d29b"), new HBox(6, playWalk, exportSteps)));
                 box.getChildren().add(cncStepLabel);
             }
             if (!stats.cutArrows().isEmpty()) {
-                CheckBox arrowsCb = new CheckBox("Exibir sentido dos movimentos");
+                CheckBox arrowsCb = new CheckBox(I18n.text("ui.3e2f2885e9b1"));
                 arrowsCb.setSelected(!cncArrowsOff.contains(item));
                 arrowsCb.setOnAction(e -> {
                     if (arrowsCb.isSelected()) {
@@ -8271,7 +8248,7 @@ final class MainWindow implements TclFlatcamHost {
             box.getChildren().add(labeledRow("Estimated time:",
                     new Label(CncJobToolsTable.formatDuration(stats.estimatedMinutes()))));
             if (stats.hasTools()) {
-                Label toolsLabel = new Label("Ferramentas");
+                Label toolsLabel = new Label(I18n.text("ui.b96a67bfde3e"));
                 toolsLabel.setStyle("-fx-font-weight: bold;");
                 Set<Integer> hidden = hiddenCncTools.computeIfAbsent(item, ignored -> new LinkedHashSet<>());
                 box.getChildren().addAll(toolsLabel,
@@ -8279,13 +8256,13 @@ final class MainWindow implements TclFlatcamHost {
             }
         }
 
-        Button viewButton = new Button("Ver G-code");
+        Button viewButton = new Button(I18n.text("ui.13f6cd934186"));
         viewButton.setGraphic(legacyIcon("source32.png", 16));
         viewButton.getStyleClass().add("primary-action");
         viewButton.setMaxWidth(Double.MAX_VALUE);
         viewButton.setOnAction(e -> openAuxiliaryTab(item.getValue(), () -> buildGCodeViewer(entry.gcode())));
         box.getChildren().add(viewButton);
-        Button editButton = new Button("Editar G-code");
+        Button editButton = new Button(I18n.text("ui.fb1b561e4268"));
         editButton.setGraphic(legacyIcon("code_editor32.png", 16));
         editButton.setMaxWidth(Double.MAX_VALUE);
         editButton.setOnAction(e -> {
@@ -8294,7 +8271,7 @@ final class MainWindow implements TclFlatcamHost {
         });
         box.getChildren().add(editButton);
         box.getChildren().add(propertiesSection(String.format(
-                "Origem: %s%nArquivo: %s%nLinhas: %d",
+                I18n.text("ui.bee96f16e7df"),
                 entry.sourceName(), entry.outputFile(), entry.gcode().lines().count()
         )));
         return box;
@@ -8343,14 +8320,14 @@ final class MainWindow implements TclFlatcamHost {
                 commit.run();
             }
         });
-        return labeledRow("Nome:", nameField);
+        return labeledRow(I18n.text("ui.0939548aea0f"), nameField);
     }
 
     /** The legacy "PROPERTIES" toggle button + inline stats frame, done here as a collapsible section. */
     private TitledPane propertiesSection(String text) {
         Label label = new Label(text);
         label.setWrapText(true);
-        TitledPane pane = new TitledPane("PROPRIEDADES", label);
+        TitledPane pane = new TitledPane(I18n.text("ui.75d9ab4970bd"), label);
         pane.setGraphic(legacyIcon("properties32.png", 18));
         pane.setExpanded(false);
         return pane;
@@ -8389,24 +8366,26 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Python Help > Shortcuts List: a tab in the plot area, not a dialog. */
     void openShortcutList() {
-        openAuxiliaryTab("Lista de Atalhos", ShortcutListPanel::new);
+        openAuxiliaryTab(I18n.text("ui.627e2a1aede0"), ShortcutListPanel::new);
     }
 
     private void openPreferences() {
-        openAuxiliaryTab("Preferências", this::buildPreferencesPanel);
+        openAuxiliaryTab(I18n.text("ui.6706dbe8b723"), this::buildPreferencesPanel);
     }
 
     private Node buildPreferencesPanel() {
         return new PreferencesPane(new PreferencesPane.Host() {
+            @Override public UiLanguage language() { return AppPreferences.loadLanguage(); }
+            @Override public void applyLanguage(UiLanguage language) { AppPreferences.saveLanguage(language); }
             @Override public ThemeOption theme() { return currentTheme; }
             @Override public AppPreferences.PlotStatusSettings plotSettings() { return AppPreferences.loadPlotStatusSettings(); }
             @Override public void applyTheme(ThemeOption theme) {
                 MainWindow.this.applyTheme(theme);
-                setStatus("Tema salvo.", IDLE_COLOR);
+                setStatus(I18n.text("ui.fee07ce9a050"), IDLE_COLOR);
             }
             @Override public void applyPlot(AppPreferences.PlotStatusSettings settings) {
                 statusControls.applySettings(settings);
-                setStatus("Preferências do Plot salvas.", IDLE_COLOR);
+                setStatus(I18n.text("ui.9f3b50a880a5"), IDLE_COLOR);
             }
         }, icon -> legacyIcon(icon, 16));
     }
@@ -8414,26 +8393,26 @@ final class MainWindow implements TclFlatcamHost {
     /** File > Backup > Exportar preferencias: the tool defaults as an editable .properties file. */
     private void exportToolDefaults() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Exportar preferências das ferramentas");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Preferências", "*.properties"));
+        chooser.setTitle(I18n.text("ui.98bfb047f0e5"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.6706dbe8b723"), "*.properties"));
         chooser.setInitialFileName("flatcam-fx-ferramentas.properties");
         File file = chooser.showSaveDialog(scene.getWindow());
         if (file == null) {
             return;
         }
         try (var writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
-            ToolDefaults.export().store(writer, "FlatCAM FX - padrões das ferramentas (@mm / @in = unidades)");
-            appendConsole("Preferências das ferramentas exportadas para " + file.getName() + ".");
+            ToolDefaults.export().store(writer, I18n.text("ui.4ed900d1779e"));
+            appendConsole(I18n.text("ui.7ab289773660") + file.getName() + ".");
         } catch (IOException failed) {
-            appendConsole("Falha ao exportar preferências: " + failed.getMessage());
+            appendConsole(I18n.text("ui.d72e9f155e09") + failed.getMessage());
         }
     }
 
     /** File > Backup > Importar preferencias: applies an exported file; invalid or unknown entries are skipped. */
     private void importToolDefaults() {
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Importar preferências das ferramentas");
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Preferências", "*.properties"));
+        chooser.setTitle(I18n.text("ui.a06c5dc6459f"));
+        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.6706dbe8b723"), "*.properties"));
         File file = chooser.showOpenDialog(scene.getWindow());
         if (file == null) {
             return;
@@ -8442,12 +8421,12 @@ final class MainWindow implements TclFlatcamHost {
         try (var reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
             properties.load(reader);
         } catch (IOException | IllegalArgumentException failed) {
-            appendConsole("Falha ao importar preferências: " + failed.getMessage());
+            appendConsole(I18n.text("ui.e50535491cf3") + failed.getMessage());
             return;
         }
         int[] counts = ToolDefaults.importFrom(properties);
-        appendConsole("Preferências importadas de " + file.getName() + ": " + counts[0] + " aplicadas, " + counts[1]
-                + " ignoradas. Valem para os paineis abertos a partir de agora.");
+        appendConsole(I18n.text("ui.f5a58b86f503") + file.getName() + ": " + counts[0] + I18n.text("ui.5e823980bb1a") + counts[1]
+                + I18n.text("ui.0f5968221802"));
     }
 
     private void openToolsDatabase() {
@@ -8477,14 +8456,13 @@ final class MainWindow implements TclFlatcamHost {
         String filename = file.getFileName() == null ? "" : file.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
         boolean pythonFormat = filename.endsWith(".flatprj");
         if (!pythonFormat && !filename.endsWith(".fcnproj"))
-            throw new TclException("Use an explicit .fcnproj (FX) or .FlatPrj (Python) extension.");
+            throw new TclException(I18n.text("ui.e1d83df27e15"));
         TclProjectSave snapshot = TclExecution.onFx(() -> {
             requireProjectSaveAllowed();
-            if (pythonFormat) appendConsole("Exportação Python 8.994 pelo Terminal: compatibilidade limitada. "
-                    + "Mantenha também uma copia .fcnproj; preferências globais e recursos exclusivos FX não tem equivalência completa.");
+            if (pythonFormat) appendConsole(I18n.text("ui.5bcc8dd3e7fd"));
             return new TclProjectSave(snapshotProject(), captureTclProjectState());
         });
-        TclExecution.phase("Serializando projeto...");
+        TclExecution.phase(I18n.text("ui.bd089e425302"));
         Path destination = file.toAbsolutePath();
         // Existing serializers stage/rename internally. Stage their complete output again so a
         // Terminal cancellation or concurrent edit can be checked before touching the user's destination.
@@ -8492,7 +8470,7 @@ final class MainWindow implements TclFlatcamHost {
         try {
             if (pythonFormat) PythonProjectWriter.save(snapshot.project(), temporary);
             else ProjectFileIO.save(snapshot.project(), temporary);
-            TclExecution.phase("Publicando projeto...");
+            TclExecution.phase(I18n.text("ui.86c197286078"));
             TclExecution.onFx(() -> {
                 requireProjectSaveAllowed();
                 checkTclProjectState(snapshot.before());
@@ -8504,7 +8482,7 @@ final class MainWindow implements TclFlatcamHost {
             } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
                 Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
             }
-            TclExecution.progress("Projeto salvo.").report(1);
+            TclExecution.progress(I18n.text("ui.3a4737de1105")).report(1);
         } finally { Files.deleteIfExists(temporary); }
         // Mark only the serialized version, never a later UI edit; do not alter last-directory preferences.
         TclExecution.onFx(() -> { markProjectSaved(file,projectStateStamp(snapshot.before())); return null; });
@@ -8539,10 +8517,10 @@ final class MainWindow implements TclFlatcamHost {
                         kind != Kind.EXCELLON ? List.of() : requested.stream().map(name -> project.excellons().stream()
                         .filter(entry -> entry.name().equals(name)).findFirst().orElseThrow()).toList());
             });
-            TclExecution.phase("Juntando " + kind + "...");
+            TclExecution.phase(I18n.text("ui.338884089342") + kind + "...");
             var geometry = kind == Kind.GEOMETRY ? TclObjectJoin.geometry(snapshot.geometries()) : null;
             var excellon = kind == Kind.EXCELLON ? TclObjectJoin.excellon(snapshot.excellons()) : null;
-            TclExecution.phase("Publicando juncao...");
+            TclExecution.phase(I18n.text("ui.9952796cba83"));
             return TclExecution.onFx(() -> {
                 requireTclJoinAllowed(); checkTclProjectState(snapshot.before());
                 String actual = uniqueDerivedName(outname);
@@ -8570,13 +8548,13 @@ final class MainWindow implements TclFlatcamHost {
     private void requireTclJoinAllowed() {
         if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive() || gcodeEditor.isActive())
-            throw new IllegalStateException("Conclua a operação e feche os editores antes de juntar pelo Terminal.");
+            throw new IllegalStateException(I18n.text("ui.22dca3941697"));
     }
 
     private void requireProjectSaveAllowed() {
-        if (runningJob != null) throw new IllegalStateException("Já existe uma operação em andamento.");
+        if (runningJob != null) throw new IllegalStateException(I18n.text("ui.df12b110e3bb"));
         if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())
-            throw new IllegalStateException("Aplique ou cancele o editor antes de salvar o projeto.");
+            throw new IllegalStateException(I18n.text("ui.feb7dc841cb7"));
     }
 
     @Override
@@ -8589,7 +8567,7 @@ final class MainWindow implements TclFlatcamHost {
                 return item;
             }).distinct().toList();
             for (TreeItem<String> item : targets)
-                if (!isPlottable(item)) throw new IllegalArgumentException("CNC Job sem prévia compatível: " + item.getValue());
+                if (!isPlottable(item)) throw new IllegalArgumentException(I18n.text("ui.7f2a49e8113c") + item.getValue());
             plotAreaView.beginBatchUpdate();
             try {
                 for (TreeItem<String> item : targets) {
@@ -8611,7 +8589,7 @@ final class MainWindow implements TclFlatcamHost {
     public void setActive(String name) throws TclException {
         try { TclExecution.onFx(() -> {
             if (gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())
-                throw new IllegalStateException("Feche o editor de objetos antes de selecionar pelo Terminal.");
+                throw new IllegalStateException(I18n.text("ui.5c9a1ffd4707"));
             TreeItem<String> item = findTclItemByName(name);
             if (item == null) throw new IllegalArgumentException("Object not found: " + name);
             int row = rowForPlotObject(item);
@@ -8631,7 +8609,7 @@ final class MainWindow implements TclFlatcamHost {
         requireWorkerCommand();
         TclProjectState before = TclExecution.onFx(() -> {
             requireProjectReplacementAllowed();
-            if(!discardUnsaved && hasUnsavedProjectChanges())throw new IllegalStateException("Projeto com alterações não salvas. Use save_project antes ou open_project -force true para descartar explicitamente.");
+            if(!discardUnsaved && hasUnsavedProjectChanges())throw new IllegalStateException(I18n.text("ui.912a36a8eb8d"));
             return captureTclProjectState();
         });
         LoadedProject loaded = loadProject(file, new JobContext() {
@@ -8653,7 +8631,7 @@ final class MainWindow implements TclFlatcamHost {
     /** The Tcl worker cannot wait for another job on FX or transform live JavaFX state. */
     private static void requireWorkerCommand() {
         if (Platform.isFxApplicationThread())
-            throw new IllegalStateException("Execute este comando pelo Terminal (worker), não pela thread FX.");
+            throw new IllegalStateException(I18n.text("ui.0429c34154c0"));
     }
 
     private boolean hasEditorChanges() {
@@ -8662,9 +8640,9 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void requireProjectReplacementAllowed() {
-        if (runningJob != null) throw new IllegalStateException("Já existe uma operação em andamento.");
+        if (runningJob != null) throw new IllegalStateException(I18n.text("ui.df12b110e3bb"));
         if (hasEditorChanges())
-            throw new IllegalStateException("Aplique ou cancele as alterações do editor antes de abrir outro projeto.");
+            throw new IllegalStateException(I18n.text("ui.1c1584221734"));
     }
 
     private ProjectChangeTracker.State projectStateStamp() { return projectStateStamp(captureTclProjectState()); }
@@ -8684,29 +8662,29 @@ final class MainWindow implements TclFlatcamHost {
         // Headless hosts cannot open a modal window accidentally; their safe default is cancellation.
         if(scene==null || scene.getWindow()==null)return UnsavedChangesGuard.Choice.CANCEL;
         var dialog=new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
-        dialog.initOwner(scene.getWindow()); dialog.setTitle(drafts ? "Rascunho não aplicado" : "Projeto não salvo"); dialog.setHeaderText(null);
-        dialog.setContentText(drafts ? "Há alterações no editor que ainda não foram aplicadas ao objeto. Volte ao editor para aplicá-las ou descarte o rascunho antes de continuar."
-                : "O projeto contém alterações não salvas. Deseja salvar antes de continuar?"+(currentProjectFile==null ? "" : "\n\nProjeto: "+currentProjectFile));
-        var save=new javafx.scene.control.ButtonType(drafts ? "Voltar e aplicar" : "Salvar projeto…",javafx.scene.control.ButtonBar.ButtonData.YES);
-        var discard=new javafx.scene.control.ButtonType(drafts ? "Descartar rascunho" : "Não salvar",javafx.scene.control.ButtonBar.ButtonData.NO);
+        dialog.initOwner(scene.getWindow()); dialog.setTitle(drafts ? I18n.text("ui.4578531813a9") : I18n.text("ui.84aab6a057ce")); dialog.setHeaderText(null);
+        dialog.setContentText(drafts ? I18n.text("ui.b1fd0e983f09")
+                : I18n.text("ui.8e0bb14ec598")+(currentProjectFile==null ? "" : I18n.text("ui.ee09035254b2")+currentProjectFile));
+        var save=new javafx.scene.control.ButtonType(drafts ? I18n.text("ui.05473fa8f2f5") : I18n.text("ui.c468e1df3d21"),javafx.scene.control.ButtonBar.ButtonData.YES);
+        var discard=new javafx.scene.control.ButtonType(drafts ? I18n.text("ui.a09075a45b43") : I18n.text("ui.bb372cbd6ce8"),javafx.scene.control.ButtonBar.ButtonData.NO);
         dialog.getButtonTypes().setAll(save,discard,javafx.scene.control.ButtonType.CANCEL);
         dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
-        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(save),"Salvar/aplicar",drafts ? "Volta sem sair: aplique o rascunho no editor e depois salve o projeto." : "Escolha o destino. Só continua se a gravação tiver sucesso e ainda representar o estado atual.");
-        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(discard),"Descartar",drafts ? "Descarta somente o rascunho do editor, mantendo o objeto antes da edição." : "Continua sem salvar as alterações deste projeto. Não exclui arquivos no disco.");
-        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.CANCEL),"Cancelar","Interrompe a abertura/saída; não descarta alterações nem grava arquivos.");
-        FluidTooltips.install(dialog,"Projeto não salvo");
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(save),I18n.text("ui.4668dc196351"),drafts ? I18n.text("ui.e1ad9b77e706") : I18n.text("ui.855f368c7b1f"));
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(discard),I18n.text("ui.1a878a55c594"),drafts ? I18n.text("ui.4789a0273435") : I18n.text("ui.5bd694e23806"));
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(javafx.scene.control.ButtonType.CANCEL),I18n.text("ui.bb9dbb406dcb"),I18n.text("ui.8b920a2da791"));
+        FluidTooltips.install(dialog,I18n.text("ui.84aab6a057ce"));
         var choice=dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL);
         return choice==save ? UnsavedChangesGuard.Choice.SAVE : choice==discard ? UnsavedChangesGuard.Choice.DISCARD : UnsavedChangesGuard.Choice.CANCEL;
     }
     private void protectProjectTransition(Runnable proceed) {
         if(runningJob!=null || terminalPanel!=null && terminalPanel.isBusy()) {
-            String message="Aguarde ou cancele a operação antes de abrir/fechar o projeto.";
+            String message=I18n.text("ui.f34e31e31f92");
             appendConsole(message); setStatus(message,RUNNING_COLOR); return;
         }
         if(hasEditorChanges() && projectDecision.apply(true)!=UnsavedChangesGuard.Choice.DISCARD)return;
         // Leaving an unchanged editor restores its temporary plot visibility before measuring project dirtiness.
         gcodeEditor.cancel(); gerberEditor.cancel(); geometryEditor.cancel(); excellonEditor.cancel();
-        if(hasEditorChanges()) { appendConsole("O editor ainda está ocupado; aguarde antes de continuar."); return; }
+        if(hasEditorChanges()) { appendConsole(I18n.text("ui.94123b71fe6e")); return; }
         unsavedGuard.protect(() -> hasUnsavedProjectChanges() || hasEditorChanges(),() -> projectDecision.apply(false),guardedProjectSave,proceed);
     }
     void requestClose(Runnable close) {
@@ -8758,16 +8736,16 @@ final class MainWindow implements TclFlatcamHost {
     private void checkTclProjectState(TclProjectState before) {
         checkTclProject(before.epoch());
         if (allTclItems().size() != before.items().size() || !before.settings().equals(tclProjectSettings()))
-            throw new IllegalStateException("Os objetos do projeto mudaram durante a operação; resultado descartado.");
+            throw new IllegalStateException(I18n.text("ui.9bdd1a426eec"));
         for (TclItemState state : before.items())
             if (tclVersion(state.item()) != state.version() || !Objects.equals(state.name(), state.item().getValue())
                     || !state.appearance().equals(tclAppearance(state.item())))
-                throw new IllegalStateException("O projeto foi editado durante a operação; resultado descartado.");
+                throw new IllegalStateException(I18n.text("ui.85d1f9efcd5d"));
     }
 
     private void requireTclTransformAllowed() {
         if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive())
-            throw new IllegalStateException("Conclua a operação ou feche o editor de objetos antes de transformar pelo Terminal.");
+            throw new IllegalStateException(I18n.text("ui.aa6cc503e8b7"));
     }
 
     @Override
@@ -8785,7 +8763,7 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
         TclSource box = request.reference() == TclTransformRequest.Reference.BOX ? tclSource(request.box()) : null;
-        TclExecution.phase("Transformando " + name + "...");
+        TclExecution.phase(I18n.text("ui.b4af3bc3b2b4") + name + "...");
         TransformOp op = request.resolve(source.geometry() == null ? null : source.geometry().getEnvelopeInternal(),
                 box == null || box.geometry() == null ? null : box.geometry().getEnvelopeInternal());
         Object transformed;
@@ -8857,7 +8835,7 @@ final class MainWindow implements TclFlatcamHost {
     public String openGerber(Path file, String outname) throws IOException {
         long epoch = TclExecution.onFx(() -> tclProjectEpoch);
         GerberImage image = new GerberParser(ToolDefaults.gerberImport()).parse(file, TclExecution.cancellation(),
-                TclExecution.progress("Carregando Gerber..."));
+                TclExecution.progress(I18n.text("ui.1c07d83986c8")));
         return TclExecution.onFx(() -> {
             checkTclProject(epoch);
             String name = uniqueDerivedName(outname);
@@ -8871,7 +8849,7 @@ final class MainWindow implements TclFlatcamHost {
     public String openExcellon(Path file, String outname) throws IOException {
         long epoch = TclExecution.onFx(() -> tclProjectEpoch);
         ExcellonImage image = new ExcellonParser(ToolDefaults.excellonImport()).parse(file, TclExecution.cancellation(),
-                TclExecution.progress("Carregando Excellon..."));
+                TclExecution.progress(I18n.text("ui.9a28e15ae79c")));
         return TclExecution.onFx(() -> {
             checkTclProject(epoch);
             String name = uniqueDerivedName(outname);
@@ -8901,7 +8879,7 @@ final class MainWindow implements TclFlatcamHost {
         items.addAll(geometryByItem.keySet()); items.addAll(cncJobByItem.keySet());
         for (TreeItem<String> item : items) {
             if (!name.equals(item.getValue())) continue;
-            if (found != null) throw new IllegalArgumentException("Nome ambiguo no projeto: " + name);
+            if (found != null) throw new IllegalArgumentException(I18n.text("ui.b88e39ac1c42") + name);
             found = item;
         }
         return found;
@@ -9013,13 +8991,13 @@ final class MainWindow implements TclFlatcamHost {
 
     private void checkTclProject(long epoch) {
         if (epoch != tclProjectEpoch)
-            throw new IllegalStateException("O projeto mudou durante o processamento; resultado descartado.");
+            throw new IllegalStateException(I18n.text("ui.efe65e3351f4"));
     }
 
     private void checkTclSource(TclSource source) {
         checkTclProject(source.epoch());
         if (tclVersion(source.item()) != source.version() || !source.name().equals(source.item().getValue()))
-            throw new IllegalStateException("O objeto de origem foi alterado ou removido; resultado descartado: " + source.name());
+            throw new IllegalStateException(I18n.text("ui.b43fd78e2d55") + source.name());
     }
 
     private String publishTclGeometry(TclSource source, String outname, Geometry geometry, boolean strokeOnly) {
@@ -9039,7 +9017,7 @@ final class MainWindow implements TclFlatcamHost {
         if (source.kind() != Kind.GERBER && source.kind() != Kind.GEOMETRY) {
             throw new TclException("Expected a Gerber or Geometry object, got: " + sourceName);
         }
-        TclExecution.phase("Calculando bounding box...");
+        TclExecution.phase(I18n.text("ui.607de04a0343"));
         Geometry envelopeGeometry = CNC_GEOMETRY_FACTORY.toGeometry(source.geometry().getEnvelopeInternal());
         Geometry buffered = envelopeGeometry.buffer(margin, 32);
         Geometry result = rounded ? buffered : CNC_GEOMETRY_FACTORY.toGeometry(buffered.getEnvelopeInternal());
@@ -9085,7 +9063,7 @@ final class MainWindow implements TclFlatcamHost {
         if (source.kind() != Kind.GERBER) {
             throw new TclException("Expected a Gerber object, got: " + sourceName);
         }
-        TclExecution.phase("Gerando isolamento...");
+        TclExecution.phase(I18n.text("ui.9ba42f20b109"));
         IsolationParameters params = new IsolationParameters(toolDiameter, passes, overlapFraction, type);
         IsolationResult result = IsolationGenerator.generate(source.units(), source.geometry(), params, TclExecution.cancellation());
         return publishTclGeometry(source, outname, result.geometry(), true);
@@ -9095,7 +9073,7 @@ final class MainWindow implements TclFlatcamHost {
     public String cutoutRectangular(String sourceName, String outname, double toolDiameter, double margin,
                                     double gapSize, GapPattern gaps) throws TclException {
         TclSource source = tclSource(sourceName);
-        TclExecution.phase("Gerando cutout...");
+        TclExecution.phase(I18n.text("ui.584276327e87"));
         CutoutParameters params = new CutoutParameters(toolDiameter, margin, false, CutoutKind.SINGLE,
                 CutoutShape.RECTANGULAR, gapSize, gaps);
         CutoutResult result = CutoutGenerator.generate(source.units(), source.geometry(), params, TclExecution.cancellation());
@@ -9113,17 +9091,17 @@ final class MainWindow implements TclFlatcamHost {
         if (reference != null) {
             String referenceName = TclExecution.onFx(() -> objectNames().stream()
                     .filter(name -> geometryOf(name).orElse(null) == reference).findFirst().orElse(null));
-            if (referenceName == null) throw new TclException("O objeto de referência NCC foi alterado ou removido.");
+            if (referenceName == null) throw new TclException(I18n.text("ui.cc5bffdadf51"));
             referenceSource = tclSource(referenceName);
             if (referenceSource.geometry() != reference)
-                throw new TclException("O objeto de referência NCC foi alterado.");
+                throw new TclException(I18n.text("ui.411089b16abe"));
         }
         TclSource checkedReference = referenceSource;
-        TclExecution.phase("Gerando NCC...");
+        TclExecution.phase(I18n.text("ui.99d9a76262c4"));
         NccParameters params = new NccParameters(toolDiameters, overlapFraction, margin, method, connect, contour,
                 0, rest, NccOrder.NONE, boundary);
         NccResult result = NccGenerator.generate(source.units(), source.geometry(), params,
-                TclExecution.cancellation(), TclExecution.progress("Gerando NCC..."));
+                TclExecution.cancellation(), TclExecution.progress(I18n.text("ui.99d9a76262c4")));
         return TclExecution.onFx(() -> {
             if (checkedReference != null) checkTclSource(checkedReference);
             return publishTclGeometry(source, outname, result.geometry(), true);
@@ -9138,7 +9116,7 @@ final class MainWindow implements TclFlatcamHost {
             throw new TclException("Expected a Geometry object, got: " + sourceName);
         if (!Double.isFinite(zCut) || zCut >= 0)
             throw new TclException("z_cut must be finite and negative (for example -1.7).");
-        TclExecution.phase("Gerando CNC Job...");
+        TclExecution.phase(I18n.text("ui.6cf087e6154e"));
         GeometryGCodeParameters params = new GeometryGCodeParameters(zMove, -zCut, false, 0,
                 feedrate, 0, false, feedrateRapid, null, feedrateZ, false, 0, false, 0);
         CncJobResult job = GCodeGenerator.generateGeometryCncJob(source.units(), source.geometry(), params,
@@ -9171,9 +9149,9 @@ final class MainWindow implements TclFlatcamHost {
                     request.toolChangeZ(), request.endZ(), end == null ? null : end[0], end == null ? null : end[1],
                     request.rapidFeedRate(), null, false, List.of(), request.startZ(),
                     change == null ? null : change[0], change == null ? null : change[1], request.optimizeDrills());
-            TclExecution.phase("Gerando furação...");
+            TclExecution.phase(I18n.text("ui.1d468bd336d0"));
             job = GCodeGenerator.generateDrillCncJob(image, byTool, ordered, options, request.preprocessor(),
-                    TclExecution.cancellation(), TclExecution.progress("Gerando furação..."));
+                    TclExecution.cancellation(), TclExecution.progress(I18n.text("ui.1d468bd336d0")));
         } catch (IllegalArgumentException invalid) { throw new TclException(invalid.getMessage()); }
         CncJobResult generated = job;
         return TclExecution.onFx(() -> {
@@ -9194,9 +9172,9 @@ final class MainWindow implements TclFlatcamHost {
         }
         TclExecution.cancellation().throwIfCancellationRequested();
         String text=preamble+source.gcode()+postamble;
-        var report=CncExportReview.create(cncJobName,text,null,TclExecution.cancellation(),TclExecution.progress("Revisando G-code..."));
+        var report=CncExportReview.create(cncJobName,text,null,TclExecution.cancellation(),TclExecution.progress(I18n.text("ui.20e178a398f6")));
         TclExecution.notice(CncExportReview.terminalText(report));
-        if (!report.canContinue()) throw new TclException("Revisão CNC recusou a exportação.");
+        if (!report.canContinue()) throw new TclException(I18n.text("ui.6582880da723"));
         TclExecution.onFx(() -> { checkTclSource(source); return null; });
         return text;
     }
@@ -9206,7 +9184,7 @@ final class MainWindow implements TclFlatcamHost {
             throws TclException, IOException {
         TclSource source=tclSource(cncJobName);
         String gcode = exportGcode(cncJobName, preamble, postamble);
-        TclExecution.phase("Salvando G-code...");
+        TclExecution.phase(I18n.text("ui.8ead655fb6e1"));
         Path destination = outputFile.toAbsolutePath();
         Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-", ".tmp");
         try {
@@ -9229,20 +9207,20 @@ final class MainWindow implements TclFlatcamHost {
             TclSource source = tclSource(name);
             if (source.kind() != Kind.EXCELLON) throw new TclException("Expected an Excellon object: " + name);
             ExcellonExporter.Format format = TclExecution.onFx(CamExportDialog::loadExcellon);
-            TclExecution.phase("Exportando Excellon...");
+            TclExecution.phase(I18n.text("ui.3e3e964d59f8"));
             String text = new ExcellonExporter().export((ExcellonImage) source.version(), format);
-            TclExecution.phase("Gravando Excellon...");
+            TclExecution.phase(I18n.text("ui.e2f7e00965ae"));
             Path destination = outputFile.toAbsolutePath();
             if (destination.getFileName() == null || Files.isDirectory(destination))
                 throw new IOException("Excellon destination must be a file, not a directory.");
             Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-excellon-", ".tmp");
             try {
                 Files.writeString(temporary, text, java.nio.charset.StandardCharsets.US_ASCII);
-                TclExecution.phase("Publicando Excellon...");
+                TclExecution.phase(I18n.text("ui.19cfea5a1b5a"));
                 TclExecution.onFx(() -> {
                     requireTclExportAllowed(); checkTclSource(source);
                     if (!format.equals(CamExportDialog.loadExcellon()))
-                        throw new IllegalStateException("O formato Excellon mudou durante a exportação; resultado descartado.");
+                        throw new IllegalStateException(I18n.text("ui.95b34587ef24"));
                     return null;
                 });
                 TclExecution.cancellation().throwIfCancellationRequested();
@@ -9251,7 +9229,7 @@ final class MainWindow implements TclFlatcamHost {
                 } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
                     Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
                 }
-                TclExecution.progress("Excellon exportado.").report(1);
+                TclExecution.progress(I18n.text("ui.69f8a3bdd903")).report(1);
             } finally { Files.deleteIfExists(temporary); }
         } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
     }
@@ -9264,11 +9242,11 @@ final class MainWindow implements TclFlatcamHost {
             TclSource source = tclSource(name);
             if (source.kind() != Kind.GERBER) throw new TclException("Expected a Gerber object: " + name);
             GerberExporter.Format format = TclExecution.onFx(CamExportDialog::loadGerber);
-            TclExecution.phase("Exportando Gerber...");
+            TclExecution.phase(I18n.text("ui.488547e2f8d0"));
             String text = new GerberExporter().export((GerberImage) source.version(), format);
             publishTclDrawing(source, outputFile, text, java.nio.charset.StandardCharsets.US_ASCII, "Gerber", () -> {
                 if (!format.equals(CamExportDialog.loadGerber()))
-                    throw new IllegalStateException("O formato Gerber mudou durante a exportação; resultado descartado.");
+                    throw new IllegalStateException(I18n.text("ui.18ce14291bdd"));
             });
         } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
     }
@@ -9279,13 +9257,13 @@ final class MainWindow implements TclFlatcamHost {
         try {
             TclExecution.onFx(() -> { requireTclExportAllowed(); return null; });
             TclSource source = tclSource(name);
-            TclExecution.phase("Preparando SVG...");
+            TclExecution.phase(I18n.text("ui.05425c5bde41"));
             List<SvgExporter.Layer> layers;
             String units = source.units();
             if (source.kind() == Kind.CNC_JOB) {
                 var parsed = GCodeToolpathParser.parse(source.gcode(), TclExecution.cancellation(),
-                        TclExecution.progress("Preparando SVG..."));
-                if (!parsed.plotAvailable()) throw new TclException("SVG indisponível: " + parsed.warning());
+                        TclExecution.progress(I18n.text("ui.05425c5bde41")));
+                if (!parsed.plotAvailable()) throw new TclException(I18n.text("ui.7a23a137d77c") + parsed.warning());
                 // Same automatic width as File > Exportar > SVG, independent of the Plot's visibility filter.
                 double diameter = parsed.stats() == null ? 0 : parsed.stats().tools().stream()
                         .map(GCodeToolpathParser.ToolUsage::diameter).filter(Objects::nonNull)
@@ -9295,7 +9273,7 @@ final class MainWindow implements TclFlatcamHost {
                         SvgExporter.toolpath(parsed.cutCenterlines(), SvgExporter.CUT_COLOR, stroke));
                 units = parsed.units();
             } else layers = List.of(SvgExporter.shapes(source.geometry(), scaleStrokeFactor));
-            TclExecution.phase("Exportando SVG...");
+            TclExecution.phase(I18n.text("ui.297268be2b97"));
             String text = new SvgExporter().export(layers, units);
             publishTclDrawing(source, outputFile, text, java.nio.charset.StandardCharsets.UTF_8, "SVG", () -> {});
         } catch (IllegalArgumentException error) { throw new TclException(error.getMessage()); }
@@ -9304,14 +9282,14 @@ final class MainWindow implements TclFlatcamHost {
     /** Serialized on the worker; a failed/cancelled/stale drawing never truncates the destination. */
     private void publishTclDrawing(TclSource source, Path outputFile, String text, java.nio.charset.Charset charset,
                                    String type, Runnable checkFormat) throws IOException {
-        TclExecution.phase("Gravando " + type + "...");
+        TclExecution.phase(I18n.text("ui.c2168134d5ae") + type + "...");
         Path destination = outputFile.toAbsolutePath().normalize();
         if (destination.getFileName() == null || Files.isDirectory(destination))
             throw new IOException(type + " destination must be a file, not a directory.");
         Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-tcl-" + type.toLowerCase(java.util.Locale.ROOT) + "-", ".tmp");
         try {
             Files.writeString(temporary, text, charset);
-            TclExecution.phase("Publicando " + type + "...");
+            TclExecution.phase(I18n.text("ui.589c15b6bd2a") + type + "...");
             TclExecution.onFx(() -> {
                 requireTclExportAllowed(); checkTclSource(source); checkFormat.run(); return null;
             });
@@ -9321,14 +9299,14 @@ final class MainWindow implements TclFlatcamHost {
             } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
                 Files.move(temporary, destination, StandardCopyOption.REPLACE_EXISTING);
             }
-            TclExecution.progress(type + " exportado.").report(1);
+            TclExecution.progress(type + I18n.text("ui.b2c8077f7e27")).report(1);
         } finally { Files.deleteIfExists(temporary); }
     }
 
     private void requireTclExportAllowed() {
         if (runningJob != null || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive() || gcodeEditor.isActive())
-            throw new IllegalStateException("Conclua a operação e feche os editores antes de exportar pelo Terminal.");
+            throw new IllegalStateException(I18n.text("ui.6c193e2cf53d"));
     }
 
     // ---- Scripting (Python File > Scripting: New / Open / Run Script) ----
@@ -9340,7 +9318,7 @@ final class MainWindow implements TclFlatcamHost {
         chooser.setTitle(title);
         chooser.getExtensionFilters().addAll(
                 new FileChooser.ExtensionFilter("Script Tcl FlatCAM", "*.FlatScript", "*.tcl", "*.TCL", "*.txt", "*.TXT"),
-                new FileChooser.ExtensionFilter("Todos os arquivos", "*.*"));
+                new FileChooser.ExtensionFilter(I18n.text("ui.0d4623424b45"), "*.*"));
         String remembered = AppPreferences.loadText(SCRIPT_DIRECTORY_KEY);
         if (remembered != null && !remembered.isBlank() && Files.isDirectory(Path.of(remembered)))
             chooser.setInitialDirectory(Path.of(remembered).toFile());
@@ -9358,7 +9336,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openScripts() {
-        List<File> files = scriptChooser("Abrir Script Tcl").showOpenMultipleDialog(scene.getWindow());
+        List<File> files = scriptChooser(I18n.text("ui.090ec943a77c")).showOpenMultipleDialog(scene.getWindow());
         if (files == null) return;
         for (File file : files) openScript(file.toPath());
     }
@@ -9377,12 +9355,12 @@ final class MainWindow implements TclFlatcamHost {
             rememberScriptDirectory(file);
             openScriptTab(text, absolute);
         } catch (IOException | RuntimeException error) {
-            appendConsole("Falha ao abrir o script " + file + ": " + error.getMessage());
+            appendConsole(I18n.text("ui.5b47cb870897") + file + ": " + error.getMessage());
         }
     }
 
     private void runScriptFile() {
-        File file = scriptChooser("Executar Script Tcl").showOpenDialog(scene.getWindow());
+        File file = scriptChooser(I18n.text("ui.15551fbf3a7f")).showOpenDialog(scene.getWindow());
         if (file != null) runScriptFile(file.toPath());
     }
 
@@ -9391,7 +9369,7 @@ final class MainWindow implements TclFlatcamHost {
         String text;
         try { text = Files.readString(file, java.nio.charset.StandardCharsets.UTF_8); }
         catch (IOException | RuntimeException error) {
-            appendConsole("Falha ao ler o script " + file + ": " + error.getMessage());
+            appendConsole(I18n.text("ui.d5ebbe35932d") + file + ": " + error.getMessage());
             return false;
         }
         rememberScriptDirectory(file);
@@ -9401,7 +9379,7 @@ final class MainWindow implements TclFlatcamHost {
     private boolean runInTerminal(String script, String label) {
         openTerminal();
         if (!terminalPanel.runScript(script, label)) {
-            appendConsole("O Terminal ainda está executando outro script; aguarde ou cancele antes de executar " + label + ".");
+            appendConsole(I18n.text("ui.f70979e19856") + label + ".");
             return false;
         }
         return true;
@@ -9411,7 +9389,7 @@ final class MainWindow implements TclFlatcamHost {
         ScriptEditorPanel panel = new ScriptEditorPanel(text, file, new ScriptEditorPanel.Host() {
             @Override public boolean run(String script, String label) { return runInTerminal(script, label); }
             @Override public Path chooseSaveTarget(Path suggested) {
-                FileChooser chooser = scriptChooser("Salvar Script Tcl");
+                FileChooser chooser = scriptChooser(I18n.text("ui.171f16205d8a"));
                 chooser.setInitialFileName(suggested == null ? "new_script.FlatScript" : suggested.getFileName().toString());
                 File chosen = chooser.showSaveDialog(scene.getWindow());
                 if (chosen == null) return null;
@@ -9455,7 +9433,7 @@ final class MainWindow implements TclFlatcamHost {
         for (Tab tab : centerTabs.getTabs()) {
             if (tab.getContent() instanceof ScriptEditorPanel script && script.isDirty()
                     && !script.text().equals(approved.get(script))) {
-                appendConsole("Um script mudou durante a confirmação. Revise-o antes de sair.");
+                appendConsole(I18n.text("ui.ce874e98abd6"));
                 return false;
             }
         }
@@ -9466,11 +9444,11 @@ final class MainWindow implements TclFlatcamHost {
         if (scene == null || scene.getWindow() == null) return false;
         var dialog = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
         dialog.initOwner(scene.getWindow());
-        dialog.setTitle("Script não salvo");
+        dialog.setTitle(I18n.text("ui.1cc9044939b4"));
         dialog.setHeaderText(null);
-        dialog.setContentText("O script \"" + panel.title().replace(" *", "") + "\" tem alterações não salvas. Deseja salvá-las antes de fechar?");
-        var save = new javafx.scene.control.ButtonType("Salvar", javafx.scene.control.ButtonBar.ButtonData.YES);
-        var discard = new javafx.scene.control.ButtonType("Descartar", javafx.scene.control.ButtonBar.ButtonData.NO);
+        dialog.setContentText(I18n.text("ui.744ea47f0cc0") + panel.title().replace(" *", "") + I18n.text("ui.d73e82604bb6"));
+        var save = new javafx.scene.control.ButtonType(I18n.text("ui.aef7cd5b2081"), javafx.scene.control.ButtonBar.ButtonData.YES);
+        var discard = new javafx.scene.control.ButtonType(I18n.text("ui.1a878a55c594"), javafx.scene.control.ButtonBar.ButtonData.NO);
         dialog.getButtonTypes().setAll(save, discard, javafx.scene.control.ButtonType.CANCEL);
         dialog.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets());
         var choice = dialog.showAndWait().orElse(javafx.scene.control.ButtonType.CANCEL);
@@ -9485,7 +9463,7 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
         if (terminalPanel == null) {
-            terminalPanel = new TerminalPanel(new org.flatcam.cam.tcl.TclInterpreter(), "em desenvolvimento", jobExecutor);
+            terminalPanel = new TerminalPanel(new org.flatcam.cam.tcl.TclInterpreter(), I18n.text("ui.054a26b8c050"), jobExecutor);
             new TclFlatcamCommands(this).registerOn(terminalPanel.interpreter());
         }
         Tab tab = new Tab(); tab.setId("terminal-tab"); tab.setText("Terminal"); tab.setContent(terminalPanel);
@@ -9510,7 +9488,7 @@ final class MainWindow implements TclFlatcamHost {
         try {
             if (toolsDatabasePanel != null) return projection.read(toolsDatabasePanel.snapshot());
             FileChooser chooser = new FileChooser();
-            chooser.setTitle("Abrir Tools Database do FlatCAM Python");
+            chooser.setTitle(I18n.text("ui.f77357cce603"));
             chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Tools Database", "*.FlatDB", "*.flatdb", "*.json"));
             String remembered = AppPreferences.loadToolsDatabasePath();
             if (!remembered.isBlank()) {
@@ -9564,7 +9542,7 @@ final class MainWindow implements TclFlatcamHost {
         cancelJobButton.setDisable(false);
         updateProgress(0);
         setStatus("Executando...", RUNNING_COLOR);
-        appendConsole("Job de demonstracao iniciado (não bloqueia a UI - tente redimensionar a janela).");
+        appendConsole(I18n.text("ui.0254e728f912"));
 
         JobHandle<Void> handle = jobExecutor.submit(new DemoJob(), (fraction, message) ->
                 Platform.runLater(() -> {
@@ -9575,18 +9553,18 @@ final class MainWindow implements TclFlatcamHost {
 
         handle.completion()
                 .thenAccept(result -> Platform.runLater(() -> {
-                    setStatus("Concluido.", IDLE_COLOR);
-                    appendConsole("Job de demonstracao concluído.");
+                    setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
+                    appendConsole(I18n.text("ui.f5d44253372a"));
                     onJobFinished();
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (isCancellation(error)) {
                             setStatus("Cancelado.", CANCELLED_COLOR);
-                            appendConsole("Job de demonstracao cancelado pelo usuário.");
+                            appendConsole(I18n.text("ui.ef4855864482"));
                         } else {
-                            setStatus("Falhou.", ERROR_COLOR);
-                            appendConsole("Job de demonstracao falhou: " + error.getMessage());
+                            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
+                            appendConsole(I18n.text("ui.e70bab4ff2b7") + error.getMessage());
                         }
                         onJobFinished();
                     });
@@ -9602,7 +9580,7 @@ final class MainWindow implements TclFlatcamHost {
      * multi-select file-open dialogs).
      */
     private void openGerberPrototype() {
-        List<File> files = pickCamFiles("Abrir Gerber (prototipo)",
+        List<File> files = pickCamFiles(I18n.text("ui.585b99a363f7"),
                 new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
         if (!files.isEmpty()) {
             openGerberQueue(files, 0);
@@ -9610,7 +9588,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openRecent(RecentFiles.Entry entry) {
-        if (runningJob != null) { appendConsole("Já existe uma operação em andamento."); return; }
+        if (runningJob != null) { appendConsole(I18n.text("ui.df12b110e3bb")); return; }
         List<File> files = List.of(entry.path().toFile());
         switch (entry.kind()) {
             case PROJECT -> openProjectFromMenu(entry.path());
@@ -9627,8 +9605,8 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openGCode() {
-        List<File> files = pickCamFiles("Abrir G-Code",
-                new FileChooser.ExtensionFilter("Programas CNC (G-code / ICP / HPGL / RML)", "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
+        List<File> files = pickCamFiles(I18n.text("ui.03e51a82a635"),
+                new FileChooser.ExtensionFilter(I18n.text("ui.7914f06a2b6c"), "*.nc", "*.gcode", "*.tap", "*.cnc", "*.txt", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
         if (!files.isEmpty()) {
             openGCodeQueue(files, 0);
         }
@@ -9636,19 +9614,19 @@ final class MainWindow implements TclFlatcamHost {
 
     private void openGCodeQueue(List<File> files, int index) {
         if (index == 0 && runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         if (index >= files.size()) {
             updateProgress(1);
-            setStatus("Concluido.", IDLE_COLOR);
+            setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
             onJobFinished();
             return;
         }
         File file = files.get(index);
         long epoch = tclProjectEpoch;
         JobHandle<?>[] progressOwner = {null};
-        String message = "Lendo G-code " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
+        String message = I18n.text("ui.2fbca7ff1f26") + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
         if (index == 0) {
             beginJob(message);
         } else {
@@ -9668,7 +9646,7 @@ final class MainWindow implements TclFlatcamHost {
                     throw invalidCode;
                 }
                 preview = new GCodeToolpathParser.Result(null, null,
-                        "Pré-visualização indisponível: " + invalidCode.getMessage(),
+                        I18n.text("ui.869552d1d60c") + invalidCode.getMessage(),
                         (int) text.lines().count(), "MM");
             }
             return new ImportedGCode(text, preview);
@@ -9679,8 +9657,8 @@ final class MainWindow implements TclFlatcamHost {
             if (runningJob != handle) return;
             if (handle.isCancelled() || epoch != tclProjectEpoch) {
                 reportJobError(handle.isCancelled() ? new CancellationException()
-                        : new IllegalStateException("Projeto mudou; importação G-code descartada."),
-                        "Importação G-code: ");
+                        : new IllegalStateException(I18n.text("ui.f4676bc282ed")),
+                        I18n.text("ui.bdd4d9994930"));
                 onJobFinished();
                 return;
             }
@@ -9697,13 +9675,13 @@ final class MainWindow implements TclFlatcamHost {
             } else {
                 appendConsole(file.getName() + ": " + preview.warning());
             }
-            appendConsole("G-code aberto: " + file.getName() + " (" + preview.lineCount() + " linhas).");
+            appendConsole(I18n.text("ui.fbca4e0924de") + file.getName() + " (" + preview.lineCount() + I18n.text("ui.d1862403f7c1"));
             recentFiles.remember(RecentFiles.Kind.GCODE,file.toPath());
             openGCodeQueue(files, index + 1);
         })).exceptionally(error -> {
             Platform.runLater(() -> {
                 if (runningJob != handle) return;
-                reportJobError(error, "Falha ao abrir G-code " + file.getName() + ": ");
+                reportJobError(error, I18n.text("ui.e767f0b7167a") + file.getName() + ": ");
                 if (isCancellation(error) || epoch != tclProjectEpoch) {
                     onJobFinished();
                 } else {
@@ -9717,12 +9695,12 @@ final class MainWindow implements TclFlatcamHost {
     private void openGerberQueue(List<File> files, int index) {
         if (index >= files.size()) {
             updateProgress(1);
-            setStatus("Concluido.", IDLE_COLOR);
+            setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
             onJobFinished();
             return;
         }
         File file = files.get(index);
-        String message = "Analisando Gerber " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
+        String message = I18n.text("ui.c7e9b4d643f7") + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
         if (index == 0) {
             beginJob(message);
         } else {
@@ -9743,7 +9721,7 @@ final class MainWindow implements TclFlatcamHost {
                 .thenAccept(image -> Platform.runLater(() -> {
                     setDisplayUnits(image.units());
                     appendConsole(String.format(
-                            "Gerber OK: %d aperturas, área=%.4f, bounds=%s",
+                            I18n.text("ui.be67cf4d0180"),
                             image.apertures().size(), image.totalArea(), Arrays.toString(image.bounds())));
                     TreeItem<String> item = addGerberToProject(file, image);
                     recentFiles.remember(RecentFiles.Kind.GERBER,file.toPath());
@@ -9752,7 +9730,7 @@ final class MainWindow implements TclFlatcamHost {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao abrir Gerber " + file.getName() + ": ");
+                        reportJobError(error, I18n.text("ui.08cc26381ea3") + file.getName() + ": ");
                         if (isCancellation(error)) {
                             onJobFinished();
                         } else {
@@ -9765,7 +9743,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Fase 4 vertical slice - same shape as {@link #openGerberPrototype()}, see flatcam-cam's ExcellonParser. */
     private void openExcellonPrototype() {
-        List<File> files = pickCamFiles("Abrir Excellon (prototipo)",
+        List<File> files = pickCamFiles(I18n.text("ui.db597830bf5d"),
                 new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
         if (!files.isEmpty()) {
             openExcellonQueue(files, 0);
@@ -9775,12 +9753,12 @@ final class MainWindow implements TclFlatcamHost {
     private void openExcellonQueue(List<File> files, int index) {
         if (index >= files.size()) {
             updateProgress(1);
-            setStatus("Concluido.", IDLE_COLOR);
+            setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
             onJobFinished();
             return;
         }
         File file = files.get(index);
-        String message = "Analisando Excellon " + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
+        String message = I18n.text("ui.5f4789e01cb0") + (index + 1) + "/" + files.size() + ": " + file.getName() + "...";
         if (index == 0) {
             beginJob(message);
         } else {
@@ -9801,7 +9779,7 @@ final class MainWindow implements TclFlatcamHost {
                 .thenAccept(image -> Platform.runLater(() -> {
                     setDisplayUnits(image.units());
                     appendConsole(String.format(
-                            "Excellon OK: %d ferramentas, %d furos, %d slots, bounds=%s",
+                            I18n.text("ui.67067f3b4261"),
                             image.toolDiameters().size(), image.totalDrills(), image.totalSlots(),
                             Arrays.toString(image.bounds())));
                     TreeItem<String> item = addExcellonToProject(file, image);
@@ -9811,7 +9789,7 @@ final class MainWindow implements TclFlatcamHost {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
-                        reportJobError(error, "Falha ao abrir Excellon " + file.getName() + ": ");
+                        reportJobError(error, I18n.text("ui.283bed7cf300") + file.getName() + ": ");
                         if (isCancellation(error)) {
                             onJobFinished();
                         } else {
@@ -9848,7 +9826,7 @@ final class MainWindow implements TclFlatcamHost {
             case DXF -> new FileChooser.ExtensionFilter("DXF", "*.dxf");
             case HPGL -> new FileChooser.ExtensionFilter("HPGL/HPGL2", "*.plt", "*.hpgl", "*.hpg", "*.hgl", "*.txt");
         };
-        List<File> files = pickCamFiles("Importar " + format + " como " + (asGerber ? "Gerber" : "Geometry"), filter);
+        List<File> files = pickCamFiles(I18n.text("ui.c826abd76e49") + format + I18n.text("ui.16ae4b6060c0") + (asGerber ? "Gerber" : "Geometry"), filter);
         if (files.isEmpty()) {
             return;
         }
@@ -9880,12 +9858,12 @@ final class MainWindow implements TclFlatcamHost {
             };
         };
         String units = plotAreaView.units();
-        beginJob("Importando " + format + "...");
+        beginJob(I18n.text("ui.612cbfd9f79a") + format + "...");
         JobHandle<List<ImportedDrawing>> handle = jobExecutor.submit(context -> {
             List<ImportedDrawing> imported = new ArrayList<>();
             for (int index = 0; index < files.size(); index++) {
                 File file = files.get(index);
-                context.reportProgress((double) index / files.size(), "Importando " + file.getName() + "...");
+                context.reportProgress((double) index / files.size(), I18n.text("ui.612cbfd9f79a") + file.getName() + "...");
                 try {
                     imported.add(reader.read(file, units, context::isCancelled));
                 } catch (IOException | IllegalArgumentException failed) {
@@ -9903,20 +9881,20 @@ final class MainWindow implements TclFlatcamHost {
             for (ImportedDrawing drawing : imported) {
                 String fileName = drawing.file().getName();
                 if (drawing.error() != null) {
-                    appendConsole("Falha ao importar " + fileName + ": " + drawing.error());
+                    appendConsole(I18n.text("ui.ba3f64627ee0") + fileName + ": " + drawing.error());
                     continue;
                 }
                 if (asGerber && drawing.copper().isEmpty()) {
-                    appendConsole("Falha ao importar " + fileName + ": nenhuma área fechada"
-                            + (dxf ? "." : " nem linha com espessura de traco."));
+                    appendConsole(I18n.text("ui.ba3f64627ee0") + fileName + I18n.text("ui.8b1a3a1519bb")
+                            + (dxf ? "." : I18n.text("ui.456d5b6ef1c3")));
                     continue;
                 }
                 if (drawing.pens() != null && drawing.pens().size() > 1) {
                     for (Map.Entry<Integer, Geometry> pen : drawing.pens().entrySet()) {
                         String penName = uniqueDerivedName(fileName + "_P" + pen.getKey());
                         last = addGeometryToProject(penName, fileName, units, pen.getValue(), true);
-                        appendConsole(format + " importado como Geometry: " + penName + " (caneta "
-                                + pen.getKey() + ", " + pen.getValue().getNumGeometries() + " caminhos)");
+                        appendConsole(format + I18n.text("ui.67ac2e1c0cd5") + penName + I18n.text("ui.d332c67cd71d")
+                                + pen.getKey() + ", " + pen.getValue().getNumGeometries() + I18n.text("ui.17f8d9bee7ed"));
                     }
                     recentFiles.remember(historyKind,drawing.file().toPath());
                     continue;
@@ -9926,15 +9904,15 @@ final class MainWindow implements TclFlatcamHost {
                         ? addGerberToProject(name, drawing.file().toPath(),
                                 GerberImage.of(units, Map.of(), drawing.copper(), null, Map.of()))
                         : addGeometryToProject(name, fileName, units, drawing.shapes(), true);
-                appendConsole(format + " importado como " + (asGerber ? "Gerber" : "Geometry") + ": " + name
-                        + " (" + drawing.shapes().getNumGeometries() + " formas)");
+                appendConsole(format + I18n.text("ui.9768a918b8fd") + (asGerber ? "Gerber" : "Geometry") + ": " + name
+                        + " (" + drawing.shapes().getNumGeometries() + I18n.text("ui.179c44a87535"));
                 recentFiles.remember(historyKind,drawing.file().toPath());
                 if (drawing.skippedText() > 0) {
-                    appendConsole("  " + drawing.skippedText() + " texto(s) ignorado(s) - converta o texto em "
+                    appendConsole("  " + drawing.skippedText() + I18n.text("ui.29c99809e58a")
                             + switch (drawingFormat) {
-                                case DXF -> "linhas no CAD.";
-                                case SVG -> "caminho no editor de SVG.";
-                                case HPGL -> "linhas antes de gerar o HPGL.";
+                                case DXF -> I18n.text("ui.2aa1dfad5fab");
+                                case SVG -> I18n.text("ui.4e385ff79805");
+                                case HPGL -> I18n.text("ui.aea17a89abb2");
                             });
                 }
             }
@@ -9944,11 +9922,11 @@ final class MainWindow implements TclFlatcamHost {
                 selectProjectItem(last);
             }
             updateProgress(1);
-            setStatus(last != null ? "Concluido." : "Falhou.", last != null ? IDLE_COLOR : ERROR_COLOR);
+            setStatus(last != null ? I18n.text("ui.93dd97eb5672") : I18n.text("ui.1e18211d36c4"), last != null ? IDLE_COLOR : ERROR_COLOR);
             onJobFinished();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
-                reportJobError(error, "Falha ao importar " + format + ": ");
+                reportJobError(error, I18n.text("ui.ba3f64627ee0") + format + ": ");
                 onJobFinished();
             });
             return null;
@@ -9966,7 +9944,7 @@ final class MainWindow implements TclFlatcamHost {
      * own layer numbering. Several files import in one background job.
      */
     private void importPdf() {
-        List<File> files = pickCamFiles("Importar PDF", new FileChooser.ExtensionFilter("PDF", "*.pdf"));
+        List<File> files = pickCamFiles(I18n.text("ui.b3e374bf0a7b"), new FileChooser.ExtensionFilter("PDF", "*.pdf"));
         if (files.isEmpty()) {
             return;
         }
@@ -9975,12 +9953,12 @@ final class MainWindow implements TclFlatcamHost {
 
     private void importPdf(List<File> files) {
         String units = plotAreaView.units();
-        beginJob("Importando PDF...");
+        beginJob(I18n.text("ui.2c1563afbd70"));
         JobHandle<List<ImportedPdf>> handle = jobExecutor.submit(context -> {
             List<ImportedPdf> imported = new ArrayList<>();
             for (int index = 0; index < files.size(); index++) {
                 File file = files.get(index);
-                context.reportProgress((double) index / files.size(), "Importando " + file.getName() + "...");
+                context.reportProgress((double) index / files.size(), I18n.text("ui.612cbfd9f79a") + file.getName() + "...");
                 try {
                     imported.add(new ImportedPdf(file, PdfImporter.parse(file.toPath(), units, context::isCancelled),
                             null));
@@ -9999,7 +9977,7 @@ final class MainWindow implements TclFlatcamHost {
             for (ImportedPdf pdf : imported) {
                 String fileName = pdf.file().getName();
                 if (pdf.error() != null) {
-                    appendConsole("Falha ao importar " + fileName + ": " + pdf.error());
+                    appendConsole(I18n.text("ui.ba3f64627ee0") + fileName + ": " + pdf.error());
                     continue;
                 }
                 PdfImporter.Result result = pdf.result();
@@ -10008,13 +9986,13 @@ final class MainWindow implements TclFlatcamHost {
                 if (result.drills() != null) {
                     String name = uniqueDerivedName(fileName + "_0");
                     last = addExcellonToProject(name, pdf.file().toPath(), result.drills());
-                    appendConsole("PDF importado como Excellon: " + name + " ("
-                            + result.drills().totalDrills() + " furos)");
+                    appendConsole(I18n.text("ui.e223496c1e9b") + name + " ("
+                            + result.drills().totalDrills() + I18n.text("ui.d44841d1376d"));
                 }
                 for (int layer = 0; layer < result.layers().size(); layer++) {
                     String name = uniqueDerivedName(fileName + "_" + (layer + 1));
                     last = addGerberToProject(name, pdf.file().toPath(), result.layers().get(layer));
-                    appendConsole("PDF importado como Gerber: " + name);
+                    appendConsole(I18n.text("ui.64e8c54e4719") + name);
                 }
             }
             if (last != null) {
@@ -10023,11 +10001,11 @@ final class MainWindow implements TclFlatcamHost {
                 selectProjectItem(last);
             }
             updateProgress(1);
-            setStatus(last != null ? "Concluido." : "Falhou.", last != null ? IDLE_COLOR : ERROR_COLOR);
+            setStatus(last != null ? I18n.text("ui.93dd97eb5672") : I18n.text("ui.1e18211d36c4"), last != null ? IDLE_COLOR : ERROR_COLOR);
             onJobFinished();
         })).exceptionally(error -> {
             Platform.runLater(() -> {
-                reportJobError(error, "Falha ao importar PDF: ");
+                reportJobError(error, I18n.text("ui.c57bfda58973"));
                 onJobFinished();
             });
             return null;
@@ -10037,7 +10015,7 @@ final class MainWindow implements TclFlatcamHost {
     /** Shared "pick fabrication files" flow (multi-select): remembers the last folder across both Gerber and Excellon. */
     private List<File> pickCamFiles(String title, FileChooser.ExtensionFilter filter) {
         if (runningJob != null) {
-            appendConsole("Já há um job em andamento.");
+            appendConsole(I18n.text("ui.5484cbc46e1c"));
             return List.of();
         }
         FileChooser chooser = new FileChooser();
@@ -10077,9 +10055,9 @@ final class MainWindow implements TclFlatcamHost {
     private void reportJobError(Throwable error, String failurePrefix) {
         if (isCancellation(error)) {
             setStatus("Cancelado.", CANCELLED_COLOR);
-            appendConsole("Operação cancelada.");
+            appendConsole(I18n.text("ui.f102bb211dda"));
         } else {
-            setStatus("Falhou.", ERROR_COLOR);
+            setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
             appendConsole(failurePrefix + error.getMessage());
         }
     }
@@ -10118,12 +10096,12 @@ final class MainWindow implements TclFlatcamHost {
 
     private boolean projectSaveAllowed() {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return false;
         }
         if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive()) {
-            appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
+            appendConsole(I18n.text("ui.feb7dc841cb7"));
             return false;
         }
         return true;
@@ -10132,13 +10110,13 @@ final class MainWindow implements TclFlatcamHost {
     /** Python on_file_saveprojectas: always asks for the destination and format. */
     private void saveProjectAs(java.util.function.Consumer<Boolean> done) {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             done.accept(false);
             return;
         }
         if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
                 || excellonEditor.isActive()) {
-            appendConsole("Aplique ou cancele o editor antes de salvar o projeto.");
+            appendConsole(I18n.text("ui.feb7dc841cb7"));
             done.accept(false);
             return;
         }
@@ -10146,9 +10124,9 @@ final class MainWindow implements TclFlatcamHost {
         ProjectChangeTracker.State before=projectStateStamp();
 
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Salvar Projeto");
-        chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
-                new FileChooser.ExtensionFilter("Projeto FlatCAM Python 8.994 (compatibilidade)", "*.FlatPrj"));
+        chooser.setTitle(I18n.text("ui.7e0a780ac03b"));
+        chooser.getExtensionFilters().addAll(new FileChooser.ExtensionFilter(I18n.text("ui.a6e80a14adb7"), "*.fcnproj"),
+                new FileChooser.ExtensionFilter(I18n.text("ui.9398fbb7d54b"), "*.FlatPrj"));
         // A project that came from the Python application is offered back in its own format first.
         if (currentPythonLegacy != null) chooser.setSelectedExtensionFilter(chooser.getExtensionFilters().get(1));
         if(currentProjectFile!=null) {
@@ -10168,7 +10146,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
         if(!pythonFormat && !file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".fcnproj")) {
-            appendConsole("Escolha uma extensão .fcnproj ou .FlatPrj para salvar o projeto."); done.accept(false); return;
+            appendConsole(I18n.text("ui.0b7157474952")); done.accept(false); return;
         }
         writeProject(file, project, before, done);
     }
@@ -10177,19 +10155,17 @@ final class MainWindow implements TclFlatcamHost {
                               java.util.function.Consumer<Boolean> done) {
         boolean pythonFormat = file.getName().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj");
         if (pythonFormat) appendConsole(project.pythonLegacy() != null
-                ? "Salvando no formato Python 8.994: o que não foi alterado no FX e mantido como estava no projeto original "
-                        + "(preferências, opções dos objetos, macros, scripts); recursos exclusivos do FX ficam só para o FX."
-                : "Exportação Python 8.994: preserva geometria e G-code suportado. "
-                        + "Recursos exclusivos FX não tem equivalência completa no Python; mantenha também uma copia .fcnproj.");
+                ? I18n.text("ui.43461862e527")
+                : I18n.text("ui.8b235f6dbb34"));
 
-        beginJob("Salvando projeto " + file.getName() + "...");
+        beginJob(I18n.text("ui.ec1021563807") + file.getName() + "...");
         // Menu save publishes via the serializers directly; compression has no cooperative cancellation point.
         cancelJobButton.setDisable(true);
         JobHandle<Path> handle = jobExecutor.submit(context -> {
-            context.reportProgress(Double.NaN, "Serializando projeto...");
+            context.reportProgress(Double.NaN, I18n.text("ui.bd089e425302"));
             if (pythonFormat) PythonProjectWriter.save(project, file.toPath());
             else ProjectFileIO.save(project, file.toPath());
-            context.reportProgress(1, "Projeto salvo.");
+            context.reportProgress(1, I18n.text("ui.3a4737de1105"));
             return file.toPath();
         }, (fraction, message) -> Platform.runLater(() -> {
             updateProgress(fraction);
@@ -10199,16 +10175,16 @@ final class MainWindow implements TclFlatcamHost {
         handle.completion().whenComplete((saved,error) -> Platform.runLater(() -> {
             boolean success=false;
             try {
-                if(error!=null)reportJobError(error,"Falha ao salvar projeto: ");
+                if(error!=null)reportJobError(error,I18n.text("ui.b6ca594ea118"));
                 else {
                     markProjectSaved(saved,before);
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                     recentFiles.remember(RecentFiles.Kind.PROJECT,saved);
-                    appendConsole("Projeto salvo em "+saved); updateProgress(1); setStatus("Projeto salvo.",IDLE_COLOR);
+                    appendConsole(I18n.text("ui.c9987f501523")+saved); updateProgress(1); setStatus(I18n.text("ui.3a4737de1105"),IDLE_COLOR);
                     success=!hasUnsavedProjectChanges() && !hasEditorChanges();
-                    if(!success)appendConsole("Novas alterações durante o salvamento: a abertura/saída não continuará. Salve novamente.");
+                    if(!success)appendConsole(I18n.text("ui.410322c62e73"));
                 }
-            } catch(RuntimeException failure) { reportJobError(failure,"Falha ao concluir salvamento: "); }
+            } catch(RuntimeException failure) { reportJobError(failure,I18n.text("ui.12c0e06a63bd")); }
             finally { onJobFinished(); }
             done.accept(success);
         }));
@@ -10281,15 +10257,15 @@ final class MainWindow implements TclFlatcamHost {
      */
     private void openProject() {
         if (runningJob != null) {
-            appendConsole("Já existe uma operação em andamento.");
+            appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
         FileChooser chooser = new FileChooser();
-        chooser.setTitle("Abrir Projeto");
+        chooser.setTitle(I18n.text("ui.0c49c87c5cb7"));
         chooser.getExtensionFilters().addAll(
-                new FileChooser.ExtensionFilter("Projetos FlatCAM", "*.fcnproj", "*.FlatPrj"),
-                new FileChooser.ExtensionFilter("Projeto FlatCAM FX", "*.fcnproj"),
-                new FileChooser.ExtensionFilter("Projeto FlatCAM Python", "*.FlatPrj"));
+                new FileChooser.ExtensionFilter(I18n.text("ui.ffaeba6c0d30"), "*.fcnproj", "*.FlatPrj"),
+                new FileChooser.ExtensionFilter(I18n.text("ui.a6e80a14adb7"), "*.fcnproj"),
+                new FileChooser.ExtensionFilter(I18n.text("ui.77c3a9c0e13b"), "*.FlatPrj"));
         String fallbackDir = Path.of("").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -10310,7 +10286,7 @@ final class MainWindow implements TclFlatcamHost {
         catch (IllegalStateException blocked) { appendConsole(blocked.getMessage()); return; }
         File file = path.toAbsolutePath().normalize().toFile();
         TclProjectState before = captureTclProjectState();
-        beginJob("Abrindo projeto " + file.getName() + "...");
+        beginJob(I18n.text("ui.d34e9289a784") + file.getName() + "...");
         JobHandle<LoadedProject> handle = jobExecutor.submit(context -> loadProject(file.toPath(), context),
                 (fraction, message) -> Platform.runLater(() -> {
                     updateProgress(fraction);
@@ -10320,19 +10296,19 @@ final class MainWindow implements TclFlatcamHost {
         handle.completion().whenComplete((project, failure) -> Platform.runLater(() -> {
             try {
                 if (failure != null) throw new java.util.concurrent.CompletionException(failure);
-                if (handle.isCancelled()) throw new CancellationException("Carregamento cancelado.");
+                if (handle.isCancelled()) throw new CancellationException(I18n.text("ui.942c696ec9f9"));
                 checkTclProjectState(before);
-                if (hasEditorChanges()) throw new IllegalStateException("O editor foi alterado durante o carregamento.");
+                if (hasEditorChanges()) throw new IllegalStateException(I18n.text("ui.929e45c23243"));
                 restoreProject(project, true);
                 reportOpenedProject(file.toPath(), project);
                 markProjectSaved(file.toPath(),projectStateStamp());
                 recentFiles.remember(RecentFiles.Kind.PROJECT,file.toPath());
                 AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                 updateProgress(1);
-                setStatus("Concluido.", IDLE_COLOR);
+                setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
             } catch (Exception error) {
-                reportJobError(error, "Falha ao abrir projeto: ");
-                appendConsole("O projeto atual foi preservado se a restauração ainda não tinha iniciado.");
+                reportJobError(error, I18n.text("ui.f813ab7697f6"));
+                appendConsole(I18n.text("ui.68204c1215da"));
             } finally {
                 onJobFinished();
             }
@@ -10343,7 +10319,7 @@ final class MainWindow implements TclFlatcamHost {
     private LoadedProject loadProject(Path file, JobContext context) throws IOException {
         CancellationToken cancellation = context::isCancelled;
         cancellation.throwIfCancellationRequested();
-        context.reportProgress(0.05, "Lendo " + file.getFileName().toString() + "...");
+        context.reportProgress(0.05, I18n.text("ui.2841703ba4e2") + file.getFileName().toString() + "...");
         cancellation.throwIfCancellationRequested();
         long decodeStart = plotAreaView.profilingEnabled() ? System.nanoTime() : 0;
         ProjectFile project = file.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj")
@@ -10351,7 +10327,7 @@ final class MainWindow implements TclFlatcamHost {
         plotAreaView.logPerformancePhase("project decode (worker)", decodeStart);
         validateProjectColors(project);
         cancellation.throwIfCancellationRequested();
-        context.reportProgress(0.5, "Projeto decodificado.");
+        context.reportProgress(0.5, I18n.text("ui.efa993b08dac"));
 
         List<LoadedCncJob> cncJobs = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
@@ -10361,7 +10337,7 @@ final class MainWindow implements TclFlatcamHost {
         for (ProjectFile.CncJobRecord job : project.cncJobs()) {
             cancellation.throwIfCancellationRequested();
             Path outputPath = Path.of(job.outputPath());
-            context.reportProgress(0.5 + 0.5 * processed / total, "Lendo G-code " + outputPath.getFileName() + "...");
+            context.reportProgress(0.5 + 0.5 * processed / total, I18n.text("ui.2fbca7ff1f26") + outputPath.getFileName() + "...");
             try {
                 String gcode = job.gcode() != null ? job.gcode() : Files.readString(outputPath);
                 Geometry travel = null;
@@ -10375,7 +10351,7 @@ final class MainWindow implements TclFlatcamHost {
                     int jobIndex = processed;
                     GCodeToolpathParser.Result parsed = GCodeToolpathParser.parse(gcode, cancellation,
                             fraction -> context.reportProgress(0.5 + 0.5 * (jobIndex + fraction) / total,
-                                    "Analisando G-code " + outputPath.getFileName() + "..."));
+                                    I18n.text("ui.84447c77473c") + outputPath.getFileName() + "..."));
                     travel = parsed.travelGeometry();
                     cut = parsed.cutGeometry();
                     travelCenterlines = parsed.travelCenterlines();
@@ -10384,24 +10360,24 @@ final class MainWindow implements TclFlatcamHost {
                     stats = parsed.stats();
                     units = parsed.plotAvailable() ? parsed.units() : null;
                     if (parsed.warning() != null) {
-                        warnings.add("Aviso: " + outputPath.getFileName() + ": " + parsed.warning());
+                        warnings.add(I18n.text("ui.3e9a08c5414d") + outputPath.getFileName() + ": " + parsed.warning());
                     }
                 } catch (IllegalArgumentException invalidGcode) {
-                    warnings.add("Aviso: pré-visualização de " + outputPath.getFileName()
-                            + " indisponível: " + invalidGcode.getMessage());
+                    warnings.add(I18n.text("ui.22afc000f23c") + outputPath.getFileName()
+                            + I18n.text("ui.b605389e5a9f") + invalidGcode.getMessage());
                 }
                 String name = job.name() != null ? job.name() : outputPath.getFileName().toString();
                 cncJobs.add(new LoadedCncJob(name, job.sourceName(), outputPath, gcode,
                         travel, cut, travelCenterlines, cutCenterlines,
                         previewStrokeWidth, units, job.visible(), stats, job.plotSettings()));
             } catch (IOException e) {
-                warnings.add("Aviso: não foi possível ler G-code " + outputPath + ": " + e.getMessage());
+                warnings.add(I18n.text("ui.d95527c88dc1") + outputPath + ": " + e.getMessage());
             }
             processed++;
         }
 
         cancellation.throwIfCancellationRequested();
-        context.reportProgress(1, "Projeto carregado.");
+        context.reportProgress(1, I18n.text("ui.c781b005bd24"));
         return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
                 List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings(), project.pythonLegacy());
     }
@@ -10484,9 +10460,9 @@ final class MainWindow implements TclFlatcamHost {
 
     private void reportOpenedProject(Path file, LoadedProject project) {
         project.warnings().forEach(this::appendConsole);
-        appendConsole("Projeto aberto: " + file);
+        appendConsole(I18n.text("ui.cada362d23a9") + file);
         if (file.getFileName().toString().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj"))
-            appendConsole("Projeto Python importado. A abertura não altera o arquivo .FlatPrj original.");
+            appendConsole(I18n.text("ui.736af1183e9e"));
     }
 
     /** Restores a reloaded Gerber's plot appearance/visibility/follow-mode - see ProjectFile.GerberEntry. */
@@ -10533,8 +10509,8 @@ final class MainWindow implements TclFlatcamHost {
             clearProject();
             currentProjectFile = null;
             projectChanges.saved(projectStateStamp());
-            appendConsole("Novo projeto criado.");
-            setStatus("Novo projeto criado.", IDLE_COLOR);
+            appendConsole(I18n.text("ui.9c0a84086008"));
+            setStatus(I18n.text("ui.9c0a84086008"), IDLE_COLOR);
         });
     }
 

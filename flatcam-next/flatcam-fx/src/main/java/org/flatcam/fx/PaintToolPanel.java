@@ -86,11 +86,11 @@ final class PaintToolPanel {
                     diameters.add(value);
                 }
             } catch (NumberFormatException invalid) {
-                throw new IllegalArgumentException("\"" + piece + "\" não é um diâmetro válido");
+                throw new IllegalArgumentException("\"" + piece + I18n.text("ui.b722321d0b1d"));
             }
         }
         if (diameters.isEmpty()) {
-            throw new IllegalArgumentException("Informe ao menos um diâmetro de ferramenta");
+            throw new IllegalArgumentException(I18n.text("ui.7c03b8199560"));
         }
         return diameters;
     }
@@ -132,11 +132,11 @@ final class PaintToolPanel {
         }
 
         ToggleGroup selectionGroup = new ToggleGroup();
-        RadioButton all = new RadioButton("Todos os polígonos");
-        RadioButton single = new RadioButton("Um polígono (clique)");
-        RadioButton rectangle = new RadioButton("Área: retângulo");
-        RadioButton polygonArea = new RadioButton("Área: polígono");
-        RadioButton reference = new RadioButton("Objeto de referência");
+        RadioButton all = new RadioButton(I18n.text("ui.0364c14f702a"));
+        RadioButton single = new RadioButton(I18n.text("ui.ba89e6f82dfb"));
+        RadioButton rectangle = new RadioButton(I18n.text("ui.32d00abf8ddd"));
+        RadioButton polygonArea = new RadioButton(I18n.text("ui.5848385a0a90"));
+        RadioButton reference = new RadioButton(I18n.text("ui.a8e4c7c07fd3"));
         for (RadioButton radio : List.of(all, single, rectangle, polygonArea, reference)) {
             radio.setToggleGroup(selectionGroup);
         }
@@ -148,11 +148,11 @@ final class PaintToolPanel {
         referenceObject.setConverter(names);
         referenceObject.visibleProperty().bind(reference.selectedProperty());
         referenceObject.managedProperty().bind(referenceObject.visibleProperty());
-        referenceObject.setTooltip(tooltip("Pinta os polígonos da origem que tocam a geometria deste objeto."));
+        referenceObject.setTooltip(tooltip(I18n.text("ui.081c258617a2")));
 
         Label selectedLabel = new Label();
-        Button choose = new Button("Selecionar");
-        Button clear = new Button("Limpar seleção");
+        Button choose = new Button(I18n.text("ui.6a57618c2593"));
+        Button clear = new Button(I18n.text("ui.33a042c0fd07"));
         List<Polygon> chosen = new ArrayList<>();
         choose.visibleProperty().bind(all.selectedProperty().not());
         choose.managedProperty().bind(choose.visibleProperty());
@@ -166,10 +166,10 @@ final class PaintToolPanel {
         Runnable showSelection = () -> {
             if (all.isSelected()) {
                 int count = source.getValue() == null ? 0 : polygonsOf(host.polygons(source.getValue())).size();
-                selectedLabel.setText(count + " polígono(s) na origem");
+                selectedLabel.setText(count + I18n.text("ui.cf58180bf39e"));
                 host.preview(null);
             } else {
-                selectedLabel.setText(chosen.size() + " polígono(s) selecionado(s)");
+                selectedLabel.setText(chosen.size() + I18n.text("ui.b0cf5d3ccf15"));
                 host.preview(chosen.isEmpty() ? null : FACTORY.buildGeometry(new ArrayList<Geometry>(chosen)));
             }
         };
@@ -197,17 +197,17 @@ final class PaintToolPanel {
             errorLabel.setText("");
             TreeItem<String> item = source.getValue();
             if (item == null) {
-                errorLabel.setText("Não há objeto para pintar");
+                errorLabel.setText(I18n.text("ui.4a12932cb623"));
                 return;
             }
             Geometry polygons = host.polygons(item);
             List<Polygon> candidates = polygonsOf(polygons);
             stopPicking.run();
             if (single.isSelected()) {
-                errorLabel.setText("Clique dentro de um polígono (Esc termina).");
+                errorLabel.setText(I18n.text("ui.f0b1c3c71784"));
                 pickNext(host, candidates, chosen, showSelection, errorLabel);
             } else if (rectangle.isSelected() || polygonArea.isSelected()) {
-                errorLabel.setText(rectangle.isSelected() ? "Desenhe o retângulo no plot." : "Desenhe o polígono no plot.");
+                errorLabel.setText(rectangle.isSelected() ? I18n.text("ui.ab86250ca50b") : I18n.text("ui.c4d3bb6091d9"));
                 host.selectArea(polygons, polygonArea.isSelected(), area -> {
                     for (Polygon candidate : candidates) {
                         if (candidate.intersects(area) && !chosen.contains(candidate)) {
@@ -220,7 +220,7 @@ final class PaintToolPanel {
             } else if (reference.isSelected()) {
                 TreeItem<String> ref = referenceObject.getValue();
                 if (ref == null) {
-                    errorLabel.setText("Escolha o objeto de referência");
+                    errorLabel.setText(I18n.text("ui.b6d2a2388956"));
                     return;
                 }
                 Geometry referenceShape = host.polygons(ref);
@@ -241,7 +241,7 @@ final class PaintToolPanel {
         TextField diameters = new TextField(ToolDefaults.text("paint.tooldia", metric));
         diameters.setMinWidth(0);
         HBox.setHgrow(diameters, javafx.scene.layout.Priority.ALWAYS);
-        diameters.setTooltip(tooltip("Diâmetros positivos separados por vírgula, ponto e vírgula ou espaço, sem repetir. Use ponto decimal: 0.3; 1.0.\n\nAtualizar lista preserva os parâmetros dos diâmetros que continuam na lista; novos diâmetros recebem os parâmetros exibidos. Pintar também sincroniza a lista.\n\nUnidades: unidade da origem (mm ou in); vírgula é separador de ferramentas, não separador decimal neste campo."));
+        diameters.setTooltip(tooltip(I18n.text("ui.20642ea8eeba")));
         TextField overlap = new TextField(ToolDefaults.text("paint.overlap", metric));
         TextField margin = new TextField(ToolDefaults.text("paint.margin", metric));
         overlap.setPrefColumnCount(5);
@@ -249,24 +249,24 @@ final class PaintToolPanel {
         ComboBox<NccMethod> method = new ComboBox<>();
         method.getItems().addAll(NccMethod.STANDARD, NccMethod.SEED, NccMethod.LINES, NccMethod.COMBO);
         method.setValue(ToolDefaults.choice("paint.method", NccMethod.class));
-        CheckBox connect = new CheckBox("Conectar caminhos");
+        CheckBox connect = new CheckBox(I18n.text("ui.9e2edea69e20"));
         connect.setSelected(ToolDefaults.flag("paint.connect"));
-        CheckBox contour = new CheckBox("Contorno");
+        CheckBox contour = new CheckBox(I18n.text("ui.8185e1c34543"));
         contour.setSelected(ToolDefaults.flag("paint.contour"));
         ComboBox<NccOrder> order = new ComboBox<>();
         order.getItems().addAll(NccOrder.values());
         order.setValue(ToolDefaults.choice("paint.order", NccOrder.class));
         CheckBox rest = new CheckBox("Rest machining");
-        rest.setTooltip(tooltip("Cada ferramenta menor preenche somente o que as maiores não alcançaram, usando a margem individual de sua linha.\n\nRest usa a ordem do maior para o menor e desabilita a ordem manual; não copia parâmetros entre ferramentas."));
+        rest.setTooltip(tooltip(I18n.text("ui.9d7de9524372")));
         order.disableProperty().bind(rest.selectedProperty());
         TableView<Double> toolTable = new TableView<>(); toolTable.setId("paint-tools");
         toolTable.setMinWidth(0); toolTable.setPrefHeight(130);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
-        TableColumn<Double, Number> diameterColumn = new TableColumn<>("Diâmetro");
+        TableColumn<Double, Number> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
         diameterColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue()));
         toolTable.getColumns().add(diameterColumn);
-        ToolDescriptions.apply(toolTable, "Ferramentas do Paint",
-                "Selecione uma linha para editar Overlap, margem, método, Connect e Contour dessa ferramenta. Trocar de linha preserva o rascunho, inclusive valores inválidos; Pintar valida todas as linhas.\n\nPara adicionar/remover diâmetros, edite a lista acima e use Atualizar lista. Ordem e Rest são comuns; Aplicar parâmetros a todas copia os valores da linha exibida.");
+        ToolDescriptions.apply(toolTable, I18n.text("ui.4957942fd71b"),
+                I18n.text("ui.94944eac970d"));
         java.util.Map<Double, String[]> rows = new java.util.LinkedHashMap<>();
         java.util.function.Supplier<String[]> capture = () -> new String[]{overlap.getText(), margin.getText(), method.getValue().name(),
                 Boolean.toString(connect.isSelected()), Boolean.toString(contour.isSelected())};
@@ -274,11 +274,11 @@ final class PaintToolPanel {
             method.setValue(NccMethod.valueOf(s[2])); connect.setSelected(Boolean.parseBoolean(s[3])); contour.setSelected(Boolean.parseBoolean(s[4])); };
         Double[] editing = {0.3}; boolean[] syncing = {false};
         rows.put(0.3, capture.get()); toolTable.getItems().add(0.3); toolTable.getSelectionModel().selectFirst();
-        Label parameterTitle = new Label("Parâmetros da ferramenta: 0.3");
+        Label parameterTitle = new Label(I18n.text("ui.298cd24b02eb"));
         toolTable.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (syncing[0] || selected == null) return;
             rows.put(editing[0], capture.get()); editing[0] = selected;
-            restore.accept(rows.get(selected)); parameterTitle.setText("Parâmetros da ferramenta: " + selected);
+            restore.accept(rows.get(selected)); parameterTitle.setText(I18n.text("ui.1228ea6a807e") + selected);
         });
         Runnable synchronizeTools = () -> {
             List<Double> values = parseDiameters(diameters.getText());
@@ -290,18 +290,18 @@ final class PaintToolPanel {
                 toolTable.getItems().setAll(values);
                 editing[0] = values.contains(editing[0]) ? editing[0] : values.getFirst();
                 toolTable.getSelectionModel().select(editing[0]); restore.accept(rows.get(editing[0]));
-                parameterTitle.setText("Parâmetros da ferramenta: " + editing[0]);
+                parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0]);
             } finally { syncing[0] = false; }
         };
-        Button updateTools = new Button("Atualizar lista"); updateTools.setId("paint-update-tools");
-        ToolDescriptions.apply(updateTools, "Sincronizar ferramentas",
-                "Atualiza a tabela a partir da lista de diâmetros. Preserva linhas mantidas; novas linhas recebem os parâmetros exibidos.\n\nAtenção: retirar um diâmetro da lista remove seu rascunho de parâmetros deste painel. Não altera Geometry já gerada nem a Tools Database.");
+        Button updateTools = new Button(I18n.text("ui.c370b549c472")); updateTools.setId("paint-update-tools");
+        ToolDescriptions.apply(updateTools, I18n.text("ui.b61e1a7d9a7a"),
+                I18n.text("ui.b6d5202e04ae"));
         updateTools.setOnAction(event -> { try { synchronizeTools.run(); errorLabel.setText(""); }
             catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
-        Button applyAll = new Button("Aplicar parâmetros a todas as ferramentas"); applyAll.setId("paint-apply-all");
+        Button applyAll = new Button(I18n.text("ui.36c3d0d83bb8")); applyAll.setId("paint-apply-all");
         applyAll.setMaxWidth(Double.MAX_VALUE);
-        ToolDescriptions.apply(applyAll, "Copiar parâmetros do Paint",
-                "Copia Overlap, margem, método, Connect e Contour da linha exibida para todos os diâmetros, substituindo os rascunhos individuais. Seleção de polígonos, ordem e Rest não mudam.\n\nNão grava na Tools Database e não regenera Geometry já criada.");
+        ToolDescriptions.apply(applyAll, I18n.text("ui.14162f7da79a"),
+                I18n.text("ui.067a7657fa42"));
         applyAll.setOnAction(event -> { try { synchronizeTools.run(); for (double d : toolTable.getItems()) rows.put(d,capture.get()); }
             catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
         VBox database = DatabaseToolPicker.build("paint-db", host::databaseTools, selected -> {
@@ -317,27 +317,27 @@ final class PaintToolPanel {
             overlap.setText(Double.toString(p.overlapFraction() * 100)); margin.setText(Double.toString(p.offset()));
             method.setValue(p.method()); connect.setSelected(p.connect()); contour.setSelected(p.contour());
         }, errorLabel);
-        Label transferNote = new Label("Aplicar adiciona a ferramenta da base (ou atualiza o mesmo diâmetro), preservando as outras linhas. Parâmetros são individuais; seleção de polígonos, ordem e Rest permanecem comuns. Pontas V e Laser Lines ainda não são suportados.");
+        Label transferNote = new Label(I18n.text("ui.56a734d154cf"));
         transferNote.setWrapText(true);
 
-        Button paint = new Button("Pintar");
+        Button paint = new Button(I18n.text("ui.0e4f5ddd5cbf"));
         paint.setId("paint-generate"); overlap.setId("paint-overlap"); margin.setId("paint-margin");
         method.setId("paint-method"); diameters.setId("paint-diameters"); errorLabel.setId("paint-error");
-        margin.setTooltip(tooltip("Margem individual: positiva contrai, negativa expande a área a pintar.\n\nUnidades: unidade da origem (mm ou in).\n\nAtenção: uma margem negativa pode criar caminhos fora do polígono original; confira a Geometry antes de usinar."));
+        margin.setTooltip(tooltip(I18n.text("ui.1d8ad7c5e49e")));
         paint.setMaxWidth(Double.MAX_VALUE);
-        ToolDescriptions.apply(paint, "Gerar caminhos do Paint",
-                "Sincroniza os diâmetros, valida todas as ferramentas e cria Geometry com os caminhos de preenchimento. Usa os polígonos escolhidos e os parâmetros de cada linha.\n\nNão gera G-code. Depois, use Geometry → CNC Job para configurar/revisar corte, alturas, avanços e spindle.");
+        ToolDescriptions.apply(paint, I18n.text("ui.0127d5fe2cc0"),
+                I18n.text("ui.31777f4df7cb"));
         paint.setOnAction(event -> {
             try {
                 TreeItem<String> item = source.getValue();
                 if (item == null) {
-                    throw new IllegalArgumentException("Não há objeto para pintar");
+                    throw new IllegalArgumentException(I18n.text("ui.4a12932cb623"));
                 }
                 Geometry polygons = all.isSelected() ? host.polygons(item)
                         : chosen.isEmpty() ? null : FACTORY.buildGeometry(new ArrayList<Geometry>(chosen));
                 if (polygons == null || polygons.isEmpty()) {
-                    throw new IllegalArgumentException(all.isSelected() ? "A origem não tem polígonos preenchidos"
-                            : "Selecione os polígonos a pintar");
+                    throw new IllegalArgumentException(all.isSelected() ? I18n.text("ui.b422a75b49fb")
+                            : I18n.text("ui.410a190f7174"));
                 }
                 synchronizeTools.run();
                 java.util.Map<Double, PaintToolSettings> settings = new java.util.LinkedHashMap<>();
@@ -346,10 +346,10 @@ final class PaintToolPanel {
                     try { settings.put(diameter,new PaintToolSettings(Double.parseDouble(s[0].trim().replace(',','.'))/100,
                             Double.parseDouble(s[1].trim().replace(',','.')), NccMethod.valueOf(s[2]),
                             Boolean.parseBoolean(s[3]),Boolean.parseBoolean(s[4]))); }
-                    catch (RuntimeException invalid) { throw new IllegalArgumentException("Ferramenta " + diameter + ": " + invalid.getMessage()); }
+                    catch (RuntimeException invalid) { throw new IllegalArgumentException(I18n.text("ui.10f99bd620cc") + diameter + ": " + invalid.getMessage()); }
                 }
                 PaintParameters parameters = new PaintParameters(List.copyOf(toolTable.getItems()),
-                        number(overlap, "Sobreposicao") / 100.0, number(margin, "Margem"), method.getValue(),
+                        number(overlap, I18n.text("ui.ed0baca2b3b3")) / 100.0, number(margin, I18n.text("ui.c707749bff8f")), method.getValue(),
                         connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected(), settings);
                 stopPicking.run();
                 errorLabel.setText("");
@@ -358,7 +358,7 @@ final class PaintToolPanel {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             stopPicking.run();
             host.preview(null);
@@ -366,16 +366,16 @@ final class PaintToolPanel {
         });
 
         VBox panel = new VBox(8,
-                new Label("Origem (Gerber ou Geometry):"), source,
-                new Label("Polígonos a pintar:"),
+                new Label(I18n.text("ui.00c986260e98")), source,
+                new Label(I18n.text("ui.83e7115ae275")),
                 new VBox(4, all, single, rectangle, polygonArea, reference), referenceObject,
                 new HBox(6, choose, clear), selectedLabel,
                 new Separator(),
-                new Label("Diâmetros das ferramentas:"), new HBox(6,diameters,updateTools), toolTable, database, transferNote, parameterTitle,
-                new HBox(6, new Label("Sobreposicao (%):"), overlap, new Label("Margem:"), margin),
+                new Label(I18n.text("ui.87aaa7e961d0")), new HBox(6,diameters,updateTools), toolTable, database, transferNote, parameterTitle,
+                new HBox(6, new Label(I18n.text("ui.ea6b271e4830")), overlap, new Label(I18n.text("ui.16bab5b0d1de")), margin),
                 new HBox(6, new Label("Metodo:"), method),
                 new HBox(10, connect, contour), applyAll,
-                new HBox(6, new Label("Ordem:"), order), rest,
+                new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
                 paint, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;
@@ -407,7 +407,7 @@ final class PaintToolPanel {
         try {
             return Double.parseDouble(field.getText().trim().replace(',', '.'));
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor inválido em " + name.toLowerCase(Locale.ROOT));
+            throw new IllegalArgumentException(I18n.text("ui.1cbfa91d7a0c") + name.toLowerCase(Locale.ROOT));
         }
     }
 

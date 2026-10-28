@@ -10,7 +10,7 @@ import java.util.prefs.Preferences;
 final class RecentFiles {
     static final int LIMIT = 10;
     enum Kind {
-        PROJECT("Projeto", "folder32.png"), GERBER("Gerber", "flatcam_icon32.png"),
+        PROJECT(I18n.text("ui.4c7877d7558f"), "folder32.png"), GERBER("Gerber", "flatcam_icon32.png"),
         EXCELLON("Excellon", "drill32.png"), GCODE("G-Code", "cnc32.png"),
         SVG_GEOMETRY("SVG → Geometry", "svg32.png"), SVG_GERBER("SVG → Gerber", "svg32.png"),
         DXF_GEOMETRY("DXF → Geometry", "dxf16.png"), DXF_GERBER("DXF → Gerber", "dxf16.png"),
@@ -59,7 +59,7 @@ final class RecentFiles {
         try { preferences.flush(); }
         catch (BackingStoreException failure) {
             System.getLogger(RecentFiles.class.getName()).log(System.Logger.Level.WARNING,
-                    "Não foi possível persistir o histórico de Recentes", failure);
+                    I18n.text("ui.389debfc85c1"), failure);
         }
     }
 }

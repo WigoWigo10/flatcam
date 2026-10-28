@@ -95,7 +95,7 @@ final class DrillGCodeToolPanel {
 
         DrillGCodeParameters parameters(boolean toolChange, boolean roland) {
             double cut = parse(cutZ, "Cut Z (Tool " + id + ")");
-            if (cut >= 0) throw new IllegalArgumentException("Cut Z deve ser negativo para Tool " + id + ".");
+            if (cut >= 0) throw new IllegalArgumentException(I18n.text("ui.b324d68a1b35") + id + ".");
             return new DrillGCodeParameters(parse(travelZ, "Travel Z (Tool " + id + ")"), -cut,
                     parse(feedZ, "Feedrate Z (Tool " + id + ")"),
                     roland ? 0 : parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange,
@@ -142,7 +142,7 @@ final class DrillGCodeToolPanel {
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
         sourceCombo.setValue(initialSource);
         sourceCombo.setId("drill-source");
-        ToolDescriptions.apply(sourceCombo,"Excellon de origem", "Arquivo cujas brocas e slots serão usados na furação. Trocar a origem recarrega ferramentas e ajustes salvos; confira a seleção antes de gerar.");
+        ToolDescriptions.apply(sourceCombo,I18n.text("ui.94083d55bd76"), I18n.text("ui.23988be402e5"));
         sourceCombo.setMinWidth(0);
         sourceCombo.setPrefWidth(180);
         sourceCombo.setMaxWidth(Double.MAX_VALUE);
@@ -203,12 +203,12 @@ final class DrillGCodeToolPanel {
         forwardOrder.setId("drill-order-forward");
         reverseOrder.setId("drill-order-reverse");
         noOrder.setSelected(true);
-        HBox orderRow = new HBox(8, new Label("Ordem:"), noOrder, forwardOrder, reverseOrder);
+        HBox orderRow = new HBox(8, new Label(I18n.text("ui.3b41aae0bd17")), noOrder, forwardOrder, reverseOrder);
         orderRow.setAlignment(Pos.CENTER_LEFT);
-        Button searchDb = new Button("Buscar na base");
+        Button searchDb = new Button(I18n.text("ui.3d94a3834766"));
         searchDb.setId("drill-db-search");
         searchDb.setMaxWidth(Double.MAX_VALUE);
-        searchDb.setTooltip(new Tooltip("Carrega parâmetros das ferramentas de furação da Tools Database do Python."));
+        searchDb.setTooltip(new Tooltip(I18n.text("ui.47d18835b254")));
 
         Label selectedTitle = heading("Parameters for: Multiple Tools");
         TextField cutZ = field(ToolDefaults.text("drilling.cutz", metric));
@@ -217,8 +217,8 @@ final class DrillGCodeToolPanel {
         TextField feedZ = field(ToolDefaults.text("drilling.feedz", metric));
         TextField spindle = field(ToolDefaults.text("drilling.spindle", metric));
         spindle.setId("drill-power");
-        ToolDescriptions.apply(spindle,"Spindle / potência do perfil",
-                "RPM positivo comanda a partida na velocidade solicitada. RPM zero deixa o acionamento e a parada sob controle manual: não envia uma partida automática e não garante a parada final. Trocas ativadas podem parar o spindle antes da pausa.\n\nZero não significa desligar o spindle. Confira o G-code e o procedimento da máquina. Perfis PWM usam sua própria faixa de potência.");
+        ToolDescriptions.apply(spindle,I18n.text("ui.9fcd43728fef"),
+                I18n.text("ui.58cb9e9da85e"));
         TextField dwellTime = field(ToolDefaults.text("drilling.dwelltime", metric));
         TextField offsetZ = field(ToolDefaults.text("drilling.offsetz", metric));
         cutZ.setId("drill-cut-z"); depthPerPass.setId("drill-depth-per-pass"); travelZ.setId("drill-travel-z");
@@ -227,20 +227,20 @@ final class DrillGCodeToolPanel {
         multiDepth.setId("drill-multi-depth");
         CheckBox dwell = new CheckBox("Dwell");
         dwell.setId("drill-dwell");
-        multiDepth.setTooltip(new Tooltip("Desce em etapas e retrai entre passes."));
-        dwell.setTooltip(new Tooltip("Espera após ligar o spindle antes de furar."));
-        offsetZ.setTooltip(new Tooltip("Valor positivo aumenta a profundidade; negativo reduz."));
-        CheckBox drillSlots = new CheckBox("Drill slots — furar rasgos");
+        multiDepth.setTooltip(new Tooltip(I18n.text("ui.a848cf380f47")));
+        dwell.setTooltip(new Tooltip(I18n.text("ui.8482466b261b")));
+        offsetZ.setTooltip(new Tooltip(I18n.text("ui.65c7dee521fa")));
+        CheckBox drillSlots = new CheckBox(I18n.text("ui.ca1a1a37360d"));
         drillSlots.setId("drill-slots");
         TextField slotOverlap = field("0.0"); slotOverlap.setId("drill-slot-overlap");
-        CheckBox slotLastHole = new CheckBox("Último furo no fim do rasgo");
+        CheckBox slotLastHole = new CheckBox(I18n.text("ui.220b5c32e397"));
         slotLastHole.setId("drill-slot-last-hole");
-        ToolDescriptions.apply(drillSlots, "Furar rasgos por ferramenta",
-                "Ativado: converte os rasgos desta ferramenta em uma sequência de furos sobrepostos, como Drill slots no Python. Usa o diâmetro real do Excellon.\n\nDesativado: preserva a fresagem lateral ao longo do rasgo. Não altera o arquivo de origem; confira se a ferramenta admite a operação escolhida.");
-        ToolDescriptions.apply(slotOverlap, "Sobreposição dos furos (%)",
-                "Passo entre centros = diâmetro × (1 − sobreposição / 100). Aceita 0 até menos de 100%. Pertence a cada ferramenta; não muda a sobreposição de NCC/Paint.\n\nSobreposição alta gera muitos furos. Há limite de um milhão de furos convertidos por tarefa para evitar esgotar memória. O trabalho pode ser cancelado.");
-        ToolDescriptions.apply(slotLastHole, "Furo final do rasgo",
-                "Adiciona um furo no ponto final quando a distância até o último centro é pelo menos um décimo do passo, como no Python. Desativado: para no último centro intermediário.\n\nA sequência de círculos não é equivalente a fresar o contorno: pode deixar material entre furos. Confira a prévia 2D e o processo físico.");
+        ToolDescriptions.apply(drillSlots, I18n.text("ui.f17f3582e203"),
+                I18n.text("ui.70f19487b4bd"));
+        ToolDescriptions.apply(slotOverlap, I18n.text("ui.4182d52dfc84"),
+                I18n.text("ui.d71b60bbe44f"));
+        ToolDescriptions.apply(slotLastHole, I18n.text("ui.46b23dd8cc18"),
+                I18n.text("ui.f432374b5406"));
         boolean[] loading = {false};
         Runnable loadSelection = () -> {
             List<ToolRow> selected = table.getSelectionModel().getSelectedItems();
@@ -322,10 +322,10 @@ final class DrillGCodeToolPanel {
         perTool.addRow(7, drillSlots);
         perTool.addRow(8, new Label("Drill slots overlap (%):"), slotOverlap);
         perTool.addRow(9, slotLastHole);
-        Label machiningNote = new Label("Dwell espera após iniciar o spindle; Offset Z altera Cut Z.");
+        Label machiningNote = new Label(I18n.text("ui.1e81a796ab6e"));
         machiningNote.setWrapText(true);
         machiningNote.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
-        Button applyAll = new Button("Aplicar parâmetros a todas as ferramentas");
+        Button applyAll = new Button(I18n.text("ui.36c3d0d83bb8"));
         applyAll.setMaxWidth(Double.MAX_VALUE);
         applyAll.disableProperty().bind(Bindings.createBooleanBinding(
                 () -> table.getSelectionModel().getSelectedItems().size() != 1 || table.getItems().size() < 2,
@@ -335,18 +335,18 @@ final class DrillGCodeToolPanel {
         feedback.setWrapText(true);
         feedback.managedProperty().bind(feedback.textProperty().isNotEmpty());
         if (!initialSource.drillDefaults().isEmpty()) {
-            feedback.setText("Parâmetros de furação recuperados do projeto; confira-os antes de gerar G-code.");
+            feedback.setText(I18n.text("ui.0e04110e119f"));
         }
         sourceCombo.valueProperty().addListener((observable, oldValue, value) -> {
             if (value != null) feedback.setText(value.drillDefaults().isEmpty() ? ""
-                    : "Parâmetros de furação recuperados do projeto; confira-os antes de gerar G-code.");
+                    : I18n.text("ui.0e04110e119f"));
         });
         var commonDatabaseImport = new java.util.concurrent.atomic.AtomicReference<Consumer<Map<ToolRow, LegacyToolsDatabase.DrillTool>>>(ignored -> {});
         searchDb.setOnAction(event -> {
             try {
                 List<LegacyToolsDatabase.DrillTool> database = databaseLoader.get();
                 if (database.isEmpty()) {
-                    feedback.setText("Nenhuma ferramenta de furação carregada da base.");
+                    feedback.setText(I18n.text("ui.4b822183b38c"));
                     return;
                 }
                 Map<ToolRow, LegacyToolsDatabase.DrillTool> matches = new LinkedHashMap<>();
@@ -360,16 +360,15 @@ final class DrillGCodeToolPanel {
                     }
                 }
                 if (!ambiguous.isEmpty()) {
-                    feedback.setText("Base ambigua para " + String.join(", ", ambiguous)
-                            + "; nenhum parâmetro foi alterado.");
+                    feedback.setText(I18n.text("ui.7da802473f48") + String.join(", ", ambiguous)
+                            + I18n.text("ui.933659c0eb68"));
                     return;
                 }
                 matches.forEach(ToolRow::applyDatabaseTool);
                 loadSelection.run();
                 commonDatabaseImport.get().accept(matches);
-                feedback.setText(matches.size() + " ferramenta(s) atualizada(s) pela base; "
-                        + (table.getItems().size() - matches.size()) + " sem correspondencia. "
-                        + "Diâmetros do Excellon preservados.");
+                feedback.setText(matches.size() + I18n.text("ui.39483ef84da6")
+                        + (table.getItems().size() - matches.size()) + I18n.text("ui.0c16b092da7c"));
             } catch (RuntimeException error) {
                 feedback.setText("Tools Database: " + error.getMessage());
             }
@@ -393,7 +392,7 @@ final class DrillGCodeToolPanel {
                     row.slotOverlap = source.slotOverlap;
                     row.slotLastHole = source.slotLastHole;
                 }
-                feedback.setText("Parâmetros copiados para todas as ferramentas.");
+                feedback.setText(I18n.text("ui.33f1d81b4bac"));
             } catch (RuntimeException error) { feedback.setText(error.getMessage()); }
         });
 
@@ -408,29 +407,21 @@ final class DrillGCodeToolPanel {
         TextField toolChangeZ = field(ToolDefaults.text("drilling.toolchangez", metric));
         TextField startZ = field("None");
         startZ.setId("drill-start-z");
-        startZ.setPromptText("None ou altura");
-        startZ.setTooltip(new Tooltip("Altura Z inicial opcional. None usa Travel Z quando não há troca inicial; "
-                + "com troca, sobe diretamente para Tool change Z. Antes de furar, retorna ao Travel Z. "
-                + "Start Z não faz referenciamento.\n\nUnidades: unidade do objeto (mm ou in). "
-                + "Roland e sondagem não aceitam essas posições neste port."));
+        startZ.setPromptText(I18n.text("ui.07425f67cf01"));
+        startZ.setTooltip(new Tooltip(I18n.text("ui.e98cd0d9e4e2")));
         TextField toolChangeXY = field("None");
         toolChangeXY.setId("drill-tool-change-xy");
-        toolChangeXY.setPromptText("None ou X;Y");
-        toolChangeXY.setTooltip(new Tooltip("Posição opcional de troca nas unidades da origem; None = posição atual. "
-                + "Exige Tool change e Z de troca >= maior Travel Z. O trajeto respeita Around/Over. "
-                + "Use X;Y para coordenadas com virgula decimal. Roland e sondagem não suportados neste port."));
+        toolChangeXY.setPromptText(I18n.text("ui.a81d8f45445c"));
+        toolChangeXY.setTooltip(new Tooltip(I18n.text("ui.c6f2036297f5")));
         toolChangeZ.disableProperty().bind(toolChange.selectedProperty().not());
         TextField endMoveZ = field(ToolDefaults.text("drilling.endz", metric));
         TextField endMoveXY = field("None");
         endMoveZ.setId("drill-end-z");
         endMoveXY.setId("drill-end-xy");
-        endMoveXY.setPromptText("None ou X,Y");
-        CheckBox optimizeDrills=new CheckBox("Otimizar sequência dos furos por proximidade"); optimizeDrills.setId("drill-optimize-order");
-        ToolDescriptions.apply(optimizeDrills,"Ordem dos furos","Visita o próximo furo mais perto dentro de cada ferramenta, partindo da posição real após a troca. Inclui os furos convertidos por Drill slots; não reordena rasgos fresados. Não elimina furos repetidos nem muda profundidades. Não mistura ferramentas, não garante ótimo global e usa distância direta, não custo dos desvios Around/Over.");
-        endMoveXY.setTooltip(new Tooltip("Posição final X,Y; None mantém o último furo. Use X;Y para duas coordenadas. "
-                + "Mantém pelo menos o Travel Z da última ferramenta durante o deslocamento, mesmo sem exclusões; "
-                + "só depois alcança End move Z no destino. Around/Over também protegem a rota.\n\nAtenção: "
-                + "configure Travel Z acima dos obstáculos e confira o destino antes de escolher uma altura final baixa.\n\nUnidades: unidade do objeto (mm ou in)."));
+        endMoveXY.setPromptText(I18n.text("ui.dddb242e0f65"));
+        CheckBox optimizeDrills=new CheckBox(I18n.text("ui.5279b5922d9d")); optimizeDrills.setId("drill-optimize-order");
+        ToolDescriptions.apply(optimizeDrills,I18n.text("ui.cff0cf65dbb1"),I18n.text("ui.5a5bd1cbc177"));
+        endMoveXY.setTooltip(new Tooltip(I18n.text("ui.13fdcb98a08d")));
         ComboBox<GCodePreprocessor> preprocessor = new ComboBox<>(
                 FXCollections.observableArrayList(GCodePreprocessor.millingProfiles()));
         preprocessor.setId("drill-preprocessor");
@@ -452,18 +443,18 @@ final class DrillGCodeToolPanel {
         sourceCombo.valueProperty().addListener((observable, oldValue, value) -> probe.resetConfirmation());
         Label probeUnits = new Label();
         probeUnits.textProperty().bind(Bindings.createStringBinding(
-                () -> "Unidades atuais: " + sourceCombo.getValue().image().units(), sourceCombo.valueProperty()));
+                () -> I18n.text("ui.3abcc1be6523") + sourceCombo.getValue().image().units(), sourceCombo.valueProperty()));
         probe.view().getChildren().addFirst(probeUnits);
         toolChangeZ.disableProperty().unbind();
         toolChangeZ.disableProperty().bind(Bindings.createBooleanBinding(
                 () -> !toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection()
                         || preprocessor.getValue().isRoland(), toolChange.selectedProperty(), preprocessor.valueProperty()));
         spindleLabel.textProperty().bind(Bindings.createStringBinding(
-                () -> preprocessor.getValue() == GCodePreprocessor.REPETIER ? "Potência PWM (0-255):" : "Spindle RPM:",
+                () -> preprocessor.getValue() == GCodePreprocessor.REPETIER ? I18n.text("ui.e6d6b7438e33") : "Spindle RPM:",
                 preprocessor.valueProperty()));
         preprocessor.setConverter(new StringConverter<>() {
             @Override public String toString(GCodePreprocessor value) {
-                return value == null ? "" : value.label();
+                return value == null ? "" : I18n.caption(value.label());
             }
             @Override public GCodePreprocessor fromString(String value) {
                 return preprocessor.getValue();
@@ -471,12 +462,10 @@ final class DrillGCodeToolPanel {
         });
         preprocessor.setMinWidth(0);
         preprocessor.setMaxWidth(Double.MAX_VALUE);
-        preprocessor.setTooltip(new Tooltip("Port parcial dos perfis Python de fresagem. "
-                + "M6 exige suporte do controlador; simule o G-code antes de usar na máquina."));
+        preprocessor.setTooltip(new Tooltip(I18n.text("ui.1fe78ec2af77")));
         TextField rapidFeed = field(ToolDefaults.text("drilling.feedrapid", metric));
         rapidFeed.setId("drill-rapid-feed");
-        rapidFeed.setTooltip(new Tooltip("0 = automático: 1500 mm/min ou equivalente em polegadas. "
-                + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
+        rapidFeed.setTooltip(new Tooltip(I18n.text("ui.4bdfb9d10a59")));
         rapidFeed.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> !preprocessor.getValue().usesRapidFeed(), preprocessor.valueProperty()));
         var commonDb = new CncJobDefaultsReview("drill", suggestion -> {
@@ -529,7 +518,7 @@ final class DrillGCodeToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
         errorLabel.managedProperty().bind(errorLabel.textProperty().isNotEmpty());
-        Button generate = new Button("Gerar CNC Job");
+        Button generate = new Button(I18n.text("ui.3037c711edf6"));
         generate.setId("drill-generate");
         generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
@@ -548,13 +537,12 @@ final class DrillGCodeToolPanel {
                 commonDb.assertResolved();
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
                 preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
-                if (selected.isEmpty()) throw new IllegalArgumentException("Selecione ferramentas para furar.");
+                if (selected.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.5d38710d33bf"));
                 if (roland.get() && selected.size() > 1)
-                    throw new IllegalArgumentException("Roland exige uma ferramenta por arquivo.");
+                    throw new IllegalArgumentException(I18n.text("ui.37bf12bf4358"));
                 if (!toolChange.isSelected() && !preprocessor.getValue().automaticToolSelection()
                         && selected.stream().map(row -> row.diameter).distinct().count() > 1)
-                    throw new IllegalArgumentException("Há diâmetros diferentes no mesmo G-code. "
-                            + "Ative Tool change para pausar entre ferramentas.");
+                    throw new IllegalArgumentException(I18n.text("ui.d89baf49d602"));
                 if (forwardOrder.isSelected()) selected.sort(Comparator.comparingDouble(row -> row.diameter));
                 else if (reverseOrder.isSelected())
                     selected.sort(Comparator.comparingDouble((ToolRow row) -> row.diameter).reversed());
@@ -563,7 +551,7 @@ final class DrillGCodeToolPanel {
                 boolean mechanicalChange = toolChange.isSelected() && preprocessor.getValue().supportsManualToolChange();
                 List<Integer> orderedIds = new ArrayList<>();
                 for (ToolRow row : selected) {
-                    preprocessor.getValue().validatePower(roland.get() ? 0 : parseInt(row.spindle, "Potência/RPM (Tool " + row.id + ")"));
+                    preprocessor.getValue().validatePower(roland.get() ? 0 : parseInt(row.spindle, I18n.text("ui.03cbde779b22") + row.id + ")"));
                     settings.put(row.id, row.parameters(mechanicalChange, roland.get()));
                     orderedIds.add(row.id);
                 }
@@ -586,7 +574,7 @@ final class DrillGCodeToolPanel {
                 if ((options.exclusionsEnabled() || options.toolChangeX() != null)
                         && (mechanicalChange || preprocessor.getValue().automaticToolSelection())
                         && changeZ < settings.values().stream().mapToDouble(DrillGCodeParameters::safeZ).max().orElse(0))
-                    throw new IllegalArgumentException("Tool change Z deve ser maior ou igual ao maior Travel Z das ferramentas.");
+                    throw new IllegalArgumentException(I18n.text("ui.55c8c71be816"));
                 for (DrillGCodeParameters values : settings.values()) {
                     preprocessor.getValue().validateFeedRates(values.feedRate(), options.rapidFeedRate());
                     if (probing.get()) options.probing().validateTravelZ(values.safeZ());
@@ -621,7 +609,7 @@ final class DrillGCodeToolPanel {
             feedback.setText("");
             errorLabel.setText("");
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setMaxWidth(Double.MAX_VALUE);
         close.setOnAction(event -> onClose.run());
 
@@ -665,10 +653,10 @@ final class DrillGCodeToolPanel {
                 table.getSelectionModel().clearSelection();
                 for (int i = 0; i < table.getItems().size(); i++)
                     if (saved.selectedToolIds().contains(table.getItems().get(i).id)) table.getSelectionModel().select(i);
-                feedback.setText("Perfil, parâmetros CNC e seleção recuperados; confira antes de gerar. "
-                        + (saved.preprocessor().requiresProbe() ? "Confirme novamente os cuidados de sondagem. " : "")
+                feedback.setText(I18n.text("ui.c067ed7e42d8")
+                        + (saved.preprocessor().requiresProbe() ? I18n.text("ui.c707dd83fa70") : "")
                         + (table.getSelectionModel().getSelectedItems().size() < saved.selectedToolIds().size()
-                            ? "Ferramentas salvas não existem mais na origem; confira a seleção." : ""));
+                            ? I18n.text("ui.7a62be44c128") : ""));
             }
             errorLabel.setText("");
             probe.resetConfirmation();
@@ -680,8 +668,8 @@ final class DrillGCodeToolPanel {
                 if (table.getItems().get(index).id == id) {
                     reviewSelection.compareAndSet(null, table.getSelectionModel().getSelectedItems().stream()
                             .map(row -> row.id).collect(java.util.stream.Collectors.toSet()));
-                    reviewNotice.setText("Revisão: editando T" + id + ". A próxima geração manterá as "
-                            + reviewSelection.get().size() + " ferramenta(s) revisadas. Alterar a seleção na tabela substitui esse conjunto.");
+                    reviewNotice.setText(I18n.text("ui.f950c15a40e7") + id + I18n.text("ui.cce80d3c211f")
+                            + reviewSelection.get().size() + I18n.text("ui.e024a3373803"));
                     selectingForReview[0] = true;
                     try { table.getSelectionModel().clearAndSelect(index); table.scrollTo(index); }
                     finally { selectingForReview[0] = false; }
@@ -735,17 +723,17 @@ final class DrillGCodeToolPanel {
     private static Double[] optionalXY(String text, String label) {
         if (text.isBlank() || text.trim().equalsIgnoreCase("None")) return new Double[] {null, null};
         String[] parts = text.split(text.contains(";") ? ";" : ",", -1);
-        if (parts.length != 2) throw new IllegalArgumentException(label + ": use None ou X;Y.");
+        if (parts.length != 2) throw new IllegalArgumentException(label + I18n.text("ui.6b7cd2ff173f"));
         return new Double[] {parse(parts[0], label + " X"), parse(parts[1], label + " Y")};
     }
 
     private static double parse(String text, String label) {
         try { return Double.parseDouble(text.trim().replace(',', '.')); }
-        catch (NumberFormatException error) { throw new IllegalArgumentException(label + ": número inválido."); }
+        catch (NumberFormatException error) { throw new IllegalArgumentException(label + I18n.text("ui.d33f783dcf1b")); }
     }
 
     private static int parseInt(String text, String label) {
         try { return Integer.parseInt(text.trim()); }
-        catch (NumberFormatException error) { throw new IllegalArgumentException(label + ": inteiro inválido."); }
+        catch (NumberFormatException error) { throw new IllegalArgumentException(label + I18n.text("ui.d47c472073a8")); }
     }
 }

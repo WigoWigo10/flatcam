@@ -45,8 +45,8 @@ final class CalculatorsPanel {
     private static Node buildUnitsSection() {
         TextField mmField = new TextField("0");
         TextField inchField = new TextField("0");
-        ToolDescriptions.apply(mmField,"Milímetros", "Valor em MM a converter para polegadas. Enter ou sair do campo atualiza o resultado. Não converte objetos do projeto.");
-        ToolDescriptions.apply(inchField,"Polegadas", "Valor em IN a converter para milímetros. Enter ou sair do campo atualiza o resultado. Não converte objetos do projeto.");
+        ToolDescriptions.apply(mmField,I18n.text("ui.2fd77275578b"), I18n.text("ui.06d7c00546f8"));
+        ToolDescriptions.apply(inchField,I18n.text("ui.ca0fd4130ed5"), I18n.text("ui.ad32f03fdca7"));
         compactFields(mmField, inchField);
 
         mmField.setOnAction(e -> inchField.setText(format(parse(mmField.getText()) / 25.4)));
@@ -91,10 +91,10 @@ final class CalculatorsPanel {
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Diâmetro da ponta:"), tipDiaField);
+        grid.addRow(0, new Label(I18n.text("ui.65f30943b58c")), tipDiaField);
         grid.addRow(1, new Label("Tip Angle:"), tipAngleField);
         grid.addRow(2, new Label("Cut Z:"), cutDepthField);
-        grid.addRow(3, new Label("Diâmetro da ferramenta:"), toolDiaField);
+        grid.addRow(3, new Label(I18n.text("ui.4c6e267a7370")), toolDiaField);
 
         Button calculateButton = new Button("Calculate");
         calculateButton.setMaxWidth(Double.MAX_VALUE);
@@ -106,9 +106,9 @@ final class CalculatorsPanel {
     // --- ElectroPlating Calculator: appTools/ToolCalculators.py's on_calculate_eplate() ---
     private static Node buildElectroplatingSection() {
         RadioButton dimensionsRadio = new RadioButton("Dimensions");
-        RadioButton areaRadio = new RadioButton("Área");
-        ToolDescriptions.apply(dimensionsRadio,"Área por dimensões", "Calcula a área a partir de comprimento e largura, ambos em centímetros. Não usa as dimensões atuais do projeto.");
-        ToolDescriptions.apply(areaRadio,"Área informada", "Usa diretamente a área digitada em cm² para estimar corrente e tempo de galvanoplastia.");
+        RadioButton areaRadio = new RadioButton(I18n.text("ui.7c6cbc5826d4"));
+        ToolDescriptions.apply(dimensionsRadio,I18n.text("ui.e364ab194fce"), I18n.text("ui.3f406d17731f"));
+        ToolDescriptions.apply(areaRadio,I18n.text("ui.27861d211218"), I18n.text("ui.e886f5706168"));
         ToggleGroup areaModeGroup = new ToggleGroup();
         dimensionsRadio.setToggleGroup(areaModeGroup);
         areaRadio.setToggleGroup(areaModeGroup);
@@ -128,7 +128,7 @@ final class CalculatorsPanel {
 
         HBox lengthRow = new HBox(6, new Label("Board Length:"), lengthField, new Label("cm"));
         HBox widthRow = new HBox(6, new Label("Board Width:"), widthField, new Label("cm"));
-        HBox areaRow = new HBox(6, new Label("Área:"), areaField, new Label("cm²"));
+        HBox areaRow = new HBox(6, new Label(I18n.text("ui.a8a0839b1beb")), areaField, new Label("cm²"));
         HBox.setHgrow(lengthField, Priority.ALWAYS);
         HBox.setHgrow(widthField, Priority.ALWAYS);
         HBox.setHgrow(areaField, Priority.ALWAYS);
@@ -178,7 +178,7 @@ final class CalculatorsPanel {
         VBox areaInputs = new VBox(6, new HBox(10, dimensionsRadio, areaRadio), lengthRow, widthRow, areaRow);
 
         return new VBox(6, sectionTitle("ElectroPlating Calculator"),
-                new Label("Cálculo de área:"), areaInputs, grid, calculateButton);
+                new Label(I18n.text("ui.844091505a0d")), areaInputs, grid, calculateButton);
     }
 
     private static void compactFields(TextField... fields) {

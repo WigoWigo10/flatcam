@@ -13,11 +13,11 @@ import javafx.stage.Window;
  */
 record GraphicsRuntimeInfo(String pipeline, String mode, String adapter, String driver, String scope, String screen) {
     static GraphicsRuntimeInfo unavailable(String reason) {
-        return unavailable(reason, "não identificada");
+        return unavailable(reason, I18n.text("ui.230be04124ca"));
     }
 
     private static GraphicsRuntimeInfo unavailable(String reason, String screen) {
-        return new GraphicsRuntimeInfo("não disponível", "não identificado", "não identificada", "não disponível", reason, screen);
+        return new GraphicsRuntimeInfo(I18n.text("ui.d25d2f15d8b7"), I18n.text("ui.f7908086ae43"), I18n.text("ui.230be04124ca"), I18n.text("ui.d25d2f15d8b7"), reason, screen);
     }
 
     /** Call on the FX thread while the owner is shown. Null owner means the offscreen/default factory. */
@@ -48,24 +48,24 @@ record GraphicsRuntimeInfo(String pipeline, String mode, String adapter, String 
             Object toolkit = toolkitClass.getMethod("getToolkit").invoke(null);
             toolkitClass.getMethod("addRenderJob", jobClass).invoke(toolkit, job);
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unsupported) {
-            result.complete(unavailable("Acesso ao Prism indisponível nesta execução; não foi inferido pela configuração solicitada.", screen));
+            result.complete(unavailable(I18n.text("ui.556cf97b040c"), screen));
         }
-        return result.completeOnTimeout(unavailable("O renderizador não respondeu em 3 segundos.", screen), 3, TimeUnit.SECONDS);
+        return result.completeOnTimeout(unavailable(I18n.text("ui.7bd3a401418f"), screen), 3, TimeUnit.SECONDS);
     }
 
     private static GraphicsRuntimeInfo readOnRenderer(int ordinal, boolean hasOwner, String screen) {
         String name;
         try {
             Object pipeline = Class.forName("com.sun.prism.GraphicsPipeline").getMethod("getPipeline").invoke(null);
-            if (pipeline == null) return unavailable("Prism ainda não inicializado.", screen);
+            if (pipeline == null) return unavailable(I18n.text("ui.ce1ef2ccf34e"), screen);
             name = pipeline.getClass().getName();
             if (name.equals("com.sun.prism.sw.SWPipeline")) {
-                return new GraphicsRuntimeInfo(name, "Compatibilidade por software (CPU / Prism SW)",
-                        "não utilizada pelo pipeline Prism SW", "não se aplica", "Pipeline ativo, não apenas solicitado.", screen);
+                return new GraphicsRuntimeInfo(name, I18n.text("ui.99c44ff141be"),
+                        I18n.text("ui.7b651a3be41f"), I18n.text("ui.d490920d1843"), I18n.text("ui.f74907e9cc31"), screen);
             }
             if (!name.equals("com.sun.prism.d3d.D3DPipeline")) {
-                return new GraphicsRuntimeInfo(name, "Pipeline ativo: " + pipeline.getClass().getSimpleName(),
-                        "não identificada neste backend", "não disponível", "Identificação de GPU implementada para Direct3D no Windows.", screen);
+                return new GraphicsRuntimeInfo(name, I18n.text("ui.c619007f5b13") + pipeline.getClass().getSimpleName(),
+                        I18n.text("ui.bfd770cd31c4"), I18n.text("ui.d25d2f15d8b7"), I18n.text("ui.b2256d93d084"), screen);
             }
             try {
                 Class<?> type = pipeline.getClass();
@@ -79,22 +79,22 @@ record GraphicsRuntimeInfo(String pipeline, String mode, String adapter, String 
                 Object info = read.invoke(null, selected, constructor.newInstance());
                 if (info == null) throw new IllegalStateException("Driver information unavailable");
                 Method version = infoClass.getMethod("getDriverVersion"); version.setAccessible(true);
-                return new GraphicsRuntimeInfo(name, "Aceleração gráfica Direct3D (GPU)",
+                return new GraphicsRuntimeInfo(name, I18n.text("ui.52c104a38498"),
                         field(info, "deviceDescription"), field(info, "driverName") + " — " + version.invoke(info),
-                        (hasOwner ? "Adaptador da janela principal" : "Adaptador padrão / renderização offscreen")
+                        (hasOwner ? I18n.text("ui.8c34b4c0d731") : I18n.text("ui.56f1612a7719"))
                                 + " (Prism #" + selected + ", " + field(info, "deviceName") + ").", screen);
             } catch (ReflectiveOperationException | RuntimeException | LinkageError unsupported) {
-                return new GraphicsRuntimeInfo(name, "Aceleração gráfica Direct3D (GPU)", "não identificada", "não disponível",
-                        "Pipeline confirmado; não foi possível identificar o adaptador da janela.", screen);
+                return new GraphicsRuntimeInfo(name, I18n.text("ui.52c104a38498"), I18n.text("ui.230be04124ca"), I18n.text("ui.d25d2f15d8b7"),
+                        I18n.text("ui.d1675a4d3f15"), screen);
             }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unsupported) {
-            return unavailable("Consulta ao pipeline ativo não disponível nesta versão/execução.", screen);
+            return unavailable(I18n.text("ui.931294e959f7"), screen);
         }
     }
 
     /** Public JavaFX screens describe the window, not the GPU ordinal or Windows DISPLAY numbering. */
     private static String describeWindowScreen(Window owner) {
-        if (owner == null) return "consulta sem janela (nenhuma tela selecionada)";
+        if (owner == null) return I18n.text("ui.288a278e744a");
         Screen best = null;
         double bestArea = 0;
         int intersecting = 0;
@@ -108,31 +108,29 @@ record GraphicsRuntimeInfo(String pipeline, String mode, String adapter, String 
             if (area > 0) intersecting++;
             if (area > bestArea) { bestArea = area; best = candidate; }
         }
-        if (best == null) return "não identificada (janela fora das telas conectadas)";
+        if (best == null) return I18n.text("ui.e9664e8ac678");
         var bounds = best.getBounds();
         return screenLabel(best.equals(Screen.getPrimary()), bounds.getWidth(), bounds.getHeight(),
                 best.getOutputScaleX(), best.getOutputScaleY())
-                + (intersecting > 1 ? " — onde está a maior parte da janela" : "");
+                + (intersecting > 1 ? I18n.text("ui.d2ec383beb0d") : "");
     }
 
     static String screenLabel(boolean primary, double width, double height, double scaleX, double scaleY) {
         String scale = Math.round(scaleX * 100) + "%";
         if (scaleX != scaleY) scale += " × " + Math.round(scaleY * 100) + "%";
-        return (primary ? "Tela principal" : "Tela secundária") + " — "
+        return (primary ? I18n.text("ui.437c9026b338") : I18n.text("ui.c2db680e6f4a")) + " — "
                 + Math.round(width * scaleX) + " × " + Math.round(height * scaleY)
-                + " pixels; escala da interface: " + scale;
+                + I18n.text("ui.e39f20a01368") + scale;
     }
 
     String friendlySummary() {
         String graphics;
         switch (pipeline) {
-            case "com.sun.prism.d3d.D3DPipeline" -> graphics = "Modo gráfico: acelerado pela placa de vídeo (Direct3D).\n"
-                    + "Placa de vídeo em uso: " + adapter + ".\n";
-            case "com.sun.prism.sw.SWPipeline" -> graphics = "Modo gráfico: compatibilidade por software.\n"
-                    + "O desenho é processado pela CPU, sem aceleração da placa de vídeo.\n";
-            default -> graphics = "Modo gráfico: não foi possível identificar a aceleração em uso.\n";
+            case "com.sun.prism.d3d.D3DPipeline" -> graphics = I18n.text("ui.b379f832c90b") + adapter + ".\n";
+            case "com.sun.prism.sw.SWPipeline" -> graphics = I18n.text("ui.9de2f1e6c7b6");
+            default -> graphics = I18n.text("ui.5e1353f9d3b5");
         }
-        return graphics + "Tela da janela: " + screen + ".\n";
+        return graphics + I18n.text("ui.35cf54d7567f") + screen + ".\n";
     }
 
     /** Identity in the initialized factory array proves the default ordinal; never assume GPU zero. */
@@ -146,13 +144,13 @@ record GraphicsRuntimeInfo(String pipeline, String mode, String adapter, String 
 
     private static String field(Object info, String name) throws ReflectiveOperationException {
         var field = info.getClass().getField(name); field.setAccessible(true);
-        Object value = field.get(info); return value == null ? "não disponível" : value.toString();
+        Object value = field.get(info); return value == null ? I18n.text("ui.d25d2f15d8b7") : value.toString();
     }
 
     String summary() {
-        return "Renderização JavaFX: " + mode + "\nPipeline Prism ativo: " + pipeline
-                + "\nPlaca de vídeo usada pelo Prism: " + adapter + "\nDriver: " + driver + "\n" + scope
-                + "\nTela da janela: " + screen
-                + "\nOrdem gráfica solicitada (não prova o modo ativo): " + System.getProperty("prism.order", "padrão da plataforma") + "\n";
+        return I18n.text("ui.adf10535bd83") + mode + I18n.text("ui.c53dd1ad5390") + pipeline
+                + I18n.text("ui.310a44731b01") + adapter + "\nDriver: " + driver + "\n" + scope
+                + I18n.text("ui.908600ee4f5d") + screen
+                + I18n.text("ui.cdbf252c9f87") + System.getProperty("prism.order", I18n.text("ui.3a05c8d8ed67")) + "\n";
     }
 }

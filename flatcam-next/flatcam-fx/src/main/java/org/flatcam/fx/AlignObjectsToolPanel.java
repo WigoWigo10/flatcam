@@ -60,8 +60,8 @@ final class AlignObjectsToolPanel {
         }
 
         ToggleGroup types = new ToggleGroup();
-        RadioButton single = new RadioButton("Um ponto (translada)");
-        RadioButton dual = new RadioButton("Dois pontos (translada e gira)");
+        RadioButton single = new RadioButton(I18n.text("ui.70fb63caefa4"));
+        RadioButton dual = new RadioButton(I18n.text("ui.5393cac967c2"));
         single.setToggleGroup(types);
         dual.setToggleGroup(types);
         single.setSelected(true);
@@ -72,7 +72,7 @@ final class AlignObjectsToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button align = new Button("Alinhar (clique nos pontos)");
+        Button align = new Button(I18n.text("ui.832d66a1f94d"));
         align.setMaxWidth(Double.MAX_VALUE);
         align.setOnAction(event -> {
             host.cancelPick();
@@ -80,20 +80,20 @@ final class AlignObjectsToolPanel {
             TreeItem<String> moved = aligned.getValue();
             TreeItem<String> reference = aligner.getValue();
             if (moved == null || reference == null) {
-                errorLabel.setText("Carregue os dois objetos");
+                errorLabel.setText(I18n.text("ui.730f4dc5881d"));
                 return;
             }
             if (moved == reference) {
-                errorLabel.setText("Escolha objetos diferentes");
+                errorLabel.setText(I18n.text("ui.98828199cc30"));
                 return;
             }
             int wanted = dual.isSelected() ? 4 : 2;
             List<Coordinate> centres = new ArrayList<>();
             String[] prompts = {
-                    "Primeiro ponto: clique num pad ou furo do objeto a alinhar (" + moved.getValue() + ").",
-                    "Primeiro destino: clique no pad ou furo correspondente de " + reference.getValue() + ".",
-                    "Segundo ponto: clique em outro pad ou furo de " + moved.getValue() + ".",
-                    "Segundo destino: clique no pad ou furo correspondente de " + reference.getValue() + "."};
+                    I18n.text("ui.8f78e7bd2e41") + moved.getValue() + ").",
+                    I18n.text("ui.60365e263c9f") + reference.getValue() + ".",
+                    I18n.text("ui.332bbb01375d") + moved.getValue() + ".",
+                    I18n.text("ui.0aa150eba8b6") + reference.getValue() + "."};
             @SuppressWarnings("unchecked")
             Consumer<Coordinate>[] next = new Consumer[1];
             next[0] = click -> {
@@ -105,7 +105,7 @@ final class AlignObjectsToolPanel {
                 TreeItem<String> target = centres.size() % 2 == 0 ? moved : reference;
                 Coordinate centre = host.centerAt(target, click);
                 if (centre == null) {
-                    errorLabel.setText("Não há pad ou furo de " + target.getValue() + " nesse ponto: clique em um.");
+                    errorLabel.setText(I18n.text("ui.a6e0ff3252f0") + target.getValue() + I18n.text("ui.6f7da9c1730f"));
                     host.pickPoint(next[0]);
                     return;
                 }
@@ -123,16 +123,16 @@ final class AlignObjectsToolPanel {
             status.setText(prompts[0]);
             host.pickPoint(next[0]);
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.cancelPick();
             onClose.run();
         });
 
         VBox panel = new VBox(8,
-                new Label("Objeto a alinhar:"), aligned,
-                new Label("Objeto de referência:"), aligner,
-                new Label("Tipo:"), new VBox(4, single, dual),
+                new Label(I18n.text("ui.40df54d02ce1")), aligned,
+                new Label(I18n.text("ui.dbaf87864c95")), aligner,
+                new Label(I18n.text("ui.e369d261ecd1")), new VBox(4, single, dual),
                 align, status, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

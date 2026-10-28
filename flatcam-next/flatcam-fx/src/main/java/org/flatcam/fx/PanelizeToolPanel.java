@@ -38,9 +38,9 @@ final class PanelizeToolPanel {
                    Panelize.Layout layout, boolean gerberAsGeometry) {
         Request {
             sources = List.copyOf(sources); referenceBox = referenceBox.clone();
-            if (sources.isEmpty()) throw new IllegalArgumentException("Escolha ao menos um objeto.");
+            if (sources.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.f85f01c4c336"));
             if (new java.util.HashSet<>(sources).size() != sources.size())
-                throw new IllegalArgumentException("Um objeto não pode aparecer duas vezes no conjunto.");
+                throw new IllegalArgumentException(I18n.text("ui.4dd0cdd97dfb"));
         }
         @Override public double[] referenceBox() { return referenceBox.clone(); }
         TreeItem<String> source() { return sources.getFirst(); }
@@ -99,15 +99,14 @@ final class PanelizeToolPanel {
         }
         source.setMinWidth(0);
 
-        CheckBox together = new CheckBox("Panelizar conjunto (mesma grade para todas as camadas)");
+        CheckBox together = new CheckBox(I18n.text("ui.3c2d3e69884c"));
         together.setId("panelize-together");
-        together.setTooltip(tooltip("Marque Gerbers, Excellons e contornos alinhados na origem. Todos recebem os mesmos "
-                + "deslocamentos; as caixas individuais não mudam o passo entre cópias."));
+        together.setTooltip(tooltip(I18n.text("ui.e6facbea4148")));
         var chosen = new java.util.LinkedHashMap<TreeItem<String>, BooleanProperty>();
         for (TreeItem<String> item : host.sources()) chosen.put(item, new SimpleBooleanProperty(
                 host.selectedSources().contains(item) || item == source.getValue()));
         ListView<TreeItem<String>> objects = new ListView<>();
-        ToolDescriptions.apply(objects,"Camadas do conjunto", "Marque as camadas alinhadas a panelizar juntas. Todas usam os mesmos passos da grade, referência e espaçamentos.\n\nAtenção: unidades divergentes são recusadas; a ferramenta não recentra camadas desalinhadas automaticamente.");
+        ToolDescriptions.apply(objects,I18n.text("ui.f93c26f57733"), I18n.text("ui.abfd822bb8e7"));
         objects.setId("panelize-sources"); objects.getItems().setAll(host.sources());
         objects.setCellFactory(CheckBoxListCell.forListView(chosen::get, names));
         objects.setPrefHeight(150); objects.setMaxWidth(Double.MAX_VALUE);
@@ -117,11 +116,11 @@ final class PanelizeToolPanel {
         source.disableProperty().bind(together.selectedProperty());
 
         ToggleGroup referenceGroup = new ToggleGroup();
-        RadioButton ownBox = new RadioButton("Caixa do próprio objeto");
-        RadioButton otherBox = new RadioButton("Caixa de outro objeto");
+        RadioButton ownBox = new RadioButton(I18n.text("ui.9e5adc02f583"));
+        RadioButton otherBox = new RadioButton(I18n.text("ui.739afd2d8d0f"));
         ownBox.setId("panelize-own-box"); otherBox.setId("panelize-other-box");
         ownBox.textProperty().bind(javafx.beans.binding.Bindings.when(together.selectedProperty())
-                .then("Caixa combinada dos objetos").otherwise("Caixa do próprio objeto"));
+                .then(I18n.text("ui.28d3d8f2e421")).otherwise(I18n.text("ui.9e5adc02f583")));
         ownBox.setToggleGroup(referenceGroup);
         otherBox.setToggleGroup(referenceGroup);
         ownBox.setSelected(true);
@@ -134,8 +133,7 @@ final class PanelizeToolPanel {
         reference.getSelectionModel().selectFirst();
         reference.visibleProperty().bind(otherBox.selectedProperty());
         reference.managedProperty().bind(reference.visibleProperty());
-        reference.setTooltip(tooltip("As cópias ficam separadas pelo tamanho desta caixa (por exemplo o contorno da "
-                + "placa) mais o espaçamento, mesmo que o objeto seja menor."));
+        reference.setTooltip(tooltip(I18n.text("ui.e773951ca180")));
 
         // FX starts with 2 x 2 for a useful preview; other defaults match Python.
         TextField columns = new TextField(ToolDefaults.text("panelize.columns"));
@@ -147,19 +145,19 @@ final class PanelizeToolPanel {
         for (TextField field : List.of(columns, rows, spacingColumns, spacingRows)) {
             field.setPrefColumnCount(5);
         }
-        CheckBox constrain = new CheckBox("Limitar o tamanho do painel");
+        CheckBox constrain = new CheckBox(I18n.text("ui.772e302cb104"));
         constrain.setId("panelize-limit");
-        constrain.setTooltip(tooltip("Se a grade não couber, colunas e linhas diminuem até caber, como no Python."));
+        constrain.setTooltip(tooltip(I18n.text("ui.a9433317d57f")));
         TextField limitWidth = new TextField(ToolDefaults.text("panelize.limitwidth"));
         TextField limitHeight = new TextField(ToolDefaults.text("panelize.limitheight"));
         limitWidth.setPrefColumnCount(5);
         limitHeight.setPrefColumnCount(5);
-        HBox limits = new HBox(6, new Label("Largura:"), limitWidth, new Label("Altura:"), limitHeight);
+        HBox limits = new HBox(6, new Label(I18n.text("ui.79fb57ef14da")), limitWidth, new Label(I18n.text("ui.d25e09df7a8e")), limitHeight);
         limits.visibleProperty().bind(constrain.selectedProperty());
         limits.managedProperty().bind(limits.visibleProperty());
-        CheckBox gerberAsGeometry = new CheckBox("Gerber: criar o painel como Geometry");
+        CheckBox gerberAsGeometry = new CheckBox(I18n.text("ui.8917974e5619"));
         gerberAsGeometry.setId("panelize-as-geometry");
-        gerberAsGeometry.setTooltip(tooltip("Sem marcar, o painel de um Gerber e outro Gerber (com as aberturas)."));
+        gerberAsGeometry.setTooltip(tooltip(I18n.text("ui.d6c6ca8f3670")));
 
         Label summary = new Label();
         summary.setId("panelize-summary");
@@ -169,17 +167,17 @@ final class PanelizeToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        CheckBox showPreview = new CheckBox("Pré-visualizar no plot"); showPreview.setSelected(true);
-        CheckBox showContent = new CheckBox("Mostrar o conteúdo replicado (cobre, furos)"); showContent.setSelected(true);
-        CheckBox showOutline = new CheckBox("Mostrar o contorno da placa replicada"); showOutline.setSelected(true);
-        CheckBox fillInterior = new CheckBox("Preencher o interior da placa (translucido)"); fillInterior.setSelected(true);
+        CheckBox showPreview = new CheckBox(I18n.text("ui.1d3636f2daf9")); showPreview.setSelected(true);
+        CheckBox showContent = new CheckBox(I18n.text("ui.3373a7a340b0")); showContent.setSelected(true);
+        CheckBox showOutline = new CheckBox(I18n.text("ui.6530da8104b8")); showOutline.setSelected(true);
+        CheckBox fillInterior = new CheckBox(I18n.text("ui.966c286e3cde")); fillInterior.setSelected(true);
         showPreview.setId("panelize-preview"); showContent.setId("panelize-preview-content");
         showOutline.setId("panelize-preview-outline"); fillInterior.setId("panelize-preview-fill");
         showContent.disableProperty().bind(showPreview.selectedProperty().not());
         showOutline.disableProperty().bind(showPreview.selectedProperty().not());
         fillInterior.disableProperty().bind(showPreview.selectedProperty().not().or(showOutline.selectedProperty().not()));
-        showPreview.setTooltip(tooltip("Prévia visual como no 2-Sided Tool, calculada em segundo plano. Não cria objetos."));
-        showContent.setTooltip(tooltip("Repete o cobre, furos, rasgos ou caminhos dos objetos escolhidos, mantendo seus recortes."));
+        showPreview.setTooltip(tooltip(I18n.text("ui.5fcd874686f0")));
+        showContent.setTooltip(tooltip(I18n.text("ui.91fd9256ca21")));
         javafx.scene.layout.FlowPane legend = new javafx.scene.layout.FlowPane(10, 4,
                 legendItem("Gerber", PlotAreaView.LayerCategory.GERBER),
                 legendItem("Excellon", PlotAreaView.LayerCategory.EXCELLON),
@@ -187,20 +185,19 @@ final class PanelizeToolPanel {
         legend.setId("panelize-preview-legend");
         legend.visibleProperty().bind(showPreview.selectedProperty().and(showContent.selectedProperty()));
         legend.managedProperty().bind(legend.visibleProperty());
-        showOutline.setTooltip(tooltip("Desenha a borda e os cortes internos do contorno escolhido; sem contorno usa caixas de referência."));
-        fillInterior.setTooltip(tooltip("Preenche somente contornos fechados, preservando cortes internos. Não fecha linhas abertas automaticamente."));
+        showOutline.setTooltip(tooltip(I18n.text("ui.89bc1b102a86")));
+        fillInterior.setTooltip(tooltip(I18n.text("ui.69a7a6972b07")));
         ComboBox<TreeItem<String>> contour = new ComboBox<>();
         contour.setId("panelize-contour"); contour.getItems().add(null);
         contour.getItems().addAll(host.sources().stream().filter(host::canBeContour).toList());
         contour.setConverter(new javafx.util.StringConverter<>() {
-            @Override public String toString(TreeItem<String> item) { return item == null ? "Sem contorno (usar caixas)" : item.getValue(); }
+            @Override public String toString(TreeItem<String> item) { return item == null ? I18n.text("ui.7a731bd47d6a") : item.getValue(); }
             @Override public TreeItem<String> fromString(String text) { return null; }
         });
         contour.setMaxWidth(Double.MAX_VALUE);
         contour.setMinWidth(0);
         contour.disableProperty().bind(showPreview.selectedProperty().not().or(showOutline.selectedProperty().not()));
-        contour.setTooltip(tooltip("Edge_Cuts ou Geometry de contorno, nas mesmas unidades. Esta escolha é só para prévia; "
-                + "para criar também seu painel, marque o contorno na lista do conjunto."));
+        contour.setTooltip(tooltip(I18n.text("ui.8c0cf91ccfe3")));
         TreeItem<String> initialContour = host.sources().stream().filter(host::canBeContour).filter(item ->
                 String.valueOf(item.getValue()).matches("(?i).*?(edge.?cuts|outline|profile|contorno|boundary).*"))
                 .filter(item -> source.getValue() != null && java.util.Objects.equals(host.units(item), host.units(source.getValue())))
@@ -213,9 +210,9 @@ final class PanelizeToolPanel {
             otherBox.setSelected(true); // one physical board pitch, even when copper/drill extents differ
         }
         Label previewState = new Label(); previewState.setId("panelize-preview-state"); previewState.setWrapText(true);
-        Button fitPreview = new Button("Enquadrar prévia"); fitPreview.setId("panelize-preview-fit");
+        Button fitPreview = new Button(I18n.text("ui.35974464f3fd")); fitPreview.setId("panelize-preview-fit");
         fitPreview.setMaxWidth(Double.MAX_VALUE); fitPreview.disableProperty().bind(showPreview.selectedProperty().not());
-        fitPreview.setTooltip(tooltip("Enquadra todas as cópias da última prévia calculada, sem criar objetos."));
+        fitPreview.setTooltip(tooltip(I18n.text("ui.89c03555c956")));
         fitPreview.setOnAction(event -> host.fitPreview());
         for (CheckBox check : List.of(together, gerberAsGeometry, constrain, showPreview, showContent, showOutline, fillInterior)) {
             check.setWrapText(true); check.setMaxWidth(Double.MAX_VALUE); check.setMinWidth(0);
@@ -226,7 +223,7 @@ final class PanelizeToolPanel {
                     .filter(entry -> entry.getValue().get()).map(java.util.Map.Entry::getKey).toList()
                     : source.getValue() == null ? List.of() : List.of(source.getValue());
             if (items.isEmpty() || items.stream().anyMatch(item -> host.bounds(item) == null)) {
-                throw new IllegalArgumentException("Escolha um objeto com geometria");
+                throw new IllegalArgumentException(I18n.text("ui.ec73d3d0ed2c"));
             }
             requireSameUnits(host, items, otherBox.isSelected() ? reference.getValue() : null);
             Envelope combined = new Envelope();
@@ -239,14 +236,14 @@ final class PanelizeToolPanel {
                 TreeItem<String> other = reference.getValue();
                 double[] otherBounds = other == null ? null : host.bounds(other);
                 if (otherBounds == null) {
-                    throw new IllegalArgumentException("O objeto de referência não tem geometria");
+                    throw new IllegalArgumentException(I18n.text("ui.57d0b77abcdf"));
                 }
                 box = otherBounds;
             }
-            Panelize.Layout layout = Panelize.layout(box, integer(columns, "Colunas"), integer(rows, "Linhas"),
-                    number(spacingColumns, "Espaçamento das colunas"), number(spacingRows, "Espaçamento das linhas"),
-                    constrain.isSelected() ? number(limitWidth, "Largura") : Double.NaN,
-                    constrain.isSelected() ? number(limitHeight, "Altura") : Double.NaN);
+            Panelize.Layout layout = Panelize.layout(box, integer(columns, I18n.text("ui.dbcb93af7bcc")), integer(rows, I18n.text("panelize.rows")),
+                    number(spacingColumns, I18n.text("ui.4444a52ae526")), number(spacingRows, I18n.text("ui.1060c439922e")),
+                    constrain.isSelected() ? number(limitWidth, I18n.text("ui.5d6a22d7076b")) : Double.NaN,
+                    constrain.isSelected() ? number(limitHeight, I18n.text("ui.196624f8ac36")) : Double.NaN);
             return new Request(items, otherBox.isSelected() ? reference.getValue() : null, box, layout, gerberAsGeometry.isSelected());
         };
         Runnable refresh = () -> {
@@ -263,11 +260,11 @@ final class PanelizeToolPanel {
                 } else host.preview(null, null, previewState::setText);
                 double[] size = layout.size(box[2] - box[0], box[3] - box[1], number(spacingColumns, ""),
                         number(spacingRows, ""));
-                summary.setText(String.format(Locale.ROOT, "%d objeto(s); %d x %d = %d cópias; painel %.2f x %.2f %s%s",
+                summary.setText(String.format(Locale.ROOT, I18n.text("ui.f27c20d70d1c"),
                         current.sources().size(),
                         layout.columns(), layout.rows(), layout.columns() * layout.rows(), size[0], size[1],
                         host.units(current.source()),
-                        layout.constrained() ? " (grade reduzida pelo limite)" : ""));
+                        layout.constrained() ? I18n.text("ui.d6efda9c9308") : ""));
             } catch (IllegalArgumentException incomplete) {
                 host.preview(null, null, previewState::setText);
                 summary.setText("");
@@ -289,7 +286,7 @@ final class PanelizeToolPanel {
                 source.valueProperty(), together.selectedProperty()));
         gerberAsGeometry.managedProperty().bind(gerberAsGeometry.visibleProperty());
 
-        Button panelize = new Button("Criar painel");
+        Button panelize = new Button(I18n.text("ui.c9f85510fd8f"));
         panelize.setId("panelize-create");
         panelize.setMaxWidth(Double.MAX_VALUE);
         panelize.setOnAction(event -> {
@@ -302,7 +299,7 @@ final class PanelizeToolPanel {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setId("panelize-close");
         close.setOnAction(event -> {
             host.preview(null, null, previewState::setText);
@@ -310,13 +307,13 @@ final class PanelizeToolPanel {
         });
 
         VBox panel = new VBox(8,
-                new Label("Objeto a repetir:"), source, together, objects,
-                new Label("Distância entre cópias baseada em:"), new VBox(4, ownBox, otherBox), reference,
-                new HBox(6, new Label("Colunas:"), columns, new Label("Linhas:"), rows),
-                new HBox(6, new Label("Espaçamento colunas:"), spacingColumns),
-                new HBox(6, new Label("Espaçamento linhas:"), spacingRows),
+                new Label(I18n.text("ui.72d50d99e43d")), source, together, objects,
+                new Label(I18n.text("ui.d77c5bae07ae")), new VBox(4, ownBox, otherBox), reference,
+                new HBox(6, new Label(I18n.text("ui.67d67f5a779c")), columns, new Label(I18n.text("ui.aec624c5358e")), rows),
+                new HBox(6, new Label(I18n.text("ui.663cee01060a")), spacingColumns),
+                new HBox(6, new Label(I18n.text("ui.e367cac57b3e")), spacingRows),
                 constrain, limits, gerberAsGeometry, summary, new Separator(), showPreview, showContent,
-                legend, showOutline, new Label("Contorno da placa (prévia):"), contour, fillInterior, previewState, fitPreview,
+                legend, showOutline, new Label(I18n.text("ui.7bf45a64fe64")), contour, fillInterior, previewState, fitPreview,
                 new Separator(), panelize, errorLabel, close);
         panel.setPadding(new Insets(6));
         refresh.run();
@@ -330,7 +327,7 @@ final class PanelizeToolPanel {
         swatch.setArcWidth(3); swatch.setArcHeight(3);
         swatch.setStroke(javafx.scene.paint.Color.gray(.4));
         var label = new Label(name, swatch);
-        label.setTooltip(tooltip("Cor da categoria na prévia; não altera as cores dos objetos do projeto."));
+        label.setTooltip(tooltip(I18n.text("ui.3cc5e9057f76")));
         return label;
     }
 
@@ -338,7 +335,7 @@ final class PanelizeToolPanel {
         try {
             return Integer.parseInt(field.getText().trim());
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException(name + " deve ser um inteiro positivo");
+            throw new IllegalArgumentException(name + I18n.text("ui.efa5c73902d5"));
         }
     }
 
@@ -348,16 +345,16 @@ final class PanelizeToolPanel {
             if (!Double.isFinite(value)) throw new NumberFormatException();
             return value;
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor inválido em " + name.toLowerCase(Locale.ROOT));
+            throw new IllegalArgumentException(I18n.text("ui.1cbfa91d7a0c") + name.toLowerCase(Locale.ROOT));
         }
     }
 
     static void requireSameUnits(Host host, List<TreeItem<String>> items, TreeItem<String> reference) {
         String units = host.units(items.getFirst());
-        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException("Unidades não reconhecidas.");
+        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException(I18n.text("ui.f287c2d8185a"));
         if (items.stream().anyMatch(item -> !units.equals(host.units(item)))
                 || reference != null && !units.equals(host.units(reference)))
-            throw new IllegalArgumentException("Objetos, referência e contorno devem usar as mesmas unidades (MM ou IN). Converta antes.");
+            throw new IllegalArgumentException(I18n.text("ui.c8145c54dfeb"));
     }
 
     private static Tooltip tooltip(String text) {

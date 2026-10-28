@@ -111,27 +111,27 @@ final class OptimalToolPanel {
             }
         });
 
-        Button find = new Button("Encontrar a menor distância");
+        Button find = new Button(I18n.text("ui.81dcffea2551"));
         find.setMaxWidth(Double.MAX_VALUE);
         find.setOnAction(event -> {
             errorLabel.setText("");
             if (gerber.getValue() == null) {
-                errorLabel.setText("Carregue um Gerber");
+                errorLabel.setText(I18n.text("ui.fa269858e24f"));
                 return;
             }
             int places;
             try {
                 places = Integer.parseInt(precision.getText().trim());
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("A precisão deve ser um número inteiro");
+                errorLabel.setText(I18n.text("ui.457f400eef17"));
                 return;
             }
             find.setDisable(true);
-            status.setText("Procurando a menor distância entre os elementos de cobre...");
+            status.setText(I18n.text("ui.8e86ddb31633"));
             host.locate(null);
             host.find(gerber.getValue(), places, result -> {
                 find.setDisable(false);
-                status.setText(result.features() + " elementos de cobre comparados.");
+                status.setText(result.features() + I18n.text("ui.bae049bd0f5b"));
                 current[0] = result;
                 decimals[0] = places;
                 minimum.setText(String.format(Locale.ROOT, "%." + places + "f", result.minimum()));
@@ -160,20 +160,20 @@ final class OptimalToolPanel {
                 errorLabel.setText(message);
             });
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.locate(null);
             onClose.run();
         });
 
         VBox panel = new VBox(8,
-                new Label("Gerber a analisar:"), gerber,
-                new HBox(6, new Label("Precisão (casas):"), precision),
+                new Label(I18n.text("ui.33c391c7e62c")), gerber,
+                new HBox(6, new Label(I18n.text("ui.3fe4caf63c17")), precision),
                 find, status,
-                new HBox(8, new Label("Distância mínima:"), minimum, new Label("Pares:"), frequency),
-                new Label("Locais da menor distância (clique para ir até lá):"), minimumLocations,
-                new Label("Outras distâncias (entre parênteses, quantos pares):"), otherDistances,
-                new Label("Locais da distância escolhida:"), otherLocations,
+                new HBox(8, new Label(I18n.text("ui.70839e870034")), minimum, new Label("Pares:"), frequency),
+                new Label(I18n.text("ui.9cd35fda1f1e")), minimumLocations,
+                new Label(I18n.text("ui.0c83704f1a69")), otherDistances,
+                new Label(I18n.text("ui.eff4b04773d3")), otherLocations,
                 errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

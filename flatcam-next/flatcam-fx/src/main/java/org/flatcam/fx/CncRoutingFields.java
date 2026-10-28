@@ -11,8 +11,8 @@ final class CncRoutingFields {
     record Reference(String name,String units,Geometry area) { public String toString() { return name; } }
     private final ComboBox<CncRouting.Mode> mode=new ComboBox<>();
     private final ComboBox<Reference> reference=new ComboBox<>();
-    private final CheckBox direction=new CheckBox("Preservar direção dos caminhos abertos");
-    private final CheckBox inner=new CheckBox("Contornos internos/fechados primeiro");
+    private final CheckBox direction=new CheckBox(I18n.text("ui.ebd1d27248dd"));
+    private final CheckBox inner=new CheckBox(I18n.text("ui.f9d898783353"));
     private final TextField margin=new TextField("0");
     private final TitledPane view;
     private final CncRouting saved;
@@ -20,7 +20,7 @@ final class CncRoutingFields {
         this.saved=saved;
         mode.getItems().setAll(CncRouting.Mode.values()); mode.setValue(saved.mode()); mode.setId("cnc-route-mode");
         mode.setConverter(new javafx.util.StringConverter<>() {
-            public String toString(CncRouting.Mode value) { return switch(value) { case SOURCE -> "Ordem original"; case NEAREST -> "Por proximidade"; case BOARDS -> "Terminar cada placa (por fresa)"; }; }
+            public String toString(CncRouting.Mode value) { return switch(value) { case SOURCE -> I18n.text("ui.ae32e1eb789c"); case NEAREST -> I18n.text("ui.14b282343678"); case BOARDS -> I18n.text("ui.98e8dc1fff8e"); }; }
             public CncRouting.Mode fromString(String value) { throw new UnsupportedOperationException(); }
         });
         reference.getItems().setAll(references.stream().filter(r -> units.equalsIgnoreCase(r.units())).toList());
@@ -31,16 +31,16 @@ final class CncRoutingFields {
         margin.disableProperty().bind(reference.disableProperty());
         direction.disableProperty().bind(mode.valueProperty().isEqualTo(CncRouting.Mode.SOURCE));
         inner.disableProperty().bind(direction.disableProperty());
-        ToolDescriptions.apply(mode,"Ordem dos trajetos","Original mantém a ordem/entrada da Geometry. Proximidade visita o próximo início mais perto. Terminar cada placa agrupa por caixas de uma Geometry de área, por fresa; não executa todas as fresas de uma placa antes das demais. Pode aumentar deslocamentos. Contornos fechados podem começar em outro vértice sem inverter sua direção.");
-        ToolDescriptions.apply(reference,"Referência das placas","Escolha uma Geometry de área preenchida, com um polígono por placa, na mesma origem e unidade. Use a área da borda panelizada, não ilhas de cobre. A referência é capturada neste painel e salva como geometria; trajetos fora das caixas ou em duas caixas são recusados. Sem escolha, reutiliza a referência salva, quando houver.");
-        ToolDescriptions.apply(margin,"Margem das caixas","Expansão extra das caixas da referência na unidade do objeto; o raio da fresa já é incluído. Use só a folga necessária para o offset externo. Margem excessiva pode tornar placas vizinhas ambíguas.");
-        ToolDescriptions.apply(direction,"Direção","Não inverte um caminho aberto para reduzir deslocamento. Preserva a orientação que define Climb/Conventional; contornos fechados sempre conservam a direção, mudando apenas o vértice inicial.");
-        ToolDescriptions.apply(inner,"Prioridade de recortes","Anéis fechados contidos em outro anel são visitados antes dele; contornos fechados precedem segmentos abertos com pontes. Use para recorte, não automaticamente para todo NCC/Isolation. Não reconstrói perfis abertos internos nem certifica fixação da peça.");
+        ToolDescriptions.apply(mode,I18n.text("ui.8f7cf848f7cb"),I18n.text("ui.cfcc9d2148f7"));
+        ToolDescriptions.apply(reference,I18n.text("ui.794a27de2c99"),I18n.text("ui.4977ec759145"));
+        ToolDescriptions.apply(margin,I18n.text("ui.e5390a9fb017"),I18n.text("ui.868f178c0c8f"));
+        ToolDescriptions.apply(direction,I18n.text("ui.0de75005faf5"),I18n.text("ui.dcb0af4fc86a"));
+        ToolDescriptions.apply(inner,I18n.text("ui.01a31c73794f"),I18n.text("ui.f4e0136317ae"));
         GridPane grid=new GridPane(); grid.setHgap(8); grid.setVgap(8);
-        grid.addRow(0,new Label("Ordem:"),mode); grid.addRow(1,new Label("Área das placas:"),reference);
-        grid.addRow(2,new Label("Margem:"),margin); grid.add(direction,0,3,2,1); grid.add(inner,0,4,2,1);
-        Label note=new Label("Agrupamento usa uma referência de área; não deduz placas pelo cobre. Uma referência já salva pode ser reutilizada."); note.setWrapText(true); grid.add(note,0,5,2,1);
-        view=new TitledPane("Ordem dos trajetos",grid); view.setExpanded(false);
+        grid.addRow(0,new Label(I18n.text("ui.3b41aae0bd17")),mode); grid.addRow(1,new Label(I18n.text("ui.1c6237c8c977")),reference);
+        grid.addRow(2,new Label(I18n.text("ui.16bab5b0d1de")),margin); grid.add(direction,0,3,2,1); grid.add(inner,0,4,2,1);
+        Label note=new Label(I18n.text("ui.0a0a9587b745")); note.setWrapText(true); grid.add(note,0,5,2,1);
+        view=new TitledPane(I18n.text("ui.8f7cf848f7cb"),grid); view.setExpanded(false);
     }
     TitledPane view() { return view; }
     CncRouting options() {
@@ -56,6 +56,6 @@ final class CncRoutingFields {
     private static void collect(Geometry g,List<String> output) {
         if (g instanceof Polygon p) output.add(p.toText());
         else if (g instanceof MultiPolygon) for(int i=0;i<g.getNumGeometries();i++) collect(g.getGeometryN(i),output);
-        else throw new IllegalArgumentException("Referência precisa ser uma área Polygon/MultiPolygon, não contornos ou cobre fragmentado.");
+        else throw new IllegalArgumentException(I18n.text("ui.20582729b4da"));
     }
 }

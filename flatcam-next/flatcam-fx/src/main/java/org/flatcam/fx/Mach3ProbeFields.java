@@ -17,7 +17,7 @@ final class Mach3ProbeFields {
     private final TextField feed;
     private final TextField contactZ;
     private final TextField xy;
-    private final CheckBox confirmation = new CheckBox("Li os cuidados de sondagem e vou validar o arquivo na máquina.");
+    private final CheckBox confirmation = new CheckBox(I18n.text("ui.b65e16eb6ee7"));
     private final VBox view;
 
     Mach3ProbeFields(boolean metric, TextField changeZ, boolean showChangeZ,
@@ -30,14 +30,11 @@ final class Mach3ProbeFields {
         contactZ = field("probe-contact-z", defaults == null ? "0" : Double.toString(defaults.contactZ()));
         xy = field("probe-xy", defaults == null || defaults.toolChangeX() == null ? "None"
                 : defaults.toolChangeX() + ";" + defaults.toolChangeY());
-        xy.setPromptText("None ou X;Y (também aceita X,Y)");
+        xy.setPromptText(I18n.text("ui.0ef93d2325f6"));
         confirmation.setId("probe-confirm");
         confirmation.setWrapText(true);
-        ToolDescriptions.apply(confirmation,"Confirmação de sondagem", "Confirma a revisão dos cuidados de sondagem para permitir a geração. Não valida sensor, macro M6, origem ou limites da máquina.\n\nAtenção: faça a validação física e interrompa imediatamente se não houver contato esperado. A confirmação é reiniciada ao trocar o perfil ou a origem.");
-        Label warning = new Label("Sondagem Z Mach3: teste sensor, curso, origem e macro M6. "
-                + "Confirme contato nas duas pausas; sem contato, ABORTE. Retire placa/clips antes do corte. "
-                + "G92 permanece ativo; não combine com G52. Sem prévia no Plot Area. "
-                + "Valores nas unidades do objeto; confira-os ao trocar a origem.");
+        ToolDescriptions.apply(confirmation,I18n.text("ui.00803175981a"), I18n.text("ui.76f7c9d80028"));
+        Label warning = new Label(I18n.text("ui.8c1f4a09ed13"));
         warning.setWrapText(true);
         GridPane grid = new GridPane();
         grid.setHgap(8);
@@ -46,8 +43,8 @@ final class Mach3ProbeFields {
         if (showChangeZ) grid.addRow(row++, new Label("Tool change Z:"), changeZ);
         grid.addRow(row++, new Label("Probe Z final (< 0):"), depth);
         grid.addRow(row++, new Label("Probe feed:"), feed);
-        grid.addRow(row++, new Label("Contact Z / placa:"), contactZ);
-        grid.addRow(row, new Label("Troca X,Y (opcional):"), xy);
+        grid.addRow(row++, new Label(I18n.text("ui.e619d3b08a75")), contactZ);
+        grid.addRow(row, new Label(I18n.text("ui.b76f82481874")), xy);
         view = new VBox(8, warning, grid, confirmation);
         view.setId("probe-settings");
         var probing = Bindings.createBooleanBinding(() -> profiles.getValue().requiresProbe(), profiles.valueProperty());
@@ -89,14 +86,14 @@ final class Mach3ProbeFields {
     }
 
     ProbeToolChangeParameters parameters() {
-        if (!confirmation.isSelected()) throw new IllegalArgumentException("Confirme os cuidados de sondagem antes de gerar.");
+        if (!confirmation.isSelected()) throw new IllegalArgumentException(I18n.text("ui.56df73d505f4"));
         Double x = null, y = null;
         String value = xy.getText().trim();
         if (!value.isEmpty() && !value.equalsIgnoreCase("None")) {
             String[] coordinates = value.split(value.contains(";") ? ";" : ",", -1);
-            if (coordinates.length != 2) throw new IllegalArgumentException("Troca X,Y: use None ou X;Y.");
-            x = parse(coordinates[0], "Troca X");
-            y = parse(coordinates[1], "Troca Y");
+            if (coordinates.length != 2) throw new IllegalArgumentException(I18n.text("ui.0a96cb1d4e8a"));
+            x = parse(coordinates[0], I18n.text("ui.adefae085dd5"));
+            y = parse(coordinates[1], I18n.text("ui.1dabad12a3c2"));
         }
         return new ProbeToolChangeParameters(parse(changeZ.getText(), "Tool change Z"),
                 parse(depth.getText(), "Probe Z final"), parse(feed.getText(), "Probe feed"),
@@ -113,6 +110,6 @@ final class Mach3ProbeFields {
 
     private static double parse(String value, String name) {
         try { return Double.parseDouble(value.trim().replace(',', '.')); }
-        catch (NumberFormatException error) { throw new IllegalArgumentException(name + ": número inválido."); }
+        catch (NumberFormatException error) { throw new IllegalArgumentException(name + I18n.text("ui.d33f783dcf1b")); }
     }
 }

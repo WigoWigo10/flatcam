@@ -90,7 +90,7 @@ final class DoubleSidedToolPanel {
 
     private static final Pattern NUMBER = Pattern.compile("[-+]?(?:\\d+(?:[.,]\\d*)?|[.,]\\d+)(?:[eE][-+]?\\d+)?");
     private static final GeometryFactory FACTORY = new GeometryFactory();
-    private static final String SELECTED_BOX = "Objetos a espelhar (caixa combinada)";
+    private static final String SELECTED_BOX = I18n.text("ui.fc63cc2edfb4");
 
     private DoubleSidedToolPanel() {
     }
@@ -113,7 +113,7 @@ final class DoubleSidedToolPanel {
                 numbers.add(Double.parseDouble(matcher.group().replace(',', '.')));
             }
             if (numbers.size() % 2 != 0 || numbers.isEmpty()) {
-                throw new IllegalArgumentException("\"" + trimmed + "\" não é um par X, Y");
+                throw new IllegalArgumentException("\"" + trimmed + I18n.text("ui.aea2cdb9a61a"));
             }
             for (int i = 0; i < numbers.size(); i += 2) {
                 holes.add(new Coordinate(numbers.get(i), numbers.get(i + 1)));
@@ -156,7 +156,7 @@ final class DoubleSidedToolPanel {
             }
         });
         objectList.getItems().setAll(host.objects());
-        Button useSelection = new Button("Usar seleção da árvore");
+        Button useSelection = new Button(I18n.text("ui.20e67b960b56"));
         useSelection.setOnAction(event -> {
             objectList.getSelectionModel().clearSelection();
             for (TreeItem<String> item : host.selectedObjects()) {
@@ -172,24 +172,20 @@ final class DoubleSidedToolPanel {
         axisX.setToggleGroup(axisGroup);
         axisY.setToggleGroup(axisGroup);
         axisX.setSelected(true); // Python's tools_2sided_mirror_axis default
-        Tooltip axisHelp = tooltip("Eixo X: a linha de espelhamento e horizontal; o objeto vira de cima para baixo "
-                + "(inverte Y).\nEixo Y: a linha e vertical; o objeto vira dà esquerda para à direita (inverte X), "
-                + "como virar a placa como uma pagina de livro.");
+        Tooltip axisHelp = tooltip(I18n.text("ui.70a154fcc53f"));
         axisX.setTooltip(axisHelp);
         axisY.setTooltip(axisHelp);
 
         // --- reference: box or point ---
         ToggleGroup referenceGroup = new ToggleGroup();
-        RadioButton boardReference = new RadioButton("Centro da placa");
-        RadioButton boxReference = new RadioButton("Caixa de objeto");
-        RadioButton pointReference = new RadioButton("Ponto");
+        RadioButton boardReference = new RadioButton(I18n.text("ui.9ba550c9ee1d"));
+        RadioButton boxReference = new RadioButton(I18n.text("ui.a7b0fc2b8661"));
+        RadioButton pointReference = new RadioButton(I18n.text("ui.d6a379129f1f"));
         boardReference.setToggleGroup(referenceGroup);
         boxReference.setToggleGroup(referenceGroup);
         pointReference.setToggleGroup(referenceGroup);
         boardReference.setSelected(true);
-        boardReference.setTooltip(tooltip("A linha passa pelo meio da placa: a caixa combinada de todos os objetos "
-                + "do projeto (Gerbers, Excellons e Geometrys). Espelhar Top e Bottom pelo mesmo centro mantém as "
-                + "duas faces alinhadas. Python só oferece caixa de um objeto ou ponto."));
+        boardReference.setTooltip(tooltip(I18n.text("ui.b375ccba9602")));
 
         ComboBox<Object> boxObject = new ComboBox<>();
         boxObject.getItems().add(SELECTED_BOX);
@@ -208,29 +204,27 @@ final class DoubleSidedToolPanel {
                 return text;
             }
         });
-        boxObject.setTooltip(tooltip("Objeto cuja caixa delimitadora define a linha de espelhamento. "
-                + "\"Objetos a espelhar\" usa a caixa combinada dos objetos marcados acima."));
+        boxObject.setTooltip(tooltip(I18n.text("ui.b485efdea02b")));
         ComboBox<String> boxAnchor = new ComboBox<>();
-        boxAnchor.getItems().addAll("Centro", "Bordà esquerda", "Bordà direita", "Borda inferior", "Borda superior");
+        boxAnchor.getItems().addAll(I18n.text("ui.fed34f0449c2"), I18n.text("ui.378af8f8ecca"), I18n.text("ui.d3441e31dc99"), I18n.text("ui.ca0e290b1ddd"), I18n.text("ui.dc9063e3a5fc"));
         boxAnchor.getSelectionModel().selectFirst();
-        boxAnchor.setTooltip(tooltip("Onde da caixa passa a linha. Centro e o que o Python usa."));
+        boxAnchor.setTooltip(tooltip(I18n.text("ui.679116b3a8c8")));
         VBox boxControls = new VBox(4, boxObject);
-        HBox anchorRow = new HBox(6, new Label("Ponto da caixa:"), boxAnchor);
+        HBox anchorRow = new HBox(6, new Label(I18n.text("ui.948b4860f3f1")), boxAnchor);
         anchorRow.visibleProperty().bind(boardReference.selectedProperty().or(boxReference.selectedProperty()));
         anchorRow.managedProperty().bind(anchorRow.visibleProperty());
 
         TextField pointX = new TextField("0.0");
         TextField pointY = new TextField("0.0");
-        ToolDescriptions.apply(pointX,"Referência X", "Coordenada X do ponto por onde passa o eixo de espelhamento.\n\nUnidades: unidade dos objetos (mm ou in).");
-        ToolDescriptions.apply(pointY,"Referência Y", "Coordenada Y do ponto por onde passa o eixo de espelhamento.\n\nUnidades: unidade dos objetos (mm ou in).");
+        ToolDescriptions.apply(pointX,I18n.text("ui.e700fc426f30"), I18n.text("ui.c1362fb0c1e7"));
+        ToolDescriptions.apply(pointY,I18n.text("ui.7d93ce62dce4"), I18n.text("ui.84d00154fcf8"));
         pointX.setPrefColumnCount(7);
         pointY.setPrefColumnCount(7);
-        CheckBox snapToDrills = new CheckBox("Prender ao centro de furos existentes");
+        CheckBox snapToDrills = new CheckBox(I18n.text("ui.00e05a97562b"));
         snapToDrills.setSelected(true);
-        snapToDrills.setTooltip(tooltip("Ao clicar no plot, se houver um furo (ou ponta de slot) de um Excellon "
-                + "perto do clique, o ponto usa o centro exato dele. Util para alinhar com furos que já existem."));
-        Button pickOnPlot = new Button("Pegar no plot");
-        Button useOrigin = new Button("Origem");
+        snapToDrills.setTooltip(tooltip(I18n.text("ui.7f6feda50770")));
+        Button pickOnPlot = new Button(I18n.text("ui.9f576afb4022"));
+        Button useOrigin = new Button(I18n.text("ui.7b9afa8bda07"));
         useOrigin.setOnAction(event -> {
             pointX.setText("0.0");
             pointY.setText("0.0");
@@ -243,22 +237,20 @@ final class DoubleSidedToolPanel {
         pointControls.managedProperty().bind(pointControls.visibleProperty());
 
         // --- mode ---
-        CheckBox asCopy = new CheckBox("Criar copia espelhada (manter o original)");
-        asCopy.setTooltip(tooltip("Sem marcar, os objetos são espelhados no lugar, como no Python."));
-        CheckBox showPreview = new CheckBox("Pré-visualizar no plot");
+        CheckBox asCopy = new CheckBox(I18n.text("ui.ac3ef9f9a5b0"));
+        asCopy.setTooltip(tooltip(I18n.text("ui.9f59f1720f0e")));
+        CheckBox showPreview = new CheckBox(I18n.text("ui.1d3636f2daf9"));
         showPreview.setSelected(true);
-        CheckBox showContent = new CheckBox("Mostrar o conteúdo espelhado (cobre, furos)");
+        CheckBox showContent = new CheckBox(I18n.text("ui.027000d59a96"));
         showContent.setSelected(true);
-        showContent.setTooltip(tooltip("Desenha no preview o conteúdo dos objetos marcados já espelhado, para ver "
-                + "como a outra face vai ficar."));
+        showContent.setTooltip(tooltip(I18n.text("ui.65f3fac8120b")));
         showContent.disableProperty().bind(showPreview.selectedProperty().not());
-        CheckBox fillInterior = new CheckBox("Preencher o interior da placa (translucido)");
+        CheckBox fillInterior = new CheckBox(I18n.text("ui.966c286e3cde"));
         fillInterior.setSelected(true);
-        fillInterior.setTooltip(tooltip("Pinta o interior da placa: o espelhado mais forte, o original bem fraco."));
-        CheckBox showBoardOutline = new CheckBox("Mostrar o contorno da placa espelhada");
+        fillInterior.setTooltip(tooltip(I18n.text("ui.34bc57a96299")));
+        CheckBox showBoardOutline = new CheckBox(I18n.text("ui.30f92f04abd9"));
         showBoardOutline.setSelected(true);
-        showBoardOutline.setTooltip(tooltip("Desenha no preview o contorno da placa (o objeto de contorno, como "
-                + "Edge_Cuts, ou a caixa de todos os objetos) já espelhado, para ver onde a outra face vai cair."));
+        showBoardOutline.setTooltip(tooltip(I18n.text("ui.a9e2950bb3c4")));
         showBoardOutline.disableProperty().bind(showPreview.selectedProperty().not());
         fillInterior.disableProperty().bind(showPreview.selectedProperty().not().or(showBoardOutline.selectedProperty().not()));
 
@@ -270,13 +262,13 @@ final class DoubleSidedToolPanel {
         TextField diameter = new TextField(ToolDefaults.text("twosided.drilldia")); // Python's tools_2sided_drilldia default
         diameter.setPrefColumnCount(6);
         TextArea holesText = new TextArea();
-        ToolDescriptions.apply(holesText,"Pontos de alinhamento", "Um ponto por linha: X, Y; ou uma lista no formato (X, Y), (X, Y). Cada ponto gera também um furo espelhado pelo eixo escolhido.\n\nUnidades: unidade dos objetos (mm ou in).");
+        ToolDescriptions.apply(holesText,I18n.text("ui.51f8a511476e"), I18n.text("ui.74b88ad14102"));
         // The prompt text of a TextArea is too dim in some themes; a normal label is always readable.
-        Label holesHint = new Label("Um furo por linha (X, Y) ou no formato do Python: (X, Y), (X, Y)");
+        Label holesHint = new Label(I18n.text("ui.fe343a1eb1e8"));
         holesHint.setWrapText(true);
         holesText.setPrefRowCount(4);
-        Button pickHole = new Button("Adicionar furo no plot");
-        Button clearHoles = new Button("Limpar");
+        Button pickHole = new Button(I18n.text("ui.82aea5c74288"));
+        Button clearHoles = new Button(I18n.text("ui.5585ca453806"));
         clearHoles.setOnAction(event -> holesText.clear());
 
         // --- shared resolution of "what is the mirror line" ---
@@ -289,7 +281,7 @@ final class DoubleSidedToolPanel {
             if (boardReference.isSelected()) {
                 double[] board = combinedBounds(host, host.objects());
                 if (board == null) {
-                    throw new IllegalArgumentException("Não há objetos com geometria no projeto");
+                    throw new IllegalArgumentException(I18n.text("ui.53b808c530db"));
                 }
                 return boxPivot(board, Math.max(0, boxAnchor.getSelectionModel().getSelectedIndex()));
             }
@@ -300,12 +292,12 @@ final class DoubleSidedToolPanel {
                 TreeItem<String> typed = (TreeItem<String>) item;
                 box = host.bounds(typed);
                 if (box == null) {
-                    throw new IllegalArgumentException("O objeto de referência não tem geometria");
+                    throw new IllegalArgumentException(I18n.text("ui.57d0b77abcdf"));
                 }
             } else {
                 box = combinedBounds(host, chosen.get());
                 if (box == null) {
-                    throw new IllegalArgumentException("Marque ao menos um objeto com geometria para espelhar");
+                    throw new IllegalArgumentException(I18n.text("ui.39dc07fd77c6"));
                 }
             }
             return boxPivot(box, Math.max(0, boxAnchor.getSelectionModel().getSelectedIndex()));
@@ -353,7 +345,7 @@ final class DoubleSidedToolPanel {
                 (javafx.collections.ListChangeListener<TreeItem<String>>) change -> refresh.run());
 
         pickOnPlot.setOnAction(event -> {
-            errorLabel.setText("Clique no plot para definir o ponto (Esc cancela).");
+            errorLabel.setText(I18n.text("ui.adb263a0248f"));
             host.pickPoint(raw -> {
                 Coordinate point = snapped(host, raw, snapToDrills.isSelected());
                 if (point != null) {
@@ -362,11 +354,11 @@ final class DoubleSidedToolPanel {
                     pointReference.setSelected(true);
                 }
                 errorLabel.setText(point != null && raw != null && !point.equals2D(raw)
-                        ? "Ponto no centro do furo (" + format(point.x) + ", " + format(point.y) + ")." : "");
+                        ? I18n.text("ui.71533d58cbc4") + format(point.x) + ", " + format(point.y) + ")." : "");
             });
         });
         pickHole.setOnAction(event -> {
-            errorLabel.setText("Clique no plot para cada furo (Esc cancela).");
+            errorLabel.setText(I18n.text("ui.c9350b8314d0"));
             host.pickPoint(raw -> {
                 Coordinate point = snapped(host, raw, snapToDrills.isSelected());
                 if (point != null) {
@@ -374,17 +366,17 @@ final class DoubleSidedToolPanel {
                             + format(point.x) + ", " + format(point.y) + "\n");
                 }
                 errorLabel.setText(point != null && raw != null && !point.equals2D(raw)
-                        ? "Furo no centro do furo existente (" + format(point.x) + ", " + format(point.y) + ")." : "");
+                        ? I18n.text("ui.66398d8c5d42") + format(point.x) + ", " + format(point.y) + ")." : "");
             });
         });
 
-        Button mirrorButton = new Button("Espelhar");
+        Button mirrorButton = new Button(I18n.text("ui.292669cd836a"));
         mirrorButton.setMaxWidth(Double.MAX_VALUE);
         mirrorButton.setOnAction(event -> {
             try {
                 List<TreeItem<String>> items = chosen.get();
                 if (items.isEmpty()) {
-                    throw new IllegalArgumentException("Marque ao menos um objeto para espelhar");
+                    throw new IllegalArgumentException(I18n.text("ui.8cfe09488a68"));
                 }
                 host.mirror(items, operation.get(), asCopy.isSelected());
                 host.preview(null, null, null, null, null);
@@ -394,19 +386,18 @@ final class DoubleSidedToolPanel {
             }
         });
 
-        Button createHoles = new Button("Criar furos de alinhamento");
+        Button createHoles = new Button(I18n.text("ui.b7474bbdaf5e"));
         createHoles.setMaxWidth(Double.MAX_VALUE);
-        createHoles.setTooltip(tooltip("Cria um Excellon com cada furo e o seu espelho, usando o mesmo eixo e a mesma "
-                + "linha de espelhamento definidos acima."));
+        createHoles.setTooltip(tooltip(I18n.text("ui.eed2070143cf")));
         createHoles.setOnAction(event -> {
             try {
                 List<Coordinate> holes = parseHoles(holesText.getText());
                 if (holes.isEmpty()) {
-                    throw new IllegalArgumentException("Não há coordenadas de furos de alinhamento");
+                    throw new IllegalArgumentException(I18n.text("ui.4b583dee7138"));
                 }
-                double size = parse(diameter, "Diâmetro");
+                double size = parse(diameter, I18n.text("ui.7cd23abc62e0"));
                 if (size <= 0) {
-                    throw new IllegalArgumentException("O diâmetro deve ser positivo");
+                    throw new IllegalArgumentException(I18n.text("ui.f787e8eb9a03"));
                 }
                 String units = unitsFor(host, boxObject.getValue(), chosen.get());
                 host.createAlignmentDrills(units, size, holes, operation.get());
@@ -417,7 +408,7 @@ final class DoubleSidedToolPanel {
             }
         });
 
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.cancelPick();
             host.preview(null, null, null, null, null);
@@ -426,18 +417,18 @@ final class DoubleSidedToolPanel {
 
         GridPane axisRow = new GridPane();
         axisRow.setHgap(10);
-        axisRow.addRow(0, new Label("Eixo de espelhamento:"), axisX, axisY);
+        axisRow.addRow(0, new Label(I18n.text("ui.614df499a158")), axisX, axisY);
 
         VBox panel = new VBox(8,
-                new Label("Espelhar objetos"),
-                new Label("Objetos (Ctrl/Shift para varios):"), objectList, useSelection,
+                new Label(I18n.text("ui.17c87b351ba6")),
+                new Label(I18n.text("ui.e443ab4e32a5")), objectList, useSelection,
                 axisRow,
-                new Label("Referência da linha de espelhamento:"),
+                new Label(I18n.text("ui.af4adff9ed45")),
                 new HBox(10, boardReference, boxReference, pointReference), boxControls, anchorRow, pointControls,
                 asCopy, showPreview, showContent, showBoardOutline, fillInterior, mirrorButton,
                 new Separator(),
-                new Label("Furos de alinhamento"),
-                new HBox(6, new Label("Diâmetro:"), diameter),
+                new Label(I18n.text("ui.c9ca5c1a9ebd")),
+                new HBox(6, new Label(I18n.text("ui.56d3a428a0c7")), diameter),
                 holesHint, holesText, new HBox(6, pickHole, clearHoles), snapToDrills, createHoles,
                 errorLabel, close);
         panel.setPadding(new Insets(6));
@@ -581,7 +572,7 @@ final class DoubleSidedToolPanel {
         try {
             return Double.parseDouble(field.getText().trim().replace(',', '.'));
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor inválido em " + name);
+            throw new IllegalArgumentException(I18n.text("ui.1cbfa91d7a0c") + name);
         }
     }
 

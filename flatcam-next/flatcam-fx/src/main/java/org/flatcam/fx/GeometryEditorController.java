@@ -134,8 +134,8 @@ final class GeometryEditorController {
     private TextField scaleX, scaleY, skewX, skewY, offsetX, offsetY;
     private ComboBox<TransformKind> transformKind;
     enum TransformKind {
-        ROTATE("Rotação"), SCALE("Escala X/Y"), MIRROR_X("Espelhar X (esquerda/direita)"),
-        MIRROR_Y("Espelhar Y (cima/baixo)"), SKEW("Inclinação X/Y"), OFFSET("Deslocamento X/Y");
+        ROTATE(I18n.text("ui.ae0506abfa72")), SCALE(I18n.text("ui.52fe2a68ac59")), MIRROR_X(I18n.text("ui.9aeacccf0112")),
+        MIRROR_Y(I18n.text("ui.d4f925bde049")), SKEW(I18n.text("ui.4a855af9b30e")), OFFSET(I18n.text("ui.7e407025886e"));
         final String label;
         TransformKind(String label) { this.label=label; }
         @Override public String toString() { return label; }
@@ -148,9 +148,9 @@ final class GeometryEditorController {
     private long coordinateRevision;
 
     enum RotationReference {
-        SELECTION("Centro da seleção"), ORIGIN("Origem (0, 0)"), POINT("Ponto X/Y"),
-        LOWER_LEFT("Canto inferior esquerdo"), LOWER_RIGHT("Canto inferior direito"),
-        UPPER_RIGHT("Canto superior direito"), UPPER_LEFT("Canto superior esquerdo");
+        SELECTION(I18n.text("ui.84d5c22a1c5c")), ORIGIN(I18n.text("ui.b821269b039c")), POINT(I18n.text("ui.29eb9b6ceb01")),
+        LOWER_LEFT(I18n.text("ui.b11ed988a375")), LOWER_RIGHT(I18n.text("ui.68fa9b1439ce")),
+        UPPER_RIGHT(I18n.text("ui.61fc75869a23")), UPPER_LEFT(I18n.text("ui.a2db40298836"));
         final String label;
         RotationReference(String label) { this.label=label; }
         @Override public String toString() { return label; }
@@ -198,7 +198,7 @@ final class GeometryEditorController {
 
     void start(TreeItem<String> sourceItem, Geometry geometry, List<ToolGeometry> tools, boolean strokeOnly, String units) {
         if (isActive()) {
-            host.log("Já existe uma edição de Geometry em andamento.");
+            host.log(I18n.text("ui.4cd434d7b5a5"));
             return;
         }
         item = sourceItem;
@@ -236,7 +236,7 @@ final class GeometryEditorController {
         });
 
         status = new Label();
-        instruction = new Label("Selecione uma linha na tabela ou uma forma no desenho.");
+        instruction = new Label(I18n.text("ui.e2a9c46ac34f"));
         instruction.setWrapText(true);
         shapeTable = new TableView<>(FXCollections.observableArrayList(session.shapeRows()));
         shapeTable.setId("geometry-shapes");
@@ -247,18 +247,17 @@ final class GeometryEditorController {
         idColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(Long.toString(row.getValue().id())));
         idColumn.setPrefWidth(72);
         idColumn.setSortable(false);
-        TableColumn<GeometryEditSession.ShapeRow, String> typeColumn = new TableColumn<>("Tipo");
+        TableColumn<GeometryEditSession.ShapeRow, String> typeColumn = new TableColumn<>(I18n.text("ui.3868d2843d59"));
         typeColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().type()));
         typeColumn.setPrefWidth(65);
         typeColumn.setSortable(false);
-        TableColumn<GeometryEditSession.ShapeRow, String> nameColumn = new TableColumn<>("Nome");
+        TableColumn<GeometryEditSession.ShapeRow, String> nameColumn = new TableColumn<>(I18n.text("ui.5086900635fe"));
         nameColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().name()));
         nameColumn.setPrefWidth(95);
         nameColumn.setSortable(false);
         shapeTable.getColumns().addAll(idColumn, typeColumn, nameColumn);
         shapeTable.setPrefHeight(360);
-        shapeTable.setTooltip(new Tooltip("Clique para selecionar; Ctrl+clique seleciona varias linhas. "
-                + "Delete exclui as formas selecionadas no desenho."));
+        shapeTable.setTooltip(new Tooltip(I18n.text("ui.f791943af647")));
         shapeTable.getSelectionModel().getSelectedIndices().addListener((ListChangeListener<Integer>) change -> {
             if (syncingTable || busy || session == null) {
                 return;
@@ -274,37 +273,37 @@ final class GeometryEditorController {
                 refreshSelection();
             } finally { syncingTable = false; }
         });
-        Button selectButton = new Button("Selecionar");
-        Button pathButton = new Button("Caminho");
-        Button polygonButton = new Button("Polígono");
-        Button rectangleButton = new Button("Retângulo");
-        Button circleButton = new Button("Circulo");
-        Button arcButton = new Button("Arco");
+        Button selectButton = new Button(I18n.text("ui.6a57618c2593"));
+        Button pathButton = new Button(I18n.text("ui.31591bad64b8"));
+        Button polygonButton = new Button(I18n.text("ui.2c7f33880993"));
+        Button rectangleButton = new Button(I18n.text("ui.0ff1131199c8"));
+        Button circleButton = new Button(I18n.text("ui.1b3a8227c7e0"));
+        Button arcButton = new Button(I18n.text("ui.a7dee6988001"));
         arcButton.setId("geometry-arc");
-        deleteButton = new Button("Excluir selecionadas");
-        moveButton = new Button("Mover selecionadas");
-        copyButton = new Button("Copiar selecionadas");
-        undoButton = new Button("Desfazer");
-        redoButton = new Button("Refazer");
-        applyButton = new Button("Aplicar ao objeto");
+        deleteButton = new Button(I18n.text("ui.089c36593824"));
+        moveButton = new Button(I18n.text("ui.82ba228461bf"));
+        copyButton = new Button(I18n.text("ui.5569bb78f11f"));
+        undoButton = new Button(I18n.text("ui.786b48222848"));
+        redoButton = new Button(I18n.text("ui.7b659c9caa5e"));
+        applyButton = new Button(I18n.text("ui.5c057b676f16"));
         applyButton.getStyleClass().add("primary-action");
-        unionButton = new Button("Unir selecionadas");
-        intersectionButton = new Button("Interseção selecionadas");
-        subtractButton = new Button("Subtrair da primeira selecionada");
-        cutPathButton = new Button("Cortar Caminho");
-        bufferButton = new Button("Criar buffer arredondado");
-        explodeButton = new Button("Explodir polígonos");
-        transformButton = new Button("Transformações");
-        textButton = new Button("Texto"); textButton.setId("geometry-text");
-        eraserButton = new Button("Borracha"); eraserButton.setId("geometry-eraser");
+        unionButton = new Button(I18n.text("ui.dd11d305ef9e"));
+        intersectionButton = new Button(I18n.text("ui.5b95c96431f2"));
+        subtractButton = new Button(I18n.text("ui.e55569bab807"));
+        cutPathButton = new Button(I18n.text("ui.32b69f96fbc3"));
+        bufferButton = new Button(I18n.text("ui.63d06fdb3cd8"));
+        explodeButton = new Button(I18n.text("ui.09b64c236839"));
+        transformButton = new Button(I18n.text("ui.32788c0c09e0"));
+        textButton = new Button(I18n.text("ui.6df3d6661c09")); textButton.setId("geometry-text");
+        eraserButton = new Button(I18n.text("ui.bc0687f51345")); eraserButton.setId("geometry-eraser");
         paintButton = new Button("Paint Shape"); paintButton.setId("geometry-paint");
         bufferDistance = new TextField();
-        bufferDistance.setPromptText("Distância positiva (unidade do projeto)");
+        bufferDistance.setPromptText(I18n.text("ui.842c36fa8cb2"));
         bufferMode = new ComboBox<>();
-        bufferMode.getItems().addAll("Completo", "Interior", "Exterior");
+        bufferMode.getItems().addAll(I18n.text("ui.23e3685fbe6c"), "Interior", "Exterior");
         bufferMode.getSelectionModel().selectFirst();
         bufferMode.setMaxWidth(Double.MAX_VALUE);
-        Button cancelButton = new Button("Cancelar edição");
+        Button cancelButton = new Button(I18n.text("ui.f1cb621ee9d8"));
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
                 bufferButton, explodeButton, cutPathButton, transformButton, textButton, eraserButton, paintButton,
@@ -319,9 +318,9 @@ final class GeometryEditorController {
         iconize(moveButton, "move32.png");
         iconize(copyButton, "copy32.png");
         undoButton.setText("↶");
-        undoButton.setTooltip(new Tooltip("Desfazer (Ctrl+Z)"));
+        undoButton.setTooltip(new Tooltip(I18n.text("ui.e8908ee8f72b")));
         redoButton.setText("↷");
-        redoButton.setTooltip(new Tooltip("Refazer (Ctrl+Y)"));
+        redoButton.setTooltip(new Tooltip(I18n.text("ui.189406ffe91a")));
         iconize(applyButton, "close_edit_file32.png");
         iconize(unionButton, "union32.png");
         iconize(intersectionButton, "intersection32.png");
@@ -346,9 +345,9 @@ final class GeometryEditorController {
         GeometryEditorDescriptions.apply(explodeButton, "explode");
         GeometryEditorDescriptions.apply(moveButton, "move");
         GeometryEditorDescriptions.apply(copyButton, "copy");
-        ToolDescriptions.apply(bufferMode, "Modo do Buffer", GeometryEditorDescriptions.of("buffer").text());
-        ToolDescriptions.apply(bufferDistance, "Distância do Buffer",
-                "Distância positiva e finita na unidade do objeto. Interior contrai; Exterior expande; Completo cria uma faixa ao redor do contorno.\n\nUnidades: mm ou in. Escolha o modo em vez de usar uma distância negativa.");
+        ToolDescriptions.apply(bufferMode, I18n.text("ui.0e193ba8b68e"), GeometryEditorDescriptions.of("buffer").text());
+        ToolDescriptions.apply(bufferDistance, I18n.text("ui.d5a33f3a788b"),
+                I18n.text("ui.e6a9a7f742ea"));
         iconize(cancelButton, "power16.png");
         selectButton.setOnAction(event -> startSelection());
         pathButton.setOnAction(event -> startPath());
@@ -380,13 +379,12 @@ final class GeometryEditorController {
             public EditorArc.Mode fromString(String text) { throw new UnsupportedOperationException(); }
         });
         arcMode.setValue(EditorArc.Mode.CENTER_START_END);
-        arcClockwise = new CheckBox("Sentido horário (CW)"); arcClockwise.setSelected(true);
+        arcClockwise = new CheckBox(I18n.text("ui.c3966703acd9")); arcClockwise.setSelected(true);
         arcClockwise.setId("geometry-arc-clockwise");
         arcClockwise.disableProperty().bind(arcMode.valueProperty().isEqualTo(EditorArc.Mode.START_END_THROUGH));
-        ToolDescriptions.apply(arcMode, "Ordem dos pontos do arco", GeometryEditorDescriptions.of("arc").text());
-        ToolDescriptions.apply(arcClockwise, "Sentido do arco",
-                "Marcado: horário (CW); desmarcado: anti-horário (CCW). D alterna durante o desenho. "
-                + "Em 132, o ponto no arco determina o sentido automaticamente.\n\nMilling Type Climb inverte a ordem final dos vértices, como no Python; confira o sentido ao gerar CNC.");
+        ToolDescriptions.apply(arcMode, I18n.text("ui.e34640639f85"), GeometryEditorDescriptions.of("arc").text());
+        ToolDescriptions.apply(arcClockwise, I18n.text("ui.eb4436de40dc"),
+                I18n.text("ui.e7cb2a7851b6"));
         arcMode.valueProperty().addListener((obs, old, value) -> {
             if (arcGesture != null) plotArea.resetEditorThreePointPlacement();
         });
@@ -395,41 +393,41 @@ final class GeometryEditorController {
         });
         curveSteps = new TextField(ToolDefaults.text("geometry.editorcirclesteps",true));
         curveSteps.setId("geometry-curve-steps"); curveSteps.setPrefColumnCount(5); curveSteps.setMinWidth(0);
-        ToolDescriptions.apply(curveSteps,"Segmentos por círculo",
+        ToolDescriptions.apply(curveSteps,I18n.text("ui.1f83845e817d"),
                 ToolDefaultsDescriptions.text(ToolDefaults.setting("geometry.editorcirclesteps"),true));
-        Button saveCurveSteps = new Button("Salvar resolução padrão"); saveCurveSteps.setId("geometry-curve-steps-save");
-        ToolDescriptions.apply(saveCurveSteps,"Salvar resolução padrão",
-                "Salva apenas a resolução atual para os próximos editores, em mm e in. Não altera formas existentes; também pode ser configurada em Preferências > Padrões das ferramentas > Editor Geometry.");
+        Button saveCurveSteps = new Button(I18n.text("ui.68a214833311")); saveCurveSteps.setId("geometry-curve-steps-save");
+        ToolDescriptions.apply(saveCurveSteps,I18n.text("ui.68a214833311"),
+                I18n.text("ui.3c337cc108ea"));
         saveCurveSteps.setOnAction(event -> {
-            try { ToolDefaults.set("geometry.editorcirclesteps",true,Integer.toString(curveSteps())); instruction.setText("Resolução padrão salva; formas existentes foram mantidas."); }
+            try { ToolDefaults.set("geometry.editorcirclesteps",true,Integer.toString(curveSteps())); instruction.setText(I18n.text("ui.4fcc545f9d3e")); }
             catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
         });
         curveSteps.textProperty().addListener((obs, old, value) -> {
             if (arcGesture != null) {
                 plotArea.refreshEditorThreePointPreview();
                 try { curveSteps(); arcInstruction(-1); } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
-            } else if (drawingCircle) { plotArea.cancelPlacement(); instruction.setText("Resolução alterada; inicie o círculo novamente."); }
+            } else if (drawingCircle) { plotArea.cancelPlacement(); instruction.setText(I18n.text("ui.b861d64073ea")); }
         });
-        Label arcHelp = new Label("M: modo • D: sentido • J: coordenadas • Backspace: voltar um ponto. O terceiro clique conclui; Esc/botão direito cancela.");
+        Label arcHelp = new Label(I18n.text("ui.6db3f0d0e624"));
         arcHelp.setWrapText(true);
-        arcPane = new TitledPane("Arcos e curvas", new VBox(6, arcMode, arcClockwise,
+        arcPane = new TitledPane(I18n.text("ui.eb1bd0729860"), new VBox(6, arcMode, arcClockwise,
                 new HBox(8,new Label("Segmentos/volta:"),curveSteps),saveCurveSteps,arcHelp));
         arcPane.setExpanded(false); panel.getChildren().add(arcPane);
         textContent = new TextArea(); textContent.setId("geometry-text-content");
-        textContent.setPromptText("Texto para converter em geometria"); textContent.setPrefRowCount(3);
+        textContent.setPromptText(I18n.text("ui.7482a7c63c2b")); textContent.setPrefRowCount(3);
         textContent.setWrapText(true);
-        ToolDescriptions.apply(textContent, "Conteúdo do texto",
-                "Texto simples, com até 512 caracteres; Enter acrescenta outra linha abaixo da primeira. O estilo vale para todo o conteúdo.\n\nAo inserir, as letras viram áreas editáveis: não será possível reabrir o resultado como texto. Editar este campo cancela uma prévia anterior, sem apagar formas já inseridas.");
+        ToolDescriptions.apply(textContent, I18n.text("ui.002816b942d6"),
+                I18n.text("ui.241249f1800a"));
         // Logical fonts work before enumeration; opening the editor must not scan the font directory.
         textFont = new ComboBox<>(FXCollections.observableArrayList("SansSerif", "Serif", "Monospaced"));
         textFont.setId("geometry-text-font"); textFont.setMaxWidth(Double.MAX_VALUE);
         textFont.setValue("SansSerif");
-        ToolDescriptions.apply(textFont, "Fonte dos contornos",
-                "Escolha uma fonte instalada. Fontes ausentes ou sem os caracteres necessários são recusadas.\n\nA Geometry salva contém os contornos vetoriais e não depende mais da fonte; métricas e curvas podem diferir das geradas pelo Python.");
+        ToolDescriptions.apply(textFont, I18n.text("ui.2d66bbb54d3f"),
+                I18n.text("ui.a13285182ae8"));
         textSize = new TextField("10"); textSize.setId("geometry-text-size"); textSize.setPrefColumnCount(5);
-        ToolDescriptions.apply(textSize, "Tamanho do texto",
-                "Escala de tamanho do ParseFont Python, de 0.1 a 1000; não é a altura exata da letra.\n\nUnidades: os contornos são gerados em " + units + ". Confira as dimensões na prévia antes de usinar.");
-        textBold = new CheckBox("Negrito"); textItalic = new CheckBox("Italico");
+        ToolDescriptions.apply(textSize, I18n.text("ui.243cf75e8126"),
+                I18n.text("ui.bf7a0cc18cec") + units + I18n.text("ui.1357f3644c4d"));
+        textBold = new CheckBox(I18n.text("ui.0466381bc96d")); textItalic = new CheckBox(I18n.text("ui.f3db44313704"));
         for (var property : List.of(textContent.textProperty(), textSize.textProperty(), textFont.valueProperty()))
             property.addListener((obs, old, value) -> {
                 if (!busy && !Boolean.TRUE.equals(textFont.getProperties().get("fonts-updating")))
@@ -437,16 +435,15 @@ final class GeometryEditorController {
             });
         textBold.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
         textItalic.selectedProperty().addListener((obs, old, value) -> { if (!busy) plotArea.cancelPlacement(); });
-        Button placeText = new Button("Gerar e posicionar texto"); placeText.setId("geometry-text-place");
+        Button placeText = new Button(I18n.text("ui.3c9949cad786")); placeText.setId("geometry-text-place");
         placeText.getStyleClass().add("primary-action"); placeText.setMaxWidth(Double.MAX_VALUE);
-        ToolDescriptions.apply(placeText, "Prévia e inserção do texto",
-                "Calcula os contornos em segundo plano e mostra uma prévia. A primeira linha usa o ponto clicado como linha de base; linhas seguintes descem.\n\nClique no plot para confirmar; Esc/botão direito cancela sem perder o formulário. Ctrl+Z desfaz a inserção inteira. Salvar e sair do editor aplica o rascunho ao objeto.");
+        ToolDescriptions.apply(placeText, I18n.text("ui.67562d368c2c"),
+                I18n.text("ui.9b6c926a524a"));
         placeText.setOnAction(event -> generateText());
-        Label textHelp = new Label("Texto vira áreas editáveis com vazios das letras preservados. "
-                + "A origem e a linha de base da primeira linha. Clique para inserir; Esc cancela.");
+        Label textHelp = new Label(I18n.text("ui.67009982f3ba"));
         textHelp.setWrapText(true);
-        textPane = new TitledPane("Texto vetorial", new VBox(8, new Label("Fonte:"), textFont,
-                new HBox(8, new Label("Tamanho:"), textSize), new HBox(8, textBold, textItalic),
+        textPane = new TitledPane(I18n.text("ui.39409c7cadff"), new VBox(8, new Label(I18n.text("ui.0dd6da8d793f")), textFont,
+                new HBox(8, new Label(I18n.text("ui.999e8aab92fc")), textSize), new HBox(8, textBold, textItalic),
                 textContent, textHelp, placeText));
         textPane.setExpanded(false); panel.getChildren().add(textPane);
         GeometryEditSession fontSession = session;
@@ -456,15 +453,15 @@ final class GeometryEditorController {
                     || Boolean.TRUE.equals(fontPicker.getProperties().get("fonts-loading"))) return;
             fontPicker.getProperties().put("fonts-loading", true);
             fontPicker.setDisable(true);
-            fontPicker.setPromptText("Carregando fontes...");
+            fontPicker.setPromptText(I18n.text("ui.367abdb3b77d"));
             fontCatalog.load().whenComplete((fonts, failure) -> javafx.application.Platform.runLater(() -> {
                 // Closing/reopening an editor must not let an old completion update its new controls.
                 if (session != fontSession || textFont != fontPicker) return;
                 fontPicker.getProperties().remove("fonts-loading");
                 fontPicker.setDisable(false);
                 if (failure != null) {
-                    fontPicker.setPromptText("Reabra esta seção para tentar novamente");
-                    host.log("Não foi possível listar as fontes. As fontes lógicas continuam disponíveis.");
+                    fontPicker.setPromptText(I18n.text("ui.23c6009cb53a"));
+                    host.log(I18n.text("ui.32bdb4e7a1f3"));
                     return;
                 }
                 String selected = fontPicker.getValue();
@@ -487,9 +484,9 @@ final class GeometryEditorController {
         paintMethod.setValue(org.flatcam.cam.ncc.NccMethod.STANDARD); paintMethod.setId("geometry-paint-method");
         paintConnect = new CheckBox("Connect"); paintConnect.setSelected(true);
         paintContour = new CheckBox("Contour"); paintContour.setSelected(true);
-        Button paintPreview = new Button("Calcular prévia"); paintPreview.setId("geometry-paint-preview");
-        Button paintConfirm = new Button("Confirmar Paint"); paintConfirm.setId("geometry-paint-confirm");
-        Button paintCancel = new Button("Cancelar prévia");
+        Button paintPreview = new Button(I18n.text("ui.e84776dcfcee")); paintPreview.setId("geometry-paint-preview");
+        Button paintConfirm = new Button(I18n.text("ui.2beae1d1d468")); paintConfirm.setId("geometry-paint-confirm");
+        Button paintCancel = new Button(I18n.text("ui.e7918951df55"));
         paintPreview.setOnAction(event -> generatePaint());
         paintConfirm.setOnAction(event -> { if (rotationGesture == null) plotArea.confirmEditorFixedPreview(); });
         paintCancel.setOnAction(event -> plotArea.cancelPlacement());
@@ -498,12 +495,12 @@ final class GeometryEditorController {
             property.addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
         paintConnect.selectedProperty().addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
         paintContour.selectedProperty().addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
-        ToolDescriptions.apply(paintDiameter, "Diâmetro do Paint", "Diâmetro positivo na unidade do objeto. Em Geometry com ferramentas, deve coincidir com a ferramenta das formas selecionadas; não muda diâmetros existentes. Sem associacao, confira o mesmo diâmetro ao gerar CNC.");
-        ToolDescriptions.apply(paintMargin, "Margem do Paint", "Positiva contrai a área; negativa expande.\n\nAtenção: margem negativa pode gerar cortes fora da forma original. Unidades: mm ou in.");
-        ToolDescriptions.apply(paintPreview, "Prévia do Paint", GeometryEditorDescriptions.of("paint").text());
+        ToolDescriptions.apply(paintDiameter, I18n.text("ui.ad6a86804cf3"), I18n.text("ui.60924936d8f5"));
+        ToolDescriptions.apply(paintMargin, I18n.text("ui.99351510cba8"), I18n.text("ui.922bec7ea03a"));
+        ToolDescriptions.apply(paintPreview, I18n.text("ui.6df54939cb6b"), GeometryEditorDescriptions.of("paint").text());
         paintPane = new TitledPane("Paint Shape", new VBox(8,
                 new HBox(8, new Label("Tool Dia:"), paintDiameter), new HBox(8, new Label("Overlap (%):"), paintOverlap),
-                new HBox(8, new Label("Margem:"), paintMargin), new HBox(8, new Label("Method:"), paintMethod),
+                new HBox(8, new Label(I18n.text("ui.16bab5b0d1de")), paintMargin), new HBox(8, new Label("Method:"), paintMethod),
                 new HBox(8, paintConnect, paintContour), paintPreview, paintConfirm, paintCancel));
         paintPane.setExpanded(false); panel.getChildren().add(paintPane);
         rotationAngle = new TextField("90"); rotationAngle.setId("geometry-rotation-angle");
@@ -516,7 +513,7 @@ final class GeometryEditorController {
         for (TextField f : List.of(rotationX,rotationY)) {
             f.setPrefColumnCount(6); f.setMinWidth(0);
             f.disableProperty().bind(rotationReference.valueProperty().isNotEqualTo(RotationReference.POINT));
-            ToolDescriptions.apply(f,"Pivô da transformação","Coordenada absoluta do pivô em " + units + ". Aceita ponto ou vírgula decimal. Alterar o valor cancela uma prévia anterior; não move as formas antes de confirmar.");
+            ToolDescriptions.apply(f,I18n.text("ui.452ea9732e44"),I18n.text("ui.6e822dac184e") + units + I18n.text("ui.0b39ba63c9cd"));
         }
         transformKind=new ComboBox<>(FXCollections.observableArrayList(TransformKind.values()));
         transformKind.setId("geometry-transform-kind"); transformKind.setValue(TransformKind.ROTATE);
@@ -524,16 +521,16 @@ final class GeometryEditorController {
         scaleX=transformField("scale-x","1"); scaleY=transformField("scale-y","1");
         skewX=transformField("skew-x","0"); skewY=transformField("skew-y","0");
         offsetX=transformField("offset-x","0"); offsetY=transformField("offset-y","0");
-        Button rotate = new Button("Pré-visualizar transformação"); rotate.setId("geometry-rotation-preview");
-        Button dragRotate = new Button("Girar por arrasto"); dragRotate.setId("geometry-rotation-drag");
-        Button pickPivot = new Button("Escolher pivô no plot"); pickPivot.setId("geometry-rotation-pick");
-        rotationConfirm = new Button("Confirmar transformação"); rotationConfirm.setId("geometry-rotation-confirm");
-        rotationCancel = new Button("Cancelar prévia"); rotationCancel.setId("geometry-rotation-cancel");
-        ToolDescriptions.apply(rotationAngle,"Ângulo da rotação",GeometryEditorDescriptions.of("rotate").text());
-        ToolDescriptions.apply(pickPivot,"Pivô no desenho","Escolha a transformação e os valores, clique neste botão e depois no pivô no Plot Area. O Snap da barra inferior é respeitado. A prévia é calculada após o clique; Esc/botão direito cancela sem mudar o rascunho.");
+        Button rotate = new Button(I18n.text("ui.9311ad39c7a2")); rotate.setId("geometry-rotation-preview");
+        Button dragRotate = new Button(I18n.text("ui.32575822e865")); dragRotate.setId("geometry-rotation-drag");
+        Button pickPivot = new Button(I18n.text("ui.84c7cb9dcb9b")); pickPivot.setId("geometry-rotation-pick");
+        rotationConfirm = new Button(I18n.text("ui.9e2e8c968cb0")); rotationConfirm.setId("geometry-rotation-confirm");
+        rotationCancel = new Button(I18n.text("ui.e7918951df55")); rotationCancel.setId("geometry-rotation-cancel");
+        ToolDescriptions.apply(rotationAngle,I18n.text("ui.01139f1fb1bb"),GeometryEditorDescriptions.of("rotate").text());
+        ToolDescriptions.apply(pickPivot,I18n.text("ui.3f47f23a6f1b"),I18n.text("ui.871a6e6565ff"));
         rotate.setOnAction(event -> previewTransform());
         dragRotate.setOnAction(event -> startAngularRotation());
-        ToolDescriptions.apply(dragRotate,"Rotação por arrasto","Usa o pivô escolhido. Pressione longe do pivô, arraste ao redor e solte para calcular a prévia exata. Durante o arrasto, somente a caixa gira para manter a fluidez; o ângulo aparece na instrução. O Snap vale para os pontos. Confira e confirme a transformação; soltar não altera o rascunho. Esc/botão direito cancela.");
+        ToolDescriptions.apply(dragRotate,I18n.text("ui.c86ca6156b2b"),I18n.text("ui.57ca4fd08ceb"));
         pickPivot.setOnAction(event -> pickRotationPivot());
         rotationConfirm.setOnAction(event -> { if (rotationReady) plotArea.confirmEditorFixedPreview(); });
         rotationCancel.setOnAction(event -> cancelRotationFromShortcut());
@@ -542,25 +539,25 @@ final class GeometryEditorController {
             property.addListener((obs, old, value) -> { if (rotationGesture != null) cancelRotationFromShortcut(); });
         for (Button button : List.of(rotate, pickPivot, dragRotate)) button.disableProperty().bind(transformButton.disableProperty());
         transformRow(dragRotate,TransformKind.ROTATE);
-        var angleRow=new HBox(8,new Label("Graus (+horário):"),rotationAngle);
-        var scaleRow=new HBox(8,new Label("Fator X:"),scaleX,new Label("Y:"),scaleY);
-        var skewRow=new HBox(8,new Label("Graus X:"),skewX,new Label("Y:"),skewY);
-        var offsetRow=new HBox(8,new Label("Desloc. X:"),offsetX,new Label("Y:"),offsetY);
+        var angleRow=new HBox(8,new Label(I18n.text("ui.c2ea553b4a08")),rotationAngle);
+        var scaleRow=new HBox(8,new Label(I18n.text("ui.eef7a3ba37cc")),scaleX,new Label("Y:"),scaleY);
+        var skewRow=new HBox(8,new Label(I18n.text("ui.e3db2a27ead4")),skewX,new Label("Y:"),skewY);
+        var offsetRow=new HBox(8,new Label(I18n.text("ui.10e3451c13ab")),offsetX,new Label("Y:"),offsetY);
         transformRow(angleRow,TransformKind.ROTATE); transformRow(scaleRow,TransformKind.SCALE);
         transformRow(skewRow,TransformKind.SKEW); transformRow(offsetRow,TransformKind.OFFSET);
-        ToolDescriptions.apply(transformKind,"Transformação","Escolha a operação e confira a prévia antes de confirmar. Escala e espelhos usam o pivô escolhido; inclinação aplica X/Y simultaneamente. Deslocamento soma X/Y nas unidades do objeto, independentemente do pivô. Ctrl+Z desfaz a operação inteira.");
-        ToolDescriptions.apply(rotationReference,"Referência da transformação","Origem, centro/canto da caixa da seleção ou ponto absoluto. Centro significa centro da caixa, não centro de massa. Compartilhada por rotação, escala, espelho e inclinação; não muda o deslocamento X/Y.");
-        ToolDescriptions.apply(rotate,"Prévia da transformação","Calcula fora da interface, sem alterar o rascunho. Confira o contorno e o pivô no Plot Area; confirme pelo botão ou clique. Esc/botão direito cancela. Valores e seleção alterados invalidam a prévia.");
-        ToolDescriptions.apply(rotationConfirm,"Confirmar transformação","Aplica exatamente a prévia, mantendo IDs, ferramentas e seleção. Ctrl+Z desfaz e Ctrl+Y refaz em uma etapa. Salvar e sair publica o rascunho no objeto.");
-        ToolDescriptions.apply(rotationCancel,"Cancelar prévia","Descarta a prévia sem alterar as formas. Durante o cálculo, Esc inválida o resultado pendente; o botão Cancelar da barra de progresso interrompe o trabalho quando possível.");
-        var pivotRow=new HBox(8,new Label("Pivô X:"),rotationX,new Label("Y:"),rotationY);
+        ToolDescriptions.apply(transformKind,I18n.text("ui.b3dc418dd371"),I18n.text("ui.a802bb0a1ea8"));
+        ToolDescriptions.apply(rotationReference,I18n.text("ui.293a024bff6e"),I18n.text("ui.4113792862db"));
+        ToolDescriptions.apply(rotate,I18n.text("ui.ab950571c152"),I18n.text("ui.fcc98ef7694d"));
+        ToolDescriptions.apply(rotationConfirm,I18n.text("ui.9e2e8c968cb0"),I18n.text("ui.01c5862f2a9c"));
+        ToolDescriptions.apply(rotationCancel,I18n.text("ui.e7918951df55"),I18n.text("ui.ee758110e80a"));
+        var pivotRow=new HBox(8,new Label(I18n.text("ui.6974db62f04c")),rotationX,new Label("Y:"),rotationY);
         for(Node node:List.of(rotationReference,pivotRow,pickPivot)) {
             node.visibleProperty().bind(transformKind.valueProperty().isNotEqualTo(TransformKind.OFFSET));
             node.managedProperty().bind(node.visibleProperty());
         }
         VBox transformControls = new VBox(8,transformKind,angleRow,scaleRow,skewRow,offsetRow,rotationReference,
                 pivotRow,pickPivot,dragRotate,rotate,rotationConfirm,rotationCancel);
-        transformsPane = new TitledPane("Transformações das selecionadas", transformControls);
+        transformsPane = new TitledPane(I18n.text("ui.28799639a7b3"), transformControls);
         transformsPane.setExpanded(false);
         transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
         panel.getChildren().add(transformsPane);
@@ -577,29 +574,27 @@ final class GeometryEditorController {
                 AppPreferences.saveGeometryEditorClimb(climb);
             }
         });
-        Tooltip millingHelp = new Tooltip("Sentido de fresagem das formas novas (como o Milling Type do Editor Geometry "
-                + "do Python). Climb inverte o sentido em que a forma foi desenhada; Conventional mantém. "
-                + "Não altera formas já existentes.");
+        Tooltip millingHelp = new Tooltip(I18n.text("ui.8f468eddb095"));
         climbRadio.setTooltip(millingHelp);
         conventionalRadio.setTooltip(millingHelp);
-        panel.getChildren().add(new HBox(10, new Label("Milling Type (novas formas):"), climbRadio, conventionalRadio));
+        panel.getChildren().add(new HBox(10, new Label(I18n.text("ui.42f7fc68175e")), climbRadio, conventionalRadio));
         if (tools.size() > 1) {
             toolChoice = new ComboBox<>();
             for (int i = 0; i < tools.size(); i++) {
                 toolChoice.getItems().add(String.format(java.util.Locale.ROOT,
-                        "Ferramenta %d - Ø %.4f", i + 1, tools.get(i).toolDiameter()));
+                        I18n.text("ui.315e0a9f9291"), i + 1, tools.get(i).toolDiameter()));
             }
             toolChoice.getSelectionModel().selectFirst();
             toolChoice.setMaxWidth(Double.MAX_VALUE);
-            ToolDescriptions.apply(toolChoice, "Ferramenta das novas formas",
-                    "Associa os novos desenhos e o Texto a esta ferramenta da Geometry. Não muda o diâmetro nem transfere formas já existentes para outra ferramenta. Mover/copiar preservam a associação original; Borracha pode recortar formas de todas as ferramentas. Trocar aqui cancela a prévia atual.");
+            ToolDescriptions.apply(toolChoice, I18n.text("ui.0dc35b7445a7"),
+                    I18n.text("ui.84db682ec545"));
             toolChoice.valueProperty().addListener((obs, old, value) -> plotArea.cancelPlacement());
         }
-        exitButton = new Button("Salvar e sair do editor");
+        exitButton = new Button(I18n.text("ui.8d911fc2825e"));
         exitButton.getStyleClass().add("primary-action");
         exitButton.setMaxWidth(Double.MAX_VALUE);
         exitButton.setOnAction(event -> apply());
-        discardButton = new Button("Descartar alterações");
+        discardButton = new Button(I18n.text("ui.534c4da81431"));
         discardButton.setMaxWidth(Double.MAX_VALUE);
         discardButton.setOnAction(event -> cancel());
         panel.getChildren().addAll(exitButton, discardButton);
@@ -621,7 +616,7 @@ final class GeometryEditorController {
         bufferMode.setPrefWidth(90);
         bufferMode.setMaxWidth(90);
         panel.setPadding(new Insets(12));
-        host.openToolPanel("Editor Geometry", panel);
+        host.openToolPanel(I18n.text("ui.73031cbbeabc"), panel);
         host.showEditorToolbar(toolbar);
         refreshSelection();
     }
@@ -638,7 +633,7 @@ final class GeometryEditorController {
         try {
             return Double.parseDouble(field.getText().trim().replace(',', '.'));
         } catch (NumberFormatException error) {
-            throw new IllegalArgumentException(name + " deve ser numérico.");
+            throw new IllegalArgumentException(name + I18n.text("ui.f894e7675102"));
         }
     }
 
@@ -649,10 +644,10 @@ final class GeometryEditorController {
     private TextField transformField(String id,String initial) {
         var field=new TextField(initial); field.setId("geometry-transform-"+id);
         field.setPrefColumnCount(5); field.setMinWidth(0);
-        String help=id.startsWith("scale") ? "Fator sem unidade no eixo indicado. 1 conserva o tamanho; valores negativos também espelham. Zero é recusado."
-                : id.startsWith("skew") ? "Inclinação em graus no eixo indicado, entre -90 e 90 sem os extremos. X/Y são aplicados simultaneamente em torno do pivô. Combinações que achatam a forma são recusadas."
-                : "Deslocamento no eixo indicado em " + units + ". Positivo aumenta a coordenada; negativo diminui. O pivô não altera o deslocamento.";
-        ToolDescriptions.apply(field,"Parâmetro da transformação",help+" Alterar o valor cancela a prévia anterior; só confirma após nova prévia.");
+        String help=id.startsWith("scale") ? I18n.text("ui.f66a78d4f790")
+                : id.startsWith("skew") ? I18n.text("ui.41dbf3a1b6db")
+                : I18n.text("ui.ff7653c4e326") + units + I18n.text("ui.dd7887465bb4");
+        ToolDescriptions.apply(field,I18n.text("ui.e8f20ca549fe"),help+I18n.text("ui.ccbd247f09e2"));
         return field;
     }
 
@@ -664,7 +659,7 @@ final class GeometryEditorController {
     private Coordinate rotationPivot() {
         if (rotationReference.getValue() == RotationReference.ORIGIN) return new Coordinate(0,0);
         if (rotationReference.getValue() == RotationReference.POINT)
-            return new Coordinate(parseTransformNumber(rotationX,"Pivô X"),parseTransformNumber(rotationY,"Pivô Y"));
+            return new Coordinate(parseTransformNumber(rotationX,I18n.text("ui.81e9bde31be5")),parseTransformNumber(rotationY,I18n.text("ui.5dfc296ef2f7")));
         var bounds=session.selectedBounds().getEnvelopeInternal();
         return switch(rotationReference.getValue()) {
             case LOWER_LEFT -> new Coordinate(bounds.getMinX(),bounds.getMinY());
@@ -692,36 +687,36 @@ final class GeometryEditorController {
                 rotationX.setText(Double.toString(x)); rotationY.setText(Double.toString(y));
                 rotationReference.setValue(RotationReference.POINT); previewTransform();
             }
-            public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Escolha do pivô cancelada."); }
+            public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,I18n.text("ui.481484c95e65")); }
         });
-        if (!started) stopRotation(gesture,"Não foi possível escolher o pivô.");
-        else instruction.setText("Clique no pivô da transformação; depois confira a prévia. Esc/botão direito cancela.");
+        if (!started) stopRotation(gesture,I18n.text("ui.ab51e8db7fc6"));
+        else instruction.setText(I18n.text("ui.4c1e1001e6b5"));
         refreshSelection();
     }
 
     private void previewTransform() {
         if (!readyForTool()) return;
-        if (session.selectedCount()==0) { instruction.setText("Selecione formas para transformar."); return; }
+        if (session.selectedCount()==0) { instruction.setText(I18n.text("ui.9c67cb343e77")); return; }
         plotArea.cancelPlacement();
         GeometryEditSession editing=session;
         try {
             Coordinate pivot=transformKind.getValue()==TransformKind.OFFSET
                     ? session.selectedBounds().getEnvelopeInternal().centre() : rotationPivot();
             var request=switch(transformKind.getValue()) {
-                case ROTATE -> editing.prepareRotation(parseTransformNumber(rotationAngle,"Ângulo"),pivot);
+                case ROTATE -> editing.prepareRotation(parseTransformNumber(rotationAngle,I18n.text("ui.c578e844cecc")),pivot);
                 case SCALE -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.scale(
-                        parseTransformNumber(scaleX,"Fator X"),parseTransformNumber(scaleY,"Fator Y")),pivot);
+                        parseTransformNumber(scaleX,I18n.text("ui.d21e6beed4f9")),parseTransformNumber(scaleY,I18n.text("ui.149363d48e5a"))),pivot);
                 case MIRROR_X -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.scale(-1,1),pivot);
                 case MIRROR_Y -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.scale(1,-1),pivot);
                 case SKEW -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.skew(
-                        parseTransformNumber(skewX,"Inclinação X"),parseTransformNumber(skewY,"Inclinação Y")),pivot);
+                        parseTransformNumber(skewX,I18n.text("ui.3dae7c444115")),parseTransformNumber(skewY,I18n.text("ui.7f12ee5de1d6"))),pivot);
                 case OFFSET -> editing.prepareTransform(org.flatcam.cam.geometry.EditorTransform.offset(
-                        parseTransformNumber(offsetX,"Deslocamento X"),parseTransformNumber(offsetY,"Deslocamento Y")),new Coordinate(0,0));
+                        parseTransformNumber(offsetX,I18n.text("ui.1c82f02bf236")),parseTransformNumber(offsetY,I18n.text("ui.3c4d14a15b40"))),new Coordinate(0,0));
             };
             Object gesture=new Object(); rotationGesture=gesture; rotationReady=false;
             calculate(request,result -> {
                 if (rotationGesture!=gesture) return;
-                if (result.resultParts().isEmpty()) { stopRotation(gesture,"Nenhuma coordenada foi alterada pela transformação."); return; }
+                if (result.resultParts().isEmpty()) { stopRotation(gesture,I18n.text("ui.d0c7d683a67b")); return; }
                 var factory=result.resultParts().getFirst().geometry().getFactory();
                 // Use the indexed overlay for dense shapes; only the small pivot marker is a placement preview.
                 Geometry preview=factory.buildGeometry(result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
@@ -730,14 +725,14 @@ final class GeometryEditorController {
                         if (session!=editing || rotationGesture!=gesture) return;
                         rotationGesture=null; rotationReady=false; plotArea.setEditorReference(null);
                         boolean changed=editing.applyTransform(result); refreshGeometry();
-                        instruction.setText(changed ? "Transformação aplicada ao rascunho. Ctrl+Z desfaz; Ctrl+Y refaz."
-                                : "A seleção ou o rascunho mudou; prévia descartada.");
+                        instruction.setText(changed ? I18n.text("ui.8f42e3711726")
+                                : I18n.text("ui.7e7497645ead"));
                     }
-                    public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,"Prévia da transformação descartada."); }
+                    public void onCancel() { if (rotationGesture==gesture) stopRotation(gesture,I18n.text("ui.7f19e9e5be41")); }
                 });
-                if (!started) { stopRotation(gesture,"Não foi possível mostrar a prévia da rotação."); return; }
+                if (!started) { stopRotation(gesture,I18n.text("ui.1c4f0f1be6d3")); return; }
                 plotArea.setEditorReference(preview); rotationReady=true; refreshSelection();
-                instruction.setText("Prévia da transformação: confira o novo contorno. Confirme pelo botão ou clique no plot; Esc/botão direito cancela.");
+                instruction.setText(I18n.text("ui.e582db8def1e"));
             },() -> stopRotation(gesture,null));
         } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
     }
@@ -753,7 +748,7 @@ final class GeometryEditorController {
             boolean started = plotArea.beginEditorAngularPlacement(pivot,editing.selectedBounds(),new PlotAreaView.AngularPlacementHandler() {
                 public void onAngleChanged(double degrees) {
                     if (rotationGesture==gesture) instruction.setText(String.format(java.util.Locale.ROOT,
-                            "Rotação: %.3f° (+horário). Solte para calcular a prévia exata; Esc cancela.",degrees));
+                            I18n.text("ui.dd9f13ce5476"),degrees));
                 }
                 public void onRelease(double degrees) {
                     if (session!=editing || rotationGesture!=gesture || !selected.equals(editing.selectedIndexOrder())) return;
@@ -761,12 +756,12 @@ final class GeometryEditorController {
                     rotationAngle.setText(Double.toString(degrees));
                     previewTransform();
                 }
-                public void onCancel() { stopRotation(gesture,"Arrasto cancelado; nenhuma forma alterada."); }
+                public void onCancel() { stopRotation(gesture,I18n.text("ui.ceeb8282f34c")); }
             });
-            if (!started) stopRotation(gesture,"Não foi possível iniciar a rotação por arrasto.");
+            if (!started) stopRotation(gesture,I18n.text("ui.1e4953e17bc7"));
             else {
                 refreshSelection();
-                instruction.setText("Pressione longe do pivô, arraste ao redor e solte. A caixa acompanha o ângulo; depois confira a prévia exata e confirme. Esc/botão direito cancela.");
+                instruction.setText(I18n.text("ui.3caac4066413"));
             }
         } catch (IllegalArgumentException invalid) { instruction.setText(invalid.getMessage()); }
     }
@@ -774,7 +769,7 @@ final class GeometryEditorController {
     boolean cancelRotationFromShortcut() {
         if (rotationGesture==null) return false;
         Object gesture=rotationGesture;
-        stopRotation(gesture,busy ? "Transformação cancelada; o resultado pendente será descartado." : "Prévia da transformação descartada.");
+        stopRotation(gesture,busy ? I18n.text("ui.68fd2074c092") : I18n.text("ui.7f19e9e5be41"));
         plotArea.cancelPlacement(); return true;
     }
 
@@ -786,7 +781,7 @@ final class GeometryEditorController {
 
     private Button plannedToolButton(String label, String icon) {
         Button button = new Button(null, host.icon(icon));
-        button.setTooltip(new Tooltip(label + " — em desenvolvimento"));
+        button.setTooltip(new Tooltip(label + I18n.text("ui.af814f12eeff")));
         button.setDisable(true);
         return button;
     }
@@ -808,7 +803,7 @@ final class GeometryEditorController {
             return;
         }
         plotArea.cancelPlacement();
-        instruction.setText("Selecione formas no desenho; Ctrl alterna a seleção.");
+        instruction.setText(I18n.text("ui.4ff64d95e708"));
     }
 
     void startPath() {
@@ -850,20 +845,20 @@ final class GeometryEditorController {
                     editing.addArc(arcMode.getValue(), arcClockwise.isSelected(), points, toolIndex,curveSteps());
                     arcGesture = null;
                     refreshGeometry();
-                    instruction.setText("Arco adicionado. Ctrl+Z desfaz; Ctrl+Y refaz.");
+                    instruction.setText(I18n.text("ui.0a617f0e0e81"));
                     return true;
                 } catch (IllegalArgumentException invalid) {
-                    instruction.setText(invalid.getMessage() + " Escolha outro terceiro ponto ou use Backspace.");
+                    instruction.setText(invalid.getMessage() + I18n.text("ui.1068b15b9ed6"));
                     return false;
                 }
             }
             public void onCancel() {
                 if (arcGesture == gesture) {
-                    arcGesture = null; instruction.setText("Arco cancelado; nenhuma forma inserida.");
+                    arcGesture = null; instruction.setText(I18n.text("ui.cb495e78bafa"));
                 }
             }
         })) {
-            arcGesture = null; instruction.setText("Não foi possível iniciar o arco.");
+            arcGesture = null; instruction.setText(I18n.text("ui.b6ad2dc1fc79"));
         }
     }
 
@@ -876,23 +871,23 @@ final class GeometryEditorController {
             case M -> { arcMode.setValue(EditorArc.Mode.values()[(arcMode.getValue().ordinal() + 1) % 3]); yield true; }
             case D -> {
                 if (arcMode.getValue() != EditorArc.Mode.START_END_THROUGH) arcClockwise.setSelected(!arcClockwise.isSelected());
-                else instruction.setText("Modo 132: o ponto no arco determina o sentido automaticamente.");
+                else instruction.setText(I18n.text("ui.248eb38000a2"));
                 yield true;
             }
             case BACK_SPACE -> { plotArea.backtrackEditorThreePointPlacement(); yield true; }
-            case ENTER -> { instruction.setText("Escolha os três pontos no plot; o terceiro clique conclui o arco."); yield true; }
+            case ENTER -> { instruction.setText(I18n.text("ui.f01c93e6e8ea")); yield true; }
             default -> false;
         };
     }
 
     private int curveSteps() {
         try { int steps = Integer.parseInt(curveSteps.getText().trim()); EditorArc.validateSteps(steps); return steps; }
-        catch (IllegalArgumentException invalid) { throw new IllegalArgumentException("Resolução deve ser um inteiro entre 4 e 4096 segmentos por círculo."); }
+        catch (IllegalArgumentException invalid) { throw new IllegalArgumentException(I18n.text("ui.b88c30ccbeda")); }
     }
 
     boolean requestCoordinates() {
         if (!isActive()) return false;
-        if (busy) { host.log("Aguarde o cálculo antes de posicionar o cursor."); return true; }
+        if (busy) { host.log(I18n.text("ui.4d2d14fced43")); return true; }
         GeometryEditSession editing = session;
         Object gesture = arcGesture;
         long revision = arcPointRevision;
@@ -906,8 +901,8 @@ final class GeometryEditorController {
                 Coordinate cursor = plotArea.previewEditorCursorAt(choice.point());
                 if (cursor != null) {
                     host.movePlotCursor(cursor);
-                    instruction.setText(gesture!=null ? "Cursor posicionado; clique para confirmar o próximo ponto ou use J > Adicionar ponto."
-                            : "Cursor posicionado; o gesto e seus pontos foram preservados. Continue pelo Plot Area.");
+                    instruction.setText(gesture!=null ? I18n.text("ui.f7b7ba8b06ac")
+                            : I18n.text("ui.f7c814daf792"));
                 }
             }
         });
@@ -916,22 +911,22 @@ final class GeometryEditorController {
 
     private static String arcModeLabel(EditorArc.Mode mode) {
         return switch (mode) {
-            case CENTER_START_END -> "Centro → Início → Fim (C12)";
-            case START_END_CENTER -> "Início → Fim → Centro (12C)";
-            case START_END_THROUGH -> "Início → Fim → Ponto no arco (132)";
+            case CENTER_START_END -> I18n.text("ui.e9867c655edf");
+            case START_END_CENTER -> I18n.text("ui.23c7e2902139");
+            case START_END_THROUGH -> I18n.text("ui.fb51bc1053dc");
         };
     }
 
     private void arcInstruction(int count) {
         String[] next = switch (arcMode.getValue()) {
-            case CENTER_START_END -> new String[]{"centro", "início", "direção do fim"};
-            case START_END_CENTER -> new String[]{"início", "fim", "referência do centro"};
-            case START_END_THROUGH -> new String[]{"início", "fim", "ponto no arco"};
+            case CENTER_START_END -> new String[]{I18n.text("ui.1f580bb27589"), I18n.text("ui.baa633b8c818"), I18n.text("ui.0c3ed450a39f")};
+            case START_END_CENTER -> new String[]{I18n.text("ui.baa633b8c818"), I18n.text("ui.469b7098e2fc"), I18n.text("ui.b1b381c1f9f5")};
+            case START_END_THROUGH -> new String[]{I18n.text("ui.baa633b8c818"), I18n.text("ui.469b7098e2fc"), I18n.text("ui.ae178cbf94cf")};
         };
-        instruction.setText("Arco — " + arcModeLabel(arcMode.getValue())
-                + (count < 0 ? "" : ": clique no " + next[Math.min(count, 2)])
-                + ". " + (arcMode.getValue() == EditorArc.Mode.START_END_THROUGH ? "Sentido automático" : arcClockwise.isSelected() ? "Horário (CW)" : "Anti-horário (CCW)")
-                + "; M muda o modo, D o sentido, J abre coordenadas; Esc cancela.");
+        instruction.setText(I18n.text("ui.0deb00d717f3") + arcModeLabel(arcMode.getValue())
+                + (count < 0 ? "" : I18n.text("ui.c591076dc5ea") + next[Math.min(count, 2)])
+                + ". " + (arcMode.getValue() == EditorArc.Mode.START_END_THROUGH ? I18n.text("ui.5ed2604e1c72") : arcClockwise.isSelected() ? I18n.text("ui.913903e8f7cb") : I18n.text("ui.e49dd9df6495"))
+                + I18n.text("ui.a2387e78d9d6"));
     }
 
     private void startMultiPoint(boolean polygon) {
@@ -944,8 +939,8 @@ final class GeometryEditorController {
             @Override
             public void onPathChanged(int anchorCount, org.flatcam.cam.gerber.edit.TrackBendMode mode) {
                 if (session == editing) {
-                    instruction.setText((polygon ? "Polígono" : "Caminho") + ": " + anchorCount
-                            + " ponto(s). Clique no próximo; Enter ou botão direito conclui; Esc cancela.");
+                    instruction.setText((polygon ? I18n.text("ui.2c7f33880993") : I18n.text("ui.31591bad64b8")) + ": " + anchorCount
+                            + I18n.text("ui.f30b4909d943"));
                 }
             }
 
@@ -960,7 +955,7 @@ final class GeometryEditorController {
                     } else {
                         editing.addPath(points, toolIndex);
                     }
-                    instruction.setText((polygon ? "Polígono" : "Caminho") + " adicionado.");
+                    instruction.setText((polygon ? I18n.text("ui.2c7f33880993") : I18n.text("ui.31591bad64b8")) + I18n.text("ui.33352c72e8f0"));
                     refreshGeometry();
                 } catch (IllegalArgumentException invalid) {
                     instruction.setText(invalid.getMessage());
@@ -970,11 +965,11 @@ final class GeometryEditorController {
             @Override
             public void onCancel() {
                 if (session == editing) {
-                    instruction.setText("Desenho cancelado.");
+                    instruction.setText(I18n.text("ui.abcf44dd4e39"));
                 }
             }
         })) {
-            host.log("Editor Geometry: clique nos pontos; Enter ou duplo clique conclui.");
+            host.log(I18n.text("ui.98249764696d"));
         }
     }
 
@@ -1002,8 +997,8 @@ final class GeometryEditorController {
                         anchor[0] = x;
                         anchor[1] = y;
                         if (session == editing) {
-                            instruction.setText(circle ? "Clique no perímetro do circulo."
-                                    : "Clique no canto oposto do retângulo.");
+                            instruction.setText(circle ? I18n.text("ui.e60b26d3cfcb")
+                                    : I18n.text("ui.cf62f342d641"));
                         }
                     }
 
@@ -1021,7 +1016,7 @@ final class GeometryEditorController {
                                 editing.addRectangle(anchor[0], anchor[1], anchor[0] + dx, anchor[1] + dy,
                                         toolIndex);
                             }
-                            instruction.setText((circle ? "Circulo" : "Retângulo") + " adicionado.");
+                            instruction.setText((circle ? I18n.text("ui.1b3a8227c7e0") : I18n.text("ui.0ff1131199c8")) + I18n.text("ui.33352c72e8f0"));
                             refreshGeometry();
                         } catch (IllegalArgumentException invalid) {
                             instruction.setText(invalid.getMessage());
@@ -1032,14 +1027,14 @@ final class GeometryEditorController {
                     public void onCancel() {
                         drawingCircle = false;
                         if (session == editing) {
-                            instruction.setText("Desenho cancelado.");
+                            instruction.setText(I18n.text("ui.abcf44dd4e39"));
                         }
                     }
                 };
         boolean started = circle ? plotArea.beginEditorCirclePlacement(resolution,handler)
                 : plotArea.beginEditorTwoPointPlacement(PlotAreaView.TwoPointShape.RECTANGLE,handler);
         if (started) {
-            instruction.setText(circle ? "Clique no centro do circulo." : "Clique no primeiro canto.");
+            instruction.setText(circle ? I18n.text("ui.1ca41cea335f") : I18n.text("ui.2619b9af69bf"));
         }
     }
 
@@ -1056,7 +1051,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         textPane.setExpanded(true);
         textContent.requestFocus();
-        instruction.setText("Configure o texto e clique em Gerar e posicionar texto.");
+        instruction.setText(I18n.text("ui.fae6d6d8eb7a"));
     }
 
     void startPaint() {
@@ -1064,7 +1059,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         paintDiameter.setText(Double.toString(session.selectedToolDiameter(0.3)));
         paintPane.setExpanded(true);
-        instruction.setText("Selecione áreas fechadas, configure Paint e calcule a prévia.");
+        instruction.setText(I18n.text("ui.cb9b84414676"));
     }
 
     private void generatePaint() {
@@ -1072,20 +1067,20 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         GeometryEditSession editing = session;
         try {
-            var p = new org.flatcam.cam.ncc.PaintParameters(List.of(parseTransformNumber(paintDiameter, "Diâmetro")),
-                    parseTransformNumber(paintOverlap, "Overlap") / 100, parseTransformNumber(paintMargin, "Margem"),
+            var p = new org.flatcam.cam.ncc.PaintParameters(List.of(parseTransformNumber(paintDiameter, I18n.text("ui.7cd23abc62e0"))),
+                    parseTransformNumber(paintOverlap, "Overlap") / 100, parseTransformNumber(paintMargin, I18n.text("ui.c707749bff8f")),
                     paintMethod.getValue(), paintConnect.isSelected(), paintContour.isSelected(), org.flatcam.cam.ncc.NccOrder.NONE, false);
             calculate(editing.preparePaint(p, units), result -> {
                 Geometry paths = new org.locationtech.jts.geom.GeometryFactory().buildGeometry(result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
                 boolean started = plotArea.beginEditorFixedPreview(paths, new PlotAreaView.PlacementHandler() {
                     public void onCommit(double dx, double dy) {
                         if (session != editing) return;
-                        if (editing.applyOperation(result)) { refreshGeometry(); instruction.setText("Paint adicionado; contornos preservados. Ctrl+Z desfaz."); }
-                        else instruction.setText("Seleção ou rascunho mudou; prévia descartada.");
+                        if (editing.applyOperation(result)) { refreshGeometry(); instruction.setText(I18n.text("ui.a6b4e06b8a5e")); }
+                        else instruction.setText(I18n.text("ui.4f1df7a1d5f0"));
                     }
-                    public void onCancel() { if (session == editing) instruction.setText("Prévia do Paint cancelada; formas preservadas."); }
+                    public void onCancel() { if (session == editing) instruction.setText(I18n.text("ui.58e0ca44a6f2")); }
                 });
-                instruction.setText(started ? "Confira a prévia fixa; clique no plot ou Confirmar Paint. Esc cancela." : "Não foi possível mostrar a prévia.");
+                instruction.setText(started ? I18n.text("ui.ce8bed9a1fef") : I18n.text("ui.1c536e6dd07a"));
             });
         } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
     }
@@ -1097,7 +1092,7 @@ final class GeometryEditorController {
         int toolIndex = selectedToolIndex();
         try {
             var p = new TextGeometry.Parameters(textContent.getText(), textFont.getValue(),
-                    parseTransformNumber(textSize, "Tamanho"), textBold.isSelected(), textItalic.isSelected(), units);
+                    parseTransformNumber(textSize, I18n.text("ui.21bed0eaf1e5")), textBold.isSelected(), textItalic.isSelected(), units);
             calculate(editing.prepareText(p, toolIndex), result -> {
                 Geometry text = new org.locationtech.jts.geom.GeometryFactory().buildGeometry(
                         result.resultParts().stream().map(GeometryEditSession.ToolPart::geometry).toList());
@@ -1106,13 +1101,13 @@ final class GeometryEditorController {
                         if (session != editing) return;
                         try {
                             editing.addGeneratedGeometry(AffineTransformation.translationInstance(x, y).transform(text), toolIndex);
-                            refreshGeometry(); instruction.setText("Texto adicionado. Ctrl+Z desfaz.");
+                            refreshGeometry(); instruction.setText(I18n.text("ui.69a760e44a81"));
                         } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
                     }
-                    public void onCancel() { if (session == editing) instruction.setText("Texto cancelado; rascunho preservado."); }
+                    public void onCancel() { if (session == editing) instruction.setText(I18n.text("ui.7b76c2f35cb9")); }
                 });
-                instruction.setText(started ? "Clique para posicionar a linha de base do texto; Esc cancela."
-                        : "Não foi possível iniciar o posicionamento do texto.");
+                instruction.setText(started ? I18n.text("ui.9909a2e7e75b")
+                        : I18n.text("ui.5c1569e92b19"));
             });
         } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
     }
@@ -1144,8 +1139,8 @@ final class GeometryEditorController {
         stopEraser(gesture);
         plotArea.cancelPlacement();
         refreshSelection();
-        instruction.setText(busy ? "Borracha encerrada; o cálculo pendente será descartado."
-                : "Borracha encerrada. As operações confirmadas foram mantidas.");
+        instruction.setText(busy ? I18n.text("ui.e22ebd28fea1")
+                : I18n.text("ui.5a952a2e07de"));
         return true;
     }
 
@@ -1162,7 +1157,7 @@ final class GeometryEditorController {
                 new PlotAreaView.PlacementHandler() {
                     public void onAnchorChosen(double x, double y) {
                         gesture.anchor = new Coordinate(x, y);
-                        instruction.setText("Borracha ativa: clique nos destinos para apagar; Esc/botão direito encerra.");
+                        instruction.setText(I18n.text("ui.b5a8a6cd95b1"));
                     }
                     public void onCommit(double dx, double dy) {
                         if (eraser != gesture || session != gesture.editing) return;
@@ -1172,8 +1167,8 @@ final class GeometryEditorController {
                                 boolean changed = session.applyOperation(erased);
                                 refreshGeometry();
                                 armEraser(gesture);
-                                instruction.setText((changed ? "Área apagada. Ctrl+Z desfaz. " : "Nenhuma forma alterada. ")
-                                        + "Borracha ativa: clique no próximo destino; Esc/botão direito encerra.");
+                                instruction.setText((changed ? I18n.text("ui.f9c948c711ad") : I18n.text("ui.15196a3dfd68"))
+                                        + I18n.text("ui.ef8884bcefd0"));
                             }, () -> stopEraser(gesture));
                         } catch (IllegalArgumentException error) {
                             stopEraser(gesture); instruction.setText(error.getMessage());
@@ -1183,20 +1178,20 @@ final class GeometryEditorController {
                         if (eraser == gesture && !gesture.suspending) {
                             stopEraser(gesture);
                             refreshSelection();
-                            instruction.setText("Borracha encerrada. As operações confirmadas foram mantidas.");
+                            instruction.setText(I18n.text("ui.5a952a2e07de"));
                         }
                     }
                 });
         if (!started) stopEraser(gesture);
-        instruction.setText(!started ? "Não foi possível iniciar a borracha."
-                : gesture.anchor == null ? "Borracha: clique na origem do molde e depois nos destinos; Esc cancela."
-                : "Borracha ativa: clique no próximo destino; Ctrl+Z desfaz; Esc/botão direito encerra.");
+        instruction.setText(!started ? I18n.text("ui.643fd686e3c4")
+                : gesture.anchor == null ? I18n.text("ui.6862113a1357")
+                : I18n.text("ui.154a08a49429"));
     }
 
     private void startMoveOrCopy(boolean copy) {
         if (!readyForTool() || session.selectedCount() == 0) {
             if (isActive()) {
-                instruction.setText("Selecione ao menos uma forma primeiro.");
+                instruction.setText(I18n.text("ui.60a9ab0acecc"));
             }
             return;
         }
@@ -1209,7 +1204,7 @@ final class GeometryEditorController {
                     @Override
                     public void onAnchorChosen() {
                         if (session == editing) {
-                            instruction.setText("Clique no destino das formas selecionadas.");
+                            instruction.setText(I18n.text("ui.910a38c70863"));
                         }
                     }
 
@@ -1220,21 +1215,21 @@ final class GeometryEditorController {
                         }
                         if (copy ? editing.copySelected(dx, dy) : editing.moveSelected(dx, dy)) {
                             refreshGeometry();
-                            instruction.setText(copy ? "Cópia concluída." : "Movimento concluído.");
+                            instruction.setText(copy ? I18n.text("ui.d66b4df0eb8a") : I18n.text("ui.76deecdeadc1"));
                         } else {
-                            instruction.setText("Nenhum deslocamento aplicado.");
+                            instruction.setText(I18n.text("ui.7551fd5c7a27"));
                         }
                     }
 
                     @Override
                     public void onCancel() {
                         if (session == editing) {
-                            instruction.setText("Posicionamento cancelado.");
+                            instruction.setText(I18n.text("ui.441792596876"));
                         }
                     }
                 });
         if (started) {
-            instruction.setText("Clique na origem e depois no destino; Esc cancela.");
+            instruction.setText(I18n.text("ui.5d04b11e19e7"));
         }
     }
 
@@ -1247,10 +1242,10 @@ final class GeometryEditorController {
             return true;
         }
         if (busy) {
-            host.log("Aguarde o cálculo geométrico em andamento.");
+            host.log(I18n.text("ui.e141a8c647fd"));
             return false;
         }
-        host.log("Selecione um objeto Geometry e abra o Editor antes de usar esta ferramenta.");
+        host.log(I18n.text("ui.9d3d6eba6d09"));
         return false;
     }
 
@@ -1321,7 +1316,7 @@ final class GeometryEditorController {
             };
             runOperation(operation, distance);
         } catch (NumberFormatException invalid) {
-            instruction.setText("Informe uma distância numérica positiva para o buffer.");
+            instruction.setText(I18n.text("ui.395df8e39782"));
         }
     }
 
@@ -1341,10 +1336,10 @@ final class GeometryEditorController {
         calculate(request, result -> {
             if (editing.applyOperation(result)) {
                 refreshGeometry();
-                instruction.setText("Operação concluída. Ctrl+Z desfaz.");
+                instruction.setText(I18n.text("ui.774047688c15"));
             } else {
                 refreshSelection();
-                instruction.setText("O rascunho mudou durante o cálculo ou não houve alteração; resultado descartado.");
+                instruction.setText(I18n.text("ui.cbd9e7d0d8e5"));
             }
         });
     }
@@ -1358,7 +1353,7 @@ final class GeometryEditorController {
         GeometryEditSession editing = session;
         busy = true;
         refreshSelection();
-        instruction.setText("Calculando " + (request.operation()==GeometryEditSession.Operation.AFFINE ? "transformação" : request.operation()==GeometryEditSession.Operation.ROTATE ? "rotação"
+        instruction.setText(I18n.text("ui.94394dd7b8e2") + (request.operation()==GeometryEditSession.Operation.AFFINE ? I18n.text("ui.a65b5a1027b0") : request.operation()==GeometryEditSession.Operation.ROTATE ? I18n.text("ui.9f98b02b4da2")
                 : request.operation().name().toLowerCase(java.util.Locale.ROOT)) + "...");
         boolean accepted = host.runOperation(request, result -> {
             if (session != editing) {
@@ -1379,7 +1374,7 @@ final class GeometryEditorController {
             busy = false;
             failure.run();
             refreshSelection();
-            instruction.setText("Não foi possível iniciar: já existe outra operação em andamento.");
+            instruction.setText(I18n.text("ui.9d368ea65dff"));
         }
     }
 
@@ -1391,7 +1386,7 @@ final class GeometryEditorController {
         try {
             int edges = session.explodeSelected();
             refreshGeometry();
-            instruction.setText(edges + " segmentos criados. Ctrl+Z desfaz.");
+            instruction.setText(edges + I18n.text("ui.0dbe5f0ca2f0"));
         } catch (IllegalArgumentException invalid) {
             instruction.setText(invalid.getMessage());
         }
@@ -1404,7 +1399,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         if (session.isDirty()) {
             host.apply(item, session.resultGeometry(), session.resultTools());
-            host.log("Editor Geometry: alterações aplicadas em " + item.getValue() + ".");
+            host.log(I18n.text("ui.c545d29fc0ff") + item.getValue() + ".");
         }
         end();
     }
@@ -1421,7 +1416,7 @@ final class GeometryEditorController {
         }
         plotArea.cancelPlacement();
         end();
-        host.log("Editor Geometry: edição descartada.");
+        host.log(I18n.text("ui.2412fc58777d"));
     }
 
     private void refreshGeometry() {
@@ -1452,9 +1447,9 @@ final class GeometryEditorController {
         boolean simplified = session.selectedCount() > exactHighlightLimit;
         plotArea.setEditorHighlight(simplified ? session.selectedBounds() : session.selectedGeometry(),
                 strokeOnly || simplified, selectedColor);
-        status.setText(session.shapeCount() + " formas; " + session.selectedCount() + " selecionadas"
-                + (simplified ? "; destaque simplificado por contorno" : "")
-                + (session.isDirty() ? "; alterações pendentes." : "; sem alterações."));
+        status.setText(session.shapeCount() + I18n.text("ui.6d6772b2b2a3") + session.selectedCount() + I18n.text("ui.de5b2b723fc7")
+                + (simplified ? I18n.text("ui.190906d4c9b0") : "")
+                + (session.isDirty() ? I18n.text("ui.d56199d7cd0c") : I18n.text("ui.c830b9666887")));
         deleteButton.setDisable(session.selectedCount() == 0);
         moveButton.setDisable(session.selectedCount() == 0);
         copyButton.setDisable(session.selectedCount() == 0);

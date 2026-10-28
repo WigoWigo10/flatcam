@@ -29,7 +29,7 @@ import javafx.stage.Window;
 
 /** Python's five About tabs plus a copyable technical summary; no WebView or startup network requests. */
 final class AboutDialog extends Dialog<Void> {
-    static final ButtonType COPY = new ButtonType("Copiar informações", ButtonBar.ButtonData.LEFT);
+    static final ButtonType COPY = new ButtonType(I18n.text("ui.8a8d84e4afb6"), ButtonBar.ButtonData.LEFT);
     private final Label feedback = label("");
     private int systemGeneration;
 
@@ -41,16 +41,15 @@ final class AboutDialog extends Dialog<Void> {
     }
 
     AboutDialog(Window owner, ThemeOption theme, Consumer<String> openLink, Consumer<String> copy) {
-        setTitle("Sobre o FlatCAM FX"); setResizable(true);
+        setTitle(I18n.text("ui.c60bd173627b")); setResizable(true);
         if (owner != null) initOwner(owner);
         setHeaderText(null);
         var pane = getDialogPane(); pane.setId("about-dialog");
         pane.setPrefSize(700, 510); pane.setMinSize(360, 340);
         var build = AboutInfo.build();
         Label title = label("FlatCAM FX"); title.setStyle("-fx-font-size: 22px; -fx-font-weight: bold;");
-        Label version = label("Versão " + build.getProperty("appVersion", "não disponível") + " • Em desenvolvimento");
-        Label description = label("Fabricação de placas de circuito impresso assistida por computador.\n"
-                + "Reimplementação JavaFX do FlatCAM Python.");
+        Label version = label(I18n.text("ui.9f8f7a58141b") + build.getProperty("appVersion", I18n.text("ui.d25d2f15d8b7")) + I18n.text("ui.7226735a16da"));
+        Label description = label(I18n.text("ui.b3ef5361775d"));
         description.setId("about-description");
         VBox identity = new VBox(5, title, version, description); identity.setMinWidth(0);
         HBox.setHgrow(identity, Priority.ALWAYS);
@@ -65,59 +64,56 @@ final class AboutDialog extends Dialog<Void> {
         TabPane tabs = new TabPane(); tabs.setId("about-tabs"); tabs.setMinSize(0, 0);
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
         VBox presentation = new VBox(10,
-                label("O FX mantém o fluxo Gerber/Excellon → Geometry → CNC Job, com migração ainda em andamento."),
-                label("Links históricos do FlatCAM Python (não são downloads ou suporte específicos do FX):"),
-                link("Site do FlatCAM", "http://flatcam.org/", openLink),
-                link("Desenvolvimento do Python", "https://bitbucket.org/jpcgt/flatcam/src/Beta/", openLink),
-                link("Downloads do Python", "https://bitbucket.org/jpcgt/flatcam/downloads/", openLink),
-                link("Issue tracker do Python", "https://bitbucket.org/jpcgt/flatcam/issues?status=new&status=open", openLink),
-                label("Referência deste checkout: FlatCAM Python 8.994 BETA — 2020/11/7.\n"
-                        + "Destinos externos históricos podem ter mudado."));
+                label(I18n.text("ui.af4401f273a3")),
+                label(I18n.text("ui.6cc87721c6b1")),
+                link(I18n.text("ui.0df442958948"), "http://flatcam.org/", openLink),
+                link(I18n.text("ui.dbc6f8f707cb"), "https://bitbucket.org/jpcgt/flatcam/src/Beta/", openLink),
+                link(I18n.text("ui.187260665528"), "https://bitbucket.org/jpcgt/flatcam/downloads/", openLink),
+                link(I18n.text("ui.0205433a68ad"), "https://bitbucket.org/jpcgt/flatcam/issues?status=new&status=open", openLink),
+                label(I18n.text("ui.725d6f9515bd")));
         VBox programmers = new VBox(10,
-                label("Créditos preservados do FlatCAM Python. Não representam automaticamente os autores do port FX.\n"
-                        + "O desenvolvimento do FX está registrado no histórico Git deste projeto."),
-                creditsTable("programmers.tsv", "about-programmers", "Programador", "Função no legado", "E-mail"));
+                label(I18n.text("ui.36bf3daa763f")),
+                creditsTable("programmers.tsv", "about-programmers", I18n.text("ui.5a99efe7fd7c"), I18n.text("ui.b5583cbdfcdd"), "E-mail"));
         VBox translators = new VBox(10,
-                label("Créditos das traduções do Python; não significam que o FX ofereça todos esses idiomas."),
-                creditsTable("translators.tsv", "about-translators", "Idioma", "Tradutor", "Correções", "E-mail"));
+                label(I18n.text("ui.2d49d61a89ac")),
+                creditsTable("translators.tsv", "about-translators", I18n.text("ui.7ae9d418353b"), I18n.text("ui.26504ce4da18"), I18n.text("ui.6cc50224004f"), "E-mail"));
         VBox.setVgrow(programmers.getChildren().getLast(), Priority.ALWAYS);
         VBox.setVgrow(translators.getChildren().getLast(), Priority.ALWAYS);
         TextArea licenseText = readOnly(AboutInfo.resource("LICENSE")); licenseText.setId("about-license");
-        VBox license = new VBox(8, label("Licença MIT — texto original do LICENSE deste repositório."),
+        VBox license = new VBox(8, label(I18n.text("ui.707c671d5907")),
                 link("MIT — Open Source Initiative", "http://www.opensource.org/licenses/mit-license.php", openLink), licenseText);
         VBox.setVgrow(licenseText, Priority.ALWAYS);
         TextArea editorNotices = readOnly(AboutInfo.resource("editor-licenses.txt")); editorNotices.setPrefRowCount(7);
-        var editorLicenses = new javafx.scene.control.TitledPane("Bibliotecas do editor — avisos BSD 2-Clause", editorNotices);
+        var editorLicenses = new javafx.scene.control.TitledPane(I18n.text("ui.be92bda03b09"), editorNotices);
         editorLicenses.setExpanded(false); license.getChildren().add(editorLicenses);
-        VBox attributions = new VBox(10, label("O FX reutiliza os recursos gráficos do legado, que atribui ícones a:"),
+        VBox attributions = new VBox(10, label(I18n.text("ui.6386f3b3cee6")),
                 link("Freepik / Flaticon", "https://www.flaticon.com/authors/freepik", openLink),
                 link("Icons8", "https://icons8.com", openLink),
                 link("oNline Web Fonts", "http://www.onlinewebfonts.com", openLink),
                 link("Pixel perfect / Flaticon", "https://www.flaticon.com/authors/pixel-perfect", openLink),
-                label("Os ícones vetoriais do FX também incluem o desenho de pasta do Feather Icons (MIT)."),
-                label("O FX usa OpenJFX, RichTextFX, JTS, org.json e ZXing. Componentes e recursos têm seus próprios avisos e licenças; "
-                        + "a licença do aplicativo não substitui os termos dessas dependências."));
+                label(I18n.text("ui.c0ae1cb85a18")),
+                label(I18n.text("ui.76a644cb04fc")));
         TextArea system = readOnly(AboutInfo.systemSummary(null, null)); system.setId("about-system");
-        TextArea graphicsDetails = readOnly("Consultando renderizador…"); graphicsDetails.setId("about-graphics-details");
+        TextArea graphicsDetails = readOnly(I18n.text("ui.b966f2846b46")); graphicsDetails.setId("about-graphics-details");
         graphicsDetails.setPrefRowCount(7);
-        var details = new javafx.scene.control.TitledPane("Detalhes técnicos da renderização", graphicsDetails);
+        var details = new javafx.scene.control.TitledPane(I18n.text("ui.89c8a4f7e3a1"), graphicsDetails);
         details.setId("about-graphics-details-pane"); details.setExpanded(false);
         VBox systemContent = new VBox(8, system, details); VBox.setVgrow(system, Priority.ALWAYS);
-        tabs.getTabs().addAll(tab("Apresentação", scroll(presentation)), tab("Programadores", programmers),
-                tab("Tradutores", translators), tab("Licença", license), tab("Atribuições", scroll(attributions)), tab("Sistema", systemContent));
+        tabs.getTabs().addAll(tab(I18n.text("ui.90ae4241af1e"), scroll(presentation)), tab(I18n.text("ui.88ec6b34e85e"), programmers),
+                tab(I18n.text("ui.565c6dd71ccf"), translators), tab(I18n.text("ui.70dfbb512f68"), license), tab(I18n.text("ui.81ef6bb70fe9"), scroll(attributions)), tab(I18n.text("ui.f150afd3c599"), systemContent));
         for (Tab tab : tabs.getTabs()) if (tab.getContent() instanceof VBox box) box.setPadding(new Insets(12));
         VBox content = new VBox(12, header, tabs, feedback); content.setMinSize(0, 0);
         VBox.setVgrow(tabs, Priority.ALWAYS); pane.setContent(content);
-        pane.getButtonTypes().addAll(COPY, new ButtonType("Fechar", ButtonBar.ButtonData.CANCEL_CLOSE));
+        pane.getButtonTypes().addAll(COPY, new ButtonType(I18n.text("ui.0f2bd88ef0ac"), ButtonBar.ButtonData.CANCEL_CLOSE));
         Button copyButton = (Button) pane.lookupButton(COPY);
-        ToolDescriptions.apply(copyButton,"Copiar diagnóstico", "Copia as informações da aba Sistema, incluindo os detalhes técnicos recolhidos, para compartilhar em um relato de erro.\n\nAtenção: confira caminhos e detalhes do computador antes de compartilhar.");
-        ToolDescriptions.apply(system,"Informações do sistema", "Mostra a placa de vídeo em uso e a tela onde está a janela do aplicativo. Tela principal é a definida como principal pelo sistema; não significa necessariamente a tela 1.\n\nA detecção não é um teste de desempenho.");
-        ToolDescriptions.apply(details,"Detalhes da renderização", "Expanda para consultar os identificadores internos do renderizador, do adaptador e do driver. A ordem gráfica solicitada é uma preferência de inicialização, não uma confirmação do modo em uso.");
+        ToolDescriptions.apply(copyButton,I18n.text("ui.cff2372bebc5"), I18n.text("ui.0ca6fa33a2c7"));
+        ToolDescriptions.apply(system,I18n.text("ui.054fae562c81"), I18n.text("ui.b88683d8cba2"));
+        ToolDescriptions.apply(details,I18n.text("ui.fa1333fa8146"), I18n.text("ui.a39b9e99bb95"));
         copyButton.setGraphic(Icons.fromResource(theme.isDark() ? "dark/copy32.png" : "copy32.png", 16));
         copyButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             event.consume();
-            try { copy.accept(system.getText() + "\n\nDetalhes técnicos da renderização\n" + graphicsDetails.getText()); feedback.setText("Informações técnicas copiadas."); }
-            catch (RuntimeException unavailable) { feedback.setText("Não foi possível copiar as informações."); }
+            try { copy.accept(system.getText() + I18n.text("ui.56151f0d10e8") + graphicsDetails.getText()); feedback.setText(I18n.text("ui.3645db7a4b90")); }
+            catch (RuntimeException unavailable) { feedback.setText(I18n.text("ui.584e8d52f977")); }
         });
         setOnShowing(event -> {
             theme.applyTo(pane.getScene());
@@ -130,13 +126,13 @@ final class AboutDialog extends Dialog<Void> {
         setOnHidden(event -> systemGeneration++);
         // The dialog owns a scene even before showing; use it for correct initial styles and tests.
         if (pane.getScene() != null) theme.applyTo(pane.getScene());
-        FluidTooltips.install(this, "Sobre");
+        FluidTooltips.install(this, I18n.text("ui.97a0fa0947ad"));
     }
 
     private void loadSystemInfo(TextArea system, TextArea graphicsDetails, Window owner) {
         int generation = ++systemGeneration;
         system.setText(AboutInfo.systemSummary(null, null));
-        graphicsDetails.setText("Consultando renderizador…");
+        graphicsDetails.setText(I18n.text("ui.b966f2846b46"));
         var hardware = new java.util.concurrent.CompletableFuture<SystemHardwareInfo>();
         Thread worker = new Thread(() -> {
             try { hardware.complete(SystemHardwareInfo.collect()); }
@@ -168,14 +164,14 @@ final class AboutDialog extends Dialog<Void> {
         link.setOnAction(event -> {
             try {
                 if (open != null) open.accept(url);
-                else browse(url, () -> feedback.setText("Abra o link manualmente: " + url));
+                else browse(url, () -> feedback.setText(I18n.text("ui.d07498f62c5b") + url));
             }
-            catch (RuntimeException unavailable) { feedback.setText("Abra o link manualmente: " + url); }
+            catch (RuntimeException unavailable) { feedback.setText(I18n.text("ui.d07498f62c5b") + url); }
         }); return link;
     }
     private static TableView<List<String>> creditsTable(String resource, String id, String... headers) {
         TableView<List<String>> table = new TableView<>(); table.setId(id); table.setMinSize(0, 0);
-        ToolDescriptions.apply(table,"Créditos históricos", "Selecionar uma linha apenas destaca o registro. Não abre links nem envia e-mails; os contatos são dados históricos do checkout Python, não confirmação de suporte atual ao FX.");
+        ToolDescriptions.apply(table,I18n.text("ui.b44865793555"), I18n.text("ui.4567b6ff87f6"));
         table.getItems().setAll(AboutInfo.credits(resource, headers.length));
         table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
         for (int index = 0; index < headers.length; index++) {

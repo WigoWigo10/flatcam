@@ -49,9 +49,9 @@ final class SolderPasteToolPanel {
         nozzles.getItems().setAll(1.0, 0.3);
         nozzles.setPrefHeight(90);
         TextField newNozzle = field(ToolDefaults.text("paste.newnozzle"));
-        ToolDescriptions.apply(newNozzle,"Diâmetro do bico", "Diâmetro positivo do bico a adicionar à lista de dispensa.\n\nUnidades: unidade do objeto (mm ou in).");
-        Button addNozzle = new Button("Adicionar bico");
-        Button removeNozzle = new Button("Remover");
+        ToolDescriptions.apply(newNozzle,I18n.text("ui.6a4a4d63e61a"), I18n.text("ui.f14b6c7f7c8c"));
+        Button addNozzle = new Button(I18n.text("ui.1fe6bc9ce658"));
+        Button removeNozzle = new Button(I18n.text("ui.a3037dc71a43"));
 
         ComboBox<TreeItem<String>> gerber = combo(host.gerbers());
         gerber.getSelectionModel().select(host.initialGerber());
@@ -78,19 +78,19 @@ final class SolderPasteToolPanel {
         GridPane form = new GridPane();
         form.setHgap(6);
         form.setVgap(6);
-        form.addRow(0, new Label("Z início da dispensa:"), zStart);
-        form.addRow(1, new Label("Z dispensa:"), zDispense);
-        form.addRow(2, new Label("Z parada:"), zStop);
-        form.addRow(3, new Label("Z deslocamento:"), zTravel);
-        form.addRow(4, new Label("Z troca de bico:"), zToolchange);
-        form.addRow(5, new Label("X,Y troca de bico:"), xyToolchange);
-        form.addRow(6, new Label("Avanço XY:"), feedXY);
-        form.addRow(7, new Label("Avanço Z:"), feedZ);
-        form.addRow(8, new Label("Avanço Z dispensa:"), feedZDispense);
-        form.addRow(9, new Label("Velocidade frente (rpm):"), speedForward);
-        form.addRow(10, new Label("Espera frente (s):"), dwellForward);
-        form.addRow(11, new Label("Velocidade reversa (rpm):"), speedReverse);
-        form.addRow(12, new Label("Espera reversa (s):"), dwellReverse);
+        form.addRow(0, new Label(I18n.text("ui.3ff734d5d490")), zStart);
+        form.addRow(1, new Label(I18n.text("ui.1b5d2f9461f2")), zDispense);
+        form.addRow(2, new Label(I18n.text("ui.4a28dde3a877")), zStop);
+        form.addRow(3, new Label(I18n.text("ui.cd49961ccb7a")), zTravel);
+        form.addRow(4, new Label(I18n.text("ui.b6f90b0264f7")), zToolchange);
+        form.addRow(5, new Label(I18n.text("ui.ff1eeff34c4b")), xyToolchange);
+        form.addRow(6, new Label(I18n.text("ui.6ed7bcea7935")), feedXY);
+        form.addRow(7, new Label(I18n.text("ui.d498a1f7d6d8")), feedZ);
+        form.addRow(8, new Label(I18n.text("ui.a0bb37bba55d")), feedZDispense);
+        form.addRow(9, new Label(I18n.text("ui.667bf89d9129")), speedForward);
+        form.addRow(10, new Label(I18n.text("ui.ef1923fbf415")), dwellForward);
+        form.addRow(11, new Label(I18n.text("ui.1fe8b4a76b4f")), speedReverse);
+        form.addRow(12, new Label(I18n.text("ui.1fb331d49c1a")), dwellReverse);
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -101,14 +101,14 @@ final class SolderPasteToolPanel {
             try {
                 double diameter = number(newNozzle);
                 if (!(diameter > 0)) {
-                    throw new IllegalArgumentException("Informe um diâmetro diferente de zero");
+                    throw new IllegalArgumentException(I18n.text("ui.044d7d87a38e"));
                 }
                 if (nozzles.getItems().stream().anyMatch(n -> Math.abs(n - diameter) < 1e-9)) {
-                    throw new IllegalArgumentException("Cancelado: o bico já está na tabela");
+                    throw new IllegalArgumentException(I18n.text("ui.50baca6f9cc3"));
                 }
                 nozzles.getItems().add(diameter);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Use um número");
+                errorLabel.setText(I18n.text("ui.147c8a203046"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -116,12 +116,12 @@ final class SolderPasteToolPanel {
         removeNozzle.setOnAction(event ->
                 nozzles.getItems().removeAll(new ArrayList<>(nozzles.getSelectionModel().getSelectedItems())));
 
-        Button createGeometry = new Button("Gerar geometria de dispensa");
+        Button createGeometry = new Button(I18n.text("ui.59718f624153"));
         createGeometry.setMaxWidth(Double.MAX_VALUE);
         createGeometry.setOnAction(event -> {
             errorLabel.setText("");
             if (gerber.getValue() == null) {
-                errorLabel.setText("Carregue o Gerber da máscara de pasta");
+                errorLabel.setText(I18n.text("ui.07a7bc987b9d"));
                 return;
             }
             String error = host.createGeometry(gerber.getValue(), List.copyOf(nozzles.getItems()));
@@ -130,13 +130,13 @@ final class SolderPasteToolPanel {
             geometry.getSelectionModel().selectLast();
         });
 
-        Button createJob = new Button("Gerar CNC Job de pasta");
+        Button createJob = new Button(I18n.text("ui.8995d7ccef17"));
         createJob.setMaxWidth(Double.MAX_VALUE);
         createJob.setOnAction(event -> {
             errorLabel.setText("");
             try {
                 if (geometry.getValue() == null) {
-                    throw new IllegalArgumentException("Não há geometria de pasta: gere-a primeiro");
+                    throw new IllegalArgumentException(I18n.text("ui.bdebc16953d0"));
                 }
                 double[] xy = xy(xyToolchange);
                 SolderPaste.Parameters parameters = new SolderPaste.Parameters(number(zStart), number(zDispense),
@@ -146,22 +146,22 @@ final class SolderPasteToolPanel {
                 String error = host.createJob(geometry.getValue(), parameters);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
-        TitledPane parameters = new TitledPane("Parâmetros do dispensador", form);
+        TitledPane parameters = new TitledPane(I18n.text("ui.17b7e75b9a90"), form);
         parameters.setExpanded(true);
         VBox panel = new VBox(8,
-                new Label("Bicos (diâmetros):"), nozzles, new HBox(6, newNozzle, addNozzle, removeNozzle),
-                new Label("Gerber da máscara de pasta:"), gerber, createGeometry,
+                new Label(I18n.text("ui.e946fa70b464")), nozzles, new HBox(6, newNozzle, addNozzle, removeNozzle),
+                new Label(I18n.text("ui.2d4fab952575")), gerber, createGeometry,
                 parameters,
-                new Label("Geometria de pasta:"), geometry, createJob,
-                new Label("Pré-processador: Paste_1"), errorLabel, close);
+                new Label(I18n.text("ui.cf97060e16d8")), geometry, createJob,
+                new Label(I18n.text("ui.f2a6da0c92dc")), errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;
     }
@@ -201,7 +201,7 @@ final class SolderPasteToolPanel {
     private static double[] xy(TextField field) {
         String[] parts = field.getText().trim().split("\\s*[;]\\s*|\\s*,\\s*(?=-?\\d)", -1);
         if (parts.length != 2) {
-            throw new IllegalArgumentException("X,Y da troca de bico: use dois números separados por virgula");
+            throw new IllegalArgumentException(I18n.text("ui.f0d30253969e"));
         }
         return new double[] {Double.parseDouble(parts[0].trim()), Double.parseDouble(parts[1].trim())};
     }

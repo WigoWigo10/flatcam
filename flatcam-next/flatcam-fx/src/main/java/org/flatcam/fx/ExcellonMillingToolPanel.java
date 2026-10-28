@@ -87,14 +87,14 @@ final class ExcellonMillingToolPanel {
         for (Button button : List.of(drills, slots)) button.setMaxWidth(Double.MAX_VALUE);
         drills.setOnAction(event -> submit(source, table, diameter, Kind.DRILLS, error, transfer));
         slots.setOnAction(event -> submit(source, table, diameter, Kind.SLOTS, error, transfer));
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setMaxWidth(Double.MAX_VALUE);
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(9, new Label("Milling Tool"), new Label("EXCELLON:"), source,
-                new Label("Ferramentas (selecione as ferramentas)"), table,
-                new Label("Diâmetro da ferramenta (" + initial.image().units() + "):"), diameter, picker,
-                new Label("Gera caminhos de centro para uma Geometry editável. Depois crie o CNC Job pela Geometry."),
+                new Label(I18n.text("ui.3e8093b74adb")), table,
+                new Label(I18n.text("ui.331484c18094") + initial.image().units() + "):"), diameter, picker,
+                new Label(I18n.text("ui.74cd045419bd")),
                 error, drills, slots, close);
         panel.setPadding(new Insets(12));
         panel.setFillWidth(true);
@@ -104,26 +104,26 @@ final class ExcellonMillingToolPanel {
     private static void submit(ComboBox<SourceCandidate> source, TableView<ToolRow> table,
                                TextField diameter, Kind kind, Label error, Consumer<Result> callback) {
         try {
-            if (source.getValue() == null) throw new IllegalArgumentException("Selecione um Excellon.");
+            if (source.getValue() == null) throw new IllegalArgumentException(I18n.text("ui.e0ccf787a55f"));
             Set<Integer> selected = new LinkedHashSet<>();
             for (ToolRow row : table.getSelectionModel().getSelectedItems()) selected.add(row.id);
-            if (selected.isEmpty()) throw new IllegalArgumentException("Selecione ao menos uma ferramenta.");
+            if (selected.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.2244c551a96a"));
             double value = Double.parseDouble(diameter.getText().trim().replace(',', '.'));
             if (!Double.isFinite(value) || value <= 0)
-                throw new IllegalArgumentException("O diâmetro da fresa deve ser positivo.");
+                throw new IllegalArgumentException(I18n.text("ui.f3dd65420994"));
             boolean any = kind == Kind.DRILLS
                     ? source.getValue().image().drills().stream().anyMatch(hit -> selected.contains(hit.toolId()))
                     : source.getValue().image().slots().stream().anyMatch(hit -> selected.contains(hit.toolId()));
-            if (!any) throw new IllegalArgumentException("As ferramentas selecionadas não possuem "
+            if (!any) throw new IllegalArgumentException(I18n.text("ui.4ec150485fb1")
                     + (kind == Kind.DRILLS ? "furos" : "slots") + ".");
             for (int id : selected) {
                 if (value > source.getValue().image().toolDiameters().get(id) + 1e-9)
-                    throw new IllegalArgumentException("A fresa excede o diâmetro de T" + id + ".");
+                    throw new IllegalArgumentException(I18n.text("ui.34c8f4032a9e") + id + ".");
             }
             error.setText("");
             callback.accept(new Result(source.getValue(), Set.copyOf(selected), value, kind, null));
         } catch (NumberFormatException exception) {
-            error.setText("Informe um diâmetro numérico válido.");
+            error.setText(I18n.text("ui.9b4aea634f2c"));
         } catch (IllegalArgumentException exception) {
             error.setText(exception.getMessage());
         }

@@ -1,5 +1,25 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Idiomas e revisão do inventário de preferências — 2026-10-27
+
+Catálogos UTF-8 com 3649 entradas por idioma; Português (Brasil) e English em
+Geral, persistidos e aplicados na próxima abertura, inclusive na splash.
+Mensagens, menus, painéis, editores e tooltips compartilham os catálogos. IDs,
+nomes de arquivos/objetos, comandos e formato numérico de usinagem preservados.
+Auditoria em JVMs separadas com preferências em memória; os controles
+inventariados conservam ajuda própria nos dois idiomas. O mesmo caso GRBL
+gerou G-code/CSV idênticos byte a byte. Quatro temas capturados sem abrir janela.
+Não representa todos os catálogos Python nem tradução de texto arbitrário de
+bibliotecas/backend. [I18N.md](I18N.md).
+
+Integral: 2123 aprovações, 18 skips opcionais, zero falhas/erros (2141 registros).
+Auditorias: 1497 ocorrências com ajuda em cada idioma. Build/probe nativos passaram.
+
+Inventário de [PREFERENCIAS.md](PREFERENCIAS.md) atualizado: cores,
+exportação CAM, importação e padrões dos editores não são mais lacunas totais.
+Próximas áreas gerais: unidades/precisão de partida, fontes e mouse/cursor;
+opções de backends Qt/VisPy precisam de avaliação de equivalência ao FX.
+
 ## Tela de abertura — 2026-10-27
 
 Splash do FX antes do JavaFX, com quatro temas, etapa real, barra animada e

@@ -43,9 +43,9 @@ final class TerminalPanel extends BorderPane {
     private final TclInterpreter interpreter;
     private final JobExecutor jobs;
     private final ReadOnlyBooleanWrapper busy = new ReadOnlyBooleanWrapper();
-    private final Label activity = new Label("Pronto.");
+    private final Label activity = new Label(I18n.text("ui.45a489c52210"));
     private final ProgressBar progress = new ProgressBar();
-    private final Button cancel = new Button("Cancelar");
+    private final Button cancel = new Button(I18n.text("ui.bb9dbb406dcb"));
     private JobHandle<String> running;
     private CompletableFuture<Void> idle = CompletableFuture.completedFuture(null);
     private long executionId;
@@ -70,11 +70,11 @@ final class TerminalPanel extends BorderPane {
 
         input.setId("terminal-input");
         input.setStyle("-fx-font-family: 'Consolas', 'Monospaced';");
-        input.setPromptText("Digite um comando (help para comecar)...");
-        ToolDescriptions.apply(input, "Terminal Tcl", "Digite help para consultar os comandos disponíveis. O FX usa um dialeto reduzido, não o Tcl completo do Python.\n\nAtalhos: Enter executa; setas para cima/baixo percorrem o histórico; Esc solicita cancelamento durante uma execução.");
-        ToolDescriptions.apply(output, "Saída do terminal", "Mensagens, resultados e erros dos comandos. Área somente de leitura; comandos são escritos no campo inferior.");
-        ToolDescriptions.apply(cancel, "Cancelar comando", "Solicita cancelamento cooperativo do comando em andamento. Pode aguardar uma etapa do cálculo terminar; resultados já criados não são apagados automaticamente.");
-        ToolDescriptions.apply(progress, "Progresso do comando", "Andamento informado pelo trabalho em execução. Etapas sem uma medida de progresso usam indicação indeterminada.");
+        input.setPromptText(I18n.text("ui.4c6597c57b2f"));
+        ToolDescriptions.apply(input, "Terminal Tcl", I18n.text("ui.f0d7230a970c"));
+        ToolDescriptions.apply(output, I18n.text("ui.5b6164baaa35"), I18n.text("ui.d39d9a48a0f0"));
+        ToolDescriptions.apply(cancel, I18n.text("ui.3c643d3dedcf"), I18n.text("ui.d85bef84f546"));
+        ToolDescriptions.apply(progress, I18n.text("ui.4759608ff39b"), I18n.text("ui.0951e49864b3"));
         input.setOnKeyPressed(this::onKeyPressed);
         input.setOnAction(event -> submit());
         input.disableProperty().bind(busy);
@@ -102,8 +102,8 @@ final class TerminalPanel extends BorderPane {
         BorderPane.setMargin(input, new Insets(4, 0, 0, 0));
         getStyleClass().add("terminal-panel");
 
-        appendLine("FlatCAM FX - " + versionLabel + " - linha de comando Tcl (dialeto reduzido, não é o Tcl completo do Python).");
-        appendLine("Digite 'help' para comecar.\n");
+        appendLine("FlatCAM FX - " + versionLabel + I18n.text("ui.345dae06101a"));
+        appendLine(I18n.text("ui.37402cc53b52"));
     }
 
     TclInterpreter interpreter() {
@@ -168,7 +168,7 @@ final class TerminalPanel extends BorderPane {
      */
     boolean runScript(String script, String label) {
         if (busy.get()) return false;
-        appendLine("> [script] " + label + " (" + script.lines().count() + " linhas)");
+        appendLine("> [script] " + label + " (" + script.lines().count() + I18n.text("ui.6937c62e8bc9"));
         execute(script);
         return true;
     }
@@ -187,14 +187,14 @@ final class TerminalPanel extends BorderPane {
             if (id != executionId) return;
             pendingProgress.set(null);
             if (failure instanceof CancellationException) {
-                appendLine("Cancelado. Comandos já concluídos não são desfeitos.");
+                appendLine(I18n.text("ui.d64adc174d73"));
                 activity.setText("Cancelado.");
             } else if (failure != null) {
-                appendLine("ERRO: " + failure.getMessage());
-                activity.setText("Falha.");
+                appendLine(I18n.text("ui.5ce3ac6affec") + failure.getMessage());
+                activity.setText(I18n.text("ui.1cf98bdf544c"));
             } else {
                 if (result != null && !result.isBlank()) appendLine(result);
-                activity.setText("Concluido.");
+                activity.setText(I18n.text("ui.93dd97eb5672"));
             }
             running = null;
             busy.set(false);
@@ -235,10 +235,10 @@ final class TerminalPanel extends BorderPane {
                 String details = TclFlatcamCommands.help(name);
                 if (details != null && interp.commandNames().contains(name)) return details;
                 return interp.commandNames().contains(name)
-                        ? name + ": sem texto de ajuda detalhado ainda."
-                        : "Comando desconhecido: " + name;
+                        ? name + I18n.text("ui.d58d10307201")
+                        : I18n.text("ui.add571343d74") + name;
             }
-            return "Comandos disponiveis:\n" + String.join("\n", new TreeSet<>(interp.commandNames()));
+            return I18n.text("ui.e477df9e63f1") + String.join("\n", new TreeSet<>(interp.commandNames()));
         });
         interpreter.register("clear_shell", (interp, args) -> {
             TclExecution.onFx(() -> { output.clear(); return null; });

@@ -34,7 +34,7 @@ final class PanelizePreviewController implements AutoCloseable {
         long current = ++revision;
         pause.stop(); if (job != null) job.cancel(); job = null;
         if (input == null) { show(null); status.accept(""); return; }
-        status.accept("Preparando prévia...");
+        status.accept(I18n.text("ui.4fcb86450be5"));
         pause.setOnFinished(event -> {
             if (closed || current != revision) return;
             JobHandle<PanelizePreview.Result> handle = jobs.submit(context -> PanelizePreview.build(input, context::isCancelled), null);
@@ -43,10 +43,10 @@ final class PanelizePreviewController implements AutoCloseable {
                 if (closed || current != revision || job != handle) return;
                 job = null;
                 if (handle.isCancelled() || !valid.getAsBoolean()) {
-                    show(null); status.accept("Origem/referencia alterada; atualize a prévia."); return;
+                    show(null); status.accept(I18n.text("ui.502ca1db1c8a")); return;
                 }
                 if (error != null) {
-                    show(null); status.accept("Falha na prévia: " + error.getMessage()); return;
+                    show(null); status.accept(I18n.text("ui.01b00c34f439") + error.getMessage()); return;
                 }
                 show(result); status.accept(result.notice());
             }));

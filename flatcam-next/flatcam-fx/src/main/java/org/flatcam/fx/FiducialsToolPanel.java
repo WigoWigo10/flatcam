@@ -60,23 +60,23 @@ final class FiducialsToolPanel {
         TextField margin = field(ToolDefaults.text("fiducials.margin"));
         TextField thickness = field(ToolDefaults.text("fiducials.thickness"));
         ToggleGroup modes = new ToggleGroup();
-        RadioButton auto = new RadioButton("Automático");
+        RadioButton auto = new RadioButton(I18n.text("ui.b803f24d52ed"));
         RadioButton manual = new RadioButton("Manual");
         auto.setToggleGroup(modes);
         manual.setToggleGroup(modes);
         auto.setSelected(true);
         ToggleGroup seconds = new ToggleGroup();
-        RadioButton up = new RadioButton("Acima");
-        RadioButton down = new RadioButton("Abaixo");
-        RadioButton none = new RadioButton("Nenhum");
+        RadioButton up = new RadioButton(I18n.text("ui.60b0e7da6fab"));
+        RadioButton down = new RadioButton(I18n.text("ui.64c4c44e2cd7"));
+        RadioButton none = new RadioButton(I18n.text("ui.496a53a0f11e"));
         for (RadioButton radio : List.of(up, down, none)) {
             radio.setToggleGroup(seconds);
         }
         up.setSelected(true);
         ToggleGroup types = new ToggleGroup();
         RadioButton circular = new RadioButton("Circular");
-        RadioButton cross = new RadioButton("Cruz");
-        RadioButton chess = new RadioButton("Xadrez");
+        RadioButton cross = new RadioButton(I18n.text("ui.52f957fe645a"));
+        RadioButton chess = new RadioButton(I18n.text("ui.896470333ae3"));
         for (RadioButton radio : List.of(circular, cross, chess)) {
             radio.setToggleGroup(types);
         }
@@ -87,12 +87,12 @@ final class FiducialsToolPanel {
         GridPane grid = new GridPane();
         grid.setHgap(6);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Tamanho:"), size);
-        grid.addRow(1, new Label("Margem (auto):"), margin);
-        grid.addRow(2, new Label("Espessura (cruz):"), thickness);
+        grid.addRow(0, new Label(I18n.text("ui.999e8aab92fc")), size);
+        grid.addRow(1, new Label(I18n.text("ui.e0235f412f3e")), margin);
+        grid.addRow(2, new Label(I18n.text("ui.ac41340996a1")), thickness);
 
         List<Coordinate> used = new ArrayList<>();
-        Label coordinates = new Label("Últimos pontos: -");
+        Label coordinates = new Label(I18n.text("ui.7e8b7c5a6acb"));
         Label status = new Label();
         status.setWrapText(true);
         Label errorLabel = new Label();
@@ -100,7 +100,7 @@ final class FiducialsToolPanel {
         errorLabel.setWrapText(true);
 
         Runnable finish = () -> {
-            StringBuilder text = new StringBuilder("Últimos pontos:");
+            StringBuilder text = new StringBuilder(I18n.text("ui.c82eb14352d8"));
             for (Coordinate point : used) {
                 text.append(String.format(java.util.Locale.ROOT, " (%.4f, %.4f)", point.x, point.y));
             }
@@ -108,9 +108,9 @@ final class FiducialsToolPanel {
             status.setText("");
         };
 
-        Button add = new Button("Adicionar fiduciais");
+        Button add = new Button(I18n.text("ui.e755a5e35044"));
         add.setMaxWidth(Double.MAX_VALUE);
-        Button addOpenings = new Button("Adicionar aberturas na máscara");
+        Button addOpenings = new Button(I18n.text("ui.7e24e72d2548"));
         addOpenings.setMaxWidth(Double.MAX_VALUE);
 
         add.setOnAction(event -> {
@@ -118,7 +118,7 @@ final class FiducialsToolPanel {
             errorLabel.setText("");
             try {
                 if (copper.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 double fiducialSize = number(size);
                 double line = number(thickness);
@@ -127,7 +127,7 @@ final class FiducialsToolPanel {
                 if (auto.isSelected()) {
                     double[] bounds = host.bounds(copper.getValue());
                     if (bounds == null) {
-                        throw new IllegalArgumentException("O Gerber não tem geometria");
+                        throw new IllegalArgumentException(I18n.text("ui.cdb3eee11a83"));
                     }
                     Fiducials.SecondPoint second = up.isSelected() ? Fiducials.SecondPoint.UP
                             : down.isSelected() ? Fiducials.SecondPoint.DOWN : Fiducials.SecondPoint.NONE;
@@ -142,8 +142,8 @@ final class FiducialsToolPanel {
                 } else {
                     int wanted = none.isSelected() ? 2 : 3;
                     List<Coordinate> clicks = new ArrayList<>();
-                    String[] names = {"o primeiro fiducial (inferior esquerdo)", "o último fiducial (superior direito)",
-                            "o segundo fiducial (superior esquerdo ou inferior direito)"};
+                    String[] names = {I18n.text("ui.8df47945ffc7"), I18n.text("ui.dd723e4e3a18"),
+                            I18n.text("ui.bdb1a3f937aa")};
                     Consumer<Coordinate>[] next = new Consumer[1];
                     next[0] = point -> {
                         if (point == null) {
@@ -152,7 +152,7 @@ final class FiducialsToolPanel {
                         }
                         clicks.add(point);
                         if (clicks.size() < wanted) {
-                            status.setText("Clique para " + names[clicks.size()] + "...");
+                            status.setText(I18n.text("ui.5c42089ff428") + names[clicks.size()] + "...");
                             host.pickPoint(next[0]);
                             return;
                         }
@@ -166,11 +166,11 @@ final class FiducialsToolPanel {
                             status.setText("");
                         }
                     };
-                    status.setText("Clique para " + names[0] + "...");
+                    status.setText(I18n.text("ui.5c42089ff428") + names[0] + "...");
                     host.pickPoint(next[0]);
                 }
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -179,30 +179,30 @@ final class FiducialsToolPanel {
             errorLabel.setText("");
             try {
                 if (mask.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue o Gerber da máscara de solda");
+                    throw new IllegalArgumentException(I18n.text("ui.6a9937095c55"));
                 }
                 if (used.isEmpty()) {
-                    throw new IllegalArgumentException("Adicione os fiduciais primeiro: as aberturas usam os mesmos pontos");
+                    throw new IllegalArgumentException(I18n.text("ui.d2a508ea615a"));
                 }
                 String error = host.addOpenings(mask.getValue(), List.copyOf(used), number(size) * 2);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.cancelPick();
             onClose.run();
         });
 
         VBox panel = new VBox(8,
-                new Label("Gerber de cobre:"), copper, grid,
-                new Label("Posição:"), new HBox(10, auto, manual),
-                new Label("Segundo fiducial (automático):"), new HBox(10, up, down, none),
-                new Label("Tipo:"), new HBox(10, circular, cross, chess),
+                new Label(I18n.text("ui.2862ceba4fb2")), copper, grid,
+                new Label(I18n.text("ui.be143e43333f")), new HBox(10, auto, manual),
+                new Label(I18n.text("ui.81b777698965")), new HBox(10, up, down, none),
+                new Label(I18n.text("ui.e369d261ecd1")), new HBox(10, circular, cross, chess),
                 add, status, coordinates,
-                new Label("Máscara de solda (abertura = 2x o tamanho):"), mask, addOpenings, errorLabel, close);
+                new Label(I18n.text("ui.a778118eaeae")), mask, addOpenings, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;
     }

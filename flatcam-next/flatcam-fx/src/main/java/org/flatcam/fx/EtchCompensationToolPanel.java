@@ -58,31 +58,31 @@ final class EtchCompensationToolPanel {
         }
 
         TextField oz = new TextField();
-        oz.setPromptText("Valor em oz");
+        oz.setPromptText(I18n.text("ui.f2cd0251837e"));
         Label ozMicrons = new Label("= um");
         oz.textProperty().addListener((o, a, b) -> ozMicrons.setText(converted(b, 34.798)));
         TextField mils = new TextField();
-        mils.setPromptText("Valor em mils");
+        mils.setPromptText(I18n.text("ui.6b506d13fe3f"));
         Label milsMicrons = new Label("= um");
         mils.textProperty().addListener((o, a, b) -> milsMicrons.setText(converted(b, 25.4)));
-        ToolDescriptions.apply(oz, "Converter cobre de oz para µm",
-                "Calculadora auxiliar: 1 oz corresponde a 34,798 µm de espessura de cobre.\n\nResultado: aparece ao lado; copie o valor para Espessura do cobre se quiser usá-lo na compensação. Não preenche esse campo automaticamente.");
-        ToolDescriptions.apply(mils, "Converter mils para µm",
-                "Calculadora auxiliar: 1 mil corresponde a 25,4 µm; mil é um milésimo de polegada.\n\nResultado: aparece ao lado e não modifica a espessura configurada nem o Gerber.");
+        ToolDescriptions.apply(oz, I18n.text("ui.c3018812eeb1"),
+                I18n.text("ui.b08d0b440daa"));
+        ToolDescriptions.apply(mils, I18n.text("ui.d367b4d1edb3"),
+                I18n.text("ui.6886c2ed16c9"));
 
         TextField thickness = new TextField(ToolDefaults.text("etch.thickness"));
         ToggleGroup ratio = new ToggleGroup();
-        RadioButton byFactor = new RadioButton("Fator de corrosao");
-        RadioButton byEtchant = new RadioButton("Lista de corrosivos");
-        RadioButton manual = new RadioButton("Deslocamento manual");
+        RadioButton byFactor = new RadioButton(I18n.text("ui.f9e77c47e0b0"));
+        RadioButton byEtchant = new RadioButton(I18n.text("ui.5a8eb626a568"));
+        RadioButton manual = new RadioButton(I18n.text("ui.dcca8179d2c6"));
         for (RadioButton radio : List.of(byFactor, byEtchant, manual)) {
             radio.setToggleGroup(ratio);
         }
         byFactor.setSelected(true);
         TextField factor = new TextField();
-        factor.setPromptText("Número (ex.: 0.25)");
+        factor.setPromptText(I18n.text("ui.d0870cc2adb7"));
         ComboBox<String> etchants = new ComboBox<>();
-        etchants.getItems().setAll("CuCl2", "Fe3Cl", "Banhos alcalinos");
+        etchants.getItems().setAll("CuCl2", "Fe3Cl", I18n.text("ui.dd1a4d4efbad"));
         etchants.getSelectionModel().selectFirst();
         etchants.setMaxWidth(Double.MAX_VALUE);
         TextField offset = new TextField("0");
@@ -95,21 +95,21 @@ final class EtchCompensationToolPanel {
         grid.setVgap(6);
         grid.addRow(0, new Label("Oz -> um:"), new HBox(6, oz, ozMicrons));
         grid.addRow(1, new Label("Mils -> um:"), new HBox(6, mils, milsMicrons));
-        grid.addRow(2, new Label("Espessura do cobre (um):"), thickness);
-        grid.addRow(3, new Label("Fator:"), factor);
+        grid.addRow(2, new Label(I18n.text("ui.7c4043f9dc80")), thickness);
+        grid.addRow(3, new Label(I18n.text("ui.02834659a723")), factor);
         grid.addRow(4, new Label("Corrosivo:"), etchants);
-        grid.addRow(5, new Label("Deslocamento (um):"), offset);
+        grid.addRow(5, new Label(I18n.text("ui.fd50f5112e67")), offset);
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button compensate = new Button("Compensar");
+        Button compensate = new Button(I18n.text("ui.097afebc0dbf"));
         compensate.setMaxWidth(Double.MAX_VALUE);
         compensate.setOnAction(event -> {
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 String units = host.unitsOf(gerber.getValue());
                 double value;
@@ -128,15 +128,15 @@ final class EtchCompensationToolPanel {
                 String error = host.compensate(gerber.getValue(), value);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
-        VBox panel = new VBox(8, new Label("Gerber a compensar:"), gerber, grid,
+        VBox panel = new VBox(8, new Label(I18n.text("ui.a06199ee1809")), gerber, grid,
                 new Label("Metodo:"), new VBox(4, byFactor, byEtchant, manual), compensate, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

@@ -15,65 +15,54 @@ final class ToolDescriptions {
     }
 
     private static final Map<String, Description> TOOLS = Map.ofEntries(
-            Map.entry("double_sided", new Description("2-Sided Tool",
-                    "Espelha objetos (Gerber, Excellon, Geometry) em relação a um eixo, para fresar ou imprimir o outro "
-                            + "lado da placa, e cria furos de alinhamento que coincidem nas duas faces.")),
+            Map.entry("double_sided", new Description(I18n.text("ui.b595bfb73393"),
+                    I18n.text("ui.c6f75fe3b23b"))),
             Map.entry("align", new Description("Align Objects Tool",
-                    "Alinha um objeto a outro clicando em pads ou furos correspondentes. Um ponto só translada; "
-                            + "dois pontos também giram.")),
+                    I18n.text("ui.3b96feaf8903"))),
             Map.entry("extract_drills", new Description("Extract Drills Tool",
-                    "Cria um Excellon com furos nos centros dos pads de um Gerber, com diâmetro fixo, proporcional "
-                            + "ao pad ou deixando um anel de cobre.")),
+                    I18n.text("ui.b2fea9c879ea"))),
             Map.entry("cutout", new Description("Cutout Tool",
-                    "Gera o contorno de corte da placa, com pontes (gaps) que a mantêm presa à chapa até o fim.")),
+                    I18n.text("ui.0b8e9011cee9"))),
             Map.entry("ncc", new Description("NCC Tool",
-                    "Non-Copper Clearing: remove o cobre que não faz parte do circuito, com uma ou mais ferramentas "
-                            + "(Rest Machining) e limite por área ou objeto.")),
+                    I18n.text("ui.2d1f657564d1"))),
             Map.entry("paint", new Description("Paint Tool",
-                    "Preenche polígonos com caminhos de ferramenta (Standard, Seed, Lines ou Combo).")),
+                    I18n.text("ui.bb56be5daffe"))),
             Map.entry("isolation", new Description("Isolation Tool",
-                    "Gera caminhos ao redor das trilhas e pads para isolá-los eletricamente, com vários passes e "
-                            + "ferramentas.")),
+                    I18n.text("ui.f8f0c90e86c1"))),
             Map.entry("drilling", new Description("Drilling Tool",
-                    "Gera o G-code para furar os furos de um Excellon, com profundidade, múltiplos passes e pós-processador.")),
+                    I18n.text("ui.963280419814"))),
             Map.entry("panelize", new Description("Panelize Tool",
-                    "Replica um objeto numa grade de colunas e linhas, para fabricar várias placas de uma vez.")),
+                    I18n.text("ui.4b12f23a90a9"))),
             Map.entry("film", new Description("Film Tool",
-                    "Exporta um filme positivo ou negativo (SVG, PNG ou PDF) para fotolito, com escala, inclinação, "
-                            + "espelho e furação.")),
+                    I18n.text("ui.c108c58fb278"))),
             Map.entry("solderpaste", new Description("SolderPaste Tool",
-                    "Gera os caminhos e o G-code de um dispensador de pasta de solda a partir do Gerber da máscara de pasta.")),
+                    I18n.text("ui.81d2799b4fdb"))),
             Map.entry("subtract", new Description("Subtract Tool",
-                    "Remove de um objeto a área coberta por outro (Gerber ou Geometry).")),
+                    I18n.text("ui.102074b7e873"))),
             Map.entry("rules", new Description("Rules Check Tool",
-                    "Verifica regras de projeto: largura das trilhas, distâncias de cobre, seda, máscara e contorno, "
-                            + "anel anular e furos. Cada violação pode ser localizada no plot.")),
+                    I18n.text("ui.940c6a7360e7"))),
             Map.entry("optimal", new Description("Optimal Tool",
-                    "Encontra a menor distância entre os elementos de cobre de um Gerber, quantos pares estão nela e onde; "
-                            + "ao escolher um local, o plot vai até lá.")),
+                    I18n.text("ui.9d6b8e3e33d1"))),
             Map.entry("calculators", new Description("Calculators Tool",
-                    "Calculadoras de unidades, de ferramenta em V e de galvanoplastia.")),
+                    I18n.text("ui.d01ce8ad1f9e"))),
             Map.entry("transform", new Description("Transform Tool",
-                    "Gira, inclina, escala, espelha ou desloca os objetos selecionados, em relação à origem, à seleção "
-                            + "ou a um ponto.")),
+                    I18n.text("ui.f6a98d435659"))),
             Map.entry("qrcode", new Description("QRCode Tool",
-                    "Cria um QR Code de cobre num Gerber, no ponto em que você clicar.")),
+                    I18n.text("ui.f751f02d6d3b"))),
             Map.entry("copper_thieving", new Description("Copper Thieving Tool",
-                    "Preenche as áreas vazias do cobre (sólido, pontos, quadrados ou linhas) para equilibrar a corrosão; "
-                            + "também cria a robber bar e a máscara de galvanoplastia.")),
+                    I18n.text("ui.089547945e41"))),
             Map.entry("fiducials", new Description("Fiducials Tool",
-                    "Adiciona marcas de alinhamento ao cobre (circulares, cruz ou xadrez) e aberturas na máscara de solda.")),
+                    I18n.text("ui.6c088f823ca7"))),
             Map.entry("calibration", new Description("Calibration Tool",
-                    "Quatro pontos de referência geram um G-code de verificação; os desvios medidos na máquina viram "
-                            + "fatores de escala e inclinação que calibram os objetos.")),
+                    I18n.text("ui.8dcee48184eb"))),
             Map.entry("punch", new Description("Punch Gerber Tool",
-                    "Fura os pads de um Gerber a partir de um Excellon ou de um tamanho (fixo, proporcional ou por anel).")),
+                    I18n.text("ui.1652539bc971"))),
             Map.entry("invert", new Description("Invert Gerber Tool",
-                    "Troca cobre e vazio dentro de uma caixa ao redor do Gerber, com margem e cantos escolhidos.")),
+                    I18n.text("ui.971d9064a759"))),
             Map.entry("corners", new Description("Corner Markers Tool",
-                    "Adiciona marcadores de canto (L ou cruz) e, se quiser, furos nos cantos de um Gerber.")),
+                    I18n.text("ui.8d79b657e2f0"))),
             Map.entry("etch", new Description("Etch Compensation Tool",
-                    "Compensa a corrosão lateral aumentando o cobre pela espessura da folha e pelo fator de corrosão.")));
+                    I18n.text("ui.b1d3c100731a"))));
 
     private ToolDescriptions() {
     }

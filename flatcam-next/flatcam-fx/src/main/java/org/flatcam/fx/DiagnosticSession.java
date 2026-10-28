@@ -99,7 +99,7 @@ final class DiagnosticSession implements AutoCloseable {
         FileLock acquired;
         try { acquired = lockChannel.tryLock(); }
         catch (RuntimeException | IOException failure) { lockChannel.close(); throw failure; }
-        if (acquired == null) { lockChannel.close(); throw new IOException("Diagnostic session already in use"); }
+        if (acquired == null) { lockChannel.close(); throw new IOException(I18n.text("ui.aef5ff8fe242")); }
         lock = acquired;
         Handler first = null;
         Handler second = null;

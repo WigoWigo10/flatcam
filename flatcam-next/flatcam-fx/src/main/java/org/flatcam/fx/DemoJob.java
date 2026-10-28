@@ -21,7 +21,7 @@ final class DemoJob implements Job<Void> {
             context.checkCancelled();
             Thread.sleep(STEP_MILLIS);
             double fraction = (double) step / STEPS;
-            context.reportProgress(fraction, "Processando item " + step + " de " + STEPS + "...");
+            context.reportProgress(fraction, I18n.text("ui.6e87f71bc018") + step + I18n.text("ui.553c27d45c0c") + STEPS + "...");
         }
         return null;
     }

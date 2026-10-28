@@ -53,10 +53,10 @@ final class PlotStatusControls {
         plot.setCoordinateListener(coordinates::setText);
         plot.setGridSnap(saved.gridSnap(), stepX, stepY);
 
-        coordinates.setTooltip(new Tooltip("Coordenadas absolutas do cursor no Plot Area"));
+        coordinates.setTooltip(new Tooltip(I18n.text("ui.25a5a72ab81e")));
         coordinates.getStyleClass().add("status-coordinates");
 
-        gridSnap = toggle(icon.apply("grid32.png"), "Ativar/desativar snap na grade", saved.gridSnap());
+        gridSnap = toggle(icon.apply("grid32.png"), I18n.text("ui.281fa099ff7d"), saved.gridSnap());
         gridSnap.getStyleClass().add("status-grid-snap");
         gridSnap.setOnAction(event -> {
             boolean validSpacing = applySpacing();
@@ -65,14 +65,14 @@ final class PlotStatusControls {
                 plot.setGridSnap(gridSnap.isSelected(), stepX, stepY);
                 save();
             }
-            feedback.accept((gridSnap.isSelected() ? "Snap na grade ativado." : "Snap na grade desativado.")
-                    + (validSpacing ? "" : " Passos inválidos; mantidos os últimos valores válidos."));
+            feedback.accept((gridSnap.isSelected() ? I18n.text("ui.c5b4edda912d") : I18n.text("ui.9549fd607129"))
+                    + (validSpacing ? "" : I18n.text("ui.fce026586c61")));
         });
-        gridX.setTooltip(new Tooltip("Distância do snap em X"));
-        gridY.setTooltip(new Tooltip("Distância do snap em Y"));
-        ToolDescriptions.apply(gridSnap,"Snap na grade", "Ajusta cliques e desenhos aos pontos da grade. A grade visual pode estar oculta com o snap ativo; desativar libera as coordenadas do cursor.");
-        ToolDescriptions.apply(gridX,"Passo X do snap", "Distância positiva entre pontos de ajuste em X. Com os eixos vinculados, também define o passo Y.\n\nUnidades: unidade do projeto (mm ou in).");
-        ToolDescriptions.apply(gridY,"Passo Y do snap", "Distância positiva entre pontos de ajuste em Y. Fica desabilitada quando os eixos estão vinculados ao passo X.\n\nUnidades: unidade do projeto (mm ou in).");
+        gridX.setTooltip(new Tooltip(I18n.text("ui.3b02d8aece50")));
+        gridY.setTooltip(new Tooltip(I18n.text("ui.e01146273271")));
+        ToolDescriptions.apply(gridSnap,I18n.text("ui.5000c1262593"), I18n.text("ui.dcf6b0981479"));
+        ToolDescriptions.apply(gridX,I18n.text("ui.a8f7a4fe38bd"), I18n.text("ui.97375a83efec"));
+        ToolDescriptions.apply(gridY,I18n.text("ui.d47de20b83be"), I18n.text("ui.bff40e9232a5"));
         gridX.getStyleClass().add("status-grid-step");
         gridY.getStyleClass().add("status-grid-step");
         gridX.setPrefColumnCount(4);
@@ -90,42 +90,42 @@ final class PlotStatusControls {
             }
         });
         link.setSelected(saved.gridLinked());
-        link.setTooltip(new Tooltip("Usar a distância X também em Y"));
+        link.setTooltip(new Tooltip(I18n.text("ui.150daa4aaac6")));
         link.setOnAction(event -> {
             gridY.setDisable(link.isSelected());
             applySpacing();
         });
         gridY.setDisable(saved.gridLinked());
 
-        axis = toggle(icon.apply("axis16.png"), "Mostrar/ocultar eixos", saved.axisVisible());
+        axis = toggle(icon.apply("axis16.png"), I18n.text("ui.2d1ba624dbd7"), saved.axisVisible());
         axis.getStyleClass().add("status-axis");
         axis.setOnAction(event -> {
             plot.setAxisVisible(axis.isSelected());
             save();
-            feedback.accept(axis.isSelected() ? "Eixos visíveis." : "Eixos ocultos.");
+            feedback.accept(axis.isSelected() ? I18n.text("ui.87a581d3ae22") : I18n.text("ui.8d4a3b36cb2d"));
         });
         plot.setAxisVisible(saved.axisVisible());
-        hud = toggle(icon.apply("hud16.png"), "Mostrar/ocultar coordenadas no Plot Area", saved.hudVisible());
+        hud = toggle(icon.apply("hud16.png"), I18n.text("ui.ebfa196b1a57"), saved.hudVisible());
         hud.getStyleClass().add("status-hud");
         hud.setOnAction(event -> {
             plot.setHudVisible(hud.isSelected());
             save();
-            feedback.accept(hud.isSelected() ? "HUD visível." : "HUD oculto.");
+            feedback.accept(hud.isSelected() ? I18n.text("ui.8f999b0a2b63") : I18n.text("ui.fd4b1bd2712e"));
         });
         plot.setHudVisible(saved.hudVisible());
-        workspace = toggle(new Label("A4"), "Mostrar/ocultar limites da área A4", saved.workspaceVisible());
+        workspace = toggle(new Label("A4"), I18n.text("ui.c84e18f6a854"), saved.workspaceVisible());
         workspace.getStyleClass().add("status-workspace");
         workspace.setOnAction(event -> {
             plot.setWorkspaceVisible(workspace.isSelected());
             save();
-            feedback.accept(workspace.isSelected() ? "Área A4 visível." : "Área A4 oculta.");
+            feedback.accept(workspace.isSelected() ? I18n.text("ui.0641e7893fa6") : I18n.text("ui.1c290a6b8f2f"));
         });
         plot.setWorkspaceVisible(saved.workspaceVisible());
 
         Button preferences = new Button(null, icon.apply("settings18.png"));
         preferences.getStyleClass().add("status-control");
         preferences.getStyleClass().add("status-preferences");
-        preferences.setTooltip(new Tooltip("Abrir Preferências"));
+        preferences.setTooltip(new Tooltip(I18n.text("ui.40fab4decb11")));
         preferences.setOnAction(event -> openPreferences.run());
 
         root = new HBox(4, coordinates, gridSnap, gridX, link, gridY,
@@ -195,7 +195,7 @@ final class PlotStatusControls {
             } else {
                 gridY.setText(Double.toString(stepY));
             }
-            feedback.accept("Informe passos X/Y numéricos e positivos.");
+            feedback.accept(I18n.text("ui.32c266172766"));
             return false;
         }
     }

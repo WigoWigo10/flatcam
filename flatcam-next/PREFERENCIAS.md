@@ -8,7 +8,7 @@ a 460 px. As páginas são criadas quando abertas e mantidas enquanto a aba exis
 
 | Categoria | Configurações já consumidas pelo FX |
 | --- | --- |
-| Geral | Quatro temas da interface e tela de abertura |
+| Geral | Português (Brasil)/English, quatro temas da interface e tela de abertura |
 | Plot Area | Grade, snap, passos X/Y vinculados ou independentes, eixos, HUD e referência A4 |
 | Gerber | Plot/Solid/Multi-Color, cores/transparência, Follow, abertura da tabela e opções de importação |
 | Excellon | Plot/Solid/Multi-Color, cores/transparência e opções de importação |
@@ -35,10 +35,12 @@ Os valores em mm/in continuam independentes, sem conversão ao alternar unidades
 ## Aplicar, salvar e restaurar
 
 - Geral e Plot: **Aplicar e salvar** atualiza a interface e persiste somente essa
-  seção. Os dois passos da grade são validados antes de qualquer aplicação;
+  seção. O idioma é aplicado na próxima abertura; a confirmação informa quando
+  é preciso reiniciar. Os dois passos da grade são validados antes de qualquer aplicação;
   zero, negativos e valores não finitos são recusados. Aceita ponto/vírgula decimal.
 - **Restaurar padrão** em Geral/Plot prepara o rascunho. Aplicar confirma.
-  O tema inicial é Branco puro e a tela de abertura vem ativada; Plot usa os padrões existentes do FX.
+  Os padrões iniciais são Português (Brasil), Branco puro e tela de abertura ativada;
+  Plot usa os padrões existentes do FX.
 - Padrões: **Salvar esta seção** salva todos os rascunhos dessa seção, inclusive
   os ocultos pela busca e nas duas unidades. Os valores inválidos permanecem
   pendentes com mensagem; os demais podem ser salvos, como no editor anterior.
@@ -138,12 +140,33 @@ CncNativePrecisionTest**, sem alterar sua asserção. Os 16 casos novos passaram
 a suíte integral continua reprovada.
 
 É um incremento da paridade visual/organização, não port completo das preferências
-Python. Continuam faltando opções avançadas completas de
-importação/editores e outras preferências gerais do legado. Buffering
+Python. Esta observação é histórica: importação/editores foram ampliados nas
+seções seguintes. As lacunas gerais atuais estão no inventário abaixo. Buffering
 e Delayed Buffering do Gerber Python não foram copiados para o backend FX, que
 possui outra preparação/renderização. Não foram
 criados controles sem efeito para representar esses campos. Falta validação da
-janela real em diferentes DPI/monitores e comparação visual lado a lado com Qt.
+janela real em todos os DPI/monitores e comparação visual lado a lado com Qt.
+
+## Inventário atualizado das lacunas gerais — 2026-10-27
+
+Cores de objetos e editores, exibição CNC, exportação Gerber/Excellon,
+importação Excellon/limites Gerber, padrões dos editores e seleção de idioma já
+existem. Não devem mais aparecer em listas como totalmente ausentes.
+
+Comparação com `GeneralAppPrefGroupUI.py`, `GeneralAPPSetGroupUI.py` e
+`GeneralGUIPrefGroupUI.py` do Python:
+
+| Área | Situação atual no FX |
+| --- | --- |
+| Idioma | Português (Brasil) e English; demais catálogos do Python pendentes. Veja [I18N.md](I18N.md). |
+| Unidades/precisão globais | Existem unidades por objeto/fluxo e formatos CAM configuráveis; falta a configuração geral de partida e precisão MM/IN de toda a UI. |
+| Fontes da interface | Fonte/tamanho de anotações CNC existem; preferências independentes de fonte do notebook, eixos, caixas de texto e HUD ainda não. |
+| Mouse/cursor | Snap, seleção, pan e cursores funcionam; faltam os controles gerais de forma/tamanho/espessura/cor e remapeamento de pan/seleção do Python. |
+| Aparência/interação gerais | Quatro temas e tooltips com política compartilhada existem; faltam os ajustes de cores de hover/seleção por direção e várias preferências de comportamento geral do legado. |
+| Backend gráfico | Escolha GPU/Software pelo launcher e identificação no Sobre/splash; opções Qt/VisPy e Buffering não têm equivalência direta e não devem virar controles sem efeito. |
+
+Esta tabela prioriza as lacunas gerais conferidas no código; não é uma contagem
+campo a campo de todos os grupos Python nem uma porcentagem de paridade.
 
 
 ### Série seguinte, item 2: padrões dos editores

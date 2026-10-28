@@ -26,7 +26,7 @@ public enum ThemeOption {
     }
 
     public String label() {
-        return label;
+        return I18n.caption(label);
     }
 
     public boolean isDark() {

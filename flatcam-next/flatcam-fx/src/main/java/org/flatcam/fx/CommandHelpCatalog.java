@@ -13,55 +13,63 @@ final class CommandHelpCatalog {
                 || item.getProperties().containsKey(FluidTooltips.TEXT_KEY)) return;
         String text = help(item.getText());
         if (item.getStyleClass().contains("planned-command"))
-            text = "Esta função ainda não está implementada no FX. A opção aparece para indicar o fluxo previsto, mas não executa uma operação.";
+            text = I18n.text("ui.acc46e003b3b");
         if (text != null) ToolDescriptions.apply(item.getProperties(), item.getText(), text);
     }
 
     static String help(String label) {
         if (label == null) return null;
+        for (String candidate : I18n.sources(label)) {
+            String help = lookup(candidate);
+            if (help != null) return help;
+        }
+        return null;
+    }
+
+    private static String lookup(String label) {
         String name = label.replaceAll("\\s*\\(\\d+\\)$", "").replaceAll("[.…]+$", "").trim();
         return switch (name) {
-            case "Abrir Gerber", "Gerber" -> "Importa ou exporta desenhos Gerber. Confira as unidades, o formato e a camada escolhida na janela correspondente.";
-            case "Abrir Excellon", "Excellon" -> "Importa ou exporta furos e slots Excellon. Confira unidades, dígitos, zeros e o formato de slots na janela correspondente.";
-            case "Abrir Projeto", "Projeto" -> "Abre um projeto salvo. Projetos Python podem conter opções ainda não restauradas pelo FX; confira os avisos no terminal.";
-            case "G-Code" -> "Importa ou exporta um programa CNC. A interpretação e a prévia cobrem apenas os comandos suportados; não certificam segurança física.";
-            case "Tools Database" -> "Abre a biblioteca de ferramentas. Aplicar parâmetros modifica a base em memória; Salvar base grava no disco. A ajuda dos campos informa os limites de transferência CAM.";
-            case "Sobre" -> "Mostra versão, créditos, licença e diagnóstico do sistema, incluindo o renderizador gráfico utilizado.";
-            case "Preferências" -> "Abre os ajustes de tema e visualização do plot. Não modifica as geometrias do projeto.";
-            case "Mostrar/ocultar painel lateral" -> "Recolhe ou expande Projeto, Propriedades e Ferramenta, preservando a largura ajustada pelo usuário.";
-            case "Linha de Comando", "Linha de Comando Tcl" -> "Abre o terminal do FX. Digite help para listar comandos; usa um dialeto Tcl reduzido, não o Tcl completo do Python.";
-            case "Snap na grade" -> "Ativa ou desativa o ajuste de coordenadas à grade. A grade pode ficar visualmente oculta com o snap ativo.";
-            case "Eixos" -> "Mostra ou oculta os eixos da origem do plot, sem mover os objetos.";
-            case "HUD" -> "Mostra ou oculta as coordenadas absolutas e os deltas do cursor no plot.";
-            case "Workspace" -> "Mostra ou oculta a referência de folha A4; não limita o tamanho do trabalho.";
-            case "Aproximar", "Afastar" -> "Aumenta ou diminui o zoom. Não muda as dimensões dos objetos.";
-            case "Enquadrar Objeto" -> "Centraliza e ajusta o zoom para os limites do objeto selecionado.";
-            case "Replotar" -> "Atualiza o desenho dos objetos visíveis com seus dados e opções atuais.";
-            case "Limpar Plot" -> "Oculta o desenho no plot sem apagar os objetos do projeto.";
-            case "Copiar Selecionados" -> "Cria cópias dos objetos selecionados no projeto, preservando os originais.";
-            case "Excluir Selecionados" -> "Remove os objetos selecionados do projeto; não apaga os arquivos de origem no disco.";
-            case "Capturar estado agora" -> "Grava um diagnóstico do estado atual para investigar travamentos. O relatório pode conter caminhos e detalhes do ambiente; confira antes de compartilhar.";
-            case "Abrir pasta desta sessão" -> "Abre a pasta de diagnóstico da sessão atual para consultar logs e capturas de estado.";
-            case "Salvar Projeto" -> "Salva os objetos e configurações no formato escolhido: .fcnproj ou .FlatPrj compatível. Confirme formato e destino; recursos não representáveis no Python podem recusar a gravação.\n\nNa confirmação de saída/abertura, só continua após salvar com sucesso o estado atual; cancelar o destino ou falhar não descarta o projeto.";
-            case "Copiar" -> "Cria cópias dos objetos selecionados no projeto. Não usa a área de transferência de texto.";
-            case "Excluir", "Remover" -> "Remove os objetos selecionados do projeto. Não apaga seus arquivos de origem no disco.";
-            case "Renomear" -> "Altera o nome do objeto no projeto, sem renomear o arquivo original.\n\nAtalho: F2 também inicia a renomeação na árvore.";
-            case "Propriedades" -> "Abre o painel correspondente ao objeto selecionado, com parâmetros e opções de visualização.";
-            case "Exibir no Plot Area" -> "Ativa a visualização deste objeto e enquadra seus limites no plot.";
-            case "Ativar Plot" -> "Torna os objetos visíveis no plot, sem alterar seus dados CAM.";
-            case "Desativar Plot" -> "Oculta os objetos do plot, mantendo os dados e as configurações no projeto.";
-            case "Enquadrar tudo" -> "Ajusta o zoom para mostrar os objetos visíveis. Não move nem escala a geometria.";
-            case "Limpar seleção" -> "Desmarca os objetos selecionados no plot; não os oculta nem os remove.";
-            case "Mover no Plot Area", "Copiar no Plot Area" -> "Usa o ponto onde o menu foi aberto como origem. Clique no destino para mover ou copiar os objetos selecionados.\n\nAtalhos: Esc cancela; Ctrl+Z desfaz; Ctrl+Y refaz.";
-            case "Editar Objeto", "Editar", "Editar Excellon", "Editar Geometry" -> "Abre o editor do objeto selecionado. As alterações ficam em rascunho até serem aplicadas ao objeto.";
-            case "Salvar e Fechar Editor" -> "Aplica o rascunho ao objeto em memória e fecha o editor. Salve o projeto separadamente para persistir no disco.";
-            case "Editor de G-Code", "Editar G-code" -> "Abre o programa como rascunho editável, com busca e realce de sintaxe.\n\nAtenção: a prévia não certifica a segurança do programa para uma máquina CNC.";
-            case "Ver G-code", "Ver Fonte", "Ver WKT" -> "Abre o código ou a representação do objeto em uma área de leitura com busca. Não modifica o arquivo de origem.";
-            case "Salvar como", "Salvar WKT como" -> "Exporta o objeto selecionado para um arquivo. Confira o formato, as unidades e o destino antes de salvar.";
-            case "Opacidade" -> "Ajusta a transparência do objeto no plot. 0% é transparente; 100% é opaco. Não muda os dados CAM.";
-            case "Personalizada" -> "Abre o seletor para definir uma cor de visualização; não muda os dados do objeto.";
-            case "Padrão" -> "Restaura a cor padrão da categoria do objeto no plot.";
-            case "Sair" -> "Fecha o aplicativo. Confira as alterações de projeto e de edição ainda não salvas.";
+            case "Abrir Gerber", "Gerber" -> I18n.text("ui.86c7aee50967");
+            case "Abrir Excellon", "Excellon" -> I18n.text("ui.86516a89eb86");
+            case "Abrir Projeto", "Projeto" -> I18n.text("ui.d3f231defb2e");
+            case "G-Code" -> I18n.text("ui.3a54ac0f5d0e");
+            case "Tools Database" -> I18n.text("ui.4fa07a48b193");
+            case "Sobre" -> I18n.text("ui.4cbc307e4d2b");
+            case "Preferências" -> I18n.text("ui.52b5b3e2164a");
+            case "Mostrar/ocultar painel lateral" -> I18n.text("ui.4bbbe7439de5");
+            case "Linha de Comando", "Linha de Comando Tcl" -> I18n.text("ui.d61a89354c52");
+            case "Snap na grade" -> I18n.text("ui.daa99425b066");
+            case "Eixos" -> I18n.text("ui.45d7bb02b57e");
+            case "HUD" -> I18n.text("ui.c1d32e05a9c2");
+            case "Workspace" -> I18n.text("ui.72217cf7fae1");
+            case "Aproximar", "Afastar" -> I18n.text("ui.200285ca38c0");
+            case "Enquadrar Objeto" -> I18n.text("ui.a400682427ff");
+            case "Replotar" -> I18n.text("ui.c0d1c4bea8a0");
+            case "Limpar Plot" -> I18n.text("ui.6adc09bdff68");
+            case "Copiar Selecionados" -> I18n.text("ui.03ffa188ce46");
+            case "Excluir Selecionados" -> I18n.text("ui.a8f1b00ac1e9");
+            case "Capturar estado agora" -> I18n.text("ui.ca1d71650ff5");
+            case "Abrir pasta desta sessão" -> I18n.text("ui.45aeb4f93336");
+            case "Salvar Projeto" -> I18n.text("ui.708de581aaed");
+            case "Copiar" -> I18n.text("ui.3407cc8a2274");
+            case "Excluir", "Remover" -> I18n.text("ui.85ffed6c23cb");
+            case "Renomear" -> I18n.text("ui.007683382be3");
+            case "Propriedades" -> I18n.text("ui.e1c2e0f76b1e");
+            case "Exibir no Plot Area" -> I18n.text("ui.8a5abd31984e");
+            case "Ativar Plot" -> I18n.text("ui.dc1d51dbeba7");
+            case "Desativar Plot" -> I18n.text("ui.69186e6c9e4a");
+            case "Enquadrar tudo" -> I18n.text("ui.06f16d6f24f9");
+            case "Limpar seleção" -> I18n.text("ui.ab5dd60dd505");
+            case "Mover no Plot Area", "Copiar no Plot Area" -> I18n.text("ui.5f4af8410aa0");
+            case "Editar Objeto", "Editar", "Editar Excellon", "Editar Geometry" -> I18n.text("ui.4c5ca8535457");
+            case "Salvar e Fechar Editor" -> I18n.text("ui.1b1ac5c405aa");
+            case "Editor de G-Code", "Editar G-code" -> I18n.text("ui.b60ab1bbe5d7");
+            case "Ver G-code", "Ver Fonte", "Ver WKT" -> I18n.text("ui.d2428d9a8abb");
+            case "Salvar como", "Salvar WKT como" -> I18n.text("ui.1091d2f422ae");
+            case "Opacidade" -> I18n.text("ui.ea404e0f2363");
+            case "Personalizada" -> I18n.text("ui.6bbd8fc5813f");
+            case "Padrão" -> I18n.text("ui.7f5e1fe45af9");
+            case "Sair" -> I18n.text("ui.0512f93be2a0");
             default -> null;
         };
     }

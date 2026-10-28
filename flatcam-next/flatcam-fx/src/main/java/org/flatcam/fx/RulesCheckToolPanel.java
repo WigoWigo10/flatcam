@@ -60,7 +60,7 @@ final class RulesCheckToolPanel {
         box.setConverter(new StringConverter<>() {
             @Override
             public String toString(TreeItem<String> item) {
-                return item == null ? "(nenhum)" : item.getValue();
+                return item == null ? I18n.text("ui.4aca7f2ac230") : item.getValue();
             }
 
             @Override
@@ -86,8 +86,8 @@ final class RulesCheckToolPanel {
         GridPane objects = new GridPane();
         objects.setHgap(6);
         objects.setVgap(4);
-        String[] labels = {"Cobre topo", "Cobre base", "Seda topo", "Seda base", "Máscara topo", "Máscara base",
-                "Contorno", "Excellon 1", "Excellon 2"};
+        String[] labels = {I18n.text("ui.1189333a92a2"), I18n.text("ui.99112569de56"), I18n.text("ui.d88ec99de29a"), I18n.text("ui.b6f31b6b189c"), I18n.text("ui.50f56d318357"), I18n.text("ui.d9391dc057b5"),
+                I18n.text("ui.8185e1c34543"), "Excellon 1", "Excellon 2"};
         List<ComboBox<TreeItem<String>>> boxes = List.of(copperTop, copperBottom, silkTop, silkBottom, maskTop,
                 maskBottom, outline, drills1, drills2);
         for (int i = 0; i < labels.length; i++) {
@@ -104,7 +104,7 @@ final class RulesCheckToolPanel {
         rules.setVgap(4);
         int row = 0;
         for (Rule rule : Rule.values()) {
-            CheckBox enabled = new CheckBox(rule.title());
+            CheckBox enabled = new CheckBox(I18n.caption(rule.title()));
             String key = "rules." + rule.name().toLowerCase(java.util.Locale.ROOT);
             enabled.setSelected(ToolDefaults.flag(key + ".enabled"));
             TextField value = new TextField(ToolDefaults.text(key));
@@ -151,7 +151,7 @@ final class RulesCheckToolPanel {
             }
         });
 
-        Button run = new Button("Executar verificação");
+        Button run = new Button(I18n.text("ui.867be1ab29ed"));
         run.setMaxWidth(Double.MAX_VALUE);
         run.setOnAction(event -> {
             errorLabel.setText("");
@@ -162,7 +162,7 @@ final class RulesCheckToolPanel {
                     limit = Double.parseDouble(values.get(rule).getText().trim().replace(',', '.'));
                 } catch (NumberFormatException invalid) {
                     if (switches.get(rule).isSelected()) {
-                        errorLabel.setText("Valor inválido em: " + rule.title());
+                        errorLabel.setText(I18n.text("ui.bf2ebc1d7ba4") + I18n.caption(rule.title()));
                         return;
                     }
                     limit = defaults.get(rule).value();
@@ -173,7 +173,7 @@ final class RulesCheckToolPanel {
                     silkBottom.getValue(), maskTop.getValue(), maskBottom.getValue(), outline.getValue(),
                     drills1.getValue(), drills2.getValue());
             run.setDisable(true);
-            status.setText("Verificando as regras...");
+            status.setText(I18n.text("ui.ad655d1872bc"));
             host.locate(null, null);
             host.check(selection, settings, results -> {
                 run.setDisable(false);
@@ -184,32 +184,35 @@ final class RulesCheckToolPanel {
                 for (RuleResult result : results) {
                     String verdict;
                     if (!result.ran()) {
-                        verdict = "NÃO EXECUTADA: " + result.error();
+                        verdict = I18n.text("ui.f6ca53d83ff3") + result.error();
                     } else if (result.failed()) {
                         failures++;
-                        verdict = "FALHOU (" + Math.max(result.points().size(), result.sizes().size()) + ")";
+                        verdict = I18n.text("ui.f89d9b6c31cf") + Math.max(result.points().size(), result.sizes().size()) + ")";
                     } else {
                         verdict = "OK" + (result.note() == null ? "" : " - " + result.note());
                     }
-                    report.getItems().add(result.title() + ": " + verdict);
+                    String title = result.title();
+                    String canonical = result.rule().title();
+                    if (title.endsWith(canonical)) title = title.substring(0,title.length()-canonical.length()) + I18n.caption(canonical);
+                    report.getItems().add(title + ": " + verdict);
                 }
-                status.setText(results.isEmpty() ? "Nenhuma regra ativa."
-                        : failures == 0 ? "Nenhuma violação encontrada."
-                        : failures + " regra(s) com violações. Clique numa para ver onde.");
+                status.setText(results.isEmpty() ? I18n.text("ui.42937c745350")
+                        : failures == 0 ? I18n.text("ui.69cd24e91dea")
+                        : failures + I18n.text("ui.18bfe9bede99"));
             }, message -> {
                 run.setDisable(false);
                 status.setText("");
                 errorLabel.setText(message);
             });
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.locate(null, null);
             onClose.run();
         });
 
-        VBox panel = new VBox(8, new Label("Objetos da placa:"), objects, new Label("Regras e limites:"), rules, run,
-                status, new Label("Resultado (clique numa regra):"), report, new Label("Violações (clique para ir até lá):"),
+        VBox panel = new VBox(8, new Label(I18n.text("ui.bc34cbca8e0f")), objects, new Label(I18n.text("ui.d62a97bce2ea")), rules, run,
+                status, new Label(I18n.text("ui.3d0b6b4cabcc")), report, new Label(I18n.text("ui.af36208e90f1")),
                 points, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

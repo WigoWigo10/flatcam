@@ -27,6 +27,7 @@ final class AppPreferences {
 
     private static final String KEY_THEME = "theme";
     private static final String KEY_SPLASH = "showStartupSplash";
+    private static final String KEY_LANGUAGE = "uiLanguage";
     private static final String KEY_WINDOW_WIDTH = "windowWidth";
     private static final String KEY_WINDOW_HEIGHT = "windowHeight";
     private static final String KEY_WINDOW_SCREEN_ID = "windowScreenId";
@@ -69,6 +70,8 @@ final class AppPreferences {
     }
 
     static boolean loadSplashScreen() { return PREFS.getBoolean(KEY_SPLASH,true); }
+    static UiLanguage loadLanguage() { return UiLanguage.fromTag(PREFS.get(KEY_LANGUAGE, UiLanguage.PT_BR.tag)); }
+    static void saveLanguage(UiLanguage language) { PREFS.put(KEY_LANGUAGE, language.tag); flush(); }
     static void saveSplashScreen(boolean enabled) { PREFS.putBoolean(KEY_SPLASH,enabled); flush(); }
 
     static void saveTheme(ThemeOption option) {

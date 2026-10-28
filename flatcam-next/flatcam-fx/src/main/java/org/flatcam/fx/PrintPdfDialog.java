@@ -7,27 +7,27 @@ import org.flatcam.cam.pdf.PrintPdfExporter;
 
 final class PrintPdfDialog extends Dialog<PrintPdfExporter.Options> {
     PrintPdfDialog(Window owner, int objects) {
-        setTitle("Imprimir como PDF"); setHeaderText(objects + " objeto(s) selecionado(s) — escala física 1:1");
+        setTitle(I18n.text("ui.217ce43fce3a")); setHeaderText(objects + I18n.text("ui.a00d85a38d8e"));
         if (owner != null) initOwner(owner);
         ComboBox<String> paper = new ComboBox<>(); paper.getItems().setAll(PrintPdfExporter.PAPERS); paper.setValue("A4"); paper.setId("print-pdf-paper");
-        CheckBox landscape = new CheckBox("Paisagem"); landscape.setId("print-pdf-landscape");
+        CheckBox landscape = new CheckBox(I18n.text("ui.d88a305edb3b")); landscape.setId("print-pdf-landscape");
         landscape.disableProperty().bind(paper.valueProperty().isEqualTo("Bounds"));
-        CheckBox monochrome = new CheckBox("Preto e branco"); monochrome.setSelected(true); monochrome.setId("print-pdf-monochrome");
-        ToolDescriptions.apply(paper,"Página","Bounds ajusta a página aos limites da seleção com margem de 1 mm. Os demais formatos têm margem mínima de 5 mm e desenho centralizado. Não reduz nem corta o desenho para fazê-lo caber.");
-        ToolDescriptions.apply(landscape,"Orientação","Troca largura e altura do papel. Não gira, espelha ou modifica os objetos. Bounds usa as dimensões da seleção.");
-        ToolDescriptions.apply(monochrome,"Cores","Ativado: desenha em preto sobre fundo branco. Desativado: usa a cor de cada objeto/camada, sem transparência ou cores por abertura. Não inclui grade, seleção ou HUD.");
+        CheckBox monochrome = new CheckBox(I18n.text("ui.bdf1d1632994")); monochrome.setSelected(true); monochrome.setId("print-pdf-monochrome");
+        ToolDescriptions.apply(paper,I18n.text("ui.8f63f4d7594a"),I18n.text("ui.1ee0fa81ae2e"));
+        ToolDescriptions.apply(landscape,I18n.text("ui.3126f23d71e8"),I18n.text("ui.fff2073e444a"));
+        ToolDescriptions.apply(monochrome,I18n.text("ui.7bff6181add2"),I18n.text("ui.fb364c022197"));
         GridPane content = new GridPane(); content.setHgap(12); content.setVgap(10);
-        content.addRow(0,new Label("Página:"),paper); content.add(landscape,1,1); content.add(monochrome,1,2);
-        Label note = new Label("Inclui os objetos selecionados, mesmo ocultos. Não inclui rascunhos do editor.\nAo imprimir o PDF, use Tamanho real / 100%; não Ajustar à página.");
+        content.addRow(0,new Label(I18n.text("ui.97c2b20d2f1c")),paper); content.add(landscape,1,1); content.add(monochrome,1,2);
+        Label note = new Label(I18n.text("ui.8895e0c78193"));
         note.setWrapText(true); note.setMaxWidth(440); content.add(note,0,3,2,1);
         getDialogPane().setContent(content);
-        ButtonType print = new ButtonType("Salvar PDF…",ButtonBar.ButtonData.OK_DONE);
+        ButtonType print = new ButtonType(I18n.text("ui.08359f6f7004"),ButtonBar.ButtonData.OK_DONE);
         getDialogPane().getButtonTypes().addAll(print,ButtonType.CANCEL);
-        ToolDescriptions.apply(getDialogPane().lookupButton(print),"Salvar PDF","Escolha o destino. A geometria será escrita como vetores em segundo plano, com progresso e cancelamento. Se não couber, escolha uma página maior ou Bounds.");
-        ToolDescriptions.apply(getDialogPane().lookupButton(ButtonType.CANCEL),"Cancelar","Fecha sem gerar ou alterar arquivos.");
+        ToolDescriptions.apply(getDialogPane().lookupButton(print),I18n.text("ui.31bfaa9207f4"),I18n.text("ui.83740f3d486c"));
+        ToolDescriptions.apply(getDialogPane().lookupButton(ButtonType.CANCEL),I18n.text("ui.bb9dbb406dcb"),I18n.text("ui.babe8e8ff6f6"));
         if (owner != null && owner.getScene() != null)
             getDialogPane().getScene().getStylesheets().setAll(owner.getScene().getStylesheets());
-        FluidTooltips.install(this,"Imprimir como PDF");
+        FluidTooltips.install(this,I18n.text("ui.217ce43fce3a"));
         setResultConverter(button -> button==print ? new PrintPdfExporter.Options(paper.getValue(),!landscape.isSelected(),monochrome.isSelected()) : null);
     }
 }

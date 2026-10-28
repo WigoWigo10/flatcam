@@ -57,11 +57,11 @@ final class InvertGerberToolPanel {
 
         TextField margin = new TextField(ToolDefaults.text("invert.margin"));
         margin.setPrefColumnCount(6);
-        margin.setTooltip(tooltip("Quanto a caixa ao redor do Gerber passa da borda do cobre."));
+        margin.setTooltip(tooltip(I18n.text("ui.b7a1258dbdfe")));
         ToggleGroup joins = new ToggleGroup();
-        RadioButton round = new RadioButton("Redondo");
-        RadioButton bevel = new RadioButton("Chanfrado");
-        RadioButton square = new RadioButton("Quadrado");
+        RadioButton round = new RadioButton(I18n.text("ui.c4f828746ee5"));
+        RadioButton bevel = new RadioButton(I18n.text("ui.b438811609f0"));
+        RadioButton square = new RadioButton(I18n.text("ui.cb0a64bafea0"));
         for (RadioButton radio : List.of(round, bevel, square)) {
             radio.setToggleGroup(joins);
         }
@@ -71,12 +71,12 @@ final class InvertGerberToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button invert = new Button("Inverter Gerber");
+        Button invert = new Button(I18n.text("ui.5ab376cf79ba"));
         invert.setMaxWidth(Double.MAX_VALUE);
         invert.setOnAction(event -> {
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 double value = Double.parseDouble(margin.getText().trim().replace(',', '.'));
                 InvertGerber.JoinStyle style = round.isSelected() ? InvertGerber.JoinStyle.ROUND
@@ -84,18 +84,18 @@ final class InvertGerberToolPanel {
                 String error = host.invert(gerber.getValue(), value, style);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor inválido em margem");
+                errorLabel.setText(I18n.text("ui.68c1b5c68e94"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(8,
-                new Label("Gerber a inverter:"), gerber,
-                new HBox(6, new Label("Margem:"), margin),
-                new Label("Cantos da caixa:"), new HBox(10, round, bevel, square),
+                new Label(I18n.text("ui.726d6f3952cd")), gerber,
+                new HBox(6, new Label(I18n.text("ui.16bab5b0d1de")), margin),
+                new Label(I18n.text("ui.e5595bb67459")), new HBox(10, round, bevel, square),
                 invert, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

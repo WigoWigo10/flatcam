@@ -22,7 +22,7 @@ final class StartupSplash implements AutoCloseable {
     private final ThemeOption theme;
     private final String screenId;
     private final LongSupplier clock;
-    private volatile String message="Iniciando o FlatCAM FX…";
+    private volatile String message=I18n.text("ui.9c6ce7dbb362");
     // All window/timer state belongs exclusively to Swing's EDT. Never wait for it from the FX thread.
     private JWindow window;
     private Artwork artwork;
@@ -70,8 +70,8 @@ final class StartupSplash implements AutoCloseable {
             if(closed.get() || artwork==null || ready) return;
             ready=true;
             artwork.graphicsStatus=GraphicsStatus.of(graphics);
-            artwork.message="Área de trabalho pronta.";
-            artwork.footer="Clique para continuar • fecha em 5 s";
+            artwork.message=I18n.text("ui.b8a706aadcf6");
+            artwork.footer=I18n.text("ui.b3e2d06129eb");
             artwork.onReadyPaint=()->firstReadyPaint=clock.getAsLong();
             artwork.getAccessibleContext().setAccessibleDescription(artwork.message+" "+artwork.graphicsStatus.mode()+". "+artwork.graphicsStatus.device()+". "+artwork.footer);
             artwork.setToolTipText(artwork.graphicsStatus.mode()+" — "+artwork.graphicsStatus.device());
@@ -84,7 +84,7 @@ final class StartupSplash implements AutoCloseable {
         if(firstReadyPaint!=Long.MIN_VALUE) {
             long remaining=READING_NANOS-(clock.getAsLong()-firstReadyPaint);
             if(remaining<=0) { close(); return; }
-            artwork.footer="Clique para continuar • fecha em "+((remaining+999_999_999L)/1_000_000_000L)+" s";
+            artwork.footer=I18n.text("ui.9b6f05659833")+((remaining+999_999_999L)/1_000_000_000L)+" s";
         }
         artwork.repaint();
     }
@@ -95,11 +95,11 @@ final class StartupSplash implements AutoCloseable {
             GraphicsDevice device=selectDevice(GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices(),screenId);
             GraphicsConfiguration configuration=device.getDefaultConfiguration();
             window=new JWindow(configuration);
-            window.setName("FlatCAM FX — Inicializando");
+            window.setName(I18n.text("ui.da231af29b4d"));
             window.setType(Window.Type.POPUP);
             window.setFocusableWindowState(false);
             window.setAutoRequestFocus(false);
-            artwork=new Artwork(theme,AboutInfo.build().getProperty("appVersion","Em desenvolvimento"));
+            artwork=new Artwork(theme,AboutInfo.build().getProperty("appVersion",I18n.text("ui.90e590455651")));
             artwork.message=message;
             artwork.addMouseListener(new java.awt.event.MouseAdapter() {
                 @Override public void mouseClicked(java.awt.event.MouseEvent event) { if(ready) close(); }
@@ -118,7 +118,7 @@ final class StartupSplash implements AutoCloseable {
             timer=new Timer(33,event->tick());
             timer.start();
         } catch (RuntimeException failure) {
-            LOG.log(System.Logger.Level.WARNING,"Não foi possível mostrar a tela de abertura; a inicialização continuará.",failure);
+            LOG.log(System.Logger.Level.WARNING,I18n.text("ui.8d82cd85c0a7"),failure);
             closeOnEdt(); closed.set(true);
         }
     }
@@ -157,10 +157,10 @@ final class StartupSplash implements AutoCloseable {
     record GraphicsStatus(String mode,String device) {
         static GraphicsStatus of(GraphicsRuntimeInfo info) {
             if(info!=null && "com.sun.prism.sw.SWPipeline".equals(info.pipeline()))
-                return new GraphicsStatus("Modo gráfico: Software (compatibilidade)","Processamento gráfico pela CPU");
+                return new GraphicsStatus(I18n.text("ui.718b9753a47d"),I18n.text("ui.dd62ad893781"));
             if(info!=null && "com.sun.prism.d3d.D3DPipeline".equals(info.pipeline()))
-                return new GraphicsStatus("Modo gráfico: GPU (aceleração gráfica)","Placa em uso: "+displayText(info.adapter()));
-            return new GraphicsStatus("Modo gráfico: identificação indisponível","Os detalhes podem ser consultados em Ajuda > Sobre");
+                return new GraphicsStatus(I18n.text("ui.5a2f59f9ed03"),I18n.text("ui.6ac23552823d")+displayText(info.adapter()));
+            return new GraphicsStatus(I18n.text("ui.59db012cd2f2"),I18n.text("ui.409e72a244b3"));
         }
     }
 
@@ -181,14 +181,14 @@ final class StartupSplash implements AutoCloseable {
         final Palette palette;
         private final String version;
         private BufferedImage logo;
-        String message="Iniciando o FlatCAM FX…";
-        GraphicsStatus graphicsStatus=new GraphicsStatus("Modo gráfico: aguardando a inicialização…","");
-        String footer="Preparando sua área de trabalho";
+        String message=I18n.text("ui.9c6ce7dbb362");
+        GraphicsStatus graphicsStatus=new GraphicsStatus(I18n.text("ui.f6c867ac989c"),"");
+        String footer=I18n.text("ui.f83ad355fdae");
         Runnable onReadyPaint;
         Artwork(ThemeOption theme,String version) {
             palette=Palette.of(theme); this.version=displayText(version);
             setOpaque(true); setBackground(palette.background());
-            getAccessibleContext().setAccessibleName("FlatCAM FX — Inicializando");
+            getAccessibleContext().setAccessibleName(I18n.text("ui.da231af29b4d"));
             getAccessibleContext().setAccessibleDescription(message);
             try (var stream=StartupSplash.class.getResourceAsStream("icons/"+(theme.isDark() ? "dark/" : "")+"flatcam_icon256.png")) {
                 if(stream!=null) logo=ImageIO.read(stream);
@@ -211,9 +211,9 @@ final class StartupSplash implements AutoCloseable {
                 g.setColor(palette.accent()); g.fillRoundRect(badge,53,48,34,10,10);
                 g.setColor(palette.background()); g.setFont(new Font("Segoe UI",Font.BOLD,21)); g.drawString("FX",badge+10,78);
                 g.setFont(new Font("Segoe UI",Font.PLAIN,15)); g.setColor(palette.secondary());
-                g.drawString("Fabricação de placas de circuito",34,137);
+                g.drawString(I18n.text("ui.e2c057e95ee9"),34,137);
                 g.setFont(new Font("Segoe UI",Font.PLAIN,13));
-                g.drawString(version+"  ·  Em desenvolvimento",34,164);
+                g.drawString(version+I18n.text("ui.f90585d35e22"),34,164);
                 g.setColor(palette.text());
                 drawText(g,graphicsStatus.mode(),Font.BOLD,13,186);
                 g.setColor(palette.secondary());

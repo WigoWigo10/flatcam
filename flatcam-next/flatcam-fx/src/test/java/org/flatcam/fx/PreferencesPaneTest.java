@@ -20,6 +20,10 @@ class PreferencesPaneTest {
         int themeWrites, plotWrites;
         boolean splash=true;
         int splashWrites;
+        UiLanguage language = UiLanguage.PT_BR;
+        int languageWrites;
+        @Override public UiLanguage language() { return language; }
+        @Override public void applyLanguage(UiLanguage selected) { language = selected; languageWrites++; }
         @Override public boolean splashEnabled() { return splash; }
         @Override public void applySplash(boolean enabled) { splash=enabled; splashWrites++; }
         @Override public ThemeOption theme() { return theme; }
@@ -62,6 +66,26 @@ class PreferencesPaneTest {
             assertEquals(ToolDefaults.byTool().size() + 2, view.pane.sections().size());
             for (var section : view.pane.sections()) select(view, section.id());
             assertEquals(0, view.host.themeWrites); assertEquals(0, view.host.plotWrites);
+            return null;
+        });
+    }
+
+    @Test void languageDraftPersistsOnlyOnApplyAndRequiresRestart() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            View view = view(); select(view, "general");
+            @SuppressWarnings("unchecked") var language = (ComboBox<UiLanguage>) view.pane.lookup("#preferences-language");
+            language.setValue(UiLanguage.EN);
+            select(view, "plot"); select(view, "general");
+            assertSame(language, view.pane.lookup("#preferences-language"));
+            assertEquals(0, view.host.languageWrites);
+            button(view, "preferences-general-apply").fire();
+            assertEquals(UiLanguage.EN, view.host.language);
+            assertEquals(UiLanguage.PT_BR, I18n.language(), "language stays unchanged until next startup");
+            button(view, "preferences-general-reset").fire();
+            assertEquals(UiLanguage.PT_BR, language.getValue());
+            assertEquals(UiLanguage.EN, view.host.language, "reset is still only a draft");
+            button(view, "preferences-general-apply").fire();
+            assertEquals(UiLanguage.PT_BR, view.host.language);
             return null;
         });
     }

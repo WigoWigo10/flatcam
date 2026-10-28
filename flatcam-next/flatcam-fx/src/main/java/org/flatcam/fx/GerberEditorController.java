@@ -75,7 +75,7 @@ final class GerberEditorController {
 
     void start(TreeItem<String> sourceItem, GerberImage image) {
         if (session != null) {
-            host.log("Já existe uma edição em andamento em " + item.getValue() + ".");
+            host.log(I18n.text("ui.fbfaac11a61a") + item.getValue() + ".");
             return;
         }
         item = sourceItem;
@@ -116,7 +116,7 @@ final class GerberEditorController {
                 refreshSelection();
             }
         });
-        host.openToolPanel("Editor Gerber", panel.node());
+        host.openToolPanel(I18n.text("ui.861bab2ce438"), panel.node());
     }
 
     /** Ends the session without creating anything if {@code removed} is the object being edited. */
@@ -131,7 +131,7 @@ final class GerberEditorController {
             return;
         }
         end();
-        host.log("Editor: edição cancelada.");
+        host.log(I18n.text("ui.16714165bb4c"));
     }
 
     private void apply() {
@@ -146,7 +146,7 @@ final class GerberEditorController {
             }
             end();
             String name = host.addEditedGerber(result.name(), result.image());
-            host.log("Editor: objeto \"" + name + "\" criado a partir da edição.");
+            host.log(I18n.text("ui.a419f76b4cf2") + name + I18n.text("ui.43c9f4dd6215"));
         }, () -> {
             if (session == editing) {
                 panel.setBusy(false);
@@ -201,7 +201,7 @@ final class GerberEditorController {
         if (aperture == null || (aperture.kind != ApertureKind.MACRO
                 && (!Double.isFinite(aperture.width) || aperture.width <= 0
                 || !Double.isFinite(aperture.height) || aperture.height <= 0))) {
-            panel.showError("Selecione uma abertura C, R, O, P ou AM valida.");
+            panel.showError(I18n.text("ui.ca76091a168b"));
             return;
         }
         GerberEditSession editing = session;
@@ -232,7 +232,7 @@ final class GerberEditorController {
         if (started) {
             panel.setPadPlacing(true);
             panel.showError("");
-            host.log("Editor: clique no Plot Area para adicionar pad D" + apertureCode + "; Esc cancela.");
+            host.log(I18n.text("ui.8885780490cf") + apertureCode + I18n.text("ui.f7379a408a83"));
         }
     }
 
@@ -243,7 +243,7 @@ final class GerberEditorController {
         Aperture aperture = session.apertures().get(apertureCode);
         if (aperture == null || aperture.kind != ApertureKind.CIRCLE
                 || !Double.isFinite(aperture.width) || aperture.width <= 0) {
-            panel.showError("Selecione uma abertura circular C com diâmetro positivo.");
+            panel.showError(I18n.text("ui.4641b26223ef"));
             return;
         }
         GerberEditSession editing = session;
@@ -266,7 +266,7 @@ final class GerberEditorController {
                         panel.showError("");
                         refreshSelection();
                     } else {
-                        panel.showError("A trilha precisa de pelo menos dois pontos diferentes.");
+                        panel.showError(I18n.text("ui.1b6358beb10d"));
                     }
                 } catch (RuntimeException exception) {
                     panel.showError(exception.getMessage());
@@ -284,9 +284,8 @@ final class GerberEditorController {
             panel.setTrackPlacing(true);
             panel.showTrackProgress(0, TrackBendMode.FORTY_FIVE);
             panel.showError("");
-            host.log("Editor: trilha D" + apertureCode
-                    + " - clique para adicionar pontos; Enter/duplo clique/botão direito conclui; "
-                    + "Backspace volta; T/R muda o modo; Esc cancela.");
+            host.log(I18n.text("ui.4574d6e03031") + apertureCode
+                    + I18n.text("ui.18a85dba47a7"));
         }
     }
 
@@ -298,7 +297,7 @@ final class GerberEditorController {
             apply();
         } else {
             end();
-            host.log("Editor: fechado sem alterações.");
+            host.log(I18n.text("ui.25879041f18b"));
         }
     }
 
@@ -334,7 +333,7 @@ final class GerberEditorController {
                         panel.showError("");
                         refreshSelection();
                     } else {
-                        panel.showError("A região precisa de pelo menos três vértices distintos.");
+                        panel.showError(I18n.text("ui.04ee0b683e2f"));
                     }
                 } catch (RuntimeException exception) {
                     panel.showError(exception.getMessage());
@@ -352,14 +351,13 @@ final class GerberEditorController {
             panel.setRegionPlacing(true);
             panel.showRegionProgress(0, TrackBendMode.FORTY_FIVE);
             panel.showError("");
-            host.log("Editor: região - clique nos vértices; Enter/duplo clique/botão direito conclui; "
-                    + "Backspace volta; T/R muda a dobra; Esc cancela.");
+            host.log(I18n.text("ui.ed33bbbda5ba"));
         }
     }
 
     private void addPadArray(GerberEditToolPanel.PadArrayRequest request) {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
-            throw new IllegalStateException("Editor indisponível para array de pads.");
+            throw new IllegalStateException(I18n.text("ui.956d8fda6c66"));
         }
         boolean changed = request.circular()
                 ? session.addCircularPadArray(request.code(), request.x(), request.y(), request.count(),
@@ -386,14 +384,14 @@ final class GerberEditorController {
 
     private String addAperture(ApertureKind kind, double width, double height, int vertices, double rotation) {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
-            throw new IllegalStateException("Editor indisponível para adicionar abertura.");
+            throw new IllegalStateException(I18n.text("ui.bd1df154b8b6"));
         }
         String code = kind == ApertureKind.POLYGON
                 ? session.addPolygonAperture(width, vertices, rotation)
                 : session.addAperture(kind, width, height);
         panel.refreshApertures(session.apertures(), code);
         refreshSelection();
-        host.log("Editor: abertura " + kind + " D" + code + " adicionada.");
+        host.log(I18n.text("ui.df9002af8549") + kind + " D" + code + I18n.text("ui.d37785ec3602"));
         return code;
     }
 
@@ -479,7 +477,7 @@ final class GerberEditorController {
                     @Override
                     public void onCommit(double dx, double dy) {
                         if (session != editing || !editing.selectedIndices().equals(selectedAtStart)) {
-                            host.log("Editor: posicionamento cancelado; a seleção mudou.");
+                            host.log(I18n.text("ui.b44fc2bfa470"));
                             return;
                         }
                         panel.setPlacing(false);
@@ -498,8 +496,8 @@ final class GerberEditorController {
                 });
         if (started) {
             panel.setPlacing(true);
-            host.log("Editor: " + (copy ? "copiar" : "mover")
-                    + " formas — clique na origem e depois no destino; Esc ou botão direito cancela.");
+            host.log("Editor: " + (copy ? I18n.text("ui.9d14fb1e68df") : "mover")
+                    + I18n.text("ui.b3a68844a828"));
         }
     }
 

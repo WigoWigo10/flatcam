@@ -10,9 +10,9 @@ import javafx.scene.control.SeparatorMenuItem;
 final class RecentFilesMenu {
     private RecentFilesMenu() { }
     static Menu build(RecentFiles history, Consumer<RecentFiles.Entry> open, BiFunction<String,Double,Node> icon) {
-        Menu root = new Menu("Recentes"); root.setGraphic(icon.apply("recent_files.png",16.0)); root.setId("recent-files-menu");
+        Menu root = new Menu(I18n.text("ui.3068eba03d59")); root.setGraphic(icon.apply("recent_files.png",16.0)); root.setId("recent-files-menu");
         for (boolean projects : new boolean[]{true,false}) {
-            Menu category = new Menu(projects ? "Projetos recentes" : "Arquivos recentes");
+            Menu category = new Menu(projects ? I18n.text("ui.b309a28679e9") : I18n.text("ui.ddfe38802540"));
             category.setId(projects ? "recent-projects-menu" : "recent-cam-menu");
             Runnable refresh = () -> refresh(category,history,projects,open,icon);
             refresh.run(); category.setOnShowing(event -> refresh.run()); root.getItems().add(category);
@@ -24,19 +24,19 @@ final class RecentFilesMenu {
         category.getItems().clear();
         var entries = history.entries(projects);
         if (entries.isEmpty()) {
-            MenuItem empty = new MenuItem("Nenhum item recente"); empty.setDisable(true); category.getItems().add(empty);
+            MenuItem empty = new MenuItem(I18n.text("ui.e48b3f0d06b3")); empty.setDisable(true); category.getItems().add(empty);
         }
         for (var entry : entries) {
             MenuItem item = new MenuItem(entry.kind().label + " — " + entry.path().getFileName());
             item.setGraphic(icon.apply(entry.kind().icon,16.0));
             ToolDescriptions.apply(item.getProperties(),entry.kind().label,
-                    "Reabre usando o mesmo tipo de importação.\n\nArquivo: " + entry.path()
-                    + (projects ? "\n\nSubstitui o projeto atual após validar o arquivo. Salve alterações antes de abrir outro projeto."
-                                : "\n\nAdiciona ao projeto atual. São usados os parâmetros de importação e unidades atuais."));
+                    I18n.text("ui.80dd2d2e4bba") + entry.path()
+                    + (projects ? I18n.text("ui.0e34ecedb356")
+                                : I18n.text("ui.dc9f600c28f4")));
             item.setOnAction(event -> open.accept(entry)); category.getItems().add(item);
         }
-        MenuItem clear = new MenuItem("Limpar histórico"); clear.setDisable(entries.isEmpty());
-        ToolDescriptions.apply(clear.getProperties(),"Limpar histórico","Remove somente esta lista de recentes do FX. Não apaga arquivos nem altera o histórico do Python.");
+        MenuItem clear = new MenuItem(I18n.text("ui.a24ee0cafc12")); clear.setDisable(entries.isEmpty());
+        ToolDescriptions.apply(clear.getProperties(),I18n.text("ui.a24ee0cafc12"),I18n.text("ui.5bd980fce832"));
         clear.setOnAction(event -> { history.clear(projects); refresh(category,history,projects,open,icon); });
         category.getItems().addAll(new SeparatorMenuItem(),clear);
     }

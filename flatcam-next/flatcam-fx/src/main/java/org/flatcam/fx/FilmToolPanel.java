@@ -56,13 +56,13 @@ final class FilmToolPanel {
 
     static Node build(Host host, Runnable onClose) {
         ComboBox<TreeItem<String>> film = combo(host.filmObjects());
-        ToolDescriptions.apply(film,"Origem do filme", "Gerber ou Geometry cujo desenho será exportado como filme; o objeto de origem não é modificado.");
+        ToolDescriptions.apply(film,I18n.text("ui.4452f722b9ff"), I18n.text("ui.f0aa1e7bdc62"));
         film.getSelectionModel().select(host.initialFilm());
         if (film.getValue() == null) {
             film.getSelectionModel().selectFirst();
         }
         ComboBox<TreeItem<String>> box = combo(host.boxObjects());
-        ToolDescriptions.apply(box,"Moldura do filme", "Objeto alinhado que define a caixa externa do filme. Confira as unidades e os limites escolhidos.");
+        ToolDescriptions.apply(box,I18n.text("ui.66e1f6a3cdc4"), I18n.text("ui.e344f52f921f"));
         box.getSelectionModel().select(film.getValue());
         film.valueProperty().addListener((o, a, b) -> {
             if (b != null && host.boxObjects().contains(b)) {
@@ -71,8 +71,8 @@ final class FilmToolPanel {
         });
 
         ToggleGroup types = new ToggleGroup();
-        RadioButton positive = new RadioButton("Positivo");
-        RadioButton negative = new RadioButton("Negativo");
+        RadioButton positive = new RadioButton(I18n.text("ui.6d28db2d208a"));
+        RadioButton negative = new RadioButton(I18n.text("ui.4f45a05be9b3"));
         positive.setToggleGroup(types);
         negative.setToggleGroup(types);
         (ToolDefaults.flag("film.negative") ? negative : positive).setSelected(true);
@@ -82,20 +82,20 @@ final class FilmToolPanel {
         TextField color = field("#000000");
         color.disableProperty().bind(negative.selectedProperty());
 
-        CheckBox punch = new CheckBox("Furar (somente filme positivo)");
+        CheckBox punch = new CheckBox(I18n.text("ui.cd7b7ec488e5"));
         punch.disableProperty().bind(negative.selectedProperty());
         ToggleGroup punchSource = new ToggleGroup();
         RadioButton fromExcellon = new RadioButton("Excellon");
-        RadioButton fromPads = new RadioButton("Centro dos pads");
+        RadioButton fromPads = new RadioButton(I18n.text("ui.76970c236407"));
         fromExcellon.setToggleGroup(punchSource);
         fromPads.setToggleGroup(punchSource);
         fromExcellon.setSelected(true);
         ComboBox<TreeItem<String>> excellon = combo(host.excellons());
-        ToolDescriptions.apply(excellon,"Furos do filme", "Excellon alinhado usado para abrir furos no filme positivo. Só atua com a opção Furar e origem Excellon.");
+        ToolDescriptions.apply(excellon,I18n.text("ui.8afc063208bb"), I18n.text("ui.f8943804ff55"));
         excellon.getSelectionModel().selectFirst();
         TextField padSize = field(ToolDefaults.text("film.padsize"));
         HBox sources = new HBox(10, fromExcellon, fromPads);
-        VBox punchBox = new VBox(6, punch, sources, excellon, new HBox(6, new Label("Furo:"), padSize));
+        VBox punchBox = new VBox(6, punch, sources, excellon, new HBox(6, new Label(I18n.text("ui.babde76c8c21")), padSize));
         sources.visibleProperty().bind(punch.selectedProperty());
         sources.managedProperty().bind(punch.selectedProperty());
         excellon.visibleProperty().bind(punch.selectedProperty().and(fromExcellon.selectedProperty()));
@@ -104,28 +104,28 @@ final class FilmToolPanel {
         padRow.visibleProperty().bind(punch.selectedProperty().and(fromPads.selectedProperty()));
         padRow.managedProperty().bind(padRow.visibleProperty());
 
-        CheckBox scale = new CheckBox("Escala");
+        CheckBox scale = new CheckBox(I18n.text("ui.6432ba75d257"));
         TextField scaleX = field(ToolDefaults.text("film.scalex"));
         TextField scaleY = field(ToolDefaults.text("film.scaley"));
         scaleX.disableProperty().bind(scale.selectedProperty().not());
         scaleY.disableProperty().bind(scale.selectedProperty().not());
-        CheckBox skew = new CheckBox("Inclinação (graus)");
+        CheckBox skew = new CheckBox(I18n.text("ui.6bea59470163"));
         TextField skewX = field(ToolDefaults.text("film.skewx"));
         TextField skewY = field(ToolDefaults.text("film.skewy"));
-        ToolDescriptions.apply(scaleX, "Escala X do filme", "Multiplica a dimensão horizontal do filme exportado. 1 mantém o tamanho; 2 dobra. Não transforma o objeto de origem.\n\nUnidades: fator sem unidade. Disponível com Escala marcada.");
-        ToolDescriptions.apply(scaleY, "Escala Y do filme", "Multiplica a dimensão vertical do filme exportado, independentemente de X.\n\nAtenção: fatores X/Y diferentes deformam a proporção do filme.\n\nUnidades: fator sem unidade. Disponível com Escala marcada.");
-        ToolDescriptions.apply(skewX, "Inclinação X do filme", "Inclina horizontalmente o filme pela referência escolhida. Zero mantém a inclinação X. Não modifica o objeto original.\n\nUnidades: graus. Disponível com Inclinação marcada.");
-        ToolDescriptions.apply(skewY, "Inclinação Y do filme", "Inclina verticalmente o filme pela referência escolhida. Zero mantém a inclinação Y. Não modifica o objeto original.\n\nUnidades: graus. Disponível com Inclinação marcada.");
+        ToolDescriptions.apply(scaleX, I18n.text("ui.8fbdc16db68e"), I18n.text("ui.d43a0d1beb03"));
+        ToolDescriptions.apply(scaleY, I18n.text("ui.b026e9c17f03"), I18n.text("ui.63780cb8c841"));
+        ToolDescriptions.apply(skewX, I18n.text("ui.ca416b2c5658"), I18n.text("ui.5da8ae8bcc01"));
+        ToolDescriptions.apply(skewY, I18n.text("ui.9d3cd60f96cf"), I18n.text("ui.6f642474d987"));
         ComboBox<String> skewReference = new ComboBox<>();
-        skewReference.getItems().setAll("Canto inferior esquerdo", "Canto inferior direito", "Canto superior esquerdo",
-                "Canto superior direito", "Centro");
+        skewReference.getItems().setAll(I18n.text("ui.b11ed988a375"), I18n.text("ui.68fa9b1439ce"), I18n.text("ui.a2db40298836"),
+                I18n.text("ui.61fc75869a23"), I18n.text("ui.fed34f0449c2"));
         skewReference.getSelectionModel().selectFirst();
         skewX.disableProperty().bind(skew.selectedProperty().not());
         skewY.disableProperty().bind(skew.selectedProperty().not());
         skewReference.disableProperty().bind(skew.selectedProperty().not());
-        CheckBox mirror = new CheckBox("Espelhar");
+        CheckBox mirror = new CheckBox(I18n.text("ui.292669cd836a"));
         ComboBox<String> mirrorAxis = new ComboBox<>();
-        mirrorAxis.getItems().setAll("X", "Y", "Ambos");
+        mirrorAxis.getItems().setAll("X", "Y", I18n.text("ui.727f1e023503"));
         mirrorAxis.getSelectionModel().selectFirst();
         mirrorAxis.disableProperty().bind(mirror.selectedProperty().not());
         GridPane transforms = new GridPane();
@@ -133,7 +133,7 @@ final class FilmToolPanel {
         transforms.setVgap(6);
         transforms.addRow(0, scale, new HBox(6, new Label("X"), scaleX, new Label("Y"), scaleY));
         transforms.addRow(1, skew, new HBox(6, new Label("X"), skewX, new Label("Y"), skewY));
-        transforms.addRow(2, new Label("Referência:"), skewReference);
+        transforms.addRow(2, new Label(I18n.text("ui.f71f4710c6f5")), skewReference);
         transforms.addRow(3, mirror, mirrorAxis);
 
         ComboBox<String> fileType = new ComboBox<>();
@@ -143,8 +143,8 @@ final class FilmToolPanel {
         pageSize.getItems().setAll("Bounds", "A0", "A1", "A2", "A3", "A4", "A5", "A6", "Letter", "Legal", "Tabloid");
         pageSize.getSelectionModel().select("A4");
         ToggleGroup orientation = new ToggleGroup();
-        RadioButton portrait = new RadioButton("Retrato");
-        RadioButton landscape = new RadioButton("Paisagem");
+        RadioButton portrait = new RadioButton(I18n.text("ui.dd9b43ac3a92"));
+        RadioButton landscape = new RadioButton(I18n.text("ui.d88a305edb3b"));
         portrait.setToggleGroup(orientation);
         landscape.setToggleGroup(orientation);
         portrait.setSelected(true);
@@ -156,8 +156,8 @@ final class FilmToolPanel {
         GridPane output = new GridPane();
         output.setHgap(6);
         output.setVgap(6);
-        output.addRow(0, new Label("Formato:"), fileType);
-        output.addRow(1, new Label("Pagina (PDF):"), pageSize);
+        output.addRow(0, new Label(I18n.text("ui.950a4cd778be")), fileType);
+        output.addRow(1, new Label(I18n.text("ui.c6e8bfd29fb1")), pageSize);
         output.addRow(2, new Label(""), new HBox(10, portrait, landscape));
         output.addRow(3, new Label("DPI (PNG):"), dpi);
 
@@ -165,12 +165,12 @@ final class FilmToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button export = new Button("Gerar filme");
+        Button export = new Button(I18n.text("ui.5b1e1a4f3287"));
         export.setMaxWidth(Double.MAX_VALUE);
         export.setOnAction(event -> {
             try {
                 if (film.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um objeto para o filme");
+                    throw new IllegalArgumentException(I18n.text("ui.6442e82e7236"));
                 }
                 TreeItem<String> frame = box.getValue() == null ? film.getValue() : box.getValue();
                 String units = host.unitsOf(film.getValue());
@@ -198,31 +198,31 @@ final class FilmToolPanel {
                 Punch mode = !punch.isSelected() || negative.isSelected() ? Punch.NONE
                         : fromExcellon.isSelected() ? Punch.EXCELLON : Punch.PADS;
                 if (mode == Punch.EXCELLON && excellon.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Excellon");
+                    throw new IllegalArgumentException(I18n.text("ui.1b5ee389225d"));
                 }
                 String error = host.export(new Request(film.getValue(), frame, options, mode, excellon.getValue(),
                         mode == Punch.PADS ? number(padSize) : 0));
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
         GridPane look = new GridPane();
         look.setHgap(6);
         look.setVgap(6);
-        look.addRow(0, new Label("Borda (negativo):"), boundary);
-        look.addRow(1, new Label("Espessura do traco:"), stroke);
-        look.addRow(2, new Label("Cor (positivo):"), color);
+        look.addRow(0, new Label(I18n.text("ui.295b7174dd25")), boundary);
+        look.addRow(1, new Label(I18n.text("ui.9a8cd9020a69")), stroke);
+        look.addRow(2, new Label(I18n.text("ui.4fc386cae47c")), color);
 
         VBox panel = new VBox(8,
-                new Label("Objeto do filme:"), film, new Label("Caixa (moldura):"), box,
+                new Label(I18n.text("ui.c2e2866a582f")), film, new Label(I18n.text("ui.957bcc0d3f0a")), box,
                 new HBox(10, positive, negative), look, punchBox,
-                new TitledPane("Escala, inclinação e espelho", transforms), output, export, errorLabel, close);
+                new TitledPane(I18n.text("ui.e7addca98dda"), transforms), output, export, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;
     }

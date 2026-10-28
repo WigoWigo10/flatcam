@@ -19,8 +19,8 @@ final class PanelTooltips {
     private static final String INSTALLED = "fx.tip.panel-installed";
     private static final String OWN_HELP = "fx.tip.panel-help";
     private static final String ROW_VALUE = "fx.tip.row-value";
-    private static final String LINEAR = "\n\nUnidades: unidade do objeto (mm ou in).";
-    private static final String FEED = "\n\nUnidades: unidades do objeto por minuto (mm/min ou in/min).";
+    private static final String LINEAR = I18n.text("ui.aa1e925251e3");
+    private static final String FEED = I18n.text("ui.d35139417031");
 
     private PanelTooltips() { }
 
@@ -29,7 +29,7 @@ final class PanelTooltips {
         if (root instanceof javafx.scene.control.TableView<?> table && table.getTooltip() == null
                 && !table.getProperties().containsKey(FluidTooltips.TEXT_KEY)) {
             String tableHelp = tableHelp(context);
-            if (tableHelp != null) ToolDescriptions.apply(table, "Tabela — " + context, tableHelp);
+            if (tableHelp != null) ToolDescriptions.apply(table, I18n.text("ui.8dc883ace9a2") + context, tableHelp);
         }
         if (root instanceof Labeled labeled) {
             update(labeled, context, null);
@@ -124,12 +124,13 @@ final class PanelTooltips {
     private static int index(Integer value) { return value == null ? 0 : value; }
 
     private static String tableHelp(String context) {
-        if (context.startsWith("Editor ")) return "Selecione as formas, aberturas ou ferramentas a editar. A seleção no desenho e na tabela é sincronizada.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.\n\nAs alterações do editor ficam em rascunho até aplicar ao objeto.";
+        context = canonicalContext(context);
+        if (context.startsWith("Editor ")) return I18n.text("ui.436bc30a4940");
         if (List.of("Isolation Tool", "NCC Tool", "Paint Tool", "Geometry CNC Job", "Drilling Tool", "Milling Tool").contains(context))
-            return "Ferramentas desta operação. Selecione uma linha para revisar seus parâmetros; algumas operações usam somente as linhas selecionadas.\n\nDiâmetro: largura da ferramenta, na unidade do objeto.\nTT: perfil C1–C4 (fresa plana), B (esférica) ou V (ponta em V), quando disponível.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.";
-        if (context.equals("Gerber Object")) return "Aberturas Gerber: Cód. identifica o D-code; Tipo é o formato; Tam. / Dim são dimensões; M marca a abertura no plot.\n\nUnidades: unidade do Gerber (mm ou in).";
-        if (context.equals("Excellon Object")) return "Ferramentas Excellon e seus diâmetros, quantidades de furos e slots. Marcar Plot controla apenas a visualização.\n\nUnidades: unidade do Excellon (mm ou in).";
-        if (context.equals("CNC Job Object")) return "Ferramentas e estatísticas do programa. Tempos são estimativas, não medições físicas da máquina.";
+            return I18n.text("ui.ad2d9c120fc7");
+        if (context.equals("Gerber Object")) return I18n.text("ui.17ff5079da43");
+        if (context.equals("Excellon Object")) return I18n.text("ui.389187de5ff7");
+        if (context.equals("CNC Job Object")) return I18n.text("ui.e166946231ba");
         return null;
     }
 
@@ -193,143 +194,162 @@ final class PanelTooltips {
 
     private static String companion(String label, String fallback) {
         return switch (key(label)) {
-            case "multi-depth" -> "Profundidade máxima acrescentada em cada passe, como valor positivo. Disponível quando Multi-Depth está marcado." + LINEAR;
-            case "dwell" -> "Tempo de espera após ligar o spindle, em segundos. Disponível quando Dwell está marcado.";
-            case "offset", "copper offset" -> "Distância adicional mantida entre a ferramenta e o cobre. Disponível quando Offset está marcado." + LINEAR;
+            case "multi-depth" -> I18n.text("ui.b539b0ae3d10") + LINEAR;
+            case "dwell" -> I18n.text("ui.44e779231dad");
+            case "offset", "copper offset" -> I18n.text("ui.07f2028856a4") + LINEAR;
             default -> fallback;
         };
     }
 
     static String help(String context, String label) {
+        for (String candidate : I18n.sources(label)) {
+            String help = lookup(context, candidate);
+            if (help != null) return help;
+        }
+        return null;
+    }
+
+    static String canonicalContext(String context) {
+        return I18n.source(context, "Gerber Object", "Excellon Object", "Geometry Object", "CNC Job Object",
+                "Editor Gerber", "Editor Excellon", "Editor Geometry", "Geometry CNC Job", "Drilling Tool", "Milling Tool",
+                "Isolation Tool", "NCC Tool", "Paint Tool", "Cutout Tool", "Calibration Tool", "Align Objects Tool",
+                "Panelize Tool", "2-Sided Tool", "Film Tool", "Copper Thieving Tool", "Corner Markers Tool", "Fiducials Tool",
+                "Rules Check Tool", "QRCode Tool", "Subtract Tool", "Invert Gerber Tool", "Extract Drills Tool", "Punch Gerber Tool",
+                "Etch Compensation Tool", "Optimal Tool", "SolderPaste Tool", "Transform Tool", "Calculators", "Preferências",
+                "Layer Color", "Exportar Gerber", "Exportar Excellon", "Ir para localização", "Localizar no objeto", "Imprimir como PDF");
+    }
+
+    private static String lookup(String context, String label) {
+        context = canonicalContext(context);
         String name = key(label);
         String scoped = contextual(context, name);
         if (scoped != null) return scoped;
         return switch (name) {
             case "tool dia", "tool diameter", "tool diameter (mm)", "tool diameter (in)", "diametro da broca", "diametro da ferramenta", "diametro da ferramenta (mm)", "diametro da ferramenta (in)" ->
-                    "Diâmetro de corte, maior que zero. Define a largura do caminho usinado, não a profundidade de corte." + LINEAR;
-            case "spot dia" -> "Diâmetro do ponto do laser usado para calcular a largura dos caminhos." + LINEAR;
-            case "passes" -> "Quantidade inteira de passes de Isolation. Mais passes aumentam a largura isolada em conjunto com o diâmetro e Overlap.";
-            case "overlap (%)", "sobreposicao (%)" -> "Sobreposição entre caminhos em porcentagem do diâmetro da ferramenta, de 0 a menos de 100%. Valores maiores criam mais trajetos e aumentam o tempo de cálculo e usinagem.";
+                    I18n.text("ui.f5dc232a0e84") + LINEAR;
+            case "spot dia" -> I18n.text("ui.cb319b057e03") + LINEAR;
+            case "passes" -> I18n.text("ui.16197e80938e");
+            case "overlap (%)", "sobreposicao (%)" -> I18n.text("ui.3ef9009da869");
             case "method", "metodo" -> PanelHelpCatalog.help(context, name);
-            case "connect", "conectar caminhos" -> "Liga segmentos para reduzir levantamentos da ferramenta, mantendo a ligação dentro da área permitida.";
-            case "contour", "contorno" -> "Adiciona um caminho ao redor do perímetro para completar o acabamento das bordas.";
-            case "rest", "rest machining" -> "Cada ferramenta menor trabalha apenas onde as maiores não alcançaram. As ferramentas são usadas da maior para a menor.";
-            case "tool order", "ordem" -> "No = ordem da tabela.\nForward = diâmetros do menor para o maior.\nReverse = do maior para o menor.\n\nRest Machining usa a ordem do maior para o menor.";
-            case "check validity", "verificar validade dos diametros" -> "Verifica se os diâmetros escolhidos cabem nos espaços entre regiões de cobre. A verificação não substitui a inspeção dos caminhos gerados.";
-            case "combine" -> "Combina passes e ferramentas em uma Geometry. Desmarque para produzir saídas separadas e inspecionar cada resultado.";
-            case "multi-depth" -> "Divide a profundidade total em passes limitados pelo valor ao lado. Na furação, a ferramenta retrai entre os passes.";
-            case "cut z", "cut z (nao v)" -> "Profundidade abaixo da superfície. O FX aceita a magnitude positiva ou Z negativo e gera o corte em Z negativo. Para ferramentas V, a Geometry calcula a profundidade pela largura e pela ponta." + LINEAR;
-            case "travel z", "z de deslocamento" -> "Altura de deslocamento entre cortes. Deve liberar a peça e suas fixações; confirme a referência Z antes de executar." + LINEAR;
-            case "focus/end z" -> "Altura de foco e de término no perfil laser. Não é a profundidade de fresagem." + LINEAR;
-            case "feedrate z", "avanco z" -> "Velocidade de mergulho no eixo Z. Informe um valor positivo adequado à ferramenta e ao material." + FEED;
-            case "feed rate", "avanco xy" -> "Velocidade de corte no plano X-Y. O avanço de mergulho e os rápidos podem ter ajustes próprios." + FEED;
-            case "spindle rpm" -> "Rotação do spindle em RPM. Zero não comanda a rotação nos perfis que permitem isso; uma sequência de troca ainda pode emitir M5 para parar antes da pausa. Mach3 com sonda exige rotação positiva.";
-            case "potencia s/pwm" -> "Valor inteiro S/PWM usado pelo perfil selecionado; não é necessariamente RPM. O intervalo permitido depende do pós-processador.";
-            case "dwell" -> "Ativa uma espera após ligar o spindle para permitir que alcance a rotação configurada. O valor ao lado é o tempo em segundos.";
-            case "offset z" -> "Compensação da ponta da broca: positivo aumenta a profundidade; negativo reduz. O corte resultante deve continuar abaixo da superfície." + LINEAR;
-            case "tool change", "troca de ferramenta (conforme perfil)" -> "Ativa a sequência de troca de ferramenta compatível com o pós-processador. A troca manual pausa o programa; os perfis com sonda têm uma sequência própria.";
-            case "tool change z", "z de troca de ferramenta" -> "Altura para trocar a ferramenta, em relação à referência Z. Em Drilling e Geometry CNC sem sonda, deve ser pelo menos o maior Travel Z das ferramentas selecionadas, mesmo sem posição XY de troca. Confira a peça e suas fixações." + LINEAR;
-            case "end move z" -> "Altura Z final do programa. O movimento X-Y final, quando informado, acontece nessa altura: confirme que está livre de obstáculos." + LINEAR;
-            case "end move x,y", "xy de troca", "troca x,y" -> "Informe None para não deslocar em X-Y, ou duas coordenadas separadas por ponto e vírgula, por exemplo 10;20. Confirme que o percurso está livre." + LINEAR;
-            case "probe z final (< 0)" -> "Limite Z negativo para procurar contato com G31.\n\nAtenção: confirme o sensor, a origem e o curso disponível antes de executar." + LINEAR;
-            case "probe feed" -> "Avanço positivo usado ao procurar contato com a sonda. Use um valor compatível com o sensor e a máquina." + FEED;
-            case "contact z / placa" -> "Coordenada Z conhecida da superfície de contato, incluindo a espessura da placa de sondagem conforme a referência adotada." + LINEAR;
-            case "troca x,y (opcional)" -> "Posição para a troca e a sondagem. None mantém X-Y; para deslocar, informe X;Y. Revise o percurso e a macro M6 da máquina." + LINEAR;
-            case "v-tip dia", "tip diameter", "diametro da ponta" -> "Diâmetro da ponta da ferramenta V, não da largura de corte na profundidade escolhida." + LINEAR;
-            case "v-tip angle (graus)", "tip angle" -> "Ângulo total da ponta V, em graus, maior que 0 e menor que 180. Junto com a ponta e a profundidade, determina a largura de corte.";
-            case "search and add" -> "Busca na Tools Database pelo diâmetro e pela operação. Um único resultado compatível transfere os parâmetros suportados; sem correspondência, usa os valores padrão.";
-            case "pick from db", "escolher da base" -> "Escolhe uma ferramenta explicitamente na Tools Database. Confira o diâmetro, o tipo e os parâmetros transferidos antes de gerar.";
-            case "optimal" -> "Calcula em segundo plano a menor distância entre regiões de cobre para sugerir um diâmetro que caiba entre elas. Não define automaticamente avanço ou profundidade.";
-            case "apply parameters to all tools", "aplicar parametros a todas as ferramentas" -> "Copia os parâmetros da ferramenta selecionada para todas as ferramentas da tabela. Revise os valores por ferramenta antes de gerar.";
-            case "reset tool" -> "Restaura os parâmetros iniciais do painel; não apaga os objetos já gerados no projeto.";
-            case "solid", "solido" -> "Preenche as formas no desenho; desmarque para visualizar somente seus contornos. Não modifica os dados CAM.";
-            case "multi-color", "multicor" -> "Diferencia aberturas ou ferramentas por cores no desenho. Não altera o objeto nem o G-code.";
-            case "display annotation", "exibir anotacoes" -> "Mostra os números dos movimentos do CNC Job no desenho para localizar trechos do programa.";
-            case "display direction arrows", "exibir sentido dos movimentos" -> "Mostra o sentido dos movimentos do CNC Job. É apenas uma ajuda visual; não inverte os caminhos.";
-            case "boundary margin" -> "Margem acrescentada à caixa ao redor do objeto para gerar a área auxiliar." + LINEAR;
-            case "scale", "escala", "escalar" -> "Multiplica todas as coordenadas e dimensões pelo fator informado. 1 mantém o tamanho; 2 dobra o tamanho.";
-            case "offset x", "deslocamento x", "deslocar x" -> "Translada o objeto pelo deslocamento X informado; não é compensação do raio da ferramenta." + LINEAR;
+            case "connect", "conectar caminhos" -> I18n.text("ui.e118b0da1cdf");
+            case "contour", "contorno" -> I18n.text("ui.dd089b7e79e7");
+            case "rest", "rest machining" -> I18n.text("ui.ee5e6c23aef0");
+            case "tool order", "ordem" -> I18n.text("ui.d22fd9511bb4");
+            case "check validity", "verificar validade dos diametros" -> I18n.text("ui.5a756dcbcbb6");
+            case "combine" -> I18n.text("ui.51eec4336df5");
+            case "multi-depth" -> I18n.text("ui.0d20ffdbcfcc");
+            case "cut z", "cut z (nao v)" -> I18n.text("ui.f9bdd0393884") + LINEAR;
+            case "travel z", "z de deslocamento" -> I18n.text("ui.dc3ffee94380") + LINEAR;
+            case "focus/end z" -> I18n.text("ui.c5cedf78c41e") + LINEAR;
+            case "feedrate z", "avanco z" -> I18n.text("ui.f6e1cad50dcc") + FEED;
+            case "feed rate", "avanco xy" -> I18n.text("ui.5d82bb7fdc0d") + FEED;
+            case "spindle rpm" -> I18n.text("ui.4a1f713ddacb");
+            case "potencia s/pwm" -> I18n.text("ui.203a95b2695c");
+            case "dwell" -> I18n.text("ui.4dc0ad534d81");
+            case "offset z" -> I18n.text("ui.03ee6b58a9e1") + LINEAR;
+            case "tool change", "troca de ferramenta (conforme perfil)" -> I18n.text("ui.785425641416");
+            case "tool change z", "z de troca de ferramenta" -> I18n.text("ui.91ccd63a71eb") + LINEAR;
+            case "end move z" -> I18n.text("ui.01e9b9ebc3e1") + LINEAR;
+            case "end move x,y", "xy de troca", "troca x,y" -> I18n.text("ui.d7b5370b513a") + LINEAR;
+            case "probe z final (< 0)" -> I18n.text("ui.d90372d2a658") + LINEAR;
+            case "probe feed" -> I18n.text("ui.b813f6af443f") + FEED;
+            case "contact z / placa" -> I18n.text("ui.7ac40cf21a38") + LINEAR;
+            case "troca x,y (opcional)" -> I18n.text("ui.041770004fa0") + LINEAR;
+            case "v-tip dia", "tip diameter", "diametro da ponta" -> I18n.text("ui.8960a1f464af") + LINEAR;
+            case "v-tip angle (graus)", "tip angle" -> I18n.text("ui.7d107a31029d");
+            case "search and add" -> I18n.text("ui.d00ced7068bd");
+            case "pick from db", "escolher da base" -> I18n.text("ui.003dcc4efcc7");
+            case "optimal" -> I18n.text("ui.c63d5e901969");
+            case "apply parameters to all tools", "aplicar parametros a todas as ferramentas" -> I18n.text("ui.263308029a5e");
+            case "reset tool" -> I18n.text("ui.c494dda8fb44");
+            case "solid", "solido" -> I18n.text("ui.f4d2e8d05a99");
+            case "multi-color", "multicor" -> I18n.text("ui.689e677b09ba");
+            case "display annotation", "exibir anotacoes" -> I18n.text("ui.e249cee220d4");
+            case "display direction arrows", "exibir sentido dos movimentos" -> I18n.text("ui.92d9b4392453");
+            case "boundary margin" -> I18n.text("ui.bb59dff2e0f8") + LINEAR;
+            case "scale", "escala", "escalar" -> I18n.text("ui.abf69650ee82");
+            case "offset x", "deslocamento x", "deslocar x" -> I18n.text("ui.ff163904e0e7") + LINEAR;
             default -> PanelHelpCatalog.help(context, name);
         };
     }
 
     private static String contextual(String context, String name) {
         if (context.equals("Geometry CNC Job") && name.equals("multi-depth"))
-            return "Divide a profundidade total em passes limitados pelo valor ao lado. Escolha a estratégia: retração com mesma direção ou contínuo alternado. Contínuo inverte a orientação, inclusive em LineStrings fechados; não é apropriado automaticamente para toda fresa/material.";
+            return I18n.text("ui.4b26bfb73b97");
         if (List.of("NCC Tool", "Paint Tool").contains(context)) {
             switch (name) {
-                case "method", "metodo" : return "Método de preenchimento:\nStandard = passos para dentro.\nSeed = expansão de uma semente.\nLines = linhas paralelas.\nCombo = tenta métodos alternativos.";
+                case "method", "metodo" : return I18n.text("ui.f1e1a3617f23");
                 case "margin (comum)", "margin", "margem" : return context.equals("NCC Tool")
-                        ? "Margem da caixa usada como limite da limpeza. Não é Offset: o afastamento das trilhas é configurado separadamente." + LINEAR
-                        : "Margem individual entre o preenchimento e a borda do polígono. Positiva contrai a área; negativa expande.\n\nAtenção: valores negativos podem criar caminhos fora do contorno original." + LINEAR;
-                case "offset", "copper offset" : return "Ativa uma distância adicional de proteção ao redor das trilhas e pads durante a limpeza. Habilita o valor de Offset.";
-                case "selection" : return "Itself = caixa da origem.\nÁrea = área desenhada no plot.\nReference = limite dado por outro objeto.\n\nDefine onde a limpeza pode ocorrer, sem trocar o cobre de origem.";
-                case "operation" : return "Clear remove o cobre fora do circuito.\nIsolation cria caminhos ao redor das trilhas antes da limpeza.\n\nA operação é configurada por ferramenta.";
-                case "milling type" : return "Climb = fresagem concordante.\nConventional = fresagem discordante.\n\nNo NCC, essa escolha se aplica à operação Isolation.";
+                        ? I18n.text("ui.b9c15c9a9358") + LINEAR
+                        : I18n.text("ui.fab7aa889bcb") + LINEAR;
+                case "offset", "copper offset" : return I18n.text("ui.bd769a9b9060");
+                case "selection" : return I18n.text("ui.c0dc07fd4dd3");
+                case "operation" : return I18n.text("ui.be87706fb56a");
+                case "milling type" : return I18n.text("ui.69fd75d1132d");
             }
         }
         if (context.equals("Isolation Tool")) {
             switch (name) {
-                case "isolation type" : return "Both = bordas externas e internas.\nExterior = apenas externas.\nInterior = apenas bordas das aberturas internas.";
-                case "excluir area" : return "Retira dos caminhos de isolamento a área preenchida da Geometry selecionada. Escolha Nenhuma para não usar um objeto de exceção.";
-                case "follow" : return "Segue o centro das trilhas em vez de isolar suas bordas; usa somente uma ferramenta.\n\nAtenção: esse modo corta sobre a trilha.";
-                case "desenhar retangulo de excecao", "desenhar poligono de excecao" : return "Desenhe no plot a região onde os caminhos de isolamento serão suprimidos. A área desenhada é uma exceção adicional à Geometry escolhida.";
+                case "isolation type" : return I18n.text("ui.2860353558e0");
+                case "excluir area" : return I18n.text("ui.1de3b2940ea0");
+                case "follow" : return I18n.text("ui.11cb97544ccc");
+                case "desenhar retangulo de excecao", "desenhar poligono de excecao" : return I18n.text("ui.ce5f1f7ee6d6");
             }
         }
         if (context.equals("Cutout Tool")) {
             return switch (name) {
-                case "kind" -> "Single processa uma placa.\nPanel processa os componentes da origem como placas separadas, preservando pontes em cada uma.";
-                case "convex shape" -> "Usa um contorno convexo que envolve a placa, sem acompanhar suas reentrâncias.";
-                case "margin" -> "Margem em relação ao limite da placa. Um valor positivo afasta o caminho de corte da borda original." + LINEAR;
-                case "gap size" -> "Largura das pontes que mantêm a placa presa ao material durante o corte." + LINEAR;
-                case "gaps" -> "None = sem pontes.\nLR/TB = esquerda-direita/superior-inferior.\n4 = uma por lado.\n2LR/2TB = duas nos lados indicados.\n8 = duas por lado.";
-                case "tipo de gap" -> "Bridge interrompe o corte.\nThin cria uma Geometry adicional com Thin Depth para afinar as pontes; gere seu CNC Job separadamente.\nM-Bites cria um Excellon de furos nas pontes; configure sua furação depois.";
-                case "cut z" -> "Z negativo do recorte completo, salvo na Geometry gerada. Exemplo: -1,7. Revise a espessura da placa e a entrada no material de sacrifício." + LINEAR;
-                case "thin depth" -> "Z negativo da Geometry das pontes, mais raso que Cut Z. Exemplo: recorte -1,7 e Thin Depth -0,5. Só se aplica ao tipo Thin; gere os dois CNC Jobs separadamente." + LINEAR;
-                case "m-bites dia" -> "Diâmetro dos furos Mouse Bites. Aplicado somente ao tipo M-Bites." + LINEAR;
-                case "m-bites spacing" -> "Espaço entre as bordas dos furos Mouse Bites. O passo entre centros é o diâmetro mais esse valor." + LINEAR;
-                case "adicionar gap por retangulo", "adicionar gap por poligono" -> "Desenhe uma região no plot para abrir uma ponte manual onde ela cruza o caminho de corte.\n\nAtenção: se existir qualquer gap manual, ele substitui o padrão automático; sua largura depende da região desenhada. Limpar gaps manuais volta ao padrão automático.";
+                case "kind" -> I18n.text("ui.cf2d82536de7");
+                case "convex shape" -> I18n.text("ui.1aa0f032c351");
+                case "margin" -> I18n.text("ui.a784fc5e1345") + LINEAR;
+                case "gap size" -> I18n.text("ui.e153bbf0f21e") + LINEAR;
+                case "gaps" -> I18n.text("ui.2002c78dd5d8");
+                case "tipo de gap" -> I18n.text("ui.b857c52a46ea");
+                case "cut z" -> I18n.text("ui.d3ca7681ff0d") + LINEAR;
+                case "thin depth" -> I18n.text("ui.7f1ec33d4658") + LINEAR;
+                case "m-bites dia" -> I18n.text("ui.f71d028c7cb5") + LINEAR;
+                case "m-bites spacing" -> I18n.text("ui.2e649de459f4") + LINEAR;
+                case "adicionar gap por retangulo", "adicionar gap por poligono" -> I18n.text("ui.669b706abacc");
                 default -> null;
             };
         }
         if (context.equals("Transform Tool")) {
             return switch (name) {
-                case "angle" -> "Ângulo de rotação em graus. Positivo = horário; negativo = anti-horário. A transformação usa a referência escolhida.";
-                case "angle x", "angle y" -> "Ângulo de inclinação no eixo indicado, em graus, relativo à referência escolhida.";
-                case "factor x", "factor y" -> "Fator de escala no eixo indicado. 1 mantém o tamanho. Link aplica o mesmo fator nos dois eixos.";
-                case "value x", "value y" -> "Deslocamento das coordenadas no eixo indicado. Positivo e negativo movem em sentidos opostos." + LINEAR;
-                case "link" -> "Usa o mesmo valor nos dois eixos para a transformação desta seção.";
+                case "angle" -> I18n.text("ui.137105ed53a8");
+                case "angle x", "angle y" -> I18n.text("ui.a8ecb31dff59");
+                case "factor x", "factor y" -> I18n.text("ui.00c9ede8c4ac");
+                case "value x", "value y" -> I18n.text("ui.26cd317f9e31") + LINEAR;
+                case "link" -> I18n.text("ui.269a72f32deb");
                 default -> null;
             };
         }
         if (context.equals("Preferências")) {
             return switch (name) {
-                case "tema" -> "Seleciona Branco puro, Preto puro, Branco gelo ou Preto gelo. Branco puro é o padrão inicial. Aplicar salva a escolha; não modifica o projeto nem os dados CAM.";
-                case "passo x", "passo y" -> "Distância positiva entre posições do snap neste eixo. O passo Y é ignorado quando os eixos estão vinculados." + LINEAR;
-                case "ativar snap na grade" -> "Ajusta cliques e desenhos aos pontos da grade. Pode permanecer ativo mesmo com a grade visual oculta.";
-                case "usar passo x tambem em y" -> "Vincula os dois eixos ao passo X; o campo Y fica desabilitado enquanto essa opção estiver ativa.";
-                case "mostrar hud de coordenadas" -> "Mostra no plot as coordenadas absolutas e o deslocamento do cursor. Não modifica a origem da peça.";
-                case "mostrar area a4" -> "Exibe uma referência visual do tamanho de uma folha A4. Não limita a usinagem nem muda a escala do objeto.";
+                case "tema" -> I18n.text("ui.20f84da739ba");
+                case "passo x", "passo y" -> I18n.text("ui.4c021678cad6") + LINEAR;
+                case "ativar snap na grade" -> I18n.text("ui.9bc5c6ee8750");
+                case "usar passo x tambem em y" -> I18n.text("ui.910a65ecc56d");
+                case "mostrar hud de coordenadas" -> I18n.text("ui.9442e92cf350");
+                case "mostrar area a4" -> I18n.text("ui.3ea733c6ed68");
                 default -> null;
             };
         }
         if (context.startsWith("Exportar ")) {
             return switch (name) {
-                case "unidades" -> "Converte as coordenadas para MM (milímetros) ou IN (polegadas) no arquivo exportado. O objeto no projeto não é alterado.";
-                case "digitos inteiros" -> "Quantidade de dígitos antes do ponto implícito. Deve comportar a maior coordenada do trabalho. Em Excellon decimal, não é utilizada.";
-                case "digitos decimais" -> "Quantidade de casas decimais das coordenadas exportadas. Mais casas aumentam a precisão numérica, não a precisão física da máquina.";
+                case "unidades" -> I18n.text("ui.57f8e10d16ad");
+                case "digitos inteiros" -> I18n.text("ui.0215460711ca");
+                case "digitos decimais" -> I18n.text("ui.41be4ff42d58");
                 case "zeros" -> context.equals("Exportar Gerber")
-                        ? "L omite zeros à esquerda; T omite à direita. O formato declarado no Gerber permite reconstruir o ponto decimal."
-                        : "LZ mantém zeros à esquerda; TZ mantém à direita. Aplica-se somente ao formato sem ponto decimal.\n\nAtenção: a convenção Excellon difere de L/T do Gerber.";
-                case "formato" -> "Decimal grava o ponto explicitamente. Sem ponto decimal exige a configuração de dígitos e zeros para interpretar as coordenadas.";
-                case "slots" -> "Roteado representa slots com G00/M15/G01/M16. Furado usa o ciclo G85. Escolha o formato aceito pelo software que lerá o arquivo.";
+                        ? I18n.text("ui.6b1165b1804d")
+                        : I18n.text("ui.ba98fc666b44");
+                case "formato" -> I18n.text("ui.896aea2964e5");
+                case "slots" -> I18n.text("ui.8185359a4e03");
                 default -> null;
             };
         }
         if (context.equals("Layer Color")) {
             return switch (name) {
-                case "cor" -> "Cor de preenchimento do objeto no plot; o contorno é derivado dessa cor. Não modifica Gerber, Geometry ou G-code.";
-                case "opacidade" -> "0% = totalmente transparente; 100% = opaco. É apenas uma configuração de visualização.";
+                case "cor" -> I18n.text("ui.7dab125ea378");
+                case "opacidade" -> I18n.text("ui.ae3b269ff29d");
                 default -> null;
             };
         }
@@ -338,91 +358,91 @@ final class PanelTooltips {
 
     private static String secondary(String context, String name) {
         if (context.equals("Panelize Tool")) return switch (name) {
-            case "colunas", "linhas" -> "Quantidade inteira de cópias neste eixo, maior que zero. O total é colunas × linhas.";
-            case "espacamento colunas", "espacamento linhas" -> "Espaço entre as caixas das cópias, não a distância entre suas origens." + LINEAR;
-            case "largura", "altura" -> "Tamanho máximo do painel. Quando o limite está ativo, a quantidade de linhas e colunas é reduzida para caber." + LINEAR;
+            case "colunas", "linhas" -> I18n.text("ui.988650ae48d4");
+            case "espacamento colunas", "espacamento linhas" -> I18n.text("ui.6fe0c601e0f2") + LINEAR;
+            case "largura", "altura" -> I18n.text("ui.2ff9d207571f") + LINEAR;
             default -> null;
         };
         if (context.equals("Film Tool")) return switch (name) {
-            case "dpi (png)" -> "Resolução do PNG em pontos por polegada. Mais DPI produz uma imagem maior; SVG e PDF mantêm a geometria vetorial.";
-            case "borda (negativo)" -> "Margem externa da moldura do filme negativo, aplicada na unidade do objeto." + LINEAR;
-            case "espessura do traco" -> "Espessura usada para representar caminhos no filme exportado. Não muda a largura do cobre no projeto." + LINEAR;
-            case "pagina (pdf)" -> "Define a folha do PDF. Revise a orientação e a escala no programa de impressão para preservar as dimensões da placa.";
-            case "referencia" -> "Ponto de referência usado para inclinar o filme. Afeta a posição após a transformação, não apenas o ângulo.";
+            case "dpi (png)" -> I18n.text("ui.686da55c093e");
+            case "borda (negativo)" -> I18n.text("ui.a4a28c7edd4b") + LINEAR;
+            case "espessura do traco" -> I18n.text("ui.5058f29a20d3") + LINEAR;
+            case "pagina (pdf)" -> I18n.text("ui.8b6df7eabd30");
+            case "referencia" -> I18n.text("ui.a61b5c516a4a");
             default -> null;
         };
         if (context.equals("QRCode Tool")) return switch (name) {
-            case "tamanho da caixa" -> "Tamanho inteiro de cada módulo em décimos da unidade do objeto. Exemplo: 10 corresponde a um módulo de 1 mm em um objeto MM. A dimensão total também depende da versão e da borda.";
-            case "versao (1-40)" -> "Versão mínima do QR Code. Versões maiores têm mais módulos; o código pode crescer automaticamente para comportar os dados.";
-            case "borda (modulos)" -> "Quantidade de módulos da margem livre ao redor do código, para separá-lo dos elementos próximos e facilitar a leitura.";
-            case "correcao de erro" -> "L, M, Q e H permitem níveis crescentes de recuperação de dados danificados. Mais correção pode aumentar o tamanho do código.";
-            case "polaridade" -> "Positivo adiciona cobre nos módulos do QR Code. Negativo retira os módulos de uma região preenchida.";
+            case "tamanho da caixa" -> I18n.text("ui.f8c09afdaa53");
+            case "versao (1-40)" -> I18n.text("ui.13ca79a66b25");
+            case "borda (modulos)" -> I18n.text("ui.0fdf2fbd0630");
+            case "correcao de erro" -> I18n.text("ui.f70dc3a27ddc");
+            case "polaridade" -> I18n.text("ui.817a406a2107");
             default -> null;
         };
         if (context.equals("Extract Drills Tool") || context.equals("Punch Gerber Tool")) return switch (name) {
-            case "diametro fixo" -> "Diâmetro comum para os furos criados nos pads escolhidos. Confira se cabe no menor pad." + LINEAR;
-            case "proporcao (%)" -> "Diâmetro do furo como porcentagem da dimensão do pad. Aplica-se ao modo proporcional.";
-            case "anel - circular", "anel - oblongo", "anel - quadrado", "anel - retangular", "anel - outros" -> "Largura do anel de cobre a preservar ao redor do furo, para este tipo de pad. Aplica-se ao modo por anel." + LINEAR;
+            case "diametro fixo" -> I18n.text("ui.e26c7731342b") + LINEAR;
+            case "proporcao (%)" -> I18n.text("ui.22b14867f83e");
+            case "anel - circular", "anel - oblongo", "anel - quadrado", "anel - retangular", "anel - outros" -> I18n.text("ui.28dfcb56ff82") + LINEAR;
             default -> null;
         };
         if (context.equals("Calculators")) return switch (name) {
-            case "cut z" -> "Profundidade abaixo da superfície, usada com a ponta e o ângulo V para calcular a largura efetiva de corte. Aceita a magnitude ou Z negativo." + LINEAR;
-            case "tool diameter" -> "Largura efetiva de corte da ferramenta V na profundidade Cut Z, calculada pela ponta e pelo ângulo." + LINEAR;
-            case "board length", "board width" -> "Dimensão da placa em centímetros, usada para calcular sua área. Não utiliza a unidade atual do projeto.";
-            case "area" -> "Área para a calculadora de galvanoplastia, em cm².";
-            case "current density (asf)" -> "Densidade de corrente em amperes por pé quadrado (ASF), usada para estimar corrente e tempo.";
-            case "copper growth (µm)" -> "Espessura de cobre a depositar em micrômetros, usada para estimar o tempo.";
-            case "current (a)" -> "Corrente calculada, em amperes, a partir da área e da densidade escolhidas.";
-            case "time (min)" -> "Tempo estimado de deposição em minutos. É uma estimativa do modelo, não uma medição do processo.";
+            case "cut z" -> I18n.text("ui.438e6e0f7cbe") + LINEAR;
+            case "tool diameter" -> I18n.text("ui.6908e296c590") + LINEAR;
+            case "board length", "board width" -> I18n.text("ui.6d7dbdadbbfa");
+            case "area" -> I18n.text("ui.63d63819cdf1");
+            case "current density (asf)" -> I18n.text("ui.0596138aeb7d");
+            case "copper growth (µm)" -> I18n.text("ui.319f48939af2");
+            case "current (a)" -> I18n.text("ui.c4737c34a069");
+            case "time (min)" -> I18n.text("ui.9710a4b7e7cd");
             default -> null;
         };
         if (context.equals("Etch Compensation Tool")) return switch (name) {
-            case "espessura do cobre (um)", "deslocamento (um)" -> "Valor em micrômetros, não na unidade do projeto. Define a espessura ou a compensação lateral conforme o método selecionado.";
-            case "fator" -> "Fator de corrosão usado com a espessura do cobre para calcular a compensação lateral. Não é fator de escala do desenho.";
+            case "espessura do cobre (um)", "deslocamento (um)" -> I18n.text("ui.85339b5bcafb");
+            case "fator" -> I18n.text("ui.ce5dd3bb5a57");
             default -> null;
         };
         if (context.equals("Optimal Tool") && name.equals("precisao (casas)"))
-            return "Casas decimais usadas para agrupar distâncias iguais no relatório. Não melhora a precisão do Gerber original.";
+            return I18n.text("ui.dc10d84e88fe");
         if (context.equals("Copper Thieving Tool") && name.equals("area minima"))
-            return "Ignora regiões vazias menores que este valor de área.\n\nUnidades: unidade do objeto ao quadrado (mm² ou in²).";
+            return I18n.text("ui.f5047733c3e6");
         if (context.equals("Align Objects Tool") && name.equals("tipo"))
-            return "Um ponto aplica apenas translação. Dois pontos também corrigem a rotação. Clique em pontos correspondentes na origem e na referência.";
+            return I18n.text("ui.12a1b2532b74");
         if (context.equals("Fiducials Tool")) return switch (name) {
-            case "tamanho" -> "Dimensão da marca de alinhamento. As aberturas geradas na máscara de solda têm o dobro desse tamanho." + LINEAR;
-            case "margem (auto)" -> "Distância das marcas automáticas em relação à caixa do objeto. Não se aplica aos pontos posicionados manualmente." + LINEAR;
-            case "espessura (cruz)" -> "Largura dos braços de uma marca em cruz. Não altera o tamanho das marcas circulares." + LINEAR;
+            case "tamanho" -> I18n.text("ui.4394a22b898b") + LINEAR;
+            case "margem (auto)" -> I18n.text("ui.d8262d718585") + LINEAR;
+            case "espessura (cruz)" -> I18n.text("ui.eebae22479eb") + LINEAR;
             default -> null;
         };
         if (context.equals("Corner Markers Tool")) return switch (name) {
-            case "espessura" -> "Largura dos traços dos marcadores de canto." + LINEAR;
-            case "comprimento" -> "Comprimento dos braços dos marcadores L ou cruz." + LINEAR;
-            case "margem" -> "Distância dos marcadores em relação à caixa delimitadora do Gerber." + LINEAR;
+            case "espessura" -> I18n.text("ui.ca008894cb7f") + LINEAR;
+            case "comprimento" -> I18n.text("ui.83c1f058f544") + LINEAR;
+            case "margem" -> I18n.text("ui.501d1c1a18e9") + LINEAR;
             default -> null;
         };
         if (context.equals("SolderPaste Tool")) return switch (name) {
-            case "z inicio da dispensa" -> "Altura para iniciar a aplicação da pasta antes do movimento de dispensa." + LINEAR;
-            case "z dispensa" -> "Altura do bico enquanto aplica a pasta. Não é profundidade de fresagem." + LINEAR;
-            case "z parada" -> "Altura usada ao encerrar a aplicação da pasta." + LINEAR;
-            case "z deslocamento", "z troca de bico" -> "Altura livre para deslocar ou trocar o bico. Confira a peça e suas fixações." + LINEAR;
-            case "x,y troca de bico" -> "Posição de troca do bico como duas coordenadas X,Y. Confira se a máquina pode alcançá-la com segurança." + LINEAR;
-            case "avanco z dispensa" -> "Velocidade do movimento Z durante a aplicação da pasta." + FEED;
-            case "velocidade frente (rpm)", "velocidade reversa (rpm)" -> "Rotação do mecanismo de dispensa no sentido indicado, em RPM. A reversão ajuda a interromper o fluxo de pasta.";
-            case "espera frente (s)", "espera reversa (s)" -> "Tempo de espera com o mecanismo de dispensa no sentido indicado, em segundos.";
+            case "z inicio da dispensa" -> I18n.text("ui.3808deb2c5f8") + LINEAR;
+            case "z dispensa" -> I18n.text("ui.ed8faf1619bd") + LINEAR;
+            case "z parada" -> I18n.text("ui.022ec261bee7") + LINEAR;
+            case "z deslocamento", "z troca de bico" -> I18n.text("ui.dda0b3ab6375") + LINEAR;
+            case "x,y troca de bico" -> I18n.text("ui.ef790b7b7aad") + LINEAR;
+            case "avanco z dispensa" -> I18n.text("ui.42eb22956f37") + FEED;
+            case "velocidade frente (rpm)", "velocidade reversa (rpm)" -> I18n.text("ui.14b80e57bd98");
+            case "espera frente (s)", "espera reversa (s)" -> I18n.text("ui.ef98d4ba28d6");
             default -> null;
         };
         if (context.equals("Calibration Tool")) return switch (name) {
-            case "z de verificacao" -> "Coordenada Z nos pontos de verificação. Revise a superfície e a origem antes de executar o programa." + LINEAR;
-            case "escala x", "escala y" -> "Fator de correção calculado a partir dos desvios medidos. A escala é aplicada pela origem antes da inclinação.";
-            case "inclinacao x", "inclinacao y" -> "Correção angular calculada a partir dos desvios medidos, em graus. É aplicada após a escala.";
-            case "zerar z antes" -> "Insere a redefinição da referência Z no início do programa de verificação.\n\nAtenção: confira a posição física da ferramenta antes de executar.";
+            case "z de verificacao" -> I18n.text("ui.e1b71b807c5d") + LINEAR;
+            case "escala x", "escala y" -> I18n.text("ui.8018deac272c");
+            case "inclinacao x", "inclinacao y" -> I18n.text("ui.d37535f5926d");
+            case "zerar z antes" -> I18n.text("ui.1903c2e66213");
             default -> null;
         };
         if (context.equals("Milling Tool") && name.startsWith("tool diameter ("))
-            return "Diâmetro da fresa usada para abrir furos ou slots maiores. Não pode exceder o diâmetro da ferramenta Excellon selecionada. Gera uma Geometry; a profundidade e o avanço são configurados depois, no CNC Job." + LINEAR;
+            return I18n.text("ui.7023f4980a16") + LINEAR;
         if (context.equals("Editor Geometry")) {
             String geometryHelp = switch (name) {
-                case "fonte" -> "Fonte instalada usada para criar contornos vetoriais. Letras viram polígonos editáveis com seus vazios preservados. Fontes ausentes ou caracteres não suportados são recusados.";
-                case "tamanho" -> "Escala do tamanho da fonte, de 0.1 a 1000; não é a altura exata da letra. MM/IN usam a escala do ParseFont Python, mas as métricas podem diferir. Confira as dimensões na prévia.";
+                case "fonte" -> I18n.text("ui.d17246b0329f");
+                case "tamanho" -> I18n.text("ui.8ded6d60485b");
                 case "buffer", "criar buffer arredondado" -> GeometryEditorDescriptions.of("buffer").text();
                 default -> null;
             };
@@ -434,16 +454,16 @@ final class PanelTooltips {
 
     private static String editor(String name) {
         return switch (name) {
-            case "buffer selecionadas", "buffer" -> "Expande as formas pela distância informada; valores negativos contraem. O tipo de junção determina o desenho dos cantos." + LINEAR;
-            case "poligonizar selecionadas", "poligonizar" -> "Reconstrói polígonos a partir dos contornos selecionados. Caminhos abertos ou sem fechamento válido podem não formar um polígono.";
-            case "simplificar selecionadas", "simplificar" -> "Reduz vértices usando a tolerância informada. Uma tolerância maior pode remover detalhes: confira o resultado antes de aplicar ao objeto.";
-            case "fator" -> "Fator de escala das formas selecionadas. 1 mantém o tamanho; 2 dobra o tamanho.";
-            case "distancia", "tolerancia" -> "Distância para expansão/contração ou tolerância da operação indicada. Revise os detalhes pequenos após a transformação." + LINEAR;
-            case "vertices" -> "Quantidade inteira de lados da abertura poligonal, no mínimo três. Aplica-se a aberturas do tipo P.";
-            case "rotacao", "angulo inicial", "passo angular" -> "Ângulo em graus usado pela abertura ou pelo array indicado. Não usa a unidade linear do objeto.";
-            case "passo/raio" -> "Array linear: espaçamento entre cópias. Array circular: raio em torno do centro X-Y." + LINEAR;
-            case "novo diametro" -> "Diâmetro aplicado às ferramentas dos furos ou slots selecionados. O posicionamento é preservado." + LINEAR;
-            case "passo x / y" -> "Distância entre centros de cópias do array nos eixos X e Y." + LINEAR;
+            case "buffer selecionadas", "buffer" -> I18n.text("ui.6a47efa6694c") + LINEAR;
+            case "poligonizar selecionadas", "poligonizar" -> I18n.text("ui.090933a127bb");
+            case "simplificar selecionadas", "simplificar" -> I18n.text("ui.3d2a54050498");
+            case "fator" -> I18n.text("ui.327ac3d04cad");
+            case "distancia", "tolerancia" -> I18n.text("ui.d5cc74bc2b81") + LINEAR;
+            case "vertices" -> I18n.text("ui.5228a314e369");
+            case "rotacao", "angulo inicial", "passo angular" -> I18n.text("ui.25d4948929b3");
+            case "passo/raio" -> I18n.text("ui.17f4b57d2f30") + LINEAR;
+            case "novo diametro" -> I18n.text("ui.a0467692519f") + LINEAR;
+            case "passo x / y" -> I18n.text("ui.57352386d232") + LINEAR;
             default -> null;
         };
     }

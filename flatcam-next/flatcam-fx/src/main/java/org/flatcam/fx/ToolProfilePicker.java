@@ -52,22 +52,21 @@ final class ToolProfilePicker {
 
     static String description(ToolProfile profile) {
         return switch (profile) {
-            case C1 -> "Fresa plana · 1 dente";
-            case C2 -> "Fresa plana · 2 dentes";
-            case C3 -> "Fresa plana · 3 dentes";
-            case C4 -> "Fresa plana · 4 dentes";
-            case B -> "Fresa esférica";
-            case V -> "Fresa em V";
+            case C1 -> I18n.text("ui.f5085accfd4b");
+            case C2 -> I18n.text("ui.f77e9f00cee3");
+            case C3 -> I18n.text("ui.4242d1f815a0");
+            case C4 -> I18n.text("ui.4370b8104a9c");
+            case B -> I18n.text("ui.5040372c7260");
+            case V -> I18n.text("ui.70f830fb105f");
         };
     }
 
     private static void updateHelp(ComboBox<ToolProfile> choice, ToolProfile profile) {
-        String title = profile == null ? "Tipo de fresa" : profile.name() + " — " + description(profile);
-        String text = profile == null ? "Escolha o tipo de fresa."
+        String title = profile == null ? I18n.text("ui.2a93896585c1") : profile.name() + " — " + description(profile);
+        String text = profile == null ? I18n.text("ui.38340108c894")
                 : profile == ToolProfile.V
-                ? "Ponta em V. Configure V-Tip Dia e Angle no CNC Job. Desenho esquemático, sem escala."
-                : "Tipo informativo neste painel. C1–C4: a vista da ponta indica o número de dentes. "
-                        + "Desenho esquemático, sem escala; o perfil não altera o cálculo de isolamento.";
+                ? I18n.text("ui.aac477b68304")
+                : I18n.text("ui.1ce6bb3cc42c");
         // The window's FluidTooltips consumes these properties; avoid a second native popup.
         choice.setTooltip(null);
         ToolDescriptions.apply(choice.getProperties(), title, text);

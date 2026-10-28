@@ -57,9 +57,7 @@ final class TransformToolPanel {
         referenceCombo.setId("transform-reference");
         referenceCombo.getItems().addAll("Origin", "Selection", "Point", "Object");
         referenceCombo.setTooltip(tooltip(
-                "Origin: ponto (0, 0).\n"
-                + "Selection: centro da caixa delimitadora combinada dos objetos selecionados.\n"
-                + "Point: coordenada digitada abaixo.\nObject: centro da caixa do objeto escolhido, sem altera-lo se não estiver selecionado."));
+                I18n.text("ui.32c69353fa94")));
         ComboBox<TreeItem<String>> referenceObject = new ComboBox<>(); referenceObject.setId("transform-object");
         referenceObject.setConverter(new javafx.util.StringConverter<>() {
             public String toString(TreeItem<String> item) { return item == null ? "" : item.getValue(); }
@@ -73,13 +71,13 @@ final class TransformToolPanel {
         });
         referenceObject.visibleProperty().bind(referenceCombo.valueProperty().isEqualTo("Object"));
         referenceObject.managedProperty().bind(referenceObject.visibleProperty());
-        ToolDescriptions.apply(referenceObject, "Objeto de referência",
-                "Usa o centro da caixa deste objeto como ponto fixo da transformação quando a referência é Object.\n\nReferência: escolher um objeto aqui não o seleciona para transformar; os alvos continuam sendo os objetos selecionados na árvore.");
+        ToolDescriptions.apply(referenceObject, I18n.text("ui.a8e4c7c07fd3"),
+                I18n.text("ui.514fbb789a51"));
 
         TextField pointXField = new TextField("0.0");
         TextField pointYField = new TextField("0.0");
-        ToolDescriptions.apply(pointXField, "Ponto de referência X", "Coordenada X absoluta do ponto fixo usado para girar, inclinar, escalar ou espelhar com referência Point.\n\nUnidades: unidade dos objetos selecionados (mm ou in). Não é um deslocamento.");
-        ToolDescriptions.apply(pointYField, "Ponto de referência Y", "Coordenada Y absoluta do ponto fixo usado com referência Point.\n\nUnidades: unidade dos objetos selecionados (mm ou in). Não é um deslocamento.");
+        ToolDescriptions.apply(pointXField, I18n.text("ui.a814ce1942ff"), I18n.text("ui.7cd7c75dae58"));
+        ToolDescriptions.apply(pointYField, I18n.text("ui.3db8111cfcf2"), I18n.text("ui.ce3bfaaf9be8"));
         GridPane pointGrid = new GridPane();
         pointGrid.setHgap(8);
         pointGrid.setVgap(4);
@@ -97,7 +95,7 @@ final class TransformToolPanel {
             case "Object" -> {
                 var ref=referenceObject.getValue();
                 var box=ref == null || !objects.get().contains(ref) ? null : bounds.apply(ref);
-                if (box == null) throw new IllegalArgumentException("Escolha um objeto de referência com geometria.");
+                if (box == null) throw new IllegalArgumentException(I18n.text("ui.c31319d105e2"));
                 yield TransformReference.selectionCenter(List.of(box));
             }
             default -> TransformReference.origin();
@@ -107,7 +105,7 @@ final class TransformToolPanel {
         TextField rotateField = new TextField("90");
         Button rotateButton = new Button("Rotate");
         rotateButton.setMaxWidth(Double.MAX_VALUE);
-        rotateButton.setTooltip(tooltip("Positivo = sentido horario. Negativo = sentido anti-horario."));
+        rotateButton.setTooltip(tooltip(I18n.text("ui.81b775038e07")));
         rotateButton.setOnAction(e -> withValidAngle(rotateField, "Rotate", errorLabel, angle ->
                 onApply.accept(selected -> new TransformOp.Rotate(-angle, pivotResolver.apply(selected)))));
 
@@ -135,10 +133,10 @@ final class TransformToolPanel {
         CheckBox scaleLinkCb = new CheckBox("Link");
         scaleLinkCb.setSelected(true);
         TextField scaleXField = new TextField("1.0");
-        Button scaleXButton = new Button("Escala X");
+        Button scaleXButton = new Button(I18n.text("ui.5785eaf81ee6"));
         scaleXButton.setMaxWidth(Double.MAX_VALUE);
         TextField scaleYField = new TextField("1.0");
-        Button scaleYButton = new Button("Escala Y");
+        Button scaleYButton = new Button(I18n.text("ui.1b095654ec7c"));
         scaleYButton.setMaxWidth(Double.MAX_VALUE);
         scaleYField.visibleProperty().bind(scaleLinkCb.selectedProperty().not());
         scaleYField.managedProperty().bind(scaleYField.visibleProperty());
@@ -167,7 +165,7 @@ final class TransformToolPanel {
 
         // --- Offset X/Y ---
         TextField offsetXField = new TextField("0.0");
-        Button offsetXButton = new Button("Deslocar X");
+        Button offsetXButton = new Button(I18n.text("ui.76ef72c8d35b"));
         offsetXButton.setMaxWidth(Double.MAX_VALUE);
         offsetXButton.setOnAction(e -> withNonZero(offsetXField, "Offset X", errorLabel, dx ->
                 onApply.accept(selected -> new TransformOp.Offset(dx, 0))));
@@ -177,7 +175,7 @@ final class TransformToolPanel {
             field.setPrefColumnCount(6);
             field.setMinWidth(0);
         }
-        Button offsetYButton = new Button("Deslocar Y");
+        Button offsetYButton = new Button(I18n.text("ui.602ecd64f6f7"));
         offsetYButton.setMaxWidth(Double.MAX_VALUE);
         offsetYButton.setOnAction(e -> withNonZero(offsetYField, "Offset Y", errorLabel, dy ->
                 onApply.accept(selected -> new TransformOp.Offset(0, dy))));
@@ -202,28 +200,28 @@ final class TransformToolPanel {
         Button resetButton = new Button("Reset Tool");
         resetButton.setMaxWidth(Double.MAX_VALUE);
         resetButton.setOnAction(e -> resetToDefaults.run());
-        Button closeButton = new Button("Fechar");
+        Button closeButton = new Button(I18n.text("ui.0f2bd88ef0ac"));
         closeButton.setMaxWidth(Double.MAX_VALUE);
         closeButton.setOnAction(e -> onClose.run());
 
         GridPane referenceGrid = new GridPane();
         referenceGrid.setHgap(8);
         referenceGrid.setVgap(8);
-        referenceGrid.addRow(0, new Label("Referência:"), referenceCombo);
+        referenceGrid.addRow(0, new Label(I18n.text("ui.f71f4710c6f5")), referenceCombo);
         referenceGrid.add(pointGrid, 0, 1, 2, 1);
         referenceGrid.add(referenceObject, 0, 2, 2, 1);
 
         TextField bufferDistance=new TextField("0.1"); bufferDistance.setId("transform-buffer-distance");
         TextField bufferPercent=new TextField("10"); bufferPercent.setId("transform-buffer-percent");
-        CheckBox rounded=new CheckBox("Cantos arredondados"); rounded.setSelected(true);
-        Button distanceBuffer=new Button("Buffer por distância"); distanceBuffer.setId("transform-buffer-apply");
-        Button factorBuffer=new Button("Buffer por percentual"); factorBuffer.setId("transform-buffer-factor-apply");
+        CheckBox rounded=new CheckBox(I18n.text("ui.6851e7e583e8")); rounded.setSelected(true);
+        Button distanceBuffer=new Button(I18n.text("ui.58c488f2d50d")); distanceBuffer.setId("transform-buffer-apply");
+        Button factorBuffer=new Button(I18n.text("ui.e6cf78ff6d6d")); factorBuffer.setId("transform-buffer-factor-apply");
         distanceBuffer.setOnAction(event -> withNonZero(bufferDistance,"Buffer",errorLabel,value ->
                 onApply.accept(selected -> new TransformOp.Buffer(value,false,rounded.isSelected()))));
         factorBuffer.setOnAction(event -> withNonZero(bufferPercent,"Buffer (%)",errorLabel,value ->
                 onApply.accept(selected -> new TransformOp.Buffer(1+value/100,true,rounded.isSelected()))));
-        ToolDescriptions.apply(distanceBuffer,"Buffer por distância","Expande com distância positiva; contrai com negativa. Unidades do objeto (mm ou in). A opção Cantos arredondados suaviza os cantos; desmarcado usa cantos mitrados.\n\nExcellon: altera diâmetros pelo valor informado, mantendo centros e slots, como o Python. Geometry/Gerber: altera áreas/caminhos; não é compensação CNC. Resultado vazio é recusado. Execute em objetos com a mesma unidade.");
-        ToolDescriptions.apply(factorBuffer,"Buffer por percentual","Usa fator 1 + percentual/100; exige percentual maior que -100 e diferente de zero. Escala formas em seus centros locais, não pela referência global. Excellon altera apenas diâmetros; slots mantêm extremos. Não muda diâmetros de ferramentas Geometry.\n\nGerber: contornos são aproximados; metadados de aberturas permanecem originais. Confira resultado e exportação.");
+        ToolDescriptions.apply(distanceBuffer,I18n.text("ui.58c488f2d50d"),I18n.text("ui.9b65181e62d6"));
+        ToolDescriptions.apply(factorBuffer,I18n.text("ui.e6cf78ff6d6d"),I18n.text("ui.542124ea4ea2"));
         VBox bufferControls=new VBox(6,new javafx.scene.layout.FlowPane(8,6,new Label("Distance:"),bufferDistance,distanceBuffer),
                 new javafx.scene.layout.FlowPane(8,6,new Label("Percent (%):"),bufferPercent,factorBuffer),rounded);
         resetButton.addEventHandler(javafx.event.ActionEvent.ACTION,event -> { bufferDistance.setText("0.1"); bufferPercent.setText("10"); rounded.setSelected(true); });
@@ -258,7 +256,7 @@ final class TransformToolPanel {
         offsetGrid.addRow(0, new Label("Value X:"), offsetXField, offsetXButton);
         offsetGrid.addRow(1, new Label("Value Y:"), offsetYField, offsetYButton);
 
-        Label note = new Label("Cada botão aplica de imediato aos objetos selecionados no projeto.");
+        Label note = new Label(I18n.text("ui.0bfc9548bef6"));
         note.setWrapText(true);
         note.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
 
@@ -306,7 +304,7 @@ final class TransformToolPanel {
         try {
             double value = parse(field, name);
             if (value == 0 || value == 90 || value == 180 || value == -90 || value == -180) {
-                throw new IllegalArgumentException(name + ": ângulo inválido (0, 90 e 180 não são permitidos)");
+                throw new IllegalArgumentException(name + I18n.text("ui.e314d3a9c44d"));
             }
             errorLabel.setText("");
             action.accept(value);
@@ -319,7 +317,7 @@ final class TransformToolPanel {
         try {
             double value = parse(field, name);
             if (value == 0 || value == 1) {
-                throw new IllegalArgumentException(name + ": fator de escala não pode ser 0 ou 1");
+                throw new IllegalArgumentException(name + I18n.text("ui.8231befc0c67"));
             }
             errorLabel.setText("");
             action.accept(value);
@@ -332,7 +330,7 @@ final class TransformToolPanel {
         try {
             double value = parse(field, name);
             if (value == 0) {
-                throw new IllegalArgumentException(name + ": valor não pode ser 0");
+                throw new IllegalArgumentException(name + I18n.text("ui.2185568213c9"));
             }
             errorLabel.setText("");
             action.accept(value);
@@ -347,7 +345,7 @@ final class TransformToolPanel {
             if (!Double.isFinite(value)) throw new NumberFormatException();
             return value;
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(name + ": número inválido");
+            throw new IllegalArgumentException(name + I18n.text("ui.a8a35e0360a2"));
         }
     }
 

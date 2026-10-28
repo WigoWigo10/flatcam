@@ -36,6 +36,10 @@ class TooltipAuditTest {
 
     @Test @EnabledOnOs(OS.WINDOWS)
     void realPanelInventory() throws Exception {
+        inventory("", roots -> {});
+    }
+
+    void inventory(String suffix, java.util.function.Consumer<Map<String,Node>> inspect) throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }
         FutureTask<Void> task = new FutureTask<>(() -> {
             List<String> report = new ArrayList<>();
@@ -139,6 +143,7 @@ class TooltipAuditTest {
                     roots.put("Revisão CNC " + kind + " voltar", dialog.getDialogPane().lookupButton(dialog.getDialogPane().getButtonTypes().getLast()));
                 }
                 roots.put("Editor de código",code);
+                inspect.accept(roots);
             for(var entry:roots.entrySet()) {
                 Node root=entry.getValue(); String context=entry.getKey().replace(" — barra", "");
                 PanelTooltips.install(root,context);
@@ -154,7 +159,7 @@ class TooltipAuditTest {
                     report.add(context + " | " + node.getClass().getSimpleName() + " | " + label + " | " + (covered ? "HELP" : "MISSING"));
                 }
             }
-            Path output = Path.of("target/tooltip-audit.txt"); Files.createDirectories(output.getParent()); Files.write(output,report);
+            Path output = Path.of("target/tooltip-audit" + suffix + ".txt"); Files.createDirectories(output.getParent()); Files.write(output,report);
             geoEditor.cancel(); excEditor.cancel();
             assertTrue(report.size() > 200);
             assertEquals(List.of(), report.stream().filter(line -> line.endsWith("MISSING")).toList(),

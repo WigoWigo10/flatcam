@@ -7,34 +7,33 @@ final class ToolDefaultsDescriptions {
     static String text(ToolDefaults.Setting setting, boolean metric) {
         String body = specific(setting);
         if (setting.key().startsWith("editor.")) {
-            body = "Valor inicial de " + setting.label() + ", usado ao abrir o editor correspondente.";
-            if (setting.key().endsWith(".selectionlimit")) body += " Acima deste total o destaque usa uma caixa; todas as formas continuam selecionadas.";
-            if (setting.key().startsWith("editor.excellon.") && (setting.key().endsWith("pitchx") || setting.key().endsWith("pitchy") || setting.key().endsWith("rows") || setting.key().endsWith("columns"))) body += " GRID replica a seleção em uma grade retangular, com passos entre centros; LINEAR/CIRCULAR criam novos elementos e têm prévia.";
-            if (setting.key().endsWith(".diameter")) body += " Só usado se não há ferramenta existente selecionada; diâmetros existentes são preservados.";
-            if (setting.kind() == ToolDefaults.Kind.COLOR) body += " AA define a opacidade: 00 transparente, FF opaco.";
+            body = I18n.text("ui.daa8f5884b69") + setting.label() + I18n.text("ui.cb4904e125e4");
+            if (setting.key().endsWith(".selectionlimit")) body += I18n.text("ui.d09def098953");
+            if (setting.key().startsWith("editor.excellon.") && (setting.key().endsWith("pitchx") || setting.key().endsWith("pitchy") || setting.key().endsWith("rows") || setting.key().endsWith("columns"))) body += I18n.text("ui.62c9fb0f78df");
+            if (setting.key().endsWith(".diameter")) body += I18n.text("ui.5b4902320e95");
+            if (setting.kind() == ToolDefaults.Kind.COLOR) body += I18n.text("ui.665564621f49");
         }
         if (setting.key().startsWith("export.")) {
-            body = "Formato inicial usado em Exportar, Salvar como e no Terminal. Unidades do arquivo são independentes do objeto; as coordenadas e diâmetros são convertidos. A precisão escolhida arredonda as coordenadas exportadas, sem alterar o objeto. IN usa polegadas; MM usa milímetros.";
+            body = I18n.text("ui.27ad86d781a0");
             if (setting.key().endsWith(".zeros")) body += setting.key().contains("gerber")
-                ? " Gerber: L omite zeros à esquerda; T omite zeros à direita."
-                : " Excellon sem ponto: LZ mantém zeros à esquerda; TZ mantém zeros à direita. No modo decimal, esta opção não altera coordenadas.";
-            if (setting.key().endsWith(".slots")) body += " ROUTED usa G00/M15/G01/M16; G85 usa o ciclo de slot. Escolha o formato aceito pelo destino.";
-            if (setting.key().endsWith(".format")) body += " dec escreve ponto decimal; ndec usa os dígitos e zeros declarados no cabeçalho.";
+                ? I18n.text("ui.edabd3b0f7d8")
+                : I18n.text("ui.ee4ad1252d96");
+            if (setting.key().endsWith(".slots")) body += I18n.text("ui.9383c2fb5322");
+            if (setting.key().endsWith(".format")) body += I18n.text("ui.947a800882a6");
         }
         if (body == null) {
             String caption = caption(setting);
             body = PanelTooltips.help(context(setting), caption);
         }
-        if (body == null) throw new IllegalArgumentException("Sem descrição do padrão " + setting.key());
-        body = body.replace("\n\nUnidades: unidade do objeto (mm ou in).", "")
-                .replace("\n\nUnidades: unidades do objeto por minuto (mm/min ou in/min).", "");
-        if (setting.perUnit()) body += "\n\nUnidades: " + (metric ? "mm" : "in")
-                + (isFeed(setting) ? "/min" : "") + ". Os valores mm e in são salvos separadamente; alternar não converte o rascunho.";
-        if (!setting.choices().isEmpty()) body += "\n\nOpções: " + String.join(", ", setting.choices()) + ".";
-        return body + "\n\nPadrão de fábrica: " + setting.factory(metric)
-                + ". Só é persistido ao salvar os padrões; vale para painéis abertos depois. "
-                + "Não altera objetos, CNC Jobs nem painéis já abertos. "
-                + (setting.key().startsWith("display.") ? "A validação completa destes padrões ocorre ao salvar." : "A validação completa ocorre ao gerar a operação.");
+        if (body == null) throw new IllegalArgumentException(I18n.text("ui.dc14d86c8ff9") + setting.key());
+        body = body.replace(I18n.text("ui.aa1e925251e3"), "")
+                .replace(I18n.text("ui.d35139417031"), "");
+        if (setting.perUnit()) body += I18n.text("ui.3970547f0ca7") + (metric ? "mm" : "in")
+                + (isFeed(setting) ? "/min" : "") + I18n.text("ui.b615ac02add9");
+        if (!setting.choices().isEmpty()) body += I18n.text("ui.52d1c9e00d5e") + String.join(", ", setting.choices()) + ".";
+        return body + I18n.text("ui.5fe4883c4d2a") + setting.factory(metric)
+                + I18n.text("ui.34edd649b134")
+                + (setting.key().startsWith("display.") ? I18n.text("ui.116020e7afe3") : I18n.text("ui.1ba130c2bd84"));
     }
 
     private static boolean isFeed(ToolDefaults.Setting s) {
@@ -49,7 +48,7 @@ final class ToolDefaultsDescriptions {
             case "Paint" -> "Paint Tool";
             case "Film" -> "Film Tool";
             case "Panelize" -> "Panelize Tool";
-            case "2-Sided" -> "2-Sided Tool";
+            case "2-Sided" -> I18n.text("ui.b595bfb73393");
             case "Copper Thieving" -> "Copper Thieving Tool";
             case "Rules Check" -> "Rules Check Tool";
             case "Fiducials" -> "Fiducials Tool";
@@ -65,7 +64,7 @@ final class ToolDefaultsDescriptions {
             case "Drilling" -> "Drilling Tool";
             case "Geometry CNC", "CNC Job (geral)" -> "Geometry CNC Job";
             case "Excellon Milling" -> "Milling Tool";
-            default -> "Preferências";
+            default -> I18n.text("ui.6706dbe8b723");
         };
     }
 
@@ -81,24 +80,24 @@ final class ToolDefaultsDescriptions {
             case "milling" -> "Milling type";
             case "thinz" -> "Thin Depth";
             case "gapsize" -> "Gap size";
-            case "gaptype" -> "Tipo de gap";
+            case "gaptype" -> I18n.text("ui.38015c03d086");
             case "gaps" -> "Gaps";
             case "bitediameter" -> "M-Bites Dia";
             case "bitespacing" -> "M-Bites Spacing";
             case "convex" -> "Convex Shape";
-            case "spacingcolumns" -> "Espaçamento colunas";
-            case "spacingrows" -> "Espaçamento linhas";
-            case "limitwidth" -> "Largura";
-            case "limitheight" -> "Altura";
-            case "drilldia" -> "Diâmetro";
-            case "dotdiameter", "squaresize", "linesize", "robberthickness", "thickness", "size" -> "Espessura";
-            case "dotspacing", "squarespacing", "linespacing" -> "Espaço";
-            case "robbermargin", "maskclearance", "clearance" -> "Distância";
+            case "spacingcolumns" -> I18n.text("ui.4a0b50a2b1ce");
+            case "spacingrows" -> I18n.text("ui.ce00249f5b21");
+            case "limitwidth" -> I18n.text("ui.5d6a22d7076b");
+            case "limitheight" -> I18n.text("ui.196624f8ac36");
+            case "drilldia" -> I18n.text("ui.7cd23abc62e0");
+            case "dotdiameter", "squaresize", "linesize", "robberthickness", "thickness", "size" -> I18n.text("ui.b768a470f771");
+            case "dotspacing", "squarespacing", "linespacing" -> I18n.text("ui.f53807aa6cf5");
+            case "robbermargin", "maskclearance", "clearance" -> I18n.text("ui.dfea8d0b0700");
             case "travelz" -> "Travel Z";
-            case "toolchangez", "probechangez" -> "Z de troca de ferramenta";
-            case "verificationz" -> "Z de verificação";
+            case "toolchangez", "probechangez" -> I18n.text("ui.f57f7231f865");
+            case "verificationz" -> I18n.text("ui.7bc80ebbfc59");
             case "vtipdia" -> "V-Tip Dia";
-            case "vtipangle" -> "V-Tip Angle (graus)";
+            case "vtipangle" -> I18n.text("ui.e9ab82cb192c");
             default -> s.label();
         };
     }
@@ -106,86 +105,86 @@ final class ToolDefaultsDescriptions {
     private static String specific(ToolDefaults.Setting s) {
         String key = s.key();
         if (key.startsWith("display.")) {
-            if(key.startsWith("display.cnc.")) return "Padrão visual para novos CNC Jobs. Corte e deslocamento têm cores RGBA independentes; ALL mostra ambos, CUT só corte e TRAVEL só deslocamento. Anotações usam tamanho de 1 a 72 pixels lógicos; a cor padrão adapta o contraste ao tema. Não modifica G-code. Cópias e projetos reabertos conservam o estilo salvo. Só vale para novos objetos; controles nas propriedades continuam disponíveis.";
-            if (key.equals("display.gerber.follow")) return "Exibe inicialmente as linhas centrais do Gerber (Follow), em vez do cobre preenchido. A geometria sólida original continua disponível para CAM. Vale para novos objetos; projetos reabertos e cópias conservam seu estado. Pode ser alternado nas propriedades sem perder a cor.";
-            if (key.equals("display.gerber.aperturetable")) return "Abre a tabela de aberturas expandida nos próximos painéis Gerber Object. Recolher/expandir na própria seção não modifica a geometria. É um padrão do painel; esse estado de expansão não é salvo por objeto no projeto.";
-            if (s.kind() == ToolDefaults.Kind.COLOR) return "Cor inicial de novos objetos desta categoria. O seletor e o hexadecimal são equivalentes. Use #RRGGBB ou #RRGGBBAA: AA vai de 00 (transparente) a FF (opaco), por exemplo #BBF268BF. A opacidade é independente para preenchimento e linhas. Projetos reabertos, cópias e objetos existentes conservam suas cores; não altera CAM nem G-code.";
-            if (key.endsWith(".plot")) return "Visibilidade inicial ao adicionar novos objetos desta categoria. Objetos ocultos continuam no projeto e podem ser ativados pela árvore ou propriedades. Não altera objetos existentes nem o estado salvo em projetos reabertos.";
-            if (key.endsWith(".solid")) return "Preenche inicialmente os polígonos de novos objetos; desmarcado mostra seus contornos. Furos continuam vazados. A opção afeta o desenho, sem modificar a geometria usada no CAM.";
-            if (key.endsWith(".multicolor")) return "Desenha inicialmente as partes do objeto com cores diferentes. Substitui visualmente a cor única enquanto ativo, preservando a cor escolhida para quando for desativado. Não representa identificação elétrica de redes.";
+            if(key.startsWith("display.cnc.")) return I18n.text("ui.fa693d21c4fb");
+            if (key.equals("display.gerber.follow")) return I18n.text("ui.2cdd1cde7f69");
+            if (key.equals("display.gerber.aperturetable")) return I18n.text("ui.7dfb138c6b26");
+            if (s.kind() == ToolDefaults.Kind.COLOR) return I18n.text("ui.baa07e368cdf");
+            if (key.endsWith(".plot")) return I18n.text("ui.5d742879ac65");
+            if (key.endsWith(".solid")) return I18n.text("ui.49e69952c72a");
+            if (key.endsWith(".multicolor")) return I18n.text("ui.cc28facb205e");
         }
         if (key.equals("geometry.editorcirclesteps"))
-            return "Número de segmentos por volta completa para novos arcos e círculos do Editor Geometry, de 4 a 4096. Círculos usam o múltiplo de 4 inferior, como no Python: 65 resulta em 64. Mais segmentos aproximam melhor a curva e aumentam memória/custo da prévia. Não modifica formas existentes nem garante precisão física da máquina. O editor permite ajustar o valor localmente antes de desenhar.";
+            return I18n.text("ui.f44193ad60df");
         if (key.equals("ncc.tooldia") || key.equals("paint.tooldia"))
-            return "Lista de diâmetros iniciais das ferramentas. Separe os itens com vírgula e use ponto decimal, por exemplo 1.0, 0.5. Não é uma única ferramenta nem uma conversão automática de unidades.";
+            return I18n.text("ui.daa022cb0414");
         if (key.equals("ncc.seedpolicy"))
-            return "STABLE usa um início determinístico para os anéis Seed do FX. PYTHON usa o ponto representativo do algoritmo Python. Podem gerar percursos diferentes na mesma área; confira o resultado.";
-        if (key.endsWith(".tooltype")) return "C1–C4 identificam fresas planas de um a quatro dentes; B é esférica e V tem ponta em V. O perfil não define avanço ou RPM automaticamente. Para V, confira V-Tip Dia e Angle ao gerar CNC.";
+            return I18n.text("ui.6c40ce53a35a");
+        if (key.endsWith(".tooltype")) return I18n.text("ui.7d57dc1f9b6c");
         if (key.equals("cutout.margin")) return PanelTooltips.help("Cutout Tool","Margin");
-        if (key.equals("fiducials.margin")) return "Margem das posições automáticas dos fiduciais em relação à caixa do Gerber. Não é o tamanho da marca nem a abertura da máscara.";
+        if (key.equals("fiducials.margin")) return I18n.text("ui.3dd1e46fd590");
         if (key.equals("cnc.preprocessor"))
-            return "Perfil inicial de CNC. Deve ser compatível com o controlador e o tipo de operação. Nem todos os perfis aceitam furação, laser, sonda ou múltiplas ferramentas; a seleção final é validada no painel CNC.";
+            return I18n.text("ui.01bfc35ea137");
         if (key.startsWith("import.")) return switch (key) {
-            case "import.gerber.units" -> "Unidade de fallback somente quando o Gerber não declara unidades. Uma declaração no arquivo tem prioridade. Não converte projetos já abertos.";
-            case "import.gerber.circlesteps" -> "Segmentação usada para aproximar arcos e círculos do Gerber. Mais segmentos aumentam detalhe, memória e custo de cálculo; não aumentam a precisão física da máquina.";
-            case "import.excellon.integer.in", "import.excellon.integer.mm" -> "Dígitos inteiros (1–9) usados em coordenadas Excellon sem ponto com LZ, quando o arquivo não declara formato. LZ mantém os zeros à esquerda e pode omitir os finais. Declarações FILE_FORMAT ou INCH/METRIC com máscara têm prioridade. Não afeta números com ponto nem projetos abertos.";
-            case "import.excellon.zeros" -> "Convenção somente quando o arquivo não declara: TZ mantém zeros à direita e permite omitir os iniciais; LZ mantém zeros à esquerda e permite omitir os finais. Exemplo IN 2:4: 0012 significa 0,12 em LZ, e 0,0012 em TZ. Um ponto explícito ignora esta opção. O cabeçalho LZ/TZ no arquivo sempre tem prioridade.";
-            case "import.excellon.units" -> "RECUSAR impede importar um Excellon sem unidade declarada. IN/MM definem o fallback explícito para esse caso; a unidade declarada no arquivo tem prioridade.";
-            case "import.excellon.decimals.in", "import.excellon.decimals.mm" -> "Casas decimais (0–9) para coordenadas Excellon sem ponto em TZ, quando o arquivo não declara formato suficiente. Em LZ, os dígitos inteiros definem a posição do ponto. Um ponto decimal explícito ou formato declarado tem prioridade. Só afeta novas importações na unidade indicada.";
+            case "import.gerber.units" -> I18n.text("ui.7c9bf0cbede2");
+            case "import.gerber.circlesteps" -> I18n.text("ui.3bc8bc319d0d");
+            case "import.excellon.integer.in", "import.excellon.integer.mm" -> I18n.text("ui.97a0b59de961");
+            case "import.excellon.zeros" -> I18n.text("ui.3ba09f061500");
+            case "import.excellon.units" -> I18n.text("ui.0d0f92c0ca59");
+            case "import.excellon.decimals.in", "import.excellon.decimals.mm" -> I18n.text("ui.e66d66988505");
             default -> null;
         };
         if (key.startsWith("rules.")) {
             boolean enabled = key.endsWith(".enabled");
             String rule = key.substring(6).replace(".enabled", "");
             String meaning = switch (rule) {
-                case "trace_size" -> "largura da trilha";
-                case "copper_to_copper" -> "distância cobre a cobre";
-                case "copper_to_outline" -> "distância cobre ao contorno";
-                case "silk_to_silk" -> "distância seda a seda";
-                case "silk_to_mask" -> "distância seda à máscara";
-                case "silk_to_outline" -> "distância seda ao contorno";
-                case "mask_sliver" -> "largura de lasca da máscara";
-                case "annular_ring" -> "largura do anel anular";
-                case "hole_to_hole" -> "distância furo a furo";
-                case "hole_size" -> "diâmetro do furo";
-                default -> throw new IllegalArgumentException("Regra desconhecida " + key);
+                case "trace_size" -> I18n.text("ui.e27b1998565a");
+                case "copper_to_copper" -> I18n.text("ui.39f1c5a86b4c");
+                case "copper_to_outline" -> I18n.text("ui.8ed858a945e2");
+                case "silk_to_silk" -> I18n.text("ui.e7b8b570e3f5");
+                case "silk_to_mask" -> I18n.text("ui.e26f38c5632f");
+                case "silk_to_outline" -> I18n.text("ui.af88639b2eb6");
+                case "mask_sliver" -> I18n.text("ui.58ca4dc9e07c");
+                case "annular_ring" -> I18n.text("ui.7cb4f9da0850");
+                case "hole_to_hole" -> I18n.text("ui.8bb7eff83800");
+                case "hole_size" -> I18n.text("ui.7de40afecd6b");
+                default -> throw new IllegalArgumentException(I18n.text("ui.94a43bc6f4e2") + key);
             };
-            return enabled ? "Habilita inicialmente a verificação de " + meaning + ". Só é avaliada quando as camadas necessárias forem escolhidas."
-                    : "Mínimo permitido para " + meaning + ". Resultados abaixo desse limite são violações; ausência de violações não certifica fabricação.";
+            return enabled ? I18n.text("ui.40fca7573aa2") + meaning + I18n.text("ui.d213c0921593")
+                    : I18n.text("ui.9907fcc7f052") + meaning + I18n.text("ui.19da5e1e3c26");
         }
-        if (key.endsWith(".depthperpass")) return "Profundidade máxima adicionada em cada passe, como valor positivo. Só é usada com Multi-Depth ativado. Não é a profundidade final do corte.";
-        if (key.endsWith(".multidepth")) return "Divide a profundidade total em passes até alcançar Cut Z. Configure também a profundidade por passe; o modo de retração depende da operação CNC.";
-        if (key.endsWith(".spindle")) return "Rotação em RPM ou potência conforme o perfil. Zero não comanda rotação nos perfis que permitem isso; a sequência de troca pode parar o spindle antes da pausa. Sonda e outros perfis têm requisitos próprios.";
-        if (key.endsWith(".dwelltime")) return "Duração da espera após ligar o spindle, em segundos, quando Dwell estiver ativado. Zero não espera; não é uma porcentagem.";
-        if (key.endsWith(".feedrapid")) return "Avanço rápido explícito apenas nos perfis que o utilizam. Zero usa o automático do perfil (normalmente 1500 mm/min, Roland 900 mm/min), convertido para a unidade correspondente. Em GRBL, os limites de G0 são definidos pelo controlador.";
-        if (key.equals("drilling.endz")) return "Altura final da furação após desligar o spindle. Se há End XY, mantém pelo menos Travel Z da última ferramenta durante o movimento lateral e só depois alcança End Z no destino, com ou sem exclusões. Atenção: confira a folga de Travel Z e o destino antes de escolher uma altura final baixa.";
-        if (key.equals("geometry.cutdepth")) return "Magnitude positiva da profundidade de corte; o CNC escreve Z negativo. Não confundir com o Cut Z negativo dos outros painéis. Ferramentas V podem calcular a profundidade a partir da ponta e largura.";
-        if (key.equals("geometry.probechangez")) return "Altura de troca/retorno usada pelo painel de sondagem Mach3. Não ativa a sonda por si só. Ao gerar, confira os parâmetros e as confirmações exigidas pela sequência.";
-        if (key.equals("film.boundary")) return "Largura da moldura externa do filme negativo. Não altera a Geometry de origem.";
-        if (key.equals("film.scalestroke")) return "Ajuste da largura do traço no filme exportado. Zero conserva o padrão do exportador; não é o fator de escala X/Y da placa.";
-        if (key.equals("film.padsize")) return "Diâmetro dos vazios nos centros dos pads quando a furação por pads do filme positivo estiver ativada. Não cria um Excellon.";
-        if (key.equals("film.scalex") || key.equals("film.scaley")) return "Fator de escala do filme no eixo indicado. 1 preserva o tamanho; não transforma o objeto do projeto.";
-        if (key.equals("film.skewx") || key.equals("film.skewy")) return "Inclinação do filme no eixo indicado, em graus. Não é uma distância nem transformação do objeto de origem.";
-        if (key.equals("film.dpi")) return "Resolução da imagem PNG em pontos por polegada. Não controla a geometria vetorial de SVG/PDF nem a precisão da máquina.";
-        if (key.equals("film.negative")) return "Seleciona inicialmente filme negativo: moldura preenchida com as regiões do objeto vazadas. Não inverte o Gerber do projeto.";
-        if (key.equals("thieving.minarea")) return "Área mínima de uma região para receber cobre auxiliar. Unidades: unidade do objeto ao quadrado (mm² ou in²); não é uma distância e o seletor de comprimentos não converte este valor.";
-        if (key.equals("fiducials.size")) return "Diâmetro/tamanho da marca de alinhamento no cobre. A abertura correspondente de máscara usa o dobro desse tamanho.";
-        if (key.equals("fiducials.thickness")) return "Espessura dos traços da marca de alinhamento quando o formato escolhido utiliza linhas.";
-        if (key.equals("corners.drill")) return "Diâmetro dos furos opcionais criados nos cantos selecionados. Não adiciona os furos até executar a ferramenta.";
-        if (key.equals("corners.length")) return "Comprimento dos braços dos marcadores de canto; não é margem nem diâmetro de furo.";
+        if (key.endsWith(".depthperpass")) return I18n.text("ui.bf0c2c37e061");
+        if (key.endsWith(".multidepth")) return I18n.text("ui.f6bb6c9b346b");
+        if (key.endsWith(".spindle")) return I18n.text("ui.b8b816e3fdad");
+        if (key.endsWith(".dwelltime")) return I18n.text("ui.8fdaa06153d7");
+        if (key.endsWith(".feedrapid")) return I18n.text("ui.7c2322bb5cc0");
+        if (key.equals("drilling.endz")) return I18n.text("ui.c4302f8429b2");
+        if (key.equals("geometry.cutdepth")) return I18n.text("ui.6f92ed8ee28f");
+        if (key.equals("geometry.probechangez")) return I18n.text("ui.1da32985addd");
+        if (key.equals("film.boundary")) return I18n.text("ui.5996c8f45ada");
+        if (key.equals("film.scalestroke")) return I18n.text("ui.20fe3652021d");
+        if (key.equals("film.padsize")) return I18n.text("ui.19b7c74f74b4");
+        if (key.equals("film.scalex") || key.equals("film.scaley")) return I18n.text("ui.4a831ece73d0");
+        if (key.equals("film.skewx") || key.equals("film.skewy")) return I18n.text("ui.27feec0deda4");
+        if (key.equals("film.dpi")) return I18n.text("ui.28b758fbfe43");
+        if (key.equals("film.negative")) return I18n.text("ui.5f841073c4f0");
+        if (key.equals("thieving.minarea")) return I18n.text("ui.05bb3de5bf3c");
+        if (key.equals("fiducials.size")) return I18n.text("ui.f3bf2ad83ec3");
+        if (key.equals("fiducials.thickness")) return I18n.text("ui.d49cdf0cfb07");
+        if (key.equals("corners.drill")) return I18n.text("ui.3782980caac8");
+        if (key.equals("corners.length")) return I18n.text("ui.d8c42765c768");
         if (key.startsWith("qrcode.")) return switch (key) {
-            case "qrcode.version" -> "Versão inicial do QR Code. Define sua capacidade/tamanho em módulos; o texto também precisa caber na versão escolhida.";
-            case "qrcode.boxsize" -> "Tamanho numérico de cada módulo do QR Code, usado ao construir o desenho. Não é a versão nem a margem em módulos.";
-            case "qrcode.border" -> "Largura da borda livre do QR Code, em quantidade de módulos, não em mm/in.";
+            case "qrcode.version" -> I18n.text("ui.7cd8e2ac7cc0");
+            case "qrcode.boxsize" -> I18n.text("ui.e4d2efa2fdfa");
+            case "qrcode.border" -> I18n.text("ui.e6dc3da9a1ba");
             default -> null;
         };
-        if (key.equals("etch.thickness")) return "Espessura da folha de cobre em micrômetros (µm), não mm/in. Serve ao cálculo de compensação lateral por corrosão.";
+        if (key.equals("etch.thickness")) return I18n.text("ui.cfbf9bf9649c");
         if (key.startsWith("punch.") || key.startsWith("extract.")) {
-            if (key.endsWith(".fixeddiameter")) return "Diâmetro do furo quando o método Fixo estiver selecionado. Punch cria vazios no Gerber; Extract Drills cria um novo Excellon.";
-            if (key.endsWith(".factor")) return "Proporção do tamanho do pad usada para calcular o furo, em porcentagem. Só vale no método proporcional; não é uma distância.";
-            return "Largura de cobre a conservar ao redor do furo para o formato de pad indicado. Só é usada no método por anel anular; não é o diâmetro do furo.";
+            if (key.endsWith(".fixeddiameter")) return I18n.text("ui.ddfdaaf023d3");
+            if (key.endsWith(".factor")) return I18n.text("ui.2280a8fd5af3");
+            return I18n.text("ui.c9fbb66f8e04");
         }
-        if (key.equals("optimal.precision")) return "Casas decimais usadas ao comparar/agrupar distâncias de cobre no Optimal. Não define as casas do G-code nem melhora a precisão física da máquina.";
+        if (key.equals("optimal.precision")) return I18n.text("ui.8913ed51ad27");
         return null;
     }
 }

@@ -164,7 +164,7 @@ final class PlotAreaView extends StackPane {
 
     record Annotation(double x, double y, String text, Color color, int fontSize) {
         Annotation(double x,double y,String text) { this(x,y,text,null,11); }
-        Annotation { if(fontSize<1 || fontSize>72) throw new IllegalArgumentException("Tamanho de anotação inválido"); }
+        Annotation { if(fontSize<1 || fontSize>72) throw new IllegalArgumentException(I18n.text("ui.99c33d51a4c2")); }
     }
 
     /** CNCJob "Display Annotation" colors: Python's cncjob_annotation_fontcolor, and its dark-theme inversion. */
@@ -382,7 +382,7 @@ final class PlotAreaView extends StackPane {
     private final AsyncPlotIndexCache indexCache = new AsyncPlotIndexCache(javafx.application.Platform::runLater,
             ignored -> requestInteractionRedraw(), DENSITY_ASYNC
                     && !"false".equalsIgnoreCase(System.getProperty("flatcam.plot.index.async")));
-    private final Label preparingLabel = new Label("Preparando visualização...");
+    private final Label preparingLabel = new Label(I18n.text("ui.06b3596ccd2f"));
     private boolean disposed;
     private boolean lastLayerDense;
     private final PlotDensityRenderer densityRenderer = new PlotDensityRenderer(DENSITY_ASYNC,
@@ -2344,8 +2344,8 @@ final class PlotAreaView extends StackPane {
         }
         drawPlacementPreview(gc, contentWidth, contentHeight);
         drawSelectionBox(gc);
-        preparingLabel.setText(indexCache.failed() ? "Falha ao preparar visualização; consulte os diagnósticos."
-                : "Preparando visualização...");
+        preparingLabel.setText(indexCache.failed() ? I18n.text("ui.8507fed69eb8")
+                : I18n.text("ui.06b3596ccd2f"));
         preparingLabel.setVisible(indexCache.preparing() || indexCache.failed() || densityRenderer.preparing());
     }
 

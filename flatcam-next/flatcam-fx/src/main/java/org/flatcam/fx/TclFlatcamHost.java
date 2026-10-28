@@ -27,7 +27,7 @@ interface TclFlatcamHost {
     /** Replaces the project only after complete worker preparation and validation. */
     void openProject(Path file) throws IOException, TclException;
     default void openProject(Path file,boolean discardUnsaved) throws IOException,TclException {
-        if(discardUnsaved)throw new TclException("Este host não oferece descarte explícito de projeto.");
+        if(discardUnsaved)throw new TclException(I18n.text("ui.8db730ce3263"));
         openProject(file);
     }
 

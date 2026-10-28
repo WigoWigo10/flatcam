@@ -23,6 +23,7 @@ final class ToolDefaults {
     /** {@code inches} is null for a value that does not depend on the units (a percentage, a count, a switch). */
     record Setting(String key, String tool, String label, Kind kind, String millimetres, String inches,
                    List<String> choices) {
+        @Override public String label() { return I18n.caption(label); }
         boolean perUnit() {
             return inches != null;
         }
@@ -569,46 +570,46 @@ final class ToolDefaults {
     private static String problem(Setting setting, String value) {
         switch (setting.kind()) {
             case COLOR -> {
-                if (!value.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) return "use #RRGGBB ou #RRGGBBAA (AA é a opacidade)";
+                if (!value.matches("#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?")) return I18n.text("ui.f99d7db2f954");
             }
             case NUMBER -> {
                 try {
                     double parsed = Double.parseDouble(value);
-                    if (setting.key().startsWith("editor.") && (setting.key().endsWith(".size") || setting.key().endsWith(".diameter") || setting.key().endsWith(".scale")) && parsed <= 0) return "deve ser positivo";
+                    if (setting.key().startsWith("editor.") && (setting.key().endsWith(".size") || setting.key().endsWith(".diameter") || setting.key().endsWith(".scale")) && parsed <= 0) return I18n.text("ui.4ce9218ae5d5");
                     if (!Double.isFinite(parsed)) {
-                        return "deve ser um número";
+                        return I18n.text("ui.deb5bac12860");
                     }
                 } catch (NumberFormatException invalid) {
-                    return "deve ser um número";
+                    return I18n.text("ui.deb5bac12860");
                 }
             }
             case INTEGER -> {
                 try {
                     int parsed = Integer.parseInt(value);
-                    if(setting.key().equals("import.gerber.circlesteps") && (parsed<8 || parsed>1024)) return "deve estar entre 8 e 1024";
-                    if(setting.key().startsWith("import.excellon.decimals.") && (parsed<0 || parsed>9)) return "deve estar entre 0 e 9";
-                    if(setting.key().startsWith("import.excellon.integer.") && (parsed<1 || parsed>9)) return "deve estar entre 1 e 9";
-                    if (setting.key().equals("editor.excellon.count") && (parsed<1 || parsed>10000)) return "deve estar entre 1 e 10000";
-                    if (setting.key().startsWith("export.") && (parsed < 1 || parsed > 6)) return "deve estar entre 1 e 6";
-                    if (setting.key().startsWith("editor.") && (parsed < 1 || parsed > 100000)) return "deve estar entre 1 e 100000";
-                    if (setting.key().equals("display.cnc.fontsize") && (parsed<1 || parsed>72)) return "deve estar entre 1 e 72";
+                    if(setting.key().equals("import.gerber.circlesteps") && (parsed<8 || parsed>1024)) return I18n.text("ui.5dc74d56e4b2");
+                    if(setting.key().startsWith("import.excellon.decimals.") && (parsed<0 || parsed>9)) return I18n.text("ui.8cc95848d9d8");
+                    if(setting.key().startsWith("import.excellon.integer.") && (parsed<1 || parsed>9)) return I18n.text("ui.95103e9a6591");
+                    if (setting.key().equals("editor.excellon.count") && (parsed<1 || parsed>10000)) return I18n.text("ui.3d5dccccbd75");
+                    if (setting.key().startsWith("export.") && (parsed < 1 || parsed > 6)) return I18n.text("ui.0ecd4ccc8e0e");
+                    if (setting.key().startsWith("editor.") && (parsed < 1 || parsed > 100000)) return I18n.text("ui.21f1974fecc6");
+                    if (setting.key().equals("display.cnc.fontsize") && (parsed<1 || parsed>72)) return I18n.text("ui.d2f3df763bf9");
                     if (setting.key().equals("geometry.editorcirclesteps")) {
                         try { org.flatcam.cam.geometry.EditorArc.validateSteps(parsed); }
                         catch (IllegalArgumentException invalid) { return invalid.getMessage(); }
                     }
                 } catch (NumberFormatException invalid) {
-                    return "deve ser um número inteiro";
+                    return I18n.text("ui.9203c3f5c26f");
                 }
             }
             case FLAG -> {
                 if (!value.equals("true") && !value.equals("false")) {
-                    return "deve ser true ou false";
+                    return I18n.text("ui.6ea4d339ab39");
                 }
             }
             case CHOICE -> {
                 if (setting.choices().isEmpty() ? value.isBlank() : !setting.choices().contains(value)) {
-                    return setting.choices().isEmpty() ? "não pode ficar vazio"
-                            : "deve ser um de " + String.join(", ", setting.choices());
+                    return setting.choices().isEmpty() ? I18n.text("ui.8782f0ca0c4c")
+                            : I18n.text("ui.123063004e97") + String.join(", ", setting.choices());
                 }
             }
         }

@@ -58,7 +58,7 @@ final class GCodeEditorController {
     void start(TreeItem<String> selectedItem, String gcode) {
         if (isActive()) {
             tabs.getSelectionModel().select(tab);
-            host.log("Já existe uma edição de G-code em andamento.");
+            host.log(I18n.text("ui.d64f50edc999"));
             return;
         }
         item = selectedItem;
@@ -69,29 +69,24 @@ final class GCodeEditorController {
             updateButtons();
         });
         editor.loadingProperty().addListener((observable, oldValue, value) -> updateButtons());
-        tab = new Tab("Editor G-Code - " + item.getValue(), editor);
+        tab = new Tab(I18n.text("ui.5385251c8ab1") + item.getValue(), editor);
         tab.setClosable(false);
         tabs.getTabs().add(tab);
         tabs.getSelectionModel().select(tab);
 
-        Label info = new Label("Editando: " + item.getValue());
+        Label info = new Label(I18n.text("ui.82fedfc671f6") + item.getValue());
         info.setWrapText(true);
-        Label help = new Label("Edite o texto e clique Aplicar para atualizar o CNC Job em memória. "
-                + "Salvar arquivo grava uma copia do rascunho; não altera o arquivo original automaticamente. "
-                + "Cancelar descarta as alterações. A pré-visualização cobre movimentos G0/G1, arcos G2/G3 em XY "
-                + "e os subconjuntos lineares ISEL ICP, HPGL e Roland RML-1 (^IN/^PA/Z/V/!MC); "
-                + "sondagem G31 e referência G92 deixam a prévia indisponível. Macros e resets de origem não são simulados "
-                + "e não valida a segurança do programa para uma máquina CNC.");
+        Label help = new Label(I18n.text("ui.0812ae6fee63"));
         help.setWrapText(true);
-        var details = new javafx.scene.control.TitledPane("Pré-visualização e segurança", help);
+        var details = new javafx.scene.control.TitledPane(I18n.text("ui.cf022c5a9525"), help);
         details.setExpanded(false);
-        Label hint = new Label("Ctrl+F busca • Ctrl+Z / Ctrl+Y desfaz/refaz.\nA prévia não valida a segurança para CNC.");
+        Label hint = new Label(I18n.text("ui.63c04841d645"));
         hint.setWrapText(true);
         stateLabel = new Label();
         stateLabel.setWrapText(true);
-        applyButton = new Button("Aplicar ao CNC Job");
-        saveButton = new Button("Salvar arquivo...");
-        cancelButton = new Button("Cancelar edição");
+        applyButton = new Button(I18n.text("ui.250a5bfb7e6f"));
+        saveButton = new Button(I18n.text("ui.e9a460daf1f0"));
+        cancelButton = new Button(I18n.text("ui.f1cb621ee9d8"));
         for (Button button : new Button[]{applyButton, saveButton, cancelButton}) {
             button.setMaxWidth(Double.MAX_VALUE);
         }
@@ -100,7 +95,7 @@ final class GCodeEditorController {
         cancelButton.setOnAction(event -> cancel());
         VBox panel = new VBox(10, info, hint, stateLabel, applyButton, saveButton, cancelButton, details);
         panel.setPadding(new Insets(12));
-        host.openToolPanel("Editor G-Code", panel);
+        host.openToolPanel(I18n.text("ui.7d9970b93974"), panel);
         updateButtons();
         editor.focusCode();
     }
@@ -116,7 +111,7 @@ final class GCodeEditorController {
             return;
         }
         close();
-        host.log("Editor G-Code: edição descartada.");
+        host.log(I18n.text("ui.798532c4fd98"));
     }
 
     void saveAndClose() {
@@ -129,7 +124,7 @@ final class GCodeEditorController {
         }
         if (!dirty || editor.getText().equals(originalText) || editor.getText().isBlank()) {
             if (editor.getText().isBlank()) {
-                stateLabel.setText("O G-code não pode estar vazio.");
+                stateLabel.setText(I18n.text("ui.4fed05d3f81d"));
             } else {
                 close();
             }
@@ -183,8 +178,8 @@ final class GCodeEditorController {
         saveButton.setDisable(busy || editor.isLoading() || editor.area().getLength() == 0);
         cancelButton.setDisable(busy);
         editor.setEditable(!busy);
-        stateLabel.setText(busy ? "Processando..." : editor.isLoading() ? "Carregando código..."
-                : dirty ? "Alterações ainda não aplicadas." : "Sem alterações.");
+        stateLabel.setText(busy ? "Processando..." : editor.isLoading() ? I18n.text("ui.e6888121aa1b")
+                : dirty ? I18n.text("ui.e622c39b0ae4") : I18n.text("ui.ffda585087e1"));
     }
 
     private void close() {

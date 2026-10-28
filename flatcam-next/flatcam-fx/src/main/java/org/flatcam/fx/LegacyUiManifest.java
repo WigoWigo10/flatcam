@@ -11,6 +11,7 @@ import java.util.List;
 final class LegacyUiManifest {
 
     record Command(String id, String label, String icon) {
+        @Override public String label() { return I18n.caption(label); }
     }
 
     static final List<Command> TOOLS_PREPARATION = List.of(

@@ -56,17 +56,17 @@ final class ExtractDrillsToolPanel {
             gerber.getSelectionModel().selectFirst();
         }
 
-        CheckBox circular = new CheckBox("Circulares");
-        CheckBox oblong = new CheckBox("Oblongos");
-        CheckBox square = new CheckBox("Quadrados");
-        CheckBox rectangular = new CheckBox("Retangulares");
-        CheckBox other = new CheckBox("Outros");
+        CheckBox circular = new CheckBox(I18n.text("ui.f0ecde8a39fb"));
+        CheckBox oblong = new CheckBox(I18n.text("ui.3f7f397308be"));
+        CheckBox square = new CheckBox(I18n.text("ui.bcfd287153a7"));
+        CheckBox rectangular = new CheckBox(I18n.text("ui.cb6a4f90cace"));
+        CheckBox other = new CheckBox(I18n.text("ui.e6031e8fb508"));
         circular.setSelected(true);
 
         ToggleGroup modes = new ToggleGroup();
-        RadioButton fixed = new RadioButton("Fixo");
-        RadioButton proportional = new RadioButton("Proporcional");
-        RadioButton ring = new RadioButton("Anel anular");
+        RadioButton fixed = new RadioButton(I18n.text("ui.ef7d89f30019"));
+        RadioButton proportional = new RadioButton(I18n.text("ui.fecd5dfb1d1b"));
+        RadioButton ring = new RadioButton(I18n.text("ui.5ec4450f48fc"));
         for (RadioButton radio : List.of(fixed, proportional, ring)) {
             radio.setToggleGroup(modes);
         }
@@ -86,13 +86,13 @@ final class ExtractDrillsToolPanel {
         ColumnConstraints wide = new ColumnConstraints();
         wide.setHgrow(Priority.ALWAYS);
         grid.getColumnConstraints().addAll(wide, new ColumnConstraints());
-        grid.addRow(0, new Label("Diâmetro fixo:"), fixedDiameter);
-        grid.addRow(1, new Label("Proporção (%):"), factor);
-        grid.addRow(2, new Label("Anel - circular:"), ringCircular);
-        grid.addRow(3, new Label("Anel - oblongo:"), ringOblong);
-        grid.addRow(4, new Label("Anel - quadrado:"), ringSquare);
-        grid.addRow(5, new Label("Anel - retangular:"), ringRectangular);
-        grid.addRow(6, new Label("Anel - outros:"), ringOther);
+        grid.addRow(0, new Label(I18n.text("ui.87c58734c8b6")), fixedDiameter);
+        grid.addRow(1, new Label(I18n.text("ui.6c63941cefbe")), factor);
+        grid.addRow(2, new Label(I18n.text("ui.f81b6872474e")), ringCircular);
+        grid.addRow(3, new Label(I18n.text("ui.7f15c9a99719")), ringOblong);
+        grid.addRow(4, new Label(I18n.text("ui.fc7e76a93a2b")), ringSquare);
+        grid.addRow(5, new Label(I18n.text("ui.09580507ab6f")), ringRectangular);
+        grid.addRow(6, new Label(I18n.text("ui.0140900a7611")), ringOther);
         fixedDiameter.disableProperty().bind(fixed.selectedProperty().not());
         factor.disableProperty().bind(proportional.selectedProperty().not());
         for (TextField ringField : List.of(ringCircular, ringOblong, ringSquare, ringRectangular, ringOther)) {
@@ -103,12 +103,12 @@ final class ExtractDrillsToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button extract = new Button("Extrair furos");
+        Button extract = new Button(I18n.text("ui.4b125481a6e2"));
         extract.setMaxWidth(Double.MAX_VALUE);
         extract.setOnAction(event -> {
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 ExtractDrills.Mode mode = fixed.isSelected() ? ExtractDrills.Mode.FIXED
                         : proportional.isSelected() ? ExtractDrills.Mode.PROPORTIONAL : ExtractDrills.Mode.RING;
@@ -120,19 +120,19 @@ final class ExtractDrillsToolPanel {
                 String error = host.extract(gerber.getValue(), options);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(8,
-                new Label("Gerber de origem:"), gerber,
-                new Label("Tipos de pad:"), new HBox(10, circular, oblong, square),
+                new Label(I18n.text("ui.63aab0805458")), gerber,
+                new Label(I18n.text("ui.a14063dd4ab4")), new HBox(10, circular, oblong, square),
                 new HBox(10, rectangular, other),
-                new Label("Tamanho do furo:"), new HBox(10, fixed, proportional, ring),
+                new Label(I18n.text("ui.77d8888074ba")), new HBox(10, fixed, proportional, ring),
                 grid, extract, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

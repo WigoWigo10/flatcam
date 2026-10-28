@@ -2,10 +2,11 @@ package org.flatcam.fx;
 
 /** Additional, context-specific help. Never infer machining semantics from an arbitrary label. */
 final class PanelHelpCatalog {
-    private static final String UNIT = "\n\nUnidades: unidade do objeto (mm ou in).";
+    private static final String UNIT = I18n.text("ui.aa1e925251e3");
     private PanelHelpCatalog() { }
 
     static String help(String context, String name) {
+        context = PanelTooltips.canonicalContext(context);
         String specific = switch (context) {
             case "Panelize Tool" -> panelize(name);
             case "2-Sided Tool" -> sided(name);
@@ -15,117 +16,117 @@ final class PanelHelpCatalog {
             case "Rules Check Tool" -> rules(name);
             case "QRCode Tool" -> qr(name);
             case "Subtract Tool" -> switch (name) {
-                case "tipo de objeto", "gerber", "geometry" -> "Escolhe a categoria dos dois objetos usados na subtração.";
-                case "alvo (de onde se subtrai)" -> "Objeto do qual será retirada a região ocupada pelo subtraendo. O resultado é um novo objeto.";
-                case "subtraendo (o que e retirado)" -> "Objeto que define a região a retirar do alvo. Confira o alinhamento e as unidades dos dois objetos.";
-                case "subtrair" -> "Cria um novo objeto com a diferença alvo menos subtraendo. Confira o resultado antes de excluir as origens.";
+                case "tipo de objeto", "gerber", "geometry" -> I18n.text("ui.8a394a983152");
+                case "alvo (de onde se subtrai)" -> I18n.text("ui.81e13c6eaa29");
+                case "subtraendo (o que e retirado)" -> I18n.text("ui.23b9ac5750ed");
+                case "subtrair" -> I18n.text("ui.2c94cf6b44c5");
                 default -> null;
             };
             case "Invert Gerber Tool" -> switch (name) {
-                case "gerber a inverter" -> "Gerber cujo cobre será subtraído de uma moldura para produzir o negativo em um novo objeto.";
-                case "margem" -> "Margem externa da caixa usada para inverter o Gerber." + UNIT;
-                case "cantos da caixa", "quadrado", "redondo", "chanfrado" -> "Formato dos cantos da moldura externa. Não altera os cantos das trilhas originais.";
-                case "inverter gerber" -> "Cria o negativo do cobre dentro da caixa delimitadora acrescida da margem.";
+                case "gerber a inverter" -> I18n.text("ui.ae36c9cd4ce1");
+                case "margem" -> I18n.text("ui.0e41e8b5d860") + UNIT;
+                case "cantos da caixa", "quadrado", "redondo", "chanfrado" -> I18n.text("ui.c16d9591ee46");
+                case "inverter gerber" -> I18n.text("ui.c393e7c7ede5");
                 default -> null;
             };
             case "Fiducials Tool" -> switch (name) {
-                case "tipo", "circular", "cruz", "xadrez" -> "Formato da marca usada para alinhamento óptico. A máscara correspondente é gerada separadamente.";
-                case "posicao", "automatico", "manual" -> "Automático usa os limites do Gerber. Manual pede os pontos no plot.";
-                case "segundo fiducial (automatico)", "acima", "abaixo", "nenhum" -> "Escolhe o canto do fiducial intermediário ou deixa apenas as marcas extremas.";
-                case "adicionar fiduciais" -> "Cria uma cópia do Gerber de cobre com as marcas. No modo manual, clique nas posições solicitadas no plot.";
-                case "adicionar aberturas na mascara" -> "Cria aberturas nos últimos pontos de fiduciais, com o dobro do tamanho da marca de cobre.";
+                case "tipo", "circular", "cruz", "xadrez" -> I18n.text("ui.d98d96ea6d7b");
+                case "posicao", "automatico", "manual" -> I18n.text("ui.2b4c50122db7");
+                case "segundo fiducial (automatico)", "acima", "abaixo", "nenhum" -> I18n.text("ui.aa3a45d602cd");
+                case "adicionar fiduciais" -> I18n.text("ui.66dafe7f364f");
+                case "adicionar aberturas na mascara" -> I18n.text("ui.5f0974a2c174");
                 default -> null;
             };
             case "Corner Markers Tool" -> switch (name) {
-                case "tipo", "canto (l)", "cruz" -> "Escolhe marcadores em L ou cruz nos cantos marcados abaixo.";
-                case "cantos", "superior esq.", "superior dir.", "inferior esq.", "inferior dir.", "todos" -> "Seleciona em quais cantos da caixa do Gerber serão adicionados marcadores.";
-                case "adicionar marcadores" -> "Cria um Gerber com os marcadores nos cantos escolhidos, usando margem, espessura e comprimento.";
-                case "criar furos nos cantos" -> "Cria um Excellon nos cantos escolhidos. Confira o diâmetro e o alinhamento antes de gerar a furação.";
+                case "tipo", "canto (l)", "cruz" -> I18n.text("ui.5afa08e3d2d0");
+                case "cantos", "superior esq.", "superior dir.", "inferior esq.", "inferior dir.", "todos" -> I18n.text("ui.1ed3a3631d0f");
+                case "adicionar marcadores" -> I18n.text("ui.d3e40018afaf");
+                case "criar furos nos cantos" -> I18n.text("ui.358f68fb9174");
                 default -> null;
             };
             case "Extract Drills Tool", "Punch Gerber Tool" -> pads(name);
             case "Etch Compensation Tool" -> switch (name) {
-                case "metodo", "fator de corrosao", "lista de corrosivos", "deslocamento manual" -> "Define a compensação pela espessura e fator de corrosão, pelo corrosivo ou por um deslocamento manual.";
-                case "corrosivo" -> "Seleciona o corrosivo utilizado pelo modelo de compensação. Confira se corresponde ao processo real.";
-                case "oz -> um" -> "Converte o peso de cobre em oz/ft² para uma espessura estimada em micrômetros.";
-                case "mils -> um" -> "Converte milésimos de polegada para micrômetros: 1 mil = 25,4 µm.";
-                case "compensar" -> "Cria uma cópia com cobre expandido pela compensação lateral calculada.\n\nAtenção: o modelo não substitui a calibração do processo de corrosão.";
+                case "metodo", "fator de corrosao", "lista de corrosivos", "deslocamento manual" -> I18n.text("ui.19d1d8744628");
+                case "corrosivo" -> I18n.text("ui.ae13c40e476c");
+                case "oz -> um" -> I18n.text("ui.0515deea4f12");
+                case "mils -> um" -> I18n.text("ui.4c0c9f1bcf12");
+                case "compensar" -> I18n.text("ui.d2eb3d37b5a2");
                 default -> null;
             };
             case "Align Objects Tool" -> switch (name) {
-                case "objeto a alinhar" -> "Objeto que será movido ou girado para coincidir com a referência.";
-                case "objeto de referencia" -> "Objeto que permanece fixo e fornece os pontos correspondentes de alinhamento.";
-                case "um ponto (translada)", "dois pontos (translada e gira)", "alinhar (clique nos pontos)" -> "Clique nos pares de pontos correspondentes conforme solicitado. Um par move; dois pares também corrigem a rotação.\n\nAtalho: Esc cancela a coleta.";
+                case "objeto a alinhar" -> I18n.text("ui.9e9920f94d6d");
+                case "objeto de referencia" -> I18n.text("ui.81b020d17d32");
+                case "um ponto (translada)", "dois pontos (translada e gira)", "alinhar (clique nos pontos)" -> I18n.text("ui.e3f84804105d");
                 default -> null;
             };
             case "Optimal Tool" -> switch (name) {
-                case "distancia minima" -> "Menor separação calculada entre regiões de cobre; somente leitura." + UNIT;
-                case "pares" -> "Quantidade de pares de regiões que apresentam a menor distância, na precisão de agrupamento escolhida.";
-                case "encontrar a menor distancia" -> "Calcula a menor separação entre regiões de cobre e lista seus locais. Não modifica o Gerber.";
-                case "outras distancias (entre parenteses, quantos pares)", "locais da distancia escolhida", "locais da menor distancia (clique para ir ate la)" -> "Selecione uma distância ou um local para marcar e centralizar o ponto correspondente no plot.";
+                case "distancia minima" -> I18n.text("ui.139e5efdcb70") + UNIT;
+                case "pares" -> I18n.text("ui.6a2ee883ad61");
+                case "encontrar a menor distancia" -> I18n.text("ui.43fa6b711abc");
+                case "outras distancias (entre parenteses, quantos pares)", "locais da distancia escolhida", "locais da menor distancia (clique para ir ate la)" -> I18n.text("ui.e8dfacc44d4e");
                 default -> null;
             };
             case "SolderPaste Tool" -> switch (name) {
-                case "bicos (diametros)", "adicionar bico" -> "Diâmetros dos bicos usados para gerar caminhos de dispensa. Informe valores positivos adequados aos pads." + UNIT;
-                case "gerber da mascara de pasta" -> "Gerber das aberturas de pasta; não confundir com a máscara de solda.";
-                case "geometria de pasta" -> "Geometry de dispensa gerada por esta ferramenta, usada para criar o programa do dispensador.";
-                case "gerar geometria de dispensa" -> "Gera caminhos para os bicos cadastrados a partir das aberturas da máscara de pasta.";
-                case "gerar cnc job de pasta" -> "Gera comandos do dispensador com o perfil Paste_1.\n\nAtenção: não é um programa de fresagem; confira alturas, avanços e sentidos do mecanismo.";
+                case "bicos (diametros)", "adicionar bico" -> I18n.text("ui.df64f7b89a47") + UNIT;
+                case "gerber da mascara de pasta" -> I18n.text("ui.0554fd22f70e");
+                case "geometria de pasta" -> I18n.text("ui.9c5bab660791");
+                case "gerar geometria de dispensa" -> I18n.text("ui.35d1a836ae70");
+                case "gerar cnc job de pasta" -> I18n.text("ui.27d9de1f105d");
                 default -> null;
             };
             case "Transform Tool" -> switch (name) {
-                case "reference" -> "Define o ponto fixo das transformações: origem, ponto informado, centro da seleção ou caixa de outro objeto.";
-                case "distance" -> "Distância de expansão ou contração do buffer. Negativa contrai; positiva expande." + UNIT;
-                case "percent (%)" -> "Percentual usado para calcular a distância de buffer a partir das dimensões do objeto. Não é fator de escala.";
-                case "rounded", "cantos arredondados" -> "Usa cantos arredondados no buffer; desmarcado preserva junções angulares.";
-                case "rotate", "skew x", "skew y", "scale x", "scale y", "offset y", "flip on x", "flip on y", "buffer por distancia", "buffer por percentual", "escala x", "escala y", "deslocar x", "deslocar y" -> "Aplica imediatamente a transformação indicada aos objetos selecionados na árvore, usando os valores e a referência desta seção.\n\nAtenção: confira a seleção antes de aplicar.";
+                case "reference" -> I18n.text("ui.c4122a394641");
+                case "distance" -> I18n.text("ui.d0b328a0bb90") + UNIT;
+                case "percent (%)" -> I18n.text("ui.2c76613543c7");
+                case "rounded", "cantos arredondados" -> I18n.text("ui.c5d017c6efb7");
+                case "rotate", "skew x", "skew y", "scale x", "scale y", "offset y", "flip on x", "flip on y", "buffer por distancia", "buffer por percentual", "escala x", "escala y", "deslocar x", "deslocar y" -> I18n.text("ui.ee2bdbc7b9cb");
                 default -> null;
             };
             case "Isolation Tool" -> switch (name) {
-                case "forced rest" -> "Inclui também regiões que não foram cobertas pelas ferramentas anteriores no cálculo Rest. Só atua com Rest Machining habilitado.";
-                case "limpar area desenhada" -> "Remove somente a exceção desenhada no plot. A Geometry de exceção escolhida permanece selecionada.";
-                case "generate geometry", "gerar geometry" -> "Calcula os caminhos de isolamento e cria Geometry; não gera G-code nesta etapa.";
+                case "forced rest" -> I18n.text("ui.9e4e148ac8d4");
+                case "limpar area desenhada" -> I18n.text("ui.62c489da0458");
+                case "generate geometry", "gerar geometry" -> I18n.text("ui.ef8c37ad51f7");
                 default -> null;
             };
             case "NCC Tool" -> switch (name) {
-                case "retangulo", "poligono" -> "Formato da área a desenhar no plot para limitar a limpeza do NCC. Não é uma forma adicionada ao objeto de origem.";
-                case "obj type", "gerber", "geometry" -> "Categoria da origem usada como cobre ou região a proteger na limpeza.";
-                case "object" -> "Objeto de origem do NCC. Confira as unidades e o alinhamento com o limite escolhido.";
-                case "selecionar area no desenho" -> "Desenhe no plot o limite da limpeza. Não modifica o Gerber de origem.\n\nAtalho: Esc cancela o desenho.";
-                case "gerar geometry" -> "Calcula os caminhos das ferramentas selecionadas e cria Geometry para posterior geração CNC.";
+                case "retangulo", "poligono" -> I18n.text("ui.715dc6702d26");
+                case "obj type", "gerber", "geometry" -> I18n.text("ui.4a104d723c75");
+                case "object" -> I18n.text("ui.99d511a74f2d");
+                case "selecionar area no desenho" -> I18n.text("ui.89f67e6c398a");
+                case "gerar geometry" -> I18n.text("ui.b89062578231");
                 default -> null;
             };
             case "Paint Tool" -> switch (name) {
-                case "origem (gerber ou geometry)" -> "Objeto cujos polígonos serão preenchidos por caminhos de usinagem.";
-                case "diametros das ferramentas" -> "Diâmetros positivos das ferramentas. Selecione uma linha para editar seus parâmetros individuais." + UNIT;
-                case "poligonos a pintar", "todos os poligonos", "um poligono (clique)", "objeto de referencia", "area: retangulo", "area: poligono", "selecionar" -> "Define as regiões a preencher: todos os polígonos, um clicado, limite de referência ou área desenhada no plot.";
-                case "atualizar lista" -> "Recarrega as opções de origem e referência a partir dos objetos atuais do projeto.";
-                case "limpar selecao" -> "Remove os polígonos ou a área escolhida para o Paint, sem apagar objetos do projeto.";
-                case "pintar" -> "Gera Geometry de preenchimento com os diâmetros e parâmetros individuais; o G-code é gerado depois.";
+                case "origem (gerber ou geometry)" -> I18n.text("ui.9a134eed0f48");
+                case "diametros das ferramentas" -> I18n.text("ui.5ea9e4bc4747") + UNIT;
+                case "poligonos a pintar", "todos os poligonos", "um poligono (clique)", "objeto de referencia", "area: retangulo", "area: poligono", "selecionar" -> I18n.text("ui.063fff3da9b0");
+                case "atualizar lista" -> I18n.text("ui.9273779ade18");
+                case "limpar selecao" -> I18n.text("ui.af2babe1c4a2");
+                case "pintar" -> I18n.text("ui.dc6412488abb");
                 default -> null;
             };
             case "Milling Tool" -> switch (name) {
-                case "excellon" -> "Arquivo de furos e slots a converter em caminhos de fresagem.";
-                case "generate geometry for drills", "generate geometry for slots" -> "Cria caminhos de centro para fresar os furos ou slots das ferramentas selecionadas. Configure profundidade e avanço depois, no CNC da Geometry.";
+                case "excellon" -> I18n.text("ui.725a33496260");
+                case "generate geometry for drills", "generate geometry for slots" -> I18n.text("ui.75fb41e697e2");
                 default -> null;
             };
             case "Geometry CNC Job", "Drilling Tool" -> switch (name) {
-                case "extra cut (caminhos fechados)" -> "Acrescenta um trecho no fechamento do caminho para completar o corte. O campo ao lado determina o comprimento adicional.";
-                case "end x,y" -> "Posição final opcional: None mantém X-Y; X;Y desloca após os cortes.\n\nAtenção: confira a altura End Z e todo o percurso." + UNIT;
-                case "end z" -> "Altura final opcional: None usa a altura de deslocamento. Confira a folga para o movimento final X-Y." + UNIT;
-                case "gerar cnc job...", "generate cnc job", "gerar cnc job" -> "Gera o programa com o perfil e os parâmetros exibidos. Conflitos de configurações comuns precisam ser revisados antes.\n\nAtenção: inspecione os caminhos, as unidades e as alturas antes de executar na máquina.";
-                case "search db" -> "Busca ferramentas de furação na Tools Database pelo diâmetro. Correspondências ambíguas são recusadas; revise os parâmetros recuperados.";
+                case "extra cut (caminhos fechados)" -> I18n.text("ui.26018d15782a");
+                case "end x,y" -> I18n.text("ui.3da18b0bf8f4") + UNIT;
+                case "end z" -> I18n.text("ui.0645699a7c79") + UNIT;
+                case "gerar cnc job...", "generate cnc job", "gerar cnc job" -> I18n.text("ui.6c339449c934");
+                case "search db" -> I18n.text("ui.d24b461eb55f");
                 default -> null;
             };
             case "Cutout Tool" -> switch (name) {
-                case "limpar gaps manuais" -> "Remove as regiões de pontes manuais e volta a usar a distribuição automática selecionada.";
-                case "gerar (free-form)" -> "Cria Geometry que acompanha a borda da placa, incluindo reentrâncias, com a compensação da fresa e as pontes configuradas.";
-                case "gerar (rectangular)" -> "Cria Geometry de recorte retangular pela caixa da origem, com compensação da fresa e pontes configuradas.";
+                case "limpar gaps manuais" -> I18n.text("ui.00df0ee8205d");
+                case "gerar (free-form)" -> I18n.text("ui.1abb22f72954");
+                case "gerar (rectangular)" -> I18n.text("ui.d5fa12fbb915");
                 default -> null;
             };
             case "Preferências" -> switch (name) {
-                case "mostrar eixos" -> "Mostra os eixos X e Y da origem no plot. Não desloca os objetos nem altera o G-code.";
-                case "aplicar preferencias" -> "Valida e salva tema e opções do plot. Não altera os dados CAM do projeto.";
+                case "mostrar eixos" -> I18n.text("ui.783b738f0d28");
+                case "aplicar preferencias" -> I18n.text("ui.aca19f9f3f5c");
                 default -> null;
             };
             case "Gerber Object", "Excellon Object", "Geometry Object", "CNC Job Object" -> object(name);
@@ -135,184 +136,184 @@ final class PanelHelpCatalog {
         if (context.startsWith("Editor ")) {
             if (context.equals("Editor Gerber") && name.startsWith("adicionar abertura ")) return editor("adicionar abertura");
             if (context.equals("Editor Gerber") && (name.startsWith("diametro (") || name.startsWith("largura (") || name.startsWith("altura (")))
-                return "Dimensão positiva da nova abertura, na unidade indicada no rótulo. C/P usam diâmetro; R/O usam largura e altura.";
+                return I18n.text("ui.51b8a532a07f");
             String editor = editor(name);
             if (editor != null) return editor;
         }
         return switch (name) {
-            case "fechar", "close" -> "Fecha este painel. Objetos já criados permanecem no projeto.";
-            case "adicionar ferramenta", "adicionar" -> "Adiciona o diâmetro informado à tabela deste painel. Revise os parâmetros da nova ferramenta antes de gerar.";
-            case "remover", "delete" -> "Remove as ferramentas selecionadas da tabela deste painel, sem excluir objetos do projeto.";
-            case "preprocessor", "pre-processador" -> "Perfil que define os comandos e as convenções do programa CNC. Escolha o controlador real da máquina; o formato não garante compatibilidade física.";
-            case "tool change x,y" -> "Posição opcional de troca: None mantém X-Y; informe X;Y para deslocar. Confira a altura de troca e o percurso." + UNIT;
+            case "fechar", "close" -> I18n.text("ui.99a2e103dec3");
+            case "adicionar ferramenta", "adicionar" -> I18n.text("ui.47046d197eae");
+            case "remover", "delete" -> I18n.text("ui.c6807bd172d6");
+            case "preprocessor", "pre-processador" -> I18n.text("ui.b85b6a49aa6e");
+            case "tool change x,y" -> I18n.text("ui.41e732110946") + UNIT;
             case "no", "forward", "reverse" -> java.util.List.of("Isolation Tool", "Drilling Tool", "NCC Tool").contains(context)
-                    ? "Ordem das ferramentas: No usa a tabela; Forward vai do menor diâmetro ao maior; Reverse vai do maior ao menor. Rest Machining exige maior para menor." : null;
-            case "calculate" -> context.equals("Calculators") ? "Calcula os valores derivados desta seção com os dados informados. Não muda o projeto nem configura automaticamente parâmetros CAM. Confira as unidades exibidas." : null;
-            case "name", "nome" -> "Nome do objeto no projeto. Renomear não muda o arquivo original no disco.";
-            case "plot" -> "Exibe ou oculta este objeto no plot. Os dados do objeto e o G-code não mudam.";
-            case "gerber", "gerber de origem", "gerber de cobre", "gerber a analisar", "gerber a compensar", "gerber a furar" -> "Gerber de origem desta operação. Confira a camada escolhida antes de aplicar.";
-            case "mascara de solda (abertura = 2x o tamanho)" -> "Gerber que receberá as aberturas de máscara nos pontos das marcas; não é a máscara de pasta.";
+                    ? I18n.text("ui.6b4260f2869f") : null;
+            case "calculate" -> context.equals("Calculators") ? I18n.text("ui.12894a6a1a72") : null;
+            case "name", "nome" -> I18n.text("ui.529d7bd6cfa2");
+            case "plot" -> I18n.text("ui.082b2b388990");
+            case "gerber", "gerber de origem", "gerber de cobre", "gerber a analisar", "gerber a compensar", "gerber a furar" -> I18n.text("ui.38450c367725");
+            case "mascara de solda (abertura = 2x o tamanho)" -> I18n.text("ui.5f6e7500e463");
             default -> null;
         };
     }
 
     private static String panelize(String n) { return switch (n) {
-        case "objeto a repetir" -> "Objeto de origem das cópias. No modo conjunto, marque também as outras camadas alinhadas.";
-        case "distancia entre copias baseada em", "caixa do proprio objeto", "caixa de outro objeto" -> "A largura e altura da referência, mais os espaçamentos, definem os passos da grade.\n\nAtenção: use a mesma referência para cobre, furos e contorno, evitando deslocamentos diferentes por camada.";
-        case "limitar o tamanho do painel" -> "Reduz linhas e colunas quando necessário para caber na largura e altura máximas informadas.";
-        case "criar painel" -> "Cria as cópias na grade exibida. No modo conjunto, todas as camadas recebem exatamente os mesmos deslocamentos.";
+        case "objeto a repetir" -> I18n.text("ui.a7c4137bf4ca");
+        case "distancia entre copias baseada em", "caixa do proprio objeto", "caixa de outro objeto" -> I18n.text("ui.234c9051c660");
+        case "limitar o tamanho do painel" -> I18n.text("ui.3c70602fead1");
+        case "criar painel" -> I18n.text("ui.10609d220c78");
         default -> null;
     }; }
     private static String sided(String n) { return switch (n) {
-        case "objetos (ctrl/shift para varios)" -> "Camadas que receberão o mesmo espelhamento. Selecione cobre, furos e contorno juntos para preservar o alinhamento.";
-        case "usar selecao da arvore" -> "Marca nesta lista os objetos selecionados na árvore do projeto.";
-        case "referencia da linha de espelhamento", "origem", "ponto", "caixa de objeto" -> "Define por onde passa o eixo de espelhamento: origem, coordenada escolhida ou caixa de outro objeto.";
-        case "pegar no plot" -> "Clique no plot para preencher o ponto de referência.\n\nAtalho: Esc cancela a coleta.";
-        case "diametro" -> "Diâmetro dos furos de alinhamento criados no novo Excellon." + UNIT;
-        case "adicionar furo no plot" -> "Clique na posição de um furo de alinhamento. Ao gerar, será criado também seu espelho pelo eixo configurado.";
-        case "limpar" -> "Limpa a lista de furos de alinhamento deste painel, sem apagar objetos do projeto.";
-        case "espelhar" -> "Espelha as camadas marcadas pelo mesmo eixo. Confira a referência; marque criar cópia para preservar os originais.";
-        case "pre-visualizar no plot" -> "Mostra o espelhamento antes de aplicá-lo. A prévia não cria nem transforma objetos do projeto.";
+        case "objetos (ctrl/shift para varios)" -> I18n.text("ui.e34d551f8c2c");
+        case "usar selecao da arvore" -> I18n.text("ui.268bcf114956");
+        case "referencia da linha de espelhamento", "origem", "ponto", "caixa de objeto" -> I18n.text("ui.2756bbb7351a");
+        case "pegar no plot" -> I18n.text("ui.6d120506c745");
+        case "diametro" -> I18n.text("ui.9edf8d93ddcb") + UNIT;
+        case "adicionar furo no plot" -> I18n.text("ui.636a71fc7126");
+        case "limpar" -> I18n.text("ui.16168e5d01ae");
+        case "espelhar" -> I18n.text("ui.f9e4e1233115");
+        case "pre-visualizar no plot" -> I18n.text("ui.3d2937294c73");
         default -> null;
     }; }
     private static String film(String n) { return switch (n) {
-        case "objeto do filme" -> "Gerber ou Geometry que fornecerá o desenho exportado.";
-        case "caixa (moldura)" -> "Objeto que define os limites da moldura do filme, especialmente no negativo.";
-        case "positivo", "negativo" -> "Positivo desenha as regiões do objeto. Negativo desenha a moldura com essas regiões vazadas.";
-        case "furar (somente filme positivo)", "excellon", "centro dos pads", "furo" -> "Adiciona vazios aos pads do filme positivo, usando um Excellon alinhado ou o diâmetro informado para os centros." + UNIT;
-        case "escala" -> "Multiplica o filme pelos fatores X e Y. 1 mantém as dimensões; não altera o objeto de origem.";
-        case "inclinacao (graus)" -> "Inclina o filme nos eixos X e Y, em graus, pela referência escolhida.";
-        case "espelhar" -> "Espelha o filme exportado no eixo escolhido, sem modificar o objeto de origem.";
-        case "formato" -> "SVG e PDF preservam vetores. PNG gera uma imagem na resolução DPI configurada.";
-        case "cor (positivo)" -> "Cor das regiões no filme positivo; não muda a cor do objeto no plot.";
-        case "retrato", "paisagem" -> "Orientação da página do PDF. Confira a impressão em escala real, sem ajuste automático à folha.";
-        case "gerar filme" -> "Exporta o filme com as transformações escolhidas.\n\nAtenção: confira escala, espelho e orientação antes de fabricar ou imprimir.";
+        case "objeto do filme" -> I18n.text("ui.11aeee41a999");
+        case "caixa (moldura)" -> I18n.text("ui.edd662af33a9");
+        case "positivo", "negativo" -> I18n.text("ui.343874ca641c");
+        case "furar (somente filme positivo)", "excellon", "centro dos pads", "furo" -> I18n.text("ui.1b490399e0af") + UNIT;
+        case "escala" -> I18n.text("ui.eea9376b4f66");
+        case "inclinacao (graus)" -> I18n.text("ui.c3a6b7143379");
+        case "espelhar" -> I18n.text("ui.3bf1f826531e");
+        case "formato" -> I18n.text("ui.fcaa857c5ebe");
+        case "cor (positivo)" -> I18n.text("ui.7bb1909e352f");
+        case "retrato", "paisagem" -> I18n.text("ui.fede2b1e337a");
+        case "gerar filme" -> I18n.text("ui.a77938359cae");
         default -> null;
     }; }
     private static String calibration(String n) { return switch (n) {
-        case "objeto (furos ou pads)" -> "Os cliques precisam atingir um furo ou pad da origem; a posição adotada é seu centro.";
-        case "clique livre" -> "Usa diretamente as coordenadas clicadas no plot, sem procurar um centro de pad ou furo.";
-        case "obter pontos" -> "Coleta os quatro pontos, começando pelo inferior esquerdo e seguindo a ordem indicada.\n\nAtalho: Esc cancela a coleta.";
-        case "2º ponto", "superior esquerdo", "inferior direito" -> "Define qual ponto o programa de verificação visita depois da origem.";
-        case "x alvo", "y alvo" -> "Coordenadas dos pontos obtidos no plot. São referências de cálculo, não deltas medidos." + UNIT;
-        case "delta x", "delta y" -> "Desvio medido na máquina nos pontos 2 e 3. Vazio ou zero não aplica correção neste eixo." + UNIT;
-        case "z de deslocamento", "z de troca de ferramenta" -> "Altura livre para deslocar ou trocar a ferramenta no programa de verificação. Confira as fixações." + UNIT;
-        case "xy de troca" -> "Coordenadas X,Y da troca no programa de verificação. Confira o percurso e a altura antes de executar." + UNIT;
-        case "gerar g-code de verificacao" -> "Salva um programa que visita os quatro pontos coletados.\n\nAtenção: confira alturas, origem e fixações; não executa nem mede a máquina automaticamente.";
-        case "calcular fatores (a partir dos deltas)" -> "Calcula escala e inclinação a partir dos desvios medidos nos pontos 2 e 3.";
-        case "aplicar escala aos pontos", "aplicar inclinacao aos pontos" -> "Atualiza somente os pontos coletados com os fatores calculados, para conferir a correção.";
-        case "objeto a ajustar (escala e depois inclinacao, pela origem)", "calibrar objeto" -> "Cria uma cópia _calibrated com escala e depois inclinação pela origem. O objeto original é preservado.";
+        case "objeto (furos ou pads)" -> I18n.text("ui.6d7a0b138b2b");
+        case "clique livre" -> I18n.text("ui.2a9c72e3098f");
+        case "obter pontos" -> I18n.text("ui.52465e564c44");
+        case "2º ponto", "superior esquerdo", "inferior direito" -> I18n.text("ui.f474402c07ca");
+        case "x alvo", "y alvo" -> I18n.text("ui.acbe8b1e1e78") + UNIT;
+        case "delta x", "delta y" -> I18n.text("ui.dea2eb419295") + UNIT;
+        case "z de deslocamento", "z de troca de ferramenta" -> I18n.text("ui.716c4cfdaf16") + UNIT;
+        case "xy de troca" -> I18n.text("ui.c0bcb59921b7") + UNIT;
+        case "gerar g-code de verificacao" -> I18n.text("ui.c2c28a986421");
+        case "calcular fatores (a partir dos deltas)" -> I18n.text("ui.1ee536032e46");
+        case "aplicar escala aos pontos", "aplicar inclinacao aos pontos" -> I18n.text("ui.763317281bb7");
+        case "objeto a ajustar (escala e depois inclinacao, pela origem)", "calibrar objeto" -> I18n.text("ui.ce55236920c1");
         default -> null;
     }; }
     private static String thieving(String n) { return switch (n) {
-        case "distancia" -> "Afastamento entre o cobre ou a máscara original e os elementos auxiliares desta seção." + UNIT;
-        case "margem" -> "Margem da região externa usada nesta seção para gerar cobre auxiliar." + UNIT;
-        case "diametro", "lado", "espessura" -> "Tamanho dos pontos, quadrados, linhas ou barra de cobre da seção indicada." + UNIT;
-        case "espaco" -> "Espaço livre entre elementos repetidos; não é o passo entre seus centros." + UNIT;
-        case "preencher dentro de", "o proprio objeto", "areas desenhadas", "objeto de referencia" -> "Limita o preenchimento pela caixa da origem, pelas áreas desenhadas ou por um objeto de referência alinhado.";
-        case "caixa", "retangular", "minima (casco convexo)" -> "Escolhe caixa retangular ou casco convexo como limite externo do preenchimento.";
-        case "tipo de preenchimento", "solido", "pontos", "quadrados", "linhas" -> "Escolhe cobre sólido ou elementos repetidos. Linhas usam a própria origem como referência.";
-        case "desenhar area (2 cliques)" -> "Escolha dois cantos opostos no plot para adicionar uma região de preenchimento.\n\nAtalho: Esc cancela a coleta.";
-        case "limpar areas" -> "Remove as regiões desenhadas da prévia, sem apagar os Gerbers criados.";
-        case "adicionar copper thieving" -> "Cria um Gerber com cobre auxiliar nas regiões livres, usando afastamento e padrão escolhidos.";
-        case "adicionar robber bar" -> "Cria uma barra periférica de cobre pela caixa da origem, com a margem e espessura desta seção.";
-        case "incluir", "ambos", "thieving", "robber bar", "nenhum" -> "Escolhe quais resultados auxiliares gerados neste painel serão incluídos na máscara de galvanoplastia.";
-        case "area galvanizada" -> "Área calculada pelo resultado da máscara.\n\nUnidades: unidade do objeto ao quadrado (mm² ou in²).";
-        case "gerber da mascara de solda", "gerar mascara de galvanoplastia" -> "Cria a máscara a partir do Gerber escolhido e dos últimos resultados de thieving/barra deste painel.";
+        case "distancia" -> I18n.text("ui.691dade54090") + UNIT;
+        case "margem" -> I18n.text("ui.06b60f328958") + UNIT;
+        case "diametro", "lado", "espessura" -> I18n.text("ui.cf6cbcd75de7") + UNIT;
+        case "espaco" -> I18n.text("ui.42200adb3259") + UNIT;
+        case "preencher dentro de", "o proprio objeto", "areas desenhadas", "objeto de referencia" -> I18n.text("ui.f5da4c67a6e8");
+        case "caixa", "retangular", "minima (casco convexo)" -> I18n.text("ui.662650fa59d9");
+        case "tipo de preenchimento", "solido", "pontos", "quadrados", "linhas" -> I18n.text("ui.740005be4bf9");
+        case "desenhar area (2 cliques)" -> I18n.text("ui.f565538fc759");
+        case "limpar areas" -> I18n.text("ui.938ce58760c0");
+        case "adicionar copper thieving" -> I18n.text("ui.68eada089724");
+        case "adicionar robber bar" -> I18n.text("ui.ce8e2ca3c24c");
+        case "incluir", "ambos", "thieving", "robber bar", "nenhum" -> I18n.text("ui.81b419de8803");
+        case "area galvanizada" -> I18n.text("ui.9cb441db76ee");
+        case "gerber da mascara de solda", "gerar mascara de galvanoplastia" -> I18n.text("ui.fb7ade842504");
         default -> null;
     }; }
     private static String rules(String n) { return switch (n) {
-        case "cobre topo", "cobre base", "seda topo", "seda base", "mascara topo", "mascara base", "contorno", "excellon 1", "excellon 2" -> "Objeto usado no papel indicado para verificar a placa. (nenhum) omite esta camada; regras que dependem dela podem não ser avaliadas.";
-        case "tamanho da trilha", "distancia cobre a cobre", "distancia cobre ao contorno", "distancia seda a seda", "distancia seda a mascara de solda", "distancia seda ao contorno", "lasca minima da mascara de solda", "anel anular minimo", "distancia furo a furo", "tamanho do furo" -> "Habilita a regra indicada. O valor ao lado é o mínimo permitido para o tamanho ou afastamento avaliado. Resultados abaixo desse limite são listados como violações." + UNIT;
-        case "executar verificacao" -> "Verifica as regras marcadas nas camadas escolhidas, sem alterar os objetos.\n\nAtenção: ausência de violações não certifica fabricação nem segurança CNC; confira também as regras que não puderam ser avaliadas.";
-        case "resultado (clique numa regra)", "violacoes (clique para ir ate la)" -> "Selecione uma regra para listar violações; selecione um local para centralizar e marcá-lo no plot.";
+        case "cobre topo", "cobre base", "seda topo", "seda base", "mascara topo", "mascara base", "contorno", "excellon 1", "excellon 2" -> I18n.text("ui.556f53e30621");
+        case "tamanho da trilha", "distancia cobre a cobre", "distancia cobre ao contorno", "distancia seda a seda", "distancia seda a mascara de solda", "distancia seda ao contorno", "lasca minima da mascara de solda", "anel anular minimo", "distancia furo a furo", "tamanho do furo" -> I18n.text("ui.5a6e489052fd") + UNIT;
+        case "executar verificacao" -> I18n.text("ui.851a7adf6c1d");
+        case "resultado (clique numa regra)", "violacoes (clique para ir ate la)" -> I18n.text("ui.68746d5589ae");
         default -> null;
     }; }
     private static String qr(String n) { return switch (n) {
-        case "dados do qr code" -> "Texto ou endereço codificado. Mais dados podem aumentar a versão e o tamanho final do QR Code.";
-        case "gerber de destino" -> "Gerber que receberá o QR Code na posição clicada. Confira espaço, polaridade e tamanho.";
-        case "mascara", "quadrada", "arredondada" -> "Formato da região externa usada para colocar o código. Não é a máscara de solda da placa.";
-        case "l", "m", "q", "h" -> "Nível de correção de erro do QR Code; L, M, Q e H oferecem recuperação crescente e podem aumentar seu tamanho.";
-        case "positiva", "negativa" -> "Positiva adiciona cobre nos módulos; negativa abre os módulos numa região preenchida.";
-        case "colocar qr code (clique no destino)" -> "Gera o código e pede um clique para posicioná-lo no Gerber de destino.\n\nAtalho: Esc cancela o posicionamento.";
+        case "dados do qr code" -> I18n.text("ui.2bf12ca48e4f");
+        case "gerber de destino" -> I18n.text("ui.a12ed594351e");
+        case "mascara", "quadrada", "arredondada" -> I18n.text("ui.69e3ca1aea3a");
+        case "l", "m", "q", "h" -> I18n.text("ui.15969c5ef571");
+        case "positiva", "negativa" -> I18n.text("ui.a068ad7b294a");
+        case "colocar qr code (clique no destino)" -> I18n.text("ui.4a29532d2011");
         default -> null;
     }; }
     private static String pads(String n) { return switch (n) {
-        case "tamanho do furo", "origem dos furos", "fixo", "anel anular", "proporcional", "excellon" -> "Escolhe como definir os furos: diâmetro fixo, anel de cobre, proporção do pad ou Excellon alinhado (quando disponível).";
-        case "tipos de pad", "circulares", "oblongos", "quadrados", "retangulares", "outros" -> "Inclui ou exclui este formato de pad no processamento. Confira a lista de aberturas antes de gerar.";
-        case "todos", "nenhum" -> "Marca ou desmarca os formatos ou aberturas oferecidos nesta seção; não apaga objetos.";
-        case "extrair furos" -> "Cria um Excellon nos centros dos pads escolhidos, usando o modo de dimensionamento configurado.";
-        case "furar gerber" -> "Cria uma cópia do Gerber com as regiões dos furos retiradas do cobre. Não gera G-code de furação.";
+        case "tamanho do furo", "origem dos furos", "fixo", "anel anular", "proporcional", "excellon" -> I18n.text("ui.3f6ef22be902");
+        case "tipos de pad", "circulares", "oblongos", "quadrados", "retangulares", "outros" -> I18n.text("ui.7bb62838bb16");
+        case "todos", "nenhum" -> I18n.text("ui.46a295dd6efb");
+        case "extrair furos" -> I18n.text("ui.4e5833a41d85");
+        case "furar gerber" -> I18n.text("ui.debab6268ccf");
         default -> null;
     }; }
     private static String editor(String n) { return switch (n) {
-        case "circulo" -> "Clique no centro e depois no perímetro para definir o raio.\n\nAtalho: Esc cancela; Ctrl+Z desfaz após inserir.";
-        case "retangulo" -> "Clique em dois cantos opostos para desenhar o retângulo.\n\nAtalho: Esc cancela; Ctrl+Z desfaz após inserir.";
-        case "arco" -> "Escolha exatamente três pontos: início, ponto intermediário e fim. Enter ou botão direito conclui; Esc cancela.";
-        case "caminho", "poligono" -> "Clique nos vértices do caminho ou polígono. Enter ou botão direito conclui; Esc cancela. Confira o fechamento antes de aplicar.";
-        case "nova abertura" -> "Formato da nova abertura: C = circular; R = retangular; O = oblonga; P = poligonal. O D-code é criado automaticamente.";
-        case "d" -> "D-code da abertura Gerber selecionada. Renomear atualiza as formas associadas; não é o diâmetro.";
-        case "adicionar abertura c", "adicionar abertura" -> "Cria uma abertura do formato e dimensões exibidos para desenhar novos pads; a criação da abertura não coloca uma forma no plot.";
-        case "alterar d-code" -> "Renomeia a abertura selecionada e atualiza suas formas associadas. Não muda suas dimensões.";
-        case "alterar dimensoes" -> "Atualiza as dimensões da abertura selecionada e suas formas associadas. Confira pads e trilhas afetados.";
-        case "array", "criar array de pads" -> "Linear: X/Y define o primeiro pad, Passo define a distância e Ângulo define a direção. Circular: X/Y define o centro, Passo/raio define o raio; use ângulo inicial e passo angular.";
-        case "arco (+ccw/-cw)" -> "Amplitude em graus: positiva percorre no sentido anti-horário (CCW); negativa, horário (CW).";
-        case "criar disco", "criar semidisco" -> "Cria uma região circular ou setor pela posição, raio e ângulos informados. Não adiciona um furo Excellon.";
-        case "area >", "e <", "selecionar por area" -> "Seleciona as formas com área entre os limites mínimo e máximo; não apaga as formas.\n\nUnidades: unidade do objeto ao quadrado (mm² ou in²).";
-        case "transformacao", "angulo/fator", "transformar selecionadas" -> "Escolha a transformação. Girar/inclinar usam graus; escalar usa fator (1 mantém tamanho). Referência X/Y é o ponto fixo da operação.";
-        case "transformacoes" -> "Expande o painel de rotação, escala e espelhamento das formas selecionadas.";
-        case "escalar selecionadas" -> "Multiplica as dimensões e coordenadas da seleção pelo fator informado. 1 mantém o tamanho. Confira o resultado no plot.";
-        case "cancelar posicionamento" -> "Cancela a operação em prévia antes de inserir ou transformar as formas.\n\nAtalho: Esc.";
-        case "apagar com selecionadas x/y" -> "Usa as formas selecionadas deslocadas por X/Y como molde para apagar regiões do desenho. Não é uma translação simples da seleção.\n\nAtalho: Ctrl+Z desfaz.";
-        case "aplicar" -> "Valida e aplica o rascunho ao objeto em memória; o arquivo original não é salvo automaticamente.";
-        case "cancelar" -> "Descarta o rascunho e encerra o editor sem aplicar alterações ao objeto.";
-        case "ferramenta para novos furos/slots" -> "Ferramenta Excellon usada nos novos furos e slots. Não altera automaticamente as ferramentas das formas existentes.";
-        case "redimensionar selecionados", "redimensionar" -> "Aplica o novo diâmetro aos furos ou slots selecionados, preservando seu posicionamento.";
-        case "array de furos selecionados", "array de slots selecionados" -> "GRID replica os furos ou slots selecionados numa grade de colunas/linhas e passos X/Y. A aplicação da grade é direta. Ctrl+Z desfaz a replicação inteira.";
-        case "array de furos", "array de slots" -> "LINEAR e CIRCULAR criam novos furos ou slots sem exigir seleção, usando o diâmetro informado. Escolha quantidade, passo/eixo ou centro/raio/ângulos e confira a prévia. Confirme pelo botão ou clique no plot; o clique não desloca o array. GRID mantém a replicação direta da seleção.\n\nAtalho: Esc cancela a prévia; Ctrl+Z desfaz o array inteiro e a ferramenta nova; Ctrl+Y refaz.";
-        case "selecionar" -> "Volta ao modo de seleção no plot. Clique seleciona; Ctrl+clique alterna; arrastar cria uma seleção por área.";
-        case "adicionar furo", "adicionar slot" -> "Usa a ferramenta escolhida para desenhar um furo ou slot no plot. Confira os pontos e dimensões antes de aplicar.";
-        case "excluir" -> "Apaga do rascunho as formas selecionadas.\n\nAtalho: Ctrl+Z desfaz.";
-        case "desfazer", "↶" -> "Desfaz a última alteração deste editor.\n\nAtalho: Ctrl+Z.";
-        case "refazer", "↷" -> "Reaplica a alteração desfeita neste editor.\n\nAtalho: Ctrl+Y.";
-        case "salvar e sair do editor", "aplicar e sair", "aplicar ao objeto", "aplicar ao cnc job" -> "Valida e aplica o rascunho ao objeto em memória. Não sobrescreve automaticamente o arquivo de origem no disco.";
-        case "descartar alteracoes", "cancelar edicao" -> "Encerra a edição sem aplicar o rascunho ao objeto. Alterações não aplicadas serão descartadas.";
-        case "excluir selecionadas", "excluir abertura e formas" -> "Apaga da edição as formas selecionadas ou a abertura e suas formas.\n\nAtalho: Ctrl+Z desfaz a alteração.";
-        case "mover selecionadas", "mover", "copiar selecionadas", "copiar" -> "No plot, clique na origem e depois no destino para mover ou copiar a seleção.\n\nAtalho: Esc cancela o posicionamento.";
-        case "x", "y", "centro x", "referencia x", "mover x/y", "copiar x/y" -> "Coordenada ou deslocamento do eixo indicado para a operação desta seção." + UNIT;
-        case "quantidade", "colunas / linhas" -> "Quantidade inteira de cópias no array; em grade, informe colunas e linhas.";
-        case "largura/diametro", "altura", "raio" -> "Dimensão da abertura ou forma desta seção. Use valores positivos e confira a prévia." + UNIT;
-        case "graus" -> "Ângulo de rotação das formas selecionadas, em graus, pela referência indicada.";
-        case "girar", "escalar", "espelhar horizontal", "espelhar vertical" -> "Transforma as formas selecionadas pelo centro de seus limites, usando os valores desta seção. A ferramenta associada é preservada.\n\nAtalho: Ctrl+Z desfaz.";
-        case "confirmar paint" -> "Insere no rascunho os caminhos da última prévia calculada. Não apaga os contornos originais.\n\nAtalho: Ctrl+Z desfaz todo o preenchimento.";
-        case "cancelar previa" -> "Remove a prévia do plot sem inserir caminhos no rascunho.";
-        case "method" -> "Método do Paint Shape: Standard = passos para dentro; Seed = expansão; Lines = linhas paralelas; Combo = alternativas.";
-        case "negrito", "italico" -> "Estilo da fonte para gerar os contornos do texto vetorial, quando disponível na fonte instalada.";
-        case "gerar e posicionar texto" -> "Converte o texto em formas vetoriais e pede a posição no plot. Confira tamanho e vazios das letras antes de aplicar.";
-        case "salvar arquivo..." -> "Grava uma cópia do rascunho em arquivo. Não aplica as mudanças ao CNC Job nem sobrescreve automaticamente a origem.";
+        case "circulo" -> I18n.text("ui.740447454c26");
+        case "retangulo" -> I18n.text("ui.43c9673958d4");
+        case "arco" -> I18n.text("ui.ff22d0e83c00");
+        case "caminho", "poligono" -> I18n.text("ui.fa11e4a775c1");
+        case "nova abertura" -> I18n.text("ui.152cbca96c72");
+        case "d" -> I18n.text("ui.f9b63d7988ff");
+        case "adicionar abertura c", "adicionar abertura" -> I18n.text("ui.ec32f6ee44d5");
+        case "alterar d-code" -> I18n.text("ui.3fc6c66b9c36");
+        case "alterar dimensoes" -> I18n.text("ui.a9ef897fd2f1");
+        case "array", "criar array de pads" -> I18n.text("ui.bb9d53a83eec");
+        case "arco (+ccw/-cw)" -> I18n.text("ui.0ae580d73258");
+        case "criar disco", "criar semidisco" -> I18n.text("ui.b05bf739421f");
+        case "area >", "e <", "selecionar por area" -> I18n.text("ui.84d3e7ee32de");
+        case "transformacao", "angulo/fator", "transformar selecionadas" -> I18n.text("ui.d133a2a83fb5");
+        case "transformacoes" -> I18n.text("ui.9f352d96f369");
+        case "escalar selecionadas" -> I18n.text("ui.6760dd9cfbca");
+        case "cancelar posicionamento" -> I18n.text("ui.df54020b414d");
+        case "apagar com selecionadas x/y" -> I18n.text("ui.af177e541900");
+        case "aplicar" -> I18n.text("ui.874338f9f207");
+        case "cancelar" -> I18n.text("ui.36d16ad151c0");
+        case "ferramenta para novos furos/slots" -> I18n.text("ui.dc94fd90f6c9");
+        case "redimensionar selecionados", "redimensionar" -> I18n.text("ui.d0c315e852e4");
+        case "array de furos selecionados", "array de slots selecionados" -> I18n.text("ui.545d57abe001");
+        case "array de furos", "array de slots" -> I18n.text("ui.1a78e294b184");
+        case "selecionar" -> I18n.text("ui.6161a1797273");
+        case "adicionar furo", "adicionar slot" -> I18n.text("ui.36f5d6d09d73");
+        case "excluir" -> I18n.text("ui.b75964f1db6b");
+        case "desfazer", "↶" -> I18n.text("ui.ff0f5a14916f");
+        case "refazer", "↷" -> I18n.text("ui.6e481a7f3837");
+        case "salvar e sair do editor", "aplicar e sair", "aplicar ao objeto", "aplicar ao cnc job" -> I18n.text("ui.f4fce043c6cf");
+        case "descartar alteracoes", "cancelar edicao" -> I18n.text("ui.c0ba05360022");
+        case "excluir selecionadas", "excluir abertura e formas" -> I18n.text("ui.b78d568e3e23");
+        case "mover selecionadas", "mover", "copiar selecionadas", "copiar" -> I18n.text("ui.85dd13e44335");
+        case "x", "y", "centro x", "referencia x", "mover x/y", "copiar x/y" -> I18n.text("ui.6f6b0ac72b6f") + UNIT;
+        case "quantidade", "colunas / linhas" -> I18n.text("ui.e1654930c05b");
+        case "largura/diametro", "altura", "raio" -> I18n.text("ui.f32fdd4733a8") + UNIT;
+        case "graus" -> I18n.text("ui.2c2c37da8779");
+        case "girar", "escalar", "espelhar horizontal", "espelhar vertical" -> I18n.text("ui.93b2f0b556fa");
+        case "confirmar paint" -> I18n.text("ui.288ef5f04c0c");
+        case "cancelar previa" -> I18n.text("ui.7dad7e55d373");
+        case "method" -> I18n.text("ui.1736801198f7");
+        case "negrito", "italico" -> I18n.text("ui.cbc341df17f9");
+        case "gerar e posicionar texto" -> I18n.text("ui.07bbd3f06ac0");
+        case "salvar arquivo..." -> I18n.text("ui.6e655d4e4e51");
         default -> null;
     }; }
     private static String object(String n) { return switch(n) {
-        case "plot" -> "Exibe ou oculta este objeto no Plot Area. Não exclui o objeto, altera sua geometria ou modifica o G-code.";
+        case "plot" -> I18n.text("ui.55f889916c34");
         case "isolation routing" -> ToolDescriptions.of("isolation").text();
         case "ncc tool" -> ToolDescriptions.of("ncc").text();
         case "cutout tool" -> ToolDescriptions.of("cutout").text();
         case "drilling tool" -> ToolDescriptions.of("drilling").text();
-        case "milling tool" -> "Abre a conversão de furos e slots em caminhos de fresagem; cria Geometry antes do CNC Job.";
-        case "generate cnc job", "gerar cnc job" -> "Abre os parâmetros CNC da Geometry. Confira perfil, diâmetros, profundidades, avanços e alturas antes de gerar.";
-        case "editar geometry", "excellon editor" -> "Abre o editor do objeto; as alterações ficam em rascunho até aplicar e sair.";
+        case "milling tool" -> I18n.text("ui.cc88e7801d40");
+        case "generate cnc job", "gerar cnc job" -> I18n.text("ui.939aacfa8c2a");
+        case "editar geometry", "excellon editor" -> I18n.text("ui.c0af9572ffb9");
         case "ver g-code" -> CommandHelpCatalog.help("Ver G-code");
-        case "editar g-code" -> CommandHelpCatalog.help("Editar G-code");
-        case "plot kind" -> "All mostra cortes e deslocamentos. Cut mostra os movimentos de corte; Travel mostra deslocamentos. Não modifica o programa.";
-        case "percorrer", "<", ">" -> "Seleciona o primeiro, anterior ou próximo movimento da rota CNC no plot. É uma inspeção visual, não controle da máquina.";
-        case "limpar" -> "Remove o destaque do passo CNC selecionado, sem apagar a rota nem o programa.";
-        case "reproduzir" -> "Inicia ou pausa a animação da rota no plot. Não envia comandos à máquina nem simula colisões.";
-        case "exportar csv" -> "Exporta a sequência de movimentos para inspeção em tabela. Não substitui o G-code nem valida a segurança da máquina.";
-        case "mark all", "marcar todos" -> "Marca ou desmarca todas as aberturas para destacar suas formas no plot. Não muda o Gerber.";
-        case "rounded", "cantos arredondados" -> "Usa cantos arredondados na caixa ou área auxiliar gerada nesta seção.";
-        case "gerar geometry follow" -> "Cria Geometry pelas linhas centrais do Gerber, em vez dos limites do cobre.";
-        case "offset x,y", "deslocamento x,y" -> "Deslocamento X e Y aplicado ao objeto, sem compensação do raio da ferramenta." + UNIT;
-        case "transformations", "transformations:", "transformacoes" -> "Abre as transformações do objeto. Confira a seleção e a referência antes de aplicar.";
+        case "editar g-code" -> CommandHelpCatalog.help(I18n.text("ui.fb1b561e4268"));
+        case "plot kind" -> I18n.text("ui.7bf82ac55cf3");
+        case "percorrer", "<", ">" -> I18n.text("ui.93b0a7891d6e");
+        case "limpar" -> I18n.text("ui.b70abf81a7b7");
+        case "reproduzir" -> I18n.text("ui.ad7d2e41ff01");
+        case "exportar csv" -> I18n.text("ui.3a37779b3d11");
+        case "mark all", "marcar todos" -> I18n.text("ui.c2cffd35285c");
+        case "rounded", "cantos arredondados" -> I18n.text("ui.db3d929b8436");
+        case "gerar geometry follow" -> I18n.text("ui.7a06308cd825");
+        case "offset x,y", "deslocamento x,y" -> I18n.text("ui.5b56419480d6") + UNIT;
+        case "transformations", "transformations:", "transformacoes" -> I18n.text("ui.fc8ef38d65df");
         default -> null;
     }; }
 }

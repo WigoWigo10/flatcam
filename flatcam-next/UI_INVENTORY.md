@@ -1,5 +1,10 @@
 # Inventário de janelas e telas (FlatCAM Python/PyQt5, branch `python312-compat`)
 
+> Este levantamento descreve a referência Python e contém notas históricas do
+> início do port. Para o estado atual do FX, consulte `MATRIZ_PARIDADE.md` e
+> `PREFERENCIAS.md`. Em 2026-10-27, catálogos UTF-8 e seleção Português/English
+> também foram implementados; escopo e limites em `I18N.md`.
+
 Levantamento do que existe hoje no app Python, para servir de referência ao
 recriar (e onde fizer sentido, melhorar) a interface em JavaFX. Não é uma
 especificação de como o JavaFX deve ficar - é o que a versão legada

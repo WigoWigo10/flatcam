@@ -83,34 +83,33 @@ final class SubtractToolPanel {
         kindGroup.selectedToggleProperty().addListener((observable, previous, next) -> fill.run());
         fill.run();
 
-        CheckBox closePaths = new CheckBox("Fechar caminhos");
+        CheckBox closePaths = new CheckBox(I18n.text("ui.e65816e31e60"));
         closePaths.setSelected(true);
-        closePaths.setTooltip(tooltip("Geometry: corta os caminhos do alvo como uma forma fechada unica. "
-                + "Desmarcado, cada polígono vira seus aneis e cada linha e cortada separadamente."));
+        closePaths.setTooltip(tooltip(I18n.text("ui.11fca7e57c5e")));
         closePaths.visibleProperty().bind(geometryKind.selectedProperty());
         closePaths.managedProperty().bind(closePaths.visibleProperty());
-        CheckBox deleteSources = new CheckBox("Excluir os objetos de origem");
-        deleteSources.setTooltip(tooltip("Remove o alvo e o subtraendo do projeto depois de criar o resultado."));
+        CheckBox deleteSources = new CheckBox(I18n.text("ui.38bf900d7e10"));
+        deleteSources.setTooltip(tooltip(I18n.text("ui.dfc40f243592")));
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button subtract = new Button("Subtrair");
+        Button subtract = new Button(I18n.text("ui.306dd9dc882b"));
         subtract.setMaxWidth(Double.MAX_VALUE);
         subtract.setOnAction(event -> {
             TreeItem<String> targetItem = target.getValue();
             TreeItem<String> subtractorItem = subtractor.getValue();
             if (targetItem == null) {
-                errorLabel.setText("Não há objeto alvo carregado");
+                errorLabel.setText(I18n.text("ui.48a7e7b4e7c5"));
                 return;
             }
             if (subtractorItem == null) {
-                errorLabel.setText("Não há objeto subtraendo carregado");
+                errorLabel.setText(I18n.text("ui.c70986a3cab4"));
                 return;
             }
             if (targetItem == subtractorItem) {
-                errorLabel.setText("O alvo e o subtraendo devem ser objetos diferentes");
+                errorLabel.setText(I18n.text("ui.15a71576c75a"));
                 return;
             }
             String error = gerberKind.isSelected()
@@ -119,13 +118,13 @@ final class SubtractToolPanel {
                             deleteSources.isSelected());
             errorLabel.setText(error == null ? "" : error);
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(8,
-                new Label("Tipo de objeto:"), new HBox(10, gerberKind, geometryKind),
-                new Label("Alvo (de onde se subtrai):"), target,
-                new Label("Subtraendo (o que e retirado):"), subtractor,
+                new Label(I18n.text("ui.1dea7ffe4eaf")), new HBox(10, gerberKind, geometryKind),
+                new Label(I18n.text("ui.3c51f0d21812")), target,
+                new Label(I18n.text("ui.9ff5fae60765")), subtractor,
                 closePaths, deleteSources, subtract, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

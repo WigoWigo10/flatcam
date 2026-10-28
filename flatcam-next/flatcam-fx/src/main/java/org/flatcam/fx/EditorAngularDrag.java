@@ -10,7 +10,7 @@ final class EditorAngularDrag {
 
     EditorAngularDrag(Coordinate pivot) {
         if (pivot==null || !Double.isFinite(pivot.x) || !Double.isFinite(pivot.y))
-            throw new IllegalArgumentException("Pivô inválido.");
+            throw new IllegalArgumentException(I18n.text("ui.e7ec788f3658"));
         this.pivot = new Coordinate(pivot);
     }
 

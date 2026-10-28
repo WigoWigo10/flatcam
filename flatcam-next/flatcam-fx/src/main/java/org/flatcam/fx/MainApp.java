@@ -46,7 +46,8 @@ public class MainApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        FlatCamLauncher.startupMessage("Carregando preferências e ferramentas…");
+        I18n.initialize(AppPreferences.loadLanguage());
+        FlatCamLauncher.startupMessage(I18n.text("ui.d5463ee600be"));
         FlatCamLauncher.monitorUi();
         jobExecutor = new JobExecutor();
         // The DPI-rescale workaround below hides the old Stage and shows a fresh one
@@ -60,13 +61,13 @@ public class MainApp extends Application {
         // Only the real application remembers the tool defaults; tests and harnesses keep the factory values.
         ToolDefaults.useStore(AppPreferences.toolDefaultsStore());
         CamExportDialog.migrateLegacyPreferences();
-        FlatCamLauncher.startupMessage("Preparando os painéis e o Plot Area…");
+        FlatCamLauncher.startupMessage(I18n.text("ui.50d1aab34b3a"));
         mainWindow = new MainWindow(jobExecutor);
         ToolDefaults.useDisplayUnits(mainWindow::displayUnitsMetric);
         StartupTarget startup = startupTarget();
         Rectangle2D startupBounds = startup.screen().getBounds();
         primaryStage.setTitle("FlatCAM FX");
-        FlatCamLauncher.startupMessage("Montando a área de trabalho…");
+        FlatCamLauncher.startupMessage(I18n.text("ui.14281253fe7d"));
         primaryStage.setScene(mainWindow.createScene());
         primaryStage.setWidth(Math.min(AppPreferences.loadWindowWidth(1200),
                 Math.max(1, startupBounds.getWidth() - 20)));

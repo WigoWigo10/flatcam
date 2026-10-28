@@ -34,7 +34,7 @@ final class LayerColorDialog {
 
     static Dialog<Color> colorDialog(Color currentFill) {
         Dialog<Color> dialog = new Dialog<>();
-        dialog.setTitle("Definir Cor");
+        dialog.setTitle(I18n.text("ui.d109ed9d1f5e"));
         FluidTooltips.install(dialog, "Layer Color");
 
         ButtonType okType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
@@ -46,13 +46,13 @@ final class LayerColorDialog {
         grid.setHgap(8);
         grid.setVgap(8);
         grid.setPadding(new Insets(12));
-        grid.addRow(0, new Label("Cor:"), fillPicker);
+        grid.addRow(0, new Label(I18n.text("ui.16479976a8e7")), fillPicker);
         dialog.getDialogPane().setContent(grid);
 
         dialog.setResultConverter(button -> button == okType ? fillPicker.getValue() : null);
 
         PanelTooltips.install(grid, "Layer Color");
-        actions(dialog, okType, "Aplicar cor", "Aplica a cor escolhida ao objeto no Plot Area. Não altera os caminhos CAM nem o G-code.");
+        actions(dialog, okType, I18n.text("ui.0d65c4ffc7fe"), I18n.text("ui.03c8d9930388"));
         return dialog;
     }
 
@@ -62,7 +62,7 @@ final class LayerColorDialog {
 
     static Dialog<Double> opacityDialog(double currentOpacity) {
         Dialog<Double> dialog = new Dialog<>();
-        dialog.setTitle("Opacidade");
+        dialog.setTitle(I18n.text("ui.212b6b7b0d29"));
         FluidTooltips.install(dialog, "Layer Color");
 
         ButtonType okType = new ButtonType("OK", ButtonBar.ButtonData.OK_DONE);
@@ -81,18 +81,18 @@ final class LayerColorDialog {
         grid.setHgap(8);
         grid.setVgap(8);
         grid.setPadding(new Insets(12));
-        grid.addRow(0, new Label("Opacidade:"), slider, value);
+        grid.addRow(0, new Label(I18n.text("ui.b560c17969f7")), slider, value);
         dialog.getDialogPane().setContent(grid);
 
         dialog.setResultConverter(button -> button == okType ? slider.getValue() / 100.0 : null);
         PanelTooltips.install(grid, "Layer Color");
-        actions(dialog, okType, "Aplicar opacidade", "Aplica a transparência escolhida ao objeto no Plot Area.\n\nAtenção: 0% deixa o objeto invisível, sem desativar seu Plot.");
+        actions(dialog, okType, I18n.text("ui.e779e380b62f"), I18n.text("ui.fc8266041de5"));
         return dialog;
     }
 
     private static void actions(Dialog<?> dialog, ButtonType confirm, String title, String text) {
         ToolDescriptions.apply(dialog.getDialogPane().lookupButton(confirm), title, text);
-        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(ButtonType.CANCEL), "Cancelar aparência",
-                "Fecha sem aplicar a alteração de cor ou opacidade ao objeto.");
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(ButtonType.CANCEL), I18n.text("ui.ce6c93b2e203"),
+                I18n.text("ui.29020b696007"));
     }
 }

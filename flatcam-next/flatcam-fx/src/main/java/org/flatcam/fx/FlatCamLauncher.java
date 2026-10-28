@@ -11,6 +11,7 @@ public final class FlatCamLauncher {
     private FlatCamLauncher() { }
 
     public static void main(String[] args) throws Exception {
+        I18n.initialize(AppPreferences.loadLanguage());
         if (Arrays.asList(args).contains("--no-diagnostics")) System.setProperty("flatcam.diagnostics.enabled", "false");
         try {
             String splashOverride=System.getProperty("flatcam.splash.enabled");
@@ -18,16 +19,16 @@ public final class FlatCamLauncher {
                     && (splashOverride!=null || AppPreferences.loadSplashScreen())) {
                 var saved=AppPreferences.loadWindowScreen();
                 splash=StartupSplash.open(AppPreferences.loadTheme(),saved==null ? null : saved.deviceId());
-                startupMessage("Preparando a inicialização…");
+                startupMessage(I18n.text("ui.e1d19a8816c1"));
             }
             diagnostics = DiagnosticSession.start();
             if (Arrays.asList(args).contains("--diagnostics-probe")) {
                 if (diagnostics == null) throw new IllegalStateException("Diagnostics are unavailable");
-                System.out.println("FlatCAM FX diagnostics probe: log UTF-8 — informações.");
+                System.out.println(I18n.text("ui.a3ae9b6eef74"));
                 Thread probe = new Thread(() -> { throw new IllegalStateException("intentional diagnostics probe"); }, "diagnostics-probe");
                 probe.start(); probe.join(); diagnostics.capture("probe");
             } else {
-                startupMessage("Iniciando a interface gráfica…");
+                startupMessage(I18n.text("ui.6ea4816fc6aa"));
                 Application.launch(MainApp.class, args);
             }
         } catch (Throwable failure) {
@@ -49,14 +50,14 @@ public final class FlatCamLauncher {
     static void mainWindowShown(javafx.stage.Window owner) {
         if(splash==null || startupFrames!=null) return;
         var current=splash;
-        startupMessage("Identificando o modo gráfico…"); current.keepVisible();
+        startupMessage(I18n.text("ui.7b685a5004c0")); current.keepVisible();
         startupFrames=new javafx.animation.AnimationTimer() {
             private int frames;
             @Override public void handle(long now) {
                 if(++frames>=2) {
                     stop(); startupFrames=null;
                     GraphicsRuntimeInfo.query(owner).whenComplete((graphics,failure)-> {
-                        if(splash==current) current.ready(failure==null ? graphics : GraphicsRuntimeInfo.unavailable("Consulta indisponível."));
+                        if(splash==current) current.ready(failure==null ? graphics : GraphicsRuntimeInfo.unavailable(I18n.text("ui.378d46d3933f")));
                     });
                 }
             }
@@ -81,9 +82,9 @@ public final class FlatCamLauncher {
             try {
                 if (!java.awt.Desktop.isDesktopSupported()) throw new UnsupportedOperationException("Desktop unavailable");
                 java.awt.Desktop.getDesktop().open(directory.toFile());
-                message = "Diagnósticos: " + directory;
+                message = I18n.text("ui.73577c468c43") + directory;
             } catch (Exception failure) {
-                message = "Abra a pasta de diagnósticos manualmente: " + directory + " (" + failure + ")";
+                message = I18n.text("ui.7b66c5377bd8") + directory + " (" + failure + ")";
             }
             String result = message;
             javafx.application.Platform.runLater(() -> feedback.accept(result));

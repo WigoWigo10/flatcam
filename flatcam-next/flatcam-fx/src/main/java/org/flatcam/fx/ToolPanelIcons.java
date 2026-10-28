@@ -116,7 +116,15 @@ final class ToolPanelIcons {
     }
 
     static String buttonIcon(String label) {
-        return BUTTONS.get(label);
+        return iconFor(BUTTONS, label);
+    }
+
+    private static String iconFor(Map<String, String> registry, String caption) {
+        for (String candidate : I18n.sources(caption)) {
+            String icon = registry.get(candidate);
+            if (icon != null) return icon;
+        }
+        return null;
     }
 
     static void decorate(Node root, Function<String, Node> icon) {
@@ -129,7 +137,7 @@ final class ToolPanelIcons {
             }
         }
         if (root instanceof TitledPane pane) {
-            String name = SECTIONS.get(pane.getText());
+            String name = iconFor(SECTIONS, pane.getText());
             if (name != null && pane.getGraphic() == null) pane.setGraphic(icon.apply(name));
             if (pane.getContent() != null) decorate(pane.getContent(), icon);
         }

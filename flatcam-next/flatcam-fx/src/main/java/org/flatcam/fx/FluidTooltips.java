@@ -212,8 +212,12 @@ final class FluidTooltips {
 
     /** Dialogs have their own scenes; use the same animation and live theme as their owner. */
     static void install(Dialog<?> dialog, String context) {
+        I18n.dialogButtons(dialog.getDialogPane());
+        dialog.getDialogPane().getButtonTypes().addListener(
+                (javafx.collections.ListChangeListener<javafx.scene.control.ButtonType>) change -> I18n.dialogButtons(dialog.getDialogPane()));
         var previousShown = dialog.getOnShown();
         dialog.setOnShown(event -> {
+            I18n.dialogButtons(dialog.getDialogPane());
             if (previousShown != null) previousShown.handle(event);
             PanelTooltips.install(dialog.getDialogPane().getContent(), context);
             Scene dialogScene = dialog.getDialogPane().getScene();

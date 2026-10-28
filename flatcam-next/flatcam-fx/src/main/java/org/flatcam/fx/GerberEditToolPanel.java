@@ -63,41 +63,41 @@ final class GerberEditToolPanel {
     private final Label selectionLabel = new Label();
     private final Label errorLabel = new Label();
     private final Label placementLabel = new Label();
-    private final Button undoButton = new Button("Desfazer");
-    private final Button redoButton = new Button("Refazer");
-    private final Button deleteButton = new Button("Excluir selecionadas");
-    private final Button moveButton = new Button("Mover");
-    private final Button copyButton = new Button("Copiar");
-    private final Button moveOffsetButton = new Button("Mover X/Y");
-    private final Button copyOffsetButton = new Button("Copiar X/Y");
-    private final Button cancelPlacementButton = new Button("Cancelar posicionamento");
-    private final Button applyButton = new Button("Aplicar");
-    private final Button cancelButton = new Button("Cancelar");
-    private final Button addApertureButton = new Button("Adicionar abertura C");
+    private final Button undoButton = new Button(I18n.text("ui.786b48222848"));
+    private final Button redoButton = new Button(I18n.text("ui.7b659c9caa5e"));
+    private final Button deleteButton = new Button(I18n.text("ui.089c36593824"));
+    private final Button moveButton = new Button(I18n.text("ui.6624c0d31888"));
+    private final Button copyButton = new Button(I18n.text("ui.39dcf1cbeb5a"));
+    private final Button moveOffsetButton = new Button(I18n.text("ui.b9576c3fb776"));
+    private final Button copyOffsetButton = new Button(I18n.text("ui.70b82513c3c6"));
+    private final Button cancelPlacementButton = new Button(I18n.text("ui.d569e8ea7fcf"));
+    private final Button applyButton = new Button(I18n.text("ui.3a04898a6b8b"));
+    private final Button cancelButton = new Button(I18n.text("ui.bb9dbb406dcb"));
+    private final Button addApertureButton = new Button(I18n.text("ui.13d5066acc32"));
     private final ComboBox<String> apertureTypeBox = new ComboBox<>();
     private final TextField apertureWidthField = new TextField("1.0");
     private final TextField apertureHeightField = new TextField("1.0");
     private final TextField apertureVerticesField = new TextField("6");
     private final TextField apertureRotationField = new TextField("0");
     private final Label apertureWidthLabel = new Label();
-    private final Label apertureHeightLabel = new Label("Altura:");
-    private final Label apertureVerticesLabel = new Label("Vértices:");
-    private final Label apertureRotationLabel = new Label("Rotação:");
+    private final Label apertureHeightLabel = new Label(I18n.text("ui.d25e09df7a8e"));
+    private final Label apertureVerticesLabel = new Label(I18n.text("ui.74b55d032108"));
+    private final Label apertureRotationLabel = new Label(I18n.text("ui.018c682d5168"));
     private final TextField editCodeField = new TextField();
     private final TextField editWidthField = new TextField();
     private final TextField editHeightField = new TextField();
     private final TextField editVerticesField = new TextField();
     private final TextField editRotationField = new TextField();
-    private final Button renameApertureButton = new Button("Alterar D-code");
-    private final Button resizeApertureButton = new Button("Alterar dimensões");
-    private final Button deleteApertureButton = new Button("Excluir abertura e formas");
+    private final Button renameApertureButton = new Button(I18n.text("ui.0cf0206fda63"));
+    private final Button resizeApertureButton = new Button(I18n.text("ui.43444da6d521"));
+    private final Button deleteApertureButton = new Button(I18n.text("ui.b563a27adee4"));
     private final TextField scaleFactorField = new TextField("1.25");
     private final TextField bufferDistanceField = new TextField("0.1");
     private final ComboBox<String> bufferJoinBox = new ComboBox<>();
-    private final Button scaleActionButton = new Button("Escalar selecionadas");
-    private final Button bufferActionButton = new Button("Buffer selecionadas");
-    private final Button polygonizeActionButton = new Button("Poligonizar selecionadas");
-    private final Button padArrayActionButton = new Button("Criar array de pads");
+    private final Button scaleActionButton = new Button(I18n.text("ui.cc1f13ce1b86"));
+    private final Button bufferActionButton = new Button(I18n.text("ui.e40ad1dd561a"));
+    private final Button polygonizeActionButton = new Button(I18n.text("ui.af8ff47426ea"));
+    private final Button padArrayActionButton = new Button(I18n.text("ui.976b2c5369c8"));
     private final ComboBox<String> padArrayModeBox = new ComboBox<>();
     private final TextField arrayXField = new TextField("0");
     private final TextField arrayYField = new TextField("0");
@@ -110,13 +110,13 @@ final class GerberEditToolPanel {
     private final TextField discRadiusField = new TextField("1");
     private final TextField discStartField = new TextField("0");
     private final TextField discSweepField = new TextField("180");
-    private final Button discActionButton = new Button("Criar disco");
-    private final Button semiDiscActionButton = new Button("Criar semidisco");
-    private final Button markAreaActionButton = new Button("Selecionar por área");
+    private final Button discActionButton = new Button(I18n.text("ui.69eab937ed2a"));
+    private final Button semiDiscActionButton = new Button(I18n.text("ui.8643e6ef5fdd"));
+    private final Button markAreaActionButton = new Button(I18n.text("ui.ca481e15b757"));
     private final TextField minAreaField = new TextField("0");
     private final TextField maxAreaField = new TextField("1");
-    private final Button eraseActionButton = new Button("Apagar com selecionadas X/Y");
-    private final Button transformActionButton = new Button("Transformar selecionadas");
+    private final Button eraseActionButton = new Button(I18n.text("ui.78f129f0bb64"));
+    private final Button transformActionButton = new Button(I18n.text("ui.4f91a8b837f9"));
     private final ComboBox<String> transformTypeBox = new ComboBox<>();
     private final TextField transformValueField = new TextField("90");
     private final TextField transformPivotXField = new TextField("0");
@@ -162,17 +162,10 @@ final class GerberEditToolPanel {
         scaleFactorField.setText(ToolDefaults.text("editor.gerber.scale", true));
         bufferDistanceField.setText(ToolDefaults.text("editor.gerber.buffer", metric));
         editable = !shapesApproximated;
-        Label info = new Label("Editando: " + objectName);
-        Label help = new Label("Clique seleciona a forma sob o cursor; Ctrl+clique alterna. "
-                + "Arrastar para à direita seleciona as formas envolvidas; para à esquerda, as tocadas. "
-                + "Crie uma abertura C, R, O ou P (D-code automático) ou selecione uma existente na tabela, "
-                + "depois use Adicionar Pad. Para uma trilha, selecione uma abertura C e clique nos pontos do caminho. "
-                + "Arrays, discos e transformações usam os campos numéricos abaixo. "
-                + "Pan: botão direito ou do meio.");
+        Label info = new Label(I18n.text("ui.82fedfc671f6") + objectName);
+        Label help = new Label(I18n.text("ui.de31193fb9c0"));
         help.setWrapText(true);
-        Label note = new Label("Mover/Copiar usa dois cliques no Plot Area: origem e destino (Esc cancela). "
-                + "Mover X/Y e Copiar X/Y aplicam deslocamentos exatos nas unidades do Gerber. "
-                + "Aplicar cria um novo objeto Gerber; Cancelar descarta as alterações.");
+        Label note = new Label(I18n.text("ui.a42d1768316d"));
         note.setWrapText(true);
         FlowPane palette = new FlowPane(4, 4);
         palette.getStyleClass().add("editor-tool-palette");
@@ -194,9 +187,9 @@ final class GerberEditToolPanel {
                             || command.id().equals("polygonize") || command.id().equals("disc")
                             || command.id().equals("semidisc") || command.id().equals("mark_area")
                             || command.id().equals("eraser") || command.id().equals("transform"))
-                    ? " — indisponível neste projeto antigo" : " — em desenvolvimento";
+                    ? I18n.text("ui.b2fbfc2a1037") : I18n.text("ui.af814f12eeff");
             String helpText = command.id().equals("track") && available
-                    ? " - abertura C; clique nos pontos e conclua com Enter ou botão direito"
+                    ? I18n.text("ui.20ef37b2d9e7")
                     : "";
             tool.setTooltip(new Tooltip(command.label() + helpText + (available ? "" : unavailableReason)));
             tool.setDisable(!available);
@@ -298,12 +291,12 @@ final class GerberEditToolPanel {
                 double rotation = kind == ApertureKind.POLYGON
                         ? parseDimension(apertureRotationField.getText()) : 0;
                 if (!Double.isFinite(width) || width <= 0 || !Double.isFinite(height) || height <= 0) {
-                    throw new IllegalArgumentException("Informe dimensões positivas.");
+                    throw new IllegalArgumentException(I18n.text("ui.c8e4353b172a"));
                 }
                 onAddAperture.add(kind, width, height, vertices, rotation);
                 showError("");
             } catch (NumberFormatException exception) {
-                showError("Informe dimensões numéricas.");
+                showError(I18n.text("ui.c4a491e5b8a1"));
             } catch (IllegalArgumentException | IllegalStateException exception) {
                 showError(exception.getMessage());
             }
@@ -311,7 +304,7 @@ final class GerberEditToolPanel {
         apertureWidthField.setOnAction(event -> addApertureButton.fire());
         apertureHeightField.setOnAction(event -> addApertureButton.fire());
         FlowPane addApertureRow = new FlowPane(6, 6,
-                new Label("Nova abertura:"), apertureTypeBox, apertureWidthLabel, apertureWidthField,
+                new Label(I18n.text("ui.58f409d9792e")), apertureTypeBox, apertureWidthLabel, apertureWidthField,
                 apertureHeightLabel, apertureHeightField, apertureVerticesLabel, apertureVerticesField,
                 apertureRotationLabel, apertureRotationField, addApertureButton);
 
@@ -354,16 +347,16 @@ final class GerberEditToolPanel {
             }
         });
         FlowPane editApertureRow = new FlowPane(6, 6,
-                new Label("D:"), editCodeField, new Label("Largura/diâmetro:"), editWidthField,
-                new Label("Altura:"), editHeightField, new Label("Vértices:"), editVerticesField,
-                new Label("Rotação:"), editRotationField,
+                new Label("D:"), editCodeField, new Label(I18n.text("ui.166f1c5ccf58")), editWidthField,
+                new Label(I18n.text("ui.d25e09df7a8e")), editHeightField, new Label(I18n.text("ui.74b55d032108")), editVerticesField,
+                new Label(I18n.text("ui.018c682d5168")), editRotationField,
                 renameApertureButton, resizeApertureButton, deleteApertureButton);
 
         scaleFactorField.setPrefColumnCount(5);
         bufferDistanceField.setPrefColumnCount(5);
-        bufferJoinBox.getItems().setAll("Arredondado", "Quadrado", "Chanfrado");
+        bufferJoinBox.getItems().setAll(I18n.text("ui.84506d2d9281"), I18n.text("ui.cb0a64bafea0"), I18n.text("ui.b438811609f0"));
         bufferJoinBox.getSelectionModel().selectFirst();
-        ToolDescriptions.apply(bufferJoinBox,"Junção do buffer", "Arredondado suaviza cantos; Quadrado usa junção angular; Chanfrado corta as quinas. O resultado também depende da distância de buffer.");
+        ToolDescriptions.apply(bufferJoinBox,I18n.text("ui.6c94dbf897b5"), I18n.text("ui.399e2b13d0ab"));
         scaleActionButton.setOnAction(event -> {
             try {
                 onScale.accept(parseDimension(scaleFactorField.getText()));
@@ -394,8 +387,8 @@ final class GerberEditToolPanel {
             }
         });
         FlowPane shapeOperations = new FlowPane(6, 6,
-                polygonizeActionButton, new Label("Fator:"), scaleFactorField, scaleActionButton,
-                new Label("Distância:"), bufferDistanceField, bufferJoinBox, bufferActionButton);
+                polygonizeActionButton, new Label(I18n.text("ui.02834659a723")), scaleFactorField, scaleActionButton,
+                new Label(I18n.text("ui.5c80e603ab8f")), bufferDistanceField, bufferJoinBox, bufferActionButton);
 
         for (TextField field : List.of(arrayXField, arrayYField, arrayCountField,
                 arraySpacingField, arrayAngleField, arrayStepField)) {
@@ -421,10 +414,9 @@ final class GerberEditToolPanel {
         FlowPane arrayRow = new FlowPane(6, 6,
                 new Label("Array:"), padArrayModeBox, new Label("X:"), arrayXField,
                 new Label("Y:"), arrayYField, new Label("Quantidade:"), arrayCountField,
-                new Label("Passo/raio:"), arraySpacingField, new Label("Ângulo inicial:"), arrayAngleField,
-                new Label("Passo angular:"), arrayStepField, padArrayActionButton);
-        Label arrayHelp = new Label("Linear: X/Y e primeiro pad; passo e distância, ângulo e direção. "
-                + "Circular: X/Y e centro; passo/raio e raio, ângulo inicial e primeiro pad, passo angular e rotação.");
+                new Label(I18n.text("ui.008a8cf16dcf")), arraySpacingField, new Label(I18n.text("ui.7519f6bf69db")), arrayAngleField,
+                new Label(I18n.text("ui.f49cc08a77d4")), arrayStepField, padArrayActionButton);
+        Label arrayHelp = new Label(I18n.text("ui.b4b81b397fb6"));
         arrayHelp.setWrapText(true);
 
         for (TextField field : List.of(discXField, discYField, discRadiusField, discStartField, discSweepField)) {
@@ -434,9 +426,9 @@ final class GerberEditToolPanel {
         discActionButton.setOnAction(event -> runCircleAction(onAddDisc, false));
         semiDiscActionButton.setOnAction(event -> runCircleAction(onAddSemiDisc, true));
         FlowPane circleRow = new FlowPane(6, 6,
-                new Label("Disco/semidisco:"), new Label("Centro X:"), discXField,
-                new Label("Y:"), discYField, new Label("Raio:"), discRadiusField,
-                new Label("Ângulo inicial:"), discStartField, new Label("Arco (+CCW/-CW):"), discSweepField,
+                new Label("Disco/semidisco:"), new Label(I18n.text("ui.00f4910fb6b0")), discXField,
+                new Label("Y:"), discYField, new Label(I18n.text("ui.675e0525c0ab")), discRadiusField,
+                new Label(I18n.text("ui.7519f6bf69db")), discStartField, new Label("Arco (+CCW/-CW):"), discSweepField,
                 discActionButton, semiDiscActionButton);
         minAreaField.setPrefColumnCount(5);
         maxAreaField.setPrefColumnCount(5);
@@ -448,12 +440,12 @@ final class GerberEditToolPanel {
                 showError(exception.getMessage());
             }
         });
-        FlowPane areaRow = new FlowPane(6, 6, new Label("Área >"), minAreaField,
-                new Label("e <"), maxAreaField, markAreaActionButton,
-                new Label("Depois use Excluir selecionadas, se desejado."));
+        FlowPane areaRow = new FlowPane(6, 6, new Label(I18n.text("ui.db43243283d0")), minAreaField,
+                new Label(I18n.text("ui.f5cfd3e2fbd1")), maxAreaField, markAreaActionButton,
+                new Label(I18n.text("ui.fc8deabe5e2b")));
 
-        transformTypeBox.getItems().setAll("Girar", "Espelhar X", "Espelhar Y",
-                "Escalar X", "Escalar Y", "Inclinar X", "Inclinar Y");
+        transformTypeBox.getItems().setAll(I18n.text("ui.fb1adad4daa6"), I18n.text("ui.eb92b5953231"), I18n.text("ui.385953351413"),
+                I18n.text("ui.d1b04915729d"), I18n.text("ui.156b55df921c"), I18n.text("ui.ce19a283942c"), I18n.text("ui.eb3b8a683145"));
         transformTypeBox.getSelectionModel().selectFirst();
         for (TextField field : List.of(transformValueField, transformPivotXField, transformPivotYField)) {
             field.setPrefColumnCount(5);
@@ -477,8 +469,8 @@ final class GerberEditToolPanel {
                 showError(exception.getMessage());
             }
         });
-        FlowPane transformRow = new FlowPane(6, 6, new Label("Transformação:"), transformTypeBox,
-                new Label("Ângulo/fator:"), transformValueField, new Label("Referência X:"),
+        FlowPane transformRow = new FlowPane(6, 6, new Label(I18n.text("ui.cdf34e1e0a7d")), transformTypeBox,
+                new Label(I18n.text("ui.d5dd2f3f3754")), transformValueField, new Label(I18n.text("ui.8b58d7ce893f")),
                 transformPivotXField, new Label("Y:"), transformPivotYField, transformActionButton);
 
         TextField offsetX = new TextField("0");
@@ -519,14 +511,13 @@ final class GerberEditToolPanel {
 
         errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("form-error-label");
-        root = new VBox(10, info, palette, new Label("Aberturas (C/R/O/P/AM: pads; C: trilhas):"), apertureTable,
+        root = new VBox(10, info, palette, new Label(I18n.text("ui.70d9fc80b03a")), apertureTable,
                 addApertureRow, editApertureRow, arrayRow, arrayHelp, circleRow, areaRow, transformRow,
                 help, selectionLabel, historyRow, deleteButton, shapeOperations,
                 operationRow, placementLabel, cancelPlacementButton, offsetRow, offsetActions,
                 eraseActionButton);
         if (shapesApproximated) {
-            Label approximated = new Label("Este projeto antigo não contém formas individuais. "
-                    + "Abra o Gerber original para editar sem perder regiões ou separar incorretamente pads/trilhas.");
+            Label approximated = new Label(I18n.text("ui.3b7d671e7dfa"));
             approximated.setWrapText(true);
             approximated.getStyleClass().add("form-error-label");
             root.getChildren().add(approximated);
@@ -543,13 +534,13 @@ final class GerberEditToolPanel {
     void showSelection(int shapeCount, Collection<String> apertureCodes) {
         selectedCount = shapeCount;
         if (shapeCount == 0) {
-            selectionLabel.setText("Seleção: nenhuma forma");
+            selectionLabel.setText(I18n.text("ui.05b83f496131"));
             return;
         }
         String apertures = apertureCodes.stream()
-                .map(code -> GerberShape.REGION_APERTURE.equals(code) ? "Região" : "D" + code)
+                .map(code -> GerberShape.REGION_APERTURE.equals(code) ? I18n.text("ui.1433152b0c58") : "D" + code)
                 .collect(Collectors.joining(", "));
-        selectionLabel.setText("Seleção: " + shapeCount + " forma(s) - " + apertures);
+        selectionLabel.setText(I18n.text("ui.8a147f50d483") + shapeCount + I18n.text("ui.42bed2176e74") + apertures);
     }
 
     void showState(boolean dirty, boolean canUndo, boolean canRedo) {
@@ -592,25 +583,25 @@ final class GerberEditToolPanel {
     }
 
     void setPlacing(boolean placing) {
-        setPlacementState(placing, "Clique na origem da seleção no Plot Area.");
+        setPlacementState(placing, I18n.text("ui.bc733df1ab4d"));
     }
 
     void setPadPlacing(boolean placing) {
-        setPlacementState(placing, "Clique no Plot Area para posicionar o pad. Esc cancela.");
+        setPlacementState(placing, I18n.text("ui.67822310df9c"));
     }
 
     void setTrackPlacing(boolean placing) {
-        setPlacementState(placing, "Clique no primeiro ponto da trilha. T/R muda o modo; Esc cancela.");
+        setPlacementState(placing, I18n.text("ui.a8b8fc89a994"));
     }
 
     void setRegionPlacing(boolean placing) {
-        setPlacementState(placing, "Clique nos vértices da região. T/R muda o modo; Esc cancela.");
+        setPlacementState(placing, I18n.text("ui.397537b5d429"));
     }
 
     void showRegionProgress(int anchorCount, TrackBendMode mode) {
         if (placing) {
-            placementLabel.setText("Região: " + anchorCount + " pontos; modo: " + mode.displayName()
-                    + ". Enter, duplo clique ou botão direito conclui; Backspace volta.");
+            placementLabel.setText(I18n.text("ui.102e1f486451") + anchorCount + I18n.text("ui.47c12d4f24e3") + mode.displayName()
+                    + I18n.text("ui.cce402689a7f"));
         }
     }
 
@@ -619,11 +610,11 @@ final class GerberEditToolPanel {
             return;
         }
         if (anchorCount == 0) {
-            placementLabel.setText("Clique no primeiro ponto. Modo: " + mode.displayName()
-                    + ". T/R muda o modo; Esc cancela.");
+            placementLabel.setText(I18n.text("ui.fd9f3646e8fd") + mode.displayName()
+                    + I18n.text("ui.f205248ffa25"));
         } else {
-            placementLabel.setText("Pontos: " + anchorCount + " - modo: " + mode.displayName()
-                    + ". Clique continua; Enter/duplo clique/botão direito conclui; Backspace volta; T/R muda.");
+            placementLabel.setText(I18n.text("ui.4351797c1f65") + anchorCount + I18n.text("ui.1fae3c3d281f") + mode.displayName()
+                    + I18n.text("ui.acb9ca1e5cff"));
         }
     }
 
@@ -639,7 +630,7 @@ final class GerberEditToolPanel {
 
     void setPlacementAnchorChosen() {
         if (placing) {
-            placementLabel.setText("Mova o cursor e clique no destino. Esc cancela.");
+            placementLabel.setText(I18n.text("ui.e1fb7ab79382"));
         }
     }
 
@@ -687,12 +678,12 @@ final class GerberEditToolPanel {
         code.setMinWidth(45);
         code.setPrefWidth(45);
         code.setMaxWidth(55);
-        TableColumn<ApertureOption, String> type = new TableColumn<>("Tipo");
+        TableColumn<ApertureOption, String> type = new TableColumn<>(I18n.text("ui.3868d2843d59"));
         type.setCellValueFactory(cell -> new ReadOnlyStringWrapper(apertureType(cell.getValue().aperture())));
         type.setMinWidth(45);
         type.setPrefWidth(50);
         type.setMaxWidth(65);
-        TableColumn<ApertureOption, String> size = new TableColumn<>("Dimensões");
+        TableColumn<ApertureOption, String> size = new TableColumn<>(I18n.text("ui.2f660c6a186a"));
         size.setCellValueFactory(cell -> new ReadOnlyStringWrapper(apertureSize(cell.getValue().aperture())));
         size.setMinWidth(85);
         TableView<ApertureOption> table = new TableView<>();
@@ -723,8 +714,8 @@ final class GerberEditToolPanel {
     private void updateApertureFields(String units) {
         boolean circle = "C".equals(apertureTypeBox.getValue());
         boolean polygon = "P".equals(apertureTypeBox.getValue());
-        apertureWidthLabel.setText((circle ? "Diâmetro" : "Largura") + " (" + units + "):");
-        apertureHeightLabel.setText("Altura (" + units + "):");
+        apertureWidthLabel.setText((circle ? I18n.text("ui.7cd23abc62e0") : I18n.text("ui.5d6a22d7076b")) + " (" + units + "):");
+        apertureHeightLabel.setText(I18n.text("ui.f7b1024ee105") + units + "):");
         for (Node node : List.of(apertureHeightLabel, apertureHeightField)) {
             node.setVisible(!circle && !polygon);
             node.setManaged(!circle && !polygon);
@@ -734,7 +725,7 @@ final class GerberEditToolPanel {
             node.setVisible(polygon);
             node.setManaged(polygon);
         }
-        addApertureButton.setText("Adicionar abertura " + apertureTypeBox.getValue());
+        addApertureButton.setText(I18n.text("ui.4ded44b8a95a") + apertureTypeBox.getValue());
     }
 
     private ApertureKind selectedApertureKind() {
@@ -743,7 +734,7 @@ final class GerberEditToolPanel {
             case "R" -> ApertureKind.RECTANGLE;
             case "O" -> ApertureKind.OBROUND;
             case "P" -> ApertureKind.POLYGON;
-            default -> throw new IllegalArgumentException("Selecione C, R, O ou P.");
+            default -> throw new IllegalArgumentException(I18n.text("ui.bcba616f921c"));
         };
     }
 
@@ -780,7 +771,7 @@ final class GerberEditToolPanel {
             case POLYGON -> Aperture.polygon(width,
                     Integer.parseInt(editVerticesField.getText().trim()),
                     parseDimension(editRotationField.getText()));
-            case MACRO -> throw new IllegalArgumentException("Aberturas macro não podem ser redimensionadas aqui.");
+            case MACRO -> throw new IllegalArgumentException(I18n.text("ui.1f80cce2e120"));
         };
     }
 
@@ -824,7 +815,7 @@ final class GerberEditToolPanel {
             action.accept(dx, dy);
             errorLabel.setText("");
         } catch (NumberFormatException exception) {
-            errorLabel.setText("Informe deslocamentos X/Y numéricos.");
+            errorLabel.setText(I18n.text("ui.6a56df9dbce1"));
         } catch (IllegalArgumentException | IllegalStateException exception) {
             errorLabel.setText(exception.getMessage());
         }

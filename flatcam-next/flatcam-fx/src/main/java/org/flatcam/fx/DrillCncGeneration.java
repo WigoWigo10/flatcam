@@ -20,21 +20,21 @@ final class DrillCncGeneration {
                               GCodePreprocessor profile, Path output, JobContext context,
                               Runnable validateBeforePublication) throws IOException {
         if (javafx.application.Platform.isFxApplicationThread())
-            throw new IllegalStateException("Drilling deve ser calculado fora da thread FX.");
+            throw new IllegalStateException(I18n.text("ui.02cdd162179d"));
         CancellationToken cancellation = context::isCancelled;
         int[] lastPercent = {-1};
         CncJobResult job = GCodeGenerator.generateDrillCncJob(image, parameters, tools, options, profile,
-                cancellation, fraction -> report(context, fraction * 0.8, "Validando exclusões e gerando furos/slots...", lastPercent));
-        context.reportProgress(Double.NaN, "Preparando prévia de furação...");
+                cancellation, fraction -> report(context, fraction * 0.8, I18n.text("ui.716687e8f15b"), lastPercent));
+        context.reportProgress(Double.NaN, I18n.text("ui.9b85c8bc8bd6"));
         GCodeToolpathParser.Result preview;
         try { preview = GCodeToolpathParser.parse(job.gcode(), cancellation,
-                fraction -> report(context, 0.8 + fraction * 0.15, "Lendo trajetos do CNC Job...", lastPercent)); }
+                fraction -> report(context, 0.8 + fraction * 0.15, I18n.text("ui.3b412e2ca6a2"), lastPercent)); }
         catch (IllegalArgumentException unavailable) { preview = null; }
         cancellation.throwIfCancellationRequested();
         Path destination = output.toAbsolutePath().normalize();
         if (destination.getFileName() == null || Files.isDirectory(destination))
-            throw new IOException("O destino deve ser um arquivo G-code.");
-        context.reportProgress(Double.NaN, "Gravando G-code de furação...");
+            throw new IOException(I18n.text("ui.ba3068286137"));
+        context.reportProgress(Double.NaN, I18n.text("ui.843bdb17be00"));
         Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-drilling-", ".tmp");
         try {
             Files.writeString(temporary, job.gcode());

@@ -68,7 +68,7 @@ final class TclExecution {
             }
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            throw new CancellationException("Terminal interrompido.");
+            throw new CancellationException(I18n.text("ui.7645a77ffa72"));
         } catch (ExecutionException failure) {
             if (failure.getCause() instanceof RuntimeException runtime) throw runtime;
             if (failure.getCause() instanceof Error error) throw error;

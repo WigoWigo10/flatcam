@@ -80,7 +80,7 @@ final class NccToolPanel {
         }
 
         NccToolSettings settings() {
-            String prefix = "Ferramenta " + format(diameter) + ": ";
+            String prefix = I18n.text("ui.10f99bd620cc") + format(diameter) + ": ";
             return new NccToolSettings(parseNumber(overlapPercent, prefix + "Overlap") / 100.0,
                     method, connect, contour,
                     offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0, seedPolicy);
@@ -92,8 +92,8 @@ final class NccToolPanel {
     private static final String BOUNDARY_REFERENCE = "Reference Object";
 
     enum AreaShape {
-        RECTANGLE("Retângulo"),
-        POLYGON("Polígono");
+        RECTANGLE(I18n.text("ui.0ff1131199c8")),
+        POLYGON(I18n.text("ui.2c7f33880993"));
 
         private final String label;
 
@@ -187,7 +187,7 @@ final class NccToolPanel {
 
         TableView<ToolRow> toolTable = new TableView<>(tools);
         toolTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-        toolTable.setPlaceholder(new Label("Nenhuma ferramenta"));
+        toolTable.setPlaceholder(new Label(I18n.text("ui.2547a49d54f1")));
         TableColumn<ToolRow, String> numberColumn = new TableColumn<>("#");
         numberColumn.setSortable(false);
         numberColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(""));
@@ -197,7 +197,7 @@ final class NccToolPanel {
                 setText(empty ? null : Integer.toString(getIndex() + 1));
             }
         });
-        TableColumn<ToolRow, Double> diaColumn = new TableColumn<>("Diâmetro");
+        TableColumn<ToolRow, Double> diaColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
         diaColumn.setSortable(false);
         diaColumn.setCellValueFactory(cellData ->
                 new javafx.beans.property.SimpleObjectProperty<>(cellData.getValue().diameter));
@@ -230,7 +230,7 @@ final class NccToolPanel {
                     if (row == null || profile == null) return;
                     if (profile == ToolProfile.V && (sourceCombo.getValue() == null
                             || !sourceCombo.getValue().gerber())) {
-                        toolError.setText("Ferramenta V exige origem Gerber e operação Isolation.");
+                        toolError.setText(I18n.text("ui.e2edd9534083"));
                         updating = true;
                         choice.setValue(row.toolProfile);
                         updating = false;
@@ -250,8 +250,7 @@ final class NccToolPanel {
             }
         });
         Label typeHeader = new Label("TT");
-        typeHeader.setTooltip(tooltip("C1-C4: fresas circulares (número de dentes). B: ball nose. "
-                + "V: exige Gerber e Isolation; configure V-Tip Dia/Angle ao gerar CNC Job."));
+        typeHeader.setTooltip(tooltip(I18n.text("ui.4b871aae50d5")));
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
         toolTable.getColumns().addAll(numberColumn, diaColumn, typeColumn);
@@ -269,45 +268,45 @@ final class NccToolPanel {
                 metric ? 0.1 : 0.001);
         TextField newDiaField = newDiaSpinner.getEditor();
         newDiaSpinner.setMaxWidth(Double.MAX_VALUE);
-        Tooltip.install(newDiaSpinner, tooltip("Diâmetro da nova ferramenta a adicionar"));
-        Button addToolButton = new Button("Adicionar");
-        Button databaseButton = new Button("Escolher da base");
+        Tooltip.install(newDiaSpinner, tooltip(I18n.text("ui.0b8708c37cc4")));
+        Button addToolButton = new Button(I18n.text("ui.967bcf34a913"));
+        Button databaseButton = new Button(I18n.text("ui.70f253485ae9"));
         Button optimalButton = new Button("Optimal");
-        Button removeToolButton = new Button("Remover");
+        Button removeToolButton = new Button(I18n.text("ui.a3037dc71a43"));
         removeToolButton.disableProperty().bind(Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
         optimalButton.setDisable(!initialSource.gerber());
-        optimalButton.setTooltip(tooltip("Calcula em segundo plano a menor distância entre regiões de cobre."));
+        optimalButton.setTooltip(tooltip(I18n.text("ui.3b5a8bb665b8")));
         optimalButton.setOnAction(event -> {
             SourceCandidate selectedSource = sourceCombo.getValue();
             if (selectedSource == null || !selectedSource.gerber()) return;
             optimalButton.setDisable(true);
-            toolError.setText("Calculando diâmetro seguro...");
+            toolError.setText(I18n.text("ui.b6b4ceb2c2d6"));
             CompletableFuture.supplyAsync(() -> NccGenerator.minimumCopperClearance(selectedSource.geometry()))
                     .whenComplete((clearance, error) -> Platform.runLater(() -> {
                         if (optimalButton.getScene() == null) return;
                         optimalButton.setDisable(sourceCombo.getValue() == null
                                 || !sourceCombo.getValue().gerber());
                         if (error != null) {
-                            toolError.setText("Falha ao calcular diâmetro: " + error.getMessage());
+                            toolError.setText(I18n.text("ui.dadcda77dd21") + error.getMessage());
                         } else if (clearance.isEmpty() || clearance.getAsDouble() <= 0) {
-                            toolError.setText("Não há distância positiva entre regiões de cobre.");
+                            toolError.setText(I18n.text("ui.ab3c31860d93"));
                         } else if (sourceCombo.getValue() == selectedSource) {
                             newDiaSpinner.getValueFactory().setValue(clearance.getAsDouble());
-                            toolError.setText("Diâmetro seguro estimado: " + format(clearance.getAsDouble())
-                                    + " " + units + ". Confira antes de usinar.");
+                            toolError.setText(I18n.text("ui.8be821927894") + format(clearance.getAsDouble())
+                                    + " " + units + I18n.text("ui.cd850e3df322"));
                         }
                     }));
         });
 
         Runnable addTool = () -> {
             try {
-                double dia = parse(newDiaField, "Diâmetro da ferramenta");
+                double dia = parse(newDiaField, I18n.text("ui.0ebfb18d1f0f"));
                 if (dia <= 0) {
-                    throw new IllegalArgumentException("Diâmetro da ferramenta deve ser positivo");
+                    throw new IllegalArgumentException(I18n.text("ui.edba117cf08f"));
                 }
                 for (ToolRow existing : tools) {
                     if (Math.abs(existing.diameter - dia) < 1e-6) {
-                        throw new IllegalArgumentException("Cancelado. Ferramenta já está na tabela.");
+                        throw new IllegalArgumentException(I18n.text("ui.998fa297751d"));
                     }
                 }
                 ToolRow added = new ToolRow(dia);
@@ -323,21 +322,20 @@ final class NccToolPanel {
             try {
                 List<LegacyToolsDatabase.NccTool> entries = databaseLoader.get();
                 if (entries.isEmpty()) {
-                    toolError.setText("Nenhuma ferramenta NCC encontrada no arquivo, ou seleção cancelada.");
+                    toolError.setText(I18n.text("ui.02b50eca1b9b"));
                     return;
                 }
                 ChoiceDialog<LegacyToolsDatabase.NccTool> dialog = new ChoiceDialog<>(entries.get(0), entries);
                 dialog.setTitle("Tools Database");
-                dialog.setHeaderText("Escolha uma ferramenta NCC ou General. Confirme se o diâmetro "
-                        + "do banco está nas unidades do objeto (" + units + ").");
-                dialog.setContentText("Ferramenta:");
+                dialog.setHeaderText(I18n.text("ui.74031cb36555") + units + ").");
+                dialog.setContentText(I18n.text("ui.9a48a5dc8336"));
                 dialog.showAndWait().ifPresent(selected -> {
                     if (!sourceCombo.getValue().gerber() && selected.operation() == NccOperation.ISO) {
-                        toolError.setText("Ferramenta ISO exige Gerber como origem.");
+                        toolError.setText(I18n.text("ui.a7f3dda5e0bf"));
                         return;
                     }
                     if (tools.stream().anyMatch(row -> Math.abs(row.diameter - selected.diameter()) < 1e-6)) {
-                        toolError.setText("Ferramenta com este diâmetro já está na tabela.");
+                        toolError.setText(I18n.text("ui.05390e4ff282"));
                         return;
                     }
                     ToolRow row = new ToolRow(selected.diameter());
@@ -357,7 +355,7 @@ final class NccToolPanel {
                     toolError.setText("");
                 });
             } catch (RuntimeException error) {
-                toolError.setText("Falha ao ler Tools Database: " + error.getMessage());
+                toolError.setText(I18n.text("ui.d2ec51c0127f") + error.getMessage());
             }
         });
         newDiaField.setOnKeyPressed(e -> {
@@ -371,7 +369,7 @@ final class NccToolPanel {
                 return;
             }
             if (tools.size() - selected.size() < 1) {
-                toolError.setText("E preciso manter ao menos uma ferramenta.");
+                toolError.setText(I18n.text("ui.ae56bed671fb"));
                 return;
             }
             tools.removeAll(selected);
@@ -386,7 +384,7 @@ final class NccToolPanel {
         isoRadio.setDisable(!sourceCombo.getValue().gerber());
         HBox operationRow = new HBox(10, new Label("Operation:"), clearRadio, isoRadio);
         operationRow.setAlignment(Pos.CENTER_LEFT);
-        Tooltip operationHelp = tooltip("Clear: limpa a área não-cobre. Isolation: contorna o cobre antes da limpeza.");
+        Tooltip operationHelp = tooltip(I18n.text("ui.91fe51cb6e7c"));
         clearRadio.setTooltip(operationHelp);
         isoRadio.setTooltip(operationHelp);
         Label selectedToolTitle = sectionTitle("Parameters for: Tool 1");
@@ -413,7 +411,7 @@ final class NccToolPanel {
                 if (row.toolProfile == ToolProfile.V) row.toolProfile = ToolProfile.C1;
             });
             toolTable.refresh();
-            if (hadVTool) toolError.setText("TT V mudou para C1: V exige operação Isolation.");
+            if (hadVTool) toolError.setText(I18n.text("ui.8bfb525c4319"));
         });
         isoRadio.setOnAction(event -> {
             toolTable.getSelectionModel().getSelectedItems().forEach(row -> row.operation = NccOperation.ISO);
@@ -426,7 +424,7 @@ final class NccToolPanel {
         ("CONVENTIONAL".equals(ToolDefaults.choice("ncc.milling")) ? conventionalRadio : climbRadio).setSelected(true);
         HBox millingRow = new HBox(10, new Label("Milling Type:"), climbRadio, conventionalRadio);
         millingRow.setAlignment(Pos.CENTER_LEFT);
-        Tooltip millingHelp = tooltip("Sentido de fresagem dos contornos ISO; e comum a todas as ferramentas ISO.");
+        Tooltip millingHelp = tooltip(I18n.text("ui.93544b9520fc"));
         climbRadio.setTooltip(millingHelp);
         conventionalRadio.setTooltip(millingHelp);
 
@@ -438,12 +436,10 @@ final class NccToolPanel {
         }
         boundaryKindCombo.setValue(BOUNDARY_ITSELF);
         boundaryKindCombo.setTooltip(tooltip(
-                "Itself: usa o contorno convexo da origem como limite.\n"
-                + "Area Selection: delimita um retângulo ou polígono no desenho.\n"
-                + "Reference Object: usa outro objeto (Gerber ou Geometry) já carregado como limite."));
+                I18n.text("ui.e7ac5f0a04f3")));
         ComboBox<ReferenceCandidate> referenceCombo = new ComboBox<>();
         referenceCombo.setId("ncc-reference-object");
-        ToolDescriptions.apply(referenceCombo,"Limite de referência", "Gerber ou Geometry alinhado que limita a região de limpeza. Usado no modo Reference Object; não substitui o cobre de origem.");
+        ToolDescriptions.apply(referenceCombo,I18n.text("ui.a66e08f4f6c3"), I18n.text("ui.d07b81ee99a0"));
         referenceCombo.setMinWidth(0);
         referenceCombo.setPrefWidth(180);
         referenceCombo.setMaxWidth(Double.MAX_VALUE);
@@ -466,24 +462,24 @@ final class NccToolPanel {
                 () -> BOUNDARY_AREA.equals(boundaryKindCombo.getValue()), boundaryKindCombo.valueProperty());
         Geometry[] selectedArea = {null};
         ToggleGroup areaShapeGroup = new ToggleGroup();
-        RadioButton rectangleShapeRadio = radio("Retângulo", areaShapeGroup);
-        RadioButton polygonShapeRadio = radio("Polígono", areaShapeGroup);
+        RadioButton rectangleShapeRadio = radio(I18n.text("ui.0ff1131199c8"), areaShapeGroup);
+        RadioButton polygonShapeRadio = radio(I18n.text("ui.2c7f33880993"), areaShapeGroup);
         rectangleShapeRadio.setSelected(true);
         HBox areaShapeRow = new HBox(8, rectangleShapeRadio, polygonShapeRadio);
         areaShapeRow.visibleProperty().bind(areaChosen);
         areaShapeRow.managedProperty().bind(areaChosen);
-        Button selectAreaButton = new Button("Selecionar área no desenho");
-        Label selectedAreaLabel = new Label("Nenhuma área selecionada.");
+        Button selectAreaButton = new Button(I18n.text("ui.8dff37d3d335"));
+        Label selectedAreaLabel = new Label(I18n.text("ui.cac5d8eecb7a"));
         selectedAreaLabel.setWrapText(true);
         areaShapeGroup.selectedToggleProperty().addListener((observable, oldShape, newShape) -> {
             cancelArea.run();
             selectedArea[0] = null;
-            selectedAreaLabel.setText("Nenhuma área selecionada.");
+            selectedAreaLabel.setText(I18n.text("ui.cac5d8eecb7a"));
         });
         boundaryKindCombo.valueProperty().addListener((observable, oldKind, newKind) -> {
             cancelArea.run();
             selectedArea[0] = null;
-            selectedAreaLabel.setText("Nenhuma área selecionada.");
+            selectedAreaLabel.setText(I18n.text("ui.cac5d8eecb7a"));
         });
         selectAreaButton.visibleProperty().bind(areaChosen);
         selectAreaButton.managedProperty().bind(areaChosen);
@@ -494,8 +490,8 @@ final class NccToolPanel {
             AreaShape requestedShape = polygonShapeRadio.isSelected()
                     ? AreaShape.POLYGON : AreaShape.RECTANGLE;
             selectedAreaLabel.setText(requestedShape == AreaShape.POLYGON
-                    ? "Clique nos vértices; Enter ou botão direito conclui, Esc cancela."
-                    : "Clique em dois cantos opostos no Plot Area; Esc cancela.");
+                    ? I18n.text("ui.408cc6c26f4a")
+                    : I18n.text("ui.921641cfb589"));
             SourceCandidate areaSource = sourceCombo.getValue();
             if (!areaSelector.select(areaSource, requestedShape, area -> {
                 if (sourceCombo.getValue() != areaSource) return;
@@ -504,9 +500,9 @@ final class NccToolPanel {
                     return;
                 }
                 selectedArea[0] = area;
-                selectedAreaLabel.setText("Área: " + area.getEnvelopeInternal());
-            }, () -> selectedAreaLabel.setText("Seleção de área cancelada."))) {
-                selectedAreaLabel.setText("Não foi possível iniciar a seleção de área.");
+                selectedAreaLabel.setText(I18n.text("ui.497261c166ac") + area.getEnvelopeInternal());
+            }, () -> selectedAreaLabel.setText(I18n.text("ui.086e29675304")))) {
+                selectedAreaLabel.setText(I18n.text("ui.43635d956208"));
             }
         });
 
@@ -519,13 +515,11 @@ final class NccToolPanel {
         boundaryGrid.add(selectAreaButton, 1, 3);
         boundaryGrid.add(selectedAreaLabel, 1, 4);
 
-        CheckBox checkValidityCb = new CheckBox("Verificar validade dos diâmetros");
+        CheckBox checkValidityCb = new CheckBox(I18n.text("ui.4a88a48cb25a"));
         checkValidityCb.setSelected(initialSource.gerber());
         checkValidityCb.setDisable(!initialSource.gerber());
         checkValidityCb.setTooltip(tooltip(
-                "Se marcado, compara cada diâmetro com a menor distância entre elementos de\n"
-                + "cobre do Gerber e avisa se alguma ferramenta e grande demais para fazer um\n"
-                + "isolamento completo. Apenas informativo - não impede a geração."));
+                I18n.text("ui.23f45544b87d")));
 
         Spinner<Double> overlapSpinner = spinner(0, 99.9999, ToolDefaults.number("ncc.overlap", true), 0.1);
         TextField overlapField = overlapSpinner.getEditor();
@@ -537,39 +531,34 @@ final class NccToolPanel {
         methodCombo.getItems().addAll(NccMethod.values());
         methodCombo.setValue(ToolDefaults.choice("ncc.method", NccMethod.class));
         methodCombo.setTooltip(tooltip(
-                "Standard: passes concentricas para dentro.\n"
-                + "Seed: aneis crescentes a partir de um ponto central.\n"
-                + "Lines: varredura paralela (raster).\n"
-                + "Combo: tenta Lines, depois Seed, depois Standard."));
+                I18n.text("ui.f3e1e0c3c5c5")));
         ComboBox<NccSeedPolicy> seedPolicyCombo = new ComboBox<>();
         seedPolicyCombo.setId("ncc-seed-policy");
         seedPolicyCombo.getItems().addAll(NccSeedPolicy.values());
         seedPolicyCombo.setValue(ToolDefaults.choice("ncc.seedpolicy", NccSeedPolicy.class));
+        seedPolicyCombo.setConverter(new javafx.util.StringConverter<>() {
+            @Override public String toString(NccSeedPolicy value) { return value == null ? "" : I18n.caption(value.toString()); }
+            @Override public NccSeedPolicy fromString(String text) { return seedPolicyCombo.getValue(); }
+        });
         seedPolicyCombo.setMinWidth(0);
         seedPolicyCombo.setPrefWidth(180);
         seedPolicyCombo.setMaxWidth(Double.MAX_VALUE);
-        seedPolicyCombo.setTooltip(tooltip("Ponto inicial dos aneis Seed (também usado no fallback Combo).\n\n"
-                + "Estavel (FX): conserva o comportamento atual e reduz mudancas bruscas por pequenas variações da geometria.\n"
-                + "Representativo (Python): usa a mesma regra de scan-line do legado, para reproduzir seus aneis. "
-                + "Pequenas diferenças numéricas na entrada ainda podem mudar o ponto e os trajetos.\n\n"
-                + "Esta escolha pertence a cada ferramenta; Standard e Lines não a utilizam."));
+        seedPolicyCombo.setTooltip(tooltip(I18n.text("ui.6e34de730a9a")));
         CheckBox connectCb = new CheckBox("Connect");
         connectCb.setSelected(ToolDefaults.flag("ncc.connect"));
-        connectCb.setTooltip(tooltip("Une trajetos próximos quando o percurso de ligacao continua dentro da área segura da ferramenta."));
+        connectCb.setTooltip(tooltip(I18n.text("ui.1fd4963c87ad")));
         CheckBox contourCb = new CheckBox("Contour");
         contourCb.setSelected(ToolDefaults.flag("ncc.contour"));
-        contourCb.setTooltip(tooltip("Adiciona um passe final contornando a borda interna da área limpa."));
+        contourCb.setTooltip(tooltip(I18n.text("ui.ac74b4e42449")));
         CheckBox offsetCb = new CheckBox("Copper offset");
-        offsetCb.setTooltip(tooltip("Ativa uma distância adicional de proteção ao redor das trilhas e pads. Habilita o valor de Offset.\n\nNão é a margem: Margin define o limite externo da área de limpeza; Offset protege o cobre dentro dessa área."));
+        offsetCb.setTooltip(tooltip(I18n.text("ui.f5b84f21b169")));
         Spinner<Double> offsetSpinner = spinner(0, 10, 0, metric ? 0.1 : 0.01);
         TextField offsetField = offsetSpinner.getEditor();
         CheckBox restCb = new CheckBox("Rest Machining");
         restCb.setStyle("-fx-font-weight: bold;");
         restCb.setSelected(ToolDefaults.flag("ncc.rest"));
         restCb.setTooltip(tooltip(
-                "Quando ativado, as ferramentas são processadas da maior para a menor e cada uma\n"
-                + "só limpa o que a anterior, maior, não conseguiu alcançar. Força a ordem Reverse\n"
-                + "e desativa o controle de Order abaixo, assim como no FlatCAM Python."));
+                I18n.text("ui.c681711db319")));
         ToggleGroup orderGroup = new ToggleGroup();
         RadioButton noOrderRadio = radio("No", orderGroup);
         RadioButton forwardOrderRadio = radio("Forward", orderGroup);
@@ -581,16 +570,14 @@ final class NccToolPanel {
         }).setSelected(true);
         defaultOrder.run();
         Tooltip orderHelp = tooltip(
-                "No: usa a ordem da tabela acima.\n"
-                + "Forward: da menor para a maior ferramenta.\n"
-                + "Reverse: da maior para a menor ferramenta.");
+                I18n.text("ui.e27ed70b9cc9"));
         for (RadioButton radio : List.of(noOrderRadio, forwardOrderRadio, reverseOrderRadio))
             radio.setTooltip(orderHelp);
         // Rest Machining always forces largest-tool-first, same as Python
         // disabling its order radio the moment Rest Machining is checked.
         for (RadioButton radio : List.of(noOrderRadio, forwardOrderRadio, reverseOrderRadio))
             radio.disableProperty().bind(restCb.selectedProperty());
-        Label restHint = new Label("Rest usa a ordem Reverse.");
+        Label restHint = new Label(I18n.text("ui.5b408956e1b4"));
         restHint.setStyle("-fx-font-size: 10px; -fx-opacity: 0.75;");
         restHint.setWrapText(true);
         restHint.visibleProperty().bind(restCb.selectedProperty());
@@ -699,10 +686,10 @@ final class NccToolPanel {
         grid.setVgap(8);
         grid.addRow(0, new Label("Overlap (%):"), overlapSpinner);
         grid.addRow(1, new Label("Method:"), methodCombo);
-        grid.addRow(2, new Label("Margin (comum):"), marginSpinner);
+        grid.addRow(2, new Label(I18n.text("ui.cbbf33e45093")), marginSpinner);
         grid.addRow(3, connectCb, contourCb);
         grid.addRow(4, offsetCb, offsetSpinner);
-        grid.addRow(5, new Label("Seed inicial:"), seedPolicyCombo);
+        grid.addRow(5, new Label(I18n.text("ui.175da56e6ce7")), seedPolicyCombo);
 
         GridPane restGrid = new GridPane();
         restGrid.setHgap(8);
@@ -711,11 +698,11 @@ final class NccToolPanel {
         restGrid.add(restHint, 0, 1);
         restGrid.add(restSettingsGrid, 0, 2);
 
-        Button applyAllButton = new Button("Aplicar parâmetros a todas as ferramentas");
+        Button applyAllButton = new Button(I18n.text("ui.36c3d0d83bb8"));
         applyAllButton.setMaxWidth(Double.MAX_VALUE);
         applyAllButton.setWrapText(true);
         applyAllButton.disableProperty().bind(noSingleTool.or(Bindings.size(tools).lessThan(2)));
-        applyAllButton.setTooltip(tooltip("Copia a operação e os parâmetros da ferramenta selecionada para toda a tabela."));
+        applyAllButton.setTooltip(tooltip(I18n.text("ui.eae0fc26c4d4")));
         applyAllButton.setOnAction(event -> {
             ToolRow selected = toolTable.getSelectionModel().getSelectedItem();
             if (selected == null) return;
@@ -732,7 +719,7 @@ final class NccToolPanel {
                     row.offsetEnabled = selected.offsetEnabled;
                     row.offset = selected.offset;
                 }
-                toolError.setText("Parâmetros copiados para todas as ferramentas.");
+                toolError.setText(I18n.text("ui.33f1d81b4bac"));
             } catch (IllegalArgumentException invalid) {
                 toolError.setText(invalid.getMessage());
             }
@@ -742,7 +729,7 @@ final class NccToolPanel {
             if (newSource == null) return;
             cancelArea.run();
             selectedArea[0] = null;
-            selectedAreaLabel.setText("Nenhuma área selecionada.");
+            selectedAreaLabel.setText(I18n.text("ui.cac5d8eecb7a"));
             updateReferences.run();
             optimalButton.setDisable(!newSource.gerber());
             checkValidityCb.setDisable(!newSource.gerber());
@@ -759,38 +746,37 @@ final class NccToolPanel {
                         changed = true;
                     }
                 }
-                if (changed) toolError.setText("Ferramentas ISO/V mudaram para Clear/C1: Geometry não aceita ISO/V.");
+                if (changed) toolError.setText(I18n.text("ui.b5ccaa20678e"));
                 toolTable.refresh();
             }
             updateOperation.run();
         });
 
-        Label note = new Label("Selecione na tabela as ferramentas a executar. ISO contorna o cobre; "
-                + "ao menos uma ferramenta CLEAR e necessária. O objeto Geometry tera uma entrada por ferramenta.");
+        Label note = new Label(I18n.text("ui.c13b6b5a473a"));
         note.setWrapText(true);
         note.setStyle("-fx-font-size: 11px; -fx-opacity: 0.8;");
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
-        Button generateButton = new Button("Gerar Geometry");
+        Button generateButton = new Button(I18n.text("ui.57e96635630c"));
         generateButton.setId("ncc-generate");
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
             try {
                 SourceCandidate chosenSource = sourceCombo.getValue();
-                if (chosenSource == null) throw new IllegalArgumentException("Selecione um objeto de origem.");
+                if (chosenSource == null) throw new IllegalArgumentException(I18n.text("ui.6ca11e7bf382"));
                 double margin = parse(marginField, "Margin");
                 NccBoundary boundary = new NccBoundary.Itself();
                 if (BOUNDARY_AREA.equals(boundaryKindCombo.getValue())) {
                     if (selectedArea[0] == null) {
-                        throw new IllegalArgumentException("Selecione uma área no desenho.");
+                        throw new IllegalArgumentException(I18n.text("ui.a892b90ccdd6"));
                     }
                     boundary = new NccBoundary.Area(selectedArea[0]);
                 } else if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) {
                     ReferenceCandidate candidate = referenceCombo.getValue();
                     if (candidate == null) {
-                        throw new IllegalArgumentException("Selecione um objeto de referência para o Boundary.");
+                        throw new IllegalArgumentException(I18n.text("ui.81c0ad27a800"));
                     }
                     boundary = candidate.isGerber()
                             ? new NccBoundary.ReferenceGerber(candidate.geometry())
@@ -807,7 +793,7 @@ final class NccToolPanel {
                         selectedProfiles.put(row.diameter, row.toolProfile);
                         if (row.machining != null) {
                             if (row.machining.profile() != row.toolProfile)
-                                throw new IllegalArgumentException("TT mudou após importar a DB; remova/reimporte a ferramenta.");
+                                throw new IllegalArgumentException(I18n.text("ui.689b43a7832f"));
                             machining.put(row.diameter, row.machining);
                         }
                         if (row.operation == NccOperation.ISO) {
@@ -819,7 +805,7 @@ final class NccToolPanel {
                     }
                 }
                 if (clearDiameters.isEmpty()) {
-                    throw new IllegalArgumentException("Selecione ao menos uma ferramenta CLEAR na tabela.");
+                    throw new IllegalArgumentException(I18n.text("ui.dd411e0f367b"));
                 }
                 NccToolSettings first = individualSettings.get(clearDiameters.get(0));
                 double commonOffset = restCb.isSelected()
@@ -840,11 +826,11 @@ final class NccToolPanel {
                 errorLabel.setText(ex.getMessage());
             }
         });
-        Button closeButton = new Button("Fechar");
+        Button closeButton = new Button(I18n.text("ui.0f2bd88ef0ac"));
         closeButton.setMaxWidth(Double.MAX_VALUE);
         closeButton.setOnAction(e -> onClose.run());
 
-        HBox orderRow = new HBox(8, new Label("Ordem:"), noOrderRadio,
+        HBox orderRow = new HBox(8, new Label(I18n.text("ui.3b41aae0bd17")), noOrderRadio,
                 forwardOrderRadio, reverseOrderRadio);
         orderRow.setAlignment(Pos.CENTER_LEFT);
         HBox diameterRow = new HBox(6, new Label("Tool Dia:"), newDiaSpinner, optimalButton);
@@ -876,7 +862,7 @@ final class NccToolPanel {
             boundaryKindCombo.setValue(BOUNDARY_ITSELF);
             rectangleShapeRadio.setSelected(true);
             selectedArea[0] = null;
-            selectedAreaLabel.setText("Nenhuma área selecionada.");
+            selectedAreaLabel.setText(I18n.text("ui.cac5d8eecb7a"));
             checkValidityCb.setSelected(initialSource.gerber());
             toolError.setText("");
             errorLabel.setText("");
@@ -926,7 +912,7 @@ final class NccToolPanel {
                 return value == null ? "" : format(value);
             }
             @Override public Double fromString(String text) {
-                return parseNumber(text, "Valor");
+                return parseNumber(text, I18n.text("ui.b2f530c46991"));
             }
         });
         Spinner<Double> spinner = new Spinner<>(values);
@@ -957,7 +943,7 @@ final class NccToolPanel {
         try {
             return Double.parseDouble(value.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(name + ": número inválido");
+            throw new IllegalArgumentException(name + I18n.text("ui.a8a35e0360a2"));
         }
     }
 

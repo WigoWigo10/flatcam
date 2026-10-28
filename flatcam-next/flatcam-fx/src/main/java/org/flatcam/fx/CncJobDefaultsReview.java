@@ -13,7 +13,7 @@ final class CncJobDefaultsReview {
     private final Map<Integer, CncJobDefaults> tools = new LinkedHashMap<>();
     private final Consumer<CncJobDefaults> apply;
     private final Label notice = new Label();
-    private final Button confirm = new Button("Usar valores comuns exibidos");
+    private final Button confirm = new Button(I18n.text("ui.a69e44da3f1f"));
     private final VBox view = new VBox(6, notice, confirm);
     private boolean conflicted;
     private Set<Integer> activeIds;
@@ -24,11 +24,10 @@ final class CncJobDefaultsReview {
         view.visibleProperty().bind(notice.textProperty().isNotEmpty());
         view.managedProperty().bind(view.visibleProperty());
         confirm.setId(prefix + "-common-db-confirm"); confirm.setMaxWidth(Double.MAX_VALUE);
-        confirm.setTooltip(new Tooltip("Confirma os valores comuns atualmente exibidos no painel para todo o trabalho. "
-                + "Edite perfil, alturas, posições e troca antes de confirmar. Os parâmetros de corte por fresa não mudam."));
+        confirm.setTooltip(new Tooltip(I18n.text("ui.a5c0d152643c")));
         confirm.setOnAction(event -> {
             tools.clear(); conflicted = false; confirm.setVisible(false); confirm.setManaged(false);
-            notice.setText("Valores comuns do painel confirmados. Confira-os antes de gerar G-code.");
+            notice.setText(I18n.text("ui.12b5164d31c6"));
         });
         clear();
     }
@@ -41,8 +40,7 @@ final class CncJobDefaultsReview {
     }
     void setActiveIds(Set<Integer> ids) { activeIds = Set.copyOf(ids); refresh(); }
     void assertResolved() {
-        if (conflicted) throw new IllegalArgumentException("Conflito nas configurações comuns da DB. "
-                + "Revise os campos e clique Usar valores comuns exibidos.");
+        if (conflicted) throw new IllegalArgumentException(I18n.text("ui.07c6437f5084"));
     }
     private void refresh() {
         var selected = new LinkedHashMap<Integer, CncJobDefaults>();
@@ -50,9 +48,8 @@ final class CncJobDefaultsReview {
         var resolved = CncJobDefaults.resolve(selected);
         apply.accept(resolved.agreed());
         conflicted = !resolved.conflicts().isEmpty();
-        notice.setText(conflicted ? "Conflito na DB: " + resolved.description() + ". "
-                + "Esses campos não foram sobrescritos. Escolha os valores comuns do trabalho e confirme."
-                : selected.isEmpty() ? "" : "Configurações comuns explícitas da DB recuperadas. Confira perfil, posições e unidades.");
+        notice.setText(conflicted ? I18n.text("ui.7fb35e301691") + resolved.description() + I18n.text("ui.19380c020ae9")
+                : selected.isEmpty() ? "" : I18n.text("ui.49ed97b8732d"));
         updateVisibility(conflicted);
     }
     private void updateVisibility(boolean conflict) {

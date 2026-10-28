@@ -21,7 +21,7 @@ final class CncReviewedFile {
     }
 
     static Path write(String text, Path destination, CancellationToken cancellation, Runnable validate) throws IOException {
-        if (text == null || text.isBlank()) throw new IllegalArgumentException("Programa vazio não pode ser exportado.");
+        if (text == null || text.isBlank()) throw new IllegalArgumentException(I18n.text("ui.7f99bed82285"));
         cancellation.throwIfCancellationRequested();
         Path target = destination.toAbsolutePath();
         Path temporary = Files.createTempFile(target.getParent(), ".flatcam-reviewed-", ".tmp");

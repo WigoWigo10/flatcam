@@ -98,7 +98,7 @@ final class CopperThievingToolPanel {
         try {
             return Double.parseDouble(field.getText().trim().replace(',', '.'));
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor inválido em: " + what);
+            throw new IllegalArgumentException(I18n.text("ui.bf2ebc1d7ba4") + what);
         }
     }
 
@@ -132,31 +132,31 @@ final class CopperThievingToolPanel {
         TextField margin = number(ToolDefaults.text("thieving.margin"));
         TextField minArea = number(ToolDefaults.text("thieving.minarea"));
         ToggleGroup reference = new ToggleGroup();
-        RadioButton itself = radio("O próprio objeto", reference, Reference.ITSELF);
-        RadioButton area = radio("Áreas desenhadas", reference, Reference.AREA);
-        RadioButton box = radio("Objeto de referência", reference, Reference.BOX);
+        RadioButton itself = radio(I18n.text("ui.3d2b51c03aed"), reference, Reference.ITSELF);
+        RadioButton area = radio(I18n.text("ui.c24f9b8e521c"), reference, Reference.AREA);
+        RadioButton box = radio(I18n.text("ui.a8e4c7c07fd3"), reference, Reference.BOX);
         itself.setSelected(true);
         ComboBox<TreeItem<String>> referenceObject = chooser(host.references());
-        ToolDescriptions.apply(referenceObject,"Limite de referência", "Gerber ou Geometry alinhado que fornece a caixa limite do Copper Thieving. Usado somente no modo objeto de referência.");
+        ToolDescriptions.apply(referenceObject,I18n.text("ui.a66e08f4f6c3"), I18n.text("ui.467c07f2376a"));
         referenceObject.getSelectionModel().selectFirst();
         referenceObject.disableProperty().bind(box.selectedProperty().not());
         ToggleGroup boxType = new ToggleGroup();
-        RadioButton rectangular = radio("Retangular", boxType, BoxType.RECTANGULAR);
-        RadioButton minimal = radio("Mínima (casco convexo)", boxType, BoxType.MINIMAL);
+        RadioButton rectangular = radio(I18n.text("ui.0d36407066ce"), boxType, BoxType.RECTANGULAR);
+        RadioButton minimal = radio(I18n.text("ui.5fd3a7dfaa8f"), boxType, BoxType.MINIMAL);
         rectangular.setSelected(true);
         HBox boxTypes = new HBox(8, new Label("Caixa:"), rectangular, minimal);
         boxTypes.visibleProperty().bind(itself.selectedProperty());
         boxTypes.managedProperty().bind(boxTypes.visibleProperty());
 
         List<double[]> zones = new ArrayList<>();
-        Label zoneCount = new Label("Nenhuma área desenhada");
-        Button drawZone = new Button("Desenhar área (2 cliques)");
-        Button clearZones = new Button("Limpar áreas");
+        Label zoneCount = new Label(I18n.text("ui.a9a84277720a"));
+        Button drawZone = new Button(I18n.text("ui.689fdb1ce672"));
+        Button clearZones = new Button(I18n.text("ui.f60938e98613"));
         drawZone.setOnAction(event -> host.pickPoint(first -> {
             if (first == null) {
                 return;
             }
-            status.setText("Clique no canto oposto da área.");
+            status.setText(I18n.text("ui.53d8917d5b0f"));
             host.pickPoint(second -> {
                 if (second == null) {
                     status.setText("");
@@ -164,14 +164,14 @@ final class CopperThievingToolPanel {
                 }
                 zones.add(new double[] {Math.min(first.x, second.x), Math.min(first.y, second.y),
                         Math.max(first.x, second.x), Math.max(first.y, second.y)});
-                zoneCount.setText(zones.size() + " área(s) desenhada(s)");
+                zoneCount.setText(zones.size() + I18n.text("ui.6cf8f4df47e6"));
                 status.setText("");
                 host.showZones(zones);
             });
         }));
         clearZones.setOnAction(event -> {
             zones.clear();
-            zoneCount.setText("Nenhuma área desenhada");
+            zoneCount.setText(I18n.text("ui.a9a84277720a"));
             host.showZones(zones);
         });
         HBox zoneButtons = new HBox(6, drawZone, clearZones);
@@ -180,10 +180,10 @@ final class CopperThievingToolPanel {
         zoneBox.managedProperty().bind(zoneBox.visibleProperty());
 
         ToggleGroup fill = new ToggleGroup();
-        RadioButton solid = radio("Sólido", fill, Fill.SOLID);
-        RadioButton dots = radio("Pontos", fill, Fill.DOT);
-        RadioButton squares = radio("Quadrados", fill, Fill.SQUARE);
-        RadioButton lines = radio("Linhas", fill, Fill.LINE);
+        RadioButton solid = radio(I18n.text("ui.40ca66a274a1"), fill, Fill.SOLID);
+        RadioButton dots = radio(I18n.text("ui.6ac2b76d12ad"), fill, Fill.DOT);
+        RadioButton squares = radio(I18n.text("ui.bcfd287153a7"), fill, Fill.SQUARE);
+        RadioButton lines = radio(I18n.text("ui.078d9be289fe"), fill, Fill.LINE);
         solid.setSelected(true);
         TextField dotDiameter = number(ToolDefaults.text("thieving.dotdiameter"));
         TextField dotSpacing = number(ToolDefaults.text("thieving.dotspacing"));
@@ -191,9 +191,9 @@ final class CopperThievingToolPanel {
         TextField squareSpacing = number(ToolDefaults.text("thieving.squarespacing"));
         TextField lineSize = number(ToolDefaults.text("thieving.linesize"));
         TextField lineSpacing = number(ToolDefaults.text("thieving.linespacing"));
-        GridPane dotGrid = pairs("Diâmetro:", dotDiameter, "Espaço:", dotSpacing);
-        GridPane squareGrid = pairs("Lado:", squareSize, "Espaço:", squareSpacing);
-        GridPane lineGrid = pairs("Espessura:", lineSize, "Espaço:", lineSpacing);
+        GridPane dotGrid = pairs(I18n.text("ui.56d3a428a0c7"), dotDiameter, I18n.text("ui.7c8bd4e9a824"), dotSpacing);
+        GridPane squareGrid = pairs("Lado:", squareSize, I18n.text("ui.7c8bd4e9a824"), squareSpacing);
+        GridPane lineGrid = pairs(I18n.text("ui.34dd1326833d"), lineSize, I18n.text("ui.7c8bd4e9a824"), lineSpacing);
         show(dotGrid, dots);
         show(squareGrid, squares);
         show(lineGrid, lines);
@@ -206,28 +206,28 @@ final class CopperThievingToolPanel {
         area.disableProperty().bind(lines.selectedProperty());
         box.disableProperty().bind(lines.selectedProperty());
 
-        Button thieve = new Button("Adicionar Copper Thieving");
+        Button thieve = new Button(I18n.text("ui.5e8ee1bc1239"));
         thieve.setMaxWidth(Double.MAX_VALUE);
         thieve.setOnAction(event -> {
             errorLabel.setText("");
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 Reference chosenReference = chosen(reference);
                 if (chosenReference == Reference.BOX && referenceObject.getValue() == null) {
-                    throw new IllegalArgumentException("Escolha o objeto de referência");
+                    throw new IllegalArgumentException(I18n.text("ui.b6d2a2388956"));
                 }
-                Options options = new Options(parse(clearance, "distância"), parse(margin, "margem"),
-                        parse(minArea, "área mínima"), chosenReference, chosen(boxType), d.circleSteps(), chosen(fill),
-                        parse(dotDiameter, "diâmetro dos pontos"), parse(dotSpacing, "espaço dos pontos"),
-                        parse(squareSize, "lado dos quadrados"), parse(squareSpacing, "espaço dos quadrados"),
-                        parse(lineSize, "espessura das linhas"), parse(lineSpacing, "espaço das linhas"));
+                Options options = new Options(parse(clearance, I18n.text("ui.dd7487fb3fad")), parse(margin, I18n.text("ui.5ac6dc6d3d08")),
+                        parse(minArea, I18n.text("ui.b1ad3f8c2c5f")), chosenReference, chosen(boxType), d.circleSteps(), chosen(fill),
+                        parse(dotDiameter, I18n.text("ui.98c498c982a8")), parse(dotSpacing, I18n.text("ui.d07b218c95b5")),
+                        parse(squareSize, I18n.text("ui.8a3e40fb20d3")), parse(squareSpacing, I18n.text("ui.020f31f04c20")),
+                        parse(lineSize, I18n.text("ui.846de4ebe749")), parse(lineSpacing, I18n.text("ui.5473dfdd2ada")));
                 thieve.setDisable(true);
-                status.setText("Gerando o copper thieving...");
+                status.setText(I18n.text("ui.55d2f163eff2"));
                 host.thieve(gerber.getValue(), referenceObject.getValue(), List.copyOf(zones), options, message -> {
                     thieve.setDisable(false);
-                    status.setText(message == null ? "Copper thieving criado." : "");
+                    status.setText(message == null ? I18n.text("ui.03fc49e00700") : "");
                     errorLabel.setText(message == null ? "" : message);
                 });
             } catch (IllegalArgumentException invalid) {
@@ -236,33 +236,33 @@ final class CopperThievingToolPanel {
         });
 
         VBox thievingBox = new VBox(6, new Label("Gerber:"), gerber,
-                pairs("Distância:", clearance, "Margem:", margin),
-                pairs("Área mínima:", minArea, "", new Label()),
-                new Label("Preencher dentro de:"), new HBox(8, itself, area, box), boxTypes, zoneBox, referenceObject,
-                new Label("Tipo de preenchimento:"), new HBox(8, solid, dots, squares, lines), dotGrid, squareGrid,
+                pairs(I18n.text("ui.5c80e603ab8f"), clearance, I18n.text("ui.16bab5b0d1de"), margin),
+                pairs(I18n.text("ui.2d2d2475344a"), minArea, "", new Label()),
+                new Label(I18n.text("ui.3d1af529ff62")), new HBox(8, itself, area, box), boxTypes, zoneBox, referenceObject,
+                new Label(I18n.text("ui.2a684468c060")), new HBox(8, solid, dots, squares, lines), dotGrid, squareGrid,
                 lineGrid, thieve);
         thievingBox.setPadding(new Insets(6));
 
         // --- robber bar ---
         TextField robberMargin = number(ToolDefaults.text("thieving.robbermargin"));
         TextField robberThickness = number(ToolDefaults.text("thieving.robberthickness"));
-        Button robber = new Button("Adicionar Robber Bar");
+        Button robber = new Button(I18n.text("ui.afa06dc5dab5"));
         robber.setMaxWidth(Double.MAX_VALUE);
         robber.setOnAction(event -> {
             errorLabel.setText("");
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
-                String message = host.robberBar(gerber.getValue(), parse(robberMargin, "margem da barra"),
-                        parse(robberThickness, "espessura da barra"));
+                String message = host.robberBar(gerber.getValue(), parse(robberMargin, I18n.text("ui.a7d447751716")),
+                        parse(robberThickness, I18n.text("ui.afe8dc095e0b")));
                 errorLabel.setText(message == null ? "" : message);
-                status.setText(message == null ? "Robber bar criada." : "");
+                status.setText(message == null ? I18n.text("ui.7aa3758df0a4") : "");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        VBox robberBox = new VBox(6, pairs("Margem:", robberMargin, "Espessura:", robberThickness), robber);
+        VBox robberBox = new VBox(6, pairs(I18n.text("ui.16bab5b0d1de"), robberMargin, I18n.text("ui.34dd1326833d"), robberThickness), robber);
         robberBox.setPadding(new Insets(6));
 
         // --- pattern plating mask ---
@@ -270,44 +270,44 @@ final class CopperThievingToolPanel {
         maskObject.getSelectionModel().selectFirst();
         TextField maskClearance = number(ToolDefaults.text("thieving.maskclearance"));
         ToggleGroup plating = new ToggleGroup();
-        RadioButton both = radio("Ambos", plating, Plating.BOTH);
+        RadioButton both = radio(I18n.text("ui.727f1e023503"), plating, Plating.BOTH);
         RadioButton onlyThieving = radio("Thieving", plating, Plating.THIEVING);
         RadioButton onlyRobber = radio("Robber bar", plating, Plating.ROBBER);
-        RadioButton nothing = radio("Nenhum", plating, Plating.NONE);
+        RadioButton nothing = radio(I18n.text("ui.496a53a0f11e"), plating, Plating.NONE);
         both.setSelected(true);
         TextField platedArea = new TextField("0.0");
         platedArea.setEditable(false);
         platedArea.setPrefColumnCount(8);
-        Button mask = new Button("Gerar máscara de galvanoplastia");
+        Button mask = new Button(I18n.text("ui.8b3d64948680"));
         mask.setMaxWidth(Double.MAX_VALUE);
         mask.setOnAction(event -> {
             errorLabel.setText("");
             try {
                 if (maskObject.getValue() == null) {
-                    throw new IllegalArgumentException("Escolha o Gerber da máscara de solda");
+                    throw new IllegalArgumentException(I18n.text("ui.eaecdb2b5149"));
                 }
-                Object[] result = host.platingMask(maskObject.getValue(), parse(maskClearance, "distância da máscara"),
-                        chosen(plating), parse(robberThickness, "espessura da barra"));
+                Object[] result = host.platingMask(maskObject.getValue(), parse(maskClearance, I18n.text("ui.6d0c50c62515")),
+                        chosen(plating), parse(robberThickness, I18n.text("ui.afe8dc095e0b")));
                 if (result[1] != null) {
                     errorLabel.setText((String) result[1]);
                 } else {
                     platedArea.setText(String.format(Locale.ROOT, "%.4f", (Double) result[0]));
-                    status.setText("Máscara de galvanoplastia criada.");
+                    status.setText(I18n.text("ui.8f27736ce96c"));
                 }
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        VBox maskBox = new VBox(6, new Label("Gerber da máscara de solda:"), maskObject,
-                pairs("Distância:", maskClearance, "", new Label()), new Label("Incluir:"),
+        VBox maskBox = new VBox(6, new Label(I18n.text("ui.b139f4e81852")), maskObject,
+                pairs(I18n.text("ui.5c80e603ab8f"), maskClearance, "", new Label()), new Label("Incluir:"),
                 new HBox(8, both, onlyThieving, onlyRobber, nothing),
-                new HBox(8, new Label("Área galvanizada:"), platedArea), mask);
+                new HBox(8, new Label(I18n.text("ui.3e8e8b66dc72")), platedArea), mask);
         maskBox.setPadding(new Insets(6));
 
         TitledPane thievingPane = new TitledPane("Copper Thieving", thievingBox);
         TitledPane robberPane = new TitledPane("Robber Bar", robberBox);
         TitledPane maskPane = new TitledPane("Pattern Plating Mask", maskBox);
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.cancelPick();
             host.showZones(List.of());

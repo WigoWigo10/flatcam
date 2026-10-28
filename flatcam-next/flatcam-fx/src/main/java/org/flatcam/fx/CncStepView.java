@@ -128,8 +128,8 @@ final class CncStepView {
         }
         Layer layer = layers.get(selectedKey);
         PathStep step = layer.steps().get(selectedIndex);
-        String kind = step.travel() ? "Deslocamento" : step.xy().length == 2 ? "Furo" : "Corte";
-        StringBuilder text = new StringBuilder(String.format(Locale.ROOT, "Passo %d/%d - %s",
+        String kind = step.travel() ? I18n.text("ui.fa42d79d079e") : step.xy().length == 2 ? I18n.text("ui.ea372146aabd") : I18n.text("ui.f012766a690c");
+        StringBuilder text = new StringBuilder(String.format(Locale.ROOT, I18n.text("ui.78f88ede4d0a"),
                 selectedIndex + 1, layer.steps().size(), kind));
         if (step.fromMark() > 0 || step.toMark() > 0) {
             text.append(" (");

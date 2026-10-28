@@ -57,24 +57,22 @@ final class ScriptEditorPanel extends BorderPane implements AutoCloseable {
         editor = new CodeEditor(text, CodeSyntax.Language.TCL, true);
         editor.setId("script-editor-code");
         editor.onEdit(this::updateState);
-        Button run = new Button("Executar");
+        Button run = new Button(I18n.text("ui.608d26670525"));
         run.setId("script-run");
-        ToolDescriptions.apply(run, "Executar script", "Envia todo o texto ao Terminal Tcl, que o executa como um script "
-                + "(Cancelar/ESC no Terminal interrompe). Comandos já concluídos não são desfeitos. "
-                + "O Terminal usa o dialeto Tcl reduzido do FX.");
+        ToolDescriptions.apply(run, I18n.text("ui.e45be90cbb56"), I18n.text("ui.726c6034e97d"));
         run.setOnAction(event -> runScript());
-        Button save = new Button("Salvar");
+        Button save = new Button(I18n.text("ui.aef7cd5b2081"));
         save.setId("script-save");
-        ToolDescriptions.apply(save, "Salvar script", "Grava no arquivo do script; um script novo pergunta o destino.");
+        ToolDescriptions.apply(save, I18n.text("ui.c2cf287d7bdd"), I18n.text("ui.593db9f0e6f8"));
         save.setOnAction(event -> save());
-        Button saveAs = new Button("Salvar como…");
+        Button saveAs = new Button(I18n.text("ui.cb5b463bee77"));
         saveAs.setId("script-save-as");
-        ToolDescriptions.apply(saveAs, "Salvar script como", "Grava o texto em outro arquivo .FlatScript/.tcl.");
+        ToolDescriptions.apply(saveAs, I18n.text("ui.26e45b210c0e"), I18n.text("ui.677908836d79"));
         saveAs.setOnAction(event -> saveAs());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         status.setId("script-status");
-        ToolDescriptions.apply(status, "Arquivo do script", "Mostra o arquivo associado e indica alterações ainda não salvas. Executar usa o texto atual do editor, mesmo sem salvar.");
+        ToolDescriptions.apply(status, I18n.text("ui.8d9aa6242f04"), I18n.text("ui.8ea08a147d56"));
         HBox bar = new HBox(6, run, save, saveAs, spacer, status);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setPadding(new Insets(4));
@@ -96,7 +94,7 @@ final class ScriptEditorPanel extends BorderPane implements AutoCloseable {
     boolean runScript() {
         String label = file == null ? "new_script" : file.getFileName().toString();
         boolean started = host.run(editor.getText(), label);
-        if (!started) host.log("O Terminal ainda está executando outro script; aguarde ou cancele antes de executar este.");
+        if (!started) host.log(I18n.text("ui.cea33c3a84fd"));
         return started;
     }
 
@@ -114,7 +112,7 @@ final class ScriptEditorPanel extends BorderPane implements AutoCloseable {
         Path destination = target.toAbsolutePath();
         try {
             if (destination.getParent() == null || !Files.isDirectory(destination.getParent()))
-                throw new IOException("A pasta de destino não existe: " + destination.getParent());
+                throw new IOException(I18n.text("ui.21335b513c7c") + destination.getParent());
             Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-script-", ".tmp");
             try {
                 Files.writeString(temporary, text, StandardCharsets.UTF_8);
@@ -127,19 +125,19 @@ final class ScriptEditorPanel extends BorderPane implements AutoCloseable {
                 Files.deleteIfExists(temporary);
             }
         } catch (IOException | RuntimeException error) {
-            host.log("Falha ao salvar o script: " + error.getMessage());
+            host.log(I18n.text("ui.0d70017fe561") + error.getMessage());
             return false;
         }
         file = destination;
         savedText = CodeEditor.normalize(text);
         updateState();
-        host.log("Script salvo em " + destination);
+        host.log(I18n.text("ui.1dd5325fe2a0") + destination);
         return true;
     }
 
     private void updateState() {
         dirty.set(savedText == null || !savedText.equals(CodeEditor.normalize(editor.getText())));
-        status.setText((file == null ? "Script novo (não salvo)" : file.toString()) + (isDirty() ? " • alterado" : ""));
+        status.setText((file == null ? I18n.text("ui.bf1952d25340") : file.toString()) + (isDirty() ? I18n.text("ui.02486a6bd4ce") : ""));
     }
 
     @Override

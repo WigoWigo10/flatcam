@@ -56,7 +56,7 @@ final class PunchGerberToolPanel {
         excellon.getSelectionModel().selectFirst();
 
         ListView<String> apertureList = new ListView<>();
-        ToolDescriptions.apply(apertureList,"Aberturas a furar", "Selecione as aberturas cujos pads serão processados.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.");
+        ToolDescriptions.apply(apertureList,I18n.text("ui.e528deccc59a"), I18n.text("ui.156a2cc176e1"));
         apertureList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         apertureList.setPrefHeight(110);
         Map<String, String> described = new LinkedHashMap<>();
@@ -77,26 +77,26 @@ final class PunchGerberToolPanel {
         };
         gerber.valueProperty().addListener((o, a, b) -> fillApertures.run());
         fillApertures.run();
-        Button all = new Button("Todos");
+        Button all = new Button(I18n.text("ui.bd02b9a7d71d"));
         all.setOnAction(event -> apertureList.getSelectionModel().selectAll());
-        Button none = new Button("Nenhum");
+        Button none = new Button(I18n.text("ui.496a53a0f11e"));
         none.setOnAction(event -> apertureList.getSelectionModel().clearSelection());
 
         ToggleGroup methods = new ToggleGroup();
         RadioButton fromExcellon = new RadioButton("Excellon");
-        RadioButton fixed = new RadioButton("Fixo");
-        RadioButton ring = new RadioButton("Anel anular");
-        RadioButton proportional = new RadioButton("Proporcional");
+        RadioButton fixed = new RadioButton(I18n.text("ui.ef7d89f30019"));
+        RadioButton ring = new RadioButton(I18n.text("ui.5ec4450f48fc"));
+        RadioButton proportional = new RadioButton(I18n.text("ui.fecd5dfb1d1b"));
         for (RadioButton radio : List.of(fromExcellon, fixed, ring, proportional)) {
             radio.setToggleGroup(methods);
         }
         fixed.setSelected(true);
 
-        CheckBox circular = new CheckBox("Circulares");
-        CheckBox oblong = new CheckBox("Oblongos");
-        CheckBox square = new CheckBox("Quadrados");
-        CheckBox rectangular = new CheckBox("Retangulares");
-        CheckBox other = new CheckBox("Outros");
+        CheckBox circular = new CheckBox(I18n.text("ui.f0ecde8a39fb"));
+        CheckBox oblong = new CheckBox(I18n.text("ui.3f7f397308be"));
+        CheckBox square = new CheckBox(I18n.text("ui.bcfd287153a7"));
+        CheckBox rectangular = new CheckBox(I18n.text("ui.cb6a4f90cace"));
+        CheckBox other = new CheckBox(I18n.text("ui.e6031e8fb508"));
         circular.setSelected(true);
 
         TextField fixedDiameter = field(ToolDefaults.text("punch.fixeddiameter"));
@@ -109,20 +109,20 @@ final class PunchGerberToolPanel {
         GridPane grid = new GridPane();
         grid.setHgap(6);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Diâmetro fixo:"), fixedDiameter);
-        grid.addRow(1, new Label("Proporção (%):"), factor);
-        grid.addRow(2, new Label("Anel - circular:"), ringCircular);
-        grid.addRow(3, new Label("Anel - oblongo:"), ringOblong);
-        grid.addRow(4, new Label("Anel - quadrado:"), ringSquare);
-        grid.addRow(5, new Label("Anel - retangular:"), ringRectangular);
-        grid.addRow(6, new Label("Anel - outros:"), ringOther);
+        grid.addRow(0, new Label(I18n.text("ui.87c58734c8b6")), fixedDiameter);
+        grid.addRow(1, new Label(I18n.text("ui.6c63941cefbe")), factor);
+        grid.addRow(2, new Label(I18n.text("ui.f81b6872474e")), ringCircular);
+        grid.addRow(3, new Label(I18n.text("ui.7f15c9a99719")), ringOblong);
+        grid.addRow(4, new Label(I18n.text("ui.fc7e76a93a2b")), ringSquare);
+        grid.addRow(5, new Label(I18n.text("ui.09580507ab6f")), ringRectangular);
+        grid.addRow(6, new Label(I18n.text("ui.0140900a7611")), ringOther);
         fixedDiameter.disableProperty().bind(fixed.selectedProperty().not());
         factor.disableProperty().bind(proportional.selectedProperty().not());
         for (TextField ringField : List.of(ringCircular, ringOblong, ringSquare, ringRectangular, ringOther)) {
             ringField.disableProperty().bind(ring.selectedProperty().not());
         }
         Label excellonLabel = new Label("Excellon:");
-        VBox sizing = new VBox(8, new Label("Tipos de pad:"), new HBox(10, circular, oblong, square),
+        VBox sizing = new VBox(8, new Label(I18n.text("ui.a14063dd4ab4")), new HBox(10, circular, oblong, square),
                 new HBox(10, rectangular, other), grid);
         excellonLabel.visibleProperty().bind(fromExcellon.selectedProperty());
         excellonLabel.managedProperty().bind(fromExcellon.selectedProperty());
@@ -135,22 +135,22 @@ final class PunchGerberToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        Button punch = new Button("Furar Gerber");
+        Button punch = new Button(I18n.text("ui.934d5301f1b3"));
         punch.setMaxWidth(Double.MAX_VALUE);
         punch.setOnAction(event -> {
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 Set<String> chosen = Set.copyOf(apertureList.getSelectionModel().getSelectedItems());
                 if (chosen.isEmpty()) {
-                    throw new IllegalArgumentException("Selecione ao menos um aperture");
+                    throw new IllegalArgumentException(I18n.text("ui.554a9d2d8772"));
                 }
                 TreeItem<String> drills = null;
                 if (fromExcellon.isSelected()) {
                     drills = excellon.getValue();
                     if (drills == null) {
-                        throw new IllegalArgumentException("Carregue um Excellon");
+                        throw new IllegalArgumentException(I18n.text("ui.1b5ee389225d"));
                     }
                 }
                 ExtractDrills.Mode mode = proportional.isSelected() ? ExtractDrills.Mode.PROPORTIONAL
@@ -162,18 +162,18 @@ final class PunchGerberToolPanel {
                 String error = host.punch(gerber.getValue(), drills, options, chosen);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(8,
-                new Label("Gerber a furar:"), gerber,
+                new Label(I18n.text("ui.d498d2460bd5")), gerber,
                 new Label("Apertures:"), apertureList, new HBox(6, all, none),
-                new Label("Origem dos furos:"), new HBox(10, fromExcellon, fixed), new HBox(10, ring, proportional),
+                new Label(I18n.text("ui.f70d9060ff80")), new HBox(10, fromExcellon, fixed), new HBox(10, ring, proportional),
                 excellonLabel, excellon, sizing, punch, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

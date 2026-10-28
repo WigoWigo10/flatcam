@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Catálogos e seleção de idioma — 2026-10-27
+
+Revisão de textos/tooltips anterior commitada em `9bd84fa2`. A etapa seguinte
+extraiu 3649 entradas UTF-8 por idioma e ligou Português (Brasil)/English em
+Preferências > Geral. Aplicar salva; idioma muda somente na próxima abertura,
+incluindo a splash. Rascunho, restauração e fallback antigo preservados.
+
+Ícones/ajudas resolvem aliases canônicos antes de traduções; switches de ações
+do editor preservam seu domínio. Textos de metadados do modelo são traduzidos
+na apresentação. Casos ambíguos da referência gettext foram revisados, incluindo
+Copy/Clear/Done e fragmentos de campos/mensagens. Arquivos gerados, IDs, Tcl e
+nomes de usuário não são localizados; `Locale` global não muda.
+
+Dois processos isolados verificam painéis, preferências, menus, ajuda própria,
+quatro temas e persistência. G-code GRBL e CSV de trajetos idênticos nos dois
+idiomas. Recursos gerados e validações: [I18N.md](I18N.md).
+Inventário atual e lacunas gerais: [PREFERENCIAS.md](PREFERENCIAS.md).
+Integral final: 2123 aprovações, 18 skips opcionais, zero falhas/erros (2141
+registros), em `target/i18n-verify.log`/JSON. Os dois inventários têm 1497
+ocorrências com zero MISSING. Build e probe nativos sincronizados e aprovados.
+As seções antigas de localização abaixo são históricas, não o estado atual.
+
 ## Tooltips: áreas recentes e cobertura por controle — 2026-10-27
 
 Ajuda ampliada em medição, Jump/Localizar, exportação Gerber/Excellon, cor e
@@ -2498,9 +2520,10 @@ nos módulos testáveis ou em classes sem dependência forte da janela.
 
 ### Localização e consistência
 
-Ainda há textos fixos e mistura de idiomas em pontos da UI. Não espalhe novas
-strings sem necessidade. A internacionalização completa pode vir depois, mas
-novos painéis devem manter terminologia consistente com o produto.
+Os catálogos e a escolha Português/English já existem; use `I18n.text` e atualize
+as duas versões, validando com `write_ui_catalogs.py --strict --check` e
+`I18nUiTest`. Textos técnicos e retornos de bibliotecas/backend não devem ser
+traduzidos por substituição indiscriminada. Veja os limites em `I18N.md`.
 
 ### Temas disponíveis
 

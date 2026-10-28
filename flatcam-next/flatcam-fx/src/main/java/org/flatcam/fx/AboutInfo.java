@@ -40,23 +40,20 @@ final class AboutInfo {
 
     static String technicalSummary(SystemHardwareInfo hardware, GraphicsRuntimeInfo graphics) {
         return systemSummary(hardware, graphics)
-                + (graphics == null ? "" : "\n\nDetalhes técnicos da renderização\n" + graphics.summary());
+                + (graphics == null ? "" : I18n.text("ui.56151f0d10e8") + graphics.summary());
     }
 
     static String systemSummary(SystemHardwareInfo hardware, GraphicsRuntimeInfo graphics) {
         Properties info = build();
-        return "FlatCAM FX " + info.getProperty("appVersion", "versão não disponível") + " — em desenvolvimento\n"
-                + "Build (UTC): " + info.getProperty("buildTimeUtc", "não disponível") + "\n"
+        return "FlatCAM FX " + info.getProperty("appVersion", I18n.text("ui.60d46c71d964")) + " — em desenvolvimento\n"
+                + "Build (UTC): " + info.getProperty("buildTimeUtc", I18n.text("ui.d25d2f15d8b7")) + "\n"
                 + "Java: " + System.getProperty("java.runtime.version") + " (" + System.getProperty("java.vendor") + ")\n"
-                + "JavaFX: " + info.getProperty("javafxVersion", System.getProperty("javafx.runtime.version", "não disponível")) + "\n"
+                + "JavaFX: " + info.getProperty("javafxVersion", System.getProperty("javafx.runtime.version", I18n.text("ui.d25d2f15d8b7"))) + "\n"
                 + "Sistema: " + System.getProperty("os.name") + " " + System.getProperty("os.version") + "\n"
                 + "Arquitetura: " + System.getProperty("os.arch") + "\n"
-                + "\n" + (graphics == null ? "Modo gráfico: consultando placa de vídeo e tela…\n" : graphics.friendlySummary())
-                + "\n" + (hardware == null ? "Hardware: consultando CPU e memória…\n" : hardware.summary())
-                + "\n"
-                + "Diagnósticos: " + (FlatCamLauncher.diagnosticDirectory() == null ? "indisponíveis nesta execução"
-                        : FlatCamLauncher.diagnosticDirectory()) + "\n"
-                + "Referência do legado: FlatCAM Python 8.994 BETA (2020/11/7).\n"
-                + "A versão FX tem implementação independente; não representa paridade completa com o legado.";
+                + "\n" + (graphics == null ? I18n.text("ui.071c586ebaf8") : graphics.friendlySummary())
+                + "\n" + (hardware == null ? I18n.text("ui.0ed90f7ac4b8") : hardware.summary())
+                + I18n.text("ui.278b80cadca8") + (FlatCamLauncher.diagnosticDirectory() == null ? I18n.text("ui.3cc0e7d1e034")
+                        : FlatCamLauncher.diagnosticDirectory()) + I18n.text("ui.9e95a2c16702");
     }
 }

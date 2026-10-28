@@ -60,7 +60,7 @@ final class MeasurementToolPanel extends VBox {
     private final TextField distance = output("measure-distance");
     private final TextField half = output("measure-half");
     private final Label message = new Label();
-    private final Button jumpHalf = new Button("Ir para o ponto médio");
+    private final Button jumpHalf = new Button(I18n.text("ui.30814c7f378a"));
     private Measurement current;
 
     MeasurementToolPanel(boolean minimum, String units, Runnable measure, java.util.function.Consumer<double[]> jumpTo,
@@ -68,51 +68,51 @@ final class MeasurementToolPanel extends VBox {
         this.minimum = minimum;
         setSpacing(8);
         setPadding(new Insets(8));
-        Label title = new Label(minimum ? "Distância Mínima" : "Medir Distância");
+        Label title = new Label(minimum ? I18n.text("ui.61ff53fbc31f") : I18n.text("ui.475f2d0d401e"));
         title.getStyleClass().add("tool-title");
         Label help = new Label(minimum
-                ? "Mede a menor distância entre os dois objetos selecionados."
-                : "Clique no ponto inicial e depois no ponto final, no Plot. Snap da grade é usado quando ativo; Esc cancela.");
+                ? I18n.text("ui.ac9e555f5c52")
+                : I18n.text("ui.b2248df20fa5"));
         help.setWrapText(true);
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
         String unit = units == null ? "" : " (" + units.toLowerCase(Locale.ROOT) + ")";
         int row = 0;
-        grid.addRow(row++, new Label(minimum ? "Primeiro ponto" : "Início"), start);
-        grid.addRow(row++, new Label(minimum ? "Segundo ponto" : "Fim"), stop);
+        grid.addRow(row++, new Label(minimum ? I18n.text("ui.a9be6dbe6fbc") : I18n.text("ui.325dfc37c9ba")), start);
+        grid.addRow(row++, new Label(minimum ? I18n.text("ui.11d195a76923") : I18n.text("ui.672ff2e837d3")), stop);
         grid.addRow(row++, new Label("Dx" + unit), dx);
         grid.addRow(row++, new Label("Dy" + unit), dy);
-        grid.addRow(row++, new Label("Ângulo (°)"), angle);
-        grid.addRow(row++, new Label("Distância" + unit), distance);
-        if (minimum) grid.addRow(row, new Label("Ponto médio"), half);
-        Button run = new Button(minimum ? "Medir" : "Nova medição");
+        grid.addRow(row++, new Label(I18n.text("ui.a252ef765e2d")), angle);
+        grid.addRow(row++, new Label(I18n.text("ui.dfea8d0b0700") + unit), distance);
+        if (minimum) grid.addRow(row, new Label(I18n.text("ui.961efe4595fe")), half);
+        Button run = new Button(minimum ? I18n.text("ui.3c1cabb34511") : I18n.text("ui.20c31be7bcbc"));
         run.setId("measure-run");
         run.setOnAction(event -> measure.run());
         jumpHalf.setId("measure-jump-half");
         jumpHalf.setDisable(true);
         jumpHalf.setOnAction(event -> { if (current != null) jumpTo.accept(current.halfPoint()); });
-        Button closeButton = new Button("Fechar");
+        Button closeButton = new Button(I18n.text("ui.0f2bd88ef0ac"));
         closeButton.setOnAction(event -> close.run());
-        String linear = "\n\nUnidades: " + units + ". Os resultados são somente leitura.";
-        ToolDescriptions.apply(start, "Primeiro ponto", minimum
-                ? "Ponto da primeira geometria que forma o segmento de menor distância até a segunda." + linear
-                : "Coordenadas do primeiro clique da medição. O Snap ativo é respeitado." + linear);
-        ToolDescriptions.apply(stop, "Segundo ponto", minimum
-                ? "Ponto da segunda geometria mais próximo da primeira; não é necessariamente um centro de furo ou pad." + linear
-                : "Coordenadas do segundo clique da medição. O Snap ativo é respeitado." + linear);
-        ToolDescriptions.apply(dx, "Distância horizontal", "Valor absoluto da diferença X entre os dois pontos; não indica o sentido do movimento." + linear);
-        ToolDescriptions.apply(dy, "Distância vertical", "Valor absoluto da diferença Y entre os dois pontos; não indica o sentido do movimento." + linear);
-        ToolDescriptions.apply(distance, "Distância entre pontos", "Comprimento em linha reta entre os pontos. Não é o comprimento de um trajeto de corte." + linear);
-        ToolDescriptions.apply(angle, "Ângulo da medição", minimum
-                ? "Inclinação do segmento entre os pontos mais próximos, entre -90° e 90°; um segmento vertical mostra 90°.\n\nUnidades: graus."
-                : "Direção do ponto inicial ao final, de 0° a menos de 360°, em sentido anti-horário a partir de X.\n\nUnidades: graus.");
-        ToolDescriptions.apply(half, "Ponto médio", "Coordenadas no meio do segmento de menor distância entre os dois objetos." + linear);
-        ToolDescriptions.apply(run, minimum ? "Medir distância mínima" : "Nova medição", minimum
-                ? "Calcula os pontos mais próximos de exatamente dois objetos selecionados. Objetos que se tocam ou se intersectam têm distância zero.\n\nResultado: não modifica objetos nem cria caminhos CAM."
-                : "Inicia outra medição por dois cliques no Plot Area. Substitui o resultado anterior sem modificar os objetos.\n\nAtalho: Esc cancela a coleta.");
-        ToolDescriptions.apply(jumpHalf, "Localizar ponto médio", "Centraliza a vista no meio do segmento medido. Disponível após uma distância mínima maior que zero; não move os objetos.");
-        ToolDescriptions.apply(closeButton, "Fechar medição", "Fecha o painel e remove sua marcação temporária do Plot Area. Não altera os objetos.");
+        String linear = I18n.text("ui.3970547f0ca7") + units + I18n.text("ui.957775cd1315");
+        ToolDescriptions.apply(start, I18n.text("ui.a9be6dbe6fbc"), minimum
+                ? I18n.text("ui.3228ce1d5c5d") + linear
+                : I18n.text("ui.815d0d245b19") + linear);
+        ToolDescriptions.apply(stop, I18n.text("ui.11d195a76923"), minimum
+                ? I18n.text("ui.20ab022a43a4") + linear
+                : I18n.text("ui.2555fcb347a0") + linear);
+        ToolDescriptions.apply(dx, I18n.text("ui.4e3a4a8bfc84"), I18n.text("ui.354b35d0e907") + linear);
+        ToolDescriptions.apply(dy, I18n.text("ui.37ad92d4d4a4"), I18n.text("ui.3022ec747448") + linear);
+        ToolDescriptions.apply(distance, I18n.text("ui.6267165807a4"), I18n.text("ui.64ed4de6760c") + linear);
+        ToolDescriptions.apply(angle, I18n.text("ui.01f3f8d16b82"), minimum
+                ? I18n.text("ui.6c573f3174da")
+                : I18n.text("ui.6b60aceeef2f"));
+        ToolDescriptions.apply(half, I18n.text("ui.961efe4595fe"), I18n.text("ui.a22251c407db") + linear);
+        ToolDescriptions.apply(run, minimum ? I18n.text("ui.7b1672e9941a") : I18n.text("ui.20c31be7bcbc"), minimum
+                ? I18n.text("ui.0218a5758e61")
+                : I18n.text("ui.3d8f0b298cf2"));
+        ToolDescriptions.apply(jumpHalf, I18n.text("ui.50e6b55efd55"), I18n.text("ui.add7cf57e2f3"));
+        ToolDescriptions.apply(closeButton, I18n.text("ui.fef72101391e"), I18n.text("ui.d6b5ab0b1f93"));
         HBox buttons = minimum ? new HBox(6, run, jumpHalf, closeButton) : new HBox(6, run, closeButton);
         message.setWrapText(true);
         message.setId("measure-message");
@@ -132,7 +132,7 @@ final class MeasurementToolPanel extends VBox {
     void showStart(double x, double y) {
         clear();
         start.setText(point(x, y));
-        message.setText("Clique no ponto FINAL...");
+        message.setText(I18n.text("ui.2388cf3e696d"));
     }
 
     void showResult(Measurement measurement) {
@@ -147,7 +147,7 @@ final class MeasurementToolPanel extends VBox {
         half.setText(point(h[0], h[1]));
         jumpHalf.setDisable(!minimum || measurement.distance() == 0);
         message.setText(minimum && measurement.distance() == 0
-                ? "Os objetos se intersectam ou se tocam em " + point(measurement.halfPoint()[0], measurement.halfPoint()[1]) + "."
+                ? I18n.text("ui.442cc841183e") + point(measurement.halfPoint()[0], measurement.halfPoint()[1]) + "."
                 : summary(measurement));
     }
 
@@ -156,8 +156,8 @@ final class MeasurementToolPanel extends VBox {
     }
 
     String summary(Measurement measurement) {
-        return "MEDINDO: Resultado D(x) = " + number(measurement.dx()) + " | D(y) = " + number(measurement.dy())
-                + " | Distância = " + number(measurement.distance());
+        return I18n.text("ui.d9910db83cb2") + number(measurement.dx()) + " | D(y) = " + number(measurement.dy())
+                + I18n.text("ui.5e32900fa6e9") + number(measurement.distance());
     }
 
     private static String point(double x, double y) {

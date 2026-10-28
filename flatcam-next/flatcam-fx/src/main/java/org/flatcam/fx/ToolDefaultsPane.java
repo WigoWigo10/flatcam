@@ -44,8 +44,8 @@ final class ToolDefaultsPane {
         millimetres.setToggleGroup(units);
         inches.setToggleGroup(units);
         millimetres.setSelected(true);
-        ToolDescriptions.apply(millimetres, "Padrões em mm", "Edita os valores iniciais em milímetros. Os valores em polegadas são independentes; alternar não converte nem salva o rascunho.");
-        ToolDescriptions.apply(inches, "Padrões em in", "Edita os valores iniciais em polegadas. Os valores em milímetros são independentes; alternar não converte nem salva o rascunho.");
+        ToolDescriptions.apply(millimetres, I18n.text("ui.a180682c8546"), I18n.text("ui.6c8a6a962323"));
+        ToolDescriptions.apply(inches, I18n.text("ui.fe0af9665c07"), I18n.text("ui.d89a98cda79d"));
 
         Accordion groups = new Accordion();
         Label feedback = new Label();
@@ -90,9 +90,9 @@ final class ToolDefaultsPane {
                     grid.addRow(row++, label, editor);
                 }
                 if (row == 0) continue;
-                TitledPane pane = new TitledPane(tool.getKey(), grid);
+                TitledPane pane = new TitledPane(I18n.caption(tool.getKey()), grid);
                 groups.getPanes().add(pane);
-                if (tool.getKey().equals(expanded) || scoped && groups.getExpandedPane() == null) {
+                if (pane.getText().equals(expanded) || scoped && groups.getExpandedPane() == null) {
                     groups.setExpandedPane(pane);
                 }
             }
@@ -101,7 +101,7 @@ final class ToolDefaultsPane {
         if (filter != null) filter.addListener((observable, before, now) -> rebuild.run());
         rebuild.run();
 
-        Button save = new Button(scoped ? "Salvar esta seção" : "Salvar padrões das ferramentas");
+        Button save = new Button(scoped ? I18n.text("ui.8439d7e4000d") : I18n.text("ui.746268041a60"));
         if (scoped) save.getStyleClass().add("primary-action");
         save.setId("tool-defaults-save");
         save.setOnAction(event -> {
@@ -120,22 +120,22 @@ final class ToolDefaultsPane {
                 }
             }
             feedback.setText(problems.isEmpty()
-                    ? (saved == 0 ? "Nada a salvar." : "Padrões salvos. Valem para os painéis abertos a partir de agora.")
-                    : "Não salvo: " + String.join("; ", problems));
+                    ? (saved == 0 ? I18n.text("ui.a4186f2d5e63") : I18n.text("ui.6558e77bc05b"))
+                    : I18n.text("ui.f761c2605081") + String.join("; ", problems));
             rebuild.run();
         });
-        Button reset = new Button("Restaurar padrões de fábrica");
+        Button reset = new Button(I18n.text("ui.8aff60723184"));
         reset.setId("tool-defaults-reset");
         // Two steps, in the page itself: restoring discards every saved value.
-        Button confirmReset = new Button(scoped ? "Confirmar restauração desta seção" : "Confirmar: restaurar tudo");
+        Button confirmReset = new Button(scoped ? I18n.text("ui.df4455d91e1f") : I18n.text("ui.70b852ef71ec"));
         confirmReset.setId("tool-defaults-reset-confirm");
         confirmReset.setVisible(false);
         confirmReset.setManaged(false);
-        ToolDescriptions.apply(save, "Salvar padrões", "Valida e salva os rascunhos desta seção. Valores inválidos continuam pendentes; os demais podem ser salvos. Não salva o projeto nem atualiza painéis já abertos.");
-        ToolDescriptions.apply(reset, "Restaurar fábrica", "Mostra uma segunda confirmação antes de remover todos os padrões personalizados desta seção. Não apaga objetos ou projetos.");
-        ToolDescriptions.apply(confirmReset, "Confirmar restauração", scoped
-                ? "Remove os padrões personalizados somente desta seção e descarta seus rascunhos, em mm e in, incluindo campos ocultos pela busca. Não modifica outras seções, objetos ou projetos."
-                : "Remove imediatamente os padrões personalizados de todas as ferramentas e descarta os rascunhos, em mm e in. Não altera configurações de tema ou objetos do projeto.");
+        ToolDescriptions.apply(save, I18n.text("ui.b3cc322a32df"), I18n.text("ui.7dca2aea650d"));
+        ToolDescriptions.apply(reset, I18n.text("ui.3ab8ef119fc7"), I18n.text("ui.9c0d438ffb0c"));
+        ToolDescriptions.apply(confirmReset, I18n.text("ui.e0350c3f94ac"), scoped
+                ? I18n.text("ui.fe231b822e61")
+                : I18n.text("ui.9b651e369510"));
         reset.setOnAction(event -> {
             confirmReset.setVisible(true);
             confirmReset.setManaged(true);
@@ -149,16 +149,16 @@ final class ToolDefaultsPane {
             pending.clear();
             confirmReset.setVisible(false);
             confirmReset.setManaged(false);
-            feedback.setText("Padrões de fábrica restaurados.");
+            feedback.setText(I18n.text("ui.dbd7b0baeb20"));
             rebuild.run();
         });
 
         if (scoped) {
-            ToolDescriptions.apply(save, "Salvar esta seção", "Valida e salva todos os rascunhos desta seção, em mm e in, incluindo campos ocultos pela busca. Valores inválidos continuam pendentes; os demais podem ser salvos. Não salva o projeto nem atualiza painéis já abertos.");
-            ToolDescriptions.apply(reset, "Restaurar esta seção", "Pede confirmação antes de remover os padrões personalizados somente desta seção, em mm e in. Não modifica outras seções nem objetos do projeto.");
+            ToolDescriptions.apply(save, I18n.text("ui.8439d7e4000d"), I18n.text("ui.0694e17603fd"));
+            ToolDescriptions.apply(reset, I18n.text("ui.dbe2f683628c"), I18n.text("ui.5d1dd9743528"));
         }
         var actions = new javafx.scene.layout.FlowPane(8, 8, save, reset, confirmReset);
-        HBox unitControls = new HBox(10, new Label("Unidades dos comprimentos:"), millimetres, inches);
+        HBox unitControls = new HBox(10, new Label(I18n.text("ui.757dc860a9c1")), millimetres, inches);
         unitControls.setId("tool-defaults-units");
         boolean hasLengths = ToolDefaults.settings().stream().anyMatch(s -> included.contains(s.tool()) && s.perUnit());
         unitControls.setVisible(hasLengths); unitControls.setManaged(hasLengths);

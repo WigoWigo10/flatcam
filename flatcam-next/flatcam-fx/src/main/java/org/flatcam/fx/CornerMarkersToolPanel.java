@@ -66,17 +66,17 @@ final class CornerMarkersToolPanel {
         TextField margin = field(ToolDefaults.text("corners.margin"));
         TextField drill = field(ToolDefaults.text("corners.drill"));
         ToggleGroup styles = new ToggleGroup();
-        RadioButton safe = new RadioButton("Canto (L)");
-        RadioButton cross = new RadioButton("Cruz");
+        RadioButton safe = new RadioButton(I18n.text("ui.ad6151ff3968"));
+        RadioButton cross = new RadioButton(I18n.text("ui.52f957fe645a"));
         safe.setToggleGroup(styles);
         cross.setToggleGroup(styles);
         safe.setSelected(true);
 
-        CheckBox topLeft = new CheckBox("Superior esq.");
-        CheckBox topRight = new CheckBox("Superior dir.");
-        CheckBox bottomLeft = new CheckBox("Inferior esq.");
-        CheckBox bottomRight = new CheckBox("Inferior dir.");
-        CheckBox all = new CheckBox("Todos");
+        CheckBox topLeft = new CheckBox(I18n.text("ui.ce333599fd1b"));
+        CheckBox topRight = new CheckBox(I18n.text("ui.89fa85221098"));
+        CheckBox bottomLeft = new CheckBox(I18n.text("ui.85b40fdb8382"));
+        CheckBox bottomRight = new CheckBox(I18n.text("ui.8899ce2b53a3"));
+        CheckBox all = new CheckBox(I18n.text("ui.bd02b9a7d71d"));
         all.selectedProperty().addListener((o, a, selected) -> {
             for (CheckBox box : List.of(topLeft, topRight, bottomLeft, bottomRight)) {
                 box.setSelected(selected);
@@ -86,10 +86,10 @@ final class CornerMarkersToolPanel {
         GridPane grid = new GridPane();
         grid.setHgap(6);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Espessura:"), thickness);
-        grid.addRow(1, new Label("Comprimento:"), length);
-        grid.addRow(2, new Label("Margem:"), margin);
-        grid.addRow(3, new Label("Diâmetro da broca:"), drill);
+        grid.addRow(0, new Label(I18n.text("ui.34dd1326833d")), thickness);
+        grid.addRow(1, new Label(I18n.text("ui.0b431cc7476e")), length);
+        grid.addRow(2, new Label(I18n.text("ui.16bab5b0d1de")), margin);
+        grid.addRow(3, new Label(I18n.text("ui.8e5a2efb8f85")), drill);
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -112,44 +112,44 @@ final class CornerMarkersToolPanel {
             return corners;
         };
 
-        Button add = new Button("Adicionar marcadores");
+        Button add = new Button(I18n.text("ui.138d5b0bf4c0"));
         add.setMaxWidth(Double.MAX_VALUE);
         add.setOnAction(event -> {
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 String error = host.addMarkers(gerber.getValue(), chosen.get(),
                         safe.isSelected() ? CornerMarkers.Style.CORNER : CornerMarkers.Style.CROSS, number(thickness),
                         number(length), number(margin));
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button drills = new Button("Criar furos nos cantos");
+        Button drills = new Button(I18n.text("ui.b5bf33d64d67"));
         drills.setMaxWidth(Double.MAX_VALUE);
         drills.setOnAction(event -> {
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 String error = host.addDrills(gerber.getValue(), chosen.get(), number(thickness), number(margin),
                         number(drill));
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> onClose.run());
 
         VBox panel = new VBox(8, new Label("Gerber:"), gerber, grid,
-                new Label("Tipo:"), new HBox(10, safe, cross),
+                new Label(I18n.text("ui.e369d261ecd1")), new HBox(10, safe, cross),
                 new Label("Cantos:"), all, new HBox(10, topLeft, topRight), new HBox(10, bottomLeft, bottomRight),
                 add, drills, errorLabel, close);
         panel.setPadding(new Insets(6));

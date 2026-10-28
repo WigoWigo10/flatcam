@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
 record SystemHardwareInfo(String cpu, int logicalProcessors, long ramTotal, long ramAvailable,
                           long heapUsed, long heapCommitted, long heapMax, int javaThreads) {
     static SystemHardwareInfo unavailable() {
-        return new SystemHardwareInfo("não disponível", Runtime.getRuntime().availableProcessors(), -1, -1, -1, -1, -1, -1);
+        return new SystemHardwareInfo(I18n.text("ui.d25d2f15d8b7"), Runtime.getRuntime().availableProcessors(), -1, -1, -1, -1, -1, -1);
     }
     static SystemHardwareInfo collect() {
         long total = -1, available = -1;
@@ -50,12 +50,12 @@ record SystemHardwareInfo(String cpu, int logicalProcessors, long ramTotal, long
             } else if (os.startsWith("linux")) {
                 try (var lines = Files.lines(Path.of("/proc/cpuinfo"))) {
                     return lines.limit(512).filter(line -> line.startsWith("model name") || line.startsWith("Hardware"))
-                            .map(line -> line.substring(line.indexOf(':') + 1).strip()).findFirst().orElse("não disponível");
+                            .map(line -> line.substring(line.indexOf(':') + 1).strip()).findFirst().orElse(I18n.text("ui.d25d2f15d8b7"));
                 }
             }
         } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
         catch (java.io.IOException | RuntimeException unavailable) { /* Hardware discovery is optional. */ }
-        return "não disponível";
+        return I18n.text("ui.d25d2f15d8b7");
     }
 
     static String registryCpu(String output) {
@@ -65,16 +65,16 @@ record SystemHardwareInfo(String cpu, int logicalProcessors, long ramTotal, long
     }
 
     static String memory(long bytes) {
-        return bytes < 0 ? "não disponível" : String.format(Locale.ROOT, "%.2f GiB (%d MiB)",
+        return bytes < 0 ? I18n.text("ui.d25d2f15d8b7") : String.format(Locale.ROOT, "%.2f GiB (%d MiB)",
                 bytes / (1024.0 * 1024 * 1024), bytes / (1024 * 1024));
     }
 
     String summary() {
-        return "CPU: " + cpu + "\nProcessadores lógicos disponíveis ao Java: " + logicalProcessors
-                + "\nRAM física total: " + memory(ramTotal) + "\nRAM física disponível: " + memory(ramAvailable)
-                + "\nHeap Java usado: " + memory(heapUsed) + "\nHeap Java reservado: " + memory(heapCommitted)
-                + "\nHeap Java máximo: " + memory(heapMax) + "\nThreads Java (plataforma): "
-                + (javaThreads < 0 ? "não disponível" : javaThreads)
-                + "\nMemória e threads são uma amostra ao abrir esta janela; heap não é a RAM total.\n";
+        return "CPU: " + cpu + I18n.text("ui.38677078a133") + logicalProcessors
+                + I18n.text("ui.b96534c6007d") + memory(ramTotal) + I18n.text("ui.cea9fd94e1f8") + memory(ramAvailable)
+                + I18n.text("ui.c839b83ea59d") + memory(heapUsed) + I18n.text("ui.7c9a5a5a5d6c") + memory(heapCommitted)
+                + I18n.text("ui.3273298f4f52") + memory(heapMax) + I18n.text("ui.b251b6a33962")
+                + (javaThreads < 0 ? I18n.text("ui.d25d2f15d8b7") : javaThreads)
+                + I18n.text("ui.a79be540f56e");
     }
 }

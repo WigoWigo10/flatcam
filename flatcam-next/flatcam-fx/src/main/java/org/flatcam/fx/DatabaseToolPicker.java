@@ -16,29 +16,28 @@ final class DatabaseToolPicker {
         ComboBox<T> choices = new ComboBox<>();
         choices.setId(id + "-choices");
         choices.setMaxWidth(Double.MAX_VALUE);
-        ToolDescriptions.apply(choices,"Ferramenta da base", "Escolha a ferramenta a transferir. Selecionar não muda os parâmetros CAM; use Aplicar ferramenta da base e confira os campos suportados.\n\nAtenção: a base não converte mm/in automaticamente.");
-        Button load = new Button("Escolher da base");
+        ToolDescriptions.apply(choices,I18n.text("ui.76fb2f1dd076"), I18n.text("ui.ad06a5a6a674"));
+        Button load = new Button(I18n.text("ui.70f253485ae9"));
         load.setId(id + "-load");
         load.setMaxWidth(Double.MAX_VALUE);
-        ToolsDatabaseDescriptions.apply(load, "Tools Database", "Carrega ferramentas compatíveis da base aberta ou de um arquivo. Selecione uma ferramenta e use Aplicar para transferir; carregar não modifica parâmetros CAM.");
-        Button apply = new Button("Aplicar ferramenta da base");
+        ToolsDatabaseDescriptions.apply(load, "Tools Database", I18n.text("ui.38ffa706774e"));
+        Button apply = new Button(I18n.text("ui.fd6ff362d0fb"));
         apply.setId(id + "-apply");
         apply.setMaxWidth(Double.MAX_VALUE);
-        ToolsDatabaseDescriptions.apply(apply, "Transferir ferramenta", "Transfere somente os campos suportados para este formulário. Confira a unidade e revise os valores antes de gerar caminhos ou G-code. Esta ação não altera o arquivo da base.");
+        ToolsDatabaseDescriptions.apply(apply, I18n.text("ui.728ad1206b55"), I18n.text("ui.8ccd8d5a696a"));
         apply.disableProperty().bind(choices.valueProperty().isNull());
         load.setOnAction(event -> {
             try {
                 choices.getItems().setAll(loader.get());
                 choices.getSelectionModel().selectFirst();
-                error.setText(choices.getItems().isEmpty() ? "Nenhuma ferramenta compatível na base." : "");
+                error.setText(choices.getItems().isEmpty() ? I18n.text("ui.c934523e6f8a") : "");
             } catch (RuntimeException invalid) { error.setText(invalid.getMessage()); }
         });
         apply.setOnAction(event -> {
             try { transfer.accept(choices.getValue()); error.setText(""); }
             catch (RuntimeException invalid) { error.setText(invalid.getMessage()); }
         });
-        Label note = new Label("Valores na unidade do trabalho. Confira mm/in; a base não converte unidades. "
-                + "Somente os campos suportados são transferidos.");
+        Label note = new Label(I18n.text("ui.3f1ce3852335"));
         note.setWrapText(true);
         VBox box = new VBox(6, load, choices, apply, note);
         choices.visibleProperty().bind(choices.itemsProperty().isNotNull().and(

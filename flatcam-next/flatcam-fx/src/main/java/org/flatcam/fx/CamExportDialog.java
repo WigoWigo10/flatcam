@@ -23,8 +23,8 @@ final class CamExportDialog {
 
     private static final String GERBER_KEY = "exportGerberFormat";
     private static final String EXCELLON_KEY = "exportExcellonFormat";
-    private static final String UNITS_IN = "IN - polegadas";
-    private static final String UNITS_MM = "MM - milímetros";
+    private static final String UNITS_IN = I18n.text("ui.d4ed77bd9c11");
+    private static final String UNITS_MM = I18n.text("ui.000ead60bcfc");
 
     private CamExportDialog() {
     }
@@ -38,27 +38,27 @@ final class CamExportDialog {
     /** Builds the same dialog used interactively, without displaying it or saving preferences. */
     static Dialog<GerberExporter.Format> gerberDialog(Window owner, String objectUnits) {
         GerberExporter.Format initial = loadGerber();
-        Dialog<GerberExporter.Format> dialog = dialog(owner, "Exportar Gerber");
+        Dialog<GerberExporter.Format> dialog = dialog(owner, I18n.text("ui.b36acceab0dc"));
 
         ComboBox<String> units = unitsCombo(initial.units());
         Spinner<Integer> integerDigits = digits(initial.integerDigits());
         Spinner<Integer> decimalDigits = digits(initial.decimalDigits());
         ComboBox<String> zeros = new ComboBox<>();
-        zeros.getItems().addAll("L - omite zeros à esquerda", "T - omite zeros à direita");
+        zeros.getItems().addAll(I18n.text("ui.fc2f17f49e3e"), I18n.text("ui.6c7538afbe41"));
         zeros.getSelectionModel().select(initial.omitLeadingZeros() ? 0 : 1);
         units.setOnAction(e -> integerDigits.getValueFactory().setValue(isInch(units) ? 2 : 3));
 
         GridPane grid = grid();
-        grid.addRow(0, new Label("Unidades:"), units);
-        grid.addRow(1, new Label("Dígitos inteiros:"), integerDigits);
-        grid.addRow(2, new Label("Dígitos decimais:"), decimalDigits);
+        grid.addRow(0, new Label(I18n.text("ui.368090adb5a9")), units);
+        grid.addRow(1, new Label(I18n.text("ui.e7310c4cdc46")), integerDigits);
+        grid.addRow(2, new Label(I18n.text("ui.4c322f44f051")), decimalDigits);
         grid.addRow(3, new Label("Zeros:"), zeros);
         grid.add(note(objectUnits), 0, 4, 2, 1);
         dialog.getDialogPane().setContent(grid);
         dialog.setResultConverter(button -> button.getButtonData() != ButtonBar.ButtonData.OK_DONE ? null
                 : new GerberExporter.Format(isInch(units) ? "IN" : "MM", integerDigits.getValue(),
                         decimalDigits.getValue(), zeros.getSelectionModel().getSelectedIndex() == 0));
-        PanelTooltips.install(grid, "Exportar Gerber");
+        PanelTooltips.install(grid, I18n.text("ui.b36acceab0dc"));
         return dialog;
     }
 
@@ -74,24 +74,24 @@ final class CamExportDialog {
 
     static Dialog<ExcellonExporter.Format> excellonDialog(Window owner, String objectUnits, boolean curvedSlots) {
         ExcellonExporter.Format initial = loadExcellon();
-        Dialog<ExcellonExporter.Format> dialog = dialog(owner, "Exportar Excellon");
+        Dialog<ExcellonExporter.Format> dialog = dialog(owner, I18n.text("ui.8c2af341accc"));
 
         ComboBox<String> units = unitsCombo(initial.units());
         ComboBox<String> style = new ComboBox<>();
-        style.getItems().addAll("Decimal (com ponto)", "Sem ponto decimal");
+        style.getItems().addAll(I18n.text("ui.4b117ccaed00"), I18n.text("ui.96d5bcb644fc"));
         style.getSelectionModel().select(initial.decimal() ? 0 : 1);
         Spinner<Integer> integerDigits = digits(initial.integerDigits());
         Spinner<Integer> decimalDigits = digits(initial.decimalDigits());
         ComboBox<String> zeros = new ComboBox<>();
-        zeros.getItems().addAll("LZ - mantém zeros à esquerda", "TZ - mantém zeros à direita");
+        zeros.getItems().addAll(I18n.text("ui.decd1ebdd7ee"), I18n.text("ui.dc4ddae10ba6"));
         zeros.getSelectionModel().select(initial.leadingZeros() ? 0 : 1);
         ComboBox<String> slots = new ComboBox<>();
-        slots.getItems().addAll("Roteado (G00/M15/G01/M16)", "Furado (G85)");
+        slots.getItems().addAll(I18n.text("ui.4f38d842b581"), I18n.text("ui.d13c4c3bc3ee"));
         slots.getSelectionModel().select(initial.slots() == ExcellonExporter.SlotStyle.ROUTED ? 0 : 1);
         if (curvedSlots) { slots.getSelectionModel().select(0); slots.setDisable(true); }
-        ToolDescriptions.apply(slots, "Formato dos rasgos",
-                "Roteado conserva o trajeto; curvas são exportadas por segmentos retos. G85 representa somente rasgos retos.\n\n"
-                + (curvedSlots ? "Limitação: este objeto contém curvas, por isso G85 está indisponível." : "Escolha o formato aceito pelo programa que vai ler o arquivo."));
+        ToolDescriptions.apply(slots, I18n.text("ui.c66a6987ea46"),
+                I18n.text("ui.7caecfc27a4f")
+                + (curvedSlots ? I18n.text("ui.1c0fe5d44963") : I18n.text("ui.d1c2b4720292")));
         Runnable syncZeros = () -> {
             boolean decimal = style.getSelectionModel().getSelectedIndex() == 0;
             zeros.setDisable(decimal);
@@ -105,15 +105,15 @@ final class CamExportDialog {
         });
 
         GridPane grid = grid();
-        grid.addRow(0, new Label("Unidades:"), units);
-        grid.addRow(1, new Label("Formato:"), style);
-        grid.addRow(2, new Label("Dígitos inteiros:"), integerDigits);
-        grid.addRow(3, new Label("Dígitos decimais:"), decimalDigits);
+        grid.addRow(0, new Label(I18n.text("ui.368090adb5a9")), units);
+        grid.addRow(1, new Label(I18n.text("ui.950a4cd778be")), style);
+        grid.addRow(2, new Label(I18n.text("ui.e7310c4cdc46")), integerDigits);
+        grid.addRow(3, new Label(I18n.text("ui.4c322f44f051")), decimalDigits);
         grid.addRow(4, new Label("Zeros:"), zeros);
         grid.addRow(5, new Label("Slots:"), slots);
         grid.add(note(objectUnits), 0, 6, 2, 1);
         if (curvedSlots) {
-            Label curveNote=new Label("Este objeto contém rasgos curvos. O formato roteado mantém o trajeto por segmentos; G85 só representa rasgos retos.");
+            Label curveNote=new Label(I18n.text("ui.dc693dc4bca4"));
             curveNote.setWrapText(true); curveNote.setMaxWidth(400); grid.add(curveNote,0,7,2,1);
         }
         dialog.getDialogPane().setContent(grid);
@@ -124,7 +124,7 @@ final class CamExportDialog {
                         zeros.getSelectionModel().getSelectedIndex() == 0,
                         slots.getSelectionModel().getSelectedIndex() == 0
                                 ? ExcellonExporter.SlotStyle.ROUTED : ExcellonExporter.SlotStyle.G85));
-        PanelTooltips.install(grid, "Exportar Excellon");
+        PanelTooltips.install(grid, I18n.text("ui.8c2af341accc"));
         return dialog;
     }
 
@@ -198,12 +198,11 @@ final class CamExportDialog {
         dialog.setTitle(title);
         FluidTooltips.install(dialog, title);
         dialog.getDialogPane().getButtonTypes().addAll(
-                new ButtonType("Exportar...", ButtonBar.ButtonData.OK_DONE), ButtonType.CANCEL);
+                new ButtonType(I18n.text("ui.bbe87bf2a9c2"), ButtonBar.ButtonData.OK_DONE), ButtonType.CANCEL);
         ToolDescriptions.apply(dialog.getDialogPane().lookupButton(dialog.getDialogPane().getButtonTypes().getFirst()),
-                "Confirmar formato de exportação", "Confirma as unidades e o formato e segue para a escolha do arquivo de destino. A última configuração confirmada é lembrada.\n\n"
-                + "Resultado: exporta uma cópia; não transforma as coordenadas do objeto em memória.");
-        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(ButtonType.CANCEL), "Cancelar exportação",
-                "Fecha este diálogo sem confirmar o formato nem gerar um arquivo.");
+                I18n.text("ui.1ac6626935d3"), I18n.text("ui.26e1614f2847"));
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(ButtonType.CANCEL), I18n.text("ui.b242b1847fe7"),
+                I18n.text("ui.ffe3e1960f37"));
         return dialog;
     }
 
@@ -233,8 +232,8 @@ final class CamExportDialog {
     }
 
     private static Label note(String objectUnits) {
-        Label note = new Label("Objeto em " + objectUnits
-                + "; as coordenadas são convertidas para as unidades escolhidas.");
+        Label note = new Label(I18n.text("ui.dd8f25e5a15b") + objectUnits
+                + I18n.text("ui.b8c52f0bed42"));
         note.setWrapText(true);
         note.setMaxWidth(320);
         return note;

@@ -95,7 +95,7 @@ final class IsolationToolPanel {
             int count;
             try { count = Integer.parseInt(passes.trim()); }
             catch (NumberFormatException error) {
-                throw new IllegalArgumentException("Tool " + format(diameter) + ": Passes deve ser inteiro.");
+                throw new IllegalArgumentException("Tool " + format(diameter) + I18n.text("ui.630aea076756"));
             }
             return new IsolationParameters(diameter, count,
                     parse(overlap, "Tool " + format(diameter) + ": Overlap") / 100, type);
@@ -136,7 +136,7 @@ final class IsolationToolPanel {
                 setText(empty ? null : Integer.toString(getIndex() + 1));
             }
         });
-        TableColumn<ToolRow, Number> diameterColumn = new TableColumn<>("Diâmetro");
+        TableColumn<ToolRow, Number> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
         diameterColumn.setSortable(false);
         diameterColumn.setCellValueFactory(cell ->
                 new javafx.beans.property.SimpleDoubleProperty(cell.getValue().diameter));
@@ -161,7 +161,7 @@ final class IsolationToolPanel {
                     if (!updating && getTableRow() != null && getTableRow().getItem() != null) {
                         getTableRow().getItem().profile = choice.getValue();
                         if (choice.getValue() == ToolProfile.V)
-                            toolMessage.setText("TT V: configure V-Tip Dia e Angle ao criar o CNC Job da Geometry.");
+                            toolMessage.setText(I18n.text("ui.932aa07b5946"));
                     }
                 });
             }
@@ -175,7 +175,7 @@ final class IsolationToolPanel {
         });
         Label typeHeader = new Label("TT");
         typeHeader.setTooltip(new javafx.scene.control.Tooltip(
-                "C1-C4 e B: tipo informativo. V: exige cálculo de profundidade por V-Tip Dia/Angle no CNC Job."));
+                I18n.text("ui.024e111796be")));
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
         table.getColumns().addAll(numberColumn, diameterColumn, typeColumn);
@@ -197,7 +197,7 @@ final class IsolationToolPanel {
             default -> reverseOrder;
         }).setSelected(true);
         defaultOrder.run();
-        HBox orderRow = new HBox(8, new Label("Ordem:"), noOrder, forwardOrder, reverseOrder);
+        HBox orderRow = new HBox(8, new Label(I18n.text("ui.3b41aae0bd17")), noOrder, forwardOrder, reverseOrder);
         orderRow.setAlignment(Pos.CENTER_LEFT);
 
         Spinner<Double> diameterSpinner = spinner(0.0001, 10000, initialDiameter, metric ? 0.1 : 0.001);
@@ -205,31 +205,31 @@ final class IsolationToolPanel {
         optimalButton.setOnAction(event -> {
             SourceCandidate source = sourceCombo.getValue();
             optimalButton.setDisable(true);
-            toolMessage.setText("Calculando diâmetro seguro...");
+            toolMessage.setText(I18n.text("ui.b6b4ceb2c2d6"));
             CompletableFuture.supplyAsync(() -> NccGenerator.minimumCopperClearance(
                     source.image().solidGeometry())).whenComplete((clearance, failure) -> Platform.runLater(() -> {
                 if (optimalButton.getScene() == null) return;
                 optimalButton.setDisable(false);
-                if (failure != null) toolMessage.setText("Falha: " + failure.getMessage());
+                if (failure != null) toolMessage.setText(I18n.text("ui.dee415a49612") + failure.getMessage());
                 else if (clearance.isEmpty() || clearance.getAsDouble() <= 0)
-                    toolMessage.setText("Não há distância positiva entre regiões de cobre.");
+                    toolMessage.setText(I18n.text("ui.ab3c31860d93"));
                 else if (sourceCombo.getValue() == source) {
                     diameterSpinner.getValueFactory().setValue(clearance.getAsDouble());
-                    toolMessage.setText("Diâmetro seguro estimado: " + format(clearance.getAsDouble())
-                            + " " + source.image().units() + ". Confira antes de usinar.");
+                    toolMessage.setText(I18n.text("ui.8be821927894") + format(clearance.getAsDouble())
+                            + " " + source.image().units() + I18n.text("ui.cd850e3df322"));
                 }
             }));
         });
-        Button addButton = new Button("Adicionar ferramenta");
-        Button dbButton = new Button("Escolher da base");
-        Button deleteButton = new Button("Remover");
+        Button addButton = new Button(I18n.text("ui.8f1fc115deb7"));
+        Button dbButton = new Button(I18n.text("ui.70f253485ae9"));
+        Button deleteButton = new Button(I18n.text("ui.a3037dc71a43"));
         deleteButton.disableProperty().bind(Bindings.isEmpty(table.getSelectionModel().getSelectedItems()));
         addButton.setOnAction(event -> {
             try {
                 double diameter = parse(diameterSpinner.getEditor().getText(), "Tool Dia");
-                if (diameter <= 0) throw new IllegalArgumentException("Tool Dia deve ser positivo.");
+                if (diameter <= 0) throw new IllegalArgumentException(I18n.text("ui.a465dd635e5b"));
                 if (rows.stream().anyMatch(row -> Math.abs(row.diameter - diameter) < 1e-6))
-                    throw new IllegalArgumentException("Esta ferramenta já existe na tabela.");
+                    throw new IllegalArgumentException(I18n.text("ui.d93eb0a353b3"));
                 rows.add(new ToolRow(diameter, ToolProfile.C1, 1, 0.10, IsolationType.BOTH));
                 table.getSelectionModel().clearAndSelect(rows.size() - 1);
                 toolMessage.setText("");
@@ -245,11 +245,11 @@ final class IsolationToolPanel {
                 ChoiceDialog<LegacyToolsDatabase.IsolationTool> dialog =
                         new ChoiceDialog<>(available.get(0), available);
                 dialog.setTitle("Tools Database");
-                dialog.setHeaderText("Escolha uma ferramenta Isolation. Confira as unidades do diâmetro.");
+                dialog.setHeaderText(I18n.text("ui.28f69852c79a"));
                 dialog.showAndWait().ifPresent(chosen -> {
                     IsolationParameters parameters = chosen.parameters();
                     if (rows.stream().anyMatch(row -> Math.abs(row.diameter - parameters.toolDiameter()) < 1e-6)) {
-                        toolMessage.setText("Esta ferramenta já existe na tabela.");
+                        toolMessage.setText(I18n.text("ui.d93eb0a353b3"));
                         return;
                     }
                     ToolRow imported = new ToolRow(parameters.toolDiameter(), chosen.toolProfile(),
@@ -258,16 +258,16 @@ final class IsolationToolPanel {
                     rows.add(imported);
                     table.getSelectionModel().clearAndSelect(rows.size() - 1);
                     toolMessage.setText(chosen.machining() != null
-                            ? "Parâmetros de corte da DB serão preservados. Confira unidades e campos comuns ao criar CNC."
+                            ? I18n.text("ui.227b5755cd96")
                             : chosen.toolProfile() == ToolProfile.V
-                            ? "TT V: configure V-Tip Dia e Angle ao criar o CNC Job da Geometry." : "");
+                            ? I18n.text("ui.932aa07b5946") : "");
                 });
             } catch (RuntimeException error) { toolMessage.setText(error.getMessage()); }
         });
         deleteButton.setOnAction(event -> {
             List<ToolRow> selected = List.copyOf(table.getSelectionModel().getSelectedItems());
             if (rows.size() - selected.size() < 1) {
-                toolMessage.setText("Mantenha ao menos uma ferramenta na tabela.");
+                toolMessage.setText(I18n.text("ui.5ac0e86bc232"));
                 return;
             }
             rows.removeAll(selected);
@@ -295,7 +295,7 @@ final class IsolationToolPanel {
                     case "Full" -> IsolationType.BOTH;
                     case "Ext" -> IsolationType.EXTERIOR;
                     case "Int" -> IsolationType.INTERIOR;
-                    default -> throw new IllegalArgumentException("Isolation Type desconhecido: " + value);
+                    default -> throw new IllegalArgumentException(I18n.text("ui.7f7c132619e2") + value);
                 };
             }
         });
@@ -340,7 +340,7 @@ final class IsolationToolPanel {
         passesSpinner.disableProperty().bind(notOne);
         overlapSpinner.disableProperty().bind(notOne);
         typeCombo.disableProperty().bind(notOne);
-        Button applyAll = new Button("Aplicar parâmetros a todas as ferramentas");
+        Button applyAll = new Button(I18n.text("ui.36c3d0d83bb8"));
         applyAll.setMaxWidth(Double.MAX_VALUE);
         applyAll.disableProperty().bind(notOne.or(Bindings.size(rows).lessThan(2)));
         applyAll.setOnAction(event -> {
@@ -352,7 +352,7 @@ final class IsolationToolPanel {
                     row.overlap = chosen.overlap;
                     row.type = chosen.type;
                 }
-                toolMessage.setText("Parâmetros copiados para todas as ferramentas.");
+                toolMessage.setText(I18n.text("ui.33f1d81b4bac"));
             } catch (RuntimeException error) { toolMessage.setText(error.getMessage()); }
         });
 
@@ -368,14 +368,10 @@ final class IsolationToolPanel {
         CheckBox forcedRest = new CheckBox("Forced Rest");
         forcedRest.setSelected(ToolDefaults.flag("iso.forcedrest"));
         forcedRest.setTooltip(new javafx.scene.control.Tooltip(
-                "Com Rest Machining: se a ferramenta atual não conseguir isolar todos os furos de um "
-                        + "polígono logo na primeira passada, o polígono inteiro e descartado para essa "
-                        + "ferramenta e tentado de novo pela próxima ferramenta, menor.\n\n"
-                        + "Desmarcado, o resultado da ferramenta atual e aceito mesmo que algum furo "
-                        + "tenha se fundido com o contorno."));
+                I18n.text("ui.c125fdbcf4c8")));
         forcedRest.disableProperty().bind(rest.selectedProperty().not());
         CheckBox follow = new CheckBox("Follow");
-        follow.setTooltip(new javafx.scene.control.Tooltip("Segue o centro das trilhas Gerber, em vez de isolar as bordas; usa somente uma ferramenta.\n\nAtenção: Follow corta sobre a trilha. Confira a Geometry gerada antes de criar o CNC Job."));
+        follow.setTooltip(new javafx.scene.control.Tooltip(I18n.text("ui.22f90384c6ea")));
         follow.selectedProperty().addListener((observable, oldValue, selected) -> {
             if (selected) rest.setSelected(false);
         });
@@ -389,7 +385,7 @@ final class IsolationToolPanel {
         typeCombo.disableProperty().unbind();
         typeCombo.disableProperty().bind(notOne.or(follow.selectedProperty()));
 
-        ExceptionArea none = new ExceptionArea("Nenhuma", null);
+        ExceptionArea none = new ExceptionArea(I18n.text("ui.e368a5cc450f"), null);
         ComboBox<ExceptionArea> exceptionCombo = new ComboBox<>();
         exceptionCombo.setId("isolation-exception-object");
         exceptionCombo.getItems().add(none);
@@ -399,37 +395,37 @@ final class IsolationToolPanel {
         exceptionCombo.setPrefWidth(180);
         exceptionCombo.setMaxWidth(Double.MAX_VALUE);
         Geometry[] drawnMask = {null};
-        Label areaStatus = new Label("Nenhuma área desenhada.");
+        Label areaStatus = new Label(I18n.text("ui.879fdcfb4ac8"));
         areaStatus.setWrapText(true);
-        Button rectangle = new Button("Desenhar retângulo de exceção");
-        Button polygon = new Button("Desenhar polígono de exceção");
+        Button rectangle = new Button(I18n.text("ui.621a0dc21651"));
+        Button polygon = new Button(I18n.text("ui.461bcb5515d9"));
         for (Button button : List.of(rectangle, polygon)) {
             button.setMaxWidth(Double.MAX_VALUE);
             button.setOnAction(event -> {
                 SourceCandidate source = sourceCombo.getValue();
                 boolean isPolygon = button == polygon;
                 drawnMask[0] = null;
-                areaStatus.setText(isPolygon ? "Clique nos vértices; Enter conclui, Esc cancela."
-                        : "Clique em dois cantos; Esc cancela.");
+                areaStatus.setText(isPolygon ? I18n.text("ui.8e454f9c2eed")
+                        : I18n.text("ui.5c4de2e250f6"));
                 if (!areaStarter.begin(source, isPolygon, area -> {
                     if (sourceCombo.getValue() != source) return;
                     drawnMask[0] = area;
-                    areaStatus.setText("Área de exceção selecionada.");
-                }, () -> areaStatus.setText("Seleção cancelada.")))
-                    areaStatus.setText("Não foi possível iniciar a seleção.");
+                    areaStatus.setText(I18n.text("ui.a651fe46ac98"));
+                }, () -> areaStatus.setText(I18n.text("ui.69cfeab68651"))))
+                    areaStatus.setText(I18n.text("ui.fa6d5fdf9df8"));
             });
         }
-        Button clearArea = new Button("Limpar área desenhada");
+        Button clearArea = new Button(I18n.text("ui.d7d1a6754bdd"));
         clearArea.setMaxWidth(Double.MAX_VALUE);
         clearArea.setOnAction(event -> {
             cancelArea.run();
             drawnMask[0] = null;
-            areaStatus.setText("Nenhuma área desenhada.");
+            areaStatus.setText(I18n.text("ui.879fdcfb4ac8"));
         });
         sourceCombo.valueProperty().addListener((observable, oldValue, value) -> {
             cancelArea.run();
             drawnMask[0] = null;
-            areaStatus.setText("Nenhuma área desenhada.");
+            areaStatus.setText(I18n.text("ui.879fdcfb4ac8"));
         });
         GridPane advancedGrid = new GridPane();
         advancedGrid.setHgap(8);
@@ -438,9 +434,9 @@ final class IsolationToolPanel {
         advancedGrid.addRow(1, forcedRest);
         GridPane.setColumnSpan(forcedRest, 2);
         advancedGrid.addRow(2, new Label("Isolation Type:"), typeCombo);
-        advancedGrid.addRow(3, new Label("Excluir área:"), exceptionCombo);
+        advancedGrid.addRow(3, new Label(I18n.text("ui.29e8404da5f4")), exceptionCombo);
         VBox advancedBox = new VBox(8, advancedGrid, rectangle, polygon, clearArea, areaStatus);
-        TitledPane advanced = new TitledPane("Opções avançadas", advancedBox);
+        TitledPane advanced = new TitledPane(I18n.text("ui.bd998143da98"), advancedBox);
         advanced.setExpanded(false);
         advanced.setAnimated(false);
 
@@ -448,18 +444,18 @@ final class IsolationToolPanel {
         errorLabel.setWrapText(true);
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.managedProperty().bind(errorLabel.textProperty().isNotEmpty());
-        Button generate = new Button("Gerar Geometry");
+        Button generate = new Button(I18n.text("ui.57e96635630c"));
         generate.setId("isolation-generate");
         generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
             try {
                 List<ToolRow> selected = List.copyOf(table.getSelectionModel().getSelectedItems());
-                if (selected.isEmpty()) throw new IllegalArgumentException("Selecione uma ferramenta na tabela.");
+                if (selected.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.8e7abe361ed7"));
                 if (follow.isSelected() && selected.size() > 1)
-                    throw new IllegalArgumentException("Follow usa uma ferramenta por vez.");
+                    throw new IllegalArgumentException(I18n.text("ui.ddfd6518c6b5"));
                 if (rest.isSelected() && follow.isSelected())
-                    throw new IllegalArgumentException("Follow e Rest Machining não podem ser combinados.");
+                    throw new IllegalArgumentException(I18n.text("ui.e5d1bd0fe8e4"));
                 if (!rest.isSelected() && forwardOrder.isSelected())
                     selected = selected.stream().sorted(Comparator.comparingDouble(row -> row.diameter)).toList();
                 else if (rest.isSelected() || reverseOrder.isSelected())
@@ -473,7 +469,7 @@ final class IsolationToolPanel {
                     profiles.put(row.diameter, row.profile);
                     if (row.machining != null) {
                         if (row.machining.profile() != row.profile)
-                            throw new IllegalArgumentException("TT mudou após importar a DB; remova/reimporte a ferramenta.");
+                            throw new IllegalArgumentException(I18n.text("ui.689b43a7832f"));
                         machining.put(row.diameter, row.machining);
                     }
                 }
@@ -503,12 +499,12 @@ final class IsolationToolPanel {
             typeCombo.setValue(ToolDefaults.choice("iso.type", IsolationType.class));
             exceptionCombo.setValue(none);
             drawnMask[0] = null;
-            areaStatus.setText("Nenhuma área desenhada.");
+            areaStatus.setText(I18n.text("ui.879fdcfb4ac8"));
             toolMessage.setText("");
             errorLabel.setText("");
             loadSelected.run();
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setMaxWidth(Double.MAX_VALUE);
         close.setOnAction(event -> onClose.run());
         HBox newDiaRow = new HBox(6, new Label("Tool Dia:"), diameterSpinner, optimalButton);
@@ -560,7 +556,7 @@ final class IsolationToolPanel {
 
     private static double parse(String value, String label) {
         try { return Double.parseDouble(value.trim().replace(',', '.')); }
-        catch (NumberFormatException error) { throw new IllegalArgumentException(label + ": número inválido."); }
+        catch (NumberFormatException error) { throw new IllegalArgumentException(label + I18n.text("ui.d33f783dcf1b")); }
     }
 
     private static String format(double value) {

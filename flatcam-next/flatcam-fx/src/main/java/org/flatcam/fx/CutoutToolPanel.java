@@ -87,10 +87,10 @@ final class CutoutToolPanel {
 
         RadioButton singleRadio = new RadioButton("Single");
         RadioButton panelRadio = new RadioButton("Panel");
-        ToolDescriptions.apply(singleRadio, "Recorte de uma placa — Single",
-                "Trata a origem como uma placa, combinando suas partes para calcular o contorno.\n\nLimitação: recortes internos em várias placas exigem Panel. Prefira uma Geometry de contorno para representar a borda real.");
-        ToolDescriptions.apply(panelRadio, "Recorte de partes separadas — Panel",
-                "Calcula o recorte de cada parte separada da origem, como as placas de um painel, com suas próprias pontes.\n\nAtenção: ilhas de cobre não representam necessariamente placas distintas; confira a Geometry de contorno escolhida.");
+        ToolDescriptions.apply(singleRadio, I18n.text("ui.8da2f1a39d30"),
+                I18n.text("ui.cdb654060a78"));
+        ToolDescriptions.apply(panelRadio, I18n.text("ui.2cb1fcb9f73a"),
+                I18n.text("ui.804cc12e4532"));
         ToggleGroup kindGroup = new ToggleGroup();
         singleRadio.setToggleGroup(kindGroup);
         panelRadio.setToggleGroup(kindGroup);
@@ -98,20 +98,14 @@ final class CutoutToolPanel {
 
         CheckBox convexShapeCb = new CheckBox("Convex Shape");
         convexShapeCb.setSelected(ToolDefaults.flag("cutout.convex"));
-        CheckBox internalCuts = new CheckBox("Incluir recortes internos");
+        CheckBox internalCuts = new CheckBox(I18n.text("ui.c0e44b2e3355"));
         internalCuts.setId("cutout-internal-cuts");
         internalCuts.selectedProperty().addListener((obs, old, selected) -> {
             if (selected) convexShapeCb.setSelected(false);
         });
         convexShapeCb.disableProperty().bind(internalCuts.selectedProperty());
-        ToolDescriptions.apply(internalCuts, "Recortes internos fechados",
-                "Use uma Geometry de área da placa, criada a partir do Edge_Cuts, e não o cobre: "
-                + "todos os anéis internos da origem serão usinados. Em várias placas, selecione Panel.\n\n"
-                + "Disponível apenas em Free-form, sem Convex Shape e com margem não negativa. "
-                + "O raio da fresa e a margem deslocam o caminho para dentro de cada abertura. "
-                + "A geração é recusada se uma abertura desaparecer ou se dividir.\n\n"
-                + "Recortes internos são fechados, sem pontes, Thin ou M-Bites, mesmo com gaps manuais. "
-                + "Não é desbaste de bolso: revise os cantos, a fixação e as peças soltas antes de gerar CNC.");
+        ToolDescriptions.apply(internalCuts, I18n.text("ui.dbb1e2a0ed01"),
+                I18n.text("ui.615fb942b47a"));
 
         TextField toolDiaField = new TextField(ToolDefaults.text("cutout.tooldia", metric));
         toolDiaField.setId("cutout-tool-diameter");
@@ -126,8 +120,8 @@ final class CutoutToolPanel {
                 metric ? 3 : 0.12, metric ? 1.7 : 0.067, true, metric ? 0.5 : 0.02, metric ? 120 : 5, 0, false));
         var profile = new java.util.concurrent.atomic.AtomicReference<>(ToolProfile.C1);
         var commonDefaults = new java.util.concurrent.atomic.AtomicReference<>(org.flatcam.app.project.CncJobDefaults.EMPTY);
-        cutZ.setTooltip(new Tooltip("Cut Z negativo e finito, salvo na Geometry do recorte. Exemplo: -1,7.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: confira a espessura da placa e quanto a ferramenta entrará no material de sacrifício antes de gerar CNC."));
-        thinZ.setTooltip(new Tooltip("Thin Depth é Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e pontes -0,5. Só é usado no tipo Thin.\n\nO valor vai para a Geometry separada das pontes; o recorte principal conserva Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: unidade do objeto (mm ou in)."));
+        cutZ.setTooltip(new Tooltip(I18n.text("ui.b3b282224871")));
+        thinZ.setTooltip(new Tooltip(I18n.text("ui.42adc98e530c")));
         TextField gapSizeField = new TextField(ToolDefaults.text("cutout.gapsize", metric));
         gapSizeField.setId("cutout-gap-size");
         ComboBox<GapType> gapTypeCombo = new ComboBox<>();
@@ -144,51 +138,37 @@ final class CutoutToolPanel {
         gapPatternCombo.getItems().addAll(GapPattern.values());
         gapPatternCombo.setValue(ToolDefaults.choice("cutout.gaps", GapPattern.class));
         gapPatternCombo.setId("cutout-gap-pattern");
-        ToolDescriptions.apply(gapPatternCombo, "Posição dos gaps",
-                "LR/TB criam duas pontes; FOUR cria quatro; TWO_LR/TWO_TB criam quatro; EIGHT cria oito.\n\n"
-                + "No recorte retangular, o centro da origem é deslocado pela margem, como no Python. "
-                + "Os padrões duplos usam (dimensão da origem + duas margens) / 4; o raio da fresa não altera esse espaçamento.\n\n"
-                + "Se a margem ou largura eliminar uma ponte solicitada, a geração retangular é recusada. "
-                + "Gaps manuais substituem o padrão. Confira a prévia antes de gerar CNC.");
-        ToolDescriptions.apply(gapSizeField, "Largura da ponte",
-                "Largura de material que deve permanecer, em unidades do objeto. "
-                + "O trecho retirado do caminho da fresa inclui também seu diâmetro. Zero desativa os gaps automáticos no FX.\n\n"
-                + "Thin usa exatamente os trechos retirados para sua Geometry separada; no retangular, M-Bites usa a mesma posição "
-                + "com uma linha deslocada pelo raio da broca. Confira largura, profundidade e furos na prévia.");
+        ToolDescriptions.apply(gapPatternCombo, I18n.text("ui.63b0047e887c"),
+                I18n.text("ui.ca024fd61793"));
+        ToolDescriptions.apply(gapSizeField, I18n.text("ui.114efec780f5"),
+                I18n.text("ui.e1f7a2333650"));
         List<Geometry> manualAreas = new ArrayList<>();
         List<Geometry> cursorAreas = new ArrayList<>();
         var cursorShape = new java.util.concurrent.atomic.AtomicReference<CutoutShape>();
-        Label manualStatus = new Label("Sem gaps manuais; será usado o padrão automático.");
+        Label manualStatus = new Label(I18n.text("ui.47a3159fcd80"));
         manualStatus.setId("cutout-manual-status");
         manualStatus.setWrapText(true);
-        Button cursorFreeform = new Button("Posicionar gaps (Free-form)");
+        Button cursorFreeform = new Button(I18n.text("ui.169ba4efad11"));
         cursorFreeform.setId("cutout-cursor-freeform");
-        Button cursorRectangular = new Button("Posicionar gaps (Rectangular)");
+        Button cursorRectangular = new Button(I18n.text("ui.6e12c6d0fb1b"));
         cursorRectangular.setId("cutout-cursor-rectangular");
         cursorFreeform.setDisable(cursorStarter == null);
         cursorRectangular.disableProperty().bind(internalCuts.selectedProperty().or(
                 new javafx.beans.property.SimpleBooleanProperty(cursorStarter == null)));
         for (Button button : List.of(cursorFreeform, cursorRectangular)) {
             button.setMaxWidth(Double.MAX_VALUE);
-            ToolDescriptions.apply(button, "Pontes pelo cursor",
-                    "Mostra o contorno externo compensado e uma área quadrada na ponta do cursor. "
-                    + "Clique sobre o contorno para abrir uma ponte; continue clicando para adicionar outras. "
-                    + "A área aplicada é a mesma da prévia, com lado igual à largura da ponte mais o diâmetro da fresa. "
-                    + "Na diagonal ou em cantos, a largura resultante pode variar. O Snap da grade é respeitado.\n\n"
-                    + "Botão direito ou Esc conclui e mantém os gaps confirmados. Gerar aplica ao projeto. "
-                    + "Gaps manuais substituem o padrão automático. Use o mesmo tipo de contorno ao gerar. "
-                    + "Alterar diâmetro, margem, largura, Convex Shape ou Single/Panel limpa os gaps do cursor. "
-                    + "A prévia mostra o recorte externo; Thin e furos M-Bites devem ser conferidos após gerar.");
+            ToolDescriptions.apply(button, I18n.text("ui.6996a24e5c82"),
+                    I18n.text("ui.b9de2c3acb5e"));
             button.setOnAction(event -> {
                 try {
                     CutoutShape shape = button == cursorFreeform ? CutoutShape.FREEFORM : CutoutShape.RECTANGULAR;
                     if (!cursorAreas.isEmpty() && cursorShape.get() != shape)
-                        throw new IllegalArgumentException("Limpe os gaps manuais antes de trocar o tipo de contorno.");
+                        throw new IllegalArgumentException(I18n.text("ui.85cd5e2a7946"));
                     var parameters = new CutoutParameters(parseDouble(toolDiaField.getText(), "Tool Dia"),
                             parseDouble(marginField.getText(), "Margin"), convexShapeCb.isSelected(),
                             singleRadio.isSelected() ? CutoutKind.SINGLE : CutoutKind.PANEL, shape,
                             parseDouble(gapSizeField.getText(), "Gap size"), GapPattern.NONE, internalCuts.isSelected());
-                    if (parameters.gapSize() <= 0) throw new IllegalArgumentException("Gap size deve ser positivo para posicionar pontes.");
+                    if (parameters.gapSize() <= 0) throw new IllegalArgumentException(I18n.text("ui.5881ea269543"));
                     cancelArea.run();
                     cursorStarter.begin(parameters, combinedAreas(manualAreas, cursorAreas), area -> {
                         cursorShape.set(shape); cursorAreas.add(area);
@@ -196,8 +176,8 @@ final class CutoutToolPanel {
                 } catch (RuntimeException invalid) { manualStatus.setText(invalid.getMessage()); }
             });
         }
-        Button rectangleGapButton = new Button("Adicionar gap por retângulo");
-        Button polygonGapButton = new Button("Adicionar gap por polígono");
+        Button rectangleGapButton = new Button(I18n.text("ui.78e35a79a363"));
+        Button polygonGapButton = new Button(I18n.text("ui.4e49b9134503"));
         for (Button button : new Button[]{rectangleGapButton, polygonGapButton}) {
             button.setMaxWidth(Double.MAX_VALUE);
             button.setOnAction(event -> {
@@ -205,31 +185,31 @@ final class CutoutToolPanel {
                 boolean polygon = button == polygonGapButton;
                 if (areaStarter.begin(polygon, area -> {
                     manualAreas.add(area);
-                    manualStatus.setText((manualAreas.size() + cursorAreas.size()) + " área(s) de gap desenhada(s).");
-                }, () -> manualStatus.setText("Desenho cancelado; " + (manualAreas.size() + cursorAreas.size()) + " gap(s) mantidos."))) {
+                    manualStatus.setText((manualAreas.size() + cursorAreas.size()) + I18n.text("ui.989906f4e351"));
+                }, () -> manualStatus.setText(I18n.text("ui.8919d048711a") + (manualAreas.size() + cursorAreas.size()) + I18n.text("ui.5cc7ddc54040")))) {
                     manualStatus.setText(polygon
-                            ? "Clique nos vértices; Enter ou botão direito conclui; Esc cancela."
-                            : "Clique em dois cantos; Esc cancela.");
+                            ? I18n.text("ui.26f797b352ee")
+                            : I18n.text("ui.5c4de2e250f6"));
                 } else {
-                    manualStatus.setText("Não foi possível iniciar o desenho.");
+                    manualStatus.setText(I18n.text("ui.5041471c02a3"));
                 }
             });
         }
-        Button clearManualButton = new Button("Limpar gaps manuais");
+        Button clearManualButton = new Button(I18n.text("ui.c4edfc7d11a9"));
         clearManualButton.setId("cutout-clear-gaps");
         clearManualButton.setMaxWidth(Double.MAX_VALUE);
         clearManualButton.setOnAction(event -> {
             cancelArea.run();
             manualAreas.clear();
             cursorAreas.clear(); cursorShape.set(null);
-            manualStatus.setText("Sem gaps manuais; será usado o padrão automático.");
+            manualStatus.setText(I18n.text("ui.47a3159fcd80"));
         });
 
         Runnable invalidateCursor = () -> {
             cancelArea.run();
             if (!cursorAreas.isEmpty()) {
                 cursorAreas.clear(); cursorShape.set(null);
-                manualStatus.setText("Parâmetros alterados: gaps do cursor limpos. " + manualAreas.size() + " máscara(s) desenhada(s) mantida(s).");
+                manualStatus.setText(I18n.text("ui.c7d289c355c5") + manualAreas.size() + I18n.text("ui.e5499501abc9"));
             }
         };
         for (TextField field : List.of(toolDiaField, marginField, gapSizeField))
@@ -261,7 +241,7 @@ final class CutoutToolPanel {
             perPass.setText(Double.toString(selected.machining().depthPerPass()));
             thinZ.setText(Double.toString(-selected.thinDepth()));
         }, errorLabel);
-        Label transferNote = new Label("A base transfere diâmetro, margem, gaps, Cut Z, Multi-Depth e Thin Depth; avanço, Travel Z, spindle e espera acompanham a Geometry. Máscaras desenhadas são preservadas; gaps do cursor são limpos se seus parâmetros mudarem. Tool Offset não é reaplicado: o recorte já compensa o diâmetro.");
+        Label transferNote = new Label(I18n.text("ui.2ce66d821bed"));
         transferNote.setWrapText(true);
 
         GridPane grid = new GridPane();
@@ -273,7 +253,7 @@ final class CutoutToolPanel {
         grid.addRow(3, new Label("Margin:"), marginField);
         grid.addRow(4, new Label("Gap size:"), gapSizeField);
         grid.addRow(5, new Label("Gaps:"), gapPatternCombo);
-        grid.addRow(6, new Label("Tipo de gap:"), gapTypeCombo);
+        grid.addRow(6, new Label(I18n.text("ui.5a96ffdb7ee4")), gapTypeCombo);
         grid.addRow(7, new Label("M-Bites dia:"), biteDiameterField);
         grid.addRow(8, new Label("M-Bites spacing:"), biteSpacingField);
         grid.addRow(9, new Label("Cut Z:"), cutZ);
@@ -282,20 +262,20 @@ final class CutoutToolPanel {
         grid.add(internalCuts, 0, 12, 2, 1);
         for (TextField field : List.of(cutZ, perPass, thinZ)) { field.setMinWidth(0); field.setPrefColumnCount(7); }
 
-        Button freeformButton = new Button("Gerar (Free-form)");
+        Button freeformButton = new Button(I18n.text("ui.c77b1cc8fa6a"));
         freeformButton.setId("cutout-generate-freeform");
         freeformButton.getStyleClass().add("primary-action");
         freeformButton.setMaxWidth(Double.MAX_VALUE);
-        Button rectangularButton = new Button("Gerar (Rectangular)");
+        Button rectangularButton = new Button(I18n.text("ui.e74bbee0a833"));
         rectangularButton.setId("cutout-generate-rectangular");
         rectangularButton.disableProperty().bind(internalCuts.selectedProperty());
         rectangularButton.getStyleClass().add("primary-action");
         rectangularButton.setMaxWidth(Double.MAX_VALUE);
-        ToolDescriptions.apply(freeformButton, "Recorte Free-form",
-                "Gera Geometry acompanhando o contorno da origem; Convex Shape usa seu contorno convexo. O caminho já compensa o raio da ferramenta.\n\nThin gera outra Geometry com Thin Depth; M-Bites gera Excellon. Gaps manuais substituem o padrão automático. Confira as saídas e gere/configure seus CNC Jobs depois.");
-        ToolDescriptions.apply(rectangularButton, "Recorte Rectangular",
-                "Gera Geometry ao redor da caixa retangular da origem, sem acompanhar reentrâncias. O caminho já compensa o raio da ferramenta.\n\nThin gera outra Geometry com Thin Depth; M-Bites gera Excellon. Gaps manuais substituem o padrão automático. Confira as saídas e gere/configure seus CNC Jobs depois.");
-        Button closeButton = new Button("Fechar");
+        ToolDescriptions.apply(freeformButton, I18n.text("ui.f82c600dc0d0"),
+                I18n.text("ui.98574eca7142"));
+        ToolDescriptions.apply(rectangularButton, I18n.text("ui.255eadb704d9"),
+                I18n.text("ui.b5bfd49aa0d4"));
+        Button closeButton = new Button(I18n.text("ui.0f2bd88ef0ac"));
         closeButton.setMaxWidth(Double.MAX_VALUE);
 
         freeformButton.setOnAction(e -> tryGenerate(CutoutShape.FREEFORM, singleRadio, convexShapeCb, internalCuts, toolDiaField,
@@ -308,16 +288,12 @@ final class CutoutToolPanel {
                 result -> generateWithCursorShape(result, cursorAreas, cursorShape.get(), onGenerate)));
         closeButton.setOnAction(e -> onClose.run());
 
-        Label workflowNote = new Label("O Cutout cria Geometry. Em Thin, cria outra Geometry "
-                + "para as pontes, com Thin Depth configurado: gere seu CNC Job separadamente. "
-                + "Áreas manuais removem exatamente os trechos do caminho que cobrem; "
-                + "se houver alguma, substituem o padrão automático de gaps. "
-                + "Revise alturas, avanço e spindle antes de criar cada CNC Job. M-Bites cria Excellon: configure a furação separadamente.");
+        Label workflowNote = new Label(I18n.text("ui.ee8fd6aaa02c"));
         workflowNote.setWrapText(true);
         Label title = new Label("Cutout Tool");
         title.getStyleClass().add("tool-title");
         VBox box = new VBox(10,
-                title, new Label("Unidades do arquivo: " + units),
+                title, new Label(I18n.text("ui.58d9bc7dde89") + units),
                 picker, transferNote, grid, cursorFreeform, cursorRectangular, rectangleGapButton, polygonGapButton, clearManualButton, manualStatus, workflowNote,
                 errorLabel, freeformButton, rectangularButton, closeButton);
         box.setPadding(new Insets(12));
@@ -331,7 +307,7 @@ final class CutoutToolPanel {
     private static void generateWithCursorShape(Result result, List<Geometry> cursorAreas,
                                                  CutoutShape shape, Consumer<Result> generate) {
         if (!cursorAreas.isEmpty() && result.cutoutParams().shape() != shape)
-            throw new IllegalArgumentException("Os gaps do cursor usam " + shape + ". Gere com o mesmo contorno ou limpe os gaps manuais.");
+            throw new IllegalArgumentException(I18n.text("ui.9d8fe933dbf6") + shape + I18n.text("ui.8ba2a5f8348d"));
         generate.accept(result);
     }
 
@@ -354,19 +330,19 @@ final class CutoutToolPanel {
             double biteSpacing = bites ? parseDouble(biteSpacingField.getText(), "M-Bites spacing") : 0;
             if (bites && (biteDiameter <= 0 || biteSpacing < 0
                     || manualAreas.isEmpty() && (gapSize <= 0 || gapPatternCombo.getValue() == GapPattern.NONE))) {
-                throw new IllegalArgumentException("M-Bites exige diâmetro positivo, espaçamento válido e gaps.");
+                throw new IllegalArgumentException(I18n.text("ui.5d704b5da566"));
             }
 
             errorLabel.setText("");
             double cut = parseDouble(cutZ.getText(), "Cut Z");
-            if (!Double.isFinite(cut) || cut >= 0) throw new IllegalArgumentException("Cut Z deve ser negativo e finito.");
+            if (!Double.isFinite(cut) || cut >= 0) throw new IllegalArgumentException(I18n.text("ui.ef3a99fccd3f"));
             var machining = seed.withCutting(-cut, multiDepth.isSelected(),
                     multiDepth.isSelected() ? parseDouble(perPass.getText(), "Depth per pass") : seed.depthPerPass());
             GeometryGCodeParameters thin = null;
             if (gapTypeCombo.getValue() == GapType.THIN) {
                 double thinCut = parseDouble(thinZ.getText(), "Thin Depth");
                 if (!Double.isFinite(thinCut) || thinCut >= 0 || thinCut <= cut)
-                    throw new IllegalArgumentException("Thin Depth deve ser negativo e mais raso que Cut Z.");
+                    throw new IllegalArgumentException(I18n.text("ui.60538e9ad822"));
                 thin = machining.withCutting(-thinCut, machining.multiDepth(), machining.depthPerPass());
             }
             onGenerate.accept(new Result(cutoutParams, gapTypeCombo.getValue(), biteDiameter,
@@ -380,7 +356,7 @@ final class CutoutToolPanel {
         try {
             return Double.parseDouble(text.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(fieldName + ": número inválido");
+            throw new IllegalArgumentException(fieldName + I18n.text("ui.a8a35e0360a2"));
         }
     }
 }

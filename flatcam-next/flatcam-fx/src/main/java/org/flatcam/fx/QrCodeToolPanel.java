@@ -78,14 +78,14 @@ final class QrCodeToolPanel {
         }
         levelL.setSelected(true);
         ToggleGroup polarities = new ToggleGroup();
-        RadioButton positive = new RadioButton("Positiva");
-        RadioButton negative = new RadioButton("Negativa");
+        RadioButton positive = new RadioButton(I18n.text("ui.55fe894a1c5f"));
+        RadioButton negative = new RadioButton(I18n.text("ui.80531bbe9f83"));
         positive.setToggleGroup(polarities);
         negative.setToggleGroup(polarities);
         positive.setSelected(true);
         ToggleGroup masks = new ToggleGroup();
-        RadioButton square = new RadioButton("Quadrada");
-        RadioButton rounded = new RadioButton("Arredondada");
+        RadioButton square = new RadioButton(I18n.text("ui.f1fd453f0225"));
+        RadioButton rounded = new RadioButton(I18n.text("ui.6598a937039c"));
         square.setToggleGroup(masks);
         rounded.setToggleGroup(masks);
         square.setSelected(true);
@@ -93,9 +93,9 @@ final class QrCodeToolPanel {
         GridPane grid = new GridPane();
         grid.setHgap(6);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Versão (1-40):"), version);
-        grid.addRow(1, new Label("Tamanho da caixa:"), boxSize);
-        grid.addRow(2, new Label("Borda (modulos):"), border);
+        grid.addRow(0, new Label(I18n.text("ui.3eb022749612")), version);
+        grid.addRow(1, new Label(I18n.text("ui.ec23e9a7b2f3")), boxSize);
+        grid.addRow(2, new Label(I18n.text("ui.cb9e86f09e2b")), border);
 
         Label summary = new Label();
         summary.setWrapText(true);
@@ -119,7 +119,7 @@ final class QrCodeToolPanel {
                 QrCodeMarker.Code code = QrCodeMarker.encode(current);
                 double side = QrCodeMarker.side(code, current);
                 double total = side + 2 * current.border() * current.boxSize() / 10.0;
-                summary.setText(String.format(Locale.ROOT, "Versão %d, %dx%d modulos, lado %.2f (com a borda %.2f)",
+                summary.setText(String.format(Locale.ROOT, I18n.text("ui.15791dc3d20f"),
                         code.version(), code.size(), code.size(), side, total));
             } catch (RuntimeException invalid) {
                 summary.setText("");
@@ -131,18 +131,18 @@ final class QrCodeToolPanel {
         }
         levels.selectedToggleProperty().addListener((o, a, b) -> refreshSummary.run());
 
-        Button place = new Button("Colocar QR Code (clique no destino)");
+        Button place = new Button(I18n.text("ui.3d85cc1445ba"));
         place.setMaxWidth(Double.MAX_VALUE);
         place.setOnAction(event -> {
             host.cancelPick();
             errorLabel.setText("");
             try {
                 if (gerber.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue um Gerber");
+                    throw new IllegalArgumentException(I18n.text("ui.fa269858e24f"));
                 }
                 QrCodeMarker.Options chosen = options.get();
                 QrCodeMarker.encode(chosen);
-                status.setText("Clique no ponto de destino (o centro do QR Code)...");
+                status.setText(I18n.text("ui.6b6efa85a2be"));
                 TreeItem<String> target = gerber.getValue();
                 host.pickPoint(point -> {
                     if (point == null) {
@@ -154,22 +154,22 @@ final class QrCodeToolPanel {
                     status.setText("");
                 });
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numérico inválido");
+                errorLabel.setText(I18n.text("ui.58bca1e9770a"));
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
         });
-        Button close = new Button("Fechar");
+        Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
             host.cancelPick();
             onClose.run();
         });
 
-        VBox panel = new VBox(8, new Label("Gerber de destino:"), gerber,
-                new Label("Dados do QR Code:"), text, grid,
-                new Label("Correção de erro:"), new HBox(10, levelL, levelM, levelQ, levelH),
+        VBox panel = new VBox(8, new Label(I18n.text("ui.317e7af9b382")), gerber,
+                new Label(I18n.text("ui.e973fa94e36d")), text, grid,
+                new Label(I18n.text("ui.845f2febc78f")), new HBox(10, levelL, levelM, levelQ, levelH),
                 new Label("Polaridade:"), new HBox(10, positive, negative),
-                new Label("Máscara:"), new HBox(10, square, rounded),
+                new Label(I18n.text("ui.1bdbe514e92b")), new HBox(10, square, rounded),
                 summary, place, status, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

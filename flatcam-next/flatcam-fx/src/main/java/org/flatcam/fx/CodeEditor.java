@@ -73,21 +73,21 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         setCenter(new VirtualizedScrollPane<>(area));
         Label type = new Label(language.label); type.getStyleClass().add("code-language");
         Region spacer = new Region(); HBox.setHgrow(spacer, Priority.ALWAYS);
-        HBox header = new HBox(10, type, spacer, mode, button("Buscar", "Buscar texto literal (Ctrl+F)", this::openSearch));
+        HBox header = new HBox(10, type, spacer, mode, button(I18n.text("ui.5f55edf90089"), I18n.text("ui.ba31f26045c9"), this::openSearch));
         header.getStyleClass().add("code-toolbar");
-        search.setId("code-search"); search.setPromptText("Buscar texto literal (diferencia maiúsculas)");
-        ToolDescriptions.apply(search, "Busca literal", "Procura o texto exatamente como digitado, diferenciando maiúsculas e minúsculas. Não interpreta expressões regulares.\n\nAtalhos: Enter / F3 avança; Shift+Enter / Shift+F3 volta; Esc fecha a busca.");
+        search.setId("code-search"); search.setPromptText(I18n.text("ui.369d6070e1cf"));
+        ToolDescriptions.apply(search, I18n.text("ui.7e0a1cb822f3"), I18n.text("ui.c532a511e636"));
         search.setMinWidth(60); HBox.setHgrow(search, Priority.ALWAYS);
         search.textProperty().addListener((observable, oldText, newText) -> { searchVersion++; searchState.setText(""); });
         search.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.ENTER) { find(event.isShiftDown()); event.consume(); }
         });
-        searchBar = new HBox(6, search, button("↑", "Anterior (Shift+Enter / Shift+F3)", () -> find(true)),
-                button("↓", "Próxima (Enter / F3)", () -> find(false)), searchState, button("×", "Fechar busca (Esc)", this::hideSearch));
+        searchBar = new HBox(6, search, button("↑", I18n.text("ui.0952a8a110b1"), () -> find(true)),
+                button("↓", I18n.text("ui.0fb85416ba3f"), () -> find(false)), searchState, button("×", I18n.text("ui.77f0e565b145"), this::hideSearch));
         searchBar.getStyleClass().add("code-search-bar"); searchBar.setVisible(false); searchBar.setManaged(false);
         setTop(new javafx.scene.layout.VBox(header, searchBar));
         position.setId("code-position"); position.getStyleClass().add("code-status"); setBottom(position);
-        ToolDescriptions.apply(position, "Posição no código", "Linha e coluna do cursor no documento. Não são coordenadas da máquina CNC.");
+        ToolDescriptions.apply(position, I18n.text("ui.9b726f934563"), I18n.text("ui.ee2fae6e1203"));
         area.caretPositionProperty().addListener((observable, oldValue, value) -> updatePosition());
         changes = area.plainTextChanges().subscribe(change -> {
             version++; searchVersion++; coloured.clear(); updatePosition(); scheduleSyntax();
@@ -141,7 +141,7 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
             } catch (Exception failure) {
                 Platform.runLater(() -> {
                     if (!closed && generation == version) {
-                        setLoading(false); mode.setText("Falha ao carregar fonte"); failed.accept(failure.getMessage());
+                        setLoading(false); mode.setText(I18n.text("ui.c21c05c1119e")); failed.accept(failure.getMessage());
                     }
                 });
             }
@@ -161,10 +161,10 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         setLoading(false); updatePosition(); scheduleSyntax();
     }
     private void setLoading(boolean value) { loading.set(value); area.setEditable(editable && !value); updateMode(); }
-    private void updateMode() { mode.setText(isLoading() ? "Carregando…" : editable ? "Edição • rascunho" : "Somente leitura"); }
+    private void updateMode() { mode.setText(isLoading() ? I18n.text("ui.6cc1bbba0f84") : editable ? I18n.text("ui.218142f28423") : I18n.text("ui.0e156e8eefc1")); }
     private void updatePosition() {
         position.setText("Ln " + (area.getCurrentParagraph() + 1) + ", Col " + (area.getCaretColumn() + 1)
-                + "   •   " + area.getParagraphs().size() + " linhas   •   " + language.label);
+                + "   •   " + area.getParagraphs().size() + I18n.text("ui.de291902f8c2") + language.label);
     }
     private void scheduleSyntax() { if (!closed && !isLoading() && getScene() != null) debounce.playFromStart(); }
     private void colourViewport() {
@@ -195,13 +195,13 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         String needle = search.getText(); int start = backwards ? area.getSelection().getStart() - 1 : area.getSelection().getEnd();
         long generation = ++searchVersion, contentVersion = version;
         var snapshot = area.getContent().snapshot(); // Immutable, unlike area.getDocument().
-        searchState.setText("Buscando…");
+        searchState.setText(I18n.text("ui.82d69149e2c1"));
         if (documentTask != null) documentTask.cancel(true); documents.getQueue().clear();
         documentTask = documents.submit(() -> {
             int match = findLiteral(snapshot.getText(), needle, start, backwards);
             Platform.runLater(() -> {
                 if (closed || generation != searchVersion || contentVersion != version) return;
-                searchState.setText(match < 0 ? "Não encontrado" : "Encontrado");
+                searchState.setText(match < 0 ? I18n.text("ui.992ff84aed2b") : I18n.text("ui.d043219554f0"));
                 if (match >= 0) { area.selectRange(match, match + needle.length()); area.requestFollowCaret(); }
             });
         });
@@ -215,11 +215,11 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
         Button button = new Button(text); button.setTooltip(new Tooltip(tooltip)); button.setOnAction(event -> action.run()); return button;
     }
     private void installContextMenu() {
-        var undo = menuItem("Desfazer", area::undo); var redo = menuItem("Refazer", area::redo);
-        var cut = menuItem("Recortar", area::cut); var copy = menuItem("Copiar", area::copy);
-        var paste = menuItem("Colar", area::paste); var all = menuItem("Selecionar tudo", area::selectAll);
+        var undo = menuItem(I18n.text("ui.786b48222848"), area::undo); var redo = menuItem(I18n.text("ui.7b659c9caa5e"), area::redo);
+        var cut = menuItem(I18n.text("ui.b659da7fa50d"), area::cut); var copy = menuItem(I18n.text("ui.39dcf1cbeb5a"), area::copy);
+        var paste = menuItem(I18n.text("ui.83229f4fb36b"), area::paste); var all = menuItem(I18n.text("ui.6dc56b9dcaea"), area::selectAll);
         var menu = new javafx.scene.control.ContextMenu(undo, redo, new javafx.scene.control.SeparatorMenuItem(),
-                cut, copy, paste, all, new javafx.scene.control.SeparatorMenuItem(), menuItem("Buscar…", this::openSearch));
+                cut, copy, paste, all, new javafx.scene.control.SeparatorMenuItem(), menuItem(I18n.text("ui.9120df43bebb"), this::openSearch));
         menu.setOnShowing(event -> {
             undo.setDisable(!area.isEditable() || !area.isUndoAvailable()); redo.setDisable(!area.isEditable() || !area.isRedoAvailable());
             cut.setDisable(!area.isEditable() || area.getSelection().getLength() == 0);
@@ -229,14 +229,14 @@ final class CodeEditor extends BorderPane implements AutoCloseable {
     }
     private static javafx.scene.control.MenuItem menuItem(String text, Runnable action) {
         var item = new javafx.scene.control.MenuItem(text); item.setOnAction(event -> action.run());
-        String help = switch(text) {
-            case "Desfazer" -> "Desfaz a última edição do texto, sem alterar o objeto aplicado.\n\nAtalho: Ctrl+Z.";
-            case "Refazer" -> "Reaplica a última edição desfeita do texto.\n\nAtalho: Ctrl+Y.";
-            case "Recortar" -> "Copia o texto selecionado para a área de transferência e o remove do rascunho.\n\nAtalho: Ctrl+X.";
-            case "Copiar" -> "Copia o texto selecionado para a área de transferência. Não copia objetos do projeto.\n\nAtalho: Ctrl+C.";
-            case "Colar" -> "Insere o texto da área de transferência no rascunho, substituindo a seleção.\n\nAtalho: Ctrl+V.";
-            case "Selecionar tudo" -> "Seleciona todo o texto do documento. Não seleciona geometrias no plot.\n\nAtalho: Ctrl+A.";
-            default -> "Abre a busca literal no documento, diferenciando maiúsculas e minúsculas.\n\nAtalho: Ctrl+F.";
+        String help = switch(I18n.source(text, "Desfazer", "Refazer", "Recortar", "Copiar", "Colar", "Selecionar tudo")) {
+            case "Desfazer" -> I18n.text("ui.7e859fc30f99");
+            case "Refazer" -> I18n.text("ui.578a6854422c");
+            case "Recortar" -> I18n.text("ui.b7b83e79e31f");
+            case "Copiar" -> I18n.text("ui.a51db3b2b4d8");
+            case "Colar" -> I18n.text("ui.ca744317f359");
+            case "Selecionar tudo" -> I18n.text("ui.af3bd1d74788");
+            default -> I18n.text("ui.7aa015a63048");
         };
         ToolDescriptions.apply(item.getProperties(),text,help);
         return item;

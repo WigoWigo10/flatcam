@@ -6,9 +6,9 @@ import org.json.JSONObject;
 /** Field names/types mirror ToolsDB2.form_fields in appDatabase.py. */
 final class ToolsDatabaseFields {
     enum Group {
-        DESCRIPTION("Descrição da ferramenta", "search_db32.png"), MILLING("Parâmetros de fresagem", "milling_tool32.png"),
-        DRILLING("Parâmetros de furação", "drilling_tool32.png"), ISOLATION("Parâmetros de isolamento", "iso_16.png"),
-        PAINT("Parâmetros de preenchimento", "paint20.png"), NCC("Parâmetros de NCC", "eraser26.png"), CUTOUT("Parâmetros de recorte", "cut32_bis.png");
+        DESCRIPTION(I18n.text("ui.c5dab72d129a"), "search_db32.png"), MILLING(I18n.text("ui.608e9d3b8b61"), "milling_tool32.png"),
+        DRILLING(I18n.text("ui.3cbe3b495b81"), "drilling_tool32.png"), ISOLATION(I18n.text("ui.fdf9bd75c9c2"), "iso_16.png"),
+        PAINT(I18n.text("ui.6844ffe1b232"), "paint20.png"), NCC(I18n.text("ui.5cf81d9877e5"), "eraser26.png"), CUTOUT(I18n.text("ui.75a26e0eaccb"), "cut32_bis.png");
         final String label, icon;
         Group(String label, String icon) { this.label = label; this.icon = icon; }
         boolean visible(int target) {
@@ -28,7 +28,7 @@ final class ToolsDatabaseFields {
                 if (integer) return (int) value;
                 return value;
             } catch (NumberFormatException error) {
-                throw new IllegalArgumentException(label + ": valor inválido (" + min + " a " + max + (integer ? ", inteiro" : "") + ").");
+                throw new IllegalArgumentException(label + I18n.text("ui.414a4fb27d93") + min + " a " + max + (integer ? I18n.text("ui.6308022cfb71") : "") + ").");
             }
         }
         Object read(JSONObject entry) {
@@ -68,11 +68,11 @@ final class ToolsDatabaseFields {
         return number(g, key, label, false, fallback, 0, 99.999999);
     }
     static final List<Field> ALL = List.of(
-        new Field(Group.DESCRIPTION, "name", "Nome", true, "new_tool", 0, 0, false, List.of()),
-        number(Group.DESCRIPTION, "tooldia", "Diâmetro", true, 2.4, 0.000000001, 10000),
-        n(Group.DESCRIPTION, "tol_min", "Tolerância mínima", 0, 0), n(Group.DESCRIPTION, "tol_max", "Tolerância máxima", 0, 0),
-        indexed(Group.DESCRIPTION, "tool_target", "Operação", 0, "General", "Milling", "Drilling", "Isolation", "Paint", "NCC", "Cutout"),
-        choices(Group.MILLING, "tool_type", "Formato", true, "C1", "C1", "C2", "C3", "C4", "B", "V"),
+        new Field(Group.DESCRIPTION, "name", I18n.text("ui.5086900635fe"), true, "new_tool", 0, 0, false, List.of()),
+        number(Group.DESCRIPTION, "tooldia", I18n.text("ui.7cd23abc62e0"), true, 2.4, 0.000000001, 10000),
+        n(Group.DESCRIPTION, "tol_min", I18n.text("ui.23cb729e670d"), 0, 0), n(Group.DESCRIPTION, "tol_max", I18n.text("ui.644b947e1496"), 0, 0),
+        indexed(Group.DESCRIPTION, "tool_target", I18n.text("ui.40e49271ddad"), 0, "General", "Milling", "Drilling", "Isolation", "Paint", "NCC", "Cutout"),
+        choices(Group.MILLING, "tool_type", I18n.text("ui.73e1804eb968"), true, "C1", "C1", "C2", "C3", "C4", "B", "V"),
         n(Group.MILLING, "vtipdia", "V-Dia", 0.1, 0), number(Group.MILLING, "vtipangle", "V-Angle", false, 30, 0.000001, 179.999999),
         choices(Group.MILLING, "type", "Tool Type", true, "Rough", "Iso", "Rough", "Finish"),
         choices(Group.MILLING, "offset", "Tool Offset", true, "Path", "Path", "In", "Out", "Custom"),
@@ -96,7 +96,7 @@ final class ToolsDatabaseFields {
         percent(Group.PAINT, "tools_paint_overlap", "Overlap (%)", 20), n(Group.PAINT, "tools_paint_offset", "Offset", 0, -1e9),
         indexed(Group.PAINT, "tools_paint_method", "Method", 0, "Standard", "Seed", "Lines", "Laser_lines", "Combo"),
         flag(Group.PAINT, "tools_paint_connect", "Connect", true), flag(Group.PAINT, "tools_paint_contour", "Contour", true),
-        labeled(Group.NCC, "tools_ncc_operation", "Operação", "clear", "clear", "Clear", "iso", "Isolation"),
+        labeled(Group.NCC, "tools_ncc_operation", I18n.text("ui.40e49271ddad"), "clear", "clear", "Clear", "iso", "Isolation"),
         labeled(Group.NCC, "tools_ncc_milling_type", "Milling Type", "cl", "cl", "Climb", "cv", "Conventional"), percent(Group.NCC, "tools_ncc_overlap", "Overlap (%)", 40),
         n(Group.NCC, "tools_ncc_margin", "Margin", 1, -1e9), indexed(Group.NCC, "tools_ncc_method", "Method", 1, "Standard", "Seed", "Lines", "Combo"),
         flag(Group.NCC, "tools_ncc_connect", "Connect", true), flag(Group.NCC, "tools_ncc_contour", "Contour", true),
