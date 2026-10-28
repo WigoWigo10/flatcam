@@ -87,6 +87,10 @@ final class CutoutToolPanel {
 
         RadioButton singleRadio = new RadioButton("Single");
         RadioButton panelRadio = new RadioButton("Panel");
+        ToolDescriptions.apply(singleRadio, "Recorte de uma placa — Single",
+                "Trata a origem como uma placa, combinando suas partes para calcular o contorno.\n\nLimitação: recortes internos em várias placas exigem Panel. Prefira uma Geometry de contorno para representar a borda real.");
+        ToolDescriptions.apply(panelRadio, "Recorte de partes separadas — Panel",
+                "Calcula o recorte de cada parte separada da origem, como as placas de um painel, com suas próprias pontes.\n\nAtenção: ilhas de cobre não representam necessariamente placas distintas; confira a Geometry de contorno escolhida.");
         ToggleGroup kindGroup = new ToggleGroup();
         singleRadio.setToggleGroup(kindGroup);
         panelRadio.setToggleGroup(kindGroup);
@@ -154,7 +158,7 @@ final class CutoutToolPanel {
         List<Geometry> manualAreas = new ArrayList<>();
         List<Geometry> cursorAreas = new ArrayList<>();
         var cursorShape = new java.util.concurrent.atomic.AtomicReference<CutoutShape>();
-        Label manualStatus = new Label("Sem gaps manuais; sera usado o padrao automatico.");
+        Label manualStatus = new Label("Sem gaps manuais; será usado o padrão automático.");
         manualStatus.setId("cutout-manual-status");
         manualStatus.setWrapText(true);
         Button cursorFreeform = new Button("Posicionar gaps (Free-form)");
@@ -192,8 +196,8 @@ final class CutoutToolPanel {
                 } catch (RuntimeException invalid) { manualStatus.setText(invalid.getMessage()); }
             });
         }
-        Button rectangleGapButton = new Button("Adicionar gap por retangulo");
-        Button polygonGapButton = new Button("Adicionar gap por poligono");
+        Button rectangleGapButton = new Button("Adicionar gap por retângulo");
+        Button polygonGapButton = new Button("Adicionar gap por polígono");
         for (Button button : new Button[]{rectangleGapButton, polygonGapButton}) {
             button.setMaxWidth(Double.MAX_VALUE);
             button.setOnAction(event -> {
@@ -204,10 +208,10 @@ final class CutoutToolPanel {
                     manualStatus.setText((manualAreas.size() + cursorAreas.size()) + " área(s) de gap desenhada(s).");
                 }, () -> manualStatus.setText("Desenho cancelado; " + (manualAreas.size() + cursorAreas.size()) + " gap(s) mantidos."))) {
                     manualStatus.setText(polygon
-                            ? "Clique nos vertices; Enter ou botao direito conclui; Esc cancela."
+                            ? "Clique nos vértices; Enter ou botão direito conclui; Esc cancela."
                             : "Clique em dois cantos; Esc cancela.");
                 } else {
-                    manualStatus.setText("Nao foi possivel iniciar o desenho.");
+                    manualStatus.setText("Não foi possível iniciar o desenho.");
                 }
             });
         }
@@ -218,7 +222,7 @@ final class CutoutToolPanel {
             cancelArea.run();
             manualAreas.clear();
             cursorAreas.clear(); cursorShape.set(null);
-            manualStatus.setText("Sem gaps manuais; sera usado o padrao automatico.");
+            manualStatus.setText("Sem gaps manuais; será usado o padrão automático.");
         });
 
         Runnable invalidateCursor = () -> {
@@ -257,7 +261,7 @@ final class CutoutToolPanel {
             perPass.setText(Double.toString(selected.machining().depthPerPass()));
             thinZ.setText(Double.toString(-selected.thinDepth()));
         }, errorLabel);
-        Label transferNote = new Label("A base transfere diametro, margem, gaps, Cut Z, Multi-Depth e Thin Depth; avanco, Travel Z, spindle e espera acompanham a Geometry. Máscaras desenhadas são preservadas; gaps do cursor são limpos se seus parâmetros mudarem. Tool Offset nao e reaplicado: o recorte ja compensa o diametro.");
+        Label transferNote = new Label("A base transfere diâmetro, margem, gaps, Cut Z, Multi-Depth e Thin Depth; avanço, Travel Z, spindle e espera acompanham a Geometry. Máscaras desenhadas são preservadas; gaps do cursor são limpos se seus parâmetros mudarem. Tool Offset não é reaplicado: o recorte já compensa o diâmetro.");
         transferNote.setWrapText(true);
 
         GridPane grid = new GridPane();
@@ -306,9 +310,9 @@ final class CutoutToolPanel {
 
         Label workflowNote = new Label("O Cutout cria Geometry. Em Thin, cria outra Geometry "
                 + "para as pontes, com Thin Depth configurado: gere seu CNC Job separadamente. "
-                + "Areas manuais removem exatamente os trechos do caminho que cobrem; "
-                + "se houver alguma, substituem o padrao automatico de gaps. "
-                + "Revise alturas, avanco e spindle antes de criar cada CNC Job. M-Bites cria Excellon: configure a furacao separadamente.");
+                + "Áreas manuais removem exatamente os trechos do caminho que cobrem; "
+                + "se houver alguma, substituem o padrão automático de gaps. "
+                + "Revise alturas, avanço e spindle antes de criar cada CNC Job. M-Bites cria Excellon: configure a furação separadamente.");
         workflowNote.setWrapText(true);
         Label title = new Label("Cutout Tool");
         title.getStyleClass().add("tool-title");
@@ -350,7 +354,7 @@ final class CutoutToolPanel {
             double biteSpacing = bites ? parseDouble(biteSpacingField.getText(), "M-Bites spacing") : 0;
             if (bites && (biteDiameter <= 0 || biteSpacing < 0
                     || manualAreas.isEmpty() && (gapSize <= 0 || gapPatternCombo.getValue() == GapPattern.NONE))) {
-                throw new IllegalArgumentException("M-Bites exige diametro positivo, espacamento valido e gaps.");
+                throw new IllegalArgumentException("M-Bites exige diâmetro positivo, espaçamento válido e gaps.");
             }
 
             errorLabel.setText("");
@@ -376,7 +380,7 @@ final class CutoutToolPanel {
         try {
             return Double.parseDouble(text.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(fieldName + ": numero invalido");
+            throw new IllegalArgumentException(fieldName + ": número inválido");
         }
     }
 }

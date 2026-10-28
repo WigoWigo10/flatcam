@@ -215,7 +215,7 @@ class CncPreflightTest {
                 List.of(new ToolGeometry(.4, path())), params(3, .3, 100, 50, 10000), Map.of(),
                 GCodePreprocessor.LINE_XYZ, Map.of()));
         assertTrue(report.issues().stream().anyMatch(issue -> !issue.blocking()
-                && issue.text().contains("preambulo vertical") && issue.text().contains("M6")));
+                && issue.text().contains("preâmbulo vertical") && issue.text().contains("M6")));
     }
     @Test void icpExplainsIntegerResolutionAutomaticMacroAndRapidTimingLimits() {
         var report = CncPreflight.geometry("Board", "MM", new GeometryCncToolPanel.Result(

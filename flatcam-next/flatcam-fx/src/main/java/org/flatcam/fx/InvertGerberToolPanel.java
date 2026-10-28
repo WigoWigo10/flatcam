@@ -84,7 +84,7 @@ final class InvertGerberToolPanel {
                 String error = host.invert(gerber.getValue(), value, style);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor invalido em margem");
+                errorLabel.setText("Valor inválido em margem");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }

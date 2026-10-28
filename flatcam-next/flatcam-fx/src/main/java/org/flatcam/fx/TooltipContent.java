@@ -14,9 +14,13 @@ record TooltipContent(List<Span> spans) {
             + "Dwell Time|Offset Z|Custom Offset|Tool Offset|Drill Slots|Last Drill|Extra Cut Length|Extra Cut|"
             + "Offset Value|Gap Type|Thin Depth|Start Z|End Z|Travel Z|Texto|Borracha|Mouse Bites|M-Bites|Laser_lines|Standard|Seed|Lines|Combo|Both|Exterior|Interior|"
             + "Climb|Conventional|Bridge|Thin|Clear|Isolation|General|Milling|Drilling|Paint|NCC|Cutout|"
-            + "Save DB|Export DB|Import DB|Ctrl\\+[A-Z]|Shift\\+Enter|Shift\\+F3|Enter|F3|Esc|"
+            + "Salvar base|Exportar base|Importar base|Marcar todos|Cantos arredondados|Gerar Geometry|Gerar CNC Job|"
+            + "Salvar PDF|Posicionar cursor|Adicionar ponto|Confirmar array|Cancelar prévia|"
+            + "Save DB|Export DB|Import DB|Ctrl\\+(?:Shift\\+)?(?:[A-Z]|[0-9])|Shift\\+Enter|Shift\\+F3|Enter|F3|Esc|"
+            + "G(?:0[0-3]?|[1-3]|85|90|91)|LZ|TZ|LINEAR|CIRCULAR|GRID|ANGLE|CW|CCW|"
             + "Around|Over|Over Z|Rest Machining|None|MM|IN|DPI|RPM|segundos|graus)\\b");
-    private static final Pattern PREFIX = Pattern.compile("(?m)^(Integração FX:|Atenção:|Unidades:|Atalho:|Atalhos:)");
+    private static final Pattern PREFIX = Pattern.compile(
+            "(?m)^(Integração FX:|Atenção:|Limitação:|Limitações:|Unidades:|Atalho:|Atalhos:|Progresso:|Prévia:|Resultado:|Referência:|Exemplo:)");
     private static final Pattern TOKENS = Pattern.compile(PREFIX.pattern() + "|" + EMPHASIS.pattern(), Pattern.MULTILINE);
     enum Style { NORMAL, BOLD, ACCENT, NOTE }
     record Span(String text, Style style) { }
@@ -38,6 +42,7 @@ record TooltipContent(List<Span> spans) {
                 if (matches.start() > cursor) spans.add(new Span(paragraph.substring(cursor, matches.start()), Style.NORMAL));
                 String token = matches.group();
                 Style style = token.endsWith(":") ? (token.equals("Integração FX:") || token.equals("Atenção:")
+                        || token.equals("Limitação:") || token.equals("Limitações:")
                         ? Style.NOTE : Style.ACCENT) : Style.BOLD;
                 spans.add(new Span(token, style));
                 cursor = matches.end();

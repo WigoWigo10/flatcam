@@ -81,9 +81,9 @@ public final class FlatCamLauncher {
             try {
                 if (!java.awt.Desktop.isDesktopSupported()) throw new UnsupportedOperationException("Desktop unavailable");
                 java.awt.Desktop.getDesktop().open(directory.toFile());
-                message = "Diagnosticos: " + directory;
+                message = "Diagnósticos: " + directory;
             } catch (Exception failure) {
-                message = "Abra a pasta de diagnosticos manualmente: " + directory + " (" + failure + ")";
+                message = "Abra a pasta de diagnósticos manualmente: " + directory + " (" + failure + ")";
             }
             String result = message;
             javafx.application.Platform.runLater(() -> feedback.accept(result));

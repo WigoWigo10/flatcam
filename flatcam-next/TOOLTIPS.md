@@ -1,5 +1,70 @@
 # Revisão dos tooltips
 
+## Áreas recentes, ações de diálogo e auditoria por controle — 2026-10-27
+
+Reutilizada a apresentação central (`TooltipContent`/`FluidTooltips`). Novos
+rótulos em português, códigos G0–G3/G85/G90/G91, tipos de array e atalhos como
+Ctrl+Shift+S recebem negrito. Os cabeçalhos Prévia, Resultado, Referência,
+Exemplo e Progresso recebem o azul do tema; Limitação/Limitações usam o âmbar
+dos avisos. As palavras continuam explicando seu significado sem depender da cor.
+Quebras explícitas e separação de parágrafos são preservadas; não há interpretação
+de HTML/Markdown. A política de atraso 1000/300 ms permanece a mesma.
+
+Ajuda adicionada ou atualizada:
+
+- Medição: significado de cada resultado, distância versus trajeto, diferenças
+  dos ângulos, novo cálculo, ponto médio e fechamento.
+- Jump/Localizar no objeto: coordenadas absolutas/relativas, sintaxe decimal,
+  limites do objeto versus cobre, confirmação, cancelamento e atalhos.
+- Exportação Gerber/Excellon: confirmar formato, cancelar, unidades/dígitos e
+  recusa de G85 em rasgos curvos; curvas roteadas são representadas por segmentos.
+- Cor/opacidade: ações de aplicar/cancelar e diferença entre transparência zero
+  e desativar Plot.
+- Arrays Excellon: títulos por campo, prévia versus confirmação, modo GRID de
+  aplicação direta, desfazer/refazer e cancelamento de cálculo versus descarte.
+- Progresso recolhido: porcentagem por etapa, fase indeterminada e cancelamento.
+- Film, Etch, Transform, Cutout e propriedades Gerber/Excellon: campos internos
+  de grupos e ações que antes não tinham sua própria descrição.
+- Editor de script: estado do arquivo e diferença entre executar e salvar.
+
+`PanelTooltips` agora também acompanha páginas dentro de SplitPane, inclusive
+itens adicionados depois. Textos escritos especificamente para um controle
+continuam tendo prioridade sobre o catálogo compartilhado.
+
+### Auditoria e evidências
+
+A auditoria percorre todas as páginas das preferências, as ferramentas/editores
+anteriores, medição, script/progresso e dez variações de diálogos, incluindo seus
+botões. Constrói os mesmos formulários usados pela aplicação sem mostrar janelas
+ou executar ações CAM. Foram separadas construção e exibição dos diálogos de
+exportação, aparência e navegação; confirmar/cancelar conserva o fluxo existente.
+
+A regra antiga aceitava uma descrição em qualquer ancestral como cobertura do
+controle. A regra atual exige ajuda no próprio controle: encontrou **15 lacunas**
+em Etch, Film, Cutout, Transform e propriedades. Foram preenchidas com ajuda
+específica, sem voltar à herança genérica. O estado com lacunas está registrado
+em `target/tooltip-audit-gaps-20261027.txt`.
+
+Inventário final focado: **1496 ocorrências, zero MISSING** em
+`flatcam-fx/target/tooltip-audit.txt`; não são 1496 textos únicos. Há campos
+ocultos/desabilitados no inventário; não são ignorados. Rótulos, containers e
+internals dos controles nativos não são tratados como comandos sem ajuda.
+
+Rodada focada aprovada: `target/tooltip-expansion-focused.log`. Testes exercitam
+formatação literal, unidade/caminho decimal, códigos/atalhos, instalação dinâmica
+em SplitPane e aviso acessível do seletor G85 desabilitado. Snapshots nos quatro
+temas gerados; Branco puro e Preto puro foram inspecionados. Contraste de todos
+os trechos da apresentação testado em pelo menos 4,5:1 contra o fundo do tooltip.
+
+Suíte completa (`mvnw.cmd verify`): **2118 aprovações, 18 skips opcionais,
+zero falhas/erros (2136 registros)**. Evidências:
+`target/tooltip-expansion-verify.log` e `target/tooltip-expansion-verify.json`.
+Launcher nativo reconstruído e probe aprovado:
+`target/tooltip-expansion-native-build.log`.
+A auditoria não cobre todas as combinações de perfil/seleção nem as janelas
+nativas de arquivo e os controles internos do seletor de cores do JavaFX.
+Ela não mede latência real do hover e não certifica trajetos de usinagem.
+
 ## Drill slots — 2026-10-14
 
 Drilling tem ajuda explícita para ativar furos sobrepostos por ferramenta,

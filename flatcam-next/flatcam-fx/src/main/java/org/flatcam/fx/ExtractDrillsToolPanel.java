@@ -86,8 +86,8 @@ final class ExtractDrillsToolPanel {
         ColumnConstraints wide = new ColumnConstraints();
         wide.setHgrow(Priority.ALWAYS);
         grid.getColumnConstraints().addAll(wide, new ColumnConstraints());
-        grid.addRow(0, new Label("Diametro fixo:"), fixedDiameter);
-        grid.addRow(1, new Label("Proporcao (%):"), factor);
+        grid.addRow(0, new Label("Diâmetro fixo:"), fixedDiameter);
+        grid.addRow(1, new Label("Proporção (%):"), factor);
         grid.addRow(2, new Label("Anel - circular:"), ringCircular);
         grid.addRow(3, new Label("Anel - oblongo:"), ringOblong);
         grid.addRow(4, new Label("Anel - quadrado:"), ringSquare);
@@ -120,7 +120,7 @@ final class ExtractDrillsToolPanel {
                 String error = host.extract(gerber.getValue(), options);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }

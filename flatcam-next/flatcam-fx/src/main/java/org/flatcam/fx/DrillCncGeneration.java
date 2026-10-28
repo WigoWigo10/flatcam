@@ -24,8 +24,8 @@ final class DrillCncGeneration {
         CancellationToken cancellation = context::isCancelled;
         int[] lastPercent = {-1};
         CncJobResult job = GCodeGenerator.generateDrillCncJob(image, parameters, tools, options, profile,
-                cancellation, fraction -> report(context, fraction * 0.8, "Validando exclusoes e gerando furos/slots...", lastPercent));
-        context.reportProgress(Double.NaN, "Preparando previa de furacao...");
+                cancellation, fraction -> report(context, fraction * 0.8, "Validando exclusões e gerando furos/slots...", lastPercent));
+        context.reportProgress(Double.NaN, "Preparando prévia de furação...");
         GCodeToolpathParser.Result preview;
         try { preview = GCodeToolpathParser.parse(job.gcode(), cancellation,
                 fraction -> report(context, 0.8 + fraction * 0.15, "Lendo trajetos do CNC Job...", lastPercent)); }
@@ -34,7 +34,7 @@ final class DrillCncGeneration {
         Path destination = output.toAbsolutePath().normalize();
         if (destination.getFileName() == null || Files.isDirectory(destination))
             throw new IOException("O destino deve ser um arquivo G-code.");
-        context.reportProgress(Double.NaN, "Gravando G-code de furacao...");
+        context.reportProgress(Double.NaN, "Gravando G-code de furação...");
         Path temporary = Files.createTempFile(destination.getParent(), ".flatcam-drilling-", ".tmp");
         try {
             Files.writeString(temporary, job.gcode());

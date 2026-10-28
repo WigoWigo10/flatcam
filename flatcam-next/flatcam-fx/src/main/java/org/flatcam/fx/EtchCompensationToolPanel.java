@@ -65,6 +65,10 @@ final class EtchCompensationToolPanel {
         mils.setPromptText("Valor em mils");
         Label milsMicrons = new Label("= um");
         mils.textProperty().addListener((o, a, b) -> milsMicrons.setText(converted(b, 25.4)));
+        ToolDescriptions.apply(oz, "Converter cobre de oz para µm",
+                "Calculadora auxiliar: 1 oz corresponde a 34,798 µm de espessura de cobre.\n\nResultado: aparece ao lado; copie o valor para Espessura do cobre se quiser usá-lo na compensação. Não preenche esse campo automaticamente.");
+        ToolDescriptions.apply(mils, "Converter mils para µm",
+                "Calculadora auxiliar: 1 mil corresponde a 25,4 µm; mil é um milésimo de polegada.\n\nResultado: aparece ao lado e não modifica a espessura configurada nem o Gerber.");
 
         TextField thickness = new TextField(ToolDefaults.text("etch.thickness"));
         ToggleGroup ratio = new ToggleGroup();
@@ -76,7 +80,7 @@ final class EtchCompensationToolPanel {
         }
         byFactor.setSelected(true);
         TextField factor = new TextField();
-        factor.setPromptText("Numero (ex.: 0.25)");
+        factor.setPromptText("Número (ex.: 0.25)");
         ComboBox<String> etchants = new ComboBox<>();
         etchants.getItems().setAll("CuCl2", "Fe3Cl", "Banhos alcalinos");
         etchants.getSelectionModel().selectFirst();
@@ -124,7 +128,7 @@ final class EtchCompensationToolPanel {
                 String error = host.compensate(gerber.getValue(), value);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }

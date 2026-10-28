@@ -230,11 +230,11 @@ class ProjectPlotMenuTest {
                     var item = session.add(kind, kind);
                     var original = session.plot.layerColors(item);
                     var menu = colorMenu(session, item);
-                    String expected = kind.equals("geometry") ? "Vermelho" : "Padrao";
+                    String expected = kind.equals("geometry") ? "Vermelho" : "Padrão";
                     assertColorSelected(menu, expected);
                     choice(menu, "Amarelo").fire();
                     assertColorSelected(menu, "Amarelo");
-                    choice(menu, "Padrao").fire();
+                    choice(menu, "Padrão").fire();
                     assertArrayEquals(original, session.plot.layerColors(item));
                     assertColorSelected(menu, expected);
                 }

@@ -101,7 +101,7 @@ final class GeometryCncToolPanel {
             TableColumn<ToolGeometry, Number> idColumn = new TableColumn<>("#");
             idColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(
                     toolTable.getItems().indexOf(cellData.getValue()) + 1));
-            TableColumn<ToolGeometry, Number> diaColumn = new TableColumn<>("Diametro");
+            TableColumn<ToolGeometry, Number> diaColumn = new TableColumn<>("Diâmetro");
             diaColumn.setCellValueFactory(cellData ->
                     new javafx.beans.property.SimpleDoubleProperty(cellData.getValue().toolDiameter()));
             TableColumn<ToolGeometry, String> typeColumn = new TableColumn<>("TT");
@@ -164,7 +164,7 @@ final class GeometryCncToolPanel {
         customOffset.setPrefColumnCount(7);
         offset.setTooltip(new Tooltip("Path preserva os caminhos. In/Out aplicam metade do diâmetro para dentro/fora; Custom usa uma distância assinada. O ajuste é individual por ferramenta e não altera a Geometry original.\n\nEm linhas abertas, Out cria o contorno do buffer; In pode eliminar o caminho e é recusado.\n\nDisponível em fresagem sem sonda. Configurações ativas não são descartadas ao mudar para um perfil incompatível: volte à fresagem e limpe-as antes de gerar."));
         customOffset.setTooltip(new Tooltip("Custom Offset: positivo expande; negativo contrai. Disponível quando Tool Offset é Custom; zero exige Path.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: Isolation/NCC/Cutout já geram caminhos compensados; normalmente use Path para evitar compensação duplicada."));
-        rapidFeedField.setTooltip(new Tooltip("0 = automatico: 1500 mm/min ou equivalente em polegadas. "
+        rapidFeedField.setTooltip(new Tooltip("0 = automático: 1500 mm/min ou equivalente em polegadas. "
                 + "Marlin/Repetier usam esse feed nos G0. Roland: 0 = 900 mm/min; faixa 6..900."));
         for (TextField field : List.of(toolDiaField, safeZField, cutDepthField,
                 depthPerPassField, feedField, spindleField, rapidFeedField)) {
@@ -243,7 +243,7 @@ final class GeometryCncToolPanel {
         Label powerLabel = new Label();
         powerLabel.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(
                 () -> laser.get() || preprocessor.getValue() == GCodePreprocessor.REPETIER
-                        ? "Potencia S/PWM:" : "Spindle RPM:", preprocessor.valueProperty()));
+                        ? "Potência S/PWM:" : "Spindle RPM:", preprocessor.valueProperty()));
         Label diameterLabel = new Label();
         diameterLabel.textProperty().bind(javafx.beans.binding.Bindings.when(laser)
                 .then("Spot Dia:").otherwise("Tool Dia:"));
@@ -256,7 +256,7 @@ final class GeometryCncToolPanel {
             grid.addRow(row++, diameterLabel, toolDiaField);
         }
         grid.addRow(row++, zLabel, safeZField);
-        grid.addRow(row++, new Label("Cut Z (nao V):"), cutDepthField);
+        grid.addRow(row++, new Label("Cut Z (não V):"), cutDepthField);
         grid.addRow(row++, multiDepthCb, depthPerPassField);
         grid.addRow(row++,new Label("Estratégia de passes:"),passStrategy);
         grid.addRow(row++, new Label("Feed rate:"), feedField);
@@ -286,7 +286,7 @@ final class GeometryCncToolPanel {
         startZ.setTooltip(new Tooltip("Start Z: movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z exibido ao gerar; aceita zero ou valor positivo.\n\nAntes de deslocar em XY, o FX retrai para a altura de segurança. Start Z não faz referenciamento nem confirma que a ferramenta está livre.\n\nUnidades: unidade do objeto (mm ou in)."));
         endZ.setTooltip(new Tooltip("End Z: altura final depois de desligar o spindle. Vazio/None usa o Travel Z efetivo da última fresa: maior altura do trabalho no padrão, ou sua própria altura no modo por ferramenta.\n\nSe End Z for menor que essa altura, o movimento End X,Y ocorre primeiro em altura segura; só depois desce para End Z. Confirme que o destino está livre."));
         endXY.setTooltip(new Tooltip("Posição final X,Y. Vazio/None mantém a posição do último corte. Use 10.5;20.5 ou, com vírgula decimal, 10,5;20,5.\n\nO FX desloca em altura segura antes de descer para End Z. O movimento aparece na prévia.\n\nUnidades: unidade do objeto (mm ou in)."));
-        changeZ.setTooltip(new Tooltip("Tool change Z: altura usada antes da troca. Vazio/None usa o maior Travel Z.\n\nDeve ser pelo menos o maior Travel Z das ferramentas. So e aplicada quando a troca esta ativa ou o perfil seleciona ferramentas automaticamente."));
+        changeZ.setTooltip(new Tooltip("Tool change Z: altura usada antes da troca. Vazio/None usa o maior Travel Z.\n\nDeve ser pelo menos o maior Travel Z das ferramentas. Só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente."));
         changeXY.setTooltip(new Tooltip("Tool change X,Y: posição para a troca, inclusive a primeira, quando ativada. Vazio/None troca na posição atual. Use 10.5;20.5 ou 10,5;20,5.\n\nO FX retrai antes de XY e M0/M6.\n\nAtenção: confira grampos e a macro da máquina; a prévia não simula movimentos internos de uma macro M6.\n\nUnidades: unidade do objeto (mm ou in)."));
         GridPane positionGrid = new GridPane();
         positionGrid.setHgap(8); positionGrid.setVgap(8);
@@ -303,9 +303,9 @@ final class GeometryCncToolPanel {
         changeZ.disableProperty().bind(javafx.beans.binding.Bindings.createBooleanBinding(
                 () -> laser.get() || !pauseCheck.isSelected() && !preprocessor.getValue().automaticToolSelection(), pauseCheck.selectedProperty(), preprocessor.valueProperty()));
         changeXY.disableProperty().bind(changeZ.disableProperty());
-        Label positionsHelp = new Label("Posicoes comuns a todas as ferramentas. None = automatico. Laser permite somente End Z/XY, com potencia desligada e XY na altura livre; Start Z e troca mecanica ficam bloqueados. A sonda usa o painel proprio. Configuracoes incompatíveis preservadas devem ser limpas na fresagem.");
+        Label positionsHelp = new Label("Posições comuns a todas as ferramentas. None = automático. Laser permite somente End Z/XY, com potência desligada e XY na altura livre; Start Z e troca mecanica ficam bloqueados. A sonda usa o painel próprio. Configurações incompatíveis preservadas devem ser limpas na fresagem.");
         positionsHelp.setWrapText(true);
-        TitledPane positionsPane = new TitledPane("Posicoes e troca de ferramenta", new VBox(8, positionGrid, positionsHelp));
+        TitledPane positionsPane = new TitledPane("Posições e troca de ferramenta", new VBox(8, positionGrid, positionsHelp));
         ToolDescriptions.apply(positionsPane, "Posições comuns do CNC",
                 "Start Z, End Z/XY e Tool change Z/XY valem para todas as ferramentas. Vazio/None mantém os valores automáticos.\n\nLaser aceita apenas End Z/XY: potência desligada, deslocamento XY em altura livre e depois End Z. HPGL, Roland e sonda usam seus próprios ajustes. Campos desabilitados conservam configurações incompatíveis: volte à fresagem para limpá-las.\n\nTroca Z/XY só é aplicada quando a troca está ativa ou o perfil seleciona ferramentas automaticamente.");
         positionsPane.setExpanded(!savedPositions.isAutomatic());
@@ -358,7 +358,7 @@ final class GeometryCncToolPanel {
                 editing[0] = value.intValue(); restore.accept(snapshots.get(editing[0]));
             });
         }
-        Button applyAll = new Button("Aplicar parametros a todas as ferramentas");
+        Button applyAll = new Button("Aplicar parâmetros a todas as ferramentas");
         applyAll.setId("cnc-apply-all");
         applyAll.setMaxWidth(Double.MAX_VALUE);
         applyAll.setOnAction(event -> { for (int i = 0; i < tools.size(); i++) snapshots.put(i, capture.get()); });
@@ -421,7 +421,7 @@ final class GeometryCncToolPanel {
                 double feed = plotter.get() ? 1 : parse(feedField, "Feed rate");
                 double power = plotter.get() || roland.get() ? 0 : parse(spindleField, powerLabel.getText());
                 if (!Double.isFinite(power) || power < 0 || power > Integer.MAX_VALUE || power != Math.rint(power))
-                    throw new IllegalArgumentException("Potencia/RPM deve ser um inteiro nao negativo.");
+                    throw new IllegalArgumentException("Potência/RPM deve ser um inteiro não negativo.");
                 int spindle = (int) power;
                 preprocessor.getValue().validatePower(spindle);
                 preprocessor.getValue().unitsCode(units);
@@ -483,7 +483,7 @@ final class GeometryCncToolPanel {
                     }
                     if (byTool.values().stream().allMatch(params::equals)) byTool.clear();
                     if (!byTool.isEmpty() && (roland.get() || preprocessor.getValue().requiresProbe()))
-                        throw new IllegalArgumentException("Este perfil exige parametros comuns; aplique a todas as ferramentas.");
+                        throw new IllegalArgumentException("Este perfil exige parâmetros comuns; aplique a todas as ferramentas.");
                 }
                 if (laser.get()) org.flatcam.cam.gcode.GCodeGenerator.validateLaserGroups(preprocessor.getValue(),params,byTool);
                 double clearance = Math.max(params.safeZ(), byTool.values().stream().mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
@@ -491,7 +491,7 @@ final class GeometryCncToolPanel {
                 if (unsupportedPositions.get() && (params.offset() != ToolPathOffset.PATH
                         || byTool.values().stream().anyMatch(p -> p.offset() != ToolPathOffset.PATH)
                         || snapshots.values().stream().anyMatch(s -> !s[11].equals(ToolPathOffset.PATH.name()))))
-                    throw new IllegalArgumentException("Offset exige perfil de fresagem sem sondagem. Volte ao perfil de fresagem e use Path para limpar a compensacao.");
+                    throw new IllegalArgumentException("Offset exige perfil de fresagem sem sondagem. Volte ao perfil de fresagem e use Path para limpar a compensação.");
                 onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools),
                         preprocessor.getValue(), Map.copyOf(byTool)));
             } catch (RuntimeException ex) {
@@ -506,7 +506,7 @@ final class GeometryCncToolPanel {
         title.getStyleClass().add("tool-title");
         VBox box = new VBox(10, title, new Label("Unidades: " + units));
         if (defaults != null) {
-            Label restored = new Label("Parametros basicos de corte recuperados do projeto; "
+            Label restored = new Label("Parâmetros basicos de corte recuperados do projeto; "
                     + "confira os valores antes de gerar G-code.");
             restored.setWrapText(true);
             box.getChildren().add(restored);
@@ -518,7 +518,7 @@ final class GeometryCncToolPanel {
             int index = multiTool ? toolTable.getSelectionModel().getSelectedIndex() : 0;
             if (multiTool && index < 0) throw new IllegalArgumentException("Selecione a ferramenta na tabela.");
             if (multiTool && Math.abs(tools.get(index).toolDiameter() - selected.diameter()) > 1e-6)
-                throw new IllegalArgumentException("Diametro da base diferente do caminho. Regenere a Geometry para mudar a largura.");
+                throw new IllegalArgumentException("Diâmetro da base diferente do caminho. Regenere a Geometry para mudar a largura.");
             if (!multiTool) { toolDiaField.setText(Double.toString(selected.diameter())); singleProfile.set(selected.profile()); }
             else {
                 tools.set(index, new ToolGeometry(selected.diameter(), tools.get(index).geometry(), selected.profile()));
@@ -547,11 +547,11 @@ final class GeometryCncToolPanel {
             modeHelp.textProperty().bind(javafx.beans.binding.Bindings.createStringBinding(() ->
                     laser.get() ? "Selecione um grupo para editar avanço e potência. Z_laser/Marlin também permitem foco por grupo; GRBL_laser exige Focus/End Z igual em todos. Feed rapids, posições finais e perfil são comuns. Não há troca mecânica entre grupos."
                     : plotter.get() || roland.get() || preprocessor.getValue().requiresProbe()
-                            ? "Este perfil usa os parametros comuns da ferramenta exibida; configuracoes individuais nao sao aplicadas."
-                            : "Selecione uma linha para editar seus parametros. Feed rapids, troca e preprocessor sao comuns ao trabalho.",
+                            ? "Este perfil usa os parâmetros comuns da ferramenta exibida; configurações individuais não são aplicadas."
+                            : "Selecione uma linha para editar seus parâmetros. Feed rapids, troca e preprocessor são comuns ao trabalho.",
                     preprocessor.valueProperty()));
             applyAll.textProperty().bind(javafx.beans.binding.Bindings.when(laser)
-                    .then("Aplicar parâmetros a todos os grupos").otherwise("Aplicar parametros a todas as ferramentas"));
+                    .then("Aplicar parâmetros a todos os grupos").otherwise("Aplicar parâmetros a todas as ferramentas"));
             box.getChildren().addAll(modeHelp, applyAll);
         }
         if (!vFields.isEmpty()) box.getChildren().add(vSettings);
@@ -602,7 +602,7 @@ final class GeometryCncToolPanel {
     private static int integerPower(String text) {
         double value = parseText(text, "Spindle RPM");
         if (!Double.isFinite(value) || value < 0 || value > Integer.MAX_VALUE || value != Math.rint(value))
-            throw new IllegalArgumentException("Potencia/RPM deve ser inteiro nao negativo.");
+            throw new IllegalArgumentException("Potência/RPM deve ser inteiro não negativo.");
         return (int) value;
     }
 
@@ -610,7 +610,7 @@ final class GeometryCncToolPanel {
         try {
             return Double.parseDouble(text.trim().replace(',', '.'));
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(name + ": numero invalido");
+            throw new IllegalArgumentException(name + ": número inválido");
         }
     }
 

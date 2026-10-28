@@ -167,7 +167,7 @@ class CncSettingsPanelTest {
             ((Button) root.lookup("#drill-generate")).fire();
             assertNull(submitted.get());
             assertTrue(((Label) root.lookup("#drill-error")).getText().contains("Selecione"));
-            assertTrue(((Label) root.lookup("#drill-feedback")).getText().contains("nao existem"));
+            assertTrue(((Label) root.lookup("#drill-feedback")).getText().contains("não existem"));
         });
     }
 }

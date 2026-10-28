@@ -38,10 +38,13 @@ class GeometryCncGenerationTest {
                 });
         assertEquals(result.job().gcode(), Files.readString(output)); assertNotNull(result.preview());
         assertEquals(units, result.preview().units()); assertTrue(result.preview().plotAvailable());
-        assertTrue(phases.indexOf("Preparando previa de Geometry...") < phases.indexOf("Publicando G-code de Geometry..."));
+        int previewPhase = phases.indexOf("Preparando prévia de Geometry...");
+        int publishPhase = phases.indexOf("Publicando G-code de Geometry...");
+        assertTrue(previewPhase >= 0 && publishPhase >= 0, phases.toString());
+        assertTrue(previewPhase < publishPhase);
         try (var files = Files.list(directory)) { assertEquals(1, files.count()); }
     }
-    @ParameterizedTest @ValueSource(strings = {"Gerando caminhos", "Preparando previa", "Gravando G-code", "Publicando G-code"})
+    @ParameterizedTest @ValueSource(strings = {"Gerando caminhos", "Preparando prévia", "Gravando G-code", "Publicando G-code"})
     void cancelAtEachPhasePreservesDestination(String phase) throws Exception {
         Path output = directory.resolve("job.nc"); Files.writeString(output, "original");
         var cancelled = new java.util.concurrent.atomic.AtomicBoolean();

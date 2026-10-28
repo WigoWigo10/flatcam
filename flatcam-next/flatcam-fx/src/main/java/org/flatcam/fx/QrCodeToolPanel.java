@@ -93,7 +93,7 @@ final class QrCodeToolPanel {
         GridPane grid = new GridPane();
         grid.setHgap(6);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Versao (1-40):"), version);
+        grid.addRow(0, new Label("Versão (1-40):"), version);
         grid.addRow(1, new Label("Tamanho da caixa:"), boxSize);
         grid.addRow(2, new Label("Borda (modulos):"), border);
 
@@ -119,7 +119,7 @@ final class QrCodeToolPanel {
                 QrCodeMarker.Code code = QrCodeMarker.encode(current);
                 double side = QrCodeMarker.side(code, current);
                 double total = side + 2 * current.border() * current.boxSize() / 10.0;
-                summary.setText(String.format(Locale.ROOT, "Versao %d, %dx%d modulos, lado %.2f (com a borda %.2f)",
+                summary.setText(String.format(Locale.ROOT, "Versão %d, %dx%d modulos, lado %.2f (com a borda %.2f)",
                         code.version(), code.size(), code.size(), side, total));
             } catch (RuntimeException invalid) {
                 summary.setText("");
@@ -154,7 +154,7 @@ final class QrCodeToolPanel {
                     status.setText("");
                 });
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -167,9 +167,9 @@ final class QrCodeToolPanel {
 
         VBox panel = new VBox(8, new Label("Gerber de destino:"), gerber,
                 new Label("Dados do QR Code:"), text, grid,
-                new Label("Correcao de erro:"), new HBox(10, levelL, levelM, levelQ, levelH),
+                new Label("Correção de erro:"), new HBox(10, levelL, levelM, levelQ, levelH),
                 new Label("Polaridade:"), new HBox(10, positive, negative),
-                new Label("Mascara:"), new HBox(10, square, rounded),
+                new Label("Máscara:"), new HBox(10, square, rounded),
                 summary, place, status, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;

@@ -65,9 +65,9 @@ final class ToolProfilePicker {
         String title = profile == null ? "Tipo de fresa" : profile.name() + " — " + description(profile);
         String text = profile == null ? "Escolha o tipo de fresa."
                 : profile == ToolProfile.V
-                ? "Ponta em V. Configure V-Tip Dia e Angle no CNC Job. Desenho esquematico, sem escala."
-                : "Tipo informativo neste painel. C1–C4: a vista da ponta indica o numero de dentes. "
-                        + "Desenho esquematico, sem escala; o perfil nao altera o calculo de isolamento.";
+                ? "Ponta em V. Configure V-Tip Dia e Angle no CNC Job. Desenho esquemático, sem escala."
+                : "Tipo informativo neste painel. C1–C4: a vista da ponta indica o número de dentes. "
+                        + "Desenho esquemático, sem escala; o perfil não altera o cálculo de isolamento.";
         // The window's FluidTooltips consumes these properties; avoid a second native popup.
         choice.setTooltip(null);
         ToolDescriptions.apply(choice.getProperties(), title, text);

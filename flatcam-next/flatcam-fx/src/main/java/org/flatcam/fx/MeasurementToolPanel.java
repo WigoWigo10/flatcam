@@ -94,6 +94,25 @@ final class MeasurementToolPanel extends VBox {
         jumpHalf.setOnAction(event -> { if (current != null) jumpTo.accept(current.halfPoint()); });
         Button closeButton = new Button("Fechar");
         closeButton.setOnAction(event -> close.run());
+        String linear = "\n\nUnidades: " + units + ". Os resultados são somente leitura.";
+        ToolDescriptions.apply(start, "Primeiro ponto", minimum
+                ? "Ponto da primeira geometria que forma o segmento de menor distância até a segunda." + linear
+                : "Coordenadas do primeiro clique da medição. O Snap ativo é respeitado." + linear);
+        ToolDescriptions.apply(stop, "Segundo ponto", minimum
+                ? "Ponto da segunda geometria mais próximo da primeira; não é necessariamente um centro de furo ou pad." + linear
+                : "Coordenadas do segundo clique da medição. O Snap ativo é respeitado." + linear);
+        ToolDescriptions.apply(dx, "Distância horizontal", "Valor absoluto da diferença X entre os dois pontos; não indica o sentido do movimento." + linear);
+        ToolDescriptions.apply(dy, "Distância vertical", "Valor absoluto da diferença Y entre os dois pontos; não indica o sentido do movimento." + linear);
+        ToolDescriptions.apply(distance, "Distância entre pontos", "Comprimento em linha reta entre os pontos. Não é o comprimento de um trajeto de corte." + linear);
+        ToolDescriptions.apply(angle, "Ângulo da medição", minimum
+                ? "Inclinação do segmento entre os pontos mais próximos, entre -90° e 90°; um segmento vertical mostra 90°.\n\nUnidades: graus."
+                : "Direção do ponto inicial ao final, de 0° a menos de 360°, em sentido anti-horário a partir de X.\n\nUnidades: graus.");
+        ToolDescriptions.apply(half, "Ponto médio", "Coordenadas no meio do segmento de menor distância entre os dois objetos." + linear);
+        ToolDescriptions.apply(run, minimum ? "Medir distância mínima" : "Nova medição", minimum
+                ? "Calcula os pontos mais próximos de exatamente dois objetos selecionados. Objetos que se tocam ou se intersectam têm distância zero.\n\nResultado: não modifica objetos nem cria caminhos CAM."
+                : "Inicia outra medição por dois cliques no Plot Area. Substitui o resultado anterior sem modificar os objetos.\n\nAtalho: Esc cancela a coleta.");
+        ToolDescriptions.apply(jumpHalf, "Localizar ponto médio", "Centraliza a vista no meio do segmento medido. Disponível após uma distância mínima maior que zero; não move os objetos.");
+        ToolDescriptions.apply(closeButton, "Fechar medição", "Fecha o painel e remove sua marcação temporária do Plot Area. Não altera os objetos.");
         HBox buttons = minimum ? new HBox(6, run, jumpHalf, closeButton) : new HBox(6, run, closeButton);
         message.setWrapText(true);
         message.setId("measure-message");

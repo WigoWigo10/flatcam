@@ -102,7 +102,7 @@ final class TerminalPanel extends BorderPane {
         BorderPane.setMargin(input, new Insets(4, 0, 0, 0));
         getStyleClass().add("terminal-panel");
 
-        appendLine("FlatCAM FX - " + versionLabel + " - linha de comando Tcl (dialeto reduzido, nao e o Tcl completo do Python).");
+        appendLine("FlatCAM FX - " + versionLabel + " - linha de comando Tcl (dialeto reduzido, não é o Tcl completo do Python).");
         appendLine("Digite 'help' para comecar.\n");
     }
 
@@ -187,7 +187,7 @@ final class TerminalPanel extends BorderPane {
             if (id != executionId) return;
             pendingProgress.set(null);
             if (failure instanceof CancellationException) {
-                appendLine("Cancelado. Comandos ja concluidos nao sao desfeitos.");
+                appendLine("Cancelado. Comandos já concluídos não são desfeitos.");
                 activity.setText("Cancelado.");
             } else if (failure != null) {
                 appendLine("ERRO: " + failure.getMessage());

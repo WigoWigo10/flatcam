@@ -65,7 +65,7 @@ final class ToolDefaultsDescriptions {
             case "Drilling" -> "Drilling Tool";
             case "Geometry CNC", "CNC Job (geral)" -> "Geometry CNC Job";
             case "Excellon Milling" -> "Milling Tool";
-            default -> "Preferencias";
+            default -> "Preferências";
         };
     }
 

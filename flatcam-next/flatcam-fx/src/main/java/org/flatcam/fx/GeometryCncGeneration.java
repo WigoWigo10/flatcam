@@ -22,7 +22,7 @@ final class GeometryCncGeneration {
         context.reportProgress(Double.NaN, "Gerando caminhos e G-code de Geometry...");
         CncJobResult job = GCodeGenerator.generateGeometryCncJob(units, tools, parameters, vTools,
                 parametersByTool, context::isCancelled, profile);
-        context.reportProgress(Double.NaN, "Preparando previa de Geometry...");
+        context.reportProgress(Double.NaN, "Preparando prévia de Geometry...");
         int[] lastPercent = {-1};
         GCodeToolpathParser.Result preview;
         try { preview = GCodeToolpathParser.parse(job.gcode(), context::isCancelled,
@@ -30,7 +30,7 @@ final class GeometryCncGeneration {
                     int percent = (int) Math.floor(fraction * 100);
                     if (percent != lastPercent[0]) {
                         lastPercent[0] = percent;
-                        context.reportProgress(fraction, "Lendo previa de Geometry...");
+                        context.reportProgress(fraction, "Lendo prévia de Geometry...");
                     }
                 }); }
         catch (IllegalArgumentException unavailable) { preview = null; }

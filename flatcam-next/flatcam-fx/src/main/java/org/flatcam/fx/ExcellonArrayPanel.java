@@ -49,10 +49,10 @@ final class ExcellonArrayPanel extends VBox {
         ToolDescriptions.apply(axis,"Eixo linear","X horizontal; Y vertical; ANGLE usa os graus do campo abaixo.");
         ToolDescriptions.apply(clockwise,"Sentido circular","Marcado: horário; desmarcado: anti-horário. O ângulo inicial é sempre medido a partir de X.");
         ToolDescriptions.apply(rotateSlots,"Rotação dos slots","Gira a direção do slot com cada raio no array circular. Desmarcado mantém todos paralelos ao ângulo informado.");
-        ToolDescriptions.apply(preview,"Prévia do array","Calcula fora da interface sem criar ferramentas ou mudar o rascunho. Confirme pelo botão ou clique no plot; Esc descarta. GRID aplica diretamente a seleção.");
+        ToolDescriptions.apply(preview,"Prévia do array","LINEAR/CIRCULAR: calcula fora da interface sem criar ferramentas ou mudar o rascunho. Confirme pelo botão ou clique no plot.\n\nAtenção: GRID aplica diretamente a cópia da seleção, sem uma etapa de confirmação.\n\nAtalho: Esc descarta a prévia linear/circular.");
         ToolDescriptions.apply(pick,"Origem no plot","Linear: clique no primeiro centro. Circular: clique no centro e no primeiro elemento para definir raio e ângulo, em qualquer quadrante. Respeita o Snap; depois mostra a prévia.");
-        ToolDescriptions.apply(confirm,"Confirmar array","Aplica exatamente a prévia. Ctrl+Z desfaz o array inteiro e a ferramenta nova; Ctrl+Y refaz. O clique de confirmação não desloca o array.");
-        ToolDescriptions.apply(cancel,"Cancelar array","Descarta a prévia ou invalida o resultado pendente. Cancelar na barra de progresso interrompe o trabalho quando possível.");
+        ToolDescriptions.apply(confirm,"Confirmar array","Aplica exatamente a prévia ao rascunho. O clique de confirmação não desloca o array.\n\nAtalhos: Ctrl+Z desfaz o array inteiro e a ferramenta nova; Ctrl+Y refaz.");
+        ToolDescriptions.apply(cancel,"Cancelar array","Descarta a prévia ou invalida o resultado pendente, sem remover um array já confirmado.\n\nLimitação: use Cancelar na barra de progresso para solicitar a interrupção de um cálculo em andamento.");
         for(var field:List.of(count,pitch,angle,x,y,radius,start,step,slotLength,slotAngle)) field.textProperty().addListener((o,a,b)->onChange.run());
         for(var prop:List.<javafx.beans.value.ObservableValue<?>>of(mode.valueProperty(),shape.valueProperty(),axis.valueProperty(),clockwise.selectedProperty(),rotateSlots.selectedProperty()))
             prop.addListener((o,a,b)->onChange.run());
@@ -81,7 +81,19 @@ final class ExcellonArrayPanel extends VBox {
     }
     private static TextField field(String id,String value,String help) {
         var f=new TextField(value); f.setId("excellon-array-"+id); f.setMinWidth(0); f.setPrefColumnCount(5);
-        ToolDescriptions.apply(f,"Array Excellon",help+" Alterar descarta a prévia anterior; somente Confirmar modifica o rascunho."); return f;
+        String title = switch (id) {
+            case "count" -> "Quantidade do array";
+            case "pitch" -> "Passo linear";
+            case "angle" -> "Ângulo linear";
+            case "x", "y" -> "Origem " + id.toUpperCase(java.util.Locale.ROOT);
+            case "radius" -> "Raio do array";
+            case "start" -> "Ângulo inicial";
+            case "step" -> "Passo angular";
+            case "slot-length" -> "Comprimento do slot";
+            case "slot-angle" -> "Ângulo do slot";
+            default -> "Array Excellon";
+        };
+        ToolDescriptions.apply(f,title,help+"\n\nPrévia: alterar descarta o resultado anterior; somente Confirmar array modifica o rascunho."); return f;
     }
     private static HBox row(String label,Node value) { return new HBox(6,new Label(label),value); }
 }

@@ -40,7 +40,7 @@ final class PanelizeToolPanel {
             sources = List.copyOf(sources); referenceBox = referenceBox.clone();
             if (sources.isEmpty()) throw new IllegalArgumentException("Escolha ao menos um objeto.");
             if (new java.util.HashSet<>(sources).size() != sources.size())
-                throw new IllegalArgumentException("Um objeto nao pode aparecer duas vezes no conjunto.");
+                throw new IllegalArgumentException("Um objeto não pode aparecer duas vezes no conjunto.");
         }
         @Override public double[] referenceBox() { return referenceBox.clone(); }
         TreeItem<String> source() { return sources.getFirst(); }
@@ -102,7 +102,7 @@ final class PanelizeToolPanel {
         CheckBox together = new CheckBox("Panelizar conjunto (mesma grade para todas as camadas)");
         together.setId("panelize-together");
         together.setTooltip(tooltip("Marque Gerbers, Excellons e contornos alinhados na origem. Todos recebem os mesmos "
-                + "deslocamentos; as caixas individuais nao mudam o passo entre copias."));
+                + "deslocamentos; as caixas individuais não mudam o passo entre cópias."));
         var chosen = new java.util.LinkedHashMap<TreeItem<String>, BooleanProperty>();
         for (TreeItem<String> item : host.sources()) chosen.put(item, new SimpleBooleanProperty(
                 host.selectedSources().contains(item) || item == source.getValue()));
@@ -117,11 +117,11 @@ final class PanelizeToolPanel {
         source.disableProperty().bind(together.selectedProperty());
 
         ToggleGroup referenceGroup = new ToggleGroup();
-        RadioButton ownBox = new RadioButton("Caixa do proprio objeto");
+        RadioButton ownBox = new RadioButton("Caixa do próprio objeto");
         RadioButton otherBox = new RadioButton("Caixa de outro objeto");
         ownBox.setId("panelize-own-box"); otherBox.setId("panelize-other-box");
         ownBox.textProperty().bind(javafx.beans.binding.Bindings.when(together.selectedProperty())
-                .then("Caixa combinada dos objetos").otherwise("Caixa do proprio objeto"));
+                .then("Caixa combinada dos objetos").otherwise("Caixa do próprio objeto"));
         ownBox.setToggleGroup(referenceGroup);
         otherBox.setToggleGroup(referenceGroup);
         ownBox.setSelected(true);
@@ -134,8 +134,8 @@ final class PanelizeToolPanel {
         reference.getSelectionModel().selectFirst();
         reference.visibleProperty().bind(otherBox.selectedProperty());
         reference.managedProperty().bind(reference.visibleProperty());
-        reference.setTooltip(tooltip("As copias ficam separadas pelo tamanho desta caixa (por exemplo o contorno da "
-                + "placa) mais o espacamento, mesmo que o objeto seja menor."));
+        reference.setTooltip(tooltip("As cópias ficam separadas pelo tamanho desta caixa (por exemplo o contorno da "
+                + "placa) mais o espaçamento, mesmo que o objeto seja menor."));
 
         // FX starts with 2 x 2 for a useful preview; other defaults match Python.
         TextField columns = new TextField(ToolDefaults.text("panelize.columns"));
@@ -149,7 +149,7 @@ final class PanelizeToolPanel {
         }
         CheckBox constrain = new CheckBox("Limitar o tamanho do painel");
         constrain.setId("panelize-limit");
-        constrain.setTooltip(tooltip("Se a grade nao couber, colunas e linhas diminuem ate caber, como no Python."));
+        constrain.setTooltip(tooltip("Se a grade não couber, colunas e linhas diminuem até caber, como no Python."));
         TextField limitWidth = new TextField(ToolDefaults.text("panelize.limitwidth"));
         TextField limitHeight = new TextField(ToolDefaults.text("panelize.limitheight"));
         limitWidth.setPrefColumnCount(5);
@@ -169,8 +169,8 @@ final class PanelizeToolPanel {
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
-        CheckBox showPreview = new CheckBox("Pre-visualizar no plot"); showPreview.setSelected(true);
-        CheckBox showContent = new CheckBox("Mostrar o conteudo replicado (cobre, furos)"); showContent.setSelected(true);
+        CheckBox showPreview = new CheckBox("Pré-visualizar no plot"); showPreview.setSelected(true);
+        CheckBox showContent = new CheckBox("Mostrar o conteúdo replicado (cobre, furos)"); showContent.setSelected(true);
         CheckBox showOutline = new CheckBox("Mostrar o contorno da placa replicada"); showOutline.setSelected(true);
         CheckBox fillInterior = new CheckBox("Preencher o interior da placa (translucido)"); fillInterior.setSelected(true);
         showPreview.setId("panelize-preview"); showContent.setId("panelize-preview-content");
@@ -178,7 +178,7 @@ final class PanelizeToolPanel {
         showContent.disableProperty().bind(showPreview.selectedProperty().not());
         showOutline.disableProperty().bind(showPreview.selectedProperty().not());
         fillInterior.disableProperty().bind(showPreview.selectedProperty().not().or(showOutline.selectedProperty().not()));
-        showPreview.setTooltip(tooltip("Previa visual como no 2-Sided Tool, calculada em segundo plano. Nao cria objetos."));
+        showPreview.setTooltip(tooltip("Prévia visual como no 2-Sided Tool, calculada em segundo plano. Não cria objetos."));
         showContent.setTooltip(tooltip("Repete o cobre, furos, rasgos ou caminhos dos objetos escolhidos, mantendo seus recortes."));
         javafx.scene.layout.FlowPane legend = new javafx.scene.layout.FlowPane(10, 4,
                 legendItem("Gerber", PlotAreaView.LayerCategory.GERBER),
@@ -187,8 +187,8 @@ final class PanelizeToolPanel {
         legend.setId("panelize-preview-legend");
         legend.visibleProperty().bind(showPreview.selectedProperty().and(showContent.selectedProperty()));
         legend.managedProperty().bind(legend.visibleProperty());
-        showOutline.setTooltip(tooltip("Desenha a borda e os cortes internos do contorno escolhido; sem contorno usa caixas de referencia."));
-        fillInterior.setTooltip(tooltip("Preenche somente contornos fechados, preservando cortes internos. Nao fecha linhas abertas automaticamente."));
+        showOutline.setTooltip(tooltip("Desenha a borda e os cortes internos do contorno escolhido; sem contorno usa caixas de referência."));
+        fillInterior.setTooltip(tooltip("Preenche somente contornos fechados, preservando cortes internos. Não fecha linhas abertas automaticamente."));
         ComboBox<TreeItem<String>> contour = new ComboBox<>();
         contour.setId("panelize-contour"); contour.getItems().add(null);
         contour.getItems().addAll(host.sources().stream().filter(host::canBeContour).toList());
@@ -199,8 +199,8 @@ final class PanelizeToolPanel {
         contour.setMaxWidth(Double.MAX_VALUE);
         contour.setMinWidth(0);
         contour.disableProperty().bind(showPreview.selectedProperty().not().or(showOutline.selectedProperty().not()));
-        contour.setTooltip(tooltip("Edge_Cuts ou Geometry de contorno, nas mesmas unidades. Esta escolha e so para previa; "
-                + "para criar tambem seu painel, marque o contorno na lista do conjunto."));
+        contour.setTooltip(tooltip("Edge_Cuts ou Geometry de contorno, nas mesmas unidades. Esta escolha é só para prévia; "
+                + "para criar também seu painel, marque o contorno na lista do conjunto."));
         TreeItem<String> initialContour = host.sources().stream().filter(host::canBeContour).filter(item ->
                 String.valueOf(item.getValue()).matches("(?i).*?(edge.?cuts|outline|profile|contorno|boundary).*"))
                 .filter(item -> source.getValue() != null && java.util.Objects.equals(host.units(item), host.units(source.getValue())))
@@ -213,9 +213,9 @@ final class PanelizeToolPanel {
             otherBox.setSelected(true); // one physical board pitch, even when copper/drill extents differ
         }
         Label previewState = new Label(); previewState.setId("panelize-preview-state"); previewState.setWrapText(true);
-        Button fitPreview = new Button("Enquadrar previa"); fitPreview.setId("panelize-preview-fit");
+        Button fitPreview = new Button("Enquadrar prévia"); fitPreview.setId("panelize-preview-fit");
         fitPreview.setMaxWidth(Double.MAX_VALUE); fitPreview.disableProperty().bind(showPreview.selectedProperty().not());
-        fitPreview.setTooltip(tooltip("Enquadra todas as copias da ultima previa calculada, sem criar objetos."));
+        fitPreview.setTooltip(tooltip("Enquadra todas as cópias da última prévia calculada, sem criar objetos."));
         fitPreview.setOnAction(event -> host.fitPreview());
         for (CheckBox check : List.of(together, gerberAsGeometry, constrain, showPreview, showContent, showOutline, fillInterior)) {
             check.setWrapText(true); check.setMaxWidth(Double.MAX_VALUE); check.setMinWidth(0);
@@ -239,12 +239,12 @@ final class PanelizeToolPanel {
                 TreeItem<String> other = reference.getValue();
                 double[] otherBounds = other == null ? null : host.bounds(other);
                 if (otherBounds == null) {
-                    throw new IllegalArgumentException("O objeto de referencia nao tem geometria");
+                    throw new IllegalArgumentException("O objeto de referência não tem geometria");
                 }
                 box = otherBounds;
             }
             Panelize.Layout layout = Panelize.layout(box, integer(columns, "Colunas"), integer(rows, "Linhas"),
-                    number(spacingColumns, "Espacamento das colunas"), number(spacingRows, "Espacamento das linhas"),
+                    number(spacingColumns, "Espaçamento das colunas"), number(spacingRows, "Espaçamento das linhas"),
                     constrain.isSelected() ? number(limitWidth, "Largura") : Double.NaN,
                     constrain.isSelected() ? number(limitHeight, "Altura") : Double.NaN);
             return new Request(items, otherBox.isSelected() ? reference.getValue() : null, box, layout, gerberAsGeometry.isSelected());
@@ -263,7 +263,7 @@ final class PanelizeToolPanel {
                 } else host.preview(null, null, previewState::setText);
                 double[] size = layout.size(box[2] - box[0], box[3] - box[1], number(spacingColumns, ""),
                         number(spacingRows, ""));
-                summary.setText(String.format(Locale.ROOT, "%d objeto(s); %d x %d = %d copias; painel %.2f x %.2f %s%s",
+                summary.setText(String.format(Locale.ROOT, "%d objeto(s); %d x %d = %d cópias; painel %.2f x %.2f %s%s",
                         current.sources().size(),
                         layout.columns(), layout.rows(), layout.columns() * layout.rows(), size[0], size[1],
                         host.units(current.source()),
@@ -311,12 +311,12 @@ final class PanelizeToolPanel {
 
         VBox panel = new VBox(8,
                 new Label("Objeto a repetir:"), source, together, objects,
-                new Label("Distancia entre copias baseada em:"), new VBox(4, ownBox, otherBox), reference,
+                new Label("Distância entre cópias baseada em:"), new VBox(4, ownBox, otherBox), reference,
                 new HBox(6, new Label("Colunas:"), columns, new Label("Linhas:"), rows),
-                new HBox(6, new Label("Espacamento colunas:"), spacingColumns),
-                new HBox(6, new Label("Espacamento linhas:"), spacingRows),
+                new HBox(6, new Label("Espaçamento colunas:"), spacingColumns),
+                new HBox(6, new Label("Espaçamento linhas:"), spacingRows),
                 constrain, limits, gerberAsGeometry, summary, new Separator(), showPreview, showContent,
-                legend, showOutline, new Label("Contorno da placa (previa):"), contour, fillInterior, previewState, fitPreview,
+                legend, showOutline, new Label("Contorno da placa (prévia):"), contour, fillInterior, previewState, fitPreview,
                 new Separator(), panelize, errorLabel, close);
         panel.setPadding(new Insets(6));
         refresh.run();
@@ -330,7 +330,7 @@ final class PanelizeToolPanel {
         swatch.setArcWidth(3); swatch.setArcHeight(3);
         swatch.setStroke(javafx.scene.paint.Color.gray(.4));
         var label = new Label(name, swatch);
-        label.setTooltip(tooltip("Cor da categoria na previa; nao altera as cores dos objetos do projeto."));
+        label.setTooltip(tooltip("Cor da categoria na prévia; não altera as cores dos objetos do projeto."));
         return label;
     }
 
@@ -348,16 +348,16 @@ final class PanelizeToolPanel {
             if (!Double.isFinite(value)) throw new NumberFormatException();
             return value;
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor invalido em " + name.toLowerCase(Locale.ROOT));
+            throw new IllegalArgumentException("Valor inválido em " + name.toLowerCase(Locale.ROOT));
         }
     }
 
     static void requireSameUnits(Host host, List<TreeItem<String>> items, TreeItem<String> reference) {
         String units = host.units(items.getFirst());
-        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException("Unidades nao reconhecidas.");
+        if (!("MM".equals(units) || "IN".equals(units))) throw new IllegalArgumentException("Unidades não reconhecidas.");
         if (items.stream().anyMatch(item -> !units.equals(host.units(item)))
                 || reference != null && !units.equals(host.units(reference)))
-            throw new IllegalArgumentException("Objetos, referencia e contorno devem usar as mesmas unidades (MM ou IN). Converta antes.");
+            throw new IllegalArgumentException("Objetos, referência e contorno devem usar as mesmas unidades (MM ou IN). Converta antes.");
     }
 
     private static Tooltip tooltip(String text) {

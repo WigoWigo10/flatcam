@@ -75,7 +75,7 @@ final class GerberEditorController {
 
     void start(TreeItem<String> sourceItem, GerberImage image) {
         if (session != null) {
-            host.log("Ja existe uma edicao em andamento em " + item.getValue() + ".");
+            host.log("Já existe uma edição em andamento em " + item.getValue() + ".");
             return;
         }
         item = sourceItem;
@@ -131,7 +131,7 @@ final class GerberEditorController {
             return;
         }
         end();
-        host.log("Editor: edicao cancelada.");
+        host.log("Editor: edição cancelada.");
     }
 
     private void apply() {
@@ -146,7 +146,7 @@ final class GerberEditorController {
             }
             end();
             String name = host.addEditedGerber(result.name(), result.image());
-            host.log("Editor: objeto \"" + name + "\" criado a partir da edicao.");
+            host.log("Editor: objeto \"" + name + "\" criado a partir da edição.");
         }, () -> {
             if (session == editing) {
                 panel.setBusy(false);
@@ -243,7 +243,7 @@ final class GerberEditorController {
         Aperture aperture = session.apertures().get(apertureCode);
         if (aperture == null || aperture.kind != ApertureKind.CIRCLE
                 || !Double.isFinite(aperture.width) || aperture.width <= 0) {
-            panel.showError("Selecione uma abertura circular C com diametro positivo.");
+            panel.showError("Selecione uma abertura circular C com diâmetro positivo.");
             return;
         }
         GerberEditSession editing = session;
@@ -285,7 +285,7 @@ final class GerberEditorController {
             panel.showTrackProgress(0, TrackBendMode.FORTY_FIVE);
             panel.showError("");
             host.log("Editor: trilha D" + apertureCode
-                    + " - clique para adicionar pontos; Enter/duplo clique/botao direito conclui; "
+                    + " - clique para adicionar pontos; Enter/duplo clique/botão direito conclui; "
                     + "Backspace volta; T/R muda o modo; Esc cancela.");
         }
     }
@@ -298,7 +298,7 @@ final class GerberEditorController {
             apply();
         } else {
             end();
-            host.log("Editor: fechado sem alteracoes.");
+            host.log("Editor: fechado sem alterações.");
         }
     }
 
@@ -334,7 +334,7 @@ final class GerberEditorController {
                         panel.showError("");
                         refreshSelection();
                     } else {
-                        panel.showError("A regiao precisa de pelo menos tres vertices distintos.");
+                        panel.showError("A região precisa de pelo menos três vértices distintos.");
                     }
                 } catch (RuntimeException exception) {
                     panel.showError(exception.getMessage());
@@ -352,14 +352,14 @@ final class GerberEditorController {
             panel.setRegionPlacing(true);
             panel.showRegionProgress(0, TrackBendMode.FORTY_FIVE);
             panel.showError("");
-            host.log("Editor: regiao - clique nos vertices; Enter/duplo clique/botao direito conclui; "
+            host.log("Editor: região - clique nos vértices; Enter/duplo clique/botão direito conclui; "
                     + "Backspace volta; T/R muda a dobra; Esc cancela.");
         }
     }
 
     private void addPadArray(GerberEditToolPanel.PadArrayRequest request) {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
-            throw new IllegalStateException("Editor indisponivel para array de pads.");
+            throw new IllegalStateException("Editor indisponível para array de pads.");
         }
         boolean changed = request.circular()
                 ? session.addCircularPadArray(request.code(), request.x(), request.y(), request.count(),
@@ -386,7 +386,7 @@ final class GerberEditorController {
 
     private String addAperture(ApertureKind kind, double width, double height, int vertices, double rotation) {
         if (session == null || session.shapesApproximated() || panel.isBusy()) {
-            throw new IllegalStateException("Editor indisponivel para adicionar abertura.");
+            throw new IllegalStateException("Editor indisponível para adicionar abertura.");
         }
         String code = kind == ApertureKind.POLYGON
                 ? session.addPolygonAperture(width, vertices, rotation)
@@ -479,7 +479,7 @@ final class GerberEditorController {
                     @Override
                     public void onCommit(double dx, double dy) {
                         if (session != editing || !editing.selectedIndices().equals(selectedAtStart)) {
-                            host.log("Editor: posicionamento cancelado; a selecao mudou.");
+                            host.log("Editor: posicionamento cancelado; a seleção mudou.");
                             return;
                         }
                         panel.setPlacing(false);
@@ -499,7 +499,7 @@ final class GerberEditorController {
         if (started) {
             panel.setPlacing(true);
             host.log("Editor: " + (copy ? "copiar" : "mover")
-                    + " formas — clique na origem e depois no destino; Esc ou botao direito cancela.");
+                    + " formas — clique na origem e depois no destino; Esc ou botão direito cancela.");
         }
     }
 

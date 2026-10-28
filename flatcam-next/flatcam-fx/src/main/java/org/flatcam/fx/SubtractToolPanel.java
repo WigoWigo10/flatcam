@@ -86,7 +86,7 @@ final class SubtractToolPanel {
         CheckBox closePaths = new CheckBox("Fechar caminhos");
         closePaths.setSelected(true);
         closePaths.setTooltip(tooltip("Geometry: corta os caminhos do alvo como uma forma fechada unica. "
-                + "Desmarcado, cada poligono vira seus aneis e cada linha e cortada separadamente."));
+                + "Desmarcado, cada polígono vira seus aneis e cada linha e cortada separadamente."));
         closePaths.visibleProperty().bind(geometryKind.selectedProperty());
         closePaths.managedProperty().bind(closePaths.visibleProperty());
         CheckBox deleteSources = new CheckBox("Excluir os objetos de origem");
@@ -102,11 +102,11 @@ final class SubtractToolPanel {
             TreeItem<String> targetItem = target.getValue();
             TreeItem<String> subtractorItem = subtractor.getValue();
             if (targetItem == null) {
-                errorLabel.setText("Nao ha objeto alvo carregado");
+                errorLabel.setText("Não há objeto alvo carregado");
                 return;
             }
             if (subtractorItem == null) {
-                errorLabel.setText("Nao ha objeto subtraendo carregado");
+                errorLabel.setText("Não há objeto subtraendo carregado");
                 return;
             }
             if (targetItem == subtractorItem) {

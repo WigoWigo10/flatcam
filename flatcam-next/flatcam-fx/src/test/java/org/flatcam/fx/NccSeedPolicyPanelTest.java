@@ -29,7 +29,7 @@ class NccSeedPolicyPanelTest {
             table.getSelectionModel().clearAndSelect(0);
             assertFalse(policy.isDisabled());
             assertEquals(NccSeedPolicy.STABLE,policy.getValue());
-            assertTrue(policy.getTooltip().getText().contains("Pequenas diferencas"));
+            assertTrue(policy.getTooltip().getText().contains("Pequenas diferenças"));
             policy.setValue(NccSeedPolicy.PYTHON);
             ((Button)root.lookup("#ncc-generate")).fire();
             assertNotNull(result.get());

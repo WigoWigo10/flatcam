@@ -198,7 +198,7 @@ final class GeometryEditorController {
 
     void start(TreeItem<String> sourceItem, Geometry geometry, List<ToolGeometry> tools, boolean strokeOnly, String units) {
         if (isActive()) {
-            host.log("Ja existe uma edicao de Geometry em andamento.");
+            host.log("Já existe uma edição de Geometry em andamento.");
             return;
         }
         item = sourceItem;
@@ -247,11 +247,11 @@ final class GeometryEditorController {
         idColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(Long.toString(row.getValue().id())));
         idColumn.setPrefWidth(72);
         idColumn.setSortable(false);
-        TableColumn<GeometryEditSession.ShapeRow, String> typeColumn = new TableColumn<>("Type");
+        TableColumn<GeometryEditSession.ShapeRow, String> typeColumn = new TableColumn<>("Tipo");
         typeColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().type()));
         typeColumn.setPrefWidth(65);
         typeColumn.setSortable(false);
-        TableColumn<GeometryEditSession.ShapeRow, String> nameColumn = new TableColumn<>("Name");
+        TableColumn<GeometryEditSession.ShapeRow, String> nameColumn = new TableColumn<>("Nome");
         nameColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(row.getValue().name()));
         nameColumn.setPrefWidth(95);
         nameColumn.setSortable(false);
@@ -276,8 +276,8 @@ final class GeometryEditorController {
         });
         Button selectButton = new Button("Selecionar");
         Button pathButton = new Button("Caminho");
-        Button polygonButton = new Button("Poligono");
-        Button rectangleButton = new Button("Retangulo");
+        Button polygonButton = new Button("Polígono");
+        Button rectangleButton = new Button("Retângulo");
         Button circleButton = new Button("Circulo");
         Button arcButton = new Button("Arco");
         arcButton.setId("geometry-arc");
@@ -289,22 +289,22 @@ final class GeometryEditorController {
         applyButton = new Button("Aplicar ao objeto");
         applyButton.getStyleClass().add("primary-action");
         unionButton = new Button("Unir selecionadas");
-        intersectionButton = new Button("Intersecao selecionadas");
+        intersectionButton = new Button("Interseção selecionadas");
         subtractButton = new Button("Subtrair da primeira selecionada");
         cutPathButton = new Button("Cortar Caminho");
         bufferButton = new Button("Criar buffer arredondado");
-        explodeButton = new Button("Explodir poligonos");
-        transformButton = new Button("Transformacoes");
+        explodeButton = new Button("Explodir polígonos");
+        transformButton = new Button("Transformações");
         textButton = new Button("Texto"); textButton.setId("geometry-text");
         eraserButton = new Button("Borracha"); eraserButton.setId("geometry-eraser");
         paintButton = new Button("Paint Shape"); paintButton.setId("geometry-paint");
         bufferDistance = new TextField();
-        bufferDistance.setPromptText("Distancia positiva (unidade do projeto)");
+        bufferDistance.setPromptText("Distância positiva (unidade do projeto)");
         bufferMode = new ComboBox<>();
         bufferMode.getItems().addAll("Completo", "Interior", "Exterior");
         bufferMode.getSelectionModel().selectFirst();
         bufferMode.setMaxWidth(Double.MAX_VALUE);
-        Button cancelButton = new Button("Cancelar edicao");
+        Button cancelButton = new Button("Cancelar edição");
         editorButtons = List.of(selectButton, pathButton, polygonButton, rectangleButton, circleButton, arcButton,
                 deleteButton, moveButton, copyButton, unionButton, intersectionButton, subtractButton,
                 bufferButton, explodeButton, cutPathButton, transformButton, textButton, eraserButton, paintButton,
@@ -442,7 +442,7 @@ final class GeometryEditorController {
         ToolDescriptions.apply(placeText, "Prévia e inserção do texto",
                 "Calcula os contornos em segundo plano e mostra uma prévia. A primeira linha usa o ponto clicado como linha de base; linhas seguintes descem.\n\nClique no plot para confirmar; Esc/botão direito cancela sem perder o formulário. Ctrl+Z desfaz a inserção inteira. Salvar e sair do editor aplica o rascunho ao objeto.");
         placeText.setOnAction(event -> generateText());
-        Label textHelp = new Label("Texto vira areas editaveis com vazios das letras preservados. "
+        Label textHelp = new Label("Texto vira áreas editáveis com vazios das letras preservados. "
                 + "A origem e a linha de base da primeira linha. Clique para inserir; Esc cancela.");
         textHelp.setWrapText(true);
         textPane = new TitledPane("Texto vetorial", new VBox(8, new Label("Fonte:"), textFont,
@@ -487,9 +487,9 @@ final class GeometryEditorController {
         paintMethod.setValue(org.flatcam.cam.ncc.NccMethod.STANDARD); paintMethod.setId("geometry-paint-method");
         paintConnect = new CheckBox("Connect"); paintConnect.setSelected(true);
         paintContour = new CheckBox("Contour"); paintContour.setSelected(true);
-        Button paintPreview = new Button("Calcular previa"); paintPreview.setId("geometry-paint-preview");
+        Button paintPreview = new Button("Calcular prévia"); paintPreview.setId("geometry-paint-preview");
         Button paintConfirm = new Button("Confirmar Paint"); paintConfirm.setId("geometry-paint-confirm");
-        Button paintCancel = new Button("Cancelar previa");
+        Button paintCancel = new Button("Cancelar prévia");
         paintPreview.setOnAction(event -> generatePaint());
         paintConfirm.setOnAction(event -> { if (rotationGesture == null) plotArea.confirmEditorFixedPreview(); });
         paintCancel.setOnAction(event -> plotArea.cancelPlacement());
@@ -498,9 +498,9 @@ final class GeometryEditorController {
             property.addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
         paintConnect.selectedProperty().addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
         paintContour.selectedProperty().addListener((obs, was, value) -> { if (!busy) plotArea.cancelPlacement(); });
-        ToolDescriptions.apply(paintDiameter, "Diametro do Paint", "Diametro positivo na unidade do objeto. Em Geometry com ferramentas, deve coincidir com a ferramenta das formas selecionadas; nao muda diametros existentes. Sem associacao, confira o mesmo diametro ao gerar CNC.");
-        ToolDescriptions.apply(paintMargin, "Margem do Paint", "Positiva contrai a area; negativa expande.\n\nAtenção: margem negativa pode gerar cortes fora da forma original. Unidades: mm ou in.");
-        ToolDescriptions.apply(paintPreview, "Previa do Paint", GeometryEditorDescriptions.of("paint").text());
+        ToolDescriptions.apply(paintDiameter, "Diâmetro do Paint", "Diâmetro positivo na unidade do objeto. Em Geometry com ferramentas, deve coincidir com a ferramenta das formas selecionadas; não muda diâmetros existentes. Sem associacao, confira o mesmo diâmetro ao gerar CNC.");
+        ToolDescriptions.apply(paintMargin, "Margem do Paint", "Positiva contrai a área; negativa expande.\n\nAtenção: margem negativa pode gerar cortes fora da forma original. Unidades: mm ou in.");
+        ToolDescriptions.apply(paintPreview, "Prévia do Paint", GeometryEditorDescriptions.of("paint").text());
         paintPane = new TitledPane("Paint Shape", new VBox(8,
                 new HBox(8, new Label("Tool Dia:"), paintDiameter), new HBox(8, new Label("Overlap (%):"), paintOverlap),
                 new HBox(8, new Label("Margem:"), paintMargin), new HBox(8, new Label("Method:"), paintMethod),
@@ -552,7 +552,7 @@ final class GeometryEditorController {
         ToolDescriptions.apply(rotationReference,"Referência da transformação","Origem, centro/canto da caixa da seleção ou ponto absoluto. Centro significa centro da caixa, não centro de massa. Compartilhada por rotação, escala, espelho e inclinação; não muda o deslocamento X/Y.");
         ToolDescriptions.apply(rotate,"Prévia da transformação","Calcula fora da interface, sem alterar o rascunho. Confira o contorno e o pivô no Plot Area; confirme pelo botão ou clique. Esc/botão direito cancela. Valores e seleção alterados invalidam a prévia.");
         ToolDescriptions.apply(rotationConfirm,"Confirmar transformação","Aplica exatamente a prévia, mantendo IDs, ferramentas e seleção. Ctrl+Z desfaz e Ctrl+Y refaz em uma etapa. Salvar e sair publica o rascunho no objeto.");
-        ToolDescriptions.apply(rotationCancel,"Cancelar prévia","Descarta a prévia sem alterar as formas. Durante o cálculo, Esc invalida o resultado pendente; o botão Cancelar da barra de progresso interrompe o trabalho quando possível.");
+        ToolDescriptions.apply(rotationCancel,"Cancelar prévia","Descarta a prévia sem alterar as formas. Durante o cálculo, Esc inválida o resultado pendente; o botão Cancelar da barra de progresso interrompe o trabalho quando possível.");
         var pivotRow=new HBox(8,new Label("Pivô X:"),rotationX,new Label("Y:"),rotationY);
         for(Node node:List.of(rotationReference,pivotRow,pickPivot)) {
             node.visibleProperty().bind(transformKind.valueProperty().isNotEqualTo(TransformKind.OFFSET));
@@ -560,7 +560,7 @@ final class GeometryEditorController {
         }
         VBox transformControls = new VBox(8,transformKind,angleRow,scaleRow,skewRow,offsetRow,rotationReference,
                 pivotRow,pickPivot,dragRotate,rotate,rotationConfirm,rotationCancel);
-        transformsPane = new TitledPane("Transformacoes das selecionadas", transformControls);
+        transformsPane = new TitledPane("Transformações das selecionadas", transformControls);
         transformsPane.setExpanded(false);
         transformButton.setOnAction(event -> transformsPane.setExpanded(!transformsPane.isExpanded()));
         panel.getChildren().add(transformsPane);
@@ -578,8 +578,8 @@ final class GeometryEditorController {
             }
         });
         Tooltip millingHelp = new Tooltip("Sentido de fresagem das formas novas (como o Milling Type do Editor Geometry "
-                + "do Python). Climb inverte o sentido em que a forma foi desenhada; Conventional mantem. "
-                + "Nao altera formas ja existentes.");
+                + "do Python). Climb inverte o sentido em que a forma foi desenhada; Conventional mantém. "
+                + "Não altera formas já existentes.");
         climbRadio.setTooltip(millingHelp);
         conventionalRadio.setTooltip(millingHelp);
         panel.getChildren().add(new HBox(10, new Label("Milling Type (novas formas):"), climbRadio, conventionalRadio));
@@ -599,7 +599,7 @@ final class GeometryEditorController {
         exitButton.getStyleClass().add("primary-action");
         exitButton.setMaxWidth(Double.MAX_VALUE);
         exitButton.setOnAction(event -> apply());
-        discardButton = new Button("Descartar alteracoes");
+        discardButton = new Button("Descartar alterações");
         discardButton.setMaxWidth(Double.MAX_VALUE);
         discardButton.setOnAction(event -> cancel());
         panel.getChildren().addAll(exitButton, discardButton);
@@ -638,7 +638,7 @@ final class GeometryEditorController {
         try {
             return Double.parseDouble(field.getText().trim().replace(',', '.'));
         } catch (NumberFormatException error) {
-            throw new IllegalArgumentException(name + " deve ser numerico.");
+            throw new IllegalArgumentException(name + " deve ser numérico.");
         }
     }
 
@@ -808,7 +808,7 @@ final class GeometryEditorController {
             return;
         }
         plotArea.cancelPlacement();
-        instruction.setText("Selecione formas no desenho; Ctrl alterna a selecao.");
+        instruction.setText("Selecione formas no desenho; Ctrl alterna a seleção.");
     }
 
     void startPath() {
@@ -944,8 +944,8 @@ final class GeometryEditorController {
             @Override
             public void onPathChanged(int anchorCount, org.flatcam.cam.gerber.edit.TrackBendMode mode) {
                 if (session == editing) {
-                    instruction.setText((polygon ? "Poligono" : "Caminho") + ": " + anchorCount
-                            + " ponto(s). Clique no proximo; Enter ou botao direito conclui; Esc cancela.");
+                    instruction.setText((polygon ? "Polígono" : "Caminho") + ": " + anchorCount
+                            + " ponto(s). Clique no próximo; Enter ou botão direito conclui; Esc cancela.");
                 }
             }
 
@@ -960,7 +960,7 @@ final class GeometryEditorController {
                     } else {
                         editing.addPath(points, toolIndex);
                     }
-                    instruction.setText((polygon ? "Poligono" : "Caminho") + " adicionado.");
+                    instruction.setText((polygon ? "Polígono" : "Caminho") + " adicionado.");
                     refreshGeometry();
                 } catch (IllegalArgumentException invalid) {
                     instruction.setText(invalid.getMessage());
@@ -1002,8 +1002,8 @@ final class GeometryEditorController {
                         anchor[0] = x;
                         anchor[1] = y;
                         if (session == editing) {
-                            instruction.setText(circle ? "Clique no perimetro do circulo."
-                                    : "Clique no canto oposto do retangulo.");
+                            instruction.setText(circle ? "Clique no perímetro do circulo."
+                                    : "Clique no canto oposto do retângulo.");
                         }
                     }
 
@@ -1021,7 +1021,7 @@ final class GeometryEditorController {
                                 editing.addRectangle(anchor[0], anchor[1], anchor[0] + dx, anchor[1] + dy,
                                         toolIndex);
                             }
-                            instruction.setText((circle ? "Circulo" : "Retangulo") + " adicionado.");
+                            instruction.setText((circle ? "Circulo" : "Retângulo") + " adicionado.");
                             refreshGeometry();
                         } catch (IllegalArgumentException invalid) {
                             instruction.setText(invalid.getMessage());
@@ -1064,7 +1064,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         paintDiameter.setText(Double.toString(session.selectedToolDiameter(0.3)));
         paintPane.setExpanded(true);
-        instruction.setText("Selecione areas fechadas, configure Paint e calcule a previa.");
+        instruction.setText("Selecione áreas fechadas, configure Paint e calcule a prévia.");
     }
 
     private void generatePaint() {
@@ -1072,7 +1072,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         GeometryEditSession editing = session;
         try {
-            var p = new org.flatcam.cam.ncc.PaintParameters(List.of(parseTransformNumber(paintDiameter, "Diametro")),
+            var p = new org.flatcam.cam.ncc.PaintParameters(List.of(parseTransformNumber(paintDiameter, "Diâmetro")),
                     parseTransformNumber(paintOverlap, "Overlap") / 100, parseTransformNumber(paintMargin, "Margem"),
                     paintMethod.getValue(), paintConnect.isSelected(), paintContour.isSelected(), org.flatcam.cam.ncc.NccOrder.NONE, false);
             calculate(editing.preparePaint(p, units), result -> {
@@ -1081,11 +1081,11 @@ final class GeometryEditorController {
                     public void onCommit(double dx, double dy) {
                         if (session != editing) return;
                         if (editing.applyOperation(result)) { refreshGeometry(); instruction.setText("Paint adicionado; contornos preservados. Ctrl+Z desfaz."); }
-                        else instruction.setText("Selecao ou rascunho mudou; previa descartada.");
+                        else instruction.setText("Seleção ou rascunho mudou; prévia descartada.");
                     }
-                    public void onCancel() { if (session == editing) instruction.setText("Previa do Paint cancelada; formas preservadas."); }
+                    public void onCancel() { if (session == editing) instruction.setText("Prévia do Paint cancelada; formas preservadas."); }
                 });
-                instruction.setText(started ? "Confira a previa fixa; clique no plot ou Confirmar Paint. Esc cancela." : "Nao foi possivel mostrar a previa.");
+                instruction.setText(started ? "Confira a prévia fixa; clique no plot ou Confirmar Paint. Esc cancela." : "Não foi possível mostrar a prévia.");
             });
         } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
     }
@@ -1112,7 +1112,7 @@ final class GeometryEditorController {
                     public void onCancel() { if (session == editing) instruction.setText("Texto cancelado; rascunho preservado."); }
                 });
                 instruction.setText(started ? "Clique para posicionar a linha de base do texto; Esc cancela."
-                        : "Nao foi possivel iniciar o posicionamento do texto.");
+                        : "Não foi possível iniciar o posicionamento do texto.");
             });
         } catch (IllegalArgumentException error) { instruction.setText(error.getMessage()); }
     }
@@ -1220,7 +1220,7 @@ final class GeometryEditorController {
                         }
                         if (copy ? editing.copySelected(dx, dy) : editing.moveSelected(dx, dy)) {
                             refreshGeometry();
-                            instruction.setText(copy ? "Copia concluida." : "Movimento concluido.");
+                            instruction.setText(copy ? "Cópia concluída." : "Movimento concluído.");
                         } else {
                             instruction.setText("Nenhum deslocamento aplicado.");
                         }
@@ -1247,7 +1247,7 @@ final class GeometryEditorController {
             return true;
         }
         if (busy) {
-            host.log("Aguarde o calculo geometrico em andamento.");
+            host.log("Aguarde o cálculo geométrico em andamento.");
             return false;
         }
         host.log("Selecione um objeto Geometry e abra o Editor antes de usar esta ferramenta.");
@@ -1321,7 +1321,7 @@ final class GeometryEditorController {
             };
             runOperation(operation, distance);
         } catch (NumberFormatException invalid) {
-            instruction.setText("Informe uma distancia numerica positiva para o buffer.");
+            instruction.setText("Informe uma distância numérica positiva para o buffer.");
         }
     }
 
@@ -1341,10 +1341,10 @@ final class GeometryEditorController {
         calculate(request, result -> {
             if (editing.applyOperation(result)) {
                 refreshGeometry();
-                instruction.setText("Operacao concluida. Ctrl+Z desfaz.");
+                instruction.setText("Operação concluída. Ctrl+Z desfaz.");
             } else {
                 refreshSelection();
-                instruction.setText("O rascunho mudou durante o calculo ou nao houve alteracao; resultado descartado.");
+                instruction.setText("O rascunho mudou durante o cálculo ou não houve alteração; resultado descartado.");
             }
         });
     }
@@ -1379,7 +1379,7 @@ final class GeometryEditorController {
             busy = false;
             failure.run();
             refreshSelection();
-            instruction.setText("Nao foi possivel iniciar: ja existe outra operacao em andamento.");
+            instruction.setText("Não foi possível iniciar: já existe outra operação em andamento.");
         }
     }
 
@@ -1404,7 +1404,7 @@ final class GeometryEditorController {
         plotArea.cancelPlacement();
         if (session.isDirty()) {
             host.apply(item, session.resultGeometry(), session.resultTools());
-            host.log("Editor Geometry: alteracoes aplicadas em " + item.getValue() + ".");
+            host.log("Editor Geometry: alterações aplicadas em " + item.getValue() + ".");
         }
         end();
     }
@@ -1421,7 +1421,7 @@ final class GeometryEditorController {
         }
         plotArea.cancelPlacement();
         end();
-        host.log("Editor Geometry: edicao descartada.");
+        host.log("Editor Geometry: edição descartada.");
     }
 
     private void refreshGeometry() {
@@ -1454,7 +1454,7 @@ final class GeometryEditorController {
                 strokeOnly || simplified, selectedColor);
         status.setText(session.shapeCount() + " formas; " + session.selectedCount() + " selecionadas"
                 + (simplified ? "; destaque simplificado por contorno" : "")
-                + (session.isDirty() ? "; alteracoes pendentes." : "; sem alteracoes."));
+                + (session.isDirty() ? "; alterações pendentes." : "; sem alterações."));
         deleteButton.setDisable(session.selectedCount() == 0);
         moveButton.setDisable(session.selectedCount() == 0);
         copyButton.setDisable(session.selectedCount() == 0);

@@ -89,7 +89,7 @@ final class CornerMarkersToolPanel {
         grid.addRow(0, new Label("Espessura:"), thickness);
         grid.addRow(1, new Label("Comprimento:"), length);
         grid.addRow(2, new Label("Margem:"), margin);
-        grid.addRow(3, new Label("Diametro da broca:"), drill);
+        grid.addRow(3, new Label("Diâmetro da broca:"), drill);
 
         Label errorLabel = new Label();
         errorLabel.getStyleClass().add("form-error-label");
@@ -124,7 +124,7 @@ final class CornerMarkersToolPanel {
                         number(length), number(margin));
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -140,7 +140,7 @@ final class CornerMarkersToolPanel {
                         number(drill));
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }

@@ -18,6 +18,22 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 class TooltipContentTest {
+    @Test void translatedActionsAndNewWorkflowNotesKeepTheirMeaningAndLiteralValues() {
+        String text = "Use Salvar base e Confirmar array.\n\n"
+                + "Prévia: LINEAR e CIRCULAR aguardam confirmação.\n"
+                + "Unidades: 0.125 mm; arquivo C:/Projeto/placa_v2.1.drl.\n\n"
+                + "Limitação: G85 representa somente rasgos retos.\n\n"
+                + "Atalhos: Ctrl+Shift+S / Ctrl+Z.\nExemplo: <tag> **literal**";
+        var content = TooltipContent.describe(text);
+        assertEquals(text, content.plainText());
+        for (String action : new String[]{"Salvar base", "Confirmar array", "LINEAR", "CIRCULAR", "G85", "Ctrl+Shift+S", "Ctrl+Z"})
+            assertTrue(content.spans().stream().anyMatch(span -> span.text().equals(action)
+                    && span.style() == TooltipContent.Style.BOLD), action);
+        assertTrue(content.spans().stream().anyMatch(span -> span.text().equals("Limitação:") && span.style() == TooltipContent.Style.NOTE));
+        for (String heading : new String[]{"Prévia:", "Unidades:", "Atalhos:", "Exemplo:"})
+            assertTrue(content.spans().stream().anyMatch(span -> span.text().equals(heading) && span.style() == TooltipContent.Style.ACCENT), heading);
+    }
+
     @Test void formattingRetainsOptionLinesAndMakesUnitAndIntegrationNotesDistinct() {
         var field = ToolsDatabaseFields.ALL.stream().filter(f -> f.key().equals("tools_paint_method")).findFirst().orElseThrow();
         TooltipContent content = ToolsDatabaseDescriptions.content(ToolsDatabaseDescriptions.fieldText(field));
@@ -38,7 +54,7 @@ class TooltipContentTest {
             Scene scene = new Scene(new VBox(owner));
             FluidTooltips tooltips = new FluidTooltips(scene, () -> theme);
             String explanation = "Cut Z define a profundidade de corte. Normalmente negativa para entrar no material.\n\n"
-                    + "Unidades: mm ou in.\nAtalhos: Ctrl+Z / Ctrl+Y.\n\nAtenção: confira as alturas.\n\nIntegração FX: salvo na base; transferência ainda pendente.";
+                    + "Unidades: mm ou in.\nAtalhos: Ctrl+Z / Ctrl+Y.\n\nPrévia: confira G01 e G85.\n\nLimitação: macros não são simuladas.\n\nAtenção: confira as alturas.\n\nIntegração FX: salvo na base; transferência ainda pendente.";
             ToolsDatabaseDescriptions.apply(owner, "Profundidade", explanation);
             tooltips.fill(owner);
             VBox box = (VBox) tooltips.popup().getContent().getFirst();

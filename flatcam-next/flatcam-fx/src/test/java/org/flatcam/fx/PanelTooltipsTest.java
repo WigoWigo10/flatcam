@@ -25,6 +25,23 @@ import org.junit.jupiter.api.condition.OS;
 
 class PanelTooltipsTest {
     @Test @EnabledOnOs(OS.WINDOWS)
+    void splitPanePagesAndLaterRowsReceiveHelpWithoutReplacingAuthoredText() throws Exception {
+        fx(() -> {
+            var split = new javafx.scene.control.SplitPane();
+            PanelTooltips.install(split, "NCC Tool");
+            TextField overlap = new TextField();
+            HBox row = new HBox(new Label("Overlap (%):"), overlap);
+            split.getItems().add(new VBox(row));
+            assertTrue(overlap.getAccessibleHelp().contains("porcentagem"));
+            TextField custom = new TextField();
+            ToolDescriptions.apply(custom, "Dica específica", "Descrição que deve ser mantida.");
+            split.getItems().add(new HBox(new Label("Margin:"), custom));
+            assertEquals("Descrição que deve ser mantida.", custom.getAccessibleHelp());
+            return;
+        });
+    }
+
+    @Test @EnabledOnOs(OS.WINDOWS)
     void unlabeledPlotCheckboxReceivesItsCaptionHelpWithoutApplyingItToActionButtons() throws Exception {
         fx(() -> {
             Label plot = new Label("Plot:"); CheckBox checkbox = new CheckBox(); Button action = new Button("Outra ação");

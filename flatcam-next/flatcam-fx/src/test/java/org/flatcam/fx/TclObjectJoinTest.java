@@ -140,7 +140,7 @@ class TclObjectJoinTest {
             var unconfigured = exc("second", 42, 0.80002, null, withSettings ? drilling(42) : null);
             for (var sources : List.of(List.of(configured, unconfigured), List.of(unconfigured, configured))) {
                 var error = assertThrows(IllegalArgumentException.class, () -> TclObjectJoin.excellon(sources));
-                assertTrue(error.getMessage().contains("parametros diferentes"));
+                assertTrue(error.getMessage().contains("parâmetros diferentes"));
             }
             assertEquals(Map.of(7, parameters), configured.drillDefaults());
             assertTrue(unconfigured.drillDefaults().isEmpty());

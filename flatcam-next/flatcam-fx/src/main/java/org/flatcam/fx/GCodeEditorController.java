@@ -58,7 +58,7 @@ final class GCodeEditorController {
     void start(TreeItem<String> selectedItem, String gcode) {
         if (isActive()) {
             tabs.getSelectionModel().select(tab);
-            host.log("Ja existe uma edicao de G-code em andamento.");
+            host.log("Já existe uma edição de G-code em andamento.");
             return;
         }
         item = selectedItem;
@@ -76,12 +76,12 @@ final class GCodeEditorController {
 
         Label info = new Label("Editando: " + item.getValue());
         info.setWrapText(true);
-        Label help = new Label("Edite o texto e clique Aplicar para atualizar o CNC Job em memoria. "
-                + "Salvar arquivo grava uma copia do rascunho; nao altera o arquivo original automaticamente. "
-                + "Cancelar descarta as alteracoes. A pre-visualizacao cobre movimentos G0/G1, arcos G2/G3 em XY "
+        Label help = new Label("Edite o texto e clique Aplicar para atualizar o CNC Job em memória. "
+                + "Salvar arquivo grava uma copia do rascunho; não altera o arquivo original automaticamente. "
+                + "Cancelar descarta as alterações. A pré-visualização cobre movimentos G0/G1, arcos G2/G3 em XY "
                 + "e os subconjuntos lineares ISEL ICP, HPGL e Roland RML-1 (^IN/^PA/Z/V/!MC); "
-                + "sondagem G31 e referencia G92 deixam a previa indisponivel. Macros e resets de origem nao sao simulados "
-                + "e nao valida a seguranca do programa para uma maquina CNC.");
+                + "sondagem G31 e referência G92 deixam a prévia indisponível. Macros e resets de origem não são simulados "
+                + "e não valida a segurança do programa para uma máquina CNC.");
         help.setWrapText(true);
         var details = new javafx.scene.control.TitledPane("Pré-visualização e segurança", help);
         details.setExpanded(false);
@@ -91,7 +91,7 @@ final class GCodeEditorController {
         stateLabel.setWrapText(true);
         applyButton = new Button("Aplicar ao CNC Job");
         saveButton = new Button("Salvar arquivo...");
-        cancelButton = new Button("Cancelar edicao");
+        cancelButton = new Button("Cancelar edição");
         for (Button button : new Button[]{applyButton, saveButton, cancelButton}) {
             button.setMaxWidth(Double.MAX_VALUE);
         }
@@ -116,7 +116,7 @@ final class GCodeEditorController {
             return;
         }
         close();
-        host.log("Editor G-Code: edicao descartada.");
+        host.log("Editor G-Code: edição descartada.");
     }
 
     void saveAndClose() {
@@ -129,7 +129,7 @@ final class GCodeEditorController {
         }
         if (!dirty || editor.getText().equals(originalText) || editor.getText().isBlank()) {
             if (editor.getText().isBlank()) {
-                stateLabel.setText("O G-code nao pode estar vazio.");
+                stateLabel.setText("O G-code não pode estar vazio.");
             } else {
                 close();
             }
@@ -184,7 +184,7 @@ final class GCodeEditorController {
         cancelButton.setDisable(busy);
         editor.setEditable(!busy);
         stateLabel.setText(busy ? "Processando..." : editor.isLoading() ? "Carregando código..."
-                : dirty ? "Alteracoes ainda nao aplicadas." : "Sem alteracoes.");
+                : dirty ? "Alterações ainda não aplicadas." : "Sem alterações.");
     }
 
     private void close() {

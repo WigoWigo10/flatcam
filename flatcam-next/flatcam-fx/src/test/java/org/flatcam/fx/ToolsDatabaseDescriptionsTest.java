@@ -16,11 +16,11 @@ class ToolsDatabaseDescriptionsTest {
         }
     }
     @Test void allActionsExplainWhatChangesInMemoryOrOnDisk() {
-        for (String action : List.of("Adicionar ferramenta", "Copiar", "Excluir", "Aplicar parametros", "Nova base", "Import DB", "Export DB", "Save DB"))
+        for (String action : List.of("Adicionar ferramenta", "Copiar", "Excluir", "Aplicar parâmetros", "Nova base", "Importar base", "Exportar base", "Salvar base"))
             assertTrue(ToolsDatabaseDescriptions.actionText(action).length() > 70, action);
-        assertTrue(ToolsDatabaseDescriptions.actionText("Aplicar parametros").contains("Não grava no disco"));
-        assertTrue(ToolsDatabaseDescriptions.actionText("Export DB").contains("Mantém a associação"));
-        assertTrue(ToolsDatabaseDescriptions.actionText("Save DB").contains("Ctrl+S"));
+        assertTrue(ToolsDatabaseDescriptions.actionText("Aplicar parâmetros").contains("Não grava no disco"));
+        assertTrue(ToolsDatabaseDescriptions.actionText("Exportar base").contains("Mantém a associação"));
+        assertTrue(ToolsDatabaseDescriptions.actionText("Salvar base").contains("Ctrl+S"));
     }
     @Test void unsupportedFieldsAreNotPresentedAsWorkingCamParameters() {
         for (String key : List.of("tools_iso_follow", "tools_ncc_margin", "tools_drill_drill_slots"))

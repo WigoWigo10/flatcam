@@ -83,7 +83,7 @@ class PanelizeToolPanelTest {
             assertTrue(control(root, "panelize-preview-content").isDisabled());
             ((Button) control(root, "panelize-create")).fire(); assertEquals(layout, host.created.layout());
             ((TextField) control(root, "panelize-spacing-x")).setText("NaN");
-            assertTrue(((Label) control(root, "panelize-error")).getText().contains("Valor invalido"));
+            assertTrue(((Label) control(root, "panelize-error")).getText().contains("Valor inválido"));
             return null;
         });
     }

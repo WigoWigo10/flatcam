@@ -77,14 +77,14 @@ final class PanelHelpCatalog {
                 case "reference" -> "Define o ponto fixo das transformações: origem, ponto informado, centro da seleção ou caixa de outro objeto.";
                 case "distance" -> "Distância de expansão ou contração do buffer. Negativa contrai; positiva expande." + UNIT;
                 case "percent (%)" -> "Percentual usado para calcular a distância de buffer a partir das dimensões do objeto. Não é fator de escala.";
-                case "rounded" -> "Usa cantos arredondados no buffer; desmarcado preserva junções angulares.";
-                case "rotate", "skew x", "skew y", "scale x", "scale y", "offset y", "flip on x", "flip on y", "buffer por distancia", "buffer por percentual" -> "Aplica imediatamente a transformação indicada aos objetos selecionados na árvore, usando os valores e a referência desta seção.\n\nAtenção: confira a seleção antes de aplicar.";
+                case "rounded", "cantos arredondados" -> "Usa cantos arredondados no buffer; desmarcado preserva junções angulares.";
+                case "rotate", "skew x", "skew y", "scale x", "scale y", "offset y", "flip on x", "flip on y", "buffer por distancia", "buffer por percentual", "escala x", "escala y", "deslocar x", "deslocar y" -> "Aplica imediatamente a transformação indicada aos objetos selecionados na árvore, usando os valores e a referência desta seção.\n\nAtenção: confira a seleção antes de aplicar.";
                 default -> null;
             };
             case "Isolation Tool" -> switch (name) {
                 case "forced rest" -> "Inclui também regiões que não foram cobertas pelas ferramentas anteriores no cálculo Rest. Só atua com Rest Machining habilitado.";
                 case "limpar area desenhada" -> "Remove somente a exceção desenhada no plot. A Geometry de exceção escolhida permanece selecionada.";
-                case "generate geometry" -> "Calcula os caminhos de isolamento e cria Geometry; não gera G-code nesta etapa.";
+                case "generate geometry", "gerar geometry" -> "Calcula os caminhos de isolamento e cria Geometry; não gera G-code nesta etapa.";
                 default -> null;
             };
             case "NCC Tool" -> switch (name) {
@@ -113,7 +113,7 @@ final class PanelHelpCatalog {
                 case "extra cut (caminhos fechados)" -> "Acrescenta um trecho no fechamento do caminho para completar o corte. O campo ao lado determina o comprimento adicional.";
                 case "end x,y" -> "Posição final opcional: None mantém X-Y; X;Y desloca após os cortes.\n\nAtenção: confira a altura End Z e todo o percurso." + UNIT;
                 case "end z" -> "Altura final opcional: None usa a altura de deslocamento. Confira a folga para o movimento final X-Y." + UNIT;
-                case "gerar cnc job...", "generate cnc job" -> "Gera o programa com o perfil e os parâmetros exibidos. Conflitos de configurações comuns precisam ser revisados antes.\n\nAtenção: inspecione os caminhos, as unidades e as alturas antes de executar na máquina.";
+                case "gerar cnc job...", "generate cnc job", "gerar cnc job" -> "Gera o programa com o perfil e os parâmetros exibidos. Conflitos de configurações comuns precisam ser revisados antes.\n\nAtenção: inspecione os caminhos, as unidades e as alturas antes de executar na máquina.";
                 case "search db" -> "Busca ferramentas de furação na Tools Database pelo diâmetro. Correspondências ambíguas são recusadas; revise os parâmetros recuperados.";
                 default -> null;
             };
@@ -123,7 +123,7 @@ final class PanelHelpCatalog {
                 case "gerar (rectangular)" -> "Cria Geometry de recorte retangular pela caixa da origem, com compensação da fresa e pontes configuradas.";
                 default -> null;
             };
-            case "Preferencias" -> switch (name) {
+            case "Preferências" -> switch (name) {
                 case "mostrar eixos" -> "Mostra os eixos X e Y da origem no plot. Não desloca os objetos nem altera o G-code.";
                 case "aplicar preferencias" -> "Valida e salva tema e opções do plot. Não altera os dados CAM do projeto.";
                 default -> null;
@@ -299,7 +299,7 @@ final class PanelHelpCatalog {
         case "cutout tool" -> ToolDescriptions.of("cutout").text();
         case "drilling tool" -> ToolDescriptions.of("drilling").text();
         case "milling tool" -> "Abre a conversão de furos e slots em caminhos de fresagem; cria Geometry antes do CNC Job.";
-        case "generate cnc job" -> "Abre os parâmetros CNC da Geometry. Confira perfil, diâmetros, profundidades, avanços e alturas antes de gerar.";
+        case "generate cnc job", "gerar cnc job" -> "Abre os parâmetros CNC da Geometry. Confira perfil, diâmetros, profundidades, avanços e alturas antes de gerar.";
         case "editar geometry", "excellon editor" -> "Abre o editor do objeto; as alterações ficam em rascunho até aplicar e sair.";
         case "ver g-code" -> CommandHelpCatalog.help("Ver G-code");
         case "editar g-code" -> CommandHelpCatalog.help("Editar G-code");
@@ -308,10 +308,10 @@ final class PanelHelpCatalog {
         case "limpar" -> "Remove o destaque do passo CNC selecionado, sem apagar a rota nem o programa.";
         case "reproduzir" -> "Inicia ou pausa a animação da rota no plot. Não envia comandos à máquina nem simula colisões.";
         case "exportar csv" -> "Exporta a sequência de movimentos para inspeção em tabela. Não substitui o G-code nem valida a segurança da máquina.";
-        case "mark all" -> "Marca ou desmarca todas as aberturas para destacar suas formas no plot. Não muda o Gerber.";
-        case "rounded" -> "Usa cantos arredondados na caixa ou área auxiliar gerada nesta seção.";
+        case "mark all", "marcar todos" -> "Marca ou desmarca todas as aberturas para destacar suas formas no plot. Não muda o Gerber.";
+        case "rounded", "cantos arredondados" -> "Usa cantos arredondados na caixa ou área auxiliar gerada nesta seção.";
         case "gerar geometry follow" -> "Cria Geometry pelas linhas centrais do Gerber, em vez dos limites do cobre.";
-        case "offset x,y" -> "Deslocamento X e Y aplicado ao objeto, sem compensação do raio da ferramenta." + UNIT;
+        case "offset x,y", "deslocamento x,y" -> "Deslocamento X e Y aplicado ao objeto, sem compensação do raio da ferramenta." + UNIT;
         case "transformations", "transformations:", "transformacoes" -> "Abre as transformações do objeto. Confira a seleção e a referência antes de aplicar.";
         default -> null;
     }; }

@@ -32,7 +32,7 @@ final class TclObjectJoin {
             for (var entry : entries) {
                 if (!Objects.equals(first.cncDefaults(), entry.cncDefaults())
                         || !Objects.equals(first.cncSettings(), entry.cncSettings()))
-                    throw new IllegalArgumentException("Single Geometry possui parametros CNC diferentes; use multi-tool antes de juntar.");
+                    throw new IllegalArgumentException("Single Geometry possui parâmetros CNC diferentes; use multi-tool antes de juntar.");
             }
             return new GeometryResult(joined, first.cncDefaults(), first.cncSettings());
         }
@@ -52,7 +52,7 @@ final class TclObjectJoin {
             }
             if (entry.cncDefaults() != null) {
                 if (defaults != null && !sameCommonOptions(defaults, entry.cncDefaults()))
-                    throw new IllegalArgumentException("Opcoes comuns de Geometry diferentes; alinhe antes de juntar.");
+                    throw new IllegalArgumentException("Opções comuns de Geometry diferentes; alinhe antes de juntar.");
                 defaults = entry.cncDefaults();
             }
             for (int id = 0; id < entry.tools().size(); id++) {
@@ -66,14 +66,14 @@ final class TclObjectJoin {
         }
         // Don't implicitly apply a configured source's common profile/depth to an unconfigured source.
         if (defaults != null && entries.stream().anyMatch(entry -> entry.cncDefaults() == null))
-            throw new IllegalArgumentException("Geometry configurada e sem parametros CNC; configure todas antes de juntar.");
+            throw new IllegalArgumentException("Geometry configurada e sem parâmetros CNC; configure todas antes de juntar.");
         if (model != null && entries.stream().anyMatch(entry -> entry.cncSettings() == null))
             throw new IllegalArgumentException("Geometry com e sem perfil CNC; configure todas antes de juntar.");
         GeometryGCodeParameters common = defaults;
         parameters.entrySet().removeIf(entry -> entry.getValue().equals(common));
         if (model != null && !parameters.isEmpty() && (model.preprocessor().isPlotter()
                 || model.preprocessor().isRoland() || model.preprocessor().requiresProbe()))
-            throw new IllegalArgumentException("Este perfil nao suporta parametros individuais; alinhe os parametros antes de juntar.");
+            throw new IllegalArgumentException("Este perfil não suporta parâmetros individuais; alinhe os parâmetros antes de juntar.");
         if(model!=null && model.preprocessor().isLaser() && defaults!=null)
             org.flatcam.cam.gcode.GCodeGenerator.validateLaserGroups(model.preprocessor(),defaults,parameters);
         GeometryCncSettings settings = model == null && parameters.isEmpty() ? null
@@ -101,14 +101,14 @@ final class TclObjectJoin {
             var entry = entries.get(i); var ids = joined.sourceToolIds().get(i);
             for (int sourceId : entry.drillDefaults().keySet()) {
                 if (!ids.containsKey(sourceId))
-                    throw new IllegalArgumentException("Parametro de furo sem ferramenta correspondente.");
+                    throw new IllegalArgumentException("Parâmetro de furo sem ferramenta correspondente.");
             }
             for (var tool : ids.entrySet()) {
                 int id = tool.getValue();
                 var parameters = entry.drillDefaults().get(tool.getKey());
                 if (parametersByMergedTool.containsKey(id)
                         && !Objects.equals(parametersByMergedTool.get(id), parameters))
-                    throw new IllegalArgumentException("Ferramentas Excellon do mesmo diametro possuem parametros diferentes; alinhe antes de juntar.");
+                    throw new IllegalArgumentException("Ferramentas Excellon do mesmo diâmetro possuem parâmetros diferentes; alinhe antes de juntar.");
                 parametersByMergedTool.put(id, parameters);
                 if (parameters != null) defaults.put(id, parameters);
             }
@@ -116,17 +116,17 @@ final class TclObjectJoin {
             if (settings != null) {
                 if (model != null && (model.preprocessor() != settings.preprocessor()
                         || !model.options().equals(settings.options()) || model.toolOrder() != settings.toolOrder()))
-                    throw new IllegalArgumentException("Opcoes comuns de Drilling diferentes; alinhe antes de juntar.");
+                    throw new IllegalArgumentException("Opções comuns de Drilling diferentes; alinhe antes de juntar.");
                 model = settings;
                 for (var id : ids.entrySet()) {
                     boolean included = settings.selectedToolIds().contains(id.getKey());
                     Boolean previous = selectionByTool.putIfAbsent(id.getValue(), included);
                     if (previous != null && previous != included)
-                        throw new IllegalArgumentException("Fusao Excellon mudaria a selecao Drilling; alinhe a selecao antes de juntar.");
+                        throw new IllegalArgumentException("Fusao Excellon mudaria a seleção Drilling; alinhe a seleção antes de juntar.");
                 }
                 for (int oldId : settings.selectedToolIds()) {
                     Integer id = ids.get(oldId);
-                    if (id == null) throw new IllegalArgumentException("Selecao Drilling sem ferramenta correspondente.");
+                    if (id == null) throw new IllegalArgumentException("Seleção Drilling sem ferramenta correspondente.");
                     selected.add(id);
                 }
             } else selected.addAll(ids.values());

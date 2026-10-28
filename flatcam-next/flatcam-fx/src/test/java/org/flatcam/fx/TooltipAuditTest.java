@@ -89,9 +89,38 @@ class TooltipAuditTest {
             var drillReview = new CncReviewDialog(null, ThemeOption.CLASSIC_LIGHT,
                     CncPreflight.drilling(CncPreflightTest.drilling()));
             var code = new CodeEditor("G21\nG90\n",CodeSyntax.Language.MACHINE,true);
+            List<javafx.scene.control.Dialog<?>> dialogs = new ArrayList<>();
+            var script = new ScriptEditorPanel("# fixture", null, new ScriptEditorPanel.Host() {
+                public boolean run(String text, String label) { return false; }
+                public Path chooseSaveTarget(Path suggested) { return null; }
+                public void log(String text) { }
+            });
             try {
                 var preferences = MainWindow.class.getDeclaredMethod("buildPreferencesPanel"); preferences.setAccessible(true);
-                roots.put("Preferencias",(Node)preferences.invoke(window));
+                var preferencesPane = (PreferencesPane) preferences.invoke(window);
+                roots.put("Preferências", preferencesPane);
+                var preferencesSplit = (javafx.scene.control.SplitPane) preferencesPane.getCenter();
+                @SuppressWarnings("unchecked") var navigation = (javafx.scene.control.TreeView<PreferencesPane.Section>) preferencesSplit.getItems().getFirst();
+                for (var section : preferencesPane.sections()) {
+                    navigation.getSelectionModel().select(findSection(navigation.getRoot(), section.id()));
+                    var split = (javafx.scene.control.SplitPane) preferencesPane.getCenter();
+                    roots.put("Preferências / " + section.label(), ((javafx.scene.layout.BorderPane) split.getItems().get(1)).getCenter());
+                }
+                roots.put("Medir Distância", new MeasurementToolPanel(false, "MM", () -> {}, xy -> {}, () -> {}));
+                roots.put("Distância Mínima", new MeasurementToolPanel(true, "IN", () -> {}, xy -> {}, () -> {}));
+                roots.put("Progresso compacto", new CompactJobProgress(new javafx.beans.property.SimpleDoubleProperty(.25),
+                        new javafx.beans.property.SimpleBooleanProperty(false), () -> {}));
+                roots.put("Editor de script", script);
+                addDialog(roots, dialogs, "Exportar Gerber", CamExportDialog.gerberDialog(null, "MM"));
+                addDialog(roots, dialogs, "Exportar Excellon", CamExportDialog.excellonDialog(null, "IN", false));
+                addDialog(roots, dialogs, "Exportar Excellon curvo", CamExportDialog.excellonDialog(null, "MM", true));
+                addDialog(roots, dialogs, "Cor do objeto", LayerColorDialog.colorDialog(javafx.scene.paint.Color.YELLOW));
+                addDialog(roots, dialogs, "Opacidade do objeto", LayerColorDialog.opacityDialog(.5));
+                addDialog(roots, dialogs, "Imprimir como PDF", new PrintPdfDialog(null, 2));
+                addDialog(roots, dialogs, "Coordenadas do arco", new ArcCoordinateDialog(null, new org.locationtech.jts.geom.Coordinate(2, 3), "MM"));
+                addDialog(roots, dialogs, "Coordenadas Jump", new ArcCoordinateDialog(null, new org.locationtech.jts.geom.Coordinate(2, 3), "IN", false, true));
+                addDialog(roots, dialogs, "Ir para localização", window.jumpLocationDialog());
+                addDialog(roots, dialogs, "Localizar no objeto", window.locateObjectDialog());
                 for (var entry : List.of(new Object[]{"Gerber Object","buildGerberPropertiesPanel",org.flatcam.cam.gerber.GerberImage.class,gerber},
                         new Object[]{"Excellon Object","buildExcellonPropertiesPanel",org.flatcam.cam.excellon.ExcellonImage.class,excellon})) {
                     var method = MainWindow.class.getDeclaredMethod((String)entry[1],javafx.scene.control.TreeItem.class,(Class<?>)entry[2]);
@@ -130,7 +159,7 @@ class TooltipAuditTest {
             assertTrue(report.size() > 200);
             assertEquals(List.of(), report.stream().filter(line -> line.endsWith("MISSING")).toList(),
                     "Actual panel controls without help; see target/tooltip-audit.txt");
-            } finally { code.close(); about.close(); cncReview.close(); drillReview.close(); window.disposeViewport(); jobs.shutdown(); }
+            } finally { dialogs.forEach(javafx.scene.control.Dialog::close); script.close(); code.close(); about.close(); cncReview.close(); drillReview.close(); window.disposeViewport(); jobs.shutdown(); }
             return null;
         });
         Platform.runLater(task); task.get(30,TimeUnit.SECONDS);
@@ -144,12 +173,26 @@ class TooltipAuditTest {
             return null;
         }));
     }
-    private static boolean hasHelp(Node node) {
-        for (Node current=node;current!=null;current=current.getParent()) {
-            if (current.getProperties().containsKey(FluidTooltips.TEXT_KEY)) return true;
-            if (current instanceof Control c && c.getTooltip()!=null && !c.getTooltip().getText().isBlank()) return true;
+    private static javafx.scene.control.TreeItem<PreferencesPane.Section> findSection(
+            javafx.scene.control.TreeItem<PreferencesPane.Section> node, String id) {
+        if (node.getValue() != null && node.getValue().id().equals(id)) return node;
+        for (var child : node.getChildren()) {
+            var match = findSection(child, id);
+            if (match != null) return match;
         }
-        return false;
+        return null;
+    }
+    private static void addDialog(Map<String, Node> roots, List<javafx.scene.control.Dialog<?>> dialogs,
+                                  String context, javafx.scene.control.Dialog<?> dialog) {
+        dialogs.add(dialog);
+        roots.put(context, dialog.getDialogPane().getContent());
+        for (var button : dialog.getDialogPane().getButtonTypes())
+            roots.put(context + " / " + button.getText(), dialog.getDialogPane().lookupButton(button));
+    }
+    private static boolean hasHelp(Node node) {
+        // A generic description on a container cannot stand in for its individual inputs/actions.
+        if (node.getProperties().get(FluidTooltips.TEXT_KEY) instanceof String text && !text.isBlank()) return true;
+        return node instanceof Control c && c.getTooltip() != null && !c.getTooltip().getText().isBlank();
     }
     private static void collect(Node root,List<Node> nodes) {
         if(root==null)return; nodes.add(root);

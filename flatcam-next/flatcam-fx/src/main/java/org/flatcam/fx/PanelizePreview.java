@@ -24,19 +24,19 @@ final class PanelizePreview {
 
     static Result build(Input input, CancellationToken cancellation) {
         if (javafx.application.Platform.isFxApplicationThread())
-            throw new IllegalStateException("A previa de panelizacao deve ser calculada fora da thread FX.");
+            throw new IllegalStateException("A prévia de panelizacao deve ser calculada fora da thread FX.");
         cancellation.throwIfCancellationRequested();
         Geometry outline = input.outline() == null ? input.referenceBox().getBoundary() : linework(input.outline());
         Geometry interior = null;
-        String notice = input.outline() == null ? "Sem contorno escolhido: mostrando caixas de referencia." : "";
+        String notice = input.outline() == null ? "Sem contorno escolhido: mostrando caixas de referência." : "";
         Envelope edgeBounds = outline.getEnvelopeInternal();
         if (input.outline() != null && (input.layout().columns() > 1 && edgeBounds.getWidth() > input.layout().stepX()
                 || input.layout().rows() > 1 && edgeBounds.getHeight() > input.layout().stepY()))
-            notice = "Contorno maior que o passo entre copias: pode haver sobreposicao. Use sua caixa como referencia.";
+            notice = "Contorno maior que o passo entre cópias: pode haver sobreposicao. Use sua caixa como referência.";
         if (input.fillInterior() && input.showOutline()) {
             try { interior = OutlineToArea.convert(outline, cancellation).area(); }
             catch (IllegalArgumentException open) {
-                notice = "Contorno aberto: previa das linhas disponivel, sem preencher/inventar cortes.";
+                notice = "Contorno aberto: prévia das linhas disponível, sem preencher/inventar cortes.";
             }
         }
         cancellation.throwIfCancellationRequested();

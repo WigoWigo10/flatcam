@@ -70,54 +70,54 @@ final class TclFlatcamCommands {
                     + "ou open_project {arquivo} -force true para descartar explicitamente. Force não ignora rascunhos, validação, cancelamento ou alterações durante o carregamento. Use / e chaves em caminhos Windows.";
             case "save_project" -> "save_project {C:/pasta/projeto.fcnproj}\nsave_project {C:/pasta/projeto.FlatPrj}\n"
                     + "Formato pela extensao obrigatoria; substitui o destino depois de serializar. Feche os editores antes. "
-                    + ".FlatPrj preserva apenas recursos representaveis no Python; mantenha tambem .fcnproj. "
-                    + "Cancelar antes da publicacao preserva o destino; nao interrompe a compressao no meio.";
+                    + ".FlatPrj preserva apenas recursos representaveis no Python; mantenha também .fcnproj. "
+                    + "Cancelar antes da publicacao preserva o destino; não interrompe a compressão no meio.";
             case "plot_all" -> "plot_all ?-plot_status True|False? ?-use_thread True|False?\n"
-                    + "Exibe todos por padrao; False oculta. -use_thread e validado, mas o FX mantem sua politica de workers. "
-                    + "CNC Job sem previa compativel e recusado. Nao aguarda todos os quadros da GPU.";
+                    + "Exibe todos por padrão; False oculta. -use_thread é validado, mas o FX mantém sua política de workers. "
+                    + "CNC Job sem prévia compatível é recusado. Não aguarda todos os quadros da GPU.";
             case "plot_objects" -> "plot_objects {placa,furos,rota} ?-plot_status True|False?\n"
-                    + "Lista separada por virgulas; chaves preservam espacos. Valida todos os nomes antes de alterar o Plot. "
-                    + "CNC Job sem previa compativel e recusado.";
-            case "set_active" -> "set_active {nome}\nAdiciona o objeto a selecao atual, como no Python; "
-                    + "nao exibe camadas ocultas nem rouba o foco do Terminal. Feche editores de objetos antes.";
-            case "offset" -> "offset {nome} -x 1.2 -y -0.3\nTambem aceita offset {nome} 1.2 -0.3. Eixos omitidos: 0.";
+                    + "Lista separada por virgulas; chaves preservam espaços. Valida todos os nomes antes de alterar o Plot. "
+                    + "CNC Job sem prévia compatível é recusado.";
+            case "set_active" -> "set_active {nome}\nAdiciona o objeto à seleção atual, como no Python; "
+                    + "não exibe camadas ocultas nem rouba o foco do Terminal. Feche editores de objetos antes.";
+            case "offset" -> "offset {nome} -x 1.2 -y -0.3\nTambém aceita offset {nome} 1.2 -0.3. Eixos omitidos: 0.";
             case "scale" -> "scale {nome} 2 -origin center\nscale {nome} -x 2 -y 1 -origin {(3,4)}\n"
-                    + "Referencia: center (padrao), origin, min_bounds ou x,y. Eixo omitido: 1; fator zero recusado.";
-            case "mirror" -> "mirror {nome} -axis X -origin 0,0\nmirror {nome} -axis Y -box {referencia}\n"
-                    + "X reflete Y; Y reflete X (padrao). -box usa o centro da referencia e prevalece sobre -origin. Sem referencia: (0,0).";
-            case "skew" -> "skew {nome} -x 10 -y 0\nAngulos em graus, entre -90 e 90; referencia: canto inferior esquerdo. Eixos omitidos: 0.";
-            case "rotate" -> "rotate {nome} 90 ?-origin center|origin|min_bounds|x,y? ?-box {referencia}?\n"
-                    + "Extensao do Terminal FX: este checkout Python tem rotacao na UI, nao um comando Tcl rotate. "
+                    + "Referência: center (padrão), origin, min_bounds ou x,y. Eixo omitido: 1; fator zero recusado.";
+            case "mirror" -> "mirror {nome} -axis X -origin 0,0\nmirror {nome} -axis Y -box {referência}\n"
+                    + "X reflete Y; Y reflete X (padrão). -box usa o centro da referência e prevalece sobre -origin. Sem referência: (0,0).";
+            case "skew" -> "skew {nome} -x 10 -y 0\nÂngulos em graus, entre -90 e 90; referência: canto inferior esquerdo. Eixos omitidos: 0.";
+            case "rotate" -> "rotate {nome} 90 ?-origin center|origin|min_bounds|x,y? ?-box {referência}?\n"
+                    + "Extensao do Terminal FX: este checkout Python tem rotação na UI, não um comando Tcl rotate. "
                     + "Graus positivos = horario, como Transformations; negativos = anti-horario. "
-                    + "Centro do objeto por padrao; -box prevalece sobre -origin. CNC Jobs recusados.";
-            case "join_geometry", "join_geometries" -> command + " {saida} {geo 1} {geo 2} ...\n"
+                    + "Centro do objeto por padrão; -box prevalece sobre -origin. CNC Jobs recusados.";
+            case "join_geometry", "join_geometries" -> command + " {saída} {geo 1} {geo 2} ...\n"
                     + "Cria Geometry oculta, sem apagar origens; pelo menos duas Geometry distintas, mesmas unidades e tipo single/multi. "
-                    + "Mantem ferramentas separadas e remapeia parametros; conflitos comuns recusados. Use plot_objects para exibir.";
-            case "join_excellon", "join_excellons" -> command + " {saida} {furos 1} {furos 2} ...\n"
+                    + "Mantém ferramentas separadas e remapeia parâmetros; conflitos comuns recusados. Use plot_objects para exibir.";
+            case "join_excellon", "join_excellons" -> command + " {saída} {furos 1} {furos 2} ...\n"
                     + "Cria Excellon oculto, preservando origens; pelo menos dois Excellon distintos, mesmas unidades. "
-                    + "Funde diametros a quatro casas; remapeia furos/slots/parametros/selecao. Conflitos recusados.";
-            case "export_excellon", "export_exc", "ee" -> command + " {furos} {C:/pasta/saida.drl}\n"
+                    + "Funde diâmetros a quatro casas; remapeia furos/slots/parâmetros/seleção. Conflitos recusados.";
+            case "export_excellon", "export_exc", "ee" -> command + " {furos} {C:/pasta/saída.drl}\n"
                     + "Exporta os furos/slots atuais no formato salvo por Arquivo > Exportar > Excellon; "
-                    + "sem configuracao: IN, decimal 2:4, slots roteados. Conversao/arredondamento podem alterar precisao. "
-                    + "FX exige destino explicito (Python permite omitir); substitui arquivo existente. "
-                    + "Feche editores. Cancelar antes da publicacao preserva o destino; nao muda preferencias.";
-            case "export_gerber", "export_grb", "egr" -> command + " {cobre} {C:/pasta/saida.gbr}\n"
-                    + "Exporta a imagem Gerber atual como regioes resolvidas no formato escolhido por Arquivo > Exportar > Gerber. "
-                    + "Sem configuracao: IN, 2:4, zeros L. Nao preserva macros/identidades de aperturas/comandos originais. "
-                    + "Destino explicito obrigatorio; substitui arquivo existente apos validacao. Feche editores; nao muda preferencias.";
-            case "export_svg" -> "export_svg {nome} {C:/pasta/saida.svg} ?scale_stroke_factor?\n"
-                    + "export_svg {nome} {C:/pasta/saida.svg} ?-scale_stroke_factor valor?\n"
-                    + "Gerber/Excellon/Geometry e CNC com previa compativel. Fator positivo = metade da largura do traco; "
-                    + "<=0 = automatico (0.02 para formas; diametro da ferramenta ou 0.02 para CNC). "
-                    + "Nao escala coordenadas. Unidades da origem, Y para cima, Travel sob Cut. "
-                    + "Destino explicito obrigatorio; substitui arquivo existente apos validacao. Feche editores.";
+                    + "sem configuração: IN, decimal 2:4, slots roteados. Conversão/arredondamento podem alterar precisão. "
+                    + "FX exige destino explícito (Python permite omitir); substitui arquivo existente. "
+                    + "Feche editores. Cancelar antes da publicacao preserva o destino; não muda preferências.";
+            case "export_gerber", "export_grb", "egr" -> command + " {cobre} {C:/pasta/saída.gbr}\n"
+                    + "Exporta a imagem Gerber atual como regiões resolvidas no formato escolhido por Arquivo > Exportar > Gerber. "
+                    + "Sem configuração: IN, 2:4, zeros L. Não preserva macros/identidades de aperturas/comandos originais. "
+                    + "Destino explícito obrigatorio; substitui arquivo existente após validação. Feche editores; não muda preferências.";
+            case "export_svg" -> "export_svg {nome} {C:/pasta/saída.svg} ?scale_stroke_factor?\n"
+                    + "export_svg {nome} {C:/pasta/saída.svg} ?-scale_stroke_factor valor?\n"
+                    + "Gerber/Excellon/Geometry e CNC com prévia compatível. Fator positivo = metade da largura do traco; "
+                    + "<=0 = automático (0.02 para formas; diâmetro da ferramenta ou 0.02 para CNC). "
+                    + "Não escala coordenadas. Unidades da origem, Y para cima, Travel sob Cut. "
+                    + "Destino explícito obrigatorio; substitui arquivo existente após validação. Feche editores.";
             case "drillcncjob" -> "drillcncjob {furos} -drillz -1.7 -travelz 2 -feedrate_z 300 ?-drilled_dias 0.8,1.0? "
                     + "?-diatol pct? ?-dpp passo? ?-spindlespeed rpm? ?-toolchangez z? ?-toolchangexy x,y? ?-startz z? "
                     + "?-endz z? ?-endxy x,y? ?-dwelltime s? ?-feedrate_rapid f? ?-pp perfil? ?-opt_type B|M|T? ?-outname nome?\n"
-                    + "-drillz (negativo), -travelz e -feedrate_z sao obrigatorios no FX (o Python usaria Preferencias). "
-                    + "Ferramentas em ordem crescente de diametro. Troca de ferramenta so com -toolchangez. "
-                    + "-pp aceita o nome Python (ex.: GRBL_11) ou do FX; padrao FX portable. "
-                    + "-opt_type B/M/T usa a ordem por proximidade do FX, nao OR-Tools/TSP. -muted e aceito sem efeito.";
+                    + "-drillz (negativo), -travelz e -feedrate_z são obrigatorios no FX (o Python usaria Preferências). "
+                    + "Ferramentas em ordem crescente de diâmetro. Troca de ferramenta só com -toolchangez. "
+                    + "-pp aceita o nome Python (ex.: GRBL_11) ou do FX; padrão FX portable. "
+                    + "-opt_type B/M/T usa a ordem por proximidade do FX, não OR-Tools/TSP. -muted e aceito sem efeito.";
             default -> null;
         };
     }

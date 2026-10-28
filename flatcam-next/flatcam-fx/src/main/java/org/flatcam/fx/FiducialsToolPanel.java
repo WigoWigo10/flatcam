@@ -60,7 +60,7 @@ final class FiducialsToolPanel {
         TextField margin = field(ToolDefaults.text("fiducials.margin"));
         TextField thickness = field(ToolDefaults.text("fiducials.thickness"));
         ToggleGroup modes = new ToggleGroup();
-        RadioButton auto = new RadioButton("Automatico");
+        RadioButton auto = new RadioButton("Automático");
         RadioButton manual = new RadioButton("Manual");
         auto.setToggleGroup(modes);
         manual.setToggleGroup(modes);
@@ -92,7 +92,7 @@ final class FiducialsToolPanel {
         grid.addRow(2, new Label("Espessura (cruz):"), thickness);
 
         List<Coordinate> used = new ArrayList<>();
-        Label coordinates = new Label("Ultimos pontos: -");
+        Label coordinates = new Label("Últimos pontos: -");
         Label status = new Label();
         status.setWrapText(true);
         Label errorLabel = new Label();
@@ -100,7 +100,7 @@ final class FiducialsToolPanel {
         errorLabel.setWrapText(true);
 
         Runnable finish = () -> {
-            StringBuilder text = new StringBuilder("Ultimos pontos:");
+            StringBuilder text = new StringBuilder("Últimos pontos:");
             for (Coordinate point : used) {
                 text.append(String.format(java.util.Locale.ROOT, " (%.4f, %.4f)", point.x, point.y));
             }
@@ -110,7 +110,7 @@ final class FiducialsToolPanel {
 
         Button add = new Button("Adicionar fiduciais");
         add.setMaxWidth(Double.MAX_VALUE);
-        Button addOpenings = new Button("Adicionar aberturas na mascara");
+        Button addOpenings = new Button("Adicionar aberturas na máscara");
         addOpenings.setMaxWidth(Double.MAX_VALUE);
 
         add.setOnAction(event -> {
@@ -127,7 +127,7 @@ final class FiducialsToolPanel {
                 if (auto.isSelected()) {
                     double[] bounds = host.bounds(copper.getValue());
                     if (bounds == null) {
-                        throw new IllegalArgumentException("O Gerber nao tem geometria");
+                        throw new IllegalArgumentException("O Gerber não tem geometria");
                     }
                     Fiducials.SecondPoint second = up.isSelected() ? Fiducials.SecondPoint.UP
                             : down.isSelected() ? Fiducials.SecondPoint.DOWN : Fiducials.SecondPoint.NONE;
@@ -142,7 +142,7 @@ final class FiducialsToolPanel {
                 } else {
                     int wanted = none.isSelected() ? 2 : 3;
                     List<Coordinate> clicks = new ArrayList<>();
-                    String[] names = {"o primeiro fiducial (inferior esquerdo)", "o ultimo fiducial (superior direito)",
+                    String[] names = {"o primeiro fiducial (inferior esquerdo)", "o último fiducial (superior direito)",
                             "o segundo fiducial (superior esquerdo ou inferior direito)"};
                     Consumer<Coordinate>[] next = new Consumer[1];
                     next[0] = point -> {
@@ -170,7 +170,7 @@ final class FiducialsToolPanel {
                     host.pickPoint(next[0]);
                 }
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -179,7 +179,7 @@ final class FiducialsToolPanel {
             errorLabel.setText("");
             try {
                 if (mask.getValue() == null) {
-                    throw new IllegalArgumentException("Carregue o Gerber da mascara de solda");
+                    throw new IllegalArgumentException("Carregue o Gerber da máscara de solda");
                 }
                 if (used.isEmpty()) {
                     throw new IllegalArgumentException("Adicione os fiduciais primeiro: as aberturas usam os mesmos pontos");
@@ -187,7 +187,7 @@ final class FiducialsToolPanel {
                 String error = host.addOpenings(mask.getValue(), List.copyOf(used), number(size) * 2);
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             }
         });
         Button close = new Button("Fechar");
@@ -198,11 +198,11 @@ final class FiducialsToolPanel {
 
         VBox panel = new VBox(8,
                 new Label("Gerber de cobre:"), copper, grid,
-                new Label("Posicao:"), new HBox(10, auto, manual),
-                new Label("Segundo fiducial (automatico):"), new HBox(10, up, down, none),
+                new Label("Posição:"), new HBox(10, auto, manual),
+                new Label("Segundo fiducial (automático):"), new HBox(10, up, down, none),
                 new Label("Tipo:"), new HBox(10, circular, cross, chess),
                 add, status, coordinates,
-                new Label("Mascara de solda (abertura = 2x o tamanho):"), mask, addOpenings, errorLabel, close);
+                new Label("Máscara de solda (abertura = 2x o tamanho):"), mask, addOpenings, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;
     }

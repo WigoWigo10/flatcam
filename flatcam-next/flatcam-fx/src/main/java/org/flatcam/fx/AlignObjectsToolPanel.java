@@ -105,7 +105,7 @@ final class AlignObjectsToolPanel {
                 TreeItem<String> target = centres.size() % 2 == 0 ? moved : reference;
                 Coordinate centre = host.centerAt(target, click);
                 if (centre == null) {
-                    errorLabel.setText("Nao ha pad ou furo de " + target.getValue() + " nesse ponto: clique em um.");
+                    errorLabel.setText("Não há pad ou furo de " + target.getValue() + " nesse ponto: clique em um.");
                     host.pickPoint(next[0]);
                     return;
                 }
@@ -131,7 +131,7 @@ final class AlignObjectsToolPanel {
 
         VBox panel = new VBox(8,
                 new Label("Objeto a alinhar:"), aligned,
-                new Label("Objeto de referencia:"), aligner,
+                new Label("Objeto de referência:"), aligner,
                 new Label("Tipo:"), new VBox(4, single, dual),
                 align, status, errorLabel, close);
         panel.setPadding(new Insets(6));

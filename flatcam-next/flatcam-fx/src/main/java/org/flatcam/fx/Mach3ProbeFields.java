@@ -17,7 +17,7 @@ final class Mach3ProbeFields {
     private final TextField feed;
     private final TextField contactZ;
     private final TextField xy;
-    private final CheckBox confirmation = new CheckBox("Li os cuidados de sondagem e vou validar o arquivo na maquina.");
+    private final CheckBox confirmation = new CheckBox("Li os cuidados de sondagem e vou validar o arquivo na máquina.");
     private final VBox view;
 
     Mach3ProbeFields(boolean metric, TextField changeZ, boolean showChangeZ,
@@ -30,13 +30,13 @@ final class Mach3ProbeFields {
         contactZ = field("probe-contact-z", defaults == null ? "0" : Double.toString(defaults.contactZ()));
         xy = field("probe-xy", defaults == null || defaults.toolChangeX() == null ? "None"
                 : defaults.toolChangeX() + ";" + defaults.toolChangeY());
-        xy.setPromptText("None ou X;Y (tambem aceita X,Y)");
+        xy.setPromptText("None ou X;Y (também aceita X,Y)");
         confirmation.setId("probe-confirm");
         confirmation.setWrapText(true);
         ToolDescriptions.apply(confirmation,"Confirmação de sondagem", "Confirma a revisão dos cuidados de sondagem para permitir a geração. Não valida sensor, macro M6, origem ou limites da máquina.\n\nAtenção: faça a validação física e interrompa imediatamente se não houver contato esperado. A confirmação é reiniciada ao trocar o perfil ou a origem.");
         Label warning = new Label("Sondagem Z Mach3: teste sensor, curso, origem e macro M6. "
                 + "Confirme contato nas duas pausas; sem contato, ABORTE. Retire placa/clips antes do corte. "
-                + "G92 permanece ativo; nao combine com G52. Sem previa no Plot Area. "
+                + "G92 permanece ativo; não combine com G52. Sem prévia no Plot Area. "
                 + "Valores nas unidades do objeto; confira-os ao trocar a origem.");
         warning.setWrapText(true);
         GridPane grid = new GridPane();
@@ -113,6 +113,6 @@ final class Mach3ProbeFields {
 
     private static double parse(String value, String name) {
         try { return Double.parseDouble(value.trim().replace(',', '.')); }
-        catch (NumberFormatException error) { throw new IllegalArgumentException(name + ": numero invalido."); }
+        catch (NumberFormatException error) { throw new IllegalArgumentException(name + ": número inválido."); }
     }
 }

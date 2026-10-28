@@ -90,7 +90,7 @@ final class CalibrationToolPanel {
         try {
             return Double.parseDouble(text);
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor invalido em: " + what);
+            throw new IllegalArgumentException("Valor inválido em: " + what);
         }
     }
 
@@ -239,7 +239,7 @@ final class CalibrationToolPanel {
             errorLabel.setText("");
             try {
                 if (count[0] != 4) {
-                    throw new IllegalArgumentException("Sao necessarios quatro pontos para gerar o G-code");
+                    throw new IllegalArgumentException("São necessários quatro pontos para gerar o G-code");
                 }
                 double[] xy = null;
                 String text = toolChangeXY.getText().trim();

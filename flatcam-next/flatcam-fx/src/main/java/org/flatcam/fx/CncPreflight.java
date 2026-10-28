@@ -343,11 +343,11 @@ final class CncPreflight {
             issues.add(new Issue(false, "Troca Custom: Tn/M6 quando a troca está ativada, sem M0 adicional. A altura e o XY são comandados antes da macro; depois, G90 e Z são restaurados antes do próximo XY. A macro, a seleção física da ferramenta e mudanças de origem não são simuladas.", null));
         }
         if (profile == GCodePreprocessor.ISEL_ICP_CNC) {
-            issues.add(new Issue(false, "ISEL ICP: somente mm; coordenadas em micrometros, VEL/FASTVEL em micrometros por segundo e WAIT em milissegundos. Valores sao truncados para inteiros, sem aumentar a precisao do controlador.", null));
-            issues.add(new Issue(false, "ISEL ICP: GETTOOL executa a troca automatica mesmo sem pausa manual. Confirme a macro, o referenciamento e as alturas; a previa nao simula essa troca nem o tempo dos rapidos. O estacionamento preserva a origem, sem WPCLEAR.", null));
+            issues.add(new Issue(false, "ISEL ICP: somente mm; coordenadas em micrômetros, VEL/FASTVEL em micrômetros por segundo e WAIT em milissegundos. Valores são truncados para inteiros, sem aumentar a precisão do controlador.", null));
+            issues.add(new Issue(false, "ISEL ICP: GETTOOL executa a troca automática mesmo sem pausa manual. Confirme a macro, o referenciamento e as alturas; a prévia não simula essa troca nem o tempo dos rápidos. O estacionamento preserva a origem, sem WPCLEAR.", null));
         }
         if (profile == GCodePreprocessor.LINE_XYZ) {
-            issues.add(new Issue(false, "line_xyz: a subida inicial e a restauracao de Z apos M6 mantem X/Y atuais. XYZ sao explicitados quando conhecidos; confirme que o controlador aceita o preambulo vertical. A macro M6 nao e simulada.", null));
+            issues.add(new Issue(false, "line_xyz: a subida inicial e a restauração de Z após M6 mantêm X/Y atuais. XYZ são explicitados quando conhecidos; confirme que o controlador aceita o preâmbulo vertical. A macro M6 não é simulada.", null));
         }
         if (profile == GCodePreprocessor.ISEL_CNC) {
             issues.add(new Issue(false, "ISEL CNC: o perfil usa mm, G71/G94 e T1–T128. Os tempos Dwell configurados em segundos são convertidos para milissegundos no G-code.", null));

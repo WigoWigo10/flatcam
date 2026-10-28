@@ -25,7 +25,7 @@ final class CncJobDefaultsReview {
         view.managedProperty().bind(view.visibleProperty());
         confirm.setId(prefix + "-common-db-confirm"); confirm.setMaxWidth(Double.MAX_VALUE);
         confirm.setTooltip(new Tooltip("Confirma os valores comuns atualmente exibidos no painel para todo o trabalho. "
-                + "Edite perfil, alturas, posicoes e troca antes de confirmar. Os parametros de corte por fresa nao mudam."));
+                + "Edite perfil, alturas, posições e troca antes de confirmar. Os parâmetros de corte por fresa não mudam."));
         confirm.setOnAction(event -> {
             tools.clear(); conflicted = false; confirm.setVisible(false); confirm.setManaged(false);
             notice.setText("Valores comuns do painel confirmados. Confira-os antes de gerar G-code.");
@@ -41,7 +41,7 @@ final class CncJobDefaultsReview {
     }
     void setActiveIds(Set<Integer> ids) { activeIds = Set.copyOf(ids); refresh(); }
     void assertResolved() {
-        if (conflicted) throw new IllegalArgumentException("Conflito nas configuracoes comuns da DB. "
+        if (conflicted) throw new IllegalArgumentException("Conflito nas configurações comuns da DB. "
                 + "Revise os campos e clique Usar valores comuns exibidos.");
     }
     private void refresh() {
@@ -51,8 +51,8 @@ final class CncJobDefaultsReview {
         apply.accept(resolved.agreed());
         conflicted = !resolved.conflicts().isEmpty();
         notice.setText(conflicted ? "Conflito na DB: " + resolved.description() + ". "
-                + "Esses campos nao foram sobrescritos. Escolha os valores comuns do trabalho e confirme."
-                : selected.isEmpty() ? "" : "Configuracoes comuns explicitas da DB recuperadas. Confira perfil, posicoes e unidades.");
+                + "Esses campos não foram sobrescritos. Escolha os valores comuns do trabalho e confirme."
+                : selected.isEmpty() ? "" : "Configurações comuns explícitas da DB recuperadas. Confira perfil, posições e unidades.");
         updateVisibility(conflicted);
     }
     private void updateVisibility(boolean conflict) {

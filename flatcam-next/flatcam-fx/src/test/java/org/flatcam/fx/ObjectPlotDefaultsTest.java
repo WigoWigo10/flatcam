@@ -200,7 +200,7 @@ class ObjectPlotDefaultsTest {
                 var image=((Map<?,?>)field("gerberByItem").get(session.host)).get(item);
                 @SuppressWarnings("unchecked") var menuItems=(java.util.List<MenuItem>)invoke(session.host,"gerberContextMenuItems",new Class<?>[]{TreeItem.class,GerberImage.class},item,image);
                 Menu colors=menuItems.stream().filter(m->m instanceof Menu && m.getText().equals("Definir Cor")).map(m->(Menu)m).findFirst().orElseThrow();
-                colors.getItems().stream().filter(m->m.getText()!=null && m.getText().equals("Padrao")).findFirst().orElseThrow().fire();
+                colors.getItems().stream().filter(m->m.getText()!=null && m.getText().equals("Padrão")).findFirst().orElseThrow().fire();
                 assertEquals(Color.web("#AABBCC40"),session.plot.layerColors(item)[1]);
                 assertEquals(Color.web("#12345680"),session.plot.layerColors(item)[0]);
                 assertTrue(session.plot.isLayerVisible(item),"changing a default does not hide the existing object");

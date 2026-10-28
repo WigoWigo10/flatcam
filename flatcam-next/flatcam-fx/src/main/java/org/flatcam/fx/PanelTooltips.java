@@ -52,6 +52,12 @@ final class PanelTooltips {
                     tab.contentProperty().addListener((obs,was,content) -> install(content,context));
                 });
             });
+        } else if (root instanceof javafx.scene.control.SplitPane split) {
+            List.copyOf(split.getItems()).forEach(child -> install(child, context));
+            split.getItems().addListener((ListChangeListener<Node>) change -> {
+                while (change.next()) if (change.wasAdded())
+                    List.copyOf(change.getAddedSubList()).forEach(child -> install(child, context));
+            });
         } else if (root instanceof javafx.scene.control.Accordion accordion) {
             List.copyOf(accordion.getPanes()).forEach(pane -> install(pane, context));
             accordion.getPanes().addListener((ListChangeListener<TitledPane>) change -> {
@@ -121,7 +127,7 @@ final class PanelTooltips {
         if (context.startsWith("Editor ")) return "Selecione as formas, aberturas ou ferramentas a editar. A seleção no desenho e na tabela é sincronizada.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.\n\nAs alterações do editor ficam em rascunho até aplicar ao objeto.";
         if (List.of("Isolation Tool", "NCC Tool", "Paint Tool", "Geometry CNC Job", "Drilling Tool", "Milling Tool").contains(context))
             return "Ferramentas desta operação. Selecione uma linha para revisar seus parâmetros; algumas operações usam somente as linhas selecionadas.\n\nDiâmetro: largura da ferramenta, na unidade do objeto.\nTT: perfil C1–C4 (fresa plana), B (esférica) ou V (ponta em V), quando disponível.\n\nAtalhos: Ctrl+clique alterna itens; Shift+clique seleciona um intervalo.";
-        if (context.equals("Gerber Object")) return "Aberturas Gerber: Code identifica o D-code; Type é o formato; Size / Dim são dimensões; M marca a abertura no plot.\n\nUnidades: unidade do Gerber (mm ou in).";
+        if (context.equals("Gerber Object")) return "Aberturas Gerber: Cód. identifica o D-code; Tipo é o formato; Tam. / Dim são dimensões; M marca a abertura no plot.\n\nUnidades: unidade do Gerber (mm ou in).";
         if (context.equals("Excellon Object")) return "Ferramentas Excellon e seus diâmetros, quantidades de furos e slots. Marcar Plot controla apenas a visualização.\n\nUnidades: unidade do Excellon (mm ou in).";
         if (context.equals("CNC Job Object")) return "Ferramentas e estatísticas do programa. Tempos são estimativas, não medições físicas da máquina.";
         return null;
@@ -199,7 +205,7 @@ final class PanelTooltips {
         String scoped = contextual(context, name);
         if (scoped != null) return scoped;
         return switch (name) {
-            case "tool dia", "tool diameter", "tool diameter (mm)", "tool diameter (in)", "diametro da broca" ->
+            case "tool dia", "tool diameter", "tool diameter (mm)", "tool diameter (in)", "diametro da broca", "diametro da ferramenta", "diametro da ferramenta (mm)", "diametro da ferramenta (in)" ->
                     "Diâmetro de corte, maior que zero. Define a largura do caminho usinado, não a profundidade de corte." + LINEAR;
             case "spot dia" -> "Diâmetro do ponto do laser usado para calcular a largura dos caminhos." + LINEAR;
             case "passes" -> "Quantidade inteira de passes de Isolation. Mais passes aumentam a largura isolada em conjunto com o diâmetro e Overlap.";
@@ -229,20 +235,20 @@ final class PanelTooltips {
             case "probe feed" -> "Avanço positivo usado ao procurar contato com a sonda. Use um valor compatível com o sensor e a máquina." + FEED;
             case "contact z / placa" -> "Coordenada Z conhecida da superfície de contato, incluindo a espessura da placa de sondagem conforme a referência adotada." + LINEAR;
             case "troca x,y (opcional)" -> "Posição para a troca e a sondagem. None mantém X-Y; para deslocar, informe X;Y. Revise o percurso e a macro M6 da máquina." + LINEAR;
-            case "v-tip dia", "tip diameter" -> "Diâmetro da ponta da ferramenta V, não da largura de corte na profundidade escolhida." + LINEAR;
+            case "v-tip dia", "tip diameter", "diametro da ponta" -> "Diâmetro da ponta da ferramenta V, não da largura de corte na profundidade escolhida." + LINEAR;
             case "v-tip angle (graus)", "tip angle" -> "Ângulo total da ponta V, em graus, maior que 0 e menor que 180. Junto com a ponta e a profundidade, determina a largura de corte.";
             case "search and add" -> "Busca na Tools Database pelo diâmetro e pela operação. Um único resultado compatível transfere os parâmetros suportados; sem correspondência, usa os valores padrão.";
-            case "pick from db" -> "Escolhe uma ferramenta explicitamente na Tools Database. Confira o diâmetro, o tipo e os parâmetros transferidos antes de gerar.";
+            case "pick from db", "escolher da base" -> "Escolhe uma ferramenta explicitamente na Tools Database. Confira o diâmetro, o tipo e os parâmetros transferidos antes de gerar.";
             case "optimal" -> "Calcula em segundo plano a menor distância entre regiões de cobre para sugerir um diâmetro que caiba entre elas. Não define automaticamente avanço ou profundidade.";
             case "apply parameters to all tools", "aplicar parametros a todas as ferramentas" -> "Copia os parâmetros da ferramenta selecionada para todas as ferramentas da tabela. Revise os valores por ferramenta antes de gerar.";
             case "reset tool" -> "Restaura os parâmetros iniciais do painel; não apaga os objetos já gerados no projeto.";
-            case "solid" -> "Preenche as formas no desenho; desmarque para visualizar somente seus contornos. Não modifica os dados CAM.";
-            case "multi-color" -> "Diferencia aberturas ou ferramentas por cores no desenho. Não altera o objeto nem o G-code.";
-            case "display annotation" -> "Mostra os números dos movimentos do CNC Job no desenho para localizar trechos do programa.";
-            case "display direction arrows" -> "Mostra o sentido dos movimentos do CNC Job. É apenas uma ajuda visual; não inverte os caminhos.";
+            case "solid", "solido" -> "Preenche as formas no desenho; desmarque para visualizar somente seus contornos. Não modifica os dados CAM.";
+            case "multi-color", "multicor" -> "Diferencia aberturas ou ferramentas por cores no desenho. Não altera o objeto nem o G-code.";
+            case "display annotation", "exibir anotacoes" -> "Mostra os números dos movimentos do CNC Job no desenho para localizar trechos do programa.";
+            case "display direction arrows", "exibir sentido dos movimentos" -> "Mostra o sentido dos movimentos do CNC Job. É apenas uma ajuda visual; não inverte os caminhos.";
             case "boundary margin" -> "Margem acrescentada à caixa ao redor do objeto para gerar a área auxiliar." + LINEAR;
-            case "scale" -> "Multiplica todas as coordenadas e dimensões pelo fator informado. 1 mantém o tamanho; 2 dobra o tamanho.";
-            case "offset x" -> "Translada o objeto pelo deslocamento X informado; não é compensação do raio da ferramenta." + LINEAR;
+            case "scale", "escala", "escalar" -> "Multiplica todas as coordenadas e dimensões pelo fator informado. 1 mantém o tamanho; 2 dobra o tamanho.";
+            case "offset x", "deslocamento x", "deslocar x" -> "Translada o objeto pelo deslocamento X informado; não é compensação do raio da ferramenta." + LINEAR;
             default -> PanelHelpCatalog.help(context, name);
         };
     }
@@ -257,7 +263,7 @@ final class PanelTooltips {
                         ? "Margem da caixa usada como limite da limpeza. Não é Offset: o afastamento das trilhas é configurado separadamente." + LINEAR
                         : "Margem individual entre o preenchimento e a borda do polígono. Positiva contrai a área; negativa expande.\n\nAtenção: valores negativos podem criar caminhos fora do contorno original." + LINEAR;
                 case "offset", "copper offset" : return "Ativa uma distância adicional de proteção ao redor das trilhas e pads durante a limpeza. Habilita o valor de Offset.";
-                case "selection" : return "Itself = caixa da origem.\nArea = área desenhada no plot.\nReference = limite dado por outro objeto.\n\nDefine onde a limpeza pode ocorrer, sem trocar o cobre de origem.";
+                case "selection" : return "Itself = caixa da origem.\nÁrea = área desenhada no plot.\nReference = limite dado por outro objeto.\n\nDefine onde a limpeza pode ocorrer, sem trocar o cobre de origem.";
                 case "operation" : return "Clear remove o cobre fora do circuito.\nIsolation cria caminhos ao redor das trilhas antes da limpeza.\n\nA operação é configurada por ferramenta.";
                 case "milling type" : return "Climb = fresagem concordante.\nConventional = fresagem discordante.\n\nNo NCC, essa escolha se aplica à operação Isolation.";
             }
@@ -296,7 +302,7 @@ final class PanelTooltips {
                 default -> null;
             };
         }
-        if (context.equals("Preferencias")) {
+        if (context.equals("Preferências")) {
             return switch (name) {
                 case "tema" -> "Seleciona Branco puro, Preto puro, Branco gelo ou Preto gelo. Branco puro é o padrão inicial. Aplicar salva a escolha; não modifica o projeto nem os dados CAM.";
                 case "passo x", "passo y" -> "Distância positiva entre posições do snap neste eixo. O passo Y é ignorado quando os eixos estão vinculados." + LINEAR;

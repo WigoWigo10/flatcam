@@ -7,7 +7,6 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
-import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -31,7 +30,7 @@ final class CompactJobProgress extends HBox {
         progress.setMinHeight(16);
         progress.setPrefHeight(16);
         progress.setMaxHeight(16);
-        progress.setAccessibleText("Progresso da operacao");
+        progress.setAccessibleText("Progresso da operação");
 
         Label percentage = new Label();
         percentage.setId("compact-job-percent");
@@ -50,12 +49,17 @@ final class CompactJobProgress extends HBox {
         indicator.setPrefHeight(20);
         indicator.setMaxHeight(20);
         HBox.setHgrow(indicator, Priority.ALWAYS);
+        ToolDescriptions.apply(indicator, "Progresso da operação",
+                "Mostra o progresso da etapa atual mesmo com o Terminal recolhido. Uma etapa nova pode reiniciar a porcentagem.\n\n"
+                + "Progresso: a animação sem porcentagem indica que a duração ainda não é conhecida; não significa que a operação parou.");
 
         Button cancel = new Button(null, Icons.cancel(14));
         cancel.setId("compact-job-cancel");
         cancel.getStyleClass().add("job-cancel-button");
-        cancel.setTooltip(new Tooltip("Cancelar a operacao em andamento"));
-        cancel.setAccessibleText("Cancelar a operacao em andamento");
+        ToolDescriptions.apply(cancel, "Cancelar operação",
+                "Solicita a interrupção do trabalho em andamento. O botão fica disponível enquanto há uma operação cancelável.\n\n"
+                + "Atenção: o encerramento pode aguardar o cálculo atual. Ações e comandos já concluídos não são desfeitos.");
+        cancel.setAccessibleText("Cancelar a operação em andamento");
         cancel.disableProperty().bind(cancelDisabled);
         cancel.visibleProperty().bind(cancel.disableProperty().not());
         cancel.managedProperty().bind(cancel.visibleProperty());

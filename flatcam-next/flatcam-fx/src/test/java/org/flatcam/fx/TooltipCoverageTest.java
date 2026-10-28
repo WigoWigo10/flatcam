@@ -12,6 +12,34 @@ import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 
 class TooltipCoverageTest {
+    @Test @EnabledOnOs(OS.WINDOWS)
+    void curvedExportKeepsItsDisabledChoiceExplainedAndJumpKeepsExactEntryHelp() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var export = CamExportDialog.excellonDialog(null, "MM", true);
+            var jump = new ArcCoordinateDialog(null, new org.locationtech.jts.geom.Coordinate(1, 2), "IN", true, false);
+            try {
+                var grid = (javafx.scene.layout.GridPane) export.getDialogPane().getContent();
+                var slots = (javafx.scene.control.ComboBox<?>) grid.getChildren().stream()
+                        .filter(node -> node instanceof javafx.scene.control.ComboBox<?>
+                                && Integer.valueOf(5).equals(javafx.scene.layout.GridPane.getRowIndex(node)))
+                        .findFirst().orElseThrow();
+                assertTrue(slots.isDisabled());
+                assertTrue(slots.getAccessibleHelp().contains("G85"));
+                assertTrue(slots.getAccessibleHelp().contains("por segmentos retos"));
+                var content = (TooltipContent) slots.getProperties().get(FluidTooltips.CONTENT_KEY);
+                assertTrue(content.spans().stream().anyMatch(span -> span.text().equals("Limitação:")
+                        && span.style() == TooltipContent.Style.NOTE));
+                var label = grid.getChildren().stream().filter(node -> Integer.valueOf(5).equals(javafx.scene.layout.GridPane.getRowIndex(node))
+                        && node instanceof javafx.scene.control.Label).findFirst().orElseThrow();
+                assertEquals(slots.getAccessibleHelp(), label.getAccessibleHelp());
+                var exact = jump.getDialogPane().lookupButton(jump.insert);
+                assertTrue(exact.getAccessibleHelp().contains("sem arredondar à grade"));
+                assertTrue(jump.getDialogPane().lookupButton(jump.preview).getAccessibleHelp().contains("Snap"));
+            } finally { export.close(); jump.close(); }
+            return null;
+        });
+    }
+
     @Test void sameCaptionsHaveScopedUnitsAndEffects() {
         assertTrue(PanelTooltips.help("Invert Gerber Tool","Margem:").contains("inverter"));
         assertTrue(PanelTooltips.help("Copper Thieving Tool","Margem:").contains("cobre auxiliar"));

@@ -91,10 +91,10 @@ final class CalculatorsPanel {
         GridPane grid = new GridPane();
         grid.setHgap(8);
         grid.setVgap(6);
-        grid.addRow(0, new Label("Tip Diameter:"), tipDiaField);
+        grid.addRow(0, new Label("Diâmetro da ponta:"), tipDiaField);
         grid.addRow(1, new Label("Tip Angle:"), tipAngleField);
         grid.addRow(2, new Label("Cut Z:"), cutDepthField);
-        grid.addRow(3, new Label("Tool Diameter:"), toolDiaField);
+        grid.addRow(3, new Label("Diâmetro da ferramenta:"), toolDiaField);
 
         Button calculateButton = new Button("Calculate");
         calculateButton.setMaxWidth(Double.MAX_VALUE);
@@ -106,7 +106,7 @@ final class CalculatorsPanel {
     // --- ElectroPlating Calculator: appTools/ToolCalculators.py's on_calculate_eplate() ---
     private static Node buildElectroplatingSection() {
         RadioButton dimensionsRadio = new RadioButton("Dimensions");
-        RadioButton areaRadio = new RadioButton("Area");
+        RadioButton areaRadio = new RadioButton("Área");
         ToolDescriptions.apply(dimensionsRadio,"Área por dimensões", "Calcula a área a partir de comprimento e largura, ambos em centímetros. Não usa as dimensões atuais do projeto.");
         ToolDescriptions.apply(areaRadio,"Área informada", "Usa diretamente a área digitada em cm² para estimar corrente e tempo de galvanoplastia.");
         ToggleGroup areaModeGroup = new ToggleGroup();
@@ -128,7 +128,7 @@ final class CalculatorsPanel {
 
         HBox lengthRow = new HBox(6, new Label("Board Length:"), lengthField, new Label("cm"));
         HBox widthRow = new HBox(6, new Label("Board Width:"), widthField, new Label("cm"));
-        HBox areaRow = new HBox(6, new Label("Area:"), areaField, new Label("cm²"));
+        HBox areaRow = new HBox(6, new Label("Área:"), areaField, new Label("cm²"));
         HBox.setHgrow(lengthField, Priority.ALWAYS);
         HBox.setHgrow(widthField, Priority.ALWAYS);
         HBox.setHgrow(areaField, Priority.ALWAYS);
@@ -178,7 +178,7 @@ final class CalculatorsPanel {
         VBox areaInputs = new VBox(6, new HBox(10, dimensionsRadio, areaRadio), lengthRow, widthRow, areaRow);
 
         return new VBox(6, sectionTitle("ElectroPlating Calculator"),
-                new Label("Area Calculation:"), areaInputs, grid, calculateButton);
+                new Label("Cálculo de área:"), areaInputs, grid, calculateButton);
     }
 
     private static void compactFields(TextField... fields) {

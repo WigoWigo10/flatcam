@@ -24,12 +24,19 @@ final class CamExportDialog {
     private static final String GERBER_KEY = "exportGerberFormat";
     private static final String EXCELLON_KEY = "exportExcellonFormat";
     private static final String UNITS_IN = "IN - polegadas";
-    private static final String UNITS_MM = "MM - milimetros";
+    private static final String UNITS_MM = "MM - milímetros";
 
     private CamExportDialog() {
     }
 
     static Optional<GerberExporter.Format> askGerberFormat(Window owner, String objectUnits) {
+        Optional<GerberExporter.Format> result = gerberDialog(owner, objectUnits).showAndWait();
+        result.ifPresent(CamExportDialog::saveGerber);
+        return result;
+    }
+
+    /** Builds the same dialog used interactively, without displaying it or saving preferences. */
+    static Dialog<GerberExporter.Format> gerberDialog(Window owner, String objectUnits) {
         GerberExporter.Format initial = loadGerber();
         Dialog<GerberExporter.Format> dialog = dialog(owner, "Exportar Gerber");
 
@@ -37,23 +44,22 @@ final class CamExportDialog {
         Spinner<Integer> integerDigits = digits(initial.integerDigits());
         Spinner<Integer> decimalDigits = digits(initial.decimalDigits());
         ComboBox<String> zeros = new ComboBox<>();
-        zeros.getItems().addAll("L - omite zeros a esquerda", "T - omite zeros a direita");
+        zeros.getItems().addAll("L - omite zeros à esquerda", "T - omite zeros à direita");
         zeros.getSelectionModel().select(initial.omitLeadingZeros() ? 0 : 1);
         units.setOnAction(e -> integerDigits.getValueFactory().setValue(isInch(units) ? 2 : 3));
 
         GridPane grid = grid();
         grid.addRow(0, new Label("Unidades:"), units);
-        grid.addRow(1, new Label("Digitos inteiros:"), integerDigits);
-        grid.addRow(2, new Label("Digitos decimais:"), decimalDigits);
+        grid.addRow(1, new Label("Dígitos inteiros:"), integerDigits);
+        grid.addRow(2, new Label("Dígitos decimais:"), decimalDigits);
         grid.addRow(3, new Label("Zeros:"), zeros);
         grid.add(note(objectUnits), 0, 4, 2, 1);
         dialog.getDialogPane().setContent(grid);
         dialog.setResultConverter(button -> button.getButtonData() != ButtonBar.ButtonData.OK_DONE ? null
                 : new GerberExporter.Format(isInch(units) ? "IN" : "MM", integerDigits.getValue(),
                         decimalDigits.getValue(), zeros.getSelectionModel().getSelectedIndex() == 0));
-        Optional<GerberExporter.Format> result = dialog.showAndWait();
-        result.ifPresent(CamExportDialog::saveGerber);
-        return result;
+        PanelTooltips.install(grid, "Exportar Gerber");
+        return dialog;
     }
 
     static Optional<ExcellonExporter.Format> askExcellonFormat(Window owner, String objectUnits) {
@@ -61,6 +67,12 @@ final class CamExportDialog {
     }
 
     static Optional<ExcellonExporter.Format> askExcellonFormat(Window owner, String objectUnits, boolean curvedSlots) {
+        Optional<ExcellonExporter.Format> result = excellonDialog(owner, objectUnits, curvedSlots).showAndWait();
+        result.ifPresent(CamExportDialog::saveExcellon);
+        return result;
+    }
+
+    static Dialog<ExcellonExporter.Format> excellonDialog(Window owner, String objectUnits, boolean curvedSlots) {
         ExcellonExporter.Format initial = loadExcellon();
         Dialog<ExcellonExporter.Format> dialog = dialog(owner, "Exportar Excellon");
 
@@ -71,13 +83,15 @@ final class CamExportDialog {
         Spinner<Integer> integerDigits = digits(initial.integerDigits());
         Spinner<Integer> decimalDigits = digits(initial.decimalDigits());
         ComboBox<String> zeros = new ComboBox<>();
-        zeros.getItems().addAll("LZ - mantem zeros a esquerda", "TZ - mantem zeros a direita");
+        zeros.getItems().addAll("LZ - mantém zeros à esquerda", "TZ - mantém zeros à direita");
         zeros.getSelectionModel().select(initial.leadingZeros() ? 0 : 1);
         ComboBox<String> slots = new ComboBox<>();
         slots.getItems().addAll("Roteado (G00/M15/G01/M16)", "Furado (G85)");
         slots.getSelectionModel().select(initial.slots() == ExcellonExporter.SlotStyle.ROUTED ? 0 : 1);
         if (curvedSlots) { slots.getSelectionModel().select(0); slots.setDisable(true); }
-        ToolDescriptions.apply(slots,"Formato dos rasgos","Roteado mantém os trajetos com movimentos contínuos. G85 representa somente rasgos retos e fica indisponível quando o objeto contém trajetos curvos.");
+        ToolDescriptions.apply(slots, "Formato dos rasgos",
+                "Roteado conserva o trajeto; curvas são exportadas por segmentos retos. G85 representa somente rasgos retos.\n\n"
+                + (curvedSlots ? "Limitação: este objeto contém curvas, por isso G85 está indisponível." : "Escolha o formato aceito pelo programa que vai ler o arquivo."));
         Runnable syncZeros = () -> {
             boolean decimal = style.getSelectionModel().getSelectedIndex() == 0;
             zeros.setDisable(decimal);
@@ -93,8 +107,8 @@ final class CamExportDialog {
         GridPane grid = grid();
         grid.addRow(0, new Label("Unidades:"), units);
         grid.addRow(1, new Label("Formato:"), style);
-        grid.addRow(2, new Label("Digitos inteiros:"), integerDigits);
-        grid.addRow(3, new Label("Digitos decimais:"), decimalDigits);
+        grid.addRow(2, new Label("Dígitos inteiros:"), integerDigits);
+        grid.addRow(3, new Label("Dígitos decimais:"), decimalDigits);
         grid.addRow(4, new Label("Zeros:"), zeros);
         grid.addRow(5, new Label("Slots:"), slots);
         grid.add(note(objectUnits), 0, 6, 2, 1);
@@ -110,9 +124,8 @@ final class CamExportDialog {
                         zeros.getSelectionModel().getSelectedIndex() == 0,
                         slots.getSelectionModel().getSelectedIndex() == 0
                                 ? ExcellonExporter.SlotStyle.ROUTED : ExcellonExporter.SlotStyle.G85));
-        Optional<ExcellonExporter.Format> result = dialog.showAndWait();
-        result.ifPresent(CamExportDialog::saveExcellon);
-        return result;
+        PanelTooltips.install(grid, "Exportar Excellon");
+        return dialog;
     }
 
     /** Shared UI/Tcl format lookup; never writes preferences. */
@@ -181,11 +194,16 @@ final class CamExportDialog {
 
     private static <T> Dialog<T> dialog(Window owner, String title) {
         Dialog<T> dialog = new Dialog<>();
-        dialog.initOwner(owner);
+        if (owner != null) dialog.initOwner(owner);
         dialog.setTitle(title);
         FluidTooltips.install(dialog, title);
         dialog.getDialogPane().getButtonTypes().addAll(
                 new ButtonType("Exportar...", ButtonBar.ButtonData.OK_DONE), ButtonType.CANCEL);
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(dialog.getDialogPane().getButtonTypes().getFirst()),
+                "Confirmar formato de exportação", "Confirma as unidades e o formato e segue para a escolha do arquivo de destino. A última configuração confirmada é lembrada.\n\n"
+                + "Resultado: exporta uma cópia; não transforma as coordenadas do objeto em memória.");
+        ToolDescriptions.apply(dialog.getDialogPane().lookupButton(ButtonType.CANCEL), "Cancelar exportação",
+                "Fecha este diálogo sem confirmar o formato nem gerar um arquivo.");
         return dialog;
     }
 
@@ -216,7 +234,7 @@ final class CamExportDialog {
 
     private static Label note(String objectUnits) {
         Label note = new Label("Objeto em " + objectUnits
-                + "; as coordenadas sao convertidas para as unidades escolhidas.");
+                + "; as coordenadas são convertidas para as unidades escolhidas.");
         note.setWrapText(true);
         note.setMaxWidth(320);
         return note;

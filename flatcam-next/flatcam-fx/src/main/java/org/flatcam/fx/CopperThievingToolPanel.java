@@ -98,7 +98,7 @@ final class CopperThievingToolPanel {
         try {
             return Double.parseDouble(field.getText().trim().replace(',', '.'));
         } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException("Valor invalido em: " + what);
+            throw new IllegalArgumentException("Valor inválido em: " + what);
         }
     }
 
@@ -216,7 +216,7 @@ final class CopperThievingToolPanel {
                 }
                 Reference chosenReference = chosen(reference);
                 if (chosenReference == Reference.BOX && referenceObject.getValue() == null) {
-                    throw new IllegalArgumentException("Escolha o objeto de referencia");
+                    throw new IllegalArgumentException("Escolha o objeto de referência");
                 }
                 Options options = new Options(parse(clearance, "distância"), parse(margin, "margem"),
                         parse(minArea, "área mínima"), chosenReference, chosen(boxType), d.circleSteps(), chosen(fill),

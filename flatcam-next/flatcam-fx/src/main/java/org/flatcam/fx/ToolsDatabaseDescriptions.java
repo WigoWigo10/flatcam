@@ -85,14 +85,14 @@ final class ToolsDatabaseDescriptions {
 
     static String actionText(String label) {
         return switch (label) {
-            case "Adicionar ferramenta" -> "Adiciona uma ferramenta à base em memória com parâmetros iniciais editáveis. Use Save DB para gravá-la no arquivo.";
+            case "Adicionar ferramenta" -> "Adiciona uma ferramenta à base em memória com parâmetros iniciais editáveis. Use Salvar base para gravá-la no arquivo.";
             case "Copiar" -> "Duplica uma ou várias ferramentas selecionadas, incluindo seus parâmetros e campos desconhecidos. As cópias recebem novos IDs e podem ser editadas separadamente.";
             case "Excluir" -> "Remove as ferramentas selecionadas após confirmação. O arquivo no disco só é alterado quando a base é salva.";
-            case "Aplicar parametros" -> "Valida os campos editados e aplica as alterações à ferramenta em memória. Não grava no disco; Save DB persiste a base. Valores inválidos mantêm o rascunho para correção.";
+            case "Aplicar parâmetros" -> "Valida os campos editados e aplica as alterações à ferramenta em memória. Não grava no disco; Salvar base persiste a base. Valores inválidos mantêm o rascunho para correção.";
             case "Nova base" -> "Inicia uma biblioteca vazia sem apagar o arquivo atual. Se houver alterações não salvas, pede confirmação antes de descartá-las.";
-            case "Import DB" -> "Abre uma base .FlatDB ou JSON do FlatCAM Python e substitui a biblioteca em memória após leitura válida. Pede confirmação para descartar alterações; em caso de erro, mantém a base atual.";
-            case "Export DB" -> "Grava uma cópia .FlatDB/JSON em outro arquivo. Mantém a associação e as alterações pendentes da base atual; exportar para seu próprio arquivo equivale a salvar. Cria backup ao sobrescrever.";
-            case "Save DB" -> "Valida e salva a biblioteca no arquivo associado, ou pede um destino na primeira gravação. Cria backup antes de sobrescrever e limpa o indicador de alterações. Atalho: Ctrl+S.";
+            case "Importar base" -> "Abre uma base .FlatDB ou JSON do FlatCAM Python e substitui a biblioteca em memória após leitura válida. Pede confirmação para descartar alterações; em caso de erro, mantém a base atual.";
+            case "Exportar base" -> "Grava uma cópia .FlatDB/JSON em outro arquivo. Mantém a associação e as alterações pendentes da base atual; exportar para seu próprio arquivo equivale a salvar. Cria backup ao sobrescrever.";
+            case "Salvar base" -> "Valida e salva a biblioteca no arquivo associado, ou pede um destino na primeira gravação. Cria backup antes de sobrescrever e limpa o indicador de alterações. Atalho: Ctrl+S.";
             default -> throw new IllegalArgumentException("Sem tooltip para " + label);
         };
     }

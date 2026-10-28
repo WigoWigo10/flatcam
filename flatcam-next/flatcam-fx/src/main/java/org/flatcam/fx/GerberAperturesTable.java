@@ -77,11 +77,11 @@ final class GerberAperturesTable {
 
         TableColumn<ApertureRow, Number> indexColumn = new TableColumn<>("#");
         indexColumn.setCellValueFactory(cb -> new ReadOnlyObjectWrapper<>(rows.indexOf(cb.getValue()) + 1));
-        TableColumn<ApertureRow, String> codeColumn = new TableColumn<>("Code");
+        TableColumn<ApertureRow, String> codeColumn = new TableColumn<>("Cód.");
         codeColumn.setCellValueFactory(new PropertyValueFactory<>("code"));
-        TableColumn<ApertureRow, String> typeColumn = new TableColumn<>("Type");
+        TableColumn<ApertureRow, String> typeColumn = new TableColumn<>("Tipo");
         typeColumn.setCellValueFactory(new PropertyValueFactory<>("type"));
-        TableColumn<ApertureRow, Number> sizeColumn = new TableColumn<>("Size");
+        TableColumn<ApertureRow, Number> sizeColumn = new TableColumn<>("Tam.");
         sizeColumn.setCellValueFactory(new PropertyValueFactory<>("size"));
         TableColumn<ApertureRow, String> dimColumn = new TableColumn<>("Dim");
         dimColumn.setCellValueFactory(new PropertyValueFactory<>("dim"));
@@ -117,7 +117,7 @@ final class GerberAperturesTable {
         table.getItems().setAll(rows);
         table.setPrefHeight(Math.min(200, 32 + rows.size() * 28));
 
-        CheckBox markAllCb = new CheckBox("Mark All");
+        CheckBox markAllCb = new CheckBox("Marcar todos");
         markAllCb.setOnAction(e -> rows.forEach(row -> row.markedProperty().set(markAllCb.isSelected())));
 
         return new VBox(6, markAllCb, table);

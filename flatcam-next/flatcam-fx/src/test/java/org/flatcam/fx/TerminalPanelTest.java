@@ -165,7 +165,7 @@ class TerminalPanelTest {
             assertTrue(entered.await(10, TimeUnit.SECONDS));
             fx(() -> { ((Button) session.panel.lookup("#terminal-cancel")).fire(); return null; });
             idle.get(25, TimeUnit.SECONDS);
-            assertTrue(session.text().contains("Cancelado. Comandos ja concluidos nao sao desfeitos."));
+            assertTrue(session.text().contains("Cancelado. Comandos já concluídos não são desfeitos."));
             session.submit("set x");
             assertFalse(session.text().endsWith("no such variable\n"));
             assertFalse(fx(session.panel::isBusy));

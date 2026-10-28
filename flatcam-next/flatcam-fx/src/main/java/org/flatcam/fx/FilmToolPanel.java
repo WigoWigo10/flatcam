@@ -109,9 +109,13 @@ final class FilmToolPanel {
         TextField scaleY = field(ToolDefaults.text("film.scaley"));
         scaleX.disableProperty().bind(scale.selectedProperty().not());
         scaleY.disableProperty().bind(scale.selectedProperty().not());
-        CheckBox skew = new CheckBox("Inclinacao (graus)");
+        CheckBox skew = new CheckBox("Inclinação (graus)");
         TextField skewX = field(ToolDefaults.text("film.skewx"));
         TextField skewY = field(ToolDefaults.text("film.skewy"));
+        ToolDescriptions.apply(scaleX, "Escala X do filme", "Multiplica a dimensão horizontal do filme exportado. 1 mantém o tamanho; 2 dobra. Não transforma o objeto de origem.\n\nUnidades: fator sem unidade. Disponível com Escala marcada.");
+        ToolDescriptions.apply(scaleY, "Escala Y do filme", "Multiplica a dimensão vertical do filme exportado, independentemente de X.\n\nAtenção: fatores X/Y diferentes deformam a proporção do filme.\n\nUnidades: fator sem unidade. Disponível com Escala marcada.");
+        ToolDescriptions.apply(skewX, "Inclinação X do filme", "Inclina horizontalmente o filme pela referência escolhida. Zero mantém a inclinação X. Não modifica o objeto original.\n\nUnidades: graus. Disponível com Inclinação marcada.");
+        ToolDescriptions.apply(skewY, "Inclinação Y do filme", "Inclina verticalmente o filme pela referência escolhida. Zero mantém a inclinação Y. Não modifica o objeto original.\n\nUnidades: graus. Disponível com Inclinação marcada.");
         ComboBox<String> skewReference = new ComboBox<>();
         skewReference.getItems().setAll("Canto inferior esquerdo", "Canto inferior direito", "Canto superior esquerdo",
                 "Canto superior direito", "Centro");
@@ -129,7 +133,7 @@ final class FilmToolPanel {
         transforms.setVgap(6);
         transforms.addRow(0, scale, new HBox(6, new Label("X"), scaleX, new Label("Y"), scaleY));
         transforms.addRow(1, skew, new HBox(6, new Label("X"), skewX, new Label("Y"), skewY));
-        transforms.addRow(2, new Label("Referencia:"), skewReference);
+        transforms.addRow(2, new Label("Referência:"), skewReference);
         transforms.addRow(3, mirror, mirrorAxis);
 
         ComboBox<String> fileType = new ComboBox<>();
@@ -200,7 +204,7 @@ final class FilmToolPanel {
                         mode == Punch.PADS ? number(padSize) : 0));
                 errorLabel.setText(error == null ? "" : error);
             } catch (NumberFormatException invalid) {
-                errorLabel.setText("Valor numerico invalido");
+                errorLabel.setText("Valor numérico inválido");
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -218,7 +222,7 @@ final class FilmToolPanel {
         VBox panel = new VBox(8,
                 new Label("Objeto do filme:"), film, new Label("Caixa (moldura):"), box,
                 new HBox(10, positive, negative), look, punchBox,
-                new TitledPane("Escala, inclinacao e espelho", transforms), output, export, errorLabel, close);
+                new TitledPane("Escala, inclinação e espelho", transforms), output, export, errorLabel, close);
         panel.setPadding(new Insets(6));
         return panel;
     }

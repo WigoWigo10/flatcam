@@ -74,6 +74,7 @@ final class ScriptEditorPanel extends BorderPane implements AutoCloseable {
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         status.setId("script-status");
+        ToolDescriptions.apply(status, "Arquivo do script", "Mostra o arquivo associado e indica alterações ainda não salvas. Executar usa o texto atual do editor, mesmo sem salvar.");
         HBox bar = new HBox(6, run, save, saveAs, spacer, status);
         bar.setAlignment(Pos.CENTER_LEFT);
         bar.setPadding(new Insets(4));

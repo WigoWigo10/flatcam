@@ -25,9 +25,9 @@ final class CommandHelpCatalog {
             case "Abrir Excellon", "Excellon" -> "Importa ou exporta furos e slots Excellon. Confira unidades, dígitos, zeros e o formato de slots na janela correspondente.";
             case "Abrir Projeto", "Projeto" -> "Abre um projeto salvo. Projetos Python podem conter opções ainda não restauradas pelo FX; confira os avisos no terminal.";
             case "G-Code" -> "Importa ou exporta um programa CNC. A interpretação e a prévia cobrem apenas os comandos suportados; não certificam segurança física.";
-            case "Tools Database" -> "Abre a biblioteca de ferramentas. Aplicar parâmetros modifica a base em memória; Save DB grava no disco. A ajuda dos campos informa os limites de transferência CAM.";
+            case "Tools Database" -> "Abre a biblioteca de ferramentas. Aplicar parâmetros modifica a base em memória; Salvar base grava no disco. A ajuda dos campos informa os limites de transferência CAM.";
             case "Sobre" -> "Mostra versão, créditos, licença e diagnóstico do sistema, incluindo o renderizador gráfico utilizado.";
-            case "Preferencias" -> "Abre os ajustes de tema e visualização do plot. Não modifica as geometrias do projeto.";
+            case "Preferências" -> "Abre os ajustes de tema e visualização do plot. Não modifica as geometrias do projeto.";
             case "Mostrar/ocultar painel lateral" -> "Recolhe ou expande Projeto, Propriedades e Ferramenta, preservando a largura ajustada pelo usuário.";
             case "Linha de Comando", "Linha de Comando Tcl" -> "Abre o terminal do FX. Digite help para listar comandos; usa um dialeto Tcl reduzido, não o Tcl completo do Python.";
             case "Snap na grade" -> "Ativa ou desativa o ajuste de coordenadas à grade. A grade pode ficar visualmente oculta com o snap ativo.";
@@ -41,7 +41,7 @@ final class CommandHelpCatalog {
             case "Copiar Selecionados" -> "Cria cópias dos objetos selecionados no projeto, preservando os originais.";
             case "Excluir Selecionados" -> "Remove os objetos selecionados do projeto; não apaga os arquivos de origem no disco.";
             case "Capturar estado agora" -> "Grava um diagnóstico do estado atual para investigar travamentos. O relatório pode conter caminhos e detalhes do ambiente; confira antes de compartilhar.";
-            case "Abrir pasta desta sessao" -> "Abre a pasta de diagnóstico da sessão atual para consultar logs e capturas de estado.";
+            case "Abrir pasta desta sessão" -> "Abre a pasta de diagnóstico da sessão atual para consultar logs e capturas de estado.";
             case "Salvar Projeto" -> "Salva os objetos e configurações no formato escolhido: .fcnproj ou .FlatPrj compatível. Confirme formato e destino; recursos não representáveis no Python podem recusar a gravação.\n\nNa confirmação de saída/abertura, só continua após salvar com sucesso o estado atual; cancelar o destino ou falhar não descarta o projeto.";
             case "Copiar" -> "Cria cópias dos objetos selecionados no projeto. Não usa a área de transferência de texto.";
             case "Excluir", "Remover" -> "Remove os objetos selecionados do projeto. Não apaga seus arquivos de origem no disco.";
@@ -51,7 +51,7 @@ final class CommandHelpCatalog {
             case "Ativar Plot" -> "Torna os objetos visíveis no plot, sem alterar seus dados CAM.";
             case "Desativar Plot" -> "Oculta os objetos do plot, mantendo os dados e as configurações no projeto.";
             case "Enquadrar tudo" -> "Ajusta o zoom para mostrar os objetos visíveis. Não move nem escala a geometria.";
-            case "Limpar selecao" -> "Desmarca os objetos selecionados no plot; não os oculta nem os remove.";
+            case "Limpar seleção" -> "Desmarca os objetos selecionados no plot; não os oculta nem os remove.";
             case "Mover no Plot Area", "Copiar no Plot Area" -> "Usa o ponto onde o menu foi aberto como origem. Clique no destino para mover ou copiar os objetos selecionados.\n\nAtalhos: Esc cancela; Ctrl+Z desfaz; Ctrl+Y refaz.";
             case "Editar Objeto", "Editar", "Editar Excellon", "Editar Geometry" -> "Abre o editor do objeto selecionado. As alterações ficam em rascunho até serem aplicadas ao objeto.";
             case "Salvar e Fechar Editor" -> "Aplica o rascunho ao objeto em memória e fecha o editor. Salve o projeto separadamente para persistir no disco.";
@@ -60,7 +60,7 @@ final class CommandHelpCatalog {
             case "Salvar como", "Salvar WKT como" -> "Exporta o objeto selecionado para um arquivo. Confira o formato, as unidades e o destino antes de salvar.";
             case "Opacidade" -> "Ajusta a transparência do objeto no plot. 0% é transparente; 100% é opaco. Não muda os dados CAM.";
             case "Personalizada" -> "Abre o seletor para definir uma cor de visualização; não muda os dados do objeto.";
-            case "Padrao" -> "Restaura a cor padrão da categoria do objeto no plot.";
+            case "Padrão" -> "Restaura a cor padrão da categoria do objeto no plot.";
             case "Sair" -> "Fecha o aplicativo. Confira as alterações de projeto e de edição ainda não salvas.";
             default -> null;
         };

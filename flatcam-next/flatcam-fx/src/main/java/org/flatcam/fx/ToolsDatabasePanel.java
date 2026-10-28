@@ -35,7 +35,7 @@ final class ToolsDatabasePanel extends BorderPane {
     private final TableView<Row> table = new TableView<>();
     private final TextField search = new TextField();
     private final ComboBox<String> filter = new ComboBox<>();
-    private final Label location = new Label("Nova base — ainda nao salva");
+    private final Label location = new Label("Nova base — ainda não salva");
     private final Label feedback = new Label();
     private final Map<ToolsDatabaseFields.Field, Control> controls = new LinkedHashMap<>();
     private final Map<ToolsDatabaseFields.Group, TitledPane> groups = new EnumMap<>(ToolsDatabaseFields.Group.class);
@@ -48,29 +48,29 @@ final class ToolsDatabasePanel extends BorderPane {
         setId("tools-database"); getStyleClass().add("tool-panel"); setPadding(new Insets(12));
         Label title = new Label("Tools Database", icons.apply("search_db32.png"));
         title.getStyleClass().add("tool-title");
-        ToolsDatabaseDescriptions.apply(title, "Tools Database", "Biblioteca reutilizável de ferramentas, compatível com .FlatDB do Python. Edite uma ferramenta por vez e use Save DB para persistir as alterações.");
+        ToolsDatabaseDescriptions.apply(title, "Tools Database", "Biblioteca reutilizável de ferramentas, compatível com .FlatDB do Python. Edite uma ferramenta por vez e use Salvar base para persistir as alterações.");
         location.setWrapText(true); location.setId("db-location");
         ToolsDatabaseDescriptions.apply(location, "Arquivo da base", "Mostra o arquivo associado à biblioteca. Nova base indica que ainda não há destino de gravação. O último arquivo importado ou salvo é lembrado entre sessões.");
-        Label scope = new Label("Transferencia CAM: Isolation, NCC e Drilling. Os demais parametros sao editaveis e preservados no banco.");
+        Label scope = new Label("Transferência CAM: consulte a ajuda de cada campo para saber onde ele é usado. Os demais valores são editáveis e preservados na base.");
         scope.setWrapText(true); scope.setMinWidth(0);
         scope.setId("db-scope");
-        ToolsDatabaseDescriptions.apply(scope, "Integração CAM e unidades", "Isolation, NCC e Drilling usam os parâmetros suportados da base aberta. Os demais campos são preservados, mas nem todos são transferidos para o CAM. A base não declara unidades: use valores na unidade do trabalho.");
+        ToolsDatabaseDescriptions.apply(scope, "Integração CAM e unidades", "Os painéis CAM integrados usam os parâmetros suportados da base aberta. A ajuda de cada campo informa onde ele é transferido; os demais valores são preservados na base. A base não declara unidades: use valores na unidade do trabalho.");
         VBox header = new VBox(6, title, location, scope); header.setPadding(new Insets(0, 0, 10, 0)); setTop(header);
-        search.setId("db-search"); search.setPromptText("Buscar nome, ID ou diametro...");
+        search.setId("db-search"); search.setPromptText("Buscar nome, ID ou diâmetro...");
         ToolsDatabaseDescriptions.apply(search, "Buscar ferramentas", "Filtra a lista por trecho do nome, ID ou diâmetro. Não remove ferramentas da base. Limpe o texto para voltar a mostrar os resultados. Atalho: Ctrl+F.");
-        filter.setId("db-filter"); filter.getItems().add("Todas as operacoes"); filter.getItems().addAll(ToolsDatabase.TARGETS);
+        filter.setId("db-filter"); filter.getItems().add("Todas as operações"); filter.getItems().addAll(ToolsDatabase.TARGETS);
         filter.getSelectionModel().selectFirst(); filter.setMaxWidth(Double.MAX_VALUE);
         ToolsDatabaseDescriptions.apply(filter, "Filtrar por operação", "Mostra as ferramentas da operação escolhida ou de todas as operações. O filtro é combinado com a busca e não altera nem exclui os registros da base.");
         table.setId("db-table"); table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
-        ToolsDatabaseDescriptions.apply(table, "Ferramentas da base", "ID identifica o registro; Tool Name é o nome; Dia é o diâmetro na unidade do trabalho. Selecione uma linha para editar. Use Ctrl/Shift para selecionar várias e copiar/excluir; o botão direito também oferece esses comandos.");
+        ToolsDatabaseDescriptions.apply(table, "Ferramentas da base", "ID identifica o registro; Nome da ferramenta identifica a ferramenta; Dia é o diâmetro na unidade do trabalho. Selecione uma linha para editar. Use Ctrl/Shift para selecionar várias e copiar/excluir; o botão direito também oferece esses comandos.");
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         TableColumn<Row, Number> id = new TableColumn<>("ID"); id.setCellValueFactory(c -> new SimpleIntegerProperty(c.getValue().id()));
         id.setMinWidth(36); id.setMaxWidth(65);
-        TableColumn<Row, String> name = new TableColumn<>("Tool Name"); name.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
+        TableColumn<Row, String> name = new TableColumn<>("Nome da ferramenta"); name.setCellValueFactory(c -> new SimpleStringProperty(c.getValue().name()));
         TableColumn<Row, Number> dia = new TableColumn<>("Dia"); dia.setCellValueFactory(c -> new SimpleDoubleProperty(c.getValue().diameter()));
         dia.setMinWidth(55); dia.setMaxWidth(95);
         table.getColumns().add(id); table.getColumns().add(name); table.getColumns().add(dia);
-        table.setPlaceholder(new Label("Nenhuma ferramenta. Use Adicionar ferramenta ou Import DB."));
+        table.setPlaceholder(new Label("Nenhuma ferramenta. Use Adicionar ferramenta ou Importar base."));
         table.setContextMenu(contextMenu());
         VBox left = new VBox(8, search, filter, table); left.setMinWidth(180); VBox.setVgrow(table, Priority.ALWAYS);
         FlowPane cards = new FlowPane(12, 12); cards.setPadding(new Insets(0, 6, 6, 6));
@@ -114,11 +114,11 @@ final class ToolsDatabasePanel extends BorderPane {
         Button add = button("Adicionar ferramenta", "plus16.png", "db-add", this::add);
         Button copy = button("Copiar", "copy32.png", "db-copy", this::duplicate);
         Button remove = button("Excluir", "trash16.png", "db-delete", this::delete);
-        Button apply = button("Aplicar parametros", "apply32.png", "db-apply", () -> applyDraft());
+        Button apply = button("Aplicar parâmetros", "apply32.png", "db-apply", () -> applyDraft());
         Button create = button("Nova base", "file32.png", "db-new", this::newDatabase);
-        Button load = button("Import DB", "import.png", "db-import", this::importDatabase);
-        Button export = button("Export DB", "export.png", "db-export", () -> save(true));
-        Button save = button("Save DB", "save_as.png", "db-save", () -> save(false)); save.getStyleClass().add("primary-action");
+        Button load = button("Importar base", "import.png", "db-import", this::importDatabase);
+        Button export = button("Exportar base", "export.png", "db-export", () -> save(true));
+        Button save = button("Salvar base", "save_as.png", "db-save", () -> save(false)); save.getStyleClass().add("primary-action");
         FlowPane actions = new FlowPane(8, 8, add, copy, remove, apply, create, load, export, save);
         actions.disableProperty().bind(busy);
         feedback.setId("db-feedback"); feedback.setWrapText(true); feedback.setMinWidth(0); feedback.setMaxWidth(Double.MAX_VALUE);
@@ -180,7 +180,7 @@ final class ToolsDatabasePanel extends BorderPane {
             changed.add(field); dirty.set(true);
             if (field.key().equals("tool_target")) updateVisibility();
             updateDependencies();
-            feedback.setText("Parametros alterados. Aplicar ou salvar valida os valores antes de usa-los.");
+            feedback.setText("Parâmetros alterados. Aplicar ou salvar valida os valores antes de usa-los.");
         }
     }
     private void updateVisibility() {
@@ -252,12 +252,12 @@ final class ToolsDatabasePanel extends BorderPane {
         try {
             JSONObject entry = database.entry(editing);
             for (var field : changed) field.write(entry, value(controls.get(field), field));
-            if (entry.optString("name").isBlank()) throw new IllegalArgumentException("Name nao pode ficar vazio.");
+            if (entry.optString("name").isBlank()) throw new IllegalArgumentException("O nome não pode ficar vazio.");
             if ("V".equals(entry.optString("tool_type")) && changed.stream().anyMatch(f -> Set.of("tool_type", "vtipdia", "vtipangle", "cutz").contains(f.key()))) {
                 JSONObject data = entry.getJSONObject("data");
                 double angle = data.optDouble("vtipangle", 30), tip = data.optDouble("vtipdia", 0.1), depth = data.optDouble("cutz", -2.4);
                 if (!Double.isFinite(angle) || angle <= 0 || angle >= 180 || !Double.isFinite(tip) || tip < 0 || !Double.isFinite(depth))
-                    throw new IllegalArgumentException("V-Angle deve estar entre 0 e 180; V-Dia nao pode ser negativo; Cut Z deve ser finito.");
+                    throw new IllegalArgumentException("V-Angle deve estar entre 0 e 180; V-Dia não pode ser negativo; Cut Z deve ser finito.");
                 entry.put("tooldia", tip + 2 * Math.abs(depth) * Math.tan(Math.toRadians(angle / 2)));
             }
             database.update(editing, entry); changed.clear();
@@ -268,11 +268,11 @@ final class ToolsDatabasePanel extends BorderPane {
                     break;
                 }
             }
-            feedback.setText("Parametros aplicados. Salve a base para persistir."); return true;
+            feedback.setText("Parâmetros aplicados. Salve a base para persistir."); return true;
         } catch (IllegalArgumentException error) { feedback.setText(error.getMessage()); return false; }
     }
     JSONObject snapshot() {
-        if (busy.get()) throw new IllegalArgumentException("Tools Database ainda esta carregando/salvando.");
+        if (busy.get()) throw new IllegalArgumentException("Tools Database ainda está carregando/salvando.");
         if (!applyDraft()) throw new IllegalArgumentException(feedback.getText());
         return database.toJson();
     }
@@ -319,7 +319,7 @@ final class ToolsDatabasePanel extends BorderPane {
     }
     private void delete() {
         List<Integer> ids = table.getSelectionModel().getSelectedItems().stream().map(Row::id).toList();
-        if (ids.isEmpty() || !confirm("Excluir " + ids.size() + " ferramenta(s)?", "A base no disco so sera alterada ao salvar.")) return;
+        if (ids.isEmpty() || !confirm("Excluir " + ids.size() + " ferramenta(s)?", "A base no disco só será alterada ao salvar.")) return;
         database.remove(ids); changed.clear(); editing = null; dirty.set(true); refresh(null); loadEditor(null);
     }
     private boolean confirm(String title, String message) {
@@ -339,10 +339,10 @@ final class ToolsDatabasePanel extends BorderPane {
     boolean confirmClose() {
         if (busy.get()) { feedback.setText("Aguarde o carregamento/salvamento antes de fechar."); return false; }
         if (!dirty.get()) return true;
-        if (!confirm("Descartar alteracoes nao salvas?", "Use Save DB antes de fechar para manter as alteracoes. Cancelar retorna ao editor.")) return false;
+        if (!confirm("Descartar alterações não salvas?", "Use Salvar base antes de fechar para manter as alterações. Cancelar retorna ao editor.")) return false;
         replace(ToolsDatabase.fromJson(saved), path); return true;
     }
-    private boolean allowReplace() { return !dirty.get() || confirm("Substituir a base e descartar alteracoes?", "Salve primeiro se quiser mante-las."); }
+    private boolean allowReplace() { return !dirty.get() || confirm("Substituir a base e descartar alterações?", "Salve primeiro se quiser mantê-las."); }
     private void newDatabase() { if (allowReplace()) replace(new ToolsDatabase(), null); }
     private FileChooser chooser(String title) {
         FileChooser chooser = new FileChooser(); chooser.setTitle(title);
@@ -352,7 +352,7 @@ final class ToolsDatabasePanel extends BorderPane {
         return chooser;
     }
     private void importDatabase() {
-        File file = chooser("Import DB — FlatCAM Python").showOpenDialog(owner.get());
+        File file = chooser("Importar base — FlatCAM Python").showOpenDialog(owner.get());
         if (file != null && allowReplace()) loadPath(file.toPath());
     }
     void loadPath(Path file) {
@@ -370,7 +370,7 @@ final class ToolsDatabasePanel extends BorderPane {
         editing = null; changed.clear(); dirty.set(false);
         loading = true; search.clear(); filter.getSelectionModel().selectFirst(); loading = false;
         Integer first = database.ids().isEmpty() ? null : database.ids().getFirst(); refresh(first); loadEditor(first);
-        location.setText(path == null ? "Nova base — ainda nao salva" : path.toString());
+        location.setText(path == null ? "Nova base — ainda não salva" : path.toString());
     }
     private void save(boolean saveAs) {
         if (busy.get() || !applyDraft()) return;

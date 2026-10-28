@@ -1,5 +1,38 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Tooltips: áreas recentes e cobertura por controle — 2026-10-27
+
+Ajuda ampliada em medição, Jump/Localizar, exportação Gerber/Excellon, cor e
+opacidade, progresso compacto, arrays Excellon e estado do script. Revisados os
+campos internos de Etch, Film, Transform, Single/Panel do Cutout e deslocamento
+nas propriedades. A regra da auditoria deixou de aceitar um tooltip genérico
+em qualquer ancestral: encontrou e fechou 15 lacunas reais de ajuda própria.
+Inventário ampliado: 1496 ocorrências, zero MISSING nos cenários construídos,
+incluindo todas as páginas de preferências e dez variações de diálogo.
+
+Apresentação central preservada: novos rótulos traduzidos/códigos/atalhos em
+negrito, notas semânticas em azul e limitações/avisos em âmbar, adaptados ao tema.
+Contraste testado nos quatro temas, snapshots Branco puro/Preto puro conferidos.
+SplitPane acompanha páginas e itens adicionados depois, preservando ajuda
+específica. Política 1000/300 ms mantida. Não altera algoritmos CAM.
+Construção de diálogos separada da exibição para permitir auditoria sem abrir
+janelas. Escopo, limites e evidências: [TOOLTIPS.md](TOOLTIPS.md).
+Integral: 2118 aprovações, 18 skips opcionais, zero falhas/erros (2136 registros);
+`target/tooltip-expansion-verify.log`/JSON.
+
+## Revisão de português, acentuação e rótulos — 2026-10-27
+
+Revisados menus, propriedades, ferramentas CAM, editores, mensagens de progresso,
+validação e ajuda. Corrigidos acentos/grafia e rótulos comuns ainda em inglês,
+como Nome, Tipo, Marcar todos e ações da Tools Database. Catálogos de ícones e
+help reconhecem os novos nomes; auditoria de tooltips cobre Isolation/Drilling.
+Aviso da base deixou de enumerar apenas três fluxos CAM e remete à ajuda por
+campo. IDs persistidos, Tcl e perfis técnicos preservados. Não é ainda a etapa
+de catálogos/seleção de idiomas. Detalhes e evidências em
+[TEXTOS_INTERFACE.md](TEXTOS_INTERFACE.md). Suíte completa: 2115 aprovações,
+18 skips opcionais, zero falhas/erros (2133 registros);
+`target/text-review-verify.log`/JSON.
+
 ## Splash encolhendo no launcher nativo: reproduzido/corrigido — 2026-10-27
 
 Relato com print confirmado no host JNI: a tela 200% mudava fisicamente de
