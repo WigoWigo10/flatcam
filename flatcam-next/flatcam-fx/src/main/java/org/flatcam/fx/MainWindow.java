@@ -859,8 +859,9 @@ final class MainWindow implements TclFlatcamHost {
         configurePlotInteractions();
         scene.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             Tab selectedTab = centerTabs.getSelectionModel().getSelectedItem();
-            // Database shortcuts must not move/delete shapes or toggle the hidden plot.
-            if (selectedTab != null && "tools-database-tab".equals(selectedTab.getId())) return;
+            // Auxiliary readers/editors must not move/delete shapes or toggle the hidden plot.
+            if (selectedTab != null && ("tools-database-tab".equals(selectedTab.getId())
+                    || "help-guide-tab".equals(selectedTab.getId()))) return;
             if (pendingPointPick != null && event.getCode() == KeyCode.ESCAPE) {
                 cancelPointPick();
                 event.consume();
@@ -2059,7 +2060,12 @@ final class MainWindow implements TclFlatcamHost {
         MenuItem demoJobItem = new MenuItem(I18n.text("ui.09997b84e8a8"));
         demoJobItem.setOnAction(e -> runDemoJob());
         demoJobItem.disableProperty().bind(runDemoJobButton.disableProperty());
+        MenuItem guideItem=tipped(chromeItem(I18n.text("guide.title"), "help.png", this::openHelpGuide),
+                I18n.text("guide.title"), I18n.text("guide.menu.help"));
+        guideItem.setId("help-guide-menu");
+        guideItem.setAccelerator(new javafx.scene.input.KeyCodeCombination(KeyCode.F1));
         helpMenu.getItems().addAll(
+                guideItem,
                 plannedItem(I18n.text("ui.506bd07713b1"), "help.png"),
                 plannedItem("Bookmarks", "bookmarks32.png"),
                 tipped(chromeItem(I18n.text("ui.627e2a1aede0"), "shortcuts24.png", this::openShortcutList), I18n.text("ui.627e2a1aede0"),
@@ -8368,6 +8374,15 @@ final class MainWindow implements TclFlatcamHost {
     /** Python Help > Shortcuts List: a tab in the plot area, not a dialog. */
     void openShortcutList() {
         openAuxiliaryTab(I18n.text("ui.627e2a1aede0"), ShortcutListPanel::new);
+    }
+
+    void openHelpGuide() {
+        for (Tab tab : centerTabs.getTabs()) if ("help-guide-tab".equals(tab.getId())) {
+            centerTabs.getSelectionModel().select(tab); return;
+        }
+        Tab tab=new Tab(I18n.text("guide.title"),new HelpGuidePane(icon->legacyIcon(icon,16)));
+        tab.setId("help-guide-tab");tab.setGraphic(legacyIcon("help.png",16));
+        centerTabs.getTabs().add(tab);centerTabs.getSelectionModel().select(tab);
     }
 
     private void openPreferences() {

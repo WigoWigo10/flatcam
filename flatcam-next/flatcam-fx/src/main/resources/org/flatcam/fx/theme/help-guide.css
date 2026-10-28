@@ -1,0 +1,24 @@
+/* Offline guide uses the same semantic palette as the rest of the application. */
+.help-guide { -fx-background-color: -fc-panel-bg; }
+.help-guide .scroll-pane, .help-guide .scroll-pane > .viewport { -fx-background-color: -fc-surface; }
+.help-guide .text-field { -fx-prompt-text-fill: -fc-muted-text; }
+.help-guide .list-cell { -fx-text-fill: -fc-panel-text; -fx-background-color: -fc-surface; -fx-padding: 7; }
+.help-guide .list-cell:hover { -fx-background-color: -fc-accent-soft; }
+.help-guide .list-cell:selected { -fx-text-fill: -fc-selection-row-text; -fx-background-color: -fc-selection-row; }
+.help-guide .label { -fx-text-fill: -fc-panel-text; }
+.help-guide .guide-muted { -fx-text-fill: -fc-muted-text; }
+.help-guide .guide-title { -fx-font-size: 1.5em; -fx-font-weight: bold; }
+.help-guide .guide-heading { -fx-font-size: 1.1em; -fx-font-weight: bold; }
+.help-guide .tool-title { -fx-font-weight: bold; }
+.help-guide .guide-prose { -fx-fill: -fc-panel-text; }
+.help-guide .guide-emphasis { -fx-font-weight: bold; }
+.help-guide .guide-note-title, .help-guide .guide-step { -fx-text-fill: -fc-panel-text; -fx-font-weight: bold; }
+.help-guide .guide-note {
+    -fx-background-color: -fc-accent-soft;
+    -fx-border-color: transparent transparent transparent -fc-accent;
+    -fx-border-width: 0 0 0 3;
+    -fx-padding: 12;
+}
+.help-guide .guide-link { -fx-text-fill: -fc-panel-text; }
+.help-guide .guide-link:hover { -fx-background-color: -fc-accent-soft; }
+

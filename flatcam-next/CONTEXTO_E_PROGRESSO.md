@@ -1,5 +1,38 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Guia de uso local e Outline — 2026-10-28
+
+Ajuda > Guia de uso / F1 abre uma única aba fechável com busca em título e
+conteúdo, sem acentos, Ctrl+F, instruções numeradas, negrito, observações e
+links relacionados. Treze assuntos em Português/Inglês: fluxo, importação,
+Outline, panelização, duas faces, Isolation, NCC, Cutout, Drilling, CNC,
+editor G-code, projetos e diagnóstico. Leitura não aciona operações; atalhos
+mutáveis do Plot não são disparados pelo guia. Layout estreito empilha índice
+sobre artigo. Ícones reutilizam as variantes claras/escuras existentes.
+
+Outline explica Editar > Converter > Contorno → Área, o resultado _area,
+recortes internos e a distinção entre referência do passo, contorno da prévia,
+área de trabalho NCC e trajeto de Cutout. Não promete reparar contornos abertos.
+A captura do usuário revelou corpo preto no tema clássico escuro: CSS antes
+restrito ao tema gelo foi movido para help-guide.css, carregado por todos os
+temas. Texto, seleção e placeholder da busca têm cores semânticas explícitas.
+
+Testes focados finais: 16 aprovados. Probes isolados PT/EN verificam conteúdo,
+menu, ausência de efeito de G no Plot e capturas em quatro temas, incluindo
+Outline e janela estreita. Catálogos: 3799 entradas completas por idioma;
+auditorias: 1553 controles com ajuda por idioma, zero ausências.
+Integral: 2137 aprovações, 18 skips opcionais, zero falhas/erros (2155 registros).
+Logs/JSON: target/guide-verify.*. A revisão adicional da troca de artigos usa
+janela JavaFX invisível e espera pulsos, pois snapshots consecutivos de uma
+Scene sem janela conservavam a imagem anterior do viewport. Propriedades e
+conteúdo estavam atualizados; não foi alteração no CAM ou na navegação real.
+Dois idiomas passaram novamente: target/guide-window-review.log. Probe do
+launcher existente aprovado: target/guide-native-probe.log; classes/recursos
+novos são lidos diretamente pelo launcher, sem dependências novas.
+[USER_GUIDE.md](USER_GUIDE.md).
+Não é manual completo das 24 ferramentas; Paint/Milling e utilitários ainda
+não têm artigo dedicado. Sem commit/push solicitado nesta implementação.
+
 ## Preferências de tamanhos de fonte — 2026-10-28
 
 Nova seção com interface, texto/código, números dos eixos e HUD. Padrões FX

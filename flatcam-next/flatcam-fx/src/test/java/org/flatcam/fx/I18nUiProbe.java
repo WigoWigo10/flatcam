@@ -59,6 +59,12 @@ public class I18nUiProbe {
                 var jobs = new JobExecutor(1); var window = new MainWindow(jobs);
                 try {
                     var scene = window.createScene(); scene.getRoot().applyCss();
+                    window.openHelpGuide();window.openHelpGuide();
+                    scene.getRoot().resize(1100,800);scene.getRoot().applyCss();scene.getRoot().layout();
+                    var snap=(ToggleButton)scene.lookup(".status-grid-snap");boolean snapped=snap.isSelected();
+                    javafx.event.Event.fireEvent(scene.lookup("#guide-topics"),new javafx.scene.input.KeyEvent(
+                            javafx.scene.input.KeyEvent.KEY_PRESSED,"g","g",javafx.scene.input.KeyCode.G,false,false,false,false));
+                    assertEquals(snapped,snap.isSelected(),"reading the guide must not invoke hidden Plot shortcuts");
                     for (var node : scene.getRoot().lookupAll(".menu-bar")) if(node instanceof MenuBar bar)
                         for (var menu : bar.getMenus()) inspectMenu(menu);
                 } finally { window.disposeViewport(); jobs.shutdown(); }
@@ -72,6 +78,7 @@ public class I18nUiProbe {
                 assertNotNull(PanelTooltips.help(I18n.caption("Editor Gerber"), I18n.caption("Adicionar abertura ")+"C"));
                 return null;
             });
+            checkGuide(output,language);
             var geometry = new GeometryFactory().createLineString(new Coordinate[]{new Coordinate(0,0),new Coordinate(10.125,2.5)});
             var result = GeometryCncGeneration.generate("MM",List.of(new ToolGeometry(.5,geometry,ToolProfile.C2)),
                     new GeometryGCodeParameters(2,.2,true,.1,100,10000,false),Map.of(),Map.of(),GCodePreprocessor.GRBL_11_NO_M6,
@@ -85,6 +92,58 @@ public class I18nUiProbe {
         } catch(Throwable failure) { failure.printStackTrace(); exit=1; }
         finally { Platform.exit(); }
         System.exit(exit);
+    }
+
+    private record GuideView(HelpGuidePane pane,javafx.scene.Scene scene,javafx.beans.property.BooleanProperty dark,javafx.stage.Stage stage) { }
+    private static void checkGuide(Path output,UiLanguage language) throws Exception {
+        var view=TerminalPanelTest.fx(()-> {
+            var darkMode=new javafx.beans.property.SimpleBooleanProperty();
+            var guide=new HelpGuidePane(icon-> {
+                var light=Icons.fromResource(icon,16);var dark=Icons.fromResource("dark/"+icon,16);
+                light.visibleProperty().bind(darkMode.not());dark.visibleProperty().bind(darkMode);
+                return new javafx.scene.layout.StackPane(light,dark);
+            });
+            assertTrue(HelpGuideCatalog.search(language==UiLanguage.EN ? "desynchronize" : "dessincronizar")
+                    .stream().anyMatch(topic->topic.id().equals("panelize")));
+            Platform.setImplicitExit(false);
+            var scene=new javafx.scene.Scene(guide,1024,800);
+            var stage=new javafx.stage.Stage(javafx.stage.StageStyle.UTILITY);
+            stage.setOpacity(0);stage.setX(-20000);stage.setY(-20000);stage.setScene(scene);stage.show();
+            return new GuideView(guide,scene,darkMode,stage);
+        });
+        try { for(ThemeOption theme:ThemeOption.values()) {
+            TerminalPanelTest.fx(()-> {view.dark().set(theme.isDark());theme.applyTo(view.scene());return null;});
+            for(String topic:List.of("panelize","ncc","outline","narrow")) {
+                String id=topic.equals("narrow") ? "panelize" : topic;
+                TerminalPanelTest.fx(()-> {
+                    view.stage().setWidth((topic.equals("narrow") ? 460 : 1024)+view.stage().getWidth()-view.scene().getWidth());
+                    view.stage().setHeight((topic.equals("narrow") ? 680 : 800)+view.stage().getHeight()-view.scene().getHeight());
+                    view.pane().selectTopic(id);
+                    view.pane().applyCss();view.pane().layout();return null;
+                });
+                awaitGuidePulse();
+                TerminalPanelTest.fx(()-> {
+                    assertEquals(id,view.pane().selectedTopic());
+                    assertEquals(HelpGuideCatalog.find(id).title(),((Label)view.pane().lookup(".guide-title")).getText());
+                    saveGuide(view.pane(),output.resolve(language.tag+"-"+theme.name()+"-guide-"+topic+".png"));return null;
+                });
+            }
+        } } finally {TerminalPanelTest.fx(()->{view.stage().close();return null;});}
+    }
+    private static void awaitGuidePulse() throws Exception {
+        var done=new java.util.concurrent.CompletableFuture<Void>();
+        Platform.runLater(()->new javafx.animation.AnimationTimer() {
+            private int frames;
+            @Override public void handle(long now) {if(++frames==2){stop();done.complete(null);}}
+        }.start());
+        done.get(3,java.util.concurrent.TimeUnit.SECONDS);
+    }
+
+    private static void saveGuide(Node node,Path path) throws java.io.IOException {
+        var image=node.snapshot(null,null);int width=(int)image.getWidth(),height=(int)image.getHeight();
+        int[] pixels=new int[width*height];image.getPixelReader().getPixels(0,0,width,height,javafx.scene.image.PixelFormat.getIntArgbInstance(),pixels,0,width);
+        var buffered=new java.awt.image.BufferedImage(width,height,java.awt.image.BufferedImage.TYPE_INT_ARGB);buffered.setRGB(0,0,width,height,pixels,0,width);
+        javax.imageio.ImageIO.write(buffered,"png",path.toFile());
     }
 
     private static void inspectMenu(MenuItem item) {

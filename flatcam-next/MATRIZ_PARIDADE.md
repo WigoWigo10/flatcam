@@ -1,5 +1,17 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Guia de uso dentro do FX — 2026-10-28
+
+Ajuda > Guia de uso / F1, treze artigos locais PT/EN para os fluxos principais,
+com busca, passos, formatação e links relacionados. Outline/Edge_Cuts ganhou
+instruções de conversão em área e uso na panelização/NCC/Cutout. CSS comum aos
+quatro temas corrige o texto preto nos temas clássicos; navegação adapta-se à
+largura. Controles e links incluídos na auditoria de ajuda, com 1553 ocorrências
+por idioma, zero ausências. Não equivale ao manual integral do Python nem
+adiciona operações CAM. [USER_GUIDE.md](USER_GUIDE.md). Integral: 2137 aprovações, 18 skips opcionais,
+zero falhas/erros (2155 registros). Revisão adicional dos artigos em janela
+invisível PT/EN e probe do launcher existente passaram.
+
 ## Fontes da interface, texto, eixos e HUD — 2026-10-28
 
 Quatro tamanhos persistidos com prévia local, validação e aplicação na próxima

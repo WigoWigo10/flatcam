@@ -28,6 +28,7 @@ final class ShortcutListPanel extends VBox {
     private static Map<String, List<Shortcut>> groups() {
         Map<String, List<Shortcut>> groups = new LinkedHashMap<>();
         groups.put(I18n.text("ui.2130a3b5e09e"), List.of(
+                new Shortcut("F1", I18n.text("guide.title")),
                 new Shortcut("Ctrl+N", I18n.text("ui.c260f7a00b7e")),
                 new Shortcut("Ctrl+S", I18n.text("ui.077beb3fe78a")),
                 new Shortcut("Ctrl+Shift+S", I18n.text("ui.0bcac467f215")),

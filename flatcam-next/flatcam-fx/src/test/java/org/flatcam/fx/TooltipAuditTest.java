@@ -131,6 +131,12 @@ class TooltipAuditTest {
                     method.setAccessible(true);
                     roots.put((String)entry[0],(Node)method.invoke(window,new javafx.scene.control.TreeItem<>("Public fixture"),entry[3]));
                 }
+                var guide=new HelpGuidePane(file->Icons.fromResource(file,16));
+                roots.put("Guia de uso",guide);
+                for(var topic:HelpGuideCatalog.TOPICS) {
+                    guide.selectTopic(topic.id());
+                    roots.put("Guia / "+topic.title(),guide.articleContent());
+                }
                 roots.put("Tools Database",new ToolsDatabasePanel(jobs,()->null,path -> {},file -> Icons.fromResource(file,16)));
                 roots.put("Sobre",about.getDialogPane().getContent());
                 roots.put("Revisão CNC Geometry", cncReview.getDialogPane().getContent());
