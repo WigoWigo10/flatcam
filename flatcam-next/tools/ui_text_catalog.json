@@ -27380,5 +27380,26 @@
       "AboutInfo.java"
     ],
     "canonical": false
+  },
+  "tool.diameter.edit.help": {
+    "source": "Duplo clique no diâmetro ou F2 para editar.\nEnter confirma; Esc cancela a edição.\nAceita vírgula ou ponto decimal, nas unidades do objeto.\nAltera somente esta operação, preservando os parâmetros e o cadastro na Tools Database.\nClique em Gerar para calcular uma nova saída.",
+    "locations": [
+      "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
+  },
+  "tool.diameter.invalid": {
+    "source": "Ferramenta %d: informe um diâmetro numérico, finito e maior que zero. Corrija a edição ou pressione Esc para cancelá-la.",
+    "locations": [
+      "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
+  },
+  "tool.diameter.duplicate": {
+    "source": "Ferramenta %d: esse diâmetro já existe na tabela. Informe outro valor ou pressione Esc para cancelar a edição.",
+    "locations": [
+      "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
   }
 }

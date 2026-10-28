@@ -2434,12 +2434,7 @@ final class MainWindow implements TclFlatcamHost {
         leftTabs.getSelectionModel().select(toolTab);
     }
 
-    /**
-     * Restores the Tool tab's placeholder and switches back to Properties -
-     * matching ToolIsolation.py/ToolDrilling.py's own
-     * app.ui.notebook.setCurrentWidget(app.ui.properties_tab) once a tool
-     * finishes (or is closed without finishing).
-     */
+    /** Explicitly closes a tool or a finished editor; generation keeps the tool and its draft open. */
     private void closeToolPanel() {
         releaseActiveTool();
         toolTab.setText(I18n.text("ui.c188272ba40c"));
@@ -4894,7 +4889,7 @@ final class MainWindow implements TclFlatcamHost {
                         }
                     } finally { plotAreaView.endBatchUpdate(); }
                     if (toolTab.getContent() == before.panel()) {
-                        selectProjectItem(first); plotAreaView.fitToLayer(first); closeToolPanel();
+                        selectProjectItem(first); plotAreaView.fitToLayer(first);
                     }
                     setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     updateProgress(1);
@@ -5023,6 +5018,7 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
         }
+        Node toolContent = toolTab.getContent();
         beginJob(I18n.text("ui.1ad65b51bd48"));
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
             var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,I18n.text("ui.1ad65b51bd48")));
@@ -5059,10 +5055,11 @@ final class MainWindow implements TclFlatcamHost {
                                 I18n.text("ui.75543b5fbb07"),
                                 result.pathCount(), result.totalLength(), tools.size(),
                                 result.totalFailedPolygonCount()));
-                        selectProjectItem(generated);
-                        plotAreaView.fitToLayer(generated);
-                        plotAreaView.setEditorHighlight(null, false);
-                        closeToolPanel();
+                        if (toolTab.getContent() == toolContent) {
+                            selectProjectItem(generated);
+                            plotAreaView.fitToLayer(generated);
+                            plotAreaView.setEditorHighlight(null, false);
+                        }
                         setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     }
                     updateProgress(1);
@@ -6835,7 +6832,6 @@ final class MainWindow implements TclFlatcamHost {
         String sourceName = item.getValue();
         Map<Integer, DrillGCodeParameters> savedDefaults = drillDefaultsByItem.get(item);
         DrillCncSettings savedSettings = drillCncSettingsByItem.get(item);
-        Node toolContent = toolTab.getContent();
         Runnable validate = () -> {
             if (tclProjectEpoch != epoch || excellonByItem.get(item) != image || !sourceName.equals(item.getValue())
                     || !Objects.equals(savedDefaults, drillDefaultsByItem.get(item))
@@ -6869,7 +6865,6 @@ final class MainWindow implements TclFlatcamHost {
                 if (preview != null && preview.warning() != null) appendConsole(output.getFileName() + ": " + preview.warning());
                 addCncJobToProject(output.getFileName().toString(), sourceName, output, job.gcode(),
                         job.travelGeometry(), job.cutGeometry(), null, null, 0, preview == null ? null : preview.stats());
-                if (toolTab.getContent() == toolContent) closeToolPanel();
                 updateProgress(1);
                 setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
             } catch (RuntimeException failure) { reportJobError(failure, I18n.text("ui.8125d6ade168")); }
@@ -7015,7 +7010,6 @@ final class MainWindow implements TclFlatcamHost {
         if (toolTab.getContent() != before.panel()) return;
         selectProjectItem(generated);
         plotAreaView.fitToLayer(generated);
-        closeToolPanel();
     }
 
     /** Creates editable Geometry first, as the Python Isolation tool does. */
@@ -7573,6 +7567,9 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry, GeometryCncToolPanel.Result draft) {
+        // Only this panel's successful generation may advance its expected source identity.
+        // Reading the map unconditionally would also accept unrelated edits to a stale form.
+        var currentSource = new java.util.concurrent.atomic.AtomicReference<>(entry);
         GeometryCncSettings settings = draft == null ? geometryCncSettingsByItem.get(item)
                 : new GeometryCncSettings(draft.preprocessor(), entry.tools().isEmpty() ? draft.tools().getFirst().toolDiameter() : null,
                         draft.vTools(), draft.parametersByTool(), draft.tools().getFirst().toolProfile());
@@ -7584,13 +7581,14 @@ final class MainWindow implements TclFlatcamHost {
                 shape -> plotAreaView.setEditorHighlight(shape,false),
                 geometryByItem.entrySet().stream().filter(e -> CncRoutingFields.isArea(e.getValue().geometry()))
                         .map(e -> new CncRoutingFields.Reference(e.getKey().getValue(),e.getValue().units(),e.getValue().geometry())).toList(),
-                result -> { plotAreaView.cancelPlacement(); clearToolOverlays(); runGeometryCncGeneration(item,entry,result); },
+                result -> { plotAreaView.cancelPlacement(); clearToolOverlays();
+                    runGeometryCncGeneration(item, currentSource.get(), result, currentSource::set); },
                 () -> { plotAreaView.cancelPlacement(); clearToolOverlays(); closeToolPanel(); }));
         activeToolCleanup=this::clearToolOverlays;
     }
 
     private void runGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
-                                          GeometryCncToolPanel.Result result) {
+                                          GeometryCncToolPanel.Result result, Consumer<GeometryEntry> sourceUpdated) {
         if (runningJob != null) {
             appendConsole(I18n.text("ui.df12b110e3bb"));
             return;
@@ -7615,7 +7613,7 @@ final class MainWindow implements TclFlatcamHost {
             return;
         }
 
-        startGeometryCncGeneration(item, entry, result, outFile.toPath());
+        startGeometryCncGeneration(item, entry, result, outFile.toPath(), sourceUpdated);
     }
 
     private boolean confirmCncReview(CncPreflight.Report report) {
@@ -7687,6 +7685,12 @@ final class MainWindow implements TclFlatcamHost {
 
     private void startGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
                                             GeometryCncToolPanel.Result result, Path output) {
+        startGeometryCncGeneration(item, entry, result, output, ignored -> {});
+    }
+
+    private void startGeometryCncGeneration(TreeItem<String> item, GeometryEntry entry,
+                                            GeometryCncToolPanel.Result result, Path output,
+                                            Consumer<GeometryEntry> sourceUpdated) {
         CamGenerationState before = captureCamGeneration(item, entry.geometry(), null, null);
         if (geometryByItem.get(item) != entry) throw new IllegalStateException(I18n.text("ui.d427bbb9ab55"));
         GeometryCncSettings savedSettings = geometryCncSettingsByItem.get(item);
@@ -7713,8 +7717,9 @@ final class MainWindow implements TclFlatcamHost {
                         if (handle.isCancelled()) throw new CancellationException();
                         validate.run();
                         CncJobResult job = generated.job();
-                        geometryByItem.put(item, new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
-                                entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters(), entry.machiningTarget()));
+                        var updatedEntry = new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
+                                entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters(), entry.machiningTarget());
+                        geometryByItem.put(item, updatedEntry);
                         geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
                                 entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
                                 result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
@@ -7734,9 +7739,9 @@ final class MainWindow implements TclFlatcamHost {
                                 centerlines ? previewWidthFor(preview) : 0,
                                 preview == null ? null : preview.stats());
                         if (toolTab.getContent() == before.panel()) {
+                            sourceUpdated.accept(updatedEntry);
                             selectProjectItem(cncItem);
                             focusCncJob(cncItem, cncJobByItem.get(cncItem));
-                            closeToolPanel();
                         }
                         updateProgress(1);
                         setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);

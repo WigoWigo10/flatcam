@@ -1,5 +1,60 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Feedback da Beta: editar diâmetro na Tools Table — 2026-10-28
+
+NCC e Isolation permitem editar a célula de diâmetro por duplo clique ou F2;
+Enter confirma, Esc descarta o rascunho. EditableToolDiameterColumn mantém
+rascunhos fora das células recicladas e valida antes de Gerar: valor finito,
+positivo e sem duplicatas conforme a tolerância já usada nessas tabelas.
+Vírgula e ponto decimal são aceitos, sem arredondamento para a precisão da
+exibição e sem substituir pelo valor padrão. As unidades são as do objeto.
+
+A mesma linha conserva perfil, passes, método, sobreposição e demais opções.
+Metadados de usinagem importados são copiados com o novo diâmetro; parâmetros,
+ponta V e opções CNC permanecem, sem alterar o registro da Tools Database.
+Gerar publica outra saída usando o diâmetro atualizado, preservando as anteriores.
+Valores inválidos não podem disparar geração com o valor antigo silenciosamente.
+
+24 casos novos em ToolDiameterEditingTest cobrem edição/F2/duplo clique,
+vírgula, MM/IN, precisão 0,1981234567, repetição, Escape, rejeição de entradas
+inválidas/duplicadas e metadados. Conferência com os geradores reais verifica
+o diâmetro NCC e o deslocamento do Isolation pelo raio informado. O teste de
+repetição detectou TableView.editingCell ainda ativo após confirmar; commit
+agora encerra explicitamente essa edição antes de atualizar as células.
+Tooltips PT/EN usam a infraestrutura de ajuda do aplicativo; catálogos com
+3805 entradas por idioma. Instaladores Beta existentes não foram regenerados.
+
+## Feedback da Beta: manter ferramentas abertas após gerar — 2026-10-28
+
+Isolation, NCC, Cutout, Excellon Milling, Panelize, Paint, Drilling e
+Geometry → CNC Job conservam o painel e o rascunho após uma geração bem-sucedida.
+O resultado continua sendo criado e exibido; não há retorno automático para
+Propriedades. Fechar manualmente ou trocar de ferramenta continua liberando
+seleções/prévias. Os demais painéis já conservavam o formulário.
+
+Exemplo do relato de Yago: configurar NCC, gerar com Seed, notar que deveria
+usar Standard, voltar à aba da ferramenta, mudar somente o método e gerar
+outra Geometry sem refazer fresa, margem, sobreposição e demais opções. Na panelização,
+repetir deve usar os objetos de origem, sem passar a panelizar o painel recém-criado.
+
+Geometry → CNC acompanha somente a versão da origem atualizada pela própria
+geração, permitindo repetir sem aceitar alterações externas de um formulário
+antigo. Paint não fecha nem muda o enquadramento de outra ferramenta aberta
+durante o cálculo. Continuam válidas as proteções de tarefa ocupada, cancelamento
+e entradas alteradas/removidas. Salvar/sair dos editores é uma ação explícita.
+
+Verificação: 82 testes focados aprovados, incluindo 12 casos novos em
+MainToolPersistenceTest, com preferências em memória. Cobrem os painéis reais,
+repetição, cancelamento e nova tentativa, exportação CNC/Drilling e conclusão
+tardia após troca de painel. O primeiro ensaio novo tinha erro no nome refletido
+generateNcc (usava generateNCC); corrigido no teste e repetido com sucesso.
+O cenário Seed → Standard usa o botão Gerar real e confere os dois resultados,
+retorno Propriedades → Ferramenta, origem, linha selecionada e valores mantidos.
+O harness acessa os editores por Spinner.getEditor(), pois lookup do editor
+interno antes de criar o skin não o encontra; corrigido sem alterar o formulário.
+A tag e os instaladores 0.1.0-beta.1 já gerados permanecem associados ao commit
+original; esta alteração deve entrar em um próximo pacote.
+
 ## Primeira Beta: versão e distribuição Windows — 2026-10-28
 
 Guia consolidado em 74c811e0. Reactor versionado como 0.1.0-beta.1; título,

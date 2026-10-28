@@ -33,6 +33,30 @@ destaca controles e conceitos. Blocos de observação e seleção usam as cores
 do tema. Os artigos explicam procedimentos; não prescrevem valores de corte
 para uma máquina/material que não foram informados.
 
+### Repetir uma operação
+
+Após gerar uma saída, a ferramenta permanece aberta com os parâmetros que
+você ajustou. Por exemplo: gere um NCC com Seed, confira o Plot, volte à aba
+da ferramenta e mude somente o método para Standard. Gere outra versão para
+comparar, sem refazer a escolha da fresa, margem, sobreposição e demais opções.
+As saídas anteriores continuam no projeto. Para encerrar o painel, use
+**Fechar** ou abra outra ferramenta. Na panelização, repetir a operação usa
+os objetos escolhidos no formulário, não o resultado recém-criado.
+
+### Alterar o diâmetro de uma fresa
+
+Nas tabelas de NCC e Isolation, dê duplo clique na célula de diâmetro ou
+selecione a linha e pressione **F2**. **Enter** confirma; **Esc** cancela a edição.
+Vírgula e ponto decimal são aceitos, nas unidades do objeto. O cálculo usa o
+valor informado, preservando a precisão digitada. Por exemplo, é possível
+ajustar 0,200 para 0,198 ou informar outro diâmetro válido.
+
+Perfil, passes, método, sobreposição e parâmetros de usinagem da linha são
+mantidos. A alteração vale para esta operação e não modifica a Tools Database.
+Pressione **Gerar** para criar uma nova saída. Valores inválidos ou duplicados
+precisam ser corrigidos ou cancelados antes de gerar; a saída anterior continua
+no projeto. Informe o diâmetro efetivo de corte da ferramenta que será usada.
+
 ### Outline
 
 O artigo distingue três representações: linhas do perímetro, área preenchida

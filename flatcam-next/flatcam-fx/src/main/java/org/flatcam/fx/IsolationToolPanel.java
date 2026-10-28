@@ -76,7 +76,7 @@ final class IsolationToolPanel {
     }
 
     private static final class ToolRow {
-        final double diameter;
+        double diameter;
         ToolProfile profile;
         String passes;
         String overlap;
@@ -89,6 +89,12 @@ final class IsolationToolPanel {
             this.passes = Integer.toString(passes);
             this.overlap = format(overlap * 100);
             this.type = type;
+        }
+
+        void setDiameter(double value) {
+            diameter = value;
+            if (machining != null) machining = new LegacyToolsDatabase.MillingTool(machining.name(), value,
+                    machining.profile(), machining.parameters(), machining.tip(), machining.jobDefaults());
         }
 
         IsolationParameters parameters() {
@@ -126,6 +132,7 @@ final class IsolationToolPanel {
         toolMessage.getStyleClass().add("form-error-label");
         toolMessage.managedProperty().bind(toolMessage.textProperty().isNotEmpty());
         TableView<ToolRow> table = new TableView<>(rows);
+        table.setId("isolation-tools");
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         TableColumn<ToolRow, String> numberColumn = new TableColumn<>("#");
         numberColumn.setSortable(false);
@@ -136,10 +143,10 @@ final class IsolationToolPanel {
                 setText(empty ? null : Integer.toString(getIndex() + 1));
             }
         });
-        TableColumn<ToolRow, Number> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
+        TableColumn<ToolRow, Double> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
         diameterColumn.setSortable(false);
         diameterColumn.setCellValueFactory(cell ->
-                new javafx.beans.property.SimpleDoubleProperty(cell.getValue().diameter));
+                new javafx.beans.property.SimpleObjectProperty<>(cell.getValue().diameter));
         TableColumn<ToolRow, ToolProfile> typeColumn = new TableColumn<>("TT");
         typeColumn.setSortable(false);
         typeColumn.setCellValueFactory(cell ->
@@ -179,6 +186,8 @@ final class IsolationToolPanel {
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
         table.getColumns().addAll(numberColumn, diameterColumn, typeColumn);
+        var diameterEditor = new EditableToolDiameterColumn<>(table, diameterColumn,
+                row -> row.diameter, ToolRow::setDiameter, toolMessage::setText);
         CompactToolsTable.configure(table, numberColumn, diameterColumn, typeColumn);
         table.setPrefHeight(64);
         rows.addListener((javafx.collections.ListChangeListener<ToolRow>) change -> {
@@ -225,6 +234,7 @@ final class IsolationToolPanel {
         Button deleteButton = new Button(I18n.text("ui.a3037dc71a43"));
         deleteButton.disableProperty().bind(Bindings.isEmpty(table.getSelectionModel().getSelectedItems()));
         addButton.setOnAction(event -> {
+            if (!diameterEditor.commit()) return;
             try {
                 double diameter = parse(diameterSpinner.getEditor().getText(), "Tool Dia");
                 if (diameter <= 0) throw new IllegalArgumentException(I18n.text("ui.a465dd635e5b"));
@@ -449,6 +459,7 @@ final class IsolationToolPanel {
         generate.getStyleClass().add("primary-action");
         generate.setMaxWidth(Double.MAX_VALUE);
         generate.setOnAction(event -> {
+            if (!diameterEditor.commit()) return;
             try {
                 List<ToolRow> selected = List.copyOf(table.getSelectionModel().getSelectedItems());
                 if (selected.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.8e7abe361ed7"));

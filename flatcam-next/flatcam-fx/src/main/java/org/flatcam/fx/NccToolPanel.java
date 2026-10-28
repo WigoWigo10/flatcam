@@ -62,7 +62,7 @@ final class NccToolPanel {
     private static final List<ToolProfile> TOOL_TYPES = List.of(ToolProfile.values());
 
     private static final class ToolRow {
-        final double diameter;
+        double diameter;
         ToolProfile toolProfile = ToolDefaults.choice("ncc.tooltype", ToolProfile.class);
         NccOperation operation;
         String overlapPercent = ToolDefaults.text("ncc.overlap", true);
@@ -77,6 +77,12 @@ final class NccToolPanel {
         ToolRow(double diameter) {
             this.diameter = diameter;
             this.operation = NccOperation.CLEAR;
+        }
+
+        void setDiameter(double value) {
+            diameter = value;
+            if (machining != null) machining = new LegacyToolsDatabase.MillingTool(machining.name(), value,
+                    machining.profile(), machining.parameters(), machining.tip(), machining.jobDefaults());
         }
 
         NccToolSettings settings() {
@@ -186,6 +192,7 @@ final class NccToolPanel {
         Runnable[] refreshOperation = {() -> { }};
 
         TableView<ToolRow> toolTable = new TableView<>(tools);
+        toolTable.setId("ncc-tools");
         toolTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         toolTable.setPlaceholder(new Label(I18n.text("ui.2547a49d54f1")));
         TableColumn<ToolRow, String> numberColumn = new TableColumn<>("#");
@@ -254,6 +261,8 @@ final class NccToolPanel {
         typeColumn.setText(null);
         typeColumn.setGraphic(typeHeader);
         toolTable.getColumns().addAll(numberColumn, diaColumn, typeColumn);
+        var diameterEditor = new EditableToolDiameterColumn<>(toolTable, diaColumn,
+                row -> row.diameter, ToolRow::setDiameter, toolError::setText);
         CompactToolsTable.configure(toolTable, numberColumn, diaColumn, typeColumn);
         Runnable updateTableHeight = () ->
                 toolTable.setPrefHeight(Math.min(150, 32 + Math.max(tools.size(), 1) * 28));
@@ -299,6 +308,7 @@ final class NccToolPanel {
         });
 
         Runnable addTool = () -> {
+            if (!diameterEditor.commit()) return;
             try {
                 double dia = parse(newDiaField, I18n.text("ui.0ebfb18d1f0f"));
                 if (dia <= 0) {
@@ -523,9 +533,11 @@ final class NccToolPanel {
 
         Spinner<Double> overlapSpinner = spinner(0, 99.9999, ToolDefaults.number("ncc.overlap", true), 0.1);
         TextField overlapField = overlapSpinner.getEditor();
+        overlapSpinner.setId("ncc-overlap");
         Spinner<Double> marginSpinner = spinner(0, 10_000, ToolDefaults.number("ncc.margin", metric),
                 metric ? 0.1 : 0.01);
         TextField marginField = marginSpinner.getEditor();
+        marginSpinner.setId("ncc-margin");
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
         methodCombo.setId("ncc-method");
         methodCombo.getItems().addAll(NccMethod.values());
@@ -545,6 +557,7 @@ final class NccToolPanel {
         seedPolicyCombo.setMaxWidth(Double.MAX_VALUE);
         seedPolicyCombo.setTooltip(tooltip(I18n.text("ui.6e34de730a9a")));
         CheckBox connectCb = new CheckBox("Connect");
+        connectCb.setId("ncc-connect");
         connectCb.setSelected(ToolDefaults.flag("ncc.connect"));
         connectCb.setTooltip(tooltip(I18n.text("ui.1fd4963c87ad")));
         CheckBox contourCb = new CheckBox("Contour");
@@ -763,6 +776,7 @@ final class NccToolPanel {
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
+            if (!diameterEditor.commit()) return;
             try {
                 SourceCandidate chosenSource = sourceCombo.getValue();
                 if (chosenSource == null) throw new IllegalArgumentException(I18n.text("ui.6ca11e7bf382"));
