@@ -19,14 +19,21 @@ Segunda Beta para testes práticos controlados — 28 de outubro de 2026.
 
 ## Atualizar a Beta 1 pelo MSI
 
+**Antes de atualizar, copie para Documentos ou outra pasta de trabalho os
+projetos, G-code ou outros arquivos pessoais que estiverem dentro da pasta
+do FlatCAM FX Beta.** O instalador da Beta 1 remove recursivamente a pasta
+do programa durante a atualização, incluindo arquivos extras colocados nela.
+Esse comportamento do instalador antigo não é corrigido pelo MSI novo.
+
 Feche o FlatCAM FX Beta antes de atualizar. Execute
 **FlatCAM-FX-0.1.0-beta.2-windows-x64-setup.msi**, usando a mesma conta do Windows
 com que instalou a Beta 1. A família de upgrade continua a mesma; o MSI novo
 substitui a instalação anterior. Não é necessário desinstalar a Beta 1 primeiro.
 Confira **0.1.0-beta.2** em Ajuda > Sobre após a atualização.
 
-Projetos e preferências não são apagados pelo instalador. Para a rodada de
-validação, mantenha uma cópia dos projetos usados nos testes anteriores.
+Projetos guardados fora da pasta de instalação e preferências do aplicativo
+são preservados. Para a rodada de validação, mantenha também uma cópia dos
+projetos usados nos testes anteriores.
 O relatório de distribuição registra separadamente instalação limpa,
 atualização de um MSI anterior e desinstalação, além dos limites do ensaio.
 
@@ -40,7 +47,8 @@ Também é fornecido um `.msi` para instalação pelo Windows Installer.
 A instalação é por usuário, com atalhos no menu Iniciar e na área de trabalho.
 Ela usa a identidade **FlatCAM FX Beta**, separada de uma futura edição estável.
 Para remover, use Aplicativos instalados do Windows. Preferências do aplicativo
-e projetos do usuário não são apagados pelo instalador.
+e projetos fora da pasta do programa são preservados; mantenha arquivos de
+trabalho fora dessa pasta, pois ela é removida na atualização/desinstalação.
 
 Alternativamente, extraia **todo** o ZIP portátil e abra `FlatCAM FX Beta.exe`.
 Para renderização por software, use `Iniciar em Software.cmd`, ou execute o

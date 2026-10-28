@@ -23,6 +23,14 @@ remoção do produto/JAR antigo e a preservação de um projeto de teste, execut
 os probes no atualizado e desinstala. Sem `-PreviousMsi`, essa verificação fica
 explicitamente `NOT_RUN` em `validation.json`.
 
+O projeto do ensaio fica fora da pasta instalada. Um ensaio inicial dentro
+dessa pasta foi apagado pela remoção recursiva do MSI da Beta 1 (FileRemove
+confirmado no log). Isso é uma limitação real, documentada nas notas da Beta 2:
+copiar arquivos pessoais para fora da pasta do aplicativo antes de atualizar.
+A validação não afirma preservar arquivos extras dentro da pasta instalada.
+Registro e contexto por usuário são conferidos pela API Windows Installer,
+sem presumir o local do registro exibido em Aplicativos instalados.
+
 `build-beta.ps1` exige árvore Git limpa. Roda `mvnw verify`, sincroniza o
 launcher nativo/jars e gera um runtime reduzido com `jlink`. Downloads fixados:
 Temurin 25.0.5+8 e WiX 3.14.1, com SHA-256 conferido antes da extração.

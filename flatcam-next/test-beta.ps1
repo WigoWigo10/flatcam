@@ -67,8 +67,9 @@ function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[strin
         $oldManifest=Get-Content -LiteralPath (Join-Path $installed 'flatcam-release.json') -Raw | ConvertFrom-Json
         $oldVersion=$oldManifest.version
         if($oldVersion -eq $Manifest.version) {throw 'Previous installer must be an older Beta.'}
-        # A test-owned project inside the install directory must survive both upgrade and uninstall.
-        $project=Join-Path $installed 'tester-project.fcnproj'
+        # The legacy installer recursively removes its app directory. User projects must live outside it.
+        $projectDirectory=Join-Path $report 'projects';New-Item -ItemType Directory -Path $projectDirectory | Out-Null
+        $project=Join-Path $projectDirectory 'tester-project.fcnproj'
         Copy-Item -LiteralPath (Join-Path $Outside 'portable-smoke\Painel-testado.fcnproj') -Destination $project
         $projectHash=(Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash
         $owned.Add($newProduct)
@@ -161,6 +162,7 @@ try {
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
         camDraftAndDiameterEditing='PASS';perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
+        projectPreservationScope='Outside installation directory; legacy uninstall deletes extra files inside app directory';
         fullVerification=$(if($manifest.verification){$manifest.verification}else{'NOT_RUN'});
         environment='Windows x64 on build machine, outside repository; no VM/second PC or physical CNC test'}
     [IO.File]::WriteAllText((Join-Path $BuildDirectory 'validation.json'),($report | ConvertTo-Json),[Text.UTF8Encoding]::new($false))

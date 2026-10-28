@@ -19,6 +19,14 @@ os ensaios focados já faziam. A primeira verificação da Beta 2 foi interrompi
 intencionalmente antes dos testes de geração novos para aplicar esse isolamento;
 o log foi mantido e não conta como uma rodada integral aprovada.
 
+O ensaio de atualização encontrou um limite real do MSI da Beta 1: um projeto
+extra dentro da pasta instalada foi apagado (FileRemove registrado). As notas
+da Beta 2 exigem copiar esses arquivos para fora antes de atualizar. O teste
+de preservação usa uma pasta de projetos externa e não encobre o ensaio que
+falhou. Produto/contexto são verificados via API Windows Installer: AssignmentType
+0 confirmou instalação por usuário mesmo com o registro ARP em HKLM. O harness
+também captura avisos javac via ProcessStartInfo e descarta retornos COM vazios.
+
 ## Feedback da Beta: editar diâmetro na Tools Table — 2026-10-28
 
 NCC e Isolation permitem editar a célula de diâmetro por duplo clique ou F2;
