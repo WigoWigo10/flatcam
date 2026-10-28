@@ -44,9 +44,9 @@ function Read-MsiProperty([string]$Path,[string]$Property) {
     $installer=New-Object -ComObject WindowsInstaller.Installer
     $database=$installer.OpenDatabase($Path,0)
     $query=$database.OpenView('SELECT `Value` FROM `Property` WHERE `Property` = '''+$Property+'''')
-    $query.Execute();$record=$query.Fetch()
+    [void]$query.Execute();$record=$query.Fetch()
     if(!$record) {throw "Missing MSI property: $Property"}
-    $value=$record.StringData(1);$query.Close();return $value
+    $value=$record.StringData(1);[void]$query.Close();return $value
 }
 function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[string]$Classes,$Manifest,[string]$Revision) {
     $oldProduct=Read-MsiProperty $Previous 'ProductCode'
