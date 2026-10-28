@@ -9,8 +9,15 @@ $ProgressPreference='SilentlyContinue'
 $betaOldPath=$env:PATH
 $betaOldMavenOpts=$env:MAVEN_OPTS
 function Invoke-Checked([string]$Program,[string[]]$Arguments) {
-    & $Program @Arguments
-    if($LASTEXITCODE -ne 0) { throw "$Program failed: $LASTEXITCODE" }
+    $command=Get-Command $Program -ErrorAction Stop
+    $callPreference=$ErrorActionPreference
+    try {
+        # Windows PowerShell 5 wraps native stderr as ErrorRecords, including successful-tool warnings.
+        $ErrorActionPreference='Continue'
+        & $command.Source @Arguments
+        $code=$LASTEXITCODE
+    } finally {$ErrorActionPreference=$callPreference}
+    if($code -ne 0) { throw "$Program failed: $code" }
 }
 function Write-Utf8([string]$Path,[string]$Value) {
     [IO.File]::WriteAllText($Path,$Value,[Text.UTF8Encoding]::new($false))
@@ -65,7 +72,7 @@ try {
     $build=Join-Path $PSScriptRoot ("target\releases\$version-"+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
     New-Item -ItemType Directory -Path $build | Out-Null
     if(!$SkipTests) {
-        & .\mvnw.cmd verify "-Dflatcam.build.revision=$revision" *> (Join-Path $build 'verify.log')
+        & cmd.exe /d /c ".\mvnw.cmd verify -Dflatcam.build.revision=$revision 2>&1" *> (Join-Path $build 'verify.log')
         if($LASTEXITCODE -ne 0) { throw "Verification failed. See $build\verify.log" }
     }
     # build-native.cmd removes this one generated directory. Verify the target before invoking it.
@@ -74,7 +81,7 @@ try {
         $item=Get-Item -LiteralPath $dependency
         if($item.FullName -ne $dependency -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Unsafe dependency directory.' }
     }
-    & cmd.exe /d /c ".\build-native.cmd -Dflatcam.build.revision=$revision" *> (Join-Path $build 'native-build.log')
+    & cmd.exe /d /c ".\build-native.cmd -Dflatcam.build.revision=$revision 2>&1" *> (Join-Path $build 'native-build.log')
     if($LASTEXITCODE -ne 0) { throw "Native build failed. See $build\native-build.log" }
     $runtime=Join-Path $build 'runtime'
     $modules='java.se,jdk.jfr,jdk.management,jdk.management.jfr,jdk.unsupported,jdk.charsets,jdk.localedata,jdk.crypto.ec,jdk.crypto.mscapi,jdk.zipfs'
