@@ -280,10 +280,10 @@ final class IsolationToolPanel {
                 toolMessage.setText(I18n.text("ui.5ac0e86bc232"));
                 return;
             }
-            rows.removeAll(selected);
-            table.getSelectionModel().selectFirst();
+            TableKeyboardActions.removeSelected(table);
             toolMessage.setText("");
         });
+        TableKeyboardActions.deleteWith(table, deleteButton);
 
         Spinner<Integer> passesSpinner = new Spinner<>(1, 999, ToolDefaults.integer("iso.passes"));
         passesSpinner.setEditable(true);

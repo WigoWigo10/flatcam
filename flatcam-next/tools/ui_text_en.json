@@ -3801,7 +3801,7 @@
   "release.beta": "Beta testing",
   "release.development": "In development",
   "release.published": "Release",
-  "tool.diameter.edit.help": "Double-click the diameter or press F2 to edit.\nEnter confirms; Esc cancels the edit.\nAccepts a decimal comma or point, in the object units.\nChanges only this operation, preserving its settings and the Tools Database entry.\nClick Generate to calculate a new output.",
+  "tool.diameter.edit.help": "Double-click the diameter or press F2/Enter to edit.\nEnter confirms; Esc cancels. Tab confirms and edits the next cutter; Shift+Tab goes to the previous one. At either end, Tab leaves the table.\n\nInside the cell, Delete deletes text; outside editing, it removes selected rows when supported by the table.\nAccepts a decimal point or comma in the object units. Preserves operation settings and the Tools Database entry.\nGenerate also validates unconfirmed edits.",
   "tool.diameter.invalid": "Tool %d: enter a finite numeric diameter greater than zero. Correct the edit or press Esc to cancel it. Right-click the table to correct or discard the invalid draft; cutter selection is preserved.",
   "tool.diameter.duplicate": "Tool %d: this diameter already exists in the table. Enter a different value or press Esc to cancel the edit. Right-click the table to correct or discard the invalid draft; cutter selection is preserved.",
   "cam.number.range": "%s must be between %s and %s. Your entered value was preserved.",
@@ -3831,5 +3831,7 @@
   "cam.result.same": "Same parameters as the previous generation.",
   "cam.result.difference": "Changes from the previous generation:",
   "cam.result.before": "Before:",
-  "cam.result.after": "Now:"
+  "cam.result.after": "Now:",
+  "table.delete.help": "Removes the selected rows from this table. With the table focused, press Delete or use the context menu.\n\nInside an editing cell or input field, Delete only deletes text. Operation rules and the Tools Database confirmation still apply.",
+  "table.delete.selected": "Remove selected rows (Delete)"
 }

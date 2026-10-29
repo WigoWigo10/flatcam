@@ -15,6 +15,17 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class ExcellonArrayPanelTest {
+    @Test void deleteFromTheShapeTableKeepsDrillingUndoAvailable() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var h=new Harness(true);
+            try {
+                var table=(TableView<?>)h.panel.lookup("#excellon-shapes");table.getSelectionModel().selectAll();
+                table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
+                assertEquals(0,h.session().size());assertTrue(h.editor.undoFromShortcut());assertEquals(1,h.session().size());
+            } finally { h.editor.cancel(); }
+            return null;
+        });
+    }
     @BeforeEach @AfterEach void defaults() { ToolDefaults.useStore(ToolDefaults.memoryStore()); }
     static class Harness implements ExcellonEditorController.Host {
         final PlotAreaView plot=new PlotAreaView(); final VBox chrome=new VBox();

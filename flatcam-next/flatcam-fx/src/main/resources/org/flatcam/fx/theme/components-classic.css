@@ -547,3 +547,16 @@
     -fx-border-radius: 3;
     -fx-background-radius: 3;
 }
+
+/* Make inline numeric editing distinct from the selected row in every palette. */
+.tool-panel .table-cell .tool-diameter-input {
+    -fx-padding: 1 4 1 4;
+    -fx-background-color: -fc-input-bg;
+    -fx-text-fill: -fc-panel-text;
+    -fx-border-color: -fc-accent;
+    -fx-border-radius: 2;
+    -fx-background-radius: 2;
+}
+.tool-panel .table-cell:invalid .tool-diameter-input {
+    -fx-border-color: -fc-danger;
+}

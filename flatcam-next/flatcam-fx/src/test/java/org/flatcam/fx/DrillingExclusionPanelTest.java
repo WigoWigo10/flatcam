@@ -116,7 +116,8 @@ class DrillingExclusionPanelTest {
             ((Button) root.lookup("#cnc-exclusion-add")).fire();
             assertEquals(1, table(root).getItems().size());
             assertNotNull(preview.get());
-            ((Button) root.lookup("#cnc-exclusion-delete")).fire();
+            table(root).fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,"","",
+                    javafx.scene.input.KeyCode.DELETE,false,false,false,false));
             assertNull(preview.get());
             generate(root);
             assertNull(result.get());

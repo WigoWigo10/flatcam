@@ -64,7 +64,7 @@ final class CncExclusionEditor {
         } catch(IllegalArgumentException invalid) { error.setText(invalid.getMessage()); } });
         var delete=new Button(I18n.text("ui.b7863532472c")); delete.setId("cnc-exclusion-delete");
         delete.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
-        delete.setOnAction(event -> table.getItems().remove(table.getSelectionModel().getSelectedItem()));
+        delete.setOnAction(event -> TableKeyboardActions.removeSelected(table));
         table.getSelectionModel().selectedItemProperty().addListener((obs,was,area) -> {
             if(area!=null) { strategy.setValue(area.strategy()); over.setText(Double.toString(area.overZ())); }
             preview.accept(area==null?null:area.geometry());
@@ -78,6 +78,7 @@ final class CncExclusionEditor {
         ToolDescriptions.apply(addRect,I18n.text("ui.182d4e027267"), I18n.text("ui.426c05aef19b"));
         ToolDescriptions.apply(apply,I18n.text("ui.e387a297e5b7"), I18n.text("ui.784ecc2e5dc0"));
         ToolDescriptions.apply(delete,I18n.text("ui.b7863532472c"), I18n.text("ui.0df55b232d64"));
+        TableKeyboardActions.deleteWith(table, delete);
         Label note=new Label(I18n.text("ui.4003a8475ff3")); note.setWrapText(true);
         view=new TitledPane(I18n.text("ui.37007692370b"),new VBox(8,enabled,table,new HBox(8,new Label("Strategy:"),strategy,new Label("Over Z:"),over),
                 new FlowPane(8,6,rectangle,polygon),numeric,apply,delete,note,error));

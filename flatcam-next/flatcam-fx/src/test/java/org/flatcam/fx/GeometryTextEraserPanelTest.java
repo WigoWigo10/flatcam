@@ -27,6 +27,19 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class GeometryTextEraserPanelTest {
+    @Test void deleteFromTheShapeTableRemovesShapesAndUndoRestoresThem() throws Exception {
+        fx(() -> {
+            var factory=new GeometryFactory();
+            var h=new Harness(factory.toGeometry(new Envelope(0,2,0,2)),List.of());
+            try {
+                h.table().getSelectionModel().selectAll();
+                h.table().fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
+                assertEquals(0,h.table().getItems().size()); assertTrue(h.controller.hasUnappliedChanges());
+                assertTrue(h.controller.undoFromShortcut());assertEquals(1,h.table().getItems().size());
+            } finally { h.controller.cancel(); }
+            return null;
+        });
+    }
     @BeforeEach @AfterEach void defaults() { ToolDefaults.useStore(ToolDefaults.memoryStore()); }
     private static <T> T fx(Callable<T> action) throws Exception {
         try { Platform.startup(() -> {}); } catch (IllegalStateException started) { }

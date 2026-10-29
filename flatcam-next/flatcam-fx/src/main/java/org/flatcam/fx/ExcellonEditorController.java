@@ -174,6 +174,7 @@ final class ExcellonEditorController {
         moveButton = button(I18n.text("ui.6624c0d31888"), "move32.png", () -> startMoveOrCopy(false));
         copyButton = button(I18n.text("ui.39dcf1cbeb5a"), "copy32.png", () -> startMoveOrCopy(true));
         deleteButton = button(I18n.text("ui.8b19518ff49b"), "trash32.png", this::deleteSelected);
+        TableKeyboardActions.deleteWith(table, deleteButton, true);
         undoButton = new Button("↶");
         undoButton.setOnAction(event -> undo());
         redoButton = new Button("↷");

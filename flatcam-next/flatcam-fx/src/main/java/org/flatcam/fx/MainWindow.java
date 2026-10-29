@@ -862,6 +862,7 @@ final class MainWindow implements TclFlatcamHost {
             // Auxiliary readers/editors must not move/delete shapes or toggle the hidden plot.
             if (selectedTab != null && ("tools-database-tab".equals(selectedTab.getId())
                     || "help-guide-tab".equals(selectedTab.getId()))) return;
+            if (TableKeyboardActions.prefersLocalHandling(event)) return;
             if (pendingPointPick != null && event.getCode() == KeyCode.ESCAPE) {
                 cancelPointPick();
                 event.consume();

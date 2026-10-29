@@ -21,6 +21,25 @@ import org.locationtech.jts.geom.GeometryFactory;
 @EnabledOnOs(OS.WINDOWS)
 class PanelTextContrastTest {
     @ParameterizedTest @EnumSource(ThemeOption.class)
+    void inlineDiameterEditorUsesTheInputPaletteInsideSelectedRows(ThemeOption theme) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form=CamNumericInputTest.form("NCC","MM",new java.util.concurrent.atomic.AtomicReference<>());
+            form.getStyleClass().add("tool-panel");var shell=new VBox(form);shell.getStyleClass().add("side-panel");
+            var scene=new Scene(shell,450,1400);theme.applyTo(scene);shell.applyCss();shell.layout();
+            var table=(TableView<?>)form.lookup("#ncc-tools");table.getSelectionModel().clearAndSelect(0);
+            table.fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,"","",javafx.scene.input.KeyCode.F2,false,false,false,false));
+            shell.applyCss();shell.layout();var input=(TextField)table.lookup("#tool-diameter-editor");assertNotNull(input);
+            Color background=(Color)input.getBackground().getFills().getLast().getFill();
+            assertReadable(input,background,"inline diameter / "+theme);
+            if(Boolean.getBoolean("flatcam.tests.snapshots")){
+                var snapshot=table.snapshot(null,null);var output=new java.awt.image.BufferedImage((int)snapshot.getWidth(),(int)snapshot.getHeight(),java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                for(int y=0;y<output.getHeight();y++)for(int x=0;x<output.getWidth();x++)output.setRGB(x,y,snapshot.getPixelReader().getArgb(x,y));
+                javax.imageio.ImageIO.write(output,"png",java.nio.file.Path.of("target","table-edit-"+theme+".png").toFile());
+            }
+            return null;
+        });
+    }
+    @ParameterizedTest @EnumSource(ThemeOption.class)
     void generationFeedbackRemainsReadableInEveryTheme(ThemeOption theme) throws Exception {
         TerminalPanelTest.fx(() -> {
             var form = (VBox) CamNumericInputTest.form("NCC", "MM", new java.util.concurrent.atomic.AtomicReference<>());

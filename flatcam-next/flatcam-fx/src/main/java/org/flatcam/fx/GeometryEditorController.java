@@ -356,6 +356,7 @@ final class GeometryEditorController {
         circleButton.setOnAction(event -> startCircle());
         arcButton.setOnAction(event -> startArc());
         deleteButton.setOnAction(event -> deleteSelected());
+        TableKeyboardActions.deleteWith(shapeTable, deleteButton, true);
         moveButton.setOnAction(event -> startMove());
         copyButton.setOnAction(event -> startCopy());
         unionButton.setOnAction(event -> startUnion());

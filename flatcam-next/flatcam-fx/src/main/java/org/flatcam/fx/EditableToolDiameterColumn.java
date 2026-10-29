@@ -54,9 +54,11 @@ final class EditableToolDiameterColumn<R> {
             if (event.getButton() == MouseButton.SECONDARY && invalidRow != null) event.consume();
         });
         table.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
-            if (event.getCode() == KeyCode.F2 && table.getEditingCell() == null) {
-                int row = table.getSelectionModel().getSelectedIndex();
-                if (row >= 0) { table.edit(row, column); event.consume(); }
+            if ((event.getCode() == KeyCode.F2 || event.getCode() == KeyCode.ENTER) && TableKeyboardActions.plain(event)
+                    && !TableKeyboardActions.inputTarget(event.getTarget()) && table.getEditingCell() == null) {
+                int focused = table.getFocusModel().getFocusedIndex();
+                int row = table.getSelectionModel().isSelected(focused) ? focused : table.getSelectionModel().getSelectedIndex();
+                if (row >= 0) { table.getFocusModel().focus(row, column); table.edit(row, column); event.consume(); }
             }
         });
         table.getItems().addListener((javafx.collections.ListChangeListener<R>) change -> {
@@ -113,7 +115,9 @@ final class EditableToolDiameterColumn<R> {
             editor.setMinWidth(0); editor.setMaxWidth(Double.MAX_VALUE);
             editor.setMinHeight(0); editor.setPrefHeight(UiFonts.rowHeight(22));
             editor.setId("tool-diameter-editor");
+            editor.getStyleClass().add("tool-diameter-input");
             ToolDescriptions.apply(this, I18n.text("ui.7cd23abc62e0"), I18n.text("tool.diameter.edit.help"));
+            ToolDescriptions.apply(editor, I18n.text("ui.7cd23abc62e0"), I18n.text("tool.diameter.edit.help"));
             setOnMouseClicked(event -> {
                 if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2 && !isEmpty() && !isEditing()) {
                     table.edit(getIndex(), getTableColumn()); event.consume();
@@ -122,7 +126,7 @@ final class EditableToolDiameterColumn<R> {
             editor.textProperty().addListener((obs, old, value) -> {
                 if (!loading && editedRow != null) { drafts.put(editedRow, value); changed(); }
             });
-            editor.setOnAction(event -> { finish(); event.consume(); });
+            editor.setOnAction(event -> { if (finish()) table.requestFocus(); event.consume(); });
             editor.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
                 if (event.getCode() == KeyCode.ESCAPE) {
                     boolean clearsError = invalidRow == editedRow;
@@ -132,7 +136,19 @@ final class EditableToolDiameterColumn<R> {
                     table.edit(-1, null); cancelEdit();
                     if (reportedError && clearsError) { message.accept(""); reportedError = false; }
                     table.requestFocus(); event.consume();
-                } else if (event.getCode() == KeyCode.TAB && !finish()) event.consume();
+                } else if (event.getCode() == KeyCode.TAB && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
+                    int next = getIndex() + (event.isShiftDown() ? -1 : 1);
+                    if (finish()) {
+                        if (next >= 0 && next < table.getItems().size()) {
+                            table.getSelectionModel().clearAndSelect(next); table.scrollTo(next);
+                            table.getFocusModel().focus(next, getTableColumn()); table.edit(next, getTableColumn());
+                        } else {
+                            table.requestFocus(); table.requestFocusTraversal(event.isShiftDown()
+                                    ? javafx.scene.TraversalDirection.PREVIOUS : javafx.scene.TraversalDirection.NEXT);
+                        }
+                    }
+                    event.consume();
+                }
             });
             editor.focusedProperty().addListener((obs, old, focused) -> {
                 if (!focused && editedRow != null && drafts.containsKey(editedRow)) finish();

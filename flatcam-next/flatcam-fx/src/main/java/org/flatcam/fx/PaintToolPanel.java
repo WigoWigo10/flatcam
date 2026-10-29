@@ -309,6 +309,20 @@ final class PaintToolPanel {
             } finally { syncing[0] = false; }
         };
         Button updateTools = new Button(I18n.text("ui.c370b549c472")); updateTools.setId("paint-update-tools");
+        Button removeTool = new Button(I18n.text("ui.a3037dc71a43")); removeTool.setId("paint-remove-tool");
+        removeTool.setMaxWidth(Double.MAX_VALUE);
+        removeTool.disableProperty().bind(javafx.beans.binding.Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
+        removeTool.setOnAction(event -> {
+            if (toolTable.getItems().size() <= 1) { errorLabel.setText(I18n.text("ui.5ac0e86bc232")); return; }
+            editing[0].settings = capture.get(); syncing[0] = true;
+            try {
+                TableKeyboardActions.removeSelected(toolTable);
+                editing[0] = toolTable.getSelectionModel().getSelectedItem();
+                syncText.run(); restore.accept(editing[0].settings);
+                parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0].diameter); errorLabel.setText("");
+            } finally { syncing[0] = false; }
+        });
+        TableKeyboardActions.deleteWith(toolTable, removeTool);
         ToolDescriptions.apply(updateTools, I18n.text("ui.b61e1a7d9a7a"),
                 I18n.text("ui.b6d5202e04ae"));
         updateTools.setOnAction(event -> { try { synchronizeTools.run(); errorLabel.setText(""); }
@@ -386,7 +400,7 @@ final class PaintToolPanel {
                 new VBox(4, all, single, rectangle, polygonArea, reference), referenceObject,
                 new HBox(6, choose, clear), selectedLabel,
                 new Separator(),
-                new Label(I18n.text("ui.87aaa7e961d0")), new HBox(6,diameters,updateTools), toolTable, database, transferNote, parameterTitle,
+                new Label(I18n.text("ui.87aaa7e961d0")), new HBox(6,diameters,updateTools), toolTable, removeTool, database, transferNote, parameterTitle,
                 new HBox(6, new Label(I18n.text("ui.ea6b271e4830")), overlap, new Label(I18n.text("ui.16bab5b0d1de")), margin),
                 new HBox(6, new Label("Metodo:"), method),
                 new HBox(10, connect, contour), applyAll,

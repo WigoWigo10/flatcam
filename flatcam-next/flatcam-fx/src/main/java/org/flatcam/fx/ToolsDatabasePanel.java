@@ -114,6 +114,7 @@ final class ToolsDatabasePanel extends BorderPane {
         Button add = button(I18n.text("ui.8f1fc115deb7"), "plus16.png", "db-add", this::add);
         Button copy = button(I18n.text("ui.39dcf1cbeb5a"), "copy32.png", "db-copy", this::duplicate);
         Button remove = button(I18n.text("ui.8b19518ff49b"), "trash16.png", "db-delete", this::delete);
+        TableKeyboardActions.deleteWith(table, remove);
         Button apply = button(I18n.text("ui.9d83554f18b2"), "apply32.png", "db-apply", () -> applyDraft());
         Button create = button(I18n.text("ui.4a8166bc3bcc"), "file32.png", "db-new", this::newDatabase);
         Button load = button(I18n.text("ui.ed7b1d230e92"), "import.png", "db-import", this::importDatabase);
@@ -137,7 +138,6 @@ final class ToolsDatabasePanel extends BorderPane {
         setOnKeyPressed(event -> {
             if (event.isShortcutDown() && event.getCode() == KeyCode.S) { save(false); event.consume(); }
             else if (event.isShortcutDown() && event.getCode() == KeyCode.F) { search.requestFocus(); event.consume(); }
-            else if (event.getCode() == KeyCode.DELETE && event.getTarget() == table) { delete(); event.consume(); }
         });
         loadEditor(null);
     }

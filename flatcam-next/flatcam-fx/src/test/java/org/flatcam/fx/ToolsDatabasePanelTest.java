@@ -19,6 +19,22 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 @EnabledOnOs(OS.WINDOWS)
 class ToolsDatabasePanelTest {
+    @Test void deleteFromRenderedRowUsesTheExistingDeleteActionButTextEditingDoesNot() throws Exception {
+        onFx(() -> {
+            var panel = panel(); fire(panel,"add");
+            var table=table(panel);table.getSelectionModel().selectFirst();panel.applyCss();panel.layout();
+            var remove=(Button)panel.lookup("#db-delete");var invocations=new java.util.concurrent.atomic.AtomicInteger();
+            remove.setOnAction(e -> invocations.incrementAndGet());
+            var cell=table.lookupAll(".table-cell").stream().filter(n -> n instanceof TableCell<?,?> c&&c.getIndex()==0).findFirst().orElseThrow();
+            cell.fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,"","",javafx.scene.input.KeyCode.DELETE,false,false,false,false));
+            assertEquals(1,invocations.get());
+            var input=text(panel,"name");input.setText("abcd");input.positionCaret(1);
+            input.fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,"","",javafx.scene.input.KeyCode.DELETE,false,false,false,false));
+            assertEquals("acd",input.getText());assertEquals(1,invocations.get());
+            assertEquals(3,table.getContextMenu().getItems().size(),"Do not duplicate the existing Delete command");
+            return null;
+        });
+    }
     @TempDir Path directory;
     private JobExecutor jobs;
     @BeforeEach void startJobs() { jobs = new JobExecutor(1); }

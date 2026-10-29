@@ -61,6 +61,13 @@ class PaintDiameterEditingTest {
             assertEquals(.123456789, result.settingsFor(.1981234567).offset());
             assertEquals(NccMethod.LINES, result.settingsFor(.1981234567).method());
             assertEquals(.45, result.settingsFor(.5).overlapFraction());
+            table.getSelectionModel().clearAndSelect(0);
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
+            assertEquals(1,table.getItems().size()); assertEquals("0.5",list.getText());
+            ((Button) form.lookup("#paint-generate")).fire();
+            assertEquals(List.of(.5),output.get().toolDiameters()); assertEquals(.45,output.get().settingsFor(.5).overlapFraction());
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
+            assertEquals(1,table.getItems().size(),"Keep the same final-tool rule as NCC and Isolation");
             return null;
         });
     }

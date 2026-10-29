@@ -27382,7 +27382,7 @@
     "canonical": false
   },
   "tool.diameter.edit.help": {
-    "source": "Duplo clique no diâmetro ou F2 para editar.\nEnter confirma; Esc cancela a edição.\nAceita vírgula ou ponto decimal, nas unidades do objeto.\nAltera somente esta operação, preservando os parâmetros e o cadastro na Tools Database.\nClique em Gerar para calcular uma nova saída.",
+    "source": "Dê duplo clique no diâmetro ou pressione F2/Enter para editar.\nEnter confirma; Esc cancela. Tab confirma e edita a próxima fresa; Shift+Tab volta à anterior. Nas extremidades, Tab sai da tabela.\n\nDentro da célula, Delete apaga texto; fora da edição, remove as linhas selecionadas quando a tabela permite.\nAceita ponto ou vírgula decimal, nas unidades do objeto. Preserva os parâmetros da operação e o cadastro da Tools Database.\nGerar valida também edições ainda não confirmadas.",
     "locations": [
       "EditableToolDiameterColumn.java"
     ],
@@ -27637,6 +27637,22 @@
     "source": "Agora:",
     "locations": [
       "CamGenerationFeedback.java"
+    ],
+    "canonical": false
+  },
+  "table.delete.help": {
+    "source": "Remove as linhas selecionadas desta tabela. Com foco na tabela, pressione Delete ou use o menu do botão direito.\n\nDentro de uma célula ou campo em edição, Delete apaga somente texto. As regras da operação e a confirmação da Tools Database continuam valendo.",
+    "locations": [
+      "TableKeyboardActions.java",
+      "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
+  },
+  "table.delete.selected": {
+    "source": "Remover selecionadas (Delete)",
+    "locations": [
+      "TableKeyboardActions.java",
+      "EditableToolDiameterColumn.java"
     ],
     "canonical": false
   }

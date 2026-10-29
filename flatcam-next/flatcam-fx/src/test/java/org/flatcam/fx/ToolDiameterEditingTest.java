@@ -85,6 +85,86 @@ class ToolDiameterEditingTest {
     private static Object field(Object row, String name) throws Exception {
         var f = row.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(row);
     }
+
+    @ParameterizedTest @ValueSource(strings={"NCC", "Isolation"})
+    void deleteRemovesSelectedToolAndKeepsTableReadyForKeyboard(String tool) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form(tool, "MM");
+            if (form.table.getItems().size() == 1) {
+                var ctor = form.row().getClass().getDeclaredConstructors()[0]; ctor.setAccessible(true);
+                form.table.getItems().add(ctor.newInstance(.35, ToolProfile.C1, 1, .1, org.flatcam.cam.isolation.IsolationType.BOTH));
+            }
+            int before = form.table.getItems().size(); Object removed = form.row();
+            form.table.fireEvent(key(KeyCode.DELETE));
+            assertEquals(before-1, form.table.getItems().size()); assertFalse(form.table.getItems().contains(removed));
+            assertEquals(0, form.table.getSelectionModel().getSelectedIndex());
+            form.generate(); assertNotNull(form.generated.get()); return null;
+        });
+    }
+
+    @ParameterizedTest @ValueSource(strings={"NCC", "Isolation"})
+    void deleteInsideCellOnlyDeletesText(String tool) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form(tool, "MM"); int before = form.table.getItems().size();
+            var editor = form.edit("0.198"); editor.positionCaret(2); editor.fireEvent(key(KeyCode.DELETE));
+            assertEquals("0.98", editor.getText()); assertEquals(before,form.table.getItems().size());
+            editor.fireEvent(new ActionEvent()); form.generate(); assertEquals(.98,form.outputDiameter()); return null;
+        });
+    }
+
+    @org.junit.jupiter.api.Test void enterStartsEditingAndTabMovesToTheNextDiameter() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form("NCC", "MM");
+            form.table.fireEvent(key(KeyCode.ENTER)); form.root.applyCss(); form.root.layout();
+            var editor = (TextField) form.table.lookup("#tool-diameter-editor"); assertNotNull(editor);
+            editor.setText("0.198"); editor.fireEvent(key(KeyCode.TAB)); form.root.applyCss(); form.root.layout();
+            assertNotNull(form.table.getEditingCell()); assertEquals(1,form.table.getEditingCell().getRow());
+            assertEquals(.198, form.diameter()); return null;
+        });
+    }
+
+    @org.junit.jupiter.api.Test void invalidEnterKeepsTheCellOpenForCorrection() throws Exception {
+        var form = TerminalPanelTest.fx(() -> {
+            var value = new Form("NCC", "MM"); value.edit("bad").fireEvent(new ActionEvent()); return value;
+        });
+        TerminalPanelTest.fx(() -> {
+            form.root.applyCss(); form.root.layout();
+            assertNotNull(form.table.getEditingCell());
+            var editor=(TextField)form.table.lookup("#tool-diameter-editor"); assertNotNull(editor); assertEquals("bad",editor.getText());
+            editor.setText("0.198");editor.fireEvent(new ActionEvent());form.generate();assertEquals(.198,form.outputDiameter());return null;
+        });
+    }
+
+    @org.junit.jupiter.api.Test void shiftTabGoesBackAndInvalidTabDoesNotLeaveTheCell() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form=new Form("NCC","MM");form.edit("0.198").fireEvent(key(KeyCode.TAB));
+            form.root.applyCss();form.root.layout();
+            var second=(TextField)form.table.lookup("#tool-diameter-editor");assertNotNull(second);
+            second.setText("bad");second.fireEvent(key(KeyCode.TAB));
+            form.root.applyCss();form.root.layout();assertEquals(1,form.table.getEditingCell().getRow());
+            second=(TextField)form.table.lookup("#tool-diameter-editor");second.setText("0.398");
+            second.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.TAB,true,false,false,false));
+            form.root.applyCss();form.root.layout();assertEquals(0,form.table.getEditingCell().getRow());
+            var first=(TextField)form.table.lookup("#tool-diameter-editor");assertEquals("0.198",first.getText());
+            first.fireEvent(key(KeyCode.ESCAPE));assertNull(form.table.getEditingCell());
+            assertEquals(.398,(double)field(form.table.getItems().get(1),"diameter"));return null;
+        });
+    }
+
+    @org.junit.jupiter.api.Test void aSingleClickOnSelectedDiameterDoesNotAccidentallyStartEditing() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form("NCC", "MM");
+            var column=form.table.getColumns().get(1); form.table.getFocusModel().focus(0,column);
+            var cell=(TableCell<?,?>) form.table.lookupAll(".table-cell").stream().filter(n -> n instanceof TableCell<?,?> c
+                    && c.getIndex()==0&&c.getTableColumn()==column).findFirst().orElseThrow();
+            for(var type:List.of(MouseEvent.MOUSE_PRESSED,MouseEvent.MOUSE_RELEASED,MouseEvent.MOUSE_CLICKED))
+                cell.fireEvent(new MouseEvent(type,5,5,5,5,MouseButton.PRIMARY,1,false,false,false,false,
+                        type==MouseEvent.MOUSE_PRESSED,false,false,false,false,true,null));
+            assertNull(form.table.getEditingCell());return null;
+        });
+    }
+
+    private static KeyEvent key(KeyCode code) { return new KeyEvent(KeyEvent.KEY_PRESSED,"","",code,false,false,false,false); }
     private static void set(Object row, String name, Object value) throws Exception {
         var f = row.getClass().getDeclaredField(name); f.setAccessible(true); f.set(row, value);
     }

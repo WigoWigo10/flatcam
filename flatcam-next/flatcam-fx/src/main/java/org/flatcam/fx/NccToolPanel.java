@@ -408,10 +408,10 @@ final class NccToolPanel {
                 toolError.setText(I18n.text("ui.ae56bed671fb"));
                 return;
             }
-            tools.removeAll(selected);
-            toolTable.getSelectionModel().selectFirst();
+            TableKeyboardActions.removeSelected(toolTable);
             toolError.setText("");
         });
+        TableKeyboardActions.deleteWith(toolTable, removeToolButton);
 
         ToggleGroup operationGroup = new ToggleGroup();
         RadioButton clearRadio = radio("Clear", operationGroup);
