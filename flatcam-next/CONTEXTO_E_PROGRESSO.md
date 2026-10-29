@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Delete e edição nas tabelas — 2026-10-29
+
+Incremento anterior commitado em **70a2f8ef**, branch `flatcam-next`, antes
+destes ajustes. Revisão e matriz em [TABLE_UX_20261029.md](TABLE_UX_20261029.md).
+Delete/contexto usam a ação de remover em NCC, Isolation, Paint, Tools Database,
+exclusões CNC e tabelas dos editores Geometry/Excellon. Campos em edição mantêm
+Delete de texto; combos/spinners/botões internos não disparam remoção de linha.
+Tabelas de consulta não encaminham Delete/atalhos locais ao Plot. Geometry e
+Excellon mantêm Ctrl+Z/Y do editor. Regras de última fresa e confirmação da base
+foram preservadas; não foi criado histórico de exclusão de fresas CAM.
+
+F2/Enter/duplo clique editam diâmetro; Enter confirma e devolve foco à tabela;
+Tab/Shift+Tab percorrem diâmetros e saem da tabela nas extremidades; erro não
+avança. Campo com borda e contraste das quatro paletas. Paint remove também da
+lista de diâmetros e preserva os parâmetros restantes. Remoção por índices
+impede excluir outras ocorrências com valores iguais. Testes e evidências no
+relatório; sem nova versão/tag, MSI ou push nesta etapa.
+Verify final completo: **2.250 aprovados, 18 opcionais ignorados, zero
+falhas/erros (2.268 registros)**. `target/table-ux-verify-final.log` e
+`target/table-ux-verification.json`; catálogos 3.835 entradas por idioma.
+Os ajustes das tabelas foram commitados em **188ff459**.
+
 ## Correções da auditoria de UX — 2026-10-29
 
 Implementação e limites em [CORRECOES_UX_REPORTS_20261029.md](CORRECOES_UX_REPORTS_20261029.md).
@@ -16,7 +38,8 @@ de presets para todas as ferramentas.
 Diálogos de salvar evitam dados pessoais na pasta instalada. Isso não corrige
 retroativamente o MSI antigo nem protege caminhos explícitos do Terminal/API.
 Validar nova distribuição antes de enviar ao testador; a versão/tag/MSI Beta 2
-permanecem os já entregues. Não houve commit ou novo MSI nesta implementação.
+permanecem os já entregues. Correções consolidadas depois em **70a2f8ef**;
+não houve novo MSI nesta implementação.
 Testes sintéticos/JavaFX e preferências em memória; sem novo ensaio CNC físico,
 MSI, FPS/DPI ou projeto privado. Verify completo: 2.229 aprovados, 18 opcionais
 ignorados, zero falhas/erros (2.247 registros). Auditoria repetida com as mesmas
