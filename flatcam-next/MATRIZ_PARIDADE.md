@@ -1,5 +1,14 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Candidata Beta 0.1.0-beta.3 — 2026-10-29
+
+Precisão de entrada NCC/Isolation, retomada dos formulários, parâmetros de Rest,
+receitas e rascunho NCC no projeto nativo, comparação de versões e edição Paint.
+Delete/contexto, foco e navegação de tabelas foram revistos, com controles em
+edição preservando Delete de texto. Diálogos evitam salvar na pasta instalada.
+São refinamentos do fluxo e da usabilidade; não ampliam a equivalência dos
+algoritmos nem certificam programas em CNC. [Notas da Beta 3](release/BETA-0.1.0-beta.3.md).
+
 ## Candidata Beta 0.1.0-beta.2 — 2026-10-28
 
 Atualização de usabilidade: manter rascunhos CAM após gerar e editar diâmetros

@@ -14,7 +14,7 @@ Para validar também a atualização da Beta anterior, use o MSI realmente
 distribuído na rodada anterior:
 
 ```powershell
-.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.1-windows-x64-setup.msi"
+.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.2-windows-x64-setup.msi"
 ```
 
 O teste recusa substituir uma instalação do usuário. Instala a versão antiga

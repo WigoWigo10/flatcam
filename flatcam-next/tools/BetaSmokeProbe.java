@@ -80,13 +80,15 @@ public final class BetaSmokeProbe {
             for(Path saved:List.of(nativeProject,pythonProject)) {
                 window.openProject(saved,true);check(new HashSet<>(names).equals(new HashSet<>(window.objectNames())),"Object inventory lost after reopening "+saved.getFileName());
                 for(var code:programs.entrySet())check(code.getValue().equals(window.exportGcode(code.getKey(),"","")),"G-code lost after reopening");
+                if(saved.equals(nativeProject))checkSavedNccDraft();
             }
             check(Files.readString(copperFile).equals(copper) && Files.readString(edgeFile).equals(outline) && Files.readString(drillFile).equals(drills),"Original inputs were changed");
             Files.writeString(output.resolve("smoke.json"),new JSONObject().put("status","PASS").put("version",AboutInfo.version()).put("revision",args[2])
                     .put("appJar",location.toString()).put("objects",names.size()).put("panelDrills",8).put("panelSlots",4).put("programs",programs.size())
                     .put("checks",List.of("invisible main window","offline Outline guide","Gerber/Excellon import","Outline to Area","shared 2x2 panel",
                             "Isolation","NCC","Cutout","CNC and Drilling export","native and Python project reopen","source files unchanged",
-                            "NCC Seed to Standard with preserved draft","NCC and Isolation edited diameter reaches generated geometry")).toString(2));
+                            "NCC Seed to Standard with preserved draft","NCC and Isolation edited diameter reaches generated geometry",
+                            "exact Add spinner confirmation","Delete row versus text","global NCC draft resume","native NCC draft persistence")).toString(2));
             System.out.println("PASS beta smoke "+AboutInfo.version()+" "+args[2]);
         } catch(Throwable error) {error.printStackTrace();exit=1;}
         finally {
@@ -105,6 +107,23 @@ public final class BetaSmokeProbe {
             return scroll;
         });
         var form=content.getContent();
+        fx(()-> {
+            var inventory=Set.copyOf(window.objectNames());
+            var table=(TableView<?>)form.lookup(tool.equals("NCC") ? "#ncc-tools" : "#isolation-tools");
+            int count=table.getItems().size();
+            var spinner=(Spinner<Double>)form.lookupAll(".spinner").stream().filter(node -> node instanceof Spinner<?> input
+                    && input.getValueFactory() instanceof SpinnerValueFactory.DoubleSpinnerValueFactory values
+                    && values.getMin()==.0001 && values.getMax()==10000).findFirst().orElseThrow();
+            spinner.getEditor().setText("0,3171234567");spinner.commitValue();
+            var add=(Button)form.lookupAll(".button").stream().filter(node -> node instanceof Button button
+                    && button.getText().equals(I18n.text(tool.equals("NCC") ? "ui.967bcf34a913" : "ui.8f1fc115deb7"))).findFirst().orElseThrow();
+            add.fire();check(table.getItems().size()==count+1,"Add did not append a cutter");
+            check(((Number)table.getColumns().get(1).getCellData(count)).doubleValue()==.3171234567,"Spinner confirmation rounded the new cutter");
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
+            check(table.getItems().size()==count,"Delete did not remove exactly the selected cutter");
+            check(inventory.equals(Set.copyOf(window.objectNames())),"Table Delete removed a project object");
+            return null;
+        });
         for(int run=0;run<(tool.equals("NCC") ? 2 : 1);run++) {
             int current=run;
             var before=fx(()->Set.copyOf(map("geometryByItem").keySet()));
@@ -115,6 +134,9 @@ public final class BetaSmokeProbe {
                     table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.F2,false,false,false,false));
                     stage.getScene().getRoot().applyCss();stage.getScene().getRoot().layout();
                     var editor=(TextField)table.lookup("#tool-diameter-editor");check(editor!=null,"F2 did not open the diameter editor");
+                    int count=table.getItems().size();editor.setText("0.198");editor.positionCaret(2);
+                    editor.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
+                    check(editor.getText().equals("0.98") && table.getItems().size()==count,"Delete in the editor must only delete text");
                     editor.setText("0,1981234567");
                 }
                 if(tool.equals("NCC")) {
@@ -144,6 +166,24 @@ public final class BetaSmokeProbe {
                 return null;
             });
         }
+        if(tool.equals("NCC"))fx(()-> {
+            ((TabPane)field("leftTabs")).getSelectionModel().select((Tab)field("propertiesTab"));
+            call("openSelectedNccTool",new Class<?>[]{});
+            check(((Tab)field("toolTab")).getContent()==content,"Global NCC button did not resume the existing draft");
+            return null;
+        });
+    }
+    private static void checkSavedNccDraft() throws Exception {
+        fx(()-> {
+            var source=item("gerberByItem","Copper");
+            call("generateNcc",new Class<?>[]{TreeItem.class,GerberImage.class},source,(GerberImage)map("gerberByItem").get(source));
+            var form=((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
+            check(((ComboBox<?>)form.lookup("#ncc-method")).getValue()==NccMethod.STANDARD,"Native project lost NCC method");
+            check(((Spinner<?>)form.lookup("#ncc-margin")).getEditor().getText().equals("1.7"),"Native project lost NCC margin");
+            var table=(TableView<?>)form.lookup("#ncc-tools");
+            check(((Number)table.getColumns().get(1).getCellData(0)).doubleValue()==.1981234567,"Native project lost NCC tool precision");
+            return null;
+        });
     }
     private static void check(boolean value,String message) {if(!value)throw new IllegalStateException(message);}
     private static <T> T fx(Callable<T> action) throws Exception {var task=new FutureTask<T>(action);Platform.runLater(task);return task.get(20,TimeUnit.SECONDS);}

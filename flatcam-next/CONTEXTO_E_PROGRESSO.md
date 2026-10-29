@@ -1,5 +1,21 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Candidata Beta 3 — 2026-10-29
+
+Versão de aplicativo/Maven/nativo **0.1.0-beta.3**, MSI **0.1.3**, com a mesma
+família de atualização por usuário. [Notas](release/BETA-0.1.0-beta.3.md).
+Inclui as correções da auditoria e o teclado/edição nas tabelas de 70a2f8ef,
+188ff459 e 47e0dac9. O smoke da distribuição também verifica confirmação do
+Spinner sem arredondar, Delete de linha versus texto, retomada global NCC e
+restauração do rascunho NCC pelo projeto nativo.
+
+O build desta candidata deve executar verify integral, gerar ZIP/MSI/EXE com
+runtime embutido e validar o pacote fora do repositório, instalação/desinstalação
+e atualização do MSI Beta 2 efetivamente entregue. Resultados, fonte exata,
+hashes e lacunas pertencem aos manifestos/logs da rodada e à tag após aprovação
+dos testes; este registro de preparação não declara esses ensaios concluídos.
+Não há publicação/push automáticos nem certificação física CNC.
+
 ## Delete e edição nas tabelas — 2026-10-29
 
 Incremento anterior commitado em **70a2f8ef**, branch `flatcam-next`, antes
