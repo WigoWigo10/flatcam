@@ -30,10 +30,22 @@ public record ProjectFile(
         List<GeometryEntry> geometries,
         List<CncJobRecord> cncJobs,
         List<String> importWarnings,
-        PythonLegacy pythonLegacy
+        PythonLegacy pythonLegacy,
+        Map<String, String> camWorkspace
 ) {
     public ProjectFile {
         importWarnings = List.copyOf(importWarnings);
+        camWorkspace = Map.copyOf(camWorkspace);
+    }
+
+    public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,
+                       List<GeometryEntry> geometries, List<CncJobRecord> cncJobs, List<String> importWarnings, PythonLegacy pythonLegacy) {
+        this(gerbers, excellons, geometries, cncJobs, importWarnings, pythonLegacy, Map.of());
+    }
+
+    /** Optional FX workspace data. Older native readers can still load all project objects. */
+    public ProjectFile withCamWorkspace(Map<String, String> workspace) {
+        return new ProjectFile(gerbers, excellons, geometries, cncJobs, importWarnings, pythonLegacy, workspace);
     }
 
     /**
@@ -75,7 +87,7 @@ public record ProjectFile(
     }
 
     public ProjectFile withPythonLegacy(PythonLegacy legacy) {
-        return new ProjectFile(gerbers, excellons, geometries, cncJobs, importWarnings, legacy);
+        return new ProjectFile(gerbers, excellons, geometries, cncJobs, importWarnings, legacy, camWorkspace);
     }
 
     public ProjectFile(List<GerberEntry> gerbers, List<ExcellonEntry> excellons,

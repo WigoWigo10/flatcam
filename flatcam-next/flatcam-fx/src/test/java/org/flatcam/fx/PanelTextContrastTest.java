@@ -21,6 +21,35 @@ import org.locationtech.jts.geom.GeometryFactory;
 @EnabledOnOs(OS.WINDOWS)
 class PanelTextContrastTest {
     @ParameterizedTest @EnumSource(ThemeOption.class)
+    void generationFeedbackRemainsReadableInEveryTheme(ThemeOption theme) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = (VBox) CamNumericInputTest.form("NCC", "MM", new java.util.concurrent.atomic.AtomicReference<>());
+            var feedback = CamGenerationFeedback.of(form);
+            feedback.started("FlatCAM FX\nOrigem: Placa de avalia\u00e7\u00e3o [MM]\n0.1981234567 mm; Seed; Connect: false\nMargem: 1.23456789", new TreeItem<>("board"));
+            feedback.completed(new TreeItem<>("board_ncc"), item -> {});
+            form.getChildren().remove(feedback);
+            ((TitledPane) feedback.getChildren().get(1)).setAnimated(false);
+            ((TitledPane) feedback.getChildren().get(1)).setExpanded(true);
+            var shell = new VBox(feedback); shell.setPadding(new javafx.geometry.Insets(12));
+            shell.getStyleClass().addAll("side-panel", "tool-panel");
+            var scene = new Scene(shell, 460, 600); theme.applyTo(scene); shell.applyCss(); shell.layout();
+            Color background = (Color) shell.getBackground().getFills().getFirst().getFill();
+            assertReadable(feedback.getChildren().getFirst(), background, "generation feedback / " + theme);
+            var textArea = (TextArea) ((TitledPane) feedback.getChildren().get(1)).getContent().lookup(".text-area");
+            var region = (javafx.scene.layout.Region) textArea.lookup(".content");
+            Paint paint = region.getBackground().getFills().getLast().getFill();
+            Color editorBackground = paint instanceof Color color ? color : ((LinearGradient) paint).getStops().getLast().getColor();
+            assertReadable(textArea, editorBackground, "generation recipe / " + theme);
+            if (Boolean.getBoolean("flatcam.tests.snapshots")) {
+                var snapshot = shell.snapshot(null, null);
+                var output = new java.awt.image.BufferedImage((int) snapshot.getWidth(), (int) snapshot.getHeight(), java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                for (int y=0;y<output.getHeight();y++) for (int x=0;x<output.getWidth();x++) output.setRGB(x,y,snapshot.getPixelReader().getArgb(x,y));
+                javax.imageio.ImageIO.write(output,"png", java.nio.file.Path.of("target","ux-feedback-"+theme+".png").toFile());
+            }
+            return null;
+        });
+    }
+    @ParameterizedTest @EnumSource(ThemeOption.class)
     void panelCaptionsAndInputsStayReadableAcrossThemeAndDisabledStateChanges(ThemeOption theme) throws Exception {
         TerminalPanelTest.fx(() -> {
             for (String panelClass : List.of("tool-panel", "object-panel")) {

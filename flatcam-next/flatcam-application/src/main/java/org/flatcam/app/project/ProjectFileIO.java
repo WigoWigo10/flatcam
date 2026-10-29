@@ -173,6 +173,7 @@ public final class ProjectFileIO {
             geometries.put(geometryJson);
         }
         javaExtra.put("geometries", geometries);
+        if (!project.camWorkspace().isEmpty()) javaExtra.put("camWorkspace", new JSONObject(project.camWorkspace()));
         root.put("_java", javaExtra);
 
         return root;
@@ -271,7 +272,16 @@ public final class ProjectFileIO {
         }
 
         return new ProjectFile(gerbers, excellons, readJavaGeometries(root), readJavaCncJobs(root),
-                readImportWarnings(root));
+                readImportWarnings(root)).withCamWorkspace(readCamWorkspace(root));
+    }
+
+    static Map<String, String> readCamWorkspace(JSONObject root) {
+        var extra = root.optJSONObject("_java");
+        var workspace = extra == null ? null : extra.optJSONObject("camWorkspace");
+        var result = new LinkedHashMap<String, String>();
+        if (workspace != null) for (String key : workspace.keySet())
+            if (workspace.opt(key) instanceof String value) result.put(key, value);
+        return result;
     }
 
     private static List<String> readImportWarnings(JSONObject root) {
@@ -483,7 +493,7 @@ public final class ProjectFileIO {
         return areas.get(index);
     }
 
-    private static GeometryGCodeParameters readGeometryCncDefaults(JSONObject json) {
+    static GeometryGCodeParameters readGeometryCncDefaults(JSONObject json) {
         if (json == null) return null;
         return new GeometryGCodeParameters(json.getDouble("safeZ"), json.getDouble("cutDepth"),
                 json.getBoolean("multiDepth"), json.getDouble("depthPerPass"),

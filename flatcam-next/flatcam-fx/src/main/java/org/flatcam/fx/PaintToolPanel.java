@@ -65,27 +65,35 @@ final class PaintToolPanel {
         default List<org.flatcam.app.project.LegacyToolsDatabase.PaintTool> databaseTools() { return List.of(); }
     }
 
+    private static final class ToolRow {
+        double diameter; String[] settings;
+        ToolRow(double diameter, String[] settings) { this.diameter = diameter; this.settings = settings; }
+    }
+
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     private PaintToolPanel() {
     }
 
-    /** Diameters written as "0.3, 0.5;1" (comma, semicolon or space separated; a decimal comma is not accepted). */
+    /** Semicolon/space separates tools; a decimal comma is accepted. Legacy decimal-point comma lists remain readable. */
     static List<Double> parseDiameters(String text) {
         List<Double> diameters = new ArrayList<>();
-        for (String piece : text.split("[;,\\s]+")) {
+        String normalized = text.trim().replaceAll(",\\s+", ";");
+        var pieces = java.util.Arrays.stream(normalized.split("[;\\s]+")).flatMap(token ->
+                java.util.Arrays.stream(token.contains(".") ? token.split(",") : new String[]{token}));
+        for (String piece : pieces.toList()) {
             if (piece.isBlank()) {
                 continue;
             }
             try {
-                double value = Double.parseDouble(piece);
+                double value = CamNumericInput.number(piece, I18n.text("ui.7cd23abc62e0"));
                 if (!(value > 0) || !Double.isFinite(value)) {
                     throw new NumberFormatException();
                 }
                 if (!diameters.contains(value)) {
                     diameters.add(value);
                 }
-            } catch (NumberFormatException invalid) {
+            } catch (IllegalArgumentException invalid) {
                 throw new IllegalArgumentException("\"" + piece + I18n.text("ui.b722321d0b1d"));
             }
         }
@@ -259,38 +267,45 @@ final class PaintToolPanel {
         CheckBox rest = new CheckBox("Rest machining");
         rest.setTooltip(tooltip(I18n.text("ui.9d7de9524372")));
         order.disableProperty().bind(rest.selectedProperty());
-        TableView<Double> toolTable = new TableView<>(); toolTable.setId("paint-tools");
+        TableView<ToolRow> toolTable = new TableView<>(); toolTable.setId("paint-tools");
         toolTable.setMinWidth(0); toolTable.setPrefHeight(130);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
-        TableColumn<Double, Number> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
-        diameterColumn.setCellValueFactory(cell -> new javafx.beans.property.SimpleDoubleProperty(cell.getValue()));
+        TableColumn<ToolRow, Double> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
+        diameterColumn.setCellValueFactory(cell -> new javafx.beans.property.ReadOnlyObjectWrapper<>(cell.getValue().diameter));
         toolTable.getColumns().add(diameterColumn);
         ToolDescriptions.apply(toolTable, I18n.text("ui.4957942fd71b"),
                 I18n.text("ui.94944eac970d"));
-        java.util.Map<Double, String[]> rows = new java.util.LinkedHashMap<>();
         java.util.function.Supplier<String[]> capture = () -> new String[]{overlap.getText(), margin.getText(), method.getValue().name(),
                 Boolean.toString(connect.isSelected()), Boolean.toString(contour.isSelected())};
         java.util.function.Consumer<String[]> restore = s -> { overlap.setText(s[0]); margin.setText(s[1]);
             method.setValue(NccMethod.valueOf(s[2])); connect.setSelected(Boolean.parseBoolean(s[3])); contour.setSelected(Boolean.parseBoolean(s[4])); };
-        Double[] editing = {0.3}; boolean[] syncing = {false};
-        rows.put(0.3, capture.get()); toolTable.getItems().add(0.3); toolTable.getSelectionModel().selectFirst();
+        ToolRow[] editing = {new ToolRow(parseDiameters(diameters.getText()).getFirst(), capture.get())};
+        boolean[] syncing = {false};
+        toolTable.getItems().add(editing[0]); toolTable.getSelectionModel().selectFirst();
         Label parameterTitle = new Label(I18n.text("ui.298cd24b02eb"));
+        Runnable syncText = () -> diameters.setText(toolTable.getItems().stream().map(row -> Double.toString(row.diameter))
+                .collect(java.util.stream.Collectors.joining("; ")));
+        var diameterEditor = new EditableToolDiameterColumn<>(toolTable, diameterColumn, row -> row.diameter,
+                (row, value) -> { row.diameter = value; syncText.run();
+                    parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0].diameter); }, errorLabel::setText);
         toolTable.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (syncing[0] || selected == null) return;
-            rows.put(editing[0], capture.get()); editing[0] = selected;
-            restore.accept(rows.get(selected)); parameterTitle.setText(I18n.text("ui.1228ea6a807e") + selected);
+            editing[0].settings = capture.get(); editing[0] = selected;
+            restore.accept(selected.settings); parameterTitle.setText(I18n.text("ui.1228ea6a807e") + selected.diameter);
         });
         Runnable synchronizeTools = () -> {
+            if (!diameterEditor.commit()) throw new IllegalArgumentException(errorLabel.getText());
             List<Double> values = parseDiameters(diameters.getText());
-            rows.put(editing[0], capture.get());
-            rows.keySet().retainAll(values);
-            for (double value : values) rows.putIfAbsent(value, capture.get());
+            editing[0].settings = capture.get();
+            var existing = new java.util.LinkedHashMap<Double, ToolRow>();
+            for (ToolRow row : toolTable.getItems()) existing.put(row.diameter, row);
+            var updated = values.stream().map(value -> existing.getOrDefault(value, new ToolRow(value, capture.get()))).toList();
             syncing[0] = true;
             try {
-                toolTable.getItems().setAll(values);
-                editing[0] = values.contains(editing[0]) ? editing[0] : values.getFirst();
-                toolTable.getSelectionModel().select(editing[0]); restore.accept(rows.get(editing[0]));
-                parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0]);
+                toolTable.getItems().setAll(updated);
+                if (!updated.contains(editing[0])) editing[0] = updated.getFirst();
+                toolTable.getSelectionModel().select(editing[0]); restore.accept(editing[0].settings);
+                parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0].diameter);
             } finally { syncing[0] = false; }
         };
         Button updateTools = new Button(I18n.text("ui.c370b549c472")); updateTools.setId("paint-update-tools");
@@ -302,18 +317,18 @@ final class PaintToolPanel {
         applyAll.setMaxWidth(Double.MAX_VALUE);
         ToolDescriptions.apply(applyAll, I18n.text("ui.14162f7da79a"),
                 I18n.text("ui.067a7657fa42"));
-        applyAll.setOnAction(event -> { try { synchronizeTools.run(); for (double d : toolTable.getItems()) rows.put(d,capture.get()); }
+        applyAll.setOnAction(event -> { try { synchronizeTools.run(); for (ToolRow row : toolTable.getItems()) row.settings = capture.get(); }
             catch (IllegalArgumentException invalid) { errorLabel.setText(invalid.getMessage()); } });
         VBox database = DatabaseToolPicker.build("paint-db", host::databaseTools, selected -> {
             synchronizeTools.run();
             PaintParameters p = selected.parameters();
             double diameter = p.toolDiameters().getFirst();
-            if (!toolTable.getItems().contains(diameter)) {
-                List<Double> values = new ArrayList<>(toolTable.getItems()); values.add(diameter);
+            if (toolTable.getItems().stream().noneMatch(row -> row.diameter == diameter)) {
+                List<Double> values = new ArrayList<>(toolTable.getItems().stream().map(row -> row.diameter).toList()); values.add(diameter);
                 diameters.setText(values.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining("; ")));
                 synchronizeTools.run();
             }
-            toolTable.getSelectionModel().select(Double.valueOf(diameter));
+            toolTable.getSelectionModel().select(toolTable.getItems().stream().filter(row -> row.diameter == diameter).findFirst().orElseThrow());
             overlap.setText(Double.toString(p.overlapFraction() * 100)); margin.setText(Double.toString(p.offset()));
             method.setValue(p.method()); connect.setSelected(p.connect()); contour.setSelected(p.contour());
         }, errorLabel);
@@ -341,14 +356,14 @@ final class PaintToolPanel {
                 }
                 synchronizeTools.run();
                 java.util.Map<Double, PaintToolSettings> settings = new java.util.LinkedHashMap<>();
-                for (double diameter : toolTable.getItems()) {
-                    String[] s = rows.get(diameter);
+                for (ToolRow row : toolTable.getItems()) {
+                    double diameter = row.diameter; String[] s = row.settings;
                     try { settings.put(diameter,new PaintToolSettings(Double.parseDouble(s[0].trim().replace(',','.'))/100,
                             Double.parseDouble(s[1].trim().replace(',','.')), NccMethod.valueOf(s[2]),
                             Boolean.parseBoolean(s[3]),Boolean.parseBoolean(s[4]))); }
                     catch (RuntimeException invalid) { throw new IllegalArgumentException(I18n.text("ui.10f99bd620cc") + diameter + ": " + invalid.getMessage()); }
                 }
-                PaintParameters parameters = new PaintParameters(List.copyOf(toolTable.getItems()),
+                PaintParameters parameters = new PaintParameters(toolTable.getItems().stream().map(row -> row.diameter).toList(),
                         number(overlap, I18n.text("ui.ed0baca2b3b3")) / 100.0, number(margin, I18n.text("ui.c707749bff8f")), method.getValue(),
                         connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected(), settings);
                 stopPicking.run();

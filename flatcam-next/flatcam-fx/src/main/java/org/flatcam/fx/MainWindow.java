@@ -257,7 +257,7 @@ final class MainWindow implements TclFlatcamHost {
     private record LoadedProject(List<ProjectFile.GerberEntry> gerbers, List<ProjectFile.ExcellonEntry> excellons,
                                  List<ProjectFile.GeometryEntry> geometries,
                                  List<LoadedCncJob> cncJobs, List<String> warnings,
-                                 List<String> importWarnings, ProjectFile.PythonLegacy pythonLegacy) {
+                                 List<String> importWarnings, ProjectFile.PythonLegacy pythonLegacy, Map<String, String> camWorkspace) {
     }
 
     /** PlotAreaView layer keys for a CNC Job's two toolpath layers - see {@link #addCncJobToProject}. */
@@ -719,7 +719,7 @@ final class MainWindow implements TclFlatcamHost {
                 "*.nc", "*.gcode", "*.tap", "*.ngc", "*.imf", "*.plt", "*.hpgl", "*.hpg", "*.rml", "*.prn"));
         File initial = new File(AppPreferences.loadLastCamDirectory("."));
         if (initial != null && initial.isDirectory()) chooser.setInitialDirectory(initial);
-        return chooser.showSaveDialog(this.scene.getWindow());
+        return chooseSafeSave(chooser);
     };
     private Consumer<Path> cncExportRemember = path -> AppPreferences.saveLastCamDirectory(path.getParent().toString());
 
@@ -1660,6 +1660,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void openSelectedGerberTool(String label,
             java.util.function.BiConsumer<TreeItem<String>, GerberImage> action) {
+        if (resumeCamDraft(label + " Tool", null)) return;
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage image = gerberByItem.get(item);
         if (image == null) {
@@ -1680,6 +1681,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openSelectedNccTool() {
+        if (resumeCamDraft("NCC Tool", null)) return;
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage gerber = gerberByItem.get(item);
         if (gerber != null) {
@@ -2403,6 +2405,86 @@ final class MainWindow implements TclFlatcamHost {
      */
     private Runnable activeToolCleanup;
 
+    /** Session-only forms. Never reuse a form whose selected source was removed or replaced. */
+    private record CamDraft(String label, ScrollPane panel, java.util.function.Supplier<CamInput> input) { }
+    private final List<CamDraft> camDrafts = new ArrayList<>();
+    private record CamResultNote(TreeItem<String> source, String recipe) { }
+    private final Map<TreeItem<String>, CamResultNote> camResultNotes = new LinkedHashMap<>();
+    private final Map<String, String> savedCamDrafts = new LinkedHashMap<>();
+
+    private String camSourceKey(TreeItem<String> item) {
+        return (gerberByItem.containsKey(item) ? "gerber/" : "geometry/") + item.getValue();
+    }
+
+    private Map<String, String> snapshotCamWorkspace() {
+        var state = new LinkedHashMap<>(savedCamDrafts);
+        for (var draft : camDrafts) {
+            var codec = CamToolState.of(draft.panel().getContent());
+            if (codec == null) continue;
+            try {
+                var input = draft.input().get();
+                state.put("ncc/" + camSourceKey(input.item()), codec.capture().get().toString());
+            } catch (IllegalStateException stale) { /* Changed sources cannot persist an obsolete form. */ }
+        }
+        camResultNotes.forEach((item, note) -> {
+            if (geometryByItem.containsKey(item)) state.put("recipe/" + item.getValue(), new org.json.JSONObject()
+                    .put("source", camSourceKey(note.source())).put("recipe", note.recipe()).toString());
+        });
+        return Map.copyOf(state);
+    }
+
+    private void restoreCamWorkspace(Map<String, String> state) {
+        state.forEach((key, value) -> {
+            try {
+                if (key.startsWith("ncc/")) savedCamDrafts.put(key, value);
+                else if (key.startsWith("recipe/")) {
+                    var json = new org.json.JSONObject(value);
+                    var item = geometryByItem.keySet().stream().filter(candidate -> candidate.getValue().equals(key.substring(7))).findFirst().orElse(null);
+                    var source = allTclItems().stream().filter(candidate -> camSourceKey(candidate).equals(json.getString("source"))).findFirst()
+                            .orElseGet(() -> new TreeItem<>(json.getString("source")));
+                    if (item != null) camResultNotes.put(item, new CamResultNote(source, json.getString("recipe")));
+                }
+            } catch (RuntimeException invalid) { appendConsole(I18n.text("cam.draft.restore.failed") + " " + key); }
+        });
+    }
+
+    private void showOnlyCamVariant(TreeItem<String> chosen) {
+        var note = camResultNotes.get(chosen);
+        if (note == null || !geometryByItem.containsKey(chosen)) return;
+        plotAreaView.beginBatchUpdate();
+        try {
+            camResultNotes.forEach((item, other) -> {
+                if (other.source() == note.source() && geometryByItem.containsKey(item)) setObjectVisible(item, item == chosen);
+            });
+        } finally { plotAreaView.endBatchUpdate(); }
+        selectProjectItem(chosen); plotAreaView.fitToLayer(chosen);
+    }
+
+    private boolean resumeCamDraft(String label, TreeItem<String> requestedSource) {
+        camDrafts.removeIf(draft -> {
+            try { draft.input().get(); return false; }
+            catch (IllegalStateException stale) { return true; }
+        });
+        for (int i = camDrafts.size() - 1; i >= 0; i--) {
+            CamDraft draft = camDrafts.get(i);
+            if (!draft.label().equals(label)
+                    || requestedSource != null && draft.input().get().item() != requestedSource) continue;
+            if (toolTab.getContent() != draft.panel()) {
+                releaseActiveTool(); clearToolOverlays();
+                toolTab.setText(label); toolTab.setContent(draft.panel());
+            }
+            setSidebarVisible(true); leftTabs.getSelectionModel().select(toolTab);
+            camDrafts.remove(i); camDrafts.add(draft);
+            return true;
+        }
+        return false;
+    }
+
+    private void rememberCamDraft(String label, java.util.function.Supplier<CamInput> input) {
+        camDrafts.add(new CamDraft(label, (ScrollPane) toolTab.getContent(), input));
+        activeToolCleanup = this::clearToolOverlays;
+    }
+
     private void releaseActiveTool() {
         Runnable cleanup = activeToolCleanup;
         activeToolCleanup = null;
@@ -2436,6 +2518,12 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Explicitly closes a tool or a finished editor; generation keeps the tool and its draft open. */
     private void closeToolPanel() {
+        if (toolTab == null) { releaseActiveTool(); return; }
+        for (var draft : camDrafts) if (draft.panel() == toolTab.getContent() && CamToolState.of(draft.panel().getContent()) != null) {
+            try { savedCamDrafts.remove("ncc/" + camSourceKey(draft.input().get().item())); }
+            catch (IllegalStateException stale) { /* Source no longer exists. */ }
+        }
+        camDrafts.removeIf(draft -> draft.panel() == toolTab.getContent());
         releaseActiveTool();
         toolTab.setText(I18n.text("ui.c188272ba40c"));
         toolTab.setContent(centeredPlaceholder(I18n.text("ui.2bfeb04164a2")));
@@ -6123,7 +6211,7 @@ final class MainWindow implements TclFlatcamHost {
         if (suggestedParent != null && Files.isDirectory(suggestedParent)) {
             chooser.setInitialDirectory(suggestedParent.toFile());
         }
-        File destination = chooser.showSaveDialog(scene.getWindow());
+        File destination = chooseSafeSave(chooser);
         if (destination == null) {
             return;
         }
@@ -6379,7 +6467,7 @@ final class MainWindow implements TclFlatcamHost {
         if (lastDirectory.isDirectory()) {
             chooser.setInitialDirectory(lastDirectory);
         }
-        File destination = chooser.showSaveDialog(scene.getWindow());
+        File destination = chooseSafeSave(chooser);
         if (destination == null) {
             appendConsole("Cancelado.");
             return;
@@ -6390,6 +6478,22 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     /** Save dialog for an export, named after the object and opened in the last CAM folder. */
+    private File chooseSafeSave(FileChooser chooser) {
+        Path installation = UserWorkspacePaths.installationRoot();
+        File initial = chooser.getInitialDirectory();
+        if (initial == null || UserWorkspacePaths.insideInstallation(initial.toPath(), installation))
+            chooser.setInitialDirectory(UserWorkspacePaths.documents().toFile());
+        while (true) {
+            File chosen = chooser.showSaveDialog(scene.getWindow());
+            if (chosen == null || !UserWorkspacePaths.insideInstallation(chosen.toPath(), installation)) return chosen;
+            var warning = new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.WARNING);
+            warning.initOwner(scene.getWindow()); warning.setTitle(I18n.text("cam.workspace.title")); warning.setHeaderText(null);
+            warning.setContentText(I18n.text("cam.workspace.outside"));
+            warning.getDialogPane().getScene().getStylesheets().setAll(scene.getStylesheets()); warning.showAndWait();
+            chooser.setInitialDirectory(UserWorkspacePaths.documents().toFile());
+        }
+    }
+
     private File chooseExportFile(String title, TreeItem<String> item, String extension,
                                   FileChooser.ExtensionFilter filter) {
         FileChooser chooser = new FileChooser();
@@ -6400,7 +6504,7 @@ final class MainWindow implements TclFlatcamHost {
         if (lastDirectory.isDirectory()) {
             chooser.setInitialDirectory(lastDirectory);
         }
-        File destination = chooser.showSaveDialog(scene.getWindow());
+        File destination = chooseSafeSave(chooser);
         if (destination == null) {
             appendConsole("Cancelado.");
         }
@@ -6816,7 +6920,7 @@ final class MainWindow implements TclFlatcamHost {
         if (Files.isDirectory(lastDir)) {
             chooser.setInitialDirectory(lastDir.toFile());
         }
-        File outFile = chooser.showSaveDialog(scene.getWindow());
+        File outFile = chooseSafeSave(chooser);
         if (outFile == null) {
             return;
         }
@@ -7014,6 +7118,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Creates editable Geometry first, as the Python Isolation tool does. */
     private void generateIsolation(TreeItem<String> item, GerberImage image) {
+        if (resumeCamDraft("Isolation Tool", item)) return;
         List<IsolationToolPanel.SourceCandidate> sources = gerberByItem.entrySet().stream()
                 .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
                 .filter(entry -> !entry.getValue().isEmpty())
@@ -7046,6 +7151,12 @@ final class MainWindow implements TclFlatcamHost {
                     plotAreaView.cancelPlacement();
                     closeToolPanel();
                 }));
+        Node form = ((ScrollPane) toolTab.getContent()).getContent();
+        rememberCamDraft("Isolation Tool", () -> {
+            var chosen = (IsolationToolPanel.SourceCandidate) ((ComboBox<?>) form.lookup("#isolation-source-object")).getValue();
+            if (chosen == null) return captureCamInput(item, image.solidGeometry());
+            return captureCamInput(chosen.item(), chosen.image().solidGeometry());
+        });
     }
 
     private void runIsolationGeneration(TreeItem<String> item, GerberImage image, IsolationToolPanel.Result params) {
@@ -7341,6 +7452,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openNccTool(TreeItem<String> item, String units, Geometry source) {
+        if (resumeCamDraft("NCC Tool", item)) return;
         if (source == null || source.isEmpty() || source.getDimension() != 2) {
             appendConsole(I18n.text("ui.b58a53fe6493"));
             return;
@@ -7394,6 +7506,18 @@ final class MainWindow implements TclFlatcamHost {
                     plotAreaView.cancelPlacement();
                     closeToolPanel();
                 }));
+        Node form = ((ScrollPane) toolTab.getContent()).getContent();
+        rememberCamDraft("NCC Tool", () -> {
+            var chosen = (NccToolPanel.SourceCandidate) ((ComboBox<?>) form.lookup("#ncc-source-object")).getValue();
+            if (chosen == null) return captureCamInput(item, source);
+            return captureCamInput(chosen.item(), chosen.geometry());
+        });
+        var saved = savedCamDrafts.remove("ncc/" + camSourceKey(item));
+        if (saved != null) {
+            var codec = CamToolState.of(form); var defaults = codec.capture().get();
+            try { codec.restore().accept(new org.json.JSONObject(saved)); }
+            catch (RuntimeException invalid) { codec.restore().accept(defaults); appendConsole(I18n.text("cam.draft.restore.failed")); }
+        }
     }
 
     private boolean beginNccAreaSelection(Geometry source, NccToolPanel.AreaShape shape,
@@ -7474,6 +7598,9 @@ final class MainWindow implements TclFlatcamHost {
         } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
 
         NccParameters params = panelResult.parameters();
+        String recipe = NccToolPanel.recipe(panelResult);
+        var feedback = CamGenerationFeedback.of(before.panel());
+        if (feedback != null) feedback.started(recipe, item);
         beginJob(I18n.text("ui.6aba42688d88"));
         activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
@@ -7542,6 +7669,8 @@ final class MainWindow implements TclFlatcamHost {
                         var created = geometryByItem.get(generated);
                         geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), created.geometry(),
                                 created.strokeOnly(), created.tools(), created.cncDefaults(), outcome.target()));
+                        camResultNotes.put(generated, new CamResultNote(item, recipe));
+                        if (feedback != null) feedback.completed(generated, this::showOnlyCamVariant);
                         appendConsole(String.format(
                                 I18n.text("ui.cb92cd552a9f"),
                                 result.pathCount(), result.totalLength(), result.toolResults().size(),
@@ -7608,7 +7737,7 @@ final class MainWindow implements TclFlatcamHost {
         if (Files.isDirectory(lastDir)) {
             chooser.setInitialDirectory(lastDir.toFile());
         }
-        File outFile = chooser.showSaveDialog(scene.getWindow());
+        File outFile = chooseSafeSave(chooser);
         if (outFile == null) {
             return;
         }
@@ -8104,6 +8233,15 @@ final class MainWindow implements TclFlatcamHost {
     private Node buildGeometryPropertiesPanel(TreeItem<String> item, GeometryEntry entry) {
         VBox box = objectPropertiesHeader("Geometry Object", GEOMETRY_STROKE, "geometry32.png");
         box.getChildren().add(nameRow(item));
+        var recipe = camResultNotes.get(item);
+        if (recipe != null) {
+            TextArea text = new TextArea(recipe.recipe()); text.setEditable(false); text.setWrapText(true); text.setPrefRowCount(8);
+            Button copy = new Button(I18n.text("cam.result.copy"));
+            copy.setOnAction(event -> { var content = new javafx.scene.input.ClipboardContent(); content.putString(recipe.recipe());
+                javafx.scene.input.Clipboard.getSystemClipboard().setContent(content); });
+            TitledPane details = new TitledPane(I18n.text("cam.result.recipe"), new VBox(6, text, copy));
+            details.setExpanded(false); box.getChildren().add(details);
+        }
 
         CheckBox plotCb = new CheckBox();
         plotCb.setId("object-plot");
@@ -8421,7 +8559,7 @@ final class MainWindow implements TclFlatcamHost {
         chooser.setTitle(I18n.text("ui.98bfb047f0e5"));
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.6706dbe8b723"), "*.properties"));
         chooser.setInitialFileName("flatcam-fx-ferramentas.properties");
-        File file = chooser.showSaveDialog(scene.getWindow());
+        File file = chooseSafeSave(chooser);
         if (file == null) {
             return;
         }
@@ -9416,7 +9554,7 @@ final class MainWindow implements TclFlatcamHost {
             @Override public Path chooseSaveTarget(Path suggested) {
                 FileChooser chooser = scriptChooser(I18n.text("ui.171f16205d8a"));
                 chooser.setInitialFileName(suggested == null ? "new_script.FlatScript" : suggested.getFileName().toString());
-                File chosen = chooser.showSaveDialog(scene.getWindow());
+                File chosen = chooseSafeSave(chooser);
                 if (chosen == null) return null;
                 rememberScriptDirectory(chosen.toPath());
                 return chosen.toPath();
@@ -10158,13 +10296,13 @@ final class MainWindow implements TclFlatcamHost {
             chooser.setInitialFileName(currentProjectFile.getFileName().toString());
             chooser.setSelectedExtensionFilter(chooser.getExtensionFilters().get(currentProjectFile.toString().toLowerCase(java.util.Locale.ROOT).endsWith(".flatprj") ? 1 : 0));
         }
-        String fallbackDir = Path.of("").toAbsolutePath().toString();
+        String fallbackDir = UserWorkspacePaths.documents().toString();
         Path lastDir = currentProjectFile!=null && Files.isDirectory(currentProjectFile.getParent())
                 ? currentProjectFile.getParent() : Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
             chooser.setInitialDirectory(lastDir.toFile());
         }
-        File file = chooser.showSaveDialog(scene.getWindow());
+        File file = chooseSafeSave(chooser);
         if (file == null) {
             done.accept(false);
             return;
@@ -10261,7 +10399,7 @@ final class MainWindow implements TclFlatcamHost {
             cncJobByItem.keySet().forEach(item -> snapshotPythonOrigin(origins, item, "cncjob"));
             legacy = new ProjectFile.PythonLegacy(legacy.original(), origins);
         }
-        return new ProjectFile(gerbers, excellons, geometries, jobs, currentProjectImportWarnings, legacy);
+        return new ProjectFile(gerbers, excellons, geometries, jobs, currentProjectImportWarnings, legacy, snapshotCamWorkspace());
     }
 
     private void snapshotPythonOrigin(Map<String, String> origins, TreeItem<String> item, String kind) {
@@ -10291,7 +10429,7 @@ final class MainWindow implements TclFlatcamHost {
                 new FileChooser.ExtensionFilter(I18n.text("ui.ffaeba6c0d30"), "*.fcnproj", "*.FlatPrj"),
                 new FileChooser.ExtensionFilter(I18n.text("ui.a6e80a14adb7"), "*.fcnproj"),
                 new FileChooser.ExtensionFilter(I18n.text("ui.77c3a9c0e13b"), "*.FlatPrj"));
-        String fallbackDir = Path.of("").toAbsolutePath().toString();
+        String fallbackDir = UserWorkspacePaths.documents().toString();
         Path lastDir = Path.of(AppPreferences.loadLastProjectDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
             chooser.setInitialDirectory(lastDir.toFile());
@@ -10404,7 +10542,7 @@ final class MainWindow implements TclFlatcamHost {
         cancellation.throwIfCancellationRequested();
         context.reportProgress(1, I18n.text("ui.c781b005bd24"));
         return new LoadedProject(project.gerbers(), project.excellons(), project.geometries(),
-                List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings(), project.pythonLegacy());
+                List.copyOf(cncJobs), List.copyOf(warnings), project.importWarnings(), project.pythonLegacy(), project.camWorkspace());
     }
 
     /** Fail before replacing anything if a stored colour cannot be restored. */
@@ -10476,6 +10614,7 @@ final class MainWindow implements TclFlatcamHost {
                     setDisplayUnits(loaded.units());
                 }
             }
+            restoreCamWorkspace(project.camWorkspace());
         } finally {
             restoringProject = previousRestoring;
             plotAreaView.endBatchUpdate();
@@ -10540,6 +10679,10 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void clearProject(boolean cancelTerminal) {
+        camDrafts.clear();
+        camResultNotes.clear();
+        savedCamDrafts.clear();
+        closeToolPanel();
         tclProjectEpoch++;
         if (cancelTerminal && terminalPanel != null) terminalPanel.cancel();
         plotAreaView.cancelPlacement();
@@ -10664,6 +10807,10 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void onJobFinished() {
+        if (activeCamGeneration != null) {
+            var feedback = CamGenerationFeedback.of(activeCamGeneration.panel());
+            if (feedback != null) feedback.stopped();
+        }
         activeCamGeneration = null;
         runningJob = null;
         runDemoJobButton.setDisable(false);

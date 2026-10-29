@@ -4,6 +4,18 @@
  * for users who prefer the original Modena look.
  */
 
+.table-cell:invalid,
+.table-cell .text-field:invalid {
+    -fx-border-color: -fc-danger;
+    -fx-border-width: 1.5px;
+}
+
+.tool-panel .label.cam-generation-status {
+    -fx-text-fill: -fc-panel-text;
+    -fx-opacity: 1;
+    -fx-font-weight: bold;
+}
+
 /* Explicit on-accent text keeps confirmation buttons readable in dark dialogs. */
 .dialog-pane .button:default {
     -fx-background-color: -fc-accent;

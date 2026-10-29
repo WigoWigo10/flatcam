@@ -51,7 +51,8 @@ class PaintDatabaseTransferTest {
             ((Button) root.lookup("#paint-db-load")).fire();
             assertEquals(1,table.getItems().size());
             ((Button) root.lookup("#paint-db-apply")).fire();
-            assertEquals(List.of(0.3,0.5),table.getItems());
+            assertEquals(List.of(0.3,0.5), java.util.stream.IntStream.range(0,table.getItems().size())
+                    .mapToObj(i -> table.getColumns().getFirst().getCellData(i)).toList());
             assertNull(output.get());
             ((Button) root.lookup("#paint-generate")).fire();
             assertNotNull(output.get());

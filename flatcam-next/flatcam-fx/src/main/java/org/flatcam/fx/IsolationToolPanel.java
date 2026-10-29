@@ -87,7 +87,7 @@ final class IsolationToolPanel {
             this.diameter = diameter;
             this.profile = profile;
             this.passes = Integer.toString(passes);
-            this.overlap = format(overlap * 100);
+            this.overlap = CamNumericInput.text(overlap * 100);
             this.type = type;
         }
 
@@ -120,6 +120,7 @@ final class IsolationToolPanel {
                 ToolDefaults.choice("iso.tooltype", ToolProfile.class), ToolDefaults.integer("iso.passes"),
                 ToolDefaults.number("iso.overlap", metric) / 100, ToolDefaults.choice("iso.type", IsolationType.class));
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
+        sourceCombo.setId("isolation-source-object");
         sourceCombo.setValue(initialSource);
         sourceCombo.setMinWidth(0);
         sourceCombo.setPrefWidth(180);
@@ -217,7 +218,6 @@ final class IsolationToolPanel {
             toolMessage.setText(I18n.text("ui.b6b4ceb2c2d6"));
             CompletableFuture.supplyAsync(() -> NccGenerator.minimumCopperClearance(
                     source.image().solidGeometry())).whenComplete((clearance, failure) -> Platform.runLater(() -> {
-                if (optimalButton.getScene() == null) return;
                 optimalButton.setDisable(false);
                 if (failure != null) toolMessage.setText(I18n.text("ui.dee415a49612") + failure.getMessage());
                 else if (clearance.isEmpty() || clearance.getAsDouble() <= 0)
@@ -236,7 +236,7 @@ final class IsolationToolPanel {
         addButton.setOnAction(event -> {
             if (!diameterEditor.commit()) return;
             try {
-                double diameter = parse(diameterSpinner.getEditor().getText(), "Tool Dia");
+                double diameter = CamNumericInput.read(diameterSpinner, "Tool Dia");
                 if (diameter <= 0) throw new IllegalArgumentException(I18n.text("ui.a465dd635e5b"));
                 if (rows.stream().anyMatch(row -> Math.abs(row.diameter - diameter) < 1e-6))
                     throw new IllegalArgumentException(I18n.text("ui.d93eb0a353b3"));
@@ -557,12 +557,7 @@ final class IsolationToolPanel {
     }
 
     private static Spinner<Double> spinner(double min, double max, double initial, double step) {
-        Spinner<Double> spinner = new Spinner<>(new SpinnerValueFactory.DoubleSpinnerValueFactory(
-                min, max, initial, step));
-        spinner.setEditable(true);
-        spinner.setMinWidth(0);
-        spinner.setPrefWidth(115);
-        return spinner;
+        return CamNumericInput.spinner(min, max, initial, step);
     }
 
     private static double parse(String value, String label) {

@@ -81,6 +81,25 @@ public final class LegacyToolsDatabase {
         @Override public String toString() { return name + " - " + diameter + " (" + profile + ")"; }
     }
 
+    /** Lossless local CAM draft data; independent of changes to the external tools database. */
+    public static JSONObject millingDraftToJson(MillingTool tool) {
+        var value = new JSONObject().put("name", tool.name()).put("diameter", tool.diameter()).put("profile", tool.profile().name())
+                .put("jobDefaults", tool.jobDefaults().toJson());
+        if (tool.parameters() != null) value.put("parameters", ProjectFileIO.geometryParametersToJson(tool.parameters()));
+        if (tool.tip() != null) value.put("tip", new JSONObject().put("diameter", tool.tip().tipDiameter()).put("angle", tool.tip().angleDegrees()));
+        return value;
+    }
+
+    public static MillingTool millingDraftFromJson(JSONObject value) {
+        double diameter = value.getDouble("diameter");
+        if (!Double.isFinite(diameter) || diameter <= 0) throw new IllegalArgumentException("Invalid saved cutter diameter");
+        var tip = value.optJSONObject("tip");
+        return new MillingTool(value.getString("name"), diameter, ToolProfile.valueOf(value.getString("profile")),
+                value.has("parameters") ? ProjectFileIO.readGeometryCncDefaults(value.getJSONObject("parameters")) : null,
+                tip == null ? null : new VTipSettings(tip.getDouble("diameter"), tip.getDouble("angle")),
+                CncJobDefaults.fromJson(value.getJSONObject("jobDefaults")));
+    }
+
     /** Optional common milling fields carried by Python CAM database entries.
      * Isolation/NCC already compute cutter centerlines, so never compensate twice. */
     private static MillingTool camMachining(JSONObject entry) throws IOException {

@@ -14096,7 +14096,7 @@
     "canonical": false
   },
   "ui.20642ea8eeba": {
-    "source": "Diâmetros positivos separados por vírgula, ponto e vírgula ou espaço, sem repetir. Use ponto decimal: 0.3; 1.0.\n\nAtualizar lista preserva os parâmetros dos diâmetros que continuam na lista; novos diâmetros recebem os parâmetros exibidos. Pintar também sincroniza a lista.\n\nUnidades: unidade da origem (mm ou in); vírgula é separador de ferramentas, não separador decimal neste campo.",
+    "source": "Separe as fresas com ponto e vírgula ou espaço: 0,198; 0,25. Ponto e vírgula decimal são aceitos.\n\nEdite um diâmetro na tabela com duplo clique ou F2 para preservar os parâmetros dessa fresa. Atualizar lista preserva os parâmetros dos diâmetros que permanecem; novas entradas recebem os parâmetros visíveis.\n\nListas antigas com ponto decimal, como 0.3, 0.5, continuam aceitas. Prefira ponto e vírgula para evitar ambiguidade.",
     "locations": [
       "PaintToolPanel.java"
     ],
@@ -27389,16 +27389,254 @@
     "canonical": false
   },
   "tool.diameter.invalid": {
-    "source": "Ferramenta %d: informe um diâmetro numérico, finito e maior que zero. Corrija a edição ou pressione Esc para cancelá-la.",
+    "source": "Ferramenta %d: informe um diâmetro numérico, finito e maior que zero. Corrija a edição ou pressione Esc para cancelá-la. Use o botão direito na tabela para corrigir ou descartar o rascunho com erro; a seleção das fresas será mantida.",
     "locations": [
       "EditableToolDiameterColumn.java"
     ],
     "canonical": false
   },
   "tool.diameter.duplicate": {
-    "source": "Ferramenta %d: esse diâmetro já existe na tabela. Informe outro valor ou pressione Esc para cancelar a edição.",
+    "source": "Ferramenta %d: esse diâmetro já existe na tabela. Informe outro valor ou pressione Esc para cancelar a edição. Use o botão direito na tabela para corrigir ou descartar o rascunho com erro; a seleção das fresas será mantida.",
     "locations": [
       "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
+  },
+  "cam.number.range": {
+    "source": "%s deve estar entre %s e %s. O valor digitado foi preservado.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.rest.common": {
+    "source": "Parâmetros comuns do Rest",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.rest.common.help": {
+    "source": "No modo Rest, estes valores de Connect e Contour substituem os valores individuais das fresas.\n\nOs padrões vêm das preferências NCC. Desativar Rest volta a usar os parâmetros de cada fresa.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.show": {
+    "source": "Mostrar só esta versão NCC",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.previous": {
+    "source": "Mostrar versão NCC anterior",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.copy": {
+    "source": "Copiar parâmetros da geração",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.recipe": {
+    "source": "Parâmetros usados na geração",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.running": {
+    "source": "Calculando com os parâmetros enviados…",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.running.changed": {
+    "source": "Calculando. O rascunho mudou; as alterações serão usadas na próxima geração.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.changed": {
+    "source": "Rascunho alterado — gere novamente para aplicar as mudanças.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.current": {
+    "source": "Resultado gerado com o rascunho atual.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.stopped": {
+    "source": "Geração interrompida ou sem resultado. Confira a mensagem no Terminal.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.recipe.source": {
+    "source": "Origem",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.recipe.margin": {
+    "source": "Margem",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.recipe.boundary": {
+    "source": "Limite",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.recipe.original": {
+    "source": "Registro da geração original. Edições posteriores no objeto não recalculam estes parâmetros.",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "tool.diameter.correct": {
+    "source": "Corrigir diâmetro com erro",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java",
+      "PaintToolPanel.java",
+      "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
+  },
+  "tool.diameter.discard": {
+    "source": "Descartar edição do diâmetro com erro",
+    "locations": [
+      "CamGenerationFeedback.java",
+      "NccToolPanel.java",
+      "MainWindow.java",
+      "PaintToolPanel.java",
+      "EditableToolDiameterColumn.java"
+    ],
+    "canonical": false
+  },
+  "cam.draft.area.restored": {
+    "source": "Área de seleção restaurada do rascunho.",
+    "locations": [
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.draft.restore.failed": {
+    "source": "O rascunho salvo não é compatível com os objetos atuais. A ferramenta foi aberta com os padrões; os objetos do projeto foram preservados.",
+    "locations": [
+      "NccToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.workspace.title": {
+    "source": "Escolha uma pasta para seus arquivos",
+    "locations": [
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.workspace.outside": {
+    "source": "Salve seus projetos e arquivos fora da pasta do aplicativo, por exemplo em Documentos.\n\nAtualizações e desinstalações podem remover o conteúdo da pasta instalada. Escolha outro local para preservar seu trabalho.",
+    "locations": [
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.copy.help": {
+    "source": "Copia a versão do FX, origem, unidades e parâmetros enviados para esta geração. Você pode colar o resumo ao relatar um problema; nenhum arquivo é enviado automaticamente.",
+    "locations": [
+      "CamGenerationFeedback.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.show.help": {
+    "source": "Exibe esta versão e oculta as outras saídas NCC geradas para a mesma origem.\n\nA origem e os objetos de outras operações mantêm sua visibilidade. Nenhum objeto é excluído. Use as opções de Plot da árvore para voltar a mostrar outras versões.",
+    "locations": [
+      "CamGenerationFeedback.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.same": {
+    "source": "Mesmos parâmetros da geração anterior.",
+    "locations": [
+      "CamGenerationFeedback.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.difference": {
+    "source": "Mudanças em relação à geração anterior:",
+    "locations": [
+      "CamGenerationFeedback.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.before": {
+    "source": "Antes:",
+    "locations": [
+      "CamGenerationFeedback.java"
+    ],
+    "canonical": false
+  },
+  "cam.result.after": {
+    "source": "Agora:",
+    "locations": [
+      "CamGenerationFeedback.java"
     ],
     "canonical": false
   }

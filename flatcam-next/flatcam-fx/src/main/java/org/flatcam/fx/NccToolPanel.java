@@ -50,6 +50,8 @@ import org.flatcam.cam.ncc.NccSeedPolicy;
 import org.flatcam.cam.geometry.ToolProfile;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.locationtech.jts.geom.Geometry;
+import org.json.JSONObject;
+import org.json.JSONArray;
 
 /**
  * Multi-tool NCC form; the result is a multigeo Geometry object (one entry
@@ -90,6 +92,31 @@ final class NccToolPanel {
             return new NccToolSettings(parseNumber(overlapPercent, prefix + "Overlap") / 100.0,
                     method, connect, contour,
                     offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0, seedPolicy);
+        }
+
+        JSONObject snapshot(String draft) {
+            var json = new JSONObject().put("diameter", diameter).put("profile", toolProfile.name())
+                    .put("operation", operation.name()).put("overlap", overlapPercent).put("method", method.name())
+                    .put("seed", seedPolicy.name()).put("connect", connect).put("contour", contour)
+                    .put("offsetEnabled", offsetEnabled).put("offset", offset).put("diameterDraft", draft);
+            if (machining != null) json.put("machining", LegacyToolsDatabase.millingDraftToJson(machining));
+            return json;
+        }
+
+        static ToolRow restore(JSONObject json) {
+            double diameter = json.getDouble("diameter");
+            if (!Double.isFinite(diameter) || diameter <= 0) throw new IllegalArgumentException("Invalid saved diameter");
+            var row = new ToolRow(diameter); row.toolProfile = ToolProfile.valueOf(json.getString("profile"));
+            row.operation = NccOperation.valueOf(json.getString("operation")); row.overlapPercent = json.getString("overlap");
+            row.method = NccMethod.valueOf(json.getString("method")); row.seedPolicy = NccSeedPolicy.valueOf(json.getString("seed"));
+            row.connect = json.getBoolean("connect"); row.contour = json.getBoolean("contour");
+            row.offsetEnabled = json.getBoolean("offsetEnabled"); row.offset = json.getString("offset");
+            if (json.has("machining")) {
+                row.machining = LegacyToolsDatabase.millingDraftFromJson(json.getJSONObject("machining"));
+                if (row.machining.diameter() != diameter || row.machining.profile() != row.toolProfile)
+                    throw new IllegalArgumentException("Inconsistent saved machining parameters");
+            }
+            return row;
         }
     }
 
@@ -292,7 +319,6 @@ final class NccToolPanel {
             toolError.setText(I18n.text("ui.b6b4ceb2c2d6"));
             CompletableFuture.supplyAsync(() -> NccGenerator.minimumCopperClearance(selectedSource.geometry()))
                     .whenComplete((clearance, error) -> Platform.runLater(() -> {
-                        if (optimalButton.getScene() == null) return;
                         optimalButton.setDisable(sourceCombo.getValue() == null
                                 || !sourceCombo.getValue().gerber());
                         if (error != null) {
@@ -310,7 +336,7 @@ final class NccToolPanel {
         Runnable addTool = () -> {
             if (!diameterEditor.commit()) return;
             try {
-                double dia = parse(newDiaField, I18n.text("ui.0ebfb18d1f0f"));
+                double dia = CamNumericInput.read(newDiaSpinner, I18n.text("ui.0ebfb18d1f0f"));
                 if (dia <= 0) {
                     throw new IllegalArgumentException(I18n.text("ui.edba117cf08f"));
                 }
@@ -353,13 +379,13 @@ final class NccToolPanel {
                     row.toolProfile = selected.toolProfile();
                     row.machining = selected.machining();
                     NccToolSettings settings = selected.settings();
-                    row.overlapPercent = format(settings.overlapFraction() * 100);
+                    row.overlapPercent = CamNumericInput.text(settings.overlapFraction() * 100);
                     row.method = settings.method();
                     row.seedPolicy = settings.seedPolicy();
                     row.connect = settings.connect();
                     row.contour = settings.contour();
                     row.offsetEnabled = settings.copperOffset() > 0;
-                    row.offset = format(settings.copperOffset());
+                    row.offset = CamNumericInput.text(settings.copperOffset());
                     tools.add(row);
                     toolTable.getSelectionModel().clearAndSelect(tools.size() - 1);
                     toolError.setText("");
@@ -625,17 +651,17 @@ final class NccToolPanel {
             }
             ToolRow row = selected.get(0);
             loadingToolSettings[0] = true;
-            overlapField.setText(row.overlapPercent);
             try { overlapSpinner.getValueFactory().setValue(parseNumber(row.overlapPercent, "Overlap")); }
             catch (IllegalArgumentException ignored) { /* Preserve invalid draft for validation on Generate. */ }
+            overlapField.setText(row.overlapPercent);
             methodCombo.setValue(row.method);
             seedPolicyCombo.setValue(row.seedPolicy);
             connectCb.setSelected(row.connect);
             contourCb.setSelected(row.contour);
             offsetCb.setSelected(row.offsetEnabled);
-            offsetField.setText(row.offset);
             try { offsetSpinner.getValueFactory().setValue(parseNumber(row.offset, "Offset")); }
             catch (IllegalArgumentException ignored) { /* Preserve invalid draft for validation on Generate. */ }
+            offsetField.setText(row.offset);
             loadingToolSettings[0] = false;
         };
         toolTable.getSelectionModel().getSelectedItems().addListener(
@@ -679,9 +705,11 @@ final class NccToolPanel {
         });
 
         CheckBox restConnectCb = new CheckBox("Connect");
-        restConnectCb.setSelected(true);
+        restConnectCb.setId("ncc-rest-connect");
+        restConnectCb.setSelected(ToolDefaults.flag("ncc.connect"));
         CheckBox restContourCb = new CheckBox("Contour");
-        restContourCb.setSelected(true);
+        restContourCb.setId("ncc-rest-contour");
+        restContourCb.setSelected(ToolDefaults.flag("ncc.contour"));
         CheckBox restOffsetCb = new CheckBox("Copper offset");
         Spinner<Double> restOffsetSpinner = spinner(0, 10, 0, metric ? 0.1 : 0.01);
         TextField restOffsetField = restOffsetSpinner.getEditor();
@@ -689,8 +717,11 @@ final class NccToolPanel {
         GridPane restSettingsGrid = new GridPane();
         restSettingsGrid.setHgap(8);
         restSettingsGrid.setVgap(8);
-        restSettingsGrid.addRow(0, restConnectCb, restContourCb);
-        restSettingsGrid.addRow(1, restOffsetCb, restOffsetSpinner);
+        restConnectCb.setTooltip(tooltip(I18n.text("cam.rest.common.help")));
+        restContourCb.setTooltip(tooltip(I18n.text("cam.rest.common.help")));
+        restSettingsGrid.add(new Label(I18n.text("cam.rest.common")), 0, 0, 2, 1);
+        restSettingsGrid.addRow(1, restConnectCb, restContourCb);
+        restSettingsGrid.addRow(2, restOffsetCb, restOffsetSpinner);
         restSettingsGrid.visibleProperty().bind(restCb.selectedProperty());
         restSettingsGrid.managedProperty().bind(restSettingsGrid.visibleProperty());
 
@@ -869,8 +900,8 @@ final class NccToolPanel {
             restCb.setSelected(ToolDefaults.flag("ncc.rest"));
             defaultOrder.run();
             ("CONVENTIONAL".equals(ToolDefaults.choice("ncc.milling")) ? conventionalRadio : climbRadio).setSelected(true);
-            restConnectCb.setSelected(true);
-            restContourCb.setSelected(true);
+            restConnectCb.setSelected(ToolDefaults.flag("ncc.connect"));
+            restContourCb.setSelected(ToolDefaults.flag("ncc.contour"));
             restOffsetCb.setSelected(false);
             restOffsetSpinner.getValueFactory().setValue(0.0);
             boundaryKindCombo.setValue(BOUNDARY_ITSELF);
@@ -896,7 +927,101 @@ final class NccToolPanel {
                 restGrid, boundaryGrid, checkValidityCb,
                 new Separator(), note, errorLabel, generateButton, finalButtons);
         box.setPadding(new Insets(12));
+        var feedback = new CamGenerationFeedback(box, () -> tools.stream().map(row ->
+                row.diameter + ":" + row.toolProfile + ":" + row.operation + ":" + row.overlapPercent + ":"
+                        + row.method + ":" + row.seedPolicy + ":" + row.connect + ":" + row.contour + ":"
+                        + row.offsetEnabled + ":" + row.offset + ":" + row.machining + ":" + diameterEditor.draft(row)).toList().toString());
+        box.getChildren().add(box.getChildren().indexOf(generateButton), feedback);
+        new CamToolState(() -> {
+            var chosen = sourceCombo.getValue();
+            var json = new JSONObject().put("version", 1).put("units", chosen.units()).put("source", chosen.item().getValue())
+                    .put("sourceSignature", CamToolState.signature(chosen.geometry()))
+                    .put("gerber", chosen.gerber()).put("tools", new JSONArray(tools.stream().map(row -> row.snapshot(diameterEditor.draft(row))).toList()))
+                    .put("selected", new JSONArray(toolTable.getSelectionModel().getSelectedIndices()))
+                    .put("margin", marginSpinner.getEditor().getText()).put("newDiameter", newDiaField.getText())
+                    .put("rest", restCb.isSelected()).put("restConnect", restConnectCb.isSelected()).put("restContour", restContourCb.isSelected())
+                    .put("restOffsetEnabled", restOffsetCb.isSelected()).put("restOffset", restOffsetField.getText())
+                    .put("order", forwardOrderRadio.isSelected() ? "FORWARD" : reverseOrderRadio.isSelected() ? "REVERSE" : "NONE")
+                    .put("conventional", conventionalRadio.isSelected()).put("boundary", boundaryKindCombo.getValue())
+                    .put("polygon", polygonShapeRadio.isSelected()).put("check", checkValidityCb.isSelected());
+            var ref = referenceCombo.getValue();
+            if (ref != null) {
+                json.put("reference", ref.item().getValue()).put("referenceGerber", ref.isGerber());
+                if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) json.put("referenceSignature", CamToolState.signature(ref.geometry()));
+            }
+            if (selectedArea[0] != null) json.put("area", new org.locationtech.jts.io.WKTWriter().write(selectedArea[0]));
+            return json;
+        }, json -> {
+            if (json.getInt("version") != 1 || !initialSource.units().equalsIgnoreCase(json.getString("units")))
+                throw new IllegalArgumentException("Incompatible saved NCC draft");
+            var chosen = sourceCandidates.stream().filter(candidate -> candidate.item().getValue().equals(json.getString("source"))
+                    && candidate.gerber() == json.getBoolean("gerber")).findFirst().orElseThrow();
+            if (!CamToolState.signature(chosen.geometry()).equals(json.getString("sourceSignature")))
+                throw new IllegalArgumentException("Saved NCC source has changed");
+            var encodedRows = json.getJSONArray("tools");
+            if (encodedRows.isEmpty() || encodedRows.length() > 1000) throw new IllegalArgumentException("Invalid saved tool count");
+            var restored = new java.util.ArrayList<ToolRow>();
+            for (int i = 0; i < encodedRows.length(); i++) restored.add(ToolRow.restore(encodedRows.getJSONObject(i)));
+            if (!chosen.gerber() && restored.stream().anyMatch(row -> row.operation == NccOperation.ISO || row.toolProfile == ToolProfile.V))
+                throw new IllegalArgumentException("Incompatible saved NCC tools");
+            Geometry area = null;
+            try { if (json.has("area")) area = new org.locationtech.jts.io.WKTReader().read(json.getString("area")); }
+            catch (org.locationtech.jts.io.ParseException invalid) { throw new IllegalArgumentException("Invalid saved NCC area", invalid); }
+            (chosen.gerber() ? gerberSourceRadio : geometrySourceRadio).setSelected(true); sourceCombo.setValue(chosen);
+            tools.setAll(restored); toolTable.getSelectionModel().clearSelection();
+            var selection = json.getJSONArray("selected");
+            for (int i = 0; i < selection.length(); i++) {
+                int index = selection.getInt(i);
+                if (index < 0 || index >= restored.size()) throw new IllegalArgumentException("Invalid saved tool selection");
+                toolTable.getSelectionModel().select(index);
+            }
+            for (int i = 0; i < restored.size(); i++) diameterEditor.restoreDraft(restored.get(i), encodedRows.getJSONObject(i).optString("diameterDraft", null));
+            marginSpinner.getEditor().setText(json.getString("margin")); newDiaField.setText(json.getString("newDiameter"));
+            restCb.setSelected(json.getBoolean("rest")); restConnectCb.setSelected(json.getBoolean("restConnect")); restContourCb.setSelected(json.getBoolean("restContour"));
+            restOffsetCb.setSelected(json.getBoolean("restOffsetEnabled")); restOffsetField.setText(json.getString("restOffset"));
+            (switch (json.getString("order")) { case "FORWARD" -> forwardOrderRadio; case "REVERSE" -> reverseOrderRadio; default -> noOrderRadio; }).setSelected(true);
+            (json.getBoolean("conventional") ? conventionalRadio : climbRadio).setSelected(true);
+            boundaryKindCombo.setValue(json.getString("boundary"));
+            if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) {
+                var reference = referenceCombo.getItems().stream()
+                    .filter(candidate -> candidate.item().getValue().equals(json.getString("reference")) && candidate.isGerber() == json.getBoolean("referenceGerber"))
+                    .findFirst().orElseThrow();
+                if (!CamToolState.signature(reference.geometry()).equals(json.getString("referenceSignature")))
+                    throw new IllegalArgumentException("Saved NCC reference has changed");
+                referenceCombo.setValue(reference);
+            }
+            (json.getBoolean("polygon") ? polygonShapeRadio : rectangleShapeRadio).setSelected(true);
+            selectedArea[0] = area;
+            if (area != null) selectedAreaLabel.setText(I18n.text("cam.draft.area.restored"));
+            checkValidityCb.setSelected(json.getBoolean("check"));
+            loadSelectedSettings.run(); toolTable.refresh();
+        }).attach(box);
         return box;
+    }
+
+    static String recipe(Result result) {
+        NccParameters p = result.parameters();
+        StringBuilder text = new StringBuilder("FlatCAM FX " + AboutInfo.version() + "\n"
+                + java.time.ZonedDateTime.now().format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME) + "\n");
+        text.append(I18n.text("cam.recipe.source")).append(": ").append(result.source().item().getValue())
+                .append(" [").append(result.source().units()).append("]\n")
+                .append(I18n.text("cam.recipe.margin")).append(": ").append(p.margin()).append('\n')
+                .append("Rest: ").append(p.restMachining()).append("; ").append(p.order()).append("; ").append(p.millingType()).append('\n')
+                .append(I18n.text("cam.recipe.boundary")).append(": ").append(p.boundary() instanceof NccBoundary.Itself ? I18n.caption("Itself")
+                        : result.reference() != null ? result.reference().item().getValue() : I18n.caption("Area Selection")).append('\n');
+        for (double diameter : p.toolDiameters()) {
+            var settings = p.settingsFor(diameter);
+            text.append(diameter).append(" ").append(result.source().units()).append(" [")
+                    .append(result.toolProfiles().getOrDefault(diameter, ToolProfile.C1)).append("] CLEAR: ")
+                    .append(settings.method()).append("; Overlap: ").append(settings.overlapFraction() * 100)
+                    .append("%; Connect: ").append(p.restMachining() ? p.connect() : settings.connect())
+                    .append("; Contour: ").append(p.restMachining() ? p.contour() : settings.contour())
+                    .append("; Offset: ").append(p.restMachining() ? p.copperOffset() : settings.copperOffset())
+                    .append("; Seed: ").append(settings.seedPolicy()).append('\n');
+        }
+        for (double diameter : p.isolationToolDiameters()) text.append(diameter).append(" ").append(result.source().units()).append(" ISO\n");
+        text.append(I18n.text("cam.recipe.original"));
+        return text.toString();
     }
 
     private static Label sectionTitle(String text) {
@@ -919,22 +1044,7 @@ final class NccToolPanel {
     }
 
     private static Spinner<Double> spinner(double min, double max, double initial, double step) {
-        SpinnerValueFactory.DoubleSpinnerValueFactory values =
-                new SpinnerValueFactory.DoubleSpinnerValueFactory(min, max, initial, step);
-        values.setConverter(new StringConverter<>() {
-            @Override public String toString(Double value) {
-                return value == null ? "" : format(value);
-            }
-            @Override public Double fromString(String text) {
-                return parseNumber(text, I18n.text("ui.b2f530c46991"));
-            }
-        });
-        Spinner<Double> spinner = new Spinner<>(values);
-        spinner.setEditable(true);
-        spinner.setMinWidth(0);
-        spinner.setPrefWidth(115);
-        spinner.getEditor().setMinWidth(0);
-        return spinner;
+        return CamNumericInput.spinner(min, max, initial, step);
     }
 
     /**
@@ -954,11 +1064,7 @@ final class NccToolPanel {
     }
 
     private static double parseNumber(String value, String name) {
-        try {
-            return Double.parseDouble(value.trim().replace(',', '.'));
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException(name + I18n.text("ui.a8a35e0360a2"));
-        }
+        return CamNumericInput.number(value, name);
     }
 
     private static String format(double value) {

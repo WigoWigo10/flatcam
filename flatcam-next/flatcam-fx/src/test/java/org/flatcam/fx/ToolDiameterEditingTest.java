@@ -63,6 +63,25 @@ class ToolDiameterEditingTest {
                     : ((IsolationToolPanel.Result) generated.get()).machining();
         }
     }
+    @ParameterizedTest @ValueSource(strings={"bad", "duplicate"})
+    void invalidDraftCanBeDiscardedWithoutChangingSelectedTools(String invalid) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form("NCC", "MM");
+            double other = (double) field(form.table.getItems().get(1), "diameter");
+            form.edit(invalid.equals("duplicate") ? Double.toString(other) : invalid);
+            form.table.edit(-1, null); form.table.getSelectionModel().clearAndSelect(1);
+            form.generate(); assertNull(form.generated.get());
+            var before = List.copyOf(form.table.getSelectionModel().getSelectedIndices());
+            var menu = form.table.getContextMenu();
+            menu.getItems().stream().filter(item -> item.getText().equals(I18n.text("tool.diameter.correct"))).findFirst().orElseThrow().fire();
+            assertEquals(0, form.table.getEditingCell().getRow());
+            assertEquals(before, List.copyOf(form.table.getSelectionModel().getSelectedIndices()));
+            menu.getItems().stream().filter(item -> item.getText().equals(I18n.text("tool.diameter.discard"))).findFirst().orElseThrow().fire();
+            form.generate(); assertNotNull(form.generated.get());
+            assertEquals(before, List.copyOf(form.table.getSelectionModel().getSelectedIndices())); return null;
+        });
+    }
+
     private static Object field(Object row, String name) throws Exception {
         var f = row.getClass().getDeclaredField(name); f.setAccessible(true); return f.get(row);
     }

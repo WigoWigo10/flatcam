@@ -127,7 +127,7 @@ public final class PythonProjectIO {
                     + " ferramentas nao foi restaurada. Confira-os antes de gerar G-code.");
         }
         return new ProjectFile(List.copyOf(gerbers), List.copyOf(excellons),
-                List.copyOf(geometries), List.copyOf(jobs), warnings);
+                List.copyOf(geometries), List.copyOf(jobs), warnings).withCamWorkspace(ProjectFileIO.readCamWorkspace(root));
     }
 
     private static ProjectFile.GeometryEntry readGeometry(JSONObject object) {

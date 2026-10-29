@@ -1,5 +1,46 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Correções da auditoria de UX — 2026-10-29
+
+Implementação e limites em [CORRECOES_UX_REPORTS_20261029.md](CORRECOES_UX_REPORTS_20261029.md).
+Conversores exatos de NCC/Isolation (ponto/vírgula, MM/IN), retomada dos painéis
+na sessão com invalidação de origem, padrões Rest, edição de diâmetro Paint
+preservando parâmetros e validação de tabela acionável sem mudar a seleção.
+NCC distingue rascunho da receita enviada, copia o resumo e compara versões
+explicitamente. O projeto nativo guarda o rascunho NCC e as receitas dos
+resultados; extensão opcional também é lida pelo FX em .FlatPrj, mas pode ser
+perdida se o Python regravar. Apenas salvar explicitamente guarda esse rascunho;
+campos CAM isolados não alteram o aviso de objetos não salvos. Não é um sistema
+de presets para todas as ferramentas.
+
+Diálogos de salvar evitam dados pessoais na pasta instalada. Isso não corrige
+retroativamente o MSI antigo nem protege caminhos explícitos do Terminal/API.
+Validar nova distribuição antes de enviar ao testador; a versão/tag/MSI Beta 2
+permanecem os já entregues. Não houve commit ou novo MSI nesta implementação.
+Testes sintéticos/JavaFX e preferências em memória; sem novo ensaio CNC físico,
+MSI, FPS/DPI ou projeto privado. Verify completo: 2.229 aprovados, 18 opcionais
+ignorados, zero falhas/erros (2.247 registros). Auditoria repetida com as mesmas
+33 observações confirmou zero diâmetros incorretos, mesma instância do painel,
+Rest respeitando flags desligadas e rascunho NCC restaurado. Logs no relatório.
+
+## Auditoria inicial dos relatos da Beta — 2026-10-29
+
+Auditoria sobre aa23fa15, antes das correções acima. Evidências e
+plano em [AUDITORIA_UX_REPORTS_20261029.md](AUDITORIA_UX_REPORTS_20261029.md).
+Probes em tools/audit-ux-reports.ps1 / UxReportsAuditProbe.java, com preferências
+em memória e projetos sintéticos, registraram 33 observações pt-BR/en-US.
+104 classes/nested classes relevantes coincidem com o JAR distribuído da Beta 2.
+
+Pontos confirmados: confirmação de entradas Adicionar fresa ainda altera precisão
+(NCC 4 casas, Isolation conversor regional); reabrir pelo comando reconstrói o
+rascunho; Rest Connect/Contour ignoram padrões desligados. O worker usa seu
+snapshot corretamente, mas a UI pode mostrar outra configuração alterada durante
+o cálculo. Salvar/reabrir mantém Geometry, não restaura a receita do NCC.
+Priorizar precisão/localidade, retomada de rascunhos e identificação da receita
+do resultado. Comparação de saídas, validação de linhas e Paint são refinamentos
+separados. A limitação MSI dentro da pasta instalada é histórica e documentada.
+Não houve nova validação física CNC, MSI, FPS, DPI ou de todos os painéis.
+
 ## Beta 2: correções e atualização MSI — 2026-10-28
 
 Correções consolidadas em 673d3b16. Reactor, launcher e identificação do app

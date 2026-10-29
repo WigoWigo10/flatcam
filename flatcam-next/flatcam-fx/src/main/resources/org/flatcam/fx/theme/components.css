@@ -399,6 +399,18 @@
     -fx-font-size: 11px;
 }
 
+.table-cell:invalid,
+.table-cell .text-field:invalid {
+    -fx-border-color: -fc-danger;
+    -fx-border-width: 1.5px;
+}
+
+.tool-panel .label.cam-generation-status {
+    -fx-text-fill: -fc-panel-text;
+    -fx-opacity: 1;
+    -fx-font-weight: bold;
+}
+
 /* Small bold divider label grouping a tool panel's fields into sections - see NccToolPanel. */
 .form-section-title {
     -fx-font-weight: bold;

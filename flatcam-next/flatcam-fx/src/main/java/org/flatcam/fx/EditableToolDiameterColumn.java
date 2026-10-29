@@ -19,6 +19,14 @@ final class EditableToolDiameterColumn<R> {
     private final Consumer<String> message;
     private final Map<R, String> drafts = new IdentityHashMap<>();
     private boolean reportedError;
+    private R invalidRow;
+    private static final javafx.css.PseudoClass INVALID = javafx.css.PseudoClass.getPseudoClass("invalid");
+    private static final String REVISION = EditableToolDiameterColumn.class.getName() + ".revision";
+    private static javafx.beans.property.SimpleLongProperty revisionProperty(TableView<?> table) {
+        return (javafx.beans.property.SimpleLongProperty) table.getProperties().computeIfAbsent(REVISION, key -> new javafx.beans.property.SimpleLongProperty());
+    }
+    static javafx.beans.value.ObservableValue<Number> revision(TableView<?> table) { return revisionProperty(table); }
+    private void changed() { var revision = revisionProperty(table); revision.set(revision.get() + 1); }
 
     EditableToolDiameterColumn(TableView<R> table, TableColumn<R, Double> column,
                                ToDoubleFunction<R> read, ObjDoubleConsumer<R> write, Consumer<String> message) {
@@ -27,14 +35,36 @@ final class EditableToolDiameterColumn<R> {
         table.getColumns().forEach(other -> other.setEditable(other == column));
         column.setEditable(true);
         column.setCellFactory(ignored -> new DiameterCell());
+        var correct = new MenuItem(I18n.text("tool.diameter.correct"));
+        var discard = new MenuItem(I18n.text("tool.diameter.discard"));
+        correct.setOnAction(event -> {
+            int index = table.getItems().indexOf(invalidRow);
+            if (index >= 0) { table.scrollTo(index); table.edit(index, column); }
+        });
+        discard.setOnAction(event -> {
+            drafts.remove(invalidRow); invalidRow = null; reportedError = false;
+            changed();
+            message.accept(""); table.edit(-1, null); table.refresh();
+        });
+        var menu = table.getContextMenu();
+        if (menu == null) { menu = new ContextMenu(); table.setContextMenu(menu); }
+        menu.getItems().addAll(correct, discard);
+        menu.setOnShowing(event -> { correct.setDisable(invalidRow == null); discard.setDisable(invalidRow == null); });
+        table.addEventFilter(javafx.scene.input.MouseEvent.MOUSE_PRESSED, event -> {
+            if (event.getButton() == MouseButton.SECONDARY && invalidRow != null) event.consume();
+        });
         table.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
             if (event.getCode() == KeyCode.F2 && table.getEditingCell() == null) {
                 int row = table.getSelectionModel().getSelectedIndex();
                 if (row >= 0) { table.edit(row, column); event.consume(); }
             }
         });
-        table.getItems().addListener((javafx.collections.ListChangeListener<R>) change ->
-                drafts.keySet().removeIf(row -> !table.getItems().contains(row)));
+        table.getItems().addListener((javafx.collections.ListChangeListener<R>) change -> {
+            drafts.keySet().removeIf(row -> !table.getItems().contains(row));
+            if (invalidRow != null && !table.getItems().contains(invalidRow)) {
+                invalidRow = null; reportedError = false; message.accept("");
+            }
+        });
     }
 
     /** Validate the whole table before updating any row; Generate also calls this before reading settings. */
@@ -47,23 +77,33 @@ final class EditableToolDiameterColumn<R> {
                 value = drafts.containsKey(row) ? Double.parseDouble(drafts.get(row).trim().replace(',', '.')) : read.applyAsDouble(row);
                 if (!Double.isFinite(value) || value <= 0) throw new NumberFormatException();
             } catch (NumberFormatException invalid) {
-                return reject(String.format(I18n.text("tool.diameter.invalid"), i + 1));
+                return reject(row, String.format(I18n.text("tool.diameter.invalid"), i + 1));
             }
-            if (values.values().stream().anyMatch(other -> Math.abs(other - value) < 1e-6))
-                return reject(String.format(I18n.text("tool.diameter.duplicate"), i + 1));
+            var duplicate = values.entrySet().stream().filter(other -> Math.abs(other.getValue() - value) < 1e-6).findFirst();
+            if (duplicate.isPresent()) {
+                R culprit = drafts.containsKey(row) ? row : drafts.containsKey(duplicate.get().getKey()) ? duplicate.get().getKey() : row;
+                return reject(culprit, String.format(I18n.text("tool.diameter.duplicate"), table.getItems().indexOf(culprit) + 1));
+            }
             values.put(row, value);
         }
         boolean changed = !drafts.isEmpty();
         values.forEach((row, value) -> { if (read.applyAsDouble(row) != value) write.accept(row, value); });
         drafts.clear();
+        invalidRow = null;
+        if (changed) changed();
         if (reportedError) { message.accept(""); reportedError = false; }
         table.edit(-1, null);
         if (changed) table.refresh();
         return true;
     }
 
-    private boolean reject(String text) { reportedError = true; message.accept(text); return false; }
+    private boolean reject(R row, String text) {
+        invalidRow = row; reportedError = true; message.accept(text);
+        table.scrollTo(table.getItems().indexOf(row)); table.refresh(); return false;
+    }
     private String text(R row) { return drafts.getOrDefault(row, Double.toString(read.applyAsDouble(row))); }
+    String draft(R row) { return drafts.get(row); }
+    void restoreDraft(R row, String text) { if (text != null) { drafts.put(row, text); changed(); } }
 
     private final class DiameterCell extends TableCell<R, Double> {
         private final TextField editor = new TextField();
@@ -80,14 +120,17 @@ final class EditableToolDiameterColumn<R> {
                 }
             });
             editor.textProperty().addListener((obs, old, value) -> {
-                if (!loading && editedRow != null) drafts.put(editedRow, value);
+                if (!loading && editedRow != null) { drafts.put(editedRow, value); changed(); }
             });
             editor.setOnAction(event -> { finish(); event.consume(); });
             editor.addEventFilter(KeyEvent.KEY_PRESSED, event -> {
                 if (event.getCode() == KeyCode.ESCAPE) {
+                    boolean clearsError = invalidRow == editedRow;
                     drafts.remove(editedRow);
+                    changed();
+                    if (clearsError) invalidRow = null;
                     table.edit(-1, null); cancelEdit();
-                    if (reportedError) { message.accept(""); reportedError = false; }
+                    if (reportedError && clearsError) { message.accept(""); reportedError = false; }
                     table.requestFocus(); event.consume();
                 } else if (event.getCode() == KeyCode.TAB && !finish()) event.consume();
             });
@@ -119,6 +162,8 @@ final class EditableToolDiameterColumn<R> {
         }
         @Override protected void updateItem(Double value, boolean empty) {
             super.updateItem(value, empty);
+            pseudoClassStateChanged(INVALID, !empty && row() == invalidRow);
+            editor.pseudoClassStateChanged(INVALID, !empty && row() == invalidRow);
             if (empty || row() == null) { setText(null); setGraphic(null); }
             else if (isEditing()) { setText(null); setGraphic(editor); }
             else { setGraphic(null); setText(text(row())); }
