@@ -1,5 +1,6 @@
 param([string]$BuildDirectory,[switch]$SkipInstallation,[string]$PreviousMsi)
 $ErrorActionPreference='Stop'
+$betaBuildExplicit=[bool]$BuildDirectory
 function Run-Isolated([string]$Program,[string[]]$Arguments,[string]$Log,[string]$WorkingDirectory) {
     $info=[Diagnostics.ProcessStartInfo]::new($Program)
     $info.Arguments=($Arguments | ForEach-Object {
@@ -99,6 +100,13 @@ try {
     }
     if(!$BuildDirectory) {$BuildDirectory=(Get-Content -LiteralPath 'target\beta-latest.txt' -Raw).Trim()}
     $BuildDirectory=(Resolve-Path -LiteralPath $BuildDirectory).Path
+    if(!$betaBuildExplicit) {
+        [xml]$betaCurrentPom=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'pom.xml')
+        $betaCandidate=Get-Content -LiteralPath (Join-Path $BuildDirectory 'image\FlatCAM FX Beta\flatcam-release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        if($betaCandidate.version -ne [string]$betaCurrentPom.project.version) {
+            throw "Latest build version $($betaCandidate.version) differs from current source $($betaCurrentPom.project.version). Use -BuildDirectory explicitly to validate a historical build."
+        }
+    }
     $artifacts=Get-Content -LiteralPath (Join-Path $BuildDirectory 'artifacts.json') -Raw | ConvertFrom-Json
     foreach($artifact in $artifacts) {
         if((Get-FileHash -LiteralPath (Join-Path $BuildDirectory $artifact.file) -Algorithm SHA256).Hash -ne $artifact.sha256) {throw "Artifact checksum mismatch: $($artifact.file)"}

@@ -1,6 +1,15 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
-## Candidata Beta 3 — 2026-10-29
+## Beta 3: distribuição validada — 2026-10-29
+
+**Distribuição concluída:** binários de **c5ba0c41**, tag **v0.1.0-beta.3**,
+MSI 0.1.3. Verify: 2.250 aprovados, 18 opcionais ignorados, zero falhas/erros.
+Portátil, instalação limpa, upgrade real Beta 2 → 3, desinstalação, GPU/Software,
+JFR e smoke dos novos controles passaram. Evidências, hashes, falhas iniciais
+de apontamento e correção dos scripts em
+[VALIDACAO-0.1.0-beta.3.md](release/VALIDACAO-0.1.0-beta.3.md). Nenhum produto de
+teste ficou registrado. Java incluído; sem assinatura, publicação remota ou CNC
+física validada. Projetos precisam ficar fora da pasta instalada.
 
 Versão de aplicativo/Maven/nativo **0.1.0-beta.3**, MSI **0.1.3**, com a mesma
 família de atualização por usuário. [Notas](release/BETA-0.1.0-beta.3.md).
@@ -9,12 +18,14 @@ Inclui as correções da auditoria e o teclado/edição nas tabelas de 70a2f8ef,
 Spinner sem arredondar, Delete de linha versus texto, retomada global NCC e
 restauração do rascunho NCC pelo projeto nativo.
 
-O build desta candidata deve executar verify integral, gerar ZIP/MSI/EXE com
-runtime embutido e validar o pacote fora do repositório, instalação/desinstalação
-e atualização do MSI Beta 2 efetivamente entregue. Resultados, fonte exata,
-hashes e lacunas pertencem aos manifestos/logs da rodada e à tag após aprovação
-dos testes; este registro de preparação não declara esses ensaios concluídos.
-Não há publicação/push automáticos nem certificação física CNC.
+O ensaio executou verify integral e validou ZIP/MSI/EXE com runtime embutido,
+portátil fora do repositório, instalação/desinstalação e atualização do MSI
+Beta 2 efetivamente entregue. O assistente EXE não teve cliques automatizados;
+a imagem e o MSI foram exercitados. Primeira falha no ponteiro relativo e
+validação equivocada da Beta 2 foram preservadas; Beta 3 passou com caminho
+explícito. Scripts agora ancoram o ponteiro e recusam versão padrão antiga.
+MSI/EXE e hashes foram copiados para Downloads. Não há publicação/push
+automáticos nem certificação física CNC.
 
 ## Delete e edição nas tabelas — 2026-10-29
 

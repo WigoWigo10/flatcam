@@ -138,7 +138,7 @@ try {
         [ordered]@{file=$_.Name;bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()}
     }
     Write-Utf8 (Join-Path $build 'artifacts.json') ($artifacts | ConvertTo-Json)
-    Write-Utf8 'target\beta-latest.txt' $build
+    Write-Utf8 (Join-Path $PSScriptRoot 'target\beta-latest.txt') $build
     Write-Host "Beta artifacts: $build"
 } finally {
     $env:PATH=$betaOldPath;$env:MAVEN_OPTS=$betaOldMavenOpts
