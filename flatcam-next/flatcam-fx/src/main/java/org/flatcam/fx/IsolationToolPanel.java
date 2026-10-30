@@ -83,6 +83,15 @@ final class IsolationToolPanel {
         IsolationType type;
         LegacyToolsDatabase.MillingTool machining;
 
+        private record State(double diameter, ToolProfile profile, String passes, String overlap,
+                             IsolationType type, LegacyToolsDatabase.MillingTool machining) {
+            ToolRow row() {
+                var row = new ToolRow(diameter, profile, 1, 0, type);
+                row.passes = passes; row.overlap = overlap; row.machining = machining; return row;
+            }
+        }
+        State state() { return new State(diameter, profile, passes, overlap, type, machining); }
+
         ToolRow(double diameter, ToolProfile profile, int passes, double overlap, IsolationType type) {
             this.diameter = diameter;
             this.profile = profile;
@@ -541,6 +550,12 @@ final class IsolationToolPanel {
                 heading("Common Parameters"), combine, checkValidity, advanced,
                 errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
+        var history = new CamTableHistory<>(box, table, () -> rows.stream().map(ToolRow::state).toList(),
+                states -> { rows.setAll(states.stream().map(ToolRow.State::row).toList()); toolMessage.setText(""); }, diameterEditor, () -> loading[0]);
+        history.observe(typeCombo.valueProperty());
+        history.watchText(passesSpinner.getEditor(), overlapSpinner.getEditor());
+        sourceCombo.valueProperty().addListener((obs, old, next) -> history.reset());
+        reset.addEventHandler(javafx.event.ActionEvent.ACTION, event -> history.reset());
         return box;
     }
 

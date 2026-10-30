@@ -81,6 +81,19 @@ final class NccToolPanel {
             this.operation = NccOperation.CLEAR;
         }
 
+        private record State(double diameter, ToolProfile profile, NccOperation operation, String overlap,
+                             NccMethod method, NccSeedPolicy seed, boolean connect, boolean contour,
+                             boolean offsetEnabled, String offset, LegacyToolsDatabase.MillingTool machining) {
+            ToolRow row() {
+                var row = new ToolRow(diameter); row.toolProfile = profile; row.operation = operation;
+                row.overlapPercent = overlap; row.method = method; row.seedPolicy = seed; row.connect = connect;
+                row.contour = contour; row.offsetEnabled = offsetEnabled; row.offset = offset; row.machining = machining;
+                return row;
+            }
+        }
+        State state() { return new State(diameter, toolProfile, operation, overlapPercent, method, seedPolicy,
+                connect, contour, offsetEnabled, offset, machining); }
+
         void setDiameter(double value) {
             diameter = value;
             if (machining != null) machining = new LegacyToolsDatabase.MillingTool(machining.name(), value,
@@ -113,7 +126,9 @@ final class NccToolPanel {
             row.offsetEnabled = json.getBoolean("offsetEnabled"); row.offset = json.getString("offset");
             if (json.has("machining")) {
                 row.machining = LegacyToolsDatabase.millingDraftFromJson(json.getJSONObject("machining"));
-                if (row.machining.diameter() != diameter || row.machining.profile() != row.toolProfile)
+                // TT can be changed after import. Preserve that unfinished draft; Generate still
+                // requires the imported machining profile to agree with TT before creating paths.
+                if (row.machining.diameter() != diameter)
                     throw new IllegalArgumentException("Inconsistent saved machining parameters");
             }
             return row;
@@ -932,10 +947,16 @@ final class NccToolPanel {
                         + row.method + ":" + row.seedPolicy + ":" + row.connect + ":" + row.contour + ":"
                         + row.offsetEnabled + ":" + row.offset + ":" + row.machining + ":" + diameterEditor.draft(row)).toList().toString());
         box.getChildren().add(box.getChildren().indexOf(generateButton), feedback);
-        new CamToolState(() -> {
+        var history = new CamTableHistory<>(box, toolTable, () -> tools.stream().map(ToolRow::state).toList(),
+                states -> { tools.setAll(states.stream().map(ToolRow.State::row).toList()); toolError.setText(""); }, diameterEditor, () -> loadingToolSettings[0]);
+        history.observe(methodCombo.valueProperty(), seedPolicyCombo.valueProperty(), connectCb.selectedProperty(),
+                contourCb.selectedProperty(), offsetCb.selectedProperty(), clearRadio.selectedProperty(), isoRadio.selectedProperty());
+        history.watchText(overlapField, offsetField);
+        sourceCombo.valueProperty().addListener((obs, old, next) -> history.reset());
+        resetButton.addEventHandler(javafx.event.ActionEvent.ACTION, event -> history.reset());
+        java.util.function.Function<Boolean, JSONObject> captureDraft = signatures -> {
             var chosen = sourceCombo.getValue();
             var json = new JSONObject().put("version", 1).put("units", chosen.units()).put("source", chosen.item().getValue())
-                    .put("sourceSignature", CamToolState.signature(chosen.geometry()))
                     .put("gerber", chosen.gerber()).put("tools", new JSONArray(tools.stream().map(row -> row.snapshot(diameterEditor.draft(row))).toList()))
                     .put("selected", new JSONArray(toolTable.getSelectionModel().getSelectedIndices()))
                     .put("margin", marginSpinner.getEditor().getText()).put("newDiameter", newDiaField.getText())
@@ -944,14 +965,16 @@ final class NccToolPanel {
                     .put("order", forwardOrderRadio.isSelected() ? "FORWARD" : reverseOrderRadio.isSelected() ? "REVERSE" : "NONE")
                     .put("conventional", conventionalRadio.isSelected()).put("boundary", boundaryKindCombo.getValue())
                     .put("polygon", polygonShapeRadio.isSelected()).put("check", checkValidityCb.isSelected());
+            if (signatures) json.put("sourceSignature", CamToolState.signature(chosen.geometry()));
             var ref = referenceCombo.getValue();
             if (ref != null) {
                 json.put("reference", ref.item().getValue()).put("referenceGerber", ref.isGerber());
-                if (BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) json.put("referenceSignature", CamToolState.signature(ref.geometry()));
+                if (signatures && BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())) json.put("referenceSignature", CamToolState.signature(ref.geometry()));
             }
             if (selectedArea[0] != null) json.put("area", new org.locationtech.jts.io.WKTWriter().write(selectedArea[0]));
             return json;
-        }, json -> {
+        };
+        new CamToolState(() -> captureDraft.apply(true), json -> {
             if (json.getInt("version") != 1 || !initialSource.units().equalsIgnoreCase(json.getString("units")))
                 throw new IllegalArgumentException("Incompatible saved NCC draft");
             var chosen = sourceCandidates.stream().filter(candidate -> candidate.item().getValue().equals(json.getString("source"))
@@ -995,7 +1018,8 @@ final class NccToolPanel {
             if (area != null) selectedAreaLabel.setText(I18n.text("cam.draft.area.restored"));
             checkValidityCb.setSelected(json.getBoolean("check"));
             loadSelectedSettings.run(); toolTable.refresh();
-        }).attach(box);
+            history.reset();
+        }, () -> CamToolState.stamp(captureDraft.apply(false))).attach(box);
         return box;
     }
 

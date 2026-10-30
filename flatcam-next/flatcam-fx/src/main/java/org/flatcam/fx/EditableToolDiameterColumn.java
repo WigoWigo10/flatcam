@@ -18,6 +18,8 @@ final class EditableToolDiameterColumn<R> {
     private final ObjDoubleConsumer<R> write;
     private final Consumer<String> message;
     private final Map<R, String> drafts = new IdentityHashMap<>();
+    private Consumer<Runnable> commitAction = Runnable::run;
+    void onCommit(Consumer<Runnable> action) { commitAction = action; }
     private boolean reportedError;
     private R invalidRow;
     private static final javafx.css.PseudoClass INVALID = javafx.css.PseudoClass.getPseudoClass("invalid");
@@ -88,14 +90,16 @@ final class EditableToolDiameterColumn<R> {
             }
             values.put(row, value);
         }
-        boolean changed = !drafts.isEmpty();
-        values.forEach((row, value) -> { if (read.applyAsDouble(row) != value) write.accept(row, value); });
-        drafts.clear();
-        invalidRow = null;
-        if (changed) changed();
-        if (reportedError) { message.accept(""); reportedError = false; }
-        table.edit(-1, null);
-        if (changed) table.refresh();
+        commitAction.accept(() -> {
+            boolean changed = !drafts.isEmpty();
+            values.forEach((row, value) -> { if (read.applyAsDouble(row) != value) write.accept(row, value); });
+            drafts.clear();
+            invalidRow = null;
+            if (changed) changed();
+            if (reportedError) { message.accept(""); reportedError = false; }
+            table.edit(-1, null);
+            if (changed) table.refresh();
+        });
         return true;
     }
 

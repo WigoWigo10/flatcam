@@ -3833,5 +3833,10 @@
   "cam.result.before": "Before:",
   "cam.result.after": "Now:",
   "table.delete.help": "Removes the selected rows from this table. With the table focused, press Delete or use the context menu.\n\nInside an editing cell or input field, Delete only deletes text. Operation rules and the Tools Database confirmation still apply.",
-  "table.delete.selected": "Remove selected rows (Delete)"
+  "table.delete.selected": "Remove selected rows (Delete)",
+  "cam.table.undo": "Undo in table (Ctrl+Z)",
+  "cam.table.redo": "Redo in table (Ctrl+Y)",
+  "cam.table.history.help": "Undo or redo adding, removing and editing cutters and their settings.\nHistory belongs to this table while the tool stays open.\nInside a text field, Ctrl+Z undoes typing. Common parameters are outside this history.",
+  "cam.draft.changed.loading": "The NCC draft changed while loading. The current project was preserved; open the file again after saving or discarding your changes.",
+  "cam.draft.unsaved": "The project has unsaved changes, including NCC settings. Saving preserves the draft so you can resume later. Save before continuing?"
 }

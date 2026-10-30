@@ -66,6 +66,15 @@ class PaintDiameterEditingTest {
             assertEquals(1,table.getItems().size()); assertEquals("0.5",list.getText());
             ((Button) form.lookup("#paint-generate")).fire();
             assertEquals(List.of(.5),output.get().toolDiameters()); assertEquals(.45,output.get().settingsFor(.5).overlapFraction());
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Z,false,true,false,false));
+            assertEquals(2, table.getItems().size()); assertEquals("0.1981234567; 0.5", list.getText());
+            assertEquals(0, table.getSelectionModel().getSelectedIndex());
+            ((Button) form.lookup("#paint-generate")).fire();
+            assertEquals(NccMethod.LINES, output.get().settingsFor(.1981234567).method());
+            assertEquals(.123456789, output.get().settingsFor(.1981234567).offset());
+            assertEquals(.45, output.get().settingsFor(.5).overlapFraction());
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Y,false,true,false,false));
+            assertEquals(1, table.getItems().size()); assertEquals("0.5", list.getText());
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
             assertEquals(1,table.getItems().size(),"Keep the same final-tool rule as NCC and Isolation");
             return null;

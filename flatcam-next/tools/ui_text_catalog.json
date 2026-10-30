@@ -27655,5 +27655,40 @@
       "EditableToolDiameterColumn.java"
     ],
     "canonical": false
+  },
+  "cam.table.undo": {
+    "source": "Desfazer na tabela (Ctrl+Z)",
+    "locations": [
+      "CamTableHistory.java"
+    ],
+    "canonical": false
+  },
+  "cam.table.redo": {
+    "source": "Refazer na tabela (Ctrl+Y)",
+    "locations": [
+      "CamTableHistory.java"
+    ],
+    "canonical": false
+  },
+  "cam.table.history.help": {
+    "source": "Desfaz ou refaz a inclusão, remoção e edição das fresas e de seus parâmetros.\nO histórico vale para esta tabela enquanto a ferramenta estiver aberta.\nDentro de um campo de texto, Ctrl+Z desfaz a digitação. Parâmetros comuns ficam fora deste histórico.",
+    "locations": [
+      "CamTableHistory.java"
+    ],
+    "canonical": false
+  },
+  "cam.draft.changed.loading": {
+    "source": "O rascunho NCC foi alterado durante o carregamento. O projeto atual foi preservado; abra o arquivo novamente após salvar ou descartar as alterações.",
+    "locations": [
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.draft.unsaved": {
+    "source": "O projeto contém alterações não salvas, incluindo ajustes no NCC. Salvar preserva o rascunho para continuar depois. Deseja salvar antes de continuar?",
+    "locations": [
+      "MainWindow.java"
+    ],
+    "canonical": false
   }
 }

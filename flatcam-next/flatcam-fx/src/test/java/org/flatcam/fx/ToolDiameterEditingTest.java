@@ -87,6 +87,72 @@ class ToolDiameterEditingTest {
     }
 
     @ParameterizedTest @ValueSource(strings={"NCC", "Isolation"})
+    void committedDiameterCanBeUndoneAndRedoneWithoutLosingToolSettings(String tool) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form(tool, "MM"); double original = form.diameter();
+            var before = field(form.row(), tool.equals("NCC") ? "overlapPercent" : "overlap");
+            form.edit("0.198").fireEvent(new ActionEvent());
+            assertEquals(.198, form.diameter());
+            form.table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.Z, false, true, false, false));
+            assertEquals(original, form.diameter());
+            assertEquals(before, field(form.row(), tool.equals("NCC") ? "overlapPercent" : "overlap"));
+            assertEquals(0, form.table.getSelectionModel().getSelectedIndex());
+            form.table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.Y, false, true, false, false));
+            assertEquals(.198, form.diameter()); form.generate(); assertEquals(.198, form.outputDiameter()); return null;
+        });
+    }
+
+    @ParameterizedTest @ValueSource(strings={"NCC", "Isolation"})
+    void undoRemovalRestoresSelectionAndImportedMachiningAndNewEditClearsRedo(String tool) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form(tool, "MM");
+            // Create enough rows to exercise non-adjacent multi-selection and each row's own settings.
+            while (form.table.getItems().size() < 3) {
+                var ctor = form.row().getClass().getDeclaredConstructors()[0]; ctor.setAccessible(true);
+                double diameter = .35 + form.table.getItems().size();
+                form.table.getItems().add(tool.equals("NCC") ? ctor.newInstance(diameter)
+                        : ctor.newInstance(diameter, ToolProfile.C1, 3, .375, org.flatcam.cam.isolation.IsolationType.BOTH));
+            }
+            var row = form.table.getItems().get(2); var machiningField = row.getClass().getDeclaredField("machining"); machiningField.setAccessible(true);
+            double diameter = (double) field(row, "diameter");
+            var parameters = new org.flatcam.cam.gcode.GeometryGCodeParameters(2, .1, false, .1, 123.456789, 12345, false);
+            var machining = new LegacyToolsDatabase.MillingTool("imported", diameter, ToolProfile.C1, parameters, null);
+            machiningField.set(row, machining);
+            form.table.getSelectionModel().clearSelection(); form.table.getSelectionModel().selectIndices(0, 2);
+            int count = form.table.getItems().size();
+            form.table.fireEvent(key(KeyCode.DELETE)); assertEquals(count - 2, form.table.getItems().size());
+            shortcut(form.table, KeyCode.Z);
+            assertEquals(count, form.table.getItems().size());
+            assertEquals(List.of(0, 2), List.copyOf(form.table.getSelectionModel().getSelectedIndices()));
+            assertEquals(machining, field(form.table.getItems().get(2), "machining"));
+            shortcut(form.table, KeyCode.Y); assertEquals(count - 2, form.table.getItems().size());
+            shortcut(form.table, KeyCode.Z);
+            form.table.getSelectionModel().clearAndSelect(0);
+            form.edit("0.198").fireEvent(new ActionEvent());
+            shortcut(form.table, KeyCode.Y); assertEquals(count, form.table.getItems().size()); assertEquals(.198, form.diameter());
+            return null;
+        });
+    }
+
+    @ParameterizedTest @ValueSource(strings={"NCC", "Isolation"})
+    void textUndoDoesNotUndoRowsAndInvalidDiameterBlocksTableUndo(String tool) throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var form = new Form(tool, "MM"); double original = form.diameter();
+            form.edit("0.198").fireEvent(new ActionEvent());
+            var editor = form.edit("0.198"); editor.appendText("7");
+            shortcut(editor, KeyCode.Z); assertEquals("0.198", editor.getText()); assertEquals(.198, form.diameter());
+            editor.setText("invalid"); form.table.edit(-1, null); shortcut(form.table, KeyCode.Z);
+            assertEquals(.198, form.diameter()); form.generate(); assertNull(form.generated.get());
+            form.table.getContextMenu().getItems().stream().filter(item -> I18n.text("tool.diameter.discard").equals(item.getText())).findFirst().orElseThrow().fire();
+            shortcut(form.table, KeyCode.Z); assertEquals(original, form.diameter()); return null;
+        });
+    }
+
+    private static void shortcut(Node target, KeyCode code) {
+        target.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", code, false, true, false, false));
+    }
+
+    @ParameterizedTest @ValueSource(strings={"NCC", "Isolation"})
     void deleteRemovesSelectedToolAndKeepsTableReadyForKeyboard(String tool) throws Exception {
         TerminalPanelTest.fx(() -> {
             var form = new Form(tool, "MM");

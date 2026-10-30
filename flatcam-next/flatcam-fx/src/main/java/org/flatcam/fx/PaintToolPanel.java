@@ -69,6 +69,9 @@ final class PaintToolPanel {
         double diameter; String[] settings;
         ToolRow(double diameter, String[] settings) { this.diameter = diameter; this.settings = settings; }
     }
+    private record ToolState(double diameter, List<String> settings) {
+        ToolRow row() { return new ToolRow(diameter, settings.toArray(String[]::new)); }
+    }
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
@@ -291,7 +294,9 @@ final class PaintToolPanel {
         toolTable.getSelectionModel().selectedItemProperty().addListener((obs, old, selected) -> {
             if (syncing[0] || selected == null) return;
             editing[0].settings = capture.get(); editing[0] = selected;
-            restore.accept(selected.settings); parameterTitle.setText(I18n.text("ui.1228ea6a807e") + selected.diameter);
+            syncing[0] = true;
+            try { restore.accept(selected.settings); parameterTitle.setText(I18n.text("ui.1228ea6a807e") + selected.diameter); }
+            finally { syncing[0] = false; }
         });
         Runnable synchronizeTools = () -> {
             if (!diameterEditor.commit()) throw new IllegalArgumentException(errorLabel.getText());
@@ -407,6 +412,20 @@ final class PaintToolPanel {
                 new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
                 paint, errorLabel, close);
         panel.setPadding(new Insets(6));
+        var history = new CamTableHistory<>(panel, toolTable, () -> {
+            if (!syncing[0]) editing[0].settings = capture.get();
+            return toolTable.getItems().stream().map(row -> new ToolState(row.diameter, List.of(row.settings))).toList();
+        }, states -> {
+            syncing[0] = true;
+            try {
+                toolTable.getItems().setAll(states.stream().map(ToolState::row).toList());
+                editing[0] = toolTable.getItems().getFirst(); restore.accept(editing[0].settings); syncText.run();
+                parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0].diameter); errorLabel.setText("");
+            } finally { syncing[0] = false; }
+        }, diameterEditor, () -> syncing[0]);
+        history.observe(method.valueProperty(), connect.selectedProperty(), contour.selectedProperty());
+        history.watchText(overlap, margin);
+        source.valueProperty().addListener((obs, old, next) -> history.reset());
         return panel;
     }
 

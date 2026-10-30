@@ -1,5 +1,23 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Histórico CAM e aviso de rascunho NCC — 2026-10-30
+
+Implementados Ctrl+Z/Y nas tabelas de NCC, Isolation e Paint, preservando
+seleção, precisão e parâmetros por fresa. Texto em edição mantém Undo local.
+O rascunho NCC agora participa da proteção de alterações não salvas ao
+fechar o aplicativo ou trocar de projeto, sem serializar a geometria para
+verificar alterações. Salvar/carregar protege edições concorrentes.
+Detalhes, alcance, descarte explícito ao fechar a ferramenta e evidências em
+[CAM_TABLE_HISTORY_20261030.md](CAM_TABLE_HISTORY_20261030.md).
+Também corrigida a restauração do rascunho após alterar TT de uma fresa
+importada; gerar continua exigindo revisão dos parâmetros incompatíveis.
+Verify completo: **2.261 aprovados, 18 opcionais ignorados, zero falhas/erros**,
+`target/cam-history-verify-final.log`.
+
+Próximo: persistir os formulários de Isolation/Paint e depois ampliar para
+os outros painéis. O histórico das tabelas é de sessão; não vai no arquivo.
+Versão e instaladores continuam os da Beta 3 já entregue.
+
 ## Beta 3: distribuição validada — 2026-10-29
 
 **Distribuição concluída:** binários de **c5ba0c41**, tag **v0.1.0-beta.3**,

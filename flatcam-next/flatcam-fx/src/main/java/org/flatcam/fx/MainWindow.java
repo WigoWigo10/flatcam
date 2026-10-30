@@ -2407,18 +2407,48 @@ final class MainWindow implements TclFlatcamHost {
     private Runnable activeToolCleanup;
 
     /** Session-only forms. Never reuse a form whose selected source was removed or replaced. */
-    private record CamDraft(String label, ScrollPane panel, java.util.function.Supplier<CamInput> input) { }
+    private record CamDraft(String label, ScrollPane panel, java.util.function.Supplier<CamInput> input, String initialStamp) { }
     private final List<CamDraft> camDrafts = new ArrayList<>();
     private record CamResultNote(TreeItem<String> source, String recipe) { }
     private final Map<TreeItem<String>, CamResultNote> camResultNotes = new LinkedHashMap<>();
     private final Map<String, String> savedCamDrafts = new LinkedHashMap<>();
+    /** Raw drafts from the last file actually written/read, independent of open form instances. */
+    private final Map<String, String> persistedCamDrafts = new LinkedHashMap<>();
+
+    private static Map<String, String> draftStamps(Map<String, String> workspace) {
+        var stamps = new LinkedHashMap<String, String>();
+        workspace.forEach((key, value) -> {
+            if (key.startsWith("ncc/")) {
+                try { stamps.put(key, CamToolState.stamp(new org.json.JSONObject(value))); }
+                catch (RuntimeException invalid) { stamps.put(key, value); }
+            }
+        });
+        return Map.copyOf(stamps);
+    }
+
+    private Map<String, String> camDraftStamp() {
+        var state = new LinkedHashMap<>(draftStamps(persistedCamDrafts));
+        state.putAll(draftStamps(savedCamDrafts));
+        for (var draft : camDrafts) {
+            var codec = CamToolState.of(draft.panel().getContent());
+            if (codec == null) continue;
+            try {
+                String key = "ncc/" + camSourceKey(draft.input().get().item());
+                String stamp = codec.stamp().get();
+                // Looking at default settings alone must not dirty an otherwise unchanged project.
+                if (state.containsKey(key) || !stamp.equals(draft.initialStamp())) state.put(key, stamp);
+            } catch (IllegalStateException stale) { /* Source was removed or replaced. */ }
+        }
+        return Map.copyOf(state);
+    }
 
     private String camSourceKey(TreeItem<String> item) {
         return (gerberByItem.containsKey(item) ? "gerber/" : "geometry/") + item.getValue();
     }
 
     private Map<String, String> snapshotCamWorkspace() {
-        var state = new LinkedHashMap<>(savedCamDrafts);
+        var state = new LinkedHashMap<>(persistedCamDrafts);
+        state.putAll(savedCamDrafts);
         for (var draft : camDrafts) {
             var codec = CamToolState.of(draft.panel().getContent());
             if (codec == null) continue;
@@ -2482,7 +2512,8 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void rememberCamDraft(String label, java.util.function.Supplier<CamInput> input) {
-        camDrafts.add(new CamDraft(label, (ScrollPane) toolTab.getContent(), input));
+        var panel = (ScrollPane) toolTab.getContent(); var codec = CamToolState.of(panel.getContent());
+        camDrafts.add(new CamDraft(label, panel, input, codec == null ? null : codec.stamp().get()));
         activeToolCleanup = this::clearToolOverlays;
     }
 
@@ -2521,7 +2552,11 @@ final class MainWindow implements TclFlatcamHost {
     private void closeToolPanel() {
         if (toolTab == null) { releaseActiveTool(); return; }
         for (var draft : camDrafts) if (draft.panel() == toolTab.getContent() && CamToolState.of(draft.panel().getContent()) != null) {
-            try { savedCamDrafts.remove("ncc/" + camSourceKey(draft.input().get().item())); }
+            try {
+                String key = "ncc/" + camSourceKey(draft.input().get().item());
+                if (persistedCamDrafts.containsKey(key)) savedCamDrafts.put(key, persistedCamDrafts.get(key));
+                else savedCamDrafts.remove(key);
+            }
             catch (IllegalStateException stale) { /* Source no longer exists. */ }
         }
         camDrafts.removeIf(draft -> draft.panel() == toolTab.getContent());
@@ -7508,17 +7543,17 @@ final class MainWindow implements TclFlatcamHost {
                     closeToolPanel();
                 }));
         Node form = ((ScrollPane) toolTab.getContent()).getContent();
-        rememberCamDraft("NCC Tool", () -> {
-            var chosen = (NccToolPanel.SourceCandidate) ((ComboBox<?>) form.lookup("#ncc-source-object")).getValue();
-            if (chosen == null) return captureCamInput(item, source);
-            return captureCamInput(chosen.item(), chosen.geometry());
-        });
         var saved = savedCamDrafts.remove("ncc/" + camSourceKey(item));
         if (saved != null) {
             var codec = CamToolState.of(form); var defaults = codec.capture().get();
             try { codec.restore().accept(new org.json.JSONObject(saved)); }
             catch (RuntimeException invalid) { codec.restore().accept(defaults); appendConsole(I18n.text("cam.draft.restore.failed")); }
         }
+        rememberCamDraft("NCC Tool", () -> {
+            var chosen = (NccToolPanel.SourceCandidate) ((ComboBox<?>) form.lookup("#ncc-source-object")).getValue();
+            if (chosen == null) return captureCamInput(item, source);
+            return captureCamInput(chosen.item(), chosen.geometry());
+        });
     }
 
     private boolean beginNccAreaSelection(Geometry source, NccToolPanel.AreaShape shape,
@@ -8649,10 +8684,11 @@ final class MainWindow implements TclFlatcamHost {
             TclExecution.progress(I18n.text("ui.3a4737de1105")).report(1);
         } finally { Files.deleteIfExists(temporary); }
         // Mark only the serialized version, never a later UI edit; do not alter last-directory preferences.
-        TclExecution.onFx(() -> { markProjectSaved(file,projectStateStamp(snapshot.before())); return null; });
+        TclExecution.onFx(() -> { markProjectSaved(file,projectStateStamp(snapshot.before()),snapshot.project().camWorkspace()); return null; });
     }
 
     private record TclProjectSave(ProjectFile project, TclProjectState before) { }
+    private record TclProjectLoad(TclProjectState core, Map<String, String> drafts) { }
 
     private record TclJoinSnapshot(TclProjectState before, List<ProjectFile.GeometryEntry> geometries,
                                    List<ProjectFile.ExcellonEntry> excellons) { }
@@ -8771,10 +8807,10 @@ final class MainWindow implements TclFlatcamHost {
     @Override
     public void openProject(Path file,boolean discardUnsaved) throws IOException,TclException {
         requireWorkerCommand();
-        TclProjectState before = TclExecution.onFx(() -> {
+        TclProjectLoad before = TclExecution.onFx(() -> {
             requireProjectReplacementAllowed();
             if(!discardUnsaved && hasUnsavedProjectChanges())throw new IllegalStateException(I18n.text("ui.912a36a8eb8d"));
-            return captureTclProjectState();
+            return new TclProjectLoad(captureTclProjectState(), camDraftStamp());
         });
         LoadedProject loaded = loadProject(file, new JobContext() {
             @Override public boolean isCancelled() { return TclExecution.cancellation().isCancellationRequested(); }
@@ -8784,10 +8820,11 @@ final class MainWindow implements TclFlatcamHost {
         });
         TclExecution.onFx(() -> {
             requireProjectReplacementAllowed();
-            checkTclProjectState(before);
+            checkTclProjectState(before.core());
+            if (!before.drafts().equals(camDraftStamp())) throw new IllegalStateException(I18n.text("cam.draft.changed.loading"));
             restoreProject(loaded, false);
             reportOpenedProject(file, loaded);
-            markProjectSaved(file,projectStateStamp());
+            markProjectSaved(file,projectStateStamp(),loaded.camWorkspace());
             return null;
         });
     }
@@ -8810,13 +8847,18 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private ProjectChangeTracker.State projectStateStamp() { return projectStateStamp(captureTclProjectState()); }
+    private record ProjectSettings(Object core, Map<String, String> drafts) { }
     private ProjectChangeTracker.State projectStateStamp(TclProjectState state) {
         return new ProjectChangeTracker.State(state.epoch(),state.items().stream()
-                .map(i -> new ProjectChangeTracker.Item(i.item(),i.name(),i.version(),i.appearance())).toList(),state.settings());
+                .map(i -> new ProjectChangeTracker.Item(i.item(),i.name(),i.version(),i.appearance())).toList(),new ProjectSettings(state.settings(),camDraftStamp()));
     }
     boolean hasUnsavedProjectChanges() { return projectChanges.changed(projectStateStamp()); }
-    private void markProjectSaved(Path file,ProjectChangeTracker.State state) {
-        currentProjectFile=file.toAbsolutePath().normalize(); projectChanges.saved(state);
+    private void markProjectSaved(Path file,ProjectChangeTracker.State state, Map<String, String> workspace) {
+        persistedCamDrafts.clear();
+        workspace.forEach((key, value) -> { if (key.startsWith("ncc/")) persistedCamDrafts.put(key, value); });
+        var settings = (ProjectSettings) state.settings();
+        var written = new ProjectChangeTracker.State(state.epoch(), state.items(), new ProjectSettings(settings.core(), draftStamps(workspace)));
+        currentProjectFile=file.toAbsolutePath().normalize(); projectChanges.saved(written);
     }
     void setApplicationClose(Runnable close) { applicationClose=close; }
     void setProjectDecisionProvider(java.util.function.Function<Boolean,UnsavedChangesGuard.Choice> provider) { projectDecision=provider; }
@@ -8828,7 +8870,8 @@ final class MainWindow implements TclFlatcamHost {
         var dialog=new javafx.scene.control.Alert(javafx.scene.control.Alert.AlertType.CONFIRMATION);
         dialog.initOwner(scene.getWindow()); dialog.setTitle(drafts ? I18n.text("ui.4578531813a9") : I18n.text("ui.84aab6a057ce")); dialog.setHeaderText(null);
         dialog.setContentText(drafts ? I18n.text("ui.b1fd0e983f09")
-                : I18n.text("ui.8e0bb14ec598")+(currentProjectFile==null ? "" : I18n.text("ui.ee09035254b2")+currentProjectFile));
+                : I18n.text(camDraftStamp().equals(draftStamps(persistedCamDrafts)) ? "ui.8e0bb14ec598" : "cam.draft.unsaved")
+                        +(currentProjectFile==null ? "" : I18n.text("ui.ee09035254b2")+currentProjectFile));
         var save=new javafx.scene.control.ButtonType(drafts ? I18n.text("ui.05473fa8f2f5") : I18n.text("ui.c468e1df3d21"),javafx.scene.control.ButtonBar.ButtonData.YES);
         var discard=new javafx.scene.control.ButtonType(drafts ? I18n.text("ui.a09075a45b43") : I18n.text("ui.bb372cbd6ce8"),javafx.scene.control.ButtonBar.ButtonData.NO);
         dialog.getButtonTypes().setAll(save,discard,javafx.scene.control.ButtonType.CANCEL);
@@ -10341,7 +10384,7 @@ final class MainWindow implements TclFlatcamHost {
             try {
                 if(error!=null)reportJobError(error,I18n.text("ui.b6ca594ea118"));
                 else {
-                    markProjectSaved(saved,before);
+                    markProjectSaved(saved,before,project.camWorkspace());
                     AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                     recentFiles.remember(RecentFiles.Kind.PROJECT,saved);
                     appendConsole(I18n.text("ui.c9987f501523")+saved); updateProgress(1); setStatus(I18n.text("ui.3a4737de1105"),IDLE_COLOR);
@@ -10450,6 +10493,7 @@ final class MainWindow implements TclFlatcamHost {
         catch (IllegalStateException blocked) { appendConsole(blocked.getMessage()); return; }
         File file = path.toAbsolutePath().normalize().toFile();
         TclProjectState before = captureTclProjectState();
+        var draftsBefore = camDraftStamp();
         beginJob(I18n.text("ui.d34e9289a784") + file.getName() + "...");
         JobHandle<LoadedProject> handle = jobExecutor.submit(context -> loadProject(file.toPath(), context),
                 (fraction, message) -> Platform.runLater(() -> {
@@ -10462,10 +10506,11 @@ final class MainWindow implements TclFlatcamHost {
                 if (failure != null) throw new java.util.concurrent.CompletionException(failure);
                 if (handle.isCancelled()) throw new CancellationException(I18n.text("ui.942c696ec9f9"));
                 checkTclProjectState(before);
+                if (!draftsBefore.equals(camDraftStamp())) throw new IllegalStateException(I18n.text("cam.draft.changed.loading"));
                 if (hasEditorChanges()) throw new IllegalStateException(I18n.text("ui.929e45c23243"));
                 restoreProject(project, true);
                 reportOpenedProject(file.toPath(), project);
-                markProjectSaved(file.toPath(),projectStateStamp());
+                markProjectSaved(file.toPath(),projectStateStamp(),project.camWorkspace());
                 recentFiles.remember(RecentFiles.Kind.PROJECT,file.toPath());
                 AppPreferences.saveLastProjectDirectory(file.getParentFile().getAbsolutePath());
                 updateProgress(1);
@@ -10683,6 +10728,7 @@ final class MainWindow implements TclFlatcamHost {
         camDrafts.clear();
         camResultNotes.clear();
         savedCamDrafts.clear();
+        persistedCamDrafts.clear();
         closeToolPanel();
         tclProjectEpoch++;
         if (cancelTerminal && terminalPanel != null) terminalPanel.cancel();
