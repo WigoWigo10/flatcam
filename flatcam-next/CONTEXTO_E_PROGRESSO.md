@@ -1,6 +1,6 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
-## Candidata Beta 4 — 2026-11-01
+## Beta 4: distribuição validada — 2026-11-01
 
 Salvar original/cópia e tooltip de Cancelar commitados em **420d8885**;
 políticas Z em **77bc29b8**, histórico CAM em **4a4c6cc4**. Preparada a versão
@@ -10,9 +10,16 @@ O probe de distribuição agora também confere Z padrão/Machinist nos três
 painéis MM/IN, Salvar original/cópia, Cancelar e Undo/Redo CAM usando os JARs
 distribuídos. Compilação preliminar do probe passou.
 
-Geração/validação ainda pendentes nesta preparação. Serão registrados o commit
-exato dos binários, hashes, instalação e upgrade com o MSI Beta 3 entregue.
-Não confundir esta preparação com pacote já validado nem com publicação remota.
+Binários de **6b45a634**, árvore limpa e tag local **v0.1.0-beta.4**.
+Verify: **2.316 aprovados, 18 opcionais ignorados, zero falhas/erros**.
+Portátil fora do repositório, instalação limpa MSI, upgrade real Beta 3 → 4,
+novas verificações nos JARs distribuídos e desinstalação passaram. Nenhuma
+instalação da família ficou registrada. MSI/EXE/ZIP, notas e hashes em Downloads.
+Evidências e limites em
+[release/VALIDACAO-0.1.0-beta.4.md](release/VALIDACAO-0.1.0-beta.4.md).
+Sem publicação remota nem ensaio físico CNC; o teste do upgrade preserva
+projetos fora da pasta instalada. A tag identifica o commit que gerou os binários,
+não o commit posterior da documentação de validação.
 
 ## Salvar / Salvar como no editor G-code — 2026-11-01
 

@@ -1,5 +1,17 @@
 # QA project context — FlatCAM FX
 
+Release evidence (2026-11-01): Beta 4 source 6b45a634, clean tree, local tag
+v0.1.0-beta.4. Full verify: 2334 cases, 2316 passed, 18 optional skips, zero
+failures/errors. Built MSI/EXE/ZIP with Temurin 25.0.5+8; extracted/installed
+JAR probes passed main CAM flows, Standard/Machinist Z in three panels MM/IN,
+original/copy G-code saves, Cancel preserving saved files and CAM Undo/Redo.
+Clean per-user MSI install/uninstall and actual delivered Beta 3 -> 4 upgrade
+passed with an unchanged external test project. No installed family left behind.
+Artifacts/hashes copied to Downloads. No push, physical CNC, new benchmark,
+EXE-wizard clicks or automatic downgrade validation. See
+flatcam-next/release/VALIDACAO-0.1.0-beta.4.md for exact candidate and evidence;
+later documentation commits do not replace the binary source identity.
+
 Native splash DPI incident (2026-10-27): java.exe-hosted AWT checks missed the
 JNI exe's DPI-unaware initial context. Reproduced physical HWND shrink from
 1240x600 at (820,552) to 620x300 at (410,276) when Glass starts on the 200%
