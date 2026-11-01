@@ -1,5 +1,16 @@
 # QA project context — FlatCAM FX
 
+Latest release evidence (2026-11-01): Beta 4 revision 1 source 0c14179b,
+clean binary source, local tag v0.1.0-beta.4-r1. Full verify: 2343 cases,
+2325 passed, 18 optional skips, zero failures/errors. Excellon properties
+diameter editing, Plot publication, undo/redo and native/Python persistence
+passed on portable, clean MSI and upgraded installations. Delivered Beta 3
+(0.1.3) and original Beta 4 (0.1.4) both upgraded to MSI 0.1.41, with external
+projects preserved and no registered family installations left afterwards.
+Original Beta 4 artifacts/tag preserved; r1 MSI/EXE/ZIP/hashes in Downloads.
+No push, physical CNC, second-PC/VM, new benchmark or EXE wizard click test.
+See flatcam-next/release/VALIDACAO-0.1.0-beta.4-r1.md for exact evidence.
+
 Release evidence (2026-11-01): Beta 4 source 6b45a634, clean tree, local tag
 v0.1.0-beta.4. Full verify: 2334 cases, 2316 passed, 18 optional skips, zero
 failures/errors. Built MSI/EXE/ZIP with Temurin 25.0.5+8; extracted/installed
