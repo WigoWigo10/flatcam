@@ -3928,14 +3928,14 @@
     "canonical": false
   },
   "ui.b3b282224871": {
-    "source": "Cut Z negativo e finito, salvo na Geometry do recorte. Exemplo: -1,7.\n\nUnidades: unidade do objeto (mm ou in).\n\nAtenção: confira a espessura da placa e quanto a ferramenta entrará no material de sacrifício antes de gerar CNC.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.",
     "locations": [
       "CutoutToolPanel.java"
     ],
     "canonical": false
   },
   "ui.42adc98e530c": {
-    "source": "Thin Depth é Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e pontes -0,5. Só é usado no tipo Thin.\n\nO valor vai para a Geometry separada das pontes; o recorte principal conserva Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: unidade do objeto (mm ou in).",
+    "source": "**Thin Depth:** coordenada Z das pontes, acima do Cut Z do corte completo. Exemplo no modo padrão: recorte −1,7 e pontes −0,5. O modo Machinist também aceita Z positivo ou zero, mantendo a relação Thin Depth > Cut Z.\n\nUsado apenas em Thin. O valor vai para uma Geometry separada das pontes; o recorte principal mantém Cut Z. Gere os dois CNC Jobs separadamente.\n\nUnidades: as do objeto (mm ou in).",
     "locations": [
       "CutoutToolPanel.java"
     ],
@@ -4150,7 +4150,7 @@
     "canonical": false
   },
   "ui.60538e9ad822": {
-    "source": "Thin Depth deve ser negativo e mais raso que Cut Z.",
+    "source": "Thin Depth deve ser finito e ficar acima de Cut Z (valor Z maior).",
     "locations": [
       "CutoutToolPanel.java"
     ],
@@ -6385,7 +6385,7 @@
     "canonical": false
   },
   "ui.a3e15129b7de": {
-    "source": "Start Z: movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z exibido ao gerar; aceita zero ou valor positivo.\n\nAntes de deslocar em XY, o FX retrai para a altura de segurança. Start Z não faz referenciamento nem confirma que a ferramenta está livre.\n\nUnidades: unidade do objeto (mm ou in).",
+    "source": "**Start Z:** movimento Z inicial, antes de ligar o spindle. Vazio/None usa Travel Z ao gerar. No modo padrão, aceita zero ou positivo; em Machinist, aceita qualquer coordenada finita.\n\nAntes de deslocar em XY, o FX vai à altura de Travel Z. Start Z não faz referenciamento nem confirma espaço livre para a ferramenta.\n\nUnidades: as do objeto (mm ou in).",
     "locations": [
       "GeometryCncToolPanel.java"
     ],
@@ -16105,7 +16105,7 @@
     "canonical": false
   },
   "ui.f9bdd0393884": {
-    "source": "Profundidade abaixo da superfície. O FX aceita a magnitude positiva ou Z negativo e gera o corte em Z negativo. Para ferramentas V, a Geometry calcula a profundidade pela largura e pela ponta.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.",
     "locations": [
       "PanelTooltips.java"
     ],
@@ -16448,7 +16448,7 @@
     "canonical": false
   },
   "ui.d3ca7681ff0d": {
-    "source": "Z negativo do recorte completo, salvo na Geometry gerada. Exemplo: -1,7. Revise a espessura da placa e a entrada no material de sacrifício.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.",
     "locations": [
       "PanelTooltips.java"
     ],
@@ -16735,7 +16735,7 @@
     "canonical": false
   },
   "ui.438e6e0f7cbe": {
-    "source": "Profundidade abaixo da superfície, usada com a ponta e o ângulo V para calcular a largura efetiva de corte. Aceita a magnitude ou Z negativo.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.",
     "locations": [
       "PanelTooltips.java"
     ],
@@ -20021,7 +20021,7 @@
     "canonical": false
   },
   "ui.6f92ed8ee28f": {
-    "source": "Magnitude positiva da profundidade de corte; o CNC escreve Z negativo. Não confundir com o Cut Z negativo dos outros painéis. Ferramentas V podem calcular a profundidade a partir da ponta e largura.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.",
     "locations": [
       "ToolDefaultsDescriptions.java"
     ],
@@ -20654,14 +20654,14 @@
     "canonical": false
   },
   "ui.5ea9e2fac451": {
-    "source": "Coordenada Z de corte em relação à superfície. Deve ser negativa ao transferir para Milling ou Cutout no FX. Em Shape V, também determina o diâmetro efetivo de corte.\n\nIntegração FX: Cutout recebe este Cut Z e os ajustes gerais de Multi-Depth/Depth / Pass na Geometry gerada.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.\n\nNa Tools Database, o sinal digitado é preservado como rascunho. A política selecionada é aplicada ao gerar. Para fresas V, a profundidade é calculada pela ponta, ângulo e largura de corte.",
     "locations": [
       "ToolsDatabaseDescriptions.java"
     ],
     "canonical": false
   },
   "ui.4df34f0ac8aa": {
-    "source": "Profundidade de furação abaixo da superfície, normalmente escrita como Z negativo. O FX utiliza sua magnitude e aplica a compensação Offset Z ao gerar.",
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.\n\n**Cut Z efetivo = Cut Z − Offset Z.** Offset Z positivo aprofunda a furação; negativo a deixa mais rasa. A tabela mantém o valor digitado como rascunho; a política é aplicada ao gerar.",
     "locations": [
       "ToolsDatabaseDescriptions.java"
     ],
@@ -20682,7 +20682,7 @@
     "canonical": false
   },
   "ui.f91d4c8f5ad8": {
-    "source": "Altura livre para deslocar a ferramenta entre cortes ou furos. Deve ficar acima da superfície e das fixações do trabalho.",
+    "source": "**Travel Z:** coordenada usada nos deslocamentos entre cortes ou furos. No modo padrão, valores negativos são convertidos para positivos, com aviso, e zero é recusado. Machinist preserva o sinal e zero. A base mantém o valor como rascunho até gerar.\n\nEscolha a coordenada considerando a origem Z, o material e os elementos de fixação.",
     "locations": [
       "ToolsDatabaseDescriptions.java"
     ],
@@ -20745,7 +20745,7 @@
     "canonical": false
   },
   "ui.e55b167f74ed": {
-    "source": "Compensação da ponta da broca. No FX, um valor positivo aumenta a profundidade de Cut Z; um negativo a reduz. A profundidade resultante deve continuar abaixo da superfície.",
+    "source": "**Compensação da ponta:** Cut Z efetivo = Cut Z − Offset Z. Offset positivo aprofunda a furação; negativo a deixa mais rasa. No modo padrão, o resultado precisa ficar abaixo de Z0. Machinist permite resultado positivo ou zero. Confira o alvo efetivo no resumo.",
     "locations": [
       "ToolsDatabaseDescriptions.java"
     ],
@@ -20913,7 +20913,7 @@
     "canonical": false
   },
   "ui.60649971e444": {
-    "source": "Thin Depth: Z negativo e mais raso que Cut Z. Exemplo: recorte -1,7 e ponte -0,5. Só fica habilitado com Gap Type Thin.\n\nIntegração FX: transfere a profundidade para a Geometry separada das pontes; gere seu CNC Job separadamente. O recorte principal conserva Cut Z.\n\nAtenção: a ponte precisa conservar material suficiente para prender a placa.",
+    "source": "**Thin Depth:** coordenada Z mais rasa (maior) que Cut Z. Exemplo no modo padrão: corte −1,7 e ponte −0,5. Machinist também aceita Z positivo ou zero; Thin Depth deve continuar acima de Cut Z. Só é usado com Gap Type Thin.\n\nO FX transfere essa coordenada para a Geometry separada das pontes; gere seu CNC Job separadamente. O corte principal mantém Cut Z.\n\nAs pontes precisam conservar material suficiente para segurar a placa.",
     "locations": [
       "ToolsDatabaseDescriptions.java"
     ],
@@ -27688,6 +27688,92 @@
     "source": "O projeto contém alterações não salvas, incluindo ajustes no NCC. Salvar preserva o rascunho para continuar depois. Deseja salvar antes de continuar?",
     "locations": [
       "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.title": {
+    "source": "Política de coordenadas Z",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.setting": {
+    "source": "Permitir coordenadas Z livres (Machinist)",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.standard": {
+    "source": "Modo padrão: Cut Z negativo; Travel Z positivo.",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.machinist": {
+    "source": "Machinist: as coordenadas Z são usadas com o sinal informado.",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.converted": {
+    "source": "Conversões aplicadas no modo padrão:",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.cut.zero": {
+    "source": "Cut Z não pode ser zero no modo padrão. Use Machinist para trabalhar em Z zero.",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.travel.zero": {
+    "source": "Travel Z não pode ser zero no modo padrão. Use Machinist para coordenadas Z livres.",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.help": {
+    "source": "**Modo padrão:** Cut Z positivo é convertido para Z negativo, com aviso; Travel Z negativo é convertido para positivo. Zero é recusado.\n\n**Machinist:** preserva valores positivos, negativos e zero. A opção fica em Preferências > CNC Job > CNC Job (geral) e vale para a próxima geração, inclusive em painéis já abertos. Confira Cut Z efetivo e Offset Z no resumo.\n\nO sinal é relativo ao zero Z definido na máquina. Passadas e limites específicos do pós-processador continuam sendo verificados.",
+    "locations": [
+      "MachiningZInput.java",
+      "ToolDefaults.java",
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.roland.preview": {
+    "source": "O arquivo Roland RML-1 não guarda o modo Machinist. Ao reabri-lo ou editar o código, a prévia considera Z=0 como superfície e pode classificar incorretamente movimentos com outra origem Z. As coordenadas exportadas são preservadas.",
+    "locations": [
+      "CncPreflight.java"
+    ],
+    "canonical": false
+  },
+  "machining.z.preference.scope": {
+    "source": ". Persistido ao salvar os padrões. Vale na próxima geração, inclusive em painéis abertos; não reescreve objetos ou CNC Jobs existentes. ",
+    "locations": [
+      "ToolDefaultsDescriptions.java"
     ],
     "canonical": false
   }

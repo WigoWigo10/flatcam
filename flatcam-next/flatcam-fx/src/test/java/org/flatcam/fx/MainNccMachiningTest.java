@@ -84,6 +84,10 @@ class MainNccMachiningTest {
         assertEquals(NccOperation.ISO, tool.operation()); assertNotNull(tool.machining());
         assertEquals(123, tool.machining().parameters().feedRate()); assertNotNull(tool.machining().tip());
         db.getJSONObject("1").getJSONObject("data").put("cutz", 1);
+        var draft = LegacyToolsDatabase.nccTools(db).getFirst().machining().parameters();
+        assertEquals(1, draft.cutZ());
+        assertEquals(org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST, draft.zPolicy());
+        db.getJSONObject("1").getJSONObject("data").put("cutz", "NaN");
         assertThrows(java.io.IOException.class, () -> LegacyToolsDatabase.nccTools(db));
     }
 

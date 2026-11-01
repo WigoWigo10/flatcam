@@ -9315,17 +9315,27 @@ final class MainWindow implements TclFlatcamHost {
         });
     }
 
+    private record TclZCoordinates(double cut,double travel,org.flatcam.cam.gcode.MachiningZPolicy policy) { }
+    private TclZCoordinates tclZCoordinates(double cut,double travel) throws TclException {
+        try { return TclExecution.onFx(() -> {
+            var input=new MachiningZInput("terminal-z-policy");
+            double target=-input.cut(Double.toString(cut),"Cut Z");
+            double height=input.travel(Double.toString(travel),"Travel Z");
+            if(cut!=target || travel!=height) appendConsole(input.view().getText());
+            return new TclZCoordinates(target,height,input.policy());
+        }); } catch(IllegalArgumentException invalid) { throw new TclException(invalid.getMessage()); }
+    }
     @Override
     public String cncjob(String sourceName, String outname, double toolDiameter, double zCut, double zMove,
                          double feedrate, double feedrateZ, double feedrateRapid) throws TclException {
         TclSource source = tclSource(sourceName);
         if (source.kind() != Kind.GEOMETRY)
             throw new TclException("Expected a Geometry object, got: " + sourceName);
-        if (!Double.isFinite(zCut) || zCut >= 0)
-            throw new TclException("z_cut must be finite and negative (for example -1.7).");
+        var z = tclZCoordinates(zCut,zMove);
         TclExecution.phase(I18n.text("ui.6cf087e6154e"));
-        GeometryGCodeParameters params = new GeometryGCodeParameters(zMove, -zCut, false, 0,
-                feedrate, 0, false, feedrateRapid, null, feedrateZ, false, 0, false, 0);
+        GeometryGCodeParameters params = new GeometryGCodeParameters(1,1,false,0,
+                feedrate, 0, false, feedrateRapid, null, feedrateZ, false, 0, false, 0)
+                .withZCoordinates(z.travel(),z.cut(),false,0,z.policy());
         CncJobResult job = GCodeGenerator.generateGeometryCncJob(source.units(), source.geometry(), params,
                 toolDiameter, TclExecution.cancellation());
         return TclExecution.onFx(() -> {
@@ -9346,16 +9356,17 @@ final class MainWindow implements TclFlatcamHost {
         if (ordered.isEmpty()) throw new TclException("The Excellon object has no drills or slots to drill: " + sourceName);
         CncJobResult job;
         try {
-            DrillGCodeParameters params = new DrillGCodeParameters(request.travelZ(), request.drillDepth(),
+            var z = tclZCoordinates(-request.drillDepth(),request.travelZ());
+            DrillGCodeParameters params = new DrillGCodeParameters(z.travel(), -z.cut(),
                     request.feedRateZ(), request.spindleSpeed(), request.toolChange(), request.multiDepth(),
-                    request.depthPerPass(), request.dwell(), request.dwellSeconds(), 0);
+                    request.depthPerPass(), request.dwell(), request.dwellSeconds(), 0,org.flatcam.cam.gcode.DrillSlotParameters.milling(),z.policy());
             Map<Integer, DrillGCodeParameters> byTool = new LinkedHashMap<>();
             ordered.forEach(id -> byTool.put(id, params));
             double[] change = request.toolChangeXY(), end = request.endXY();
             GCodeGenerator.DrillJobOptions options = new GCodeGenerator.DrillJobOptions(request.toolChange(),
-                    request.toolChangeZ(), request.endZ(), end == null ? null : end[0], end == null ? null : end[1],
+                    z.policy().travelZ(request.toolChangeZ()), z.policy().travelZ(request.endZ()), end == null ? null : end[0], end == null ? null : end[1],
                     request.rapidFeedRate(), null, false, List.of(), request.startZ(),
-                    change == null ? null : change[0], change == null ? null : change[1], request.optimizeDrills());
+                    change == null ? null : change[0], change == null ? null : change[1], request.optimizeDrills(),z.policy());
             TclExecution.phase(I18n.text("ui.1d468bd336d0"));
             job = GCodeGenerator.generateDrillCncJob(image, byTool, ordered, options, request.preprocessor(),
                     TclExecution.cancellation(), TclExecution.progress(I18n.text("ui.1d468bd336d0")));

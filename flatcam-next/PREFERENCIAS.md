@@ -15,7 +15,7 @@ a 460 px. As páginas são criadas quando abertas e mantidas enquanto a aba exis
 | Gerber | Plot/Solid/Multi-Color, cores/transparência, Follow, abertura da tabela e opções de importação |
 | Excellon | Plot/Solid/Multi-Color, cores/transparência e opções de importação |
 | Geometry | Plot/Multi-Color, cor/transparência das linhas e resolução de novos arcos/círculos |
-| CNC Job | Padrões gerais de perfil, Drilling, Geometry CNC e Excellon Milling |
+| CNC Job | Padrões gerais de perfil e política Z Standard/Machinist, Drilling, Geometry CNC e Excellon Milling |
 | Ferramentas | Todos os demais grupos registrados em ToolDefaults: Isolation, NCC, Cutout, Paint, Panelize e outros |
 
 A árvore é gerada a partir do cadastro existente: nenhum grupo de padrões é
@@ -58,6 +58,13 @@ Salvar padrões afeta os próximos painéis/operações; não reescreve objetos 
 projeto nem parâmetros de painéis já abertos. Importação/exportação `.properties`
 pelo menu Backup continua usando o cadastro inteiro. Painéis abertos preservam
 os valores com que foram abertos, como antes desta reorganização.
+
+Exceção: **CNC Job (geral) > Permitir coordenadas Z livres (Machinist)** é
+consultada ao gerar e vale também para painéis abertos. O modo padrão corrige
+Cut Z positivo para negativo e Travel Z negativo para positivo, com aviso,
+e recusa zero. Machinist preserva os sinais e zero. Detalhes, migração da antiga
+profundidade de Geometry e limites em
+[MACHINING_Z_POLICY_20261101.md](MACHINING_Z_POLICY_20261101.md).
 
 ## Incremento: exibição e opções avançadas do Python
 

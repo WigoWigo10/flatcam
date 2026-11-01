@@ -215,14 +215,16 @@ public final class PythonProjectIO {
     private static GeometryGCodeParameters readMachiningData(JSONObject data) {
         try {
             double cutZ = data.getDouble("cutz");
-            if (!Double.isFinite(cutZ) || cutZ >= 0) return null;
+            if (!Double.isFinite(cutZ)) return null;
             return new GeometryGCodeParameters(data.getDouble("travelz"),
                     -cutZ, data.optBoolean("multidepth", false),
                     data.optDouble("depthperpass", 0), data.getDouble("feedrate"),
                     data.optInt("spindlespeed", 0), data.optBoolean("toolchange", false),
                     data.optDouble("feedrate_rapid", 0), null, data.optDouble("feedrate_z",data.getDouble("feedrate")),
                     data.optBoolean("dwell",false), data.optDouble("dwelltime",0),
-                    data.optBoolean("extracut",false), data.optDouble("extracut_length",0))
+                    data.optBoolean("extracut",false), data.optDouble("extracut_length",0),
+                    org.flatcam.cam.gcode.ToolPathOffset.PATH,0,org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC,
+                    org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION,draftZPolicy(cutZ,data.getDouble("travelz")))
                     .withJobOptions(readLegacyPositions(data));
         } catch (RuntimeException invalid) {
             // Optional CAM settings must not make otherwise valid project geometry disappear.
@@ -237,8 +239,12 @@ public final class PythonProjectIO {
                 && org.flatcam.cam.gcode.GCodePreprocessor.geometryProfiles().stream()
                     .anyMatch(profile -> profile.isLaser() && PythonProjectWriter.pythonProfile(profile).equalsIgnoreCase(data.optString("ppname_g","")));
         Double[] end = legacyXY(data.opt("endxy")), change = inactiveLaserChange ? new Double[]{null,null} : legacyXY(data.opt("toolchangexy"));
-        return new org.flatcam.cam.gcode.GeometryJobOptions(legacyOptional(data.opt("startz")), legacyOptional(data.opt("endz")),
-                end[0], end[1], inactiveLaserChange ? null : legacyOptional(data.opt("toolchangez")), change[0], change[1]);
+        Double start=legacyOptional(data.opt("startz")), finish=legacyOptional(data.opt("endz"));
+        Double changeZ=inactiveLaserChange ? null : legacyOptional(data.opt("toolchangez"));
+        var policy=start!=null && start<0 || finish!=null && finish<0 || changeZ!=null && changeZ<=0
+                ? org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST : org.flatcam.cam.gcode.MachiningZPolicy.STANDARD;
+        return new org.flatcam.cam.gcode.GeometryJobOptions(start,finish,end[0],end[1],changeZ,change[0],change[1],false,List.of(),
+                org.flatcam.cam.gcode.CncRouting.LEGACY,org.flatcam.cam.gcode.GeometryTravelClearance.JOB_MAXIMUM,policy);
     }
     private static Double legacyOptional(Object value) {
         if (value == null || value == JSONObject.NULL || value.toString().isBlank() || value.toString().equalsIgnoreCase("None")) return null;
@@ -266,13 +272,20 @@ public final class PythonProjectIO {
             if (!resolved.conflicts().isEmpty()) return null;
             var common=resolved.agreed(); var profile=common.preprocessor();
             if (profile==null || profile.requiresProbe()) return null; // No inferred probing or machine macro settings.
-            var positions=common.positions(org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC);
+            boolean unrestricted=parameters.values().stream().anyMatch(p->p.zPolicy()==org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST);
+            for(var field:List.of(CncJobDefaults.Field.START_Z,CncJobDefaults.Field.END_Z,CncJobDefaults.Field.CHANGE_Z))
+                if(common.has(field) && !common.value(field).equals("None")) {
+                    double coordinate=Double.parseDouble(common.value(field));
+                    unrestricted|=coordinate<0 || field==CncJobDefaults.Field.CHANGE_Z && coordinate==0;
+                }
+            var policy=unrestricted ? org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST : org.flatcam.cam.gcode.MachiningZPolicy.STANDARD;
+            var positions=common.positions(org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC.withZPolicy(policy));
             double clearance=parameters.values().stream().mapToDouble(DrillGCodeParameters::safeZ).max().orElseThrow();
             boolean change=common.has(CncJobDefaults.Field.TOOL_CHANGE) && Boolean.parseBoolean(common.value(CncJobDefaults.Field.TOOL_CHANGE));
             var options=new org.flatcam.cam.gcode.GCodeGenerator.DrillJobOptions(change,
                     positions.toolChangeZ()==null ? clearance : positions.toolChangeZ(),positions.endZ()==null ? clearance : positions.endZ(),
-                    positions.endX(),positions.endY(),common.has(CncJobDefaults.Field.RAPID_FEED) ? Double.parseDouble(common.value(CncJobDefaults.Field.RAPID_FEED)) : 0)
-                    .withPositions(positions.startZ(),positions.toolChangeX(),positions.toolChangeY());
+                    positions.endX(),positions.endY(),common.has(CncJobDefaults.Field.RAPID_FEED) ? Double.parseDouble(common.value(CncJobDefaults.Field.RAPID_FEED)) : 0,
+                    null,false,List.of(),positions.startZ(),positions.toolChangeX(),positions.toolChangeY(),false,policy);
             var order=switch(object.getJSONObject("options").optString("tools_drill_tool_order","no")) {
                 case "fwd" -> DrillCncSettings.ToolOrder.FORWARD; case "rev" -> DrillCncSettings.ToolOrder.REVERSE; default -> DrillCncSettings.ToolOrder.NO;
             };
@@ -290,7 +303,7 @@ public final class PythonProjectIO {
             if (data == null) continue;
             try {
                 double cutZ = data.getDouble("tools_drill_cutz");
-                if (!Double.isFinite(cutZ) || cutZ >= 0) continue;
+                if (!Double.isFinite(cutZ)) continue;
                 defaults.put(Integer.parseInt(id), new DrillGCodeParameters(
                         data.getDouble("tools_drill_travelz"),
                         -cutZ,
@@ -303,7 +316,8 @@ public final class PythonProjectIO {
                         data.optDouble("tools_drill_dwelltime", 0),
                         data.optDouble("tools_drill_offset", 0),
                         new org.flatcam.cam.gcode.DrillSlotParameters(data.optBoolean("tools_drill_drill_slots", false),
-                                data.optDouble("tools_drill_drill_overlap", 0), data.optBoolean("tools_drill_last_drill", true))));
+                                data.optDouble("tools_drill_drill_overlap", 0), data.optBoolean("tools_drill_last_drill", true)),
+                        draftZPolicy(cutZ,data.getDouble("tools_drill_travelz"))));
             } catch (RuntimeException invalid) {
                 // Invalid optional CAM defaults must not discard the drills themselves.
             }
@@ -331,4 +345,8 @@ public final class PythonProjectIO {
         JSONObject options = object.optJSONObject("options");
         return options == null || options.optBoolean("plot", true);
     }
+    private static org.flatcam.cam.gcode.MachiningZPolicy draftZPolicy(double cutZ,double travelZ) {
+        return cutZ>=0 || travelZ<=0 ? org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST : org.flatcam.cam.gcode.MachiningZPolicy.STANDARD;
+    }
+
 }

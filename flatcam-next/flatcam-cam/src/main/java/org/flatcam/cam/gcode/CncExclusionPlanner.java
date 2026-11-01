@@ -63,7 +63,7 @@ public final class CncExclusionPlanner {
      * travel() remains the conservative single-height API for existing callers.
      */
     public List<TravelLeg> travelLegs(Coordinate start, Coordinate end, double safeZ) {
-        if (!Double.isFinite(safeZ) || safeZ < 0)
+        if (!Double.isFinite(safeZ))
             throw new IllegalArgumentException("Altura de deslocamento invalida.");
         List<Coordinate> path = travel(start,end,safeZ).points();
         List<TravelLeg> result = new ArrayList<>();

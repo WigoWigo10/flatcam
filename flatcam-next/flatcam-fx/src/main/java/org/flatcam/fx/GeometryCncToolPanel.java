@@ -86,6 +86,7 @@ final class GeometryCncToolPanel {
                       Consumer<Geometry> exclusionPreview,List<CncRoutingFields.Reference> references,Consumer<Result> onGenerate,Runnable onClose) {
         List<ToolGeometry> tools = new java.util.ArrayList<>(sourceTools);
         boolean metric = "MM".equalsIgnoreCase(units);
+        var zInput = new MachiningZInput("cnc-z-policy-note");
         boolean multiTool = !tools.isEmpty();
         var singleProfile = new javafx.beans.property.SimpleObjectProperty<>(settings == null ? ToolProfile.C1 : settings.singleToolProfile());
 
@@ -117,8 +118,8 @@ final class GeometryCncToolPanel {
 
         TextField safeZField = new TextField(defaults == null ? ToolDefaults.text("geometry.travelz", metric)
                 : Double.toString(defaults.safeZ()));
-        TextField cutDepthField = new TextField(defaults == null ? ToolDefaults.text("geometry.cutdepth", metric)
-                : Double.toString(defaults.cutDepth()));
+        TextField cutDepthField = new TextField(defaults == null ? ToolDefaults.text("geometry.cutz", metric)
+                : Double.toString(defaults.cutZ()));
         CheckBox multiDepthCb = new CheckBox("Multi-Depth");
         multiDepthCb.setSelected(defaults != null && defaults.multiDepth());
         ComboBox<org.flatcam.cam.gcode.GeometryPassStrategy> passStrategy=new ComboBox<>();
@@ -342,7 +343,7 @@ final class GeometryCncToolPanel {
         if (multiTool) for (int i = 0; i < tools.size(); i++) {
             GeometryGCodeParameters p = settings == null ? null : settings.parametersByTool().get(i);
             snapshots.put(i, p == null ? initialValues.clone() : new String[]{Double.toString(p.safeZ()),
-                    Double.toString(p.cutDepth()), Double.toString(p.depthPerPass()), Double.toString(p.feedRate()),
+                    Double.toString(p.cutZ()), Double.toString(p.depthPerPass()), Double.toString(p.feedRate()),
                     Integer.toString(p.spindleSpeedRpm()), Double.toString(p.feedRateZ()), Double.toString(p.dwellSeconds()),
                     Double.toString(p.extraCutLength()), Boolean.toString(p.multiDepth()), Boolean.toString(p.dwell()), Boolean.toString(p.extraCut()),
                     p.offset().name(), Double.toString(p.customOffset()),p.passStrategy().name()});
@@ -413,8 +414,9 @@ final class GeometryCncToolPanel {
         generateButton.setOnAction(e -> {
             try {
                 commonDb.assertResolved();
-                double safeZ = plotter.get() ? 1 : parse(safeZField, "Travel Z");
-                double cutDepth = noCutZ.get() ? 1 : parse(cutDepthField, "Cut Z");
+                zInput.begin();
+                double safeZ = plotter.get() ? 1 : zInput.travel(safeZField, "Travel Z");
+                double cutDepth = noCutZ.get() ? 1 : zInput.cut(cutDepthField, "Cut Z");
                 boolean multiDepth = !noCutZ.get() && multiDepthCb.isSelected();
                 double depthPerPass = multiDepth ? parse(depthPerPassField, "Depth per pass") : 1;
                 double feed = plotter.get() ? 1 : parse(feedField, "Feed rate");
@@ -426,7 +428,8 @@ final class GeometryCncToolPanel {
                 preprocessor.getValue().unitsCode(units);
                 Double[] end = parseXY(endXY, "End X,Y"), change = parseXY(changeXY, "Tool change X,Y");
                 GeometryJobOptions positions = new GeometryJobOptions(parseOptional(startZ, "Start Z"), parseOptional(endZ, "End Z"),
-                        end[0], end[1], parseOptional(changeZ, "Tool change Z"), change[0], change[1]);
+                        end[0], end[1], parseOptional(changeZ, "Tool change Z"), change[0], change[1], false,List.of(),
+                        org.flatcam.cam.gcode.CncRouting.LEGACY,org.flatcam.cam.gcode.GeometryTravelClearance.JOB_MAXIMUM,zInput.policy());
                 positions=exclusions.applyTo(positions);
                 positions=positions.withRouting(unsupportedPositions.get() ? org.flatcam.cam.gcode.CncRouting.LEGACY : routing.options());
                 positions=positions.withTravelClearance(travelClearance.getValue());
@@ -439,8 +442,8 @@ final class GeometryCncToolPanel {
                         !noCutZ.get() && !roland.get() && dwellCb.isSelected(),
                         dwellCb.isSelected() && !dwellField.isDisabled() ? parse(dwellField, "Dwell time") : 0,
                         !noCutZ.get() && extraCb.isSelected(), extraCb.isSelected() && !noCutZ.get() ? parse(extraField, "Extra Cut Length") : 0,
-                        offset.getValue(), parse(customOffset, "Custom Offset"), positions)
-                        .withPassStrategy(unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : passStrategy.getValue());
+                        offset.getValue(), parse(customOffset, "Custom Offset"), positions,
+                        unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : passStrategy.getValue(),zInput.policy());
                 preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
                         ? tools
@@ -465,14 +468,15 @@ final class GeometryCncToolPanel {
                         try {
                         String[] s = snapshots.get(i);
                         GeometryGCodeParameters p = new GeometryGCodeParameters(
-                                parseText(s[0], "Tool " + (i+1) + " Travel/Focus Z"), noCutZ.get() ? 1 : parseText(s[1], "Cut Z"), !noCutZ.get() && Boolean.parseBoolean(s[8]),
+                                zInput.travel(s[0], "Tool " + (i+1) + " Travel/Focus Z"), noCutZ.get() ? 1 : zInput.cut(s[1], "Tool " + (i+1) + " Cut Z"), !noCutZ.get() && Boolean.parseBoolean(s[8]),
                                 !noCutZ.get() && Boolean.parseBoolean(s[8]) ? parseText(s[2], "Depth per pass") : 1,
                                 parseText(s[3], "Feedrate XY"), integerPower(s[4]), params.pauseForToolChange(),
                                 params.rapidFeedRate(), params.probing(), noCutZ.get() ? parseText(s[3], "Feedrate XY") : parseText(s[5], "Feedrate Z"),
                                 !noCutZ.get() && !roland.get() && Boolean.parseBoolean(s[9]), Boolean.parseBoolean(s[9]) && !noCutZ.get() && !roland.get() ? parseText(s[6], "Dwell") : 0,
                                 !noCutZ.get() && Boolean.parseBoolean(s[10]), Boolean.parseBoolean(s[10]) && !noCutZ.get() ? parseText(s[7], "Extra Cut Length") : 0,
-                                ToolPathOffset.valueOf(s[11]), parseText(s[12], "Custom Offset"), positions)
-                                .withPassStrategy(unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(s[13]));
+                                ToolPathOffset.valueOf(s[11]), parseText(s[12], "Custom Offset"), positions,
+                                unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(s[13]),zInput.policy());
+                        s[0]=Double.toString(p.safeZ()); if(!noCutZ.get()) s[1]=Double.toString(p.cutZ());
                         preprocessor.getValue().validatePower(p.spindleSpeedRpm());
                         preprocessor.getValue().validateFeedRates(p.feedRate(), params.rapidFeedRate());
                         byTool.put(i, p);
@@ -480,6 +484,7 @@ final class GeometryCncToolPanel {
                             throw new IllegalArgumentException((laser.get() ? I18n.text("ui.d032112ef2c6") : I18n.text("ui.10f99bd620cc"))+(i+1)+": "+invalid.getMessage(),invalid);
                         }
                     }
+                    restore.accept(snapshots.get(editing[0]));
                     if (byTool.values().stream().allMatch(params::equals)) byTool.clear();
                     if (!byTool.isEmpty() && (roland.get() || preprocessor.getValue().requiresProbe()))
                         throw new IllegalArgumentException(I18n.text("ui.adfae00a8ef2"));
@@ -524,7 +529,7 @@ final class GeometryCncToolPanel {
                 toolTable.getSelectionModel().select(index);
             }
             GeometryGCodeParameters p = selected.parameters();
-            safeZField.setText(Double.toString(p.safeZ())); cutDepthField.setText(Double.toString(p.cutDepth()));
+            safeZField.setText(Double.toString(p.safeZ())); cutDepthField.setText(Double.toString(p.cutZ()));
             multiDepthCb.setSelected(p.multiDepth()); depthPerPassField.setText(Double.toString(p.depthPerPass()));
             feedField.setText(Double.toString(p.feedRate())); spindleField.setText(Integer.toString(p.spindleSpeedRpm()));
             feedZField.setText(Double.toString(p.feedRateZ())); dwellCb.setSelected(p.dwell());
@@ -538,7 +543,7 @@ final class GeometryCncToolPanel {
             }
             commonDb.replace(index + 1, selected.jobDefaults());
         }, errorLabel));
-        box.getChildren().add(grid);
+        box.getChildren().addAll(grid,zInput.view());
         if (multiTool) {
             Label modeHelp = new Label();
             modeHelp.setWrapText(true);

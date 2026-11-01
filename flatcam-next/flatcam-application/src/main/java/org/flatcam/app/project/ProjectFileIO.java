@@ -302,6 +302,7 @@ public final class ProjectFileIO {
             DrillGCodeParameters value = entry.getValue();
             result.put(Integer.toString(entry.getKey()), new JSONObject()
                     .put("safeZ", value.safeZ()).put("drillDepth", value.drillDepth())
+                    .put("zPolicy",value.zPolicy().name())
                     .put("feedRate", value.feedRate()).put("spindleSpeedRpm", value.spindleSpeedRpm())
                     .put("pauseForToolChange", value.pauseForToolChange())
                     .put("multiDepth", value.multiDepth()).put("depthPerPass", value.depthPerPass())
@@ -326,6 +327,7 @@ public final class ProjectFileIO {
                 .put("pauseForToolChange", options.pauseForToolChange()).put("toolChangeZ", options.toolChangeZ())
                 .put("endMoveZ", options.endMoveZ()).put("endMoveX", options.endMoveX()).put("endMoveY", options.endMoveY())
                 .put("rapidFeedRate", options.rapidFeedRate()).put("optimizeDrills",options.optimizeDrills())
+                .put("zPolicy",options.zPolicy().name())
                 .put("startZ", options.startZ()).put("toolChangeX", options.toolChangeX()).put("toolChangeY", options.toolChangeY())
                 .put("exclusionsEnabled", options.exclusionsEnabled())
                 .put("exclusions", new JSONArray(options.exclusions().stream().map(area -> new JSONObject()
@@ -347,8 +349,8 @@ public final class ProjectFileIO {
                             json.optDouble("rapidFeedRate", 0), readProbeParameters(json.optJSONObject("probing")),
                             json.has("exclusionsEnabled") && json.getBoolean("exclusionsEnabled"),
                             readCncExclusions(json.has("exclusions") ? json.getJSONArray("exclusions") : null),
-                            optionalDouble(json, "startZ"), optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"))
-                            .withOptimizedDrills(json.has("optimizeDrills") && json.getBoolean("optimizeDrills")),
+                            optionalDouble(json, "startZ"), optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),
+                            json.optBoolean("optimizeDrills",false),zPolicy(json)),
                     selected, DrillCncSettings.ToolOrder.valueOf(json.getString("toolOrder")));
         } catch (RuntimeException invalid) {
             throw new IOException("Configuracao CNC de Drilling invalida; nenhum perfil alternativo foi aplicado.", invalid);
@@ -392,6 +394,7 @@ public final class ProjectFileIO {
 
     static JSONObject geometryParametersToJson(GeometryGCodeParameters p) {
         JSONObject value = new JSONObject().put("safeZ", p.safeZ()).put("cutDepth", p.cutDepth())
+                .put("zPolicy",p.zPolicy().name())
                 .put("multiDepth", p.multiDepth()).put("depthPerPass", p.depthPerPass()).put("feedRate", p.feedRate())
                 .put("feedRateZ", p.feedRateZ()).put("spindleSpeedRpm", p.spindleSpeedRpm())
                 .put("pauseForToolChange", p.pauseForToolChange()).put("rapidFeedRate", p.rapidFeedRate())
@@ -403,6 +406,7 @@ public final class ProjectFileIO {
         var route=positions.routing();
         value.put("jobOptions", new JSONObject().put("startZ", positions.startZ()).put("endZ", positions.endZ())
                 .put("travelClearance",positions.travelClearance().name())
+                .put("zPolicy",positions.zPolicy().name())
                 .put("endX", positions.endX()).put("endY", positions.endY()).put("toolChangeZ", positions.toolChangeZ())
                 .put("toolChangeX", positions.toolChangeX()).put("toolChangeY", positions.toolChangeY())
                 .put("exclusionsEnabled",positions.exclusionsEnabled()).put("exclusions",new JSONArray(positions.exclusions().stream()
@@ -427,7 +431,7 @@ public final class ProjectFileIO {
                     value.getDouble("depthPerPass"), value.getBoolean("dwell"),
                     value.getDouble("dwellSeconds"), value.getDouble("offsetZ"),
                     new org.flatcam.cam.gcode.DrillSlotParameters(value.optBoolean("drillSlots", false),
-                            value.optDouble("slotOverlap", 0), value.optBoolean("slotLastHole", true))));
+                            value.optDouble("slotOverlap", 0), value.optBoolean("slotLastHole", true)),zPolicy(value)));
         }
         return Map.copyOf(result);
     }
@@ -503,17 +507,19 @@ public final class ProjectFileIO {
                 json.optBoolean("dwell", false), json.optDouble("dwellSeconds", 0),
                 json.optBoolean("extraCut", false), json.optDouble("extraCutLength", 0),
                 org.flatcam.cam.gcode.ToolPathOffset.fromLegacy(json.optString("offset", "Path")),
-                json.optDouble("customOffset", 0), readGeometryJobOptions(json.optJSONObject("jobOptions")))
-                .withPassStrategy(org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(json.optString("passStrategy","RETRACT_SAME_DIRECTION")));
+                json.optDouble("customOffset", 0), readGeometryJobOptions(json.optJSONObject("jobOptions")),
+                org.flatcam.cam.gcode.GeometryPassStrategy.valueOf(json.optString("passStrategy","RETRACT_SAME_DIRECTION")),zPolicy(json));
+    }
+    private static org.flatcam.cam.gcode.MachiningZPolicy zPolicy(JSONObject json) {
+        return org.flatcam.cam.gcode.MachiningZPolicy.valueOf(json.optString("zPolicy","STANDARD"));
     }
 
     private static org.flatcam.cam.gcode.GeometryJobOptions readGeometryJobOptions(JSONObject json) {
         if (json == null) return org.flatcam.cam.gcode.GeometryJobOptions.AUTOMATIC;
         return new org.flatcam.cam.gcode.GeometryJobOptions(optionalDouble(json, "startZ"), optionalDouble(json, "endZ"),
                 optionalDouble(json, "endX"), optionalDouble(json, "endY"), optionalDouble(json, "toolChangeZ"),
-                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),json.optBoolean("exclusionsEnabled",false),readCncExclusions(json.optJSONArray("exclusions")))
-                .withRouting(readRouting(json.optJSONObject("routing")))
-                .withTravelClearance(org.flatcam.cam.gcode.GeometryTravelClearance.valueOf(json.optString("travelClearance","JOB_MAXIMUM")));
+                optionalDouble(json, "toolChangeX"), optionalDouble(json, "toolChangeY"),json.optBoolean("exclusionsEnabled",false),readCncExclusions(json.optJSONArray("exclusions")),
+                readRouting(json.optJSONObject("routing")),org.flatcam.cam.gcode.GeometryTravelClearance.valueOf(json.optString("travelClearance","JOB_MAXIMUM")),zPolicy(json));
     }
     private static org.flatcam.cam.gcode.CncRouting readRouting(JSONObject json) {
         if(json==null)return org.flatcam.cam.gcode.CncRouting.LEGACY;

@@ -194,6 +194,23 @@ class ToolsDatabasePanelTest {
             text(panel, "vtipangle").setText("180"); assertFalse(panel.applyDraft()); return null;
         });
     }
+    @Test void databaseDraftAcceptsSignedTravelAndCutZWithoutEnablingMachinist() throws Exception {
+        onFx(() -> {
+            var policy = MachiningZInput.currentPolicy();
+            var panel = panel(); fire(panel, "add");
+            for (double z : new double[]{-0.1981234567, 0, 0.1981234567}) {
+                for (String key : List.of("cutz", "travelz", "tools_drill_cutz", "tools_drill_travelz"))
+                    text(panel, key).setText(Double.toString(z));
+                assertTrue(panel.applyDraft(), "Z=" + z);
+                var data = panel.snapshot().getJSONObject("1").getJSONObject("data");
+                for (String key : List.of("cutz", "travelz", "tools_drill_cutz", "tools_drill_travelz"))
+                    assertEquals(z, data.getDouble(key), key);
+            }
+            text(panel, "travelz").setText("NaN"); assertFalse(panel.applyDraft());
+            assertEquals(policy, MachiningZInput.currentPolicy());
+            return null;
+        });
+    }
     @Test void renamingImportedToolPreservesAbsentAndUnknownParameters() throws Exception {
         JSONObject entry = new JSONObject().put("name", "legacy").put("tooldia", 0.7)
                 .put("custom", new JSONObject().put("vendor", "original"))

@@ -524,8 +524,9 @@ final class TclFlatcamCommands {
     }
 
     /**
-     * Python's TclCommandDrillcncjob. Required here: {@code -drillz} (finite, negative), {@code -travelz}
-     * and {@code -feedrate_z} (positive) - Python falls back to Preferences this Terminal does not read.
+     * Python's TclCommandDrillcncjob. Explicit finite {@code -drillz}/{@code -travelz} coordinates
+     * follow the selected Z policy; {@code -feedrate_z} must be positive. These required values
+     * have no implicit preference fallback in this Terminal.
      */
     private void registerDrillcncjob(TclInterpreter interpreter) {
         interpreter.register("drillcncjob", (interp, words) -> {
@@ -552,8 +553,11 @@ final class TclFlatcamCommands {
                 tolerance = Math.max(0.0, Math.min(100.0, percent)) / 100.0;
             }
             double drillZ = number(args.requireOption("drillz"));
-            if (drillZ >= 0) throw new TclException("drillz must be negative (for example -1.7).");
-            double travelZ = positive(args, "travelz");
+            boolean machinist=MachiningZInput.currentPolicy()==org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST;
+            if(!machinist && drillZ==0) throw new TclException("drillz cannot be zero in standard mode.");
+            // Preserve the signed request; the real host applies its captured Z policy and reports conversions.
+            double travelZ = number(args.requireOption("travelz"));
+            if(!machinist && travelZ==0) throw new TclException("travelz cannot be zero in standard mode.");
             double feedZ = positive(args, "feedrate_z");
             boolean multiDepth = args.isPresent("dpp");
             double dpp = multiDepth ? positive(args, "dpp") : 0;
@@ -562,10 +566,11 @@ final class TclFlatcamCommands {
             int spindle = args.intOrDefault("spindlespeed", 0);
             if (spindle < 0) throw new TclException("spindlespeed cannot be negative.");
             boolean toolChange = args.isPresent("toolchangez");
-            double toolChangeZ = toolChange ? positive(args, "toolchangez") : travelZ;
+            double toolChangeZ = toolChange ? number(args.requireOption("toolchangez")) : travelZ;
+            if(!machinist && toolChange && toolChangeZ<=0) throw new TclException("toolchangez must be positive in standard mode.");
             double[] toolChangeXY = args.isPresent("toolchangexy") ? point(args.requireOption("toolchangexy")) : null;
             Double startZ = args.isPresent("startz") ? number(args.requireOption("startz")) : null;
-            if (startZ != null && startZ < 0) throw new TclException("startz cannot be negative.");
+            if(!machinist && startZ!=null && startZ<0) throw new TclException("startz cannot be negative in standard mode.");
             double endZ = args.isPresent("endz") ? number(args.requireOption("endz")) : travelZ;
             double[] endXY = args.isPresent("endxy") ? point(args.requireOption("endxy")) : null;
             boolean dwell = args.isPresent("dwelltime");

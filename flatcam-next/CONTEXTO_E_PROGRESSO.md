@@ -1,5 +1,31 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Políticas Z padrão e Machinist — 2026-11-01
+
+Implementadas as duas políticas do Python em Geometry → CNC, Drilling,
+Cutout e Terminal. O padrão corrige o sinal de Cut/Travel Z com aviso e
+recusa zero. Machinist preserva coordenadas finitas assinadas, incluindo zero.
+Ativar em Preferências > CNC Job > CNC Job (geral). A escolha vale na próxima
+geração mesmo com o painel aberto; importar um projeto não a ativa.
+
+Geometry agora exibe Cut Z assinado; os modelos e projetos antigos mantêm a
+semântica anterior de profundidade. Preferências antigas são migradas sem
+inverter a usinagem. DB/importação Python preservam coordenadas como rascunho;
+valores inválidos presentes na DB não recebem fallback silencioso. Passadas,
+Offset Z, prévia de G-code e roundtrip nativo/Python foram ajustados.
+Roland mantém a limitação de prévia ao reabrir/editar RML-1 sem metadados,
+agora indicada no resumo.
+
+Escopo, diferenças, comandos e evidências em
+[MACHINING_Z_POLICY_20261101.md](MACHINING_Z_POLICY_20261101.md).
+Probe do gerador Python real: 12 casos aprovados, um tool/uma passada/MM/GRBL.
+Verify completo: **2.309 aprovados, 18 opcionais ignorados, zero falhas/erros**,
+`target/machining-z-verify-complete.log`. Após esse verify, foi ampliado o
+intervalo dos dois campos Travel Z do editor da DB para aceitar rascunhos
+assinados; verify focado adicional: **82 aprovados, zero falhas/erros**,
+`target/machining-z-db-final.log`. Catálogos: 3.850 chaves por idioma, sem pendências.
+Versão e instaladores permanecem Beta 3; estas mudanças não foram empacotadas.
+
 ## Histórico CAM e aviso de rascunho NCC — 2026-10-30
 
 Implementados Ctrl+Z/Y nas tabelas de NCC, Isolation e Paint, preservando

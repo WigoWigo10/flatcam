@@ -255,6 +255,7 @@ final class ToolDefaults {
         integer("optimal.precision", "Optimal", "Precisão (casas)", 4);
 
         String cnc = "CNC Job (geral)";
+        flag("cnc.machinist", cnc, "Permitir coordenadas Z livres (Machinist)", false);
         choice("cnc.preprocessor", cnc, "Pós-processador", "FX_PORTABLE", "FX_PORTABLE", "DEFAULT", "DEFAULT_NO_M6", "GRBL_11", "GRBL_11_NO_M6", "MARLIN", "REPETIER", "BERTA_CNC", "GRBL_LASER", "MARLIN_LASER_FAN_PIN", "MARLIN_LASER_SPINDLE_PIN", "Z_LASER", "ISEL_CNC", "TOOLCHANGE_MANUAL", "TOOLCHANGE_CUSTOM", "LINE_XYZ", "ISEL_ICP_CNC", "HPGL", "ROLAND_MDX_20", "TOOLCHANGE_PROBE_MACH3");
 
         String drilling = "Drilling";
@@ -272,7 +273,7 @@ final class ToolDefaults {
         String geometry = "Geometry CNC";
         length("geometry.tooldia", geometry, "Diâmetro da ferramenta", "0.8", "0.031");
         length("geometry.travelz", geometry, "Travel Z", "3.0", "0.1");
-        length("geometry.cutdepth", geometry, "Profundidade de corte", "0.1", "0.004");
+        length("geometry.cutz", geometry, "Cut Z", "-0.1", "-0.004");
         length("geometry.depthperpass", geometry, "Profundidade por passe", "0.05", "0.002");
         length("geometry.feedrate", geometry, "Avanço XY", "300", "12");
         length("geometry.probechangez", geometry, "Z de troca (sonda)", "15", "0.6");
@@ -375,6 +376,19 @@ final class ToolDefaults {
     static String text(String key, boolean metric) {
         Setting setting = setting(key);
         String saved = store.get(storeKey(setting, metric));
+        if(saved==null && key.equals("geometry.cutz")) {
+            String legacy=store.get("geometry.cutdepth"+(metric ? "@mm" : "@in"));
+            try {
+                if(legacy!=null) {
+                    saved=Double.toString(-Double.parseDouble(legacy));
+                    if(problem(setting,saved)==null) {
+                        store.put(storeKey(setting,metric),saved);
+                        store.remove("geometry.cutdepth"+(metric ? "@mm" : "@in"));
+                    }
+                }
+            }
+            catch(NumberFormatException ignored) { /* Invalid legacy preferences keep factory defaults. */ }
+        }
         return saved != null && problem(setting, saved) == null ? saved : setting.factory(metric);
     }
 
@@ -442,6 +456,7 @@ final class ToolDefaults {
         if (problem != null) {
             throw new IllegalArgumentException(setting.tool() + " - " + setting.label() + ": " + problem);
         }
+        if(key.equals("geometry.cutz")) store.remove("geometry.cutdepth"+(metric ? "@mm" : "@in"));
         if (cleaned.equals(setting.factory(metric))) {
             store.remove(storeKey(setting, metric));
         } else {
@@ -450,6 +465,7 @@ final class ToolDefaults {
     }
 
     static void resetAll() {
+        store.remove("geometry.cutdepth@mm"); store.remove("geometry.cutdepth@in");
         for (Setting setting : SETTINGS.values()) {
             store.remove(storeKey(setting, true));
             if (setting.perUnit()) {
@@ -481,6 +497,14 @@ final class ToolDefaults {
         for (String name : properties.stringPropertyNames()) {
             boolean metric = !name.endsWith("@in");
             String key = name.endsWith("@in") || name.endsWith("@mm") ? name.substring(0, name.length() - 3) : name;
+            if(key.equals("geometry.cutdepth")) {
+                try {
+                    if(!properties.containsKey("geometry.cutz"+(metric ? "@mm" : "@in")))
+                        set("geometry.cutz",metric,Double.toString(-Double.parseDouble(properties.getProperty(name))));
+                    applied++;
+                } catch(IllegalArgumentException invalid) { skipped++; }
+                continue;
+            }
             Setting setting = SETTINGS.get(key);
             if (setting == null || setting.perUnit() != (key.length() != name.length())) {
                 skipped++;

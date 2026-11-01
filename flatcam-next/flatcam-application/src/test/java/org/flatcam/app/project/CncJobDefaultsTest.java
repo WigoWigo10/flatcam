@@ -31,9 +31,16 @@ class CncJobDefaultsTest {
         assertEquals(7., absent.positions(new GeometryJobOptions(7.,null,null,null,null,null,null)).startZ());
     }
     @ParameterizedTest @CsvSource({"ppname_g,not-a-controller", "feedrate_rapid,-1", "feedrate_rapid,NaN",
-            "toolchange,maybe", "startz,-2", "endz,Infinity", "endxy,1", "toolchangez,0", "toolchangexy,[1;NaN]"})
+            "toolchange,maybe", "endz,Infinity", "endxy,1", "toolchangexy,[1;NaN]"})
     void unsafeValuesAreNotSilentlyDefaulted(String key, String value) {
         assertThrows(RuntimeException.class, () -> CncJobDefaults.fromLegacy(new JSONObject().put(key, value), false));
+    }
+    @Test void signedZSuggestionsRemainDraftsAndRequireTheAppropriateOperationPolicy() {
+        var raw=CncJobDefaults.fromLegacy(new JSONObject().put("startz",-2).put("toolchangez",0),false);
+        assertEquals("-2.0",raw.value(CncJobDefaults.Field.START_Z));
+        assertThrows(IllegalArgumentException.class,()->raw.positions(GeometryJobOptions.AUTOMATIC));
+        var advanced=raw.positions(GeometryJobOptions.AUTOMATIC.withZPolicy(MachiningZPolicy.MACHINIST));
+        assertEquals(-2,advanced.startZ()); assertEquals(0,advanced.toolChangeZ());
     }
     @Test void conflictsAreFieldSpecificCanonicalAndOrderIndependent() {
         var a = CncJobDefaults.fromLegacy(new JSONObject().put("endz", "0").put("ppname_g", "Marlin").put("startz", "None"), false);

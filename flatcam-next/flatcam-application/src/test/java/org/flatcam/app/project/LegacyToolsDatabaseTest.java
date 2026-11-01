@@ -17,11 +17,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 class LegacyToolsDatabaseTest {
 
-    @Test void positiveDrillCutZIsNotSilentlyTurnedIntoACutBelowTheSurface() {
+    @Test void positiveDrillCutZIsPreservedAsADraftWithoutSilentlyTurningIntoACutBelowTheSurface() throws IOException {
         var db = new org.json.JSONObject("""
                 {"1":{"tooldia":1,"data":{"tool_target":2,"tools_drill_cutz":1}}}
                 """);
-        assertThrows(IOException.class, () -> LegacyToolsDatabase.drillTools(db));
+        var tool=LegacyToolsDatabase.drillTools(db).getFirst();
+        assertEquals(1,tool.parameters().cutZ());
+        assertEquals(org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST,tool.parameters().zPolicy());
     }
 
     @TempDir Path tempDir;

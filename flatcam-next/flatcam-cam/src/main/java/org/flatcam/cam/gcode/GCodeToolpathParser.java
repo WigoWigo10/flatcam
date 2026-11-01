@@ -34,6 +34,9 @@ public final class GCodeToolpathParser {
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
     private static final Pattern WORD = Pattern.compile("([A-Za-z])([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))");
+    /** Explicit FX feed/rapid semantics, independent of the selected work-origin height. */
+    private static final Pattern MACHINIST_Z_MARKER = Pattern.compile(
+            "FCFX ZPOLICY MACHINIST CUTZ ([+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+))");
     private static final Pattern TOOL_MARKER = Pattern.compile(
             "FCFX\\s+TOOL\\s+T(\\d+)\\s+D(\\d*\\.?\\d+)", Pattern.CASE_INSENSITIVE);
     /** Python FlatCAM's Excellon programs announce a tool as "T1" followed by "(MSG, Change to Tool Dia = 0.8 ...)". */
@@ -464,6 +467,7 @@ public final class GCodeToolpathParser {
         double lastHitX = Double.NaN;
         double lastHitY = Double.NaN;
         boolean pendingHit = false;
+        boolean machinist = false;
         double feed = 0;
         boolean timeKnown = true;
         double xyDistance = 0;
@@ -474,6 +478,16 @@ public final class GCodeToolpathParser {
             // Count all consumed lines, including comments and blank lines that continue below.
             if (index > 0 && index % 256 == 0) progress.report(0.95 * index / lines.size());
             String raw = lines.get(index);
+            if(raw.indexOf("FCFX ZPOLICY")>=0) {
+                if(raw.contains("FCFX ZPOLICY STANDARD")) machinist=false;
+                var zMode=MACHINIST_Z_MARKER.matcher(raw);
+                if(zMode.find()) {
+                    machinist=true;
+                    double target=Double.parseDouble(zMode.group(1));
+                    if(!Double.isFinite(target)) throw new IllegalArgumentException("Invalid Machinist Cut Z marker");
+                    if(tool!=null) tool.deepestZ=target;
+                }
+            }
             Matcher marker = TOOL_MARKER.matcher(raw);
             if (marker.find()) {
                 double diameter = Double.parseDouble(marker.group(2));
@@ -622,7 +636,7 @@ public final class GCodeToolpathParser {
                     && motion >= 0 && motion <= 1;
             // line_xyz repeats X/Y even on a pure Z plunge; test actual XY displacement, not word presence.
             boolean plunge = !laserProfile && !lateral && !arcMove && newZ != null && motion == 1
-                    && nextZ < 0 && nextZ < z && havePosition;
+                    && (machinist || nextZ < 0 && nextZ < z) && havePosition;
             Double width = tool != null && tool.diameter != null && tool.diameter > 0 ? tool.diameter
                     : millingDiameter;
             boolean knownWidth = width != null && width > 0;
@@ -630,13 +644,13 @@ public final class GCodeToolpathParser {
             int quadrantSegments = knownWidth ? 8 : 4;
             double xyLength = 0;
             if (warning == null && arcMove) {
-                if (!laserProfile && (z >= 0) != (nextZ >= 0)) {
+                if (!laserProfile && !machinist && (z >= 0) != (nextZ >= 0)) {
                     warning = "Arco cruzando Z=0: pre-visualizacao indisponivel.";
                 } else {
                     try {
                         Geometry centerline = arcPath(x, y, nextX, nextY, arcI, arcJ, arcR,
                                 absoluteArcCenter, motion == 2);
-                        boolean isTravel = laserProfile ? !laserActive : nextZ >= 0;
+                        boolean isTravel = laserProfile ? !laserActive : !machinist && nextZ >= 0;
                         buffered.path(isTravel, centerline, radius, quadrantSegments, tool);
                         centerlines.addPath(isTravel, centerline);
                         stepBuilder.segment(isTravel, centerline.getCoordinates());
@@ -656,7 +670,7 @@ public final class GCodeToolpathParser {
             } else if (warning == null && lateral) {
                 Geometry centerline = FACTORY.createLineString(new Coordinate[]{
                         new Coordinate(x, y), new Coordinate(nextX, nextY)});
-                boolean isTravel = motion == 0 || (laserProfile ? !laserActive : nextZ >= 0);
+                boolean isTravel = motion == 0 || (laserProfile ? !laserActive : !machinist && nextZ >= 0);
                 buffered.path(isTravel, centerline, radius, quadrantSegments, tool);
                 centerlines.addPath(isTravel, centerline);
                 stepBuilder.segment(isTravel, centerline.getCoordinates());
@@ -688,10 +702,10 @@ public final class GCodeToolpathParser {
                     pendingHit = true;
                 }
             }
-            if (tool != null && nextZ < 0) {
+            if (tool != null && !machinist && nextZ < 0) {
                 tool.deepestZ = Math.min(tool.deepestZ, nextZ);
             }
-            if (pendingHit && tool != null && newZ != null && nextZ >= 0) {
+            if (pendingHit && tool != null && newZ != null && (machinist ? motion==0 : nextZ >= 0)) {
                 tool.drills++;
                 pendingHit = false;
             }
@@ -712,7 +726,7 @@ public final class GCodeToolpathParser {
             }
             xyDistance += xyLength;
             stepBuilder.clock = minutes;
-            if (!laserProfile && (z >= 0) != (nextZ >= 0)) {
+            if (!laserProfile && !machinist && (z >= 0) != (nextZ >= 0)) {
                 stepBuilder.flush();
             }
             x = nextX;

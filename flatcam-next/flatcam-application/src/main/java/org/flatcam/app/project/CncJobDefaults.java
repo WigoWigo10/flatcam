@@ -19,7 +19,7 @@ public record CncJobDefaults(Map<Field, String> values) {
         values.forEach((field, value) -> normalized.put(field, normalize(field, Objects.requireNonNull(value))));
         values = Map.copyOf(normalized);
         // Validate even partial coordinates/heights, independently of a machine profile.
-        positions(values, GeometryJobOptions.AUTOMATIC);
+        positions(values, GeometryJobOptions.AUTOMATIC.withZPolicy(MachiningZPolicy.MACHINIST));
     }
     public boolean isEmpty() { return values.isEmpty(); }
     public boolean has(Field field) { return values.containsKey(field); }
@@ -90,7 +90,7 @@ public record CncJobDefaults(Map<Field, String> values) {
         }
         if (none && field != Field.RAPID_FEED) return "None";
         double value = Double.parseDouble(number(text));
-        if (value < 0 || field == Field.CHANGE_Z && value == 0)
+        if (field == Field.RAPID_FEED && value < 0)
             throw new IllegalArgumentException(field.label + " da DB deve ser " + (field == Field.CHANGE_Z ? "positivo." : "nao negativo."));
         return Double.toString(value);
     }
@@ -114,6 +114,6 @@ public record CncJobDefaults(Map<Field, String> values) {
         var change = xy(values, Field.CHANGE_XY, base.toolChangeX(), base.toolChangeY());
         return new GeometryJobOptions(scalar(values, Field.START_Z, base.startZ()), scalar(values, Field.END_Z, base.endZ()), end[0], end[1],
                 scalar(values, Field.CHANGE_Z, base.toolChangeZ()), change[0], change[1], base.exclusionsEnabled(), base.exclusions(),
-                base.routing(),base.travelClearance());
+                base.routing(),base.travelClearance(),base.zPolicy());
     }
 }

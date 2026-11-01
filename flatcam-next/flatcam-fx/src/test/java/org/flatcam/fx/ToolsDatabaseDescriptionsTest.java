@@ -32,8 +32,10 @@ class ToolsDatabaseDescriptionsTest {
         assertTrue(help("offset").contains("não reaplica"));
         assertTrue(help("offset_value").contains("zero exige Path"));
         assertTrue(help("offset_value").contains("compensação duplicada"));
-        assertTrue(help("cutz").contains("Deve ser negativa"));
-        assertTrue(help("tools_cutout_gap_depth").contains("mais raso"));
+        assertTrue(help("cutz").contains("Machinist"));
+        assertTrue(help("cutz").contains("política selecionada é aplicada ao gerar"));
+        assertFalse(help("cutz").contains("Deve ser negativa"));
+        assertTrue(help("tools_cutout_gap_depth").contains("acima de Cut Z"));
         assertTrue(help("tools_cutout_gap_depth").contains("CNC Job separadamente"));
         assertTrue(help("tools_paint_offset").contains("negativa expande"));
         String paint = ToolsDatabaseDescriptions.groupText(ToolsDatabaseFields.Group.PAINT);

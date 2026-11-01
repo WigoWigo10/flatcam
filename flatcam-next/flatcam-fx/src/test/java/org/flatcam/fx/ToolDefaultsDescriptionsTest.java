@@ -20,7 +20,10 @@ class ToolDefaultsDescriptionsTest {
             try {
                 String text = ToolDefaultsDescriptions.text(setting,metric);
                 assertTrue(text.contains(setting.factory(metric)));
-                assertTrue(text.contains("painéis já abertos"));
+                if (setting.key().equals("cnc.machinist")) {
+                    assertTrue(text.contains("inclusive em painéis abertos"));
+                    assertFalse(text.contains("não altera objetos, CNC Jobs ou painéis já abertos"));
+                } else assertTrue(text.contains("painéis já abertos"));
                 assertTrue(text.contains("validação completa"));
             } catch (IllegalArgumentException absent) { missing.add(absent.getMessage()); }
         }

@@ -5,8 +5,8 @@ import org.flatcam.cam.gcode.GCodePreprocessor;
 
 /**
  * Parsed, unit-free arguments of Python's {@code drillcncjob} (TclCommandDrillcncjob.py), already
- * validated as finite and normalized to this port's conventions: {@code drillDepth} is the positive
- * distance below the surface (Python's {@code -drillz} is negative), toolchange is on only when
+ * validated as finite: {@code drillDepth} is the signed distance below Z0 (the negative of
+ * Python's {@code -drillz}). The host applies the current Standard/Machinist policy; toolchange is on only when
  * {@code -toolchangez} was given, and an empty {@code drilledDiameters} means every tool.
  *
  * @param diameterTolerance Python's {@code -diatol} as a 0..1 fraction, or {@code null} for an exact

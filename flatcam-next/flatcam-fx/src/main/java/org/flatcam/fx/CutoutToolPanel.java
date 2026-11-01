@@ -112,6 +112,7 @@ final class CutoutToolPanel {
         TextField marginField = new TextField(ToolDefaults.text("cutout.margin", metric));
         marginField.setId("cutout-margin");
         TextField cutZ = new TextField(ToolDefaults.text("cutout.cutz", metric)); cutZ.setId("cutout-cut-z");
+        var zInput = new MachiningZInput("cutout-z-policy-note");
         CheckBox multiDepth = new CheckBox("Multi-Depth"); multiDepth.setId("cutout-multi-depth"); multiDepth.setSelected(ToolDefaults.flag("cutout.multidepth"));
         TextField perPass = new TextField(ToolDefaults.text("cutout.depthperpass", metric)); perPass.setId("cutout-depth-per-pass");
         perPass.disableProperty().bind(multiDepth.selectedProperty().not());
@@ -281,11 +282,11 @@ final class CutoutToolPanel {
         freeformButton.setOnAction(e -> tryGenerate(CutoutShape.FREEFORM, singleRadio, convexShapeCb, internalCuts, toolDiaField,
                 marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
                 biteSpacingField, combinedAreas(manualAreas, cursorAreas), cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), commonDefaults.get(), errorLabel,
-                result -> generateWithCursorShape(result, cursorAreas, cursorShape.get(), onGenerate)));
+                zInput, result -> generateWithCursorShape(result, cursorAreas, cursorShape.get(), onGenerate)));
         rectangularButton.setOnAction(e -> tryGenerate(CutoutShape.RECTANGULAR, singleRadio, convexShapeCb, internalCuts, toolDiaField,
                 marginField, gapSizeField, gapPatternCombo, gapTypeCombo, biteDiameterField,
                 biteSpacingField, combinedAreas(manualAreas, cursorAreas), cutZ, multiDepth, perPass, thinZ, seed.get(), profile.get(), commonDefaults.get(), errorLabel,
-                result -> generateWithCursorShape(result, cursorAreas, cursorShape.get(), onGenerate)));
+                zInput, result -> generateWithCursorShape(result, cursorAreas, cursorShape.get(), onGenerate)));
         closeButton.setOnAction(e -> onClose.run());
 
         Label workflowNote = new Label(I18n.text("ui.ee8fd6aaa02c"));
@@ -295,7 +296,7 @@ final class CutoutToolPanel {
         VBox box = new VBox(10,
                 title, new Label(I18n.text("ui.58d9bc7dde89") + units),
                 picker, transferNote, grid, cursorFreeform, cursorRectangular, rectangleGapButton, polygonGapButton, clearManualButton, manualStatus, workflowNote,
-                errorLabel, freeformButton, rectangularButton, closeButton);
+                zInput.view(), errorLabel, freeformButton, rectangularButton, closeButton);
         box.setPadding(new Insets(12));
         return box;
     }
@@ -317,7 +318,7 @@ final class CutoutToolPanel {
             TextField biteDiameterField, TextField biteSpacingField,
             List<Geometry> manualAreas, TextField cutZ, CheckBox multiDepth, TextField perPass, TextField thinZ,
             GeometryGCodeParameters seed, ToolProfile profile, org.flatcam.app.project.CncJobDefaults jobDefaults, Label errorLabel,
-            Consumer<Result> onGenerate) {
+            MachiningZInput zInput, Consumer<Result> onGenerate) {
         try {
             double toolDia = parseDouble(toolDiaField.getText(), "Tool Dia");
             double margin = parseDouble(marginField.getText(), "Margin");
@@ -334,14 +335,13 @@ final class CutoutToolPanel {
             }
 
             errorLabel.setText("");
-            double cut = parseDouble(cutZ.getText(), "Cut Z");
-            if (!Double.isFinite(cut) || cut >= 0) throw new IllegalArgumentException(I18n.text("ui.ef3a99fccd3f"));
-            var machining = seed.withCutting(-cut, multiDepth.isSelected(),
-                    multiDepth.isSelected() ? parseDouble(perPass.getText(), "Depth per pass") : seed.depthPerPass());
+            zInput.begin(); double depth=zInput.cut(cutZ,"Cut Z"); double cut=-depth;
+            var machining = seed.withZCoordinates(zInput.travel(Double.toString(seed.safeZ()),"Travel Z"),cut,multiDepth.isSelected(),
+                    multiDepth.isSelected() ? parseDouble(perPass.getText(), "Depth per pass") : seed.depthPerPass(),zInput.policy());
             GeometryGCodeParameters thin = null;
             if (gapTypeCombo.getValue() == GapType.THIN) {
-                double thinCut = parseDouble(thinZ.getText(), "Thin Depth");
-                if (!Double.isFinite(thinCut) || thinCut >= 0 || thinCut <= cut)
+                double thinCut = -zInput.cut(thinZ,"Thin Depth");
+                if (thinCut <= cut)
                     throw new IllegalArgumentException(I18n.text("ui.60538e9ad822"));
                 thin = machining.withCutting(-thinCut, machining.multiDepth(), machining.depthPerPass());
             }

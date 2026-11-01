@@ -155,6 +155,14 @@ Gerbers/Excellons originais nos ensaios.
 
 ## Próximos incrementos
 
+**Atualização de 2026-11-01 — política Z:** as recusas de Cut Z positivo e o
+descarte de defaults assinados descritos no histórico abaixo foram substituídos.
+A DB e a importação Python agora preservam esses valores como rascunho.
+Ao gerar, o modo padrão normaliza o sinal com aviso e recusa Cut/Travel zero;
+Machinist preserva coordenadas finitas positivas, negativas e zero. A preferência
+não é ativada automaticamente por um projeto importado. Alcance e validação em
+[MACHINING_Z_POLICY_20261101.md](MACHINING_Z_POLICY_20261101.md).
+
 1. **Geometry → CNC pela UI: incremento implementado em 2026-10-07.** Geração,
    prévia e gravação usam worker; o arquivo é preparado em temporário no mesmo
    diretório, validado e só depois substitui o destino. Projeto, identidade/nome

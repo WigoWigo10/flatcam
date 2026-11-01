@@ -94,16 +94,20 @@ final class DrillGCodeToolPanel {
         }
 
         DrillGCodeParameters parameters(boolean toolChange, boolean roland) {
-            double cut = parse(cutZ, "Cut Z (Tool " + id + ")");
-            if (cut >= 0) throw new IllegalArgumentException(I18n.text("ui.b324d68a1b35") + id + ".");
-            return new DrillGCodeParameters(parse(travelZ, "Travel Z (Tool " + id + ")"), -cut,
+            return parameters(toolChange,roland,new MachiningZInput("drill-z-normalization"));
+        }
+        DrillGCodeParameters parameters(boolean toolChange, boolean roland, MachiningZInput zInput) {
+            double depth = zInput.cut(cutZ, "Cut Z (Tool " + id + ")");
+            double travel = zInput.travel(travelZ, "Travel Z (Tool " + id + ")");
+            cutZ=Double.toString(-depth); travelZ=Double.toString(travel);
+            return new DrillGCodeParameters(travel, depth,
                     parse(feedZ, "Feedrate Z (Tool " + id + ")"),
                     roland ? 0 : parseInt(spindle, "Spindle speed (Tool " + id + ")"), toolChange,
                     multiDepth, multiDepth ? parse(depthPerPass, "Depth per pass (Tool " + id + ")") : 0,
                     !roland && dwell, !roland && dwell ? parse(dwellTime, "Dwell time (Tool " + id + ")") : 0,
                     parse(offsetZ, "Offset Z (Tool " + id + ")"),
                     new org.flatcam.cam.gcode.DrillSlotParameters(drillSlots,
-                            parse(slotOverlap, "Drill slots overlap (Tool " + id + ")"), slotLastHole));
+                            parse(slotOverlap, "Drill slots overlap (Tool " + id + ")"), slotLastHole),zInput.policy());
         }
 
         void applyDatabaseTool(LegacyToolsDatabase.DrillTool tool) {
@@ -139,6 +143,7 @@ final class DrillGCodeToolPanel {
                       CncExclusionEditor.AreaSelector areaSelector, Consumer<Geometry> exclusionPreview,
                       Runnable cancelAreaSelection, Consumer<Result> onGenerate, Runnable onClose) {
         boolean metric = "MM".equalsIgnoreCase(initialSource.image().units());
+        var zInput = new MachiningZInput("drill-z-policy-note");
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>(FXCollections.observableArrayList(sources));
         sourceCombo.setValue(initialSource);
         sourceCombo.setId("drill-source");
@@ -377,7 +382,7 @@ final class DrillGCodeToolPanel {
             ToolRow source = table.getSelectionModel().getSelectedItem();
             if (source == null) return;
             try {
-                source.parameters(false);
+                zInput.begin(); source.parameters(false,false,zInput);
                 for (ToolRow row : table.getItems()) {
                     row.cutZ = source.cutZ;
                     row.travelZ = source.travelZ;
@@ -534,7 +539,7 @@ final class DrillGCodeToolPanel {
                             if (originalSelection.contains(table.getItems().get(i).id)) table.getSelectionModel().select(i);
                     } finally { selectingForReview[0] = false; }
                 }
-                commonDb.assertResolved();
+                commonDb.assertResolved(); zInput.begin();
                 List<ToolRow> selected = new ArrayList<>(table.getSelectionModel().getSelectedItems());
                 preprocessor.getValue().unitsCode(sourceCombo.getValue().image().units());
                 if (selected.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.5d38710d33bf"));
@@ -552,7 +557,7 @@ final class DrillGCodeToolPanel {
                 List<Integer> orderedIds = new ArrayList<>();
                 for (ToolRow row : selected) {
                     preprocessor.getValue().validatePower(roland.get() ? 0 : parseInt(row.spindle, I18n.text("ui.03cbde779b22") + row.id + ")"));
-                    settings.put(row.id, row.parameters(mechanicalChange, roland.get()));
+                    settings.put(row.id, row.parameters(mechanicalChange, roland.get(),zInput));
                     orderedIds.add(row.id);
                 }
                 Double[] end = optionalXY(endMoveXY.getText(), "End move X,Y");
@@ -567,7 +572,7 @@ final class DrillGCodeToolPanel {
                 var options = exclusions.applyTo(new GCodeGenerator.DrillJobOptions(
                         mechanicalChange, changeZ, endZ, end[0], end[1],
                         parse(rapidFeed.getText(), "Feed rapids"),
-                        probing.get() ? probe.parameters() : null).withPositions(
+                        probing.get() ? probe.parameters() : null,false,List.of(),null,null,null,false,zInput.policy()).withPositions(
                                 optionalNumber(startZ.getText(), "Start Z"), change[0], change[1])).withOptimizedDrills(optimizeDrills.isSelected());
                 options.validateExclusions(preprocessor.getValue());
                 options.validatePositions(preprocessor.getValue());
@@ -580,6 +585,7 @@ final class DrillGCodeToolPanel {
                     if (probing.get()) options.probing().validateTravelZ(values.safeZ());
                 }
                 errorLabel.setText("");
+                loadSelection.run();
                 onGenerate.accept(new Result(sourceCombo.getValue(), Map.copyOf(settings),
                         List.copyOf(orderedIds), options, preprocessor.getValue(),
                         forwardOrder.isSelected() ? DrillCncSettings.ToolOrder.FORWARD
@@ -619,7 +625,7 @@ final class DrillGCodeToolPanel {
         VBox box = new VBox(8, title, heading("EXCELLON:"), sourceCombo,
                 new Separator(), table, totals, orderRow, searchDb, new Separator(),
                 selectedTitle, reviewNotice, perTool, machiningNote, applyAll, feedback, new Separator(),
-                heading("Common Parameters"), common, optimizeDrills, commonDb.view(), probe.view(), exclusions.view(), errorLabel, generate, reset, close);
+                heading("Common Parameters"), common, optimizeDrills, commonDb.view(), probe.view(), exclusions.view(), zInput.view(), errorLabel, generate, reset, close);
         box.setPadding(new Insets(12));
         Runnable restoreCommon = () -> {
             commonDb.clear();

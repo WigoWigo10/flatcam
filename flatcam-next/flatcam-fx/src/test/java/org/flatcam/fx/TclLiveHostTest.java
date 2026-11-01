@@ -172,10 +172,24 @@ class TclLiveHostTest {
     @Test void invalidDepthsDoNotPublishJobs() throws Exception {
         try (Session session = new Session()) {
             session.geometry("path");
-            for (double depth : new double[]{0, 1.7, Double.NaN, Double.NEGATIVE_INFINITY})
+            for (double depth : new double[]{0, Double.NaN, Double.NEGATIVE_INFINITY})
                 assertThrows(TclException.class, () -> session.host.cncjob("path", "bad", 0.8, depth, 2, 120, 80, 0));
             assertEquals(java.util.List.of("path"), session.host.objectNames());
         }
+    }
+    @Test void terminalUsesStandardNormalizationAndMachinistCoordinatesInActualGcode() throws Exception {
+        ToolDefaults.useStore(ToolDefaults.memoryStore());
+        try (Session session=new Session()) {
+            session.geometry("path");
+            session.eval("cncjob path -dia 0.8 -z_cut 0.2 -z_move -2 -feedrate 120 -outname standard");
+            assertTrue(session.eval("export_gcode standard").contains("G1 Z-0.2000"));
+            ToolDefaults.set("cnc.machinist",true,"true");
+            session.eval("cncjob path -dia 0.8 -z_cut 0.2 -z_move -2 -feedrate 120 -outname machinist");
+            String code=session.eval("export_gcode machinist");
+            assertTrue(code.contains("G1 Z0.2000"),code); assertTrue(code.contains("G0 Z-2.0000"),code); assertFalse(code.contains("Z--"));
+            session.eval("cncjob path -dia 0.8 -z_cut 0 -z_move 0 -feedrate 120 -outname zero");
+            assertTrue(session.eval("export_gcode zero").contains("G1 Z0.0000"));
+        } finally { ToolDefaults.useStore(ToolDefaults.memoryStore()); }
     }
 
     @Test void everyPublishedObjectUsesAGloballyUniqueName() throws Exception {

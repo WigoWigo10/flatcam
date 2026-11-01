@@ -95,8 +95,12 @@ Ele exibe:
   spindle sem comando automático e compensação adicional;
 - furos/rasgos por fresa e quantidade de hits excluídos pela seleção Drilling.
 
-Cut Z aparece com sinal negativo: Drilling inclui Offset Z e a ponta V usa a
-profundidade calculada, não o rascunho de Cut Z. O resumo não faz nova conversão
+Cut Z aparece com o sinal da coordenada executada: negativo no modo padrão;
+em Machinist também pode ser positivo ou zero. O resumo identifica a política.
+Drilling mostra Cut Z − Offset Z e a ponta V usa a profundidade calculada,
+não o rascunho de Cut Z. Detalhes em
+[MACHINING_Z_POLICY_20261101.md](MACHINING_Z_POLICY_20261101.md).
+O resumo não faz nova conversão
 MM/IN nem promete precisão física acima do arredondamento do G-code. Travel Z
 individual é a retração configurada; Geometry também informa a altura comum
 dos deslocamentos XY, que usa o maior Travel Z do trabalho. No GRBL, a velocidade

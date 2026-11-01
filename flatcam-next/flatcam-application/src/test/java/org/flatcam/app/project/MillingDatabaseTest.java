@@ -44,10 +44,28 @@ class MillingDatabaseTest {
         assertEquals(0.1, v.tip().tipDiameter());
         assertTrue(v.parameters().multiDepth());
     }
-    @Test void rejectsUnsafeCutAndImpossibleVWidth() {
-        for (String data : new String[]{"\"cutz\":0", "\"cutz\":1", "\"vtipdia\":2"}) {
+    @Test void rejectsNonfiniteCutAndImpossibleVWidth() {
+        for (String data : new String[]{"\"cutz\":\"NaN\"", "\"cutz\":\"Infinity\"", "\"cutz\":\"invalid\"", "\"cutz\":null", "\"travelz\":\"NaN\"", "\"vtipdia\":2"}) {
             JSONObject root = new JSONObject("{\"1\":{\"tooldia\":0.3,\"tool_type\":\"V\",\"data\":{\"tool_target\":1," + data + "}}}");
-            assertThrows(IOException.class, () -> LegacyToolsDatabase.millingTools(root));
+            assertThrows(IOException.class, () -> LegacyToolsDatabase.millingTools(root), data);
+        }
+    }
+    @Test void drillingAndCutoutAlsoRejectInvalidPresentCoordinates() {
+        for (String key : new String[]{"tools_drill_cutz", "tools_drill_travelz", "cutz", "tools_cutout_z", "travelz"}) {
+            for (String invalid : new String[]{"NaN", "Infinity", "invalid"}) {
+                var root = new JSONObject().put("1", new JSONObject().put("tooldia", 1)
+                        .put("data", new JSONObject().put("tool_target", 0).put(key, invalid)));
+                if (key.startsWith("tools_drill_"))
+                    assertThrows(IOException.class, () -> LegacyToolsDatabase.drillTools(root), key + "=" + invalid);
+                else assertThrows(IOException.class, () -> LegacyToolsDatabase.cutoutTools(root), key + "=" + invalid);
+            }
+        }
+    }
+    @Test void zeroAndPositiveCutZAreDraftCoordinatesNotAnImplicitNegativeCut() throws IOException {
+        for(double cut:new double[]{0,1}) {
+            var root=new JSONObject().put("1",new JSONObject().put("tooldia",.3).put("data",new JSONObject().put("tool_target",1).put("cutz",cut)));
+            var p=LegacyToolsDatabase.millingTools(root).getFirst().parameters();
+            assertEquals(cut,p.cutZ(),1e-12); assertEquals(org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST,p.zPolicy());
         }
     }
 }

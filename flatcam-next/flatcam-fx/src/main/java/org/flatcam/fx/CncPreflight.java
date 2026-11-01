@@ -29,6 +29,9 @@ final class CncPreflight {
         var profile = result.preprocessor();
         var base = result.parameters();
         nativeInfo(common,profile,units);
+        common.add(value(I18n.text("machining.z.title"), I18n.text(base.zPolicy()==MachiningZPolicy.MACHINIST ? "machining.z.machinist" : "machining.z.standard"),-1,"cnc-cut-depth"));
+        if (profile.isRoland() && base.zPolicy() == MachiningZPolicy.MACHINIST)
+            issues.add(new Issue(false, I18n.text("machining.z.roland.preview"), target(-1,"cnc-preprocessor")));
         boolean cutting = !profile.isLaser() && !profile.isPlotter();
         double clearance = Math.max(base.safeZ(), result.parametersByTool().values().stream()
                 .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(base.safeZ()));
@@ -64,7 +67,7 @@ final class CncPreflight {
                 details.add(value(I18n.text("ui.598eac606bd7"), number(effectiveTravel) + " " + unit(units)
                         + (travelPolicy==GeometryTravelClearance.PER_TOOL ? I18n.text("ui.5b3813375052") : I18n.text("ui.9adf9e460a04"))
                         + I18n.text("ui.d32a964b0228") + number(p.safeZ()) + ")", i, "cnc-safe-z"));
-            details.add(value("Passes", cutting ? passes(depth, p.multiDepth(), p.depthPerPass())
+            details.add(value("Passes", cutting ? passes(depth, p.multiDepth(), p.depthPerPass(),p.zPolicy())
                     + (p.multiDepth() && p.passStrategy() != GeometryPassStrategy.RETRACT_SAME_DIRECTION ? I18n.text("ui.b8fb070f5481") : "")
                     : I18n.text("ui.fc981a1b1b65"), i, "cnc-multi-depth"));
             details.add(value(I18n.text("ui.965a7648e4b2"), p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING && p.multiDepth()
@@ -87,7 +90,7 @@ final class CncPreflight {
                 travelText=nativeValue(details,issues,units,i,"cnc-safe-z","Travel Z",p.safeZ(),false,false);
                 feedXYText=nativeValue(details,issues,units,i,"cnc-feed","Feed XY",p.feedRate(),true,false);
                 feedZText=nativeValue(details,issues,units,i,"cnc-feed-z","Feed Z",p.feedRateZ(),true,false);
-                if(p.multiDepth()) nativeValue(details,issues,units,i,"cnc-depth-per-pass",I18n.text("ui.818257a55a3b"),-Math.min(depth,p.depthPerPass()),false,false);
+                if(p.multiDepth()) nativeValue(details,issues,units,i,"cnc-depth-per-pass",I18n.text("ui.818257a55a3b"),-Math.copySign(Math.min(Math.abs(depth),p.depthPerPass()),depth),false,false);
             }
             rows.add(new Tool(i, (profile.isLaser() ? I18n.text("ui.d032112ef2c6") : "T") + (i + 1) + (empty ? I18n.text("ui.819050e28a59") : ""), number(tool.toolDiameter()),
                     cutText,travelText,feedXYText,feedZText,
@@ -158,14 +161,17 @@ final class CncPreflight {
             samples.computeIfAbsent(hit.toolId(),key->new org.locationtech.jts.geom.Coordinate(hit.x1(),hit.y1())); });
         var profile = result.preprocessor();
         nativeInfo(common,profile,image.units());
+        common.add(value(I18n.text("machining.z.title"), I18n.text(result.options().zPolicy()==MachiningZPolicy.MACHINIST ? "machining.z.machinist" : "machining.z.standard"),-1,"drill-cut-z"));
+        if (profile.isRoland() && result.options().zPolicy() == MachiningZPolicy.MACHINIST)
+            issues.add(new Issue(false, I18n.text("machining.z.roland.preview"), target(-1,"drill-preprocessor")));
         for (int id : result.orderedToolIds()) {
             var p = result.settingsByTool().get(id);
             int[] count = counts.getOrDefault(id, new int[2]);
             long curved=image.slots().stream().filter(slot->slot.toolId()==id && slot.hasPath()).count();
             var details = new ArrayList<>(List.of(value(I18n.text("ui.0c986c41fcf9"), count[0] + " / " + count[1], id, "drill-tools"),
-                    value(profile.isRoland() ? I18n.text("ui.f4981419d2de") : I18n.text("ui.454b2dde1174"), number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z + Offset Z)", id, "drill-cut-z"),
+                    value(profile.isRoland() ? I18n.text("ui.f4981419d2de") : I18n.text("ui.454b2dde1174"), number(-p.effectiveDepth()) + " " + unit(image.units()) + " (Cut Z − Offset Z)", id, "drill-cut-z"),
                     value("Offset Z", number(p.offsetZ()), id, "drill-offset-z"),
-                    value("Passes", passes(p.effectiveDepth(), p.multiDepth(), p.depthPerPass()), id, "drill-multi-depth"),
+                    value("Passes", passes(p.effectiveDepth(), p.multiDepth(), p.depthPerPass(),p.zPolicy()), id, "drill-multi-depth"),
                     value("Dwell", p.dwell() ? number(p.dwellSeconds()) + " s" : I18n.text("ui.f47dfde9cb6f"), id, "drill-dwell-time"),
                     value(I18n.text("ui.4780e976f1d7"), p.slots().enabled() ? I18n.text("ui.b6ca28948c16") : I18n.text("ui.77b8ef9a718c"), id, "drill-slots"),
                     value(I18n.text("ui.d4b99375c542"), number(p.slots().overlapPercent()) + "% / "
@@ -176,10 +182,10 @@ final class CncPreflight {
             nativeSample(details,issues,profile,image.units(),id,"drill-tools",samples.get(id));
             String cutText=number(-p.effectiveDepth()),travelText=number(p.safeZ()),feedText=number(p.feedRate());
             if(profile.isRoland()) {
-                cutText=nativeValue(details,issues,image.units(),id,"drill-cut-z","Cut Z + Offset Z",-p.effectiveDepth(),false,false);
+                cutText=nativeValue(details,issues,image.units(),id,"drill-cut-z","Cut Z − Offset Z",-p.effectiveDepth(),false,false);
                 travelText=nativeValue(details,issues,image.units(),id,"drill-safe-z","Travel Z",p.safeZ(),false,false);
                 feedText=nativeValue(details,issues,image.units(),id,"drill-feed-z","Feed Z",p.feedRate(),true,false);
-                if(p.multiDepth()) nativeValue(details,issues,image.units(),id,"drill-depth-per-pass",I18n.text("ui.818257a55a3b"),-Math.min(p.effectiveDepth(),p.depthPerPass()),false,false);
+                if(p.multiDepth()) nativeValue(details,issues,image.units(),id,"drill-depth-per-pass",I18n.text("ui.818257a55a3b"),-Math.copySign(Math.min(Math.abs(p.effectiveDepth()),p.depthPerPass()),p.effectiveDepth()),false,false);
             }
             if(curved>0) details.add(value(I18n.text("ui.fb57e55bd12a"),curved+I18n.text("ui.55f20620986c"),id,"drill-tools"));
             rows.add(new Tool(id, "T" + id + (count[0] + count[1] == 0 ? I18n.text("ui.819050e28a59") : ""), number(image.toolDiameters().get(id)),cutText,
@@ -367,10 +373,10 @@ final class CncPreflight {
     }
     private static Value value(String label, String text, int tool, String field) { return new Value(label, text, target(tool, field)); }
     private static String xy(Double x, Double y) { return x == null ? I18n.text("ui.7d64e7a0c00d") : number(x) + "; " + number(y); }
-    static String number(double value) { return String.format(Locale.ROOT, "%.6f", value).replaceAll("0+$", "").replaceAll("\\.$", ""); }
+    static String number(double value) { return String.format(Locale.ROOT, "%.6f", value==0 ? 0 : value).replaceAll("0+$", "").replaceAll("\\.$", ""); }
     private static String unit(String units) { return "MM".equalsIgnoreCase(units) ? "mm" : "in"; }
-    private static String passes(double depth, boolean multi, double step) {
-        return !multi ? I18n.text("ui.c886b886b84e") : MachiningPasses.count(depth, true, step) + I18n.text("ui.fa4257b7b3a3") + number(step);
+    private static String passes(double depth, boolean multi, double step,MachiningZPolicy policy) {
+        return !multi ? I18n.text("ui.c886b886b84e") : MachiningPasses.count(depth, true, step,policy) + I18n.text("ui.fa4257b7b3a3") + number(step);
     }
     private CncPreflight() { }
 }

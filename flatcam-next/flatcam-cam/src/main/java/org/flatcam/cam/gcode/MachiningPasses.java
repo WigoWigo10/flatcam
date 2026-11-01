@@ -6,10 +6,13 @@ import java.util.List;
 /** Counts configured depth steps without accumulating binary rounding into an extra final pass. */
 public final class MachiningPasses {
     public static int count(double depth, boolean multiple, double step) {
-        if (!Double.isFinite(depth) || depth <= 0) throw new IllegalArgumentException("Cut depth must be positive");
+        return count(depth,multiple,step,MachiningZPolicy.STANDARD);
+    }
+    public static int count(double depth, boolean multiple, double step, MachiningZPolicy policy) {
+        policy.validateDepth(depth);
         if (!multiple) return 1;
         if (!Double.isFinite(step) || step <= 0) throw new IllegalArgumentException("Depth per pass must be positive");
-        double ratio = depth / step;
+        double ratio = Math.abs(depth) / step;
         double integer = Math.rint(ratio);
         // Only binary arithmetic noise (four ULPs), not a machining/coordinate tolerance.
         if (Double.isFinite(ratio) && Math.abs(ratio - integer) <= 4 * Math.ulp(ratio)) ratio = integer;
@@ -19,9 +22,12 @@ public final class MachiningPasses {
         return (int) count;
     }
     static List<Double> depths(double depth, boolean multiple, double step) {
-        int count = count(depth, multiple, step);
+        return depths(depth,multiple,step,MachiningZPolicy.STANDARD);
+    }
+    static List<Double> depths(double depth, boolean multiple, double step, MachiningZPolicy policy) {
+        int count = count(depth, multiple, step,policy);
         var depths = new ArrayList<Double>(count);
-        for (int pass = 1; pass < count; pass++) depths.add(pass * step);
+        for (int pass = 1; pass < count; pass++) depths.add(Math.copySign(pass * step,depth));
         depths.add(depth); // Exact requested final depth, not the rounded product.
         return depths;
     }

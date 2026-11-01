@@ -32,7 +32,7 @@ final class ToolDefaultsDescriptions {
                 + (isFeed(setting) ? "/min" : "") + I18n.text("ui.b615ac02add9");
         if (!setting.choices().isEmpty()) body += I18n.text("ui.52d1c9e00d5e") + String.join(", ", setting.choices()) + ".";
         return body + I18n.text("ui.5fe4883c4d2a") + setting.factory(metric)
-                + I18n.text("ui.34edd649b134")
+                + I18n.text(setting.key().equals("cnc.machinist") ? "machining.z.preference.scope" : "ui.34edd649b134")
                 + (setting.key().startsWith("display.") ? I18n.text("ui.116020e7afe3") : I18n.text("ui.1ba130c2bd84"));
     }
 
@@ -158,7 +158,8 @@ final class ToolDefaultsDescriptions {
         if (key.endsWith(".dwelltime")) return I18n.text("ui.8fdaa06153d7");
         if (key.endsWith(".feedrapid")) return I18n.text("ui.7c2322bb5cc0");
         if (key.equals("drilling.endz")) return I18n.text("ui.c4302f8429b2");
-        if (key.equals("geometry.cutdepth")) return I18n.text("ui.6f92ed8ee28f");
+        if (key.equals("geometry.cutz")) return I18n.text("machining.z.help");
+        if (key.equals("cnc.machinist")) return I18n.text("machining.z.help");
         if (key.equals("geometry.probechangez")) return I18n.text("ui.1da32985addd");
         if (key.equals("film.boundary")) return I18n.text("ui.5996c8f45ada");
         if (key.equals("film.scalestroke")) return I18n.text("ui.20fe3652021d");

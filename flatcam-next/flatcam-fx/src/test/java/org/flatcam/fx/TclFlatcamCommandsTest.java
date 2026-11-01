@@ -876,7 +876,6 @@ class TclFlatcamCommandsTest {
         assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -travelz 2 -feedrate_z 300"));
         assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -drillz -1 -feedrate_z 300"));
         assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -drillz -1 -travelz 2"));
-        assertThrows(TclException.class, () -> interpreter.eval("drillcncjob drills -drillz 1 -travelz 2 -feedrate_z 300"));
         assertEquals("", interpreter.eval("drillcncjob drills -drillz -1.5 -travelz 2 -feedrate_z 300"));
         TclDrillRequest request = host.drillCalls.get(0);
         assertEquals(1.5, request.drillDepth(), 1e-12);
@@ -887,6 +886,8 @@ class TclFlatcamCommandsTest {
         assertEquals(2.0, request.endZ(), 1e-12);
         assertEquals(org.flatcam.cam.gcode.GCodePreprocessor.FX_PORTABLE, request.preprocessor());
         assertTrue(host.order.contains("drills_cnc"));
+        interpreter.eval("drillcncjob drills -drillz 1 -travelz 2 -feedrate_z 300 -outname positive");
+        assertEquals(-1, host.drillCalls.getLast().drillDepth(), "parser preserves signed input; host applies the current Z policy");
     }
 
     @Test

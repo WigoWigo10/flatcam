@@ -67,7 +67,7 @@ public final class GCodeGenerator {
         Map<Integer, DrillGCodeParameters> byTool = new java.util.LinkedHashMap<>();
         activeIds.forEach(id -> byTool.put(id, params));
         return generateDrillCncJob(image, byTool, List.copyOf(activeIds),
-                new DrillJobOptions(params.pauseForToolChange(), params.safeZ(), params.safeZ(), null, null));
+                new DrillJobOptions(params.pauseForToolChange(), params.safeZ(), params.safeZ(), null, null,0,null,false,List.of(),null,null,null,false,params.zPolicy()));
     }
 
     /** Common job-level moves; null end X/Y keeps the tool at the final hole. */
@@ -75,7 +75,13 @@ public final class GCodeGenerator {
                                   double endMoveZ, Double endMoveX, Double endMoveY, double rapidFeedRate,
                                   ProbeToolChangeParameters probing, boolean exclusionsEnabled,
                                   List<CncExclusionArea> exclusions, Double startZ,
-                                  Double toolChangeX, Double toolChangeY, boolean optimizeDrills) {
+                                  Double toolChangeX, Double toolChangeY, boolean optimizeDrills, MachiningZPolicy zPolicy) {
+        public DrillJobOptions(boolean pauseForToolChange,double toolChangeZ,double endMoveZ,Double endMoveX,Double endMoveY,
+                               double rapidFeedRate,ProbeToolChangeParameters probing,boolean exclusionsEnabled,List<CncExclusionArea> exclusions,
+                               Double startZ,Double toolChangeX,Double toolChangeY,boolean optimizeDrills) {
+            this(pauseForToolChange,toolChangeZ,endMoveZ,endMoveX,endMoveY,rapidFeedRate,probing,exclusionsEnabled,exclusions,
+                    startZ,toolChangeX,toolChangeY,optimizeDrills,MachiningZPolicy.STANDARD);
+        }
         public DrillJobOptions(boolean pauseForToolChange,double toolChangeZ,double endMoveZ,Double endMoveX,Double endMoveY,
                                double rapidFeedRate,ProbeToolChangeParameters probing,boolean exclusionsEnabled,List<CncExclusionArea> exclusions,
                                Double startZ,Double toolChangeX,Double toolChangeY) {
@@ -103,7 +109,8 @@ public final class GCodeGenerator {
         }
 
         public DrillJobOptions {
-            if (startZ != null && (!Double.isFinite(startZ) || startZ < 0))
+            Objects.requireNonNull(zPolicy);
+            if (startZ != null && (!Double.isFinite(startZ) || zPolicy == MachiningZPolicy.STANDARD && startZ < 0))
                 throw new IllegalArgumentException("Start Z deve ser finito e maior ou igual a zero.");
             if ((toolChangeX == null) != (toolChangeY == null)
                     || toolChangeX != null && (!Double.isFinite(toolChangeX) || !Double.isFinite(toolChangeY)))
@@ -114,9 +121,9 @@ public final class GCodeGenerator {
                 throw new IllegalArgumentException("Exclusoes ativadas: desenhe ao menos uma area ou desmarque a opcao.");
             if (!Double.isFinite(rapidFeedRate) || rapidFeedRate < 0)
                 throw new IllegalArgumentException("Rapid feed must be zero (automatic) or positive");
-            if (!Double.isFinite(toolChangeZ) || toolChangeZ <= 0)
+            if (!Double.isFinite(toolChangeZ) || zPolicy == MachiningZPolicy.STANDARD && toolChangeZ <= 0)
                 throw new IllegalArgumentException("Tool change Z must be positive");
-            if (!Double.isFinite(endMoveZ) || endMoveZ <= 0)
+            if (!Double.isFinite(endMoveZ) || zPolicy == MachiningZPolicy.STANDARD && endMoveZ <= 0)
                 throw new IllegalArgumentException("End move Z must be positive");
             if ((endMoveX == null) != (endMoveY == null))
                 throw new IllegalArgumentException("End move X/Y must both be set or both be empty");
@@ -128,15 +135,15 @@ public final class GCodeGenerator {
 
         public DrillJobOptions withExclusions(boolean enabled, List<CncExclusionArea> areas) {
             return new DrillJobOptions(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY,
-                    rapidFeedRate, probing, enabled, areas, startZ, toolChangeX, toolChangeY,optimizeDrills);
+                    rapidFeedRate, probing, enabled, areas, startZ, toolChangeX, toolChangeY,optimizeDrills,zPolicy);
         }
 
         public DrillJobOptions withPositions(Double initialZ, Double changeX, Double changeY) {
             return new DrillJobOptions(pauseForToolChange, toolChangeZ, endMoveZ, endMoveX, endMoveY,
-                    rapidFeedRate, probing, exclusionsEnabled, exclusions, initialZ, changeX, changeY,optimizeDrills);
+                    rapidFeedRate, probing, exclusionsEnabled, exclusions, initialZ, changeX, changeY,optimizeDrills,zPolicy);
         }
         public DrillJobOptions withOptimizedDrills(boolean value) {
-            return new DrillJobOptions(pauseForToolChange,toolChangeZ,endMoveZ,endMoveX,endMoveY,rapidFeedRate,probing,exclusionsEnabled,exclusions,startZ,toolChangeX,toolChangeY,value);
+            return new DrillJobOptions(pauseForToolChange,toolChangeZ,endMoveZ,endMoveX,endMoveY,rapidFeedRate,probing,exclusionsEnabled,exclusions,startZ,toolChangeX,toolChangeY,value,zPolicy);
         }
 
         public void validatePositions(GCodePreprocessor profile) {
@@ -304,6 +311,7 @@ public final class GCodeGenerator {
 
         boolean firstTool = true;
         DrillGCodeParameters previous = null;
+        boolean hasMachinistTool = settingsByTool.values().stream().anyMatch(p -> p.zPolicy() == MachiningZPolicy.MACHINIST);
         for (int toolId : ordered) {
             cancellation.throwIfCancellationRequested();
             DrillGCodeParameters params = settingsByTool.get(toolId);
@@ -392,6 +400,10 @@ public final class GCodeGenerator {
             previous = params;
             // Lets GCodeToolpathParser redraw this tool's holes at their real size after a reload/edit.
             line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.toolMarker(toolId, toolDiameter)));
+            if(params.zPolicy()==MachiningZPolicy.MACHINIST)
+                line(gcode,"%s",preprocessor.comment("FCFX ZPOLICY MACHINIST CUTZ "+fmt(params.effectiveDepth()==0 ? 0 : -params.effectiveDepth())));
+            else if(hasMachinistTool)
+                line(gcode,"%s",preprocessor.comment("FCFX ZPOLICY STANDARD"));
 
             if (preprocessor.controlsSpindle(params.spindleSpeedRpm())) {
                 line(gcode, "%s S%d", preprocessor.spindleOn(), params.spindleSpeedRpm());
@@ -401,7 +413,7 @@ public final class GCodeGenerator {
             }
 
             List<Double> depths = passDepths(params.effectiveDepth(),
-                    params.multiDepth(), params.depthPerPass());
+                    params.multiDepth(), params.depthPerPass(),params.zPolicy());
 
             List<ExcellonImage.Drill> orderedDrills=drillsByTool.getOrDefault(toolId,List.of());
             if (options.optimizeDrills()) orderedDrills=nearestDrills(orderedDrills,lastX,lastY,cancellation);
@@ -419,7 +431,7 @@ public final class GCodeGenerator {
 
                 for (double depth : depths) {
                     cancellation.throwIfCancellationRequested();
-                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(params.feedRate()));
+                    line(gcode, "%s Z%s F%s", preprocessor.linear(), fmt(depth==0 ? 0 : -depth), fmt(params.feedRate()));
                     line(gcode, "%s Z%s", preprocessor.rapid(), fmt(params.safeZ()));
                 }
                 progress.report((double) ++completed / workCount);
@@ -443,7 +455,7 @@ public final class GCodeGenerator {
                                     params.safeZ(), preprocessor, planners.get(toolId), image.units());
                         else line(gcode, "%s X%s Y%s", preprocessor.rapid(), fmtCoordinate(slot.x1(), image.units()), fmtCoordinate(slot.y1(), image.units()));
                     }
-                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depths.get(pass)), fmt(params.feedRate()));
+                    line(gcode, "%s Z%s F%s", preprocessor.linear(), fmt(depths.get(pass)==0 ? 0 : -depths.get(pass)), fmt(params.feedRate()));
                     if (slot.hasPath()) {
                         for (var point : slot.path().subList(1,slot.path().size())) {
                             cancellation.throwIfCancellationRequested();
@@ -778,7 +790,7 @@ public final class GCodeGenerator {
                             + " exige V-Tip Dia e V-Tip Angle.");
                 depth = settings.cutDepth(tool.toolDiameter());
             }
-            depthsByTool.add(passDepths(depth, machining.multiDepth(), machining.depthPerPass()));
+            depthsByTool.add(passDepths(depth, machining.multiDepth(), machining.depthPerPass(),machining.zPolicy()));
             compensatedPaths.add(GeometryPathCompensation.apply(tool.geometry(),
                     machining.offset().distance(tool.toolDiameter(), machining.customOffset()), cancellationToken));
             if (machining.multiDepth() && machining.passStrategy()==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION) {
@@ -824,6 +836,8 @@ public final class GCodeGenerator {
         int previousSpindle = 0;
         double lastToolRadius = tools.getFirst().toolDiameter() / 2;
         double lastTravelZ = clearance;
+        boolean hasMachinistTool = params.zPolicy() == MachiningZPolicy.MACHINIST
+                || parametersByTool.values().stream().anyMatch(p -> p.zPolicy() == MachiningZPolicy.MACHINIST);
 
         for (int toolIndex = 0; toolIndex < tools.size(); toolIndex++) {
             ToolGeometry tool = tools.get(toolIndex);
@@ -885,6 +899,10 @@ public final class GCodeGenerator {
             }
             firstTool = false;
             line(gcode, "%s", preprocessor.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
+            if(machining.zPolicy()==MachiningZPolicy.MACHINIST)
+                line(gcode,"%s",preprocessor.comment("FCFX ZPOLICY MACHINIST CUTZ "+fmt(depths.getLast()==0 ? 0 : -depths.getLast())));
+            else if(hasMachinistTool)
+                line(gcode,"%s",preprocessor.comment("FCFX ZPOLICY STANDARD"));
             if (tool.toolProfile() == ToolProfile.V) {
                 VTipSettings settings = vTools.get(toolIndex);
                 line(gcode, "%s", preprocessor.comment(String.format(Locale.ROOT,
@@ -925,7 +943,7 @@ public final class GCodeGenerator {
                 for (int pass=0;pass<pathDepths.size();pass++) {
                     double depth=pathDepths.get(pass);
                     cancellationToken.throwIfCancellationRequested();
-                    line(gcode, "%s Z-%s F%s", preprocessor.linear(), fmt(depth), fmt(machining.feedRateZ()));
+                    line(gcode, "%s Z%s F%s", preprocessor.linear(), fmt(depth==0 ? 0 : -depth), fmt(machining.feedRateZ()));
                     for (int p = 1; p < passCoordinates.length; p++) {
                         cancellationToken.throwIfCancellationRequested();
                         line(gcode, "%s X%s Y%s F%s", preprocessor.linear(), fmtCoordinate(passCoordinates[p].x, units),
@@ -1087,12 +1105,12 @@ public final class GCodeGenerator {
                                                    GCodePreprocessor profile) {
         validateLaserGroups(profile, params, byTool);
         boolean focusPositioned = profile != GCodePreprocessor.GRBL_LASER;
-        double clearance = 0, lastFocus = params.safeZ();
+        double clearance = Double.NEGATIVE_INFINITY, lastFocus = params.safeZ();
         for (int i=0; i<tools.size(); i++) if (!tools.get(i).geometry().isEmpty()) {
             lastFocus = byTool.getOrDefault(i,params).safeZ();
             clearance = Math.max(clearance,lastFocus);
         }
-        if (clearance == 0) clearance = params.safeZ();
+        if (!Double.isFinite(clearance)) clearance = params.safeZ();
         StringBuilder gcode = new StringBuilder();
         line(gcode, "%s", profile.comment("Gerado por FlatCAM FX - laser"));
         line(gcode, "%s", profile.header());
@@ -1193,6 +1211,9 @@ public final class GCodeGenerator {
     }
     private static List<Double> passDepths(double cutDepth, boolean multiDepth, double depthPerPass) {
         return MachiningPasses.depths(cutDepth, multiDepth, depthPerPass);
+    }
+    private static List<Double> passDepths(double cutDepth, boolean multiDepth, double depthPerPass, MachiningZPolicy policy) {
+        return MachiningPasses.depths(cutDepth, multiDepth, depthPerPass,policy);
     }
 
     private static void addTravel(List<Geometry> travelShapes, double fromX, double fromY, double toX, double toY, double radius) {

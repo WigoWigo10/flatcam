@@ -66,10 +66,12 @@ class PythonMainFlowImportTest {
         var project = load(object); assertFalse(project.importWarnings().isEmpty());
         if (kind.equals("geometry")) {
             assertFalse(project.geometries().getFirst().geometry().isEmpty());
-            assertNull(project.geometries().getFirst().cncDefaults());
+            assertEquals(1,project.geometries().getFirst().cncDefaults().cutZ());
+            assertEquals(org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST,project.geometries().getFirst().cncDefaults().zPolicy());
         } else {
             assertEquals(1, project.excellons().getFirst().image().totalDrills());
-            assertTrue(project.excellons().getFirst().drillDefaults().isEmpty());
+            assertEquals(1,project.excellons().getFirst().drillDefaults().get(1).cutZ());
+            assertEquals(org.flatcam.cam.gcode.MachiningZPolicy.MACHINIST,project.excellons().getFirst().drillDefaults().get(1).zPolicy());
         }
     }
 }
