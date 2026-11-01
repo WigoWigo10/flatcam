@@ -1,5 +1,21 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Diâmetro nas propriedades Excellon — 2026-11-01
+
+Coluna Diameter editável diretamente por duplo clique/F2/Enter, com ponto ou
+vírgula, precisão integral no campo, validação e Esc. Altera todos os furos e
+rasgos do ID sem mover centros, renumerar ou juntar ferramentas. Totais ficam
+protegidos. Reconstrução em worker, Plot atualizado e Undo/Redo por objeto,
+com histórico escalar limitado a 100 alterações. Arquivo de origem e saídas
+CAM/CNC anteriores não são regravados automaticamente.
+
+Focado: 56 aprovados, zero falhas/erros, `target/excellon-diameter-focused4.log`.
+Persistência MM/IN nativa/Python, entrada inválida, cancelamento e publicação
+obsoleta cobertos. Detalhes em
+[EXCELLON_DIAMETER_TABLE_20261101.md](EXCELLON_DIAMETER_TABLE_20261101.md).
+Preparação da Beta 4 revisão 1 em andamento para incluir o recurso, preservar
+o pacote original e permitir upgrade também de quem já instalou a Beta 4.
+
 ## Beta 4: distribuição validada — 2026-11-01
 
 Salvar original/cópia e tooltip de Cancelar commitados em **420d8885**;

@@ -111,6 +111,34 @@ public final class ExcellonImage {
         return solidGeometry;
     }
 
+    /** Changes one tool's real diameter without reassigning hits or changing their centreline coordinates. */
+    public ExcellonImage withToolDiameter(int toolId, double diameter, org.flatcam.cam.CancellationToken cancellation,
+                                         org.flatcam.cam.ProgressCallback progress) {
+        if (!toolDiameters.containsKey(toolId)) throw new IllegalArgumentException("Unknown Excellon tool: " + toolId);
+        if (!Double.isFinite(diameter) || diameter <= 0) throw new IllegalArgumentException("Diameter must be positive and finite");
+        cancellation.throwIfCancellationRequested();
+        if (Double.compare(toolDiameters.get(toolId), diameter) == 0) return this;
+        Map<Integer,Double> sizes = new java.util.LinkedHashMap<>(toolDiameters);
+        sizes.put(toolId,diameter);
+        var factory = solidGeometry == null ? new org.locationtech.jts.geom.GeometryFactory() : solidGeometry.getFactory();
+        List<Geometry> shapes = new java.util.ArrayList<>(drills.size()+slots.size());
+        int total=drills.size()+slots.size(), completed=0;
+        for (var drill : drills) {
+            cancellation.throwIfCancellationRequested();
+            shapes.add(factory.createPoint(new Coordinate(drill.x(),drill.y())).buffer(sizes.get(drill.toolId())/2,16));
+            if (++completed % 128 == 0) progress.report((double)completed/Math.max(1,total));
+        }
+        for (var slot : slots) {
+            cancellation.throwIfCancellationRequested();
+            shapes.add(slot.centerline(factory).buffer(sizes.get(slot.toolId())/2,16));
+            if (++completed % 128 == 0) progress.report((double)completed/Math.max(1,total));
+        }
+        cancellation.throwIfCancellationRequested();
+        var geometry=factory.buildGeometry(shapes);
+        progress.report(1);
+        return new ExcellonImage(units,sizes,drills,slots,geometry);
+    }
+
     public boolean isEmpty() {
         return solidGeometry == null || solidGeometry.isEmpty();
     }

@@ -17,6 +17,10 @@ final class EditableToolDiameterColumn<R> {
     private final ToDoubleFunction<R> read;
     private final ObjDoubleConsumer<R> write;
     private final Consumer<String> message;
+    private final java.util.function.Predicate<R> eligible;
+    private final java.util.function.Function<R,String> display;
+    private final boolean unique;
+    private final String help;
     private final Map<R, String> drafts = new IdentityHashMap<>();
     private Consumer<Runnable> commitAction = Runnable::run;
     void onCommit(Consumer<Runnable> action) { commitAction = action; }
@@ -32,7 +36,14 @@ final class EditableToolDiameterColumn<R> {
 
     EditableToolDiameterColumn(TableView<R> table, TableColumn<R, Double> column,
                                ToDoubleFunction<R> read, ObjDoubleConsumer<R> write, Consumer<String> message) {
+        this(table,column,read,write,message,row->true,true,row->Double.toString(read.applyAsDouble(row)),I18n.text("tool.diameter.edit.help"));
+    }
+
+    EditableToolDiameterColumn(TableView<R> table, TableColumn<R, Double> column,
+                               ToDoubleFunction<R> read, ObjDoubleConsumer<R> write, Consumer<String> message,
+                               java.util.function.Predicate<R> eligible, boolean unique, java.util.function.Function<R,String> display,String help) {
         this.table = table; this.read = read; this.write = write; this.message = message;
+        this.eligible=eligible; this.unique=unique; this.display=display;this.help=help;
         table.setEditable(true);
         table.getColumns().forEach(other -> other.setEditable(other == column));
         column.setEditable(true);
@@ -60,7 +71,7 @@ final class EditableToolDiameterColumn<R> {
                     && !TableKeyboardActions.inputTarget(event.getTarget()) && table.getEditingCell() == null) {
                 int focused = table.getFocusModel().getFocusedIndex();
                 int row = table.getSelectionModel().isSelected(focused) ? focused : table.getSelectionModel().getSelectedIndex();
-                if (row >= 0) { table.getFocusModel().focus(row, column); table.edit(row, column); event.consume(); }
+                if (row >= 0 && eligible.test(table.getItems().get(row))) { table.getFocusModel().focus(row, column); table.edit(row, column); event.consume(); }
             }
         });
         table.getItems().addListener((javafx.collections.ListChangeListener<R>) change -> {
@@ -76,6 +87,7 @@ final class EditableToolDiameterColumn<R> {
         Map<R, Double> values = new IdentityHashMap<>();
         for (int i = 0; i < table.getItems().size(); i++) {
             R row = table.getItems().get(i);
+            if (!eligible.test(row)) continue;
             double value;
             try {
                 value = drafts.containsKey(row) ? Double.parseDouble(drafts.get(row).trim().replace(',', '.')) : read.applyAsDouble(row);
@@ -84,7 +96,7 @@ final class EditableToolDiameterColumn<R> {
                 return reject(row, String.format(I18n.text("tool.diameter.invalid"), i + 1));
             }
             var duplicate = values.entrySet().stream().filter(other -> Math.abs(other.getValue() - value) < 1e-6).findFirst();
-            if (duplicate.isPresent()) {
+            if (unique && duplicate.isPresent()) {
                 R culprit = drafts.containsKey(row) ? row : drafts.containsKey(duplicate.get().getKey()) ? duplicate.get().getKey() : row;
                 return reject(culprit, String.format(I18n.text("tool.diameter.duplicate"), table.getItems().indexOf(culprit) + 1));
             }
@@ -108,6 +120,7 @@ final class EditableToolDiameterColumn<R> {
         table.scrollTo(table.getItems().indexOf(row)); table.refresh(); return false;
     }
     private String text(R row) { return drafts.getOrDefault(row, Double.toString(read.applyAsDouble(row))); }
+    private String display(R row) { return drafts.getOrDefault(row,display.apply(row)); }
     String draft(R row) { return drafts.get(row); }
     void restoreDraft(R row, String text) { if (text != null) { drafts.put(row, text); changed(); } }
 
@@ -120,8 +133,8 @@ final class EditableToolDiameterColumn<R> {
             editor.setMinHeight(0); editor.setPrefHeight(UiFonts.rowHeight(22));
             editor.setId("tool-diameter-editor");
             editor.getStyleClass().add("tool-diameter-input");
-            ToolDescriptions.apply(this, I18n.text("ui.7cd23abc62e0"), I18n.text("tool.diameter.edit.help"));
-            ToolDescriptions.apply(editor, I18n.text("ui.7cd23abc62e0"), I18n.text("tool.diameter.edit.help"));
+            ToolDescriptions.apply(this, I18n.text("ui.7cd23abc62e0"), help);
+            ToolDescriptions.apply(editor, I18n.text("ui.7cd23abc62e0"), help);
             setOnMouseClicked(event -> {
                 if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2 && !isEmpty() && !isEditing()) {
                     table.edit(getIndex(), getTableColumn()); event.consume();
@@ -142,6 +155,8 @@ final class EditableToolDiameterColumn<R> {
                     table.requestFocus(); event.consume();
                 } else if (event.getCode() == KeyCode.TAB && !event.isControlDown() && !event.isAltDown() && !event.isMetaDown()) {
                     int next = getIndex() + (event.isShiftDown() ? -1 : 1);
+                    while (next>=0 && next<table.getItems().size() && !eligible.test(table.getItems().get(next)))
+                        next+=event.isShiftDown() ? -1 : 1;
                     if (finish()) {
                         if (next >= 0 && next < table.getItems().size()) {
                             table.getSelectionModel().clearAndSelect(next); table.scrollTo(next);
@@ -160,7 +175,7 @@ final class EditableToolDiameterColumn<R> {
         }
         private R row() { return getIndex() >= 0 && getIndex() < table.getItems().size() ? table.getItems().get(getIndex()) : null; }
         @Override public void startEdit() {
-            if (isEmpty() || row() == null) return;
+            if (isEmpty() || row() == null || !eligible.test(row())) return;
             super.startEdit();
             if (!isEditing()) return;
             editedRow = row(); loading = true; editor.setText(text(editedRow)); loading = false;
@@ -172,21 +187,23 @@ final class EditableToolDiameterColumn<R> {
             R edited = editedRow;
             if (!commit()) return false;
             super.commitEdit(read.applyAsDouble(edited));
-            editedRow = null; setGraphic(null); setText(row() == null ? null : text(row()));
+            editedRow = null; setGraphic(null); setText(row() == null ? null : display(row()));
             return true;
         }
         @Override public void cancelEdit() {
             super.cancelEdit();
             // Focus/selection changes may cancel JavaFX editing before focusLost. Keep the draft for validation.
-            editedRow = null; setGraphic(null); setText(row() == null ? null : text(row()));
+            editedRow = null; setGraphic(null); setText(row() == null ? null : display(row()));
         }
         @Override protected void updateItem(Double value, boolean empty) {
             super.updateItem(value, empty);
             pseudoClassStateChanged(INVALID, !empty && row() == invalidRow);
             editor.pseudoClassStateChanged(INVALID, !empty && row() == invalidRow);
+            if (!empty && row()!=null && !eligible.test(row())) { if (!getStyleClass().contains("total-cell")) getStyleClass().add("total-cell"); }
+            else getStyleClass().remove("total-cell");
             if (empty || row() == null) { setText(null); setGraphic(null); }
             else if (isEditing()) { setText(null); setGraphic(editor); }
-            else { setGraphic(null); setText(text(row())); }
+            else { setGraphic(null); setText(display(row())); }
         }
     }
 }

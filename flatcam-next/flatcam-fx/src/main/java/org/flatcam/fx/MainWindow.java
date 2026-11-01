@@ -278,6 +278,10 @@ final class MainWindow implements TclFlatcamHost {
     /** Files opened/generated so far, keyed by their tree item - back the Properties tab and the item context menu. */
     private final Map<TreeItem<String>, GerberImage> gerberByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, ExcellonImage> excellonByItem = new LinkedHashMap<>();
+    private final Map<TreeItem<String>, ExcellonDiameterHistory> excellonDiameterHistories = new LinkedHashMap<>();
+    private TreeItem<String> excellonPropertiesItem;
+    private ExcellonObjectToolsTable.View excellonPropertiesTools;
+    private TitledPane excellonPropertiesInfo;
     private final Map<TreeItem<String>, Map<Integer, DrillGCodeParameters>> drillDefaultsByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, DrillCncSettings> drillCncSettingsByItem = new LinkedHashMap<>();
     private final Map<TreeItem<String>, GeometryCncSettings> geometryCncSettingsByItem = new LinkedHashMap<>();
@@ -7994,6 +7998,7 @@ final class MainWindow implements TclFlatcamHost {
         gcodeEditor.cancelIfEditing(item);
         item.getParent().getChildren().remove(item);
         byItem.remove(item);
+        excellonDiameterHistories.remove(item);
         drillDefaultsByItem.remove(item);
         drillCncSettingsByItem.remove(item);
         geometryCncSettingsByItem.remove(item);
@@ -8025,6 +8030,7 @@ final class MainWindow implements TclFlatcamHost {
      * transformations, which need a mutable, persistent object model.
      */
     private void showProperties(TreeItem<String> item) {
+        excellonPropertiesItem=null;excellonPropertiesTools=null;excellonPropertiesInfo=null;
         Node content;
         GerberImage gerberImage = item == null ? null : gerberByItem.get(item);
         ExcellonImage excellonImage = item == null ? null : excellonByItem.get(item);
@@ -8236,8 +8242,67 @@ final class MainWindow implements TclFlatcamHost {
         });
     }
 
+    private ExcellonDiameterHistory diameterHistory(TreeItem<String> item) {
+        var image=excellonByItem.get(item);
+        if(image==null)return new ExcellonDiameterHistory();
+        var history=excellonDiameterHistories.computeIfAbsent(item,ignored->new ExcellonDiameterHistory());
+        history.align(image);return history;
+    }
+
+    boolean editExcellonDiameter(TreeItem<String> item,ExcellonImage expected,int id,double value) {
+        if(expected==null || excellonByItem.get(item)!=expected || !expected.toolDiameters().containsKey(id)
+                || !Double.isFinite(value) || value<=0 || Double.compare(expected.toolDiameters().get(id),value)==0)return false;
+        return applyExcellonDiameter(item,expected,diameterHistory(item),
+                new ExcellonDiameterHistory.Change(id,expected.toolDiameters().get(id),value),ExcellonDiameterHistory.Action.EDIT);
+    }
+
+    boolean travelExcellonDiameter(TreeItem<String> item,boolean redo) {
+        var image=excellonByItem.get(item);if(image==null)return false;
+        var history=diameterHistory(item);var change=redo ? history.redo() : history.undo();
+        return change!=null && applyExcellonDiameter(item,image,history,change,
+                redo ? ExcellonDiameterHistory.Action.REDO : ExcellonDiameterHistory.Action.UNDO);
+    }
+
+    private boolean applyExcellonDiameter(TreeItem<String> item,ExcellonImage original,ExcellonDiameterHistory history,
+                                          ExcellonDiameterHistory.Change change,ExcellonDiameterHistory.Action action) {
+        if(runningJob!=null || terminalPanel!=null && terminalPanel.isBusy() || anyObjectEditorActive() || plotAreaView.isPlacementActive())return false;
+        long epoch=tclProjectEpoch;
+        double value=action==ExcellonDiameterHistory.Action.UNDO ? change.before() : change.after();
+        beginJob(I18n.text("excellon.diameter.updating"));
+        var handle=jobExecutor.submit(context->original.withToolDiameter(change.toolId(),value,context::isCancelled,
+                fraction->context.reportProgress(fraction,I18n.text("excellon.diameter.updating"))),
+                (fraction,message)->Platform.runLater(()->{updateProgress(fraction);statusLabel.setText(message);}));
+        runningJob=handle;
+        handle.completion().whenComplete((updated,error)->Platform.runLater(()->{
+            if(runningJob!=handle)return;
+            onJobFinished();
+            if(error!=null || handle.isCancelled()) {
+                if(error!=null)reportJobError(error,I18n.text("excellon.diameter.failed"));
+                refreshExcellonDiameterView(item,I18n.text("excellon.diameter.failed"));return;
+            }
+            if(tclProjectEpoch!=epoch || excellonByItem.get(item)!=original || anyObjectEditorActive()) {
+                setStatus(I18n.text("excellon.diameter.stale"),CANCELLED_COLOR);
+                refreshExcellonDiameterView(item,I18n.text("excellon.diameter.stale"));return;
+            }
+            history.applied(updated,change,action);
+            excellonByItem.put(item,updated);plotMoveHistory.clear();
+            plotAreaView.updateLayerGeometry(item,updated.solidGeometry());refreshPlotSelectionOutline();
+            refreshExcellonDiameterView(item,I18n.text("excellon.diameter.applied"));
+            updateProgress(1);setStatus(I18n.text("excellon.diameter.applied"),IDLE_COLOR);
+        }));return true;
+    }
+
+    private void refreshExcellonDiameterView(TreeItem<String> item,String message) {
+        var image=excellonByItem.get(item);
+        if(excellonPropertiesItem!=item || image==null || excellonPropertiesTools==null)return;
+        excellonPropertiesTools.update(image,message);
+        var info=new Label(String.format(I18n.text("ui.96f3610043b2"),image.units(),image.totalDrills(),image.totalSlots(),Arrays.toString(image.bounds())));
+        info.setWrapText(true);excellonPropertiesInfo.setContent(info);
+    }
+
     /** ExcellonObjectUI's Basic layout: editor, properties, tool totals, actions, utilities and transforms. */
     private Node buildExcellonPropertiesPanel(TreeItem<String> item, ExcellonImage image) {
+        diameterHistory(item);
         VBox box = objectPropertiesHeader("Excellon Object", DRILL_FILL, "drill32.png");
 
         CheckBox solidCb = new CheckBox(I18n.text("ui.40ca66a274a1"));
@@ -8253,16 +8318,12 @@ final class MainWindow implements TclFlatcamHost {
         Button editButton = new Button("Excellon Editor");
         editButton.setGraphic(legacyIcon("edit_file32.png", 18));
         editButton.setMaxWidth(Double.MAX_VALUE);
-        editButton.setOnAction(e -> {
-            selectProjectItem(item);
-            editSelectedExcellon();
-        });
         box.getChildren().add(editButton);
 
-        box.getChildren().add(propertiesSection(String.format(
+        var info=propertiesSection(String.format(
                 I18n.text("ui.96f3610043b2"),
                 image.units(), image.totalDrills(), image.totalSlots(), Arrays.toString(image.bounds())
-        )));
+        ));box.getChildren().add(info);
 
         CheckBox plotCb = new CheckBox("Plot");
         plotCb.setId("object-plot");
@@ -8276,7 +8337,18 @@ final class MainWindow implements TclFlatcamHost {
         HBox tableHeader = new HBox(8, tableLabel, tableHeaderSpacer, plotCb);
         tableHeader.setAlignment(Pos.CENTER_LEFT);
         box.getChildren().add(tableHeader);
-        box.getChildren().add(ExcellonObjectToolsTable.build(image));
+        var toolsView=ExcellonObjectToolsTable.editable(image,new ExcellonObjectToolsTable.Host() {
+            public boolean change(int id,double value) { return editExcellonDiameter(item,excellonByItem.get(item),id,value); }
+            public boolean history(boolean redo) { return travelExcellonDiameter(item,redo); }
+            public boolean canUndo() { return runningJob==null && diameterHistory(item).undo()!=null; }
+            public boolean canRedo() { return runningJob==null && diameterHistory(item).redo()!=null; }
+        });
+        excellonPropertiesItem=item;excellonPropertiesTools=toolsView;excellonPropertiesInfo=info;
+        box.getChildren().add(toolsView.node());
+        editButton.setOnAction(e -> {
+            if(!toolsView.finish() || runningJob!=null)return;
+            selectProjectItem(item);editSelectedExcellon();
+        });
 
         box.getChildren().add(new Separator());
         Label toolsLabel = new Label(I18n.text("ui.429e6b85ecff"));
@@ -8287,14 +8359,14 @@ final class MainWindow implements TclFlatcamHost {
         gcodeButton.getStyleClass().add("primary-action");
         gcodeButton.setGraphic(legacyIcon("drilling_tool32.png", 18));
         gcodeButton.setMaxWidth(Double.MAX_VALUE);
-        gcodeButton.setOnAction(e -> generateDrillGCode(item, image));
+        gcodeButton.setOnAction(e -> {if(toolsView.finish() && runningJob==null)generateDrillGCode(item,excellonByItem.get(item));});
         box.getChildren().add(gcodeButton);
 
         Button millingButton = new Button("Milling Tool");
         millingButton.setGraphic(legacyIcon("milling_tool32.png", 18));
         millingButton.setMaxWidth(Double.MAX_VALUE);
         millingButton.setTooltip(new Tooltip(I18n.text("ui.0bcad6293908")));
-        millingButton.setOnAction(e -> generateExcellonMilling(item, image));
+        millingButton.setOnAction(e -> {if(toolsView.finish() && runningJob==null)generateExcellonMilling(item,excellonByItem.get(item));});
         box.getChildren().add(millingButton);
 
         VBox utilitiesContent = new VBox(8);
@@ -10360,6 +10432,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private boolean projectSaveAllowed() {
+        if(excellonPropertiesTools!=null && !excellonPropertiesTools.finish())return false;
         if (runningJob != null) {
             appendConsole(I18n.text("ui.df12b110e3bb"));
             return false;
@@ -10374,17 +10447,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Python on_file_saveprojectas: always asks for the destination and format. */
     private void saveProjectAs(java.util.function.Consumer<Boolean> done) {
-        if (runningJob != null) {
-            appendConsole(I18n.text("ui.df12b110e3bb"));
-            done.accept(false);
-            return;
-        }
-        if (gcodeEditor.isActive() || gerberEditor.isActive() || geometryEditor.isActive()
-                || excellonEditor.isActive()) {
-            appendConsole(I18n.text("ui.feb7dc841cb7"));
-            done.accept(false);
-            return;
-        }
+        if(!projectSaveAllowed()) {done.accept(false);return;}
         ProjectFile project = snapshotProject();
         ProjectChangeTracker.State before=projectStateStamp();
 
@@ -10802,6 +10865,8 @@ final class MainWindow implements TclFlatcamHost {
         cncJobsNode.getChildren().clear();
         gerberByItem.clear();
         excellonByItem.clear();
+        excellonDiameterHistories.clear();
+        excellonPropertiesItem=null;excellonPropertiesTools=null;excellonPropertiesInfo=null;
         drillDefaultsByItem.clear();
         drillCncSettingsByItem.clear();
         geometryCncSettingsByItem.clear();
