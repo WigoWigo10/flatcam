@@ -27,6 +27,30 @@ A Beta 4 também verifica, nos JARs do pacote, os modos Z padrão/Machinist em
 Geometry/Drilling/Cutout MM/IN, Salvar original versus Salvar como cópia no
 editor G-code, tooltip de Cancelar e Undo/Redo das tabelas CAM.
 
+Na Beta 4 revisão 1, o probe também edita o diâmetro na tabela Excellon,
+confere Plot, Undo/Redo e persistência nativa/Python. Para validar os dois
+caminhos de atualização, forneça os MSIs anteriores como array:
+
+```powershell
+.\test-beta.ps1 -BuildDirectory "C:\caminho\candidata-r1" -PreviousMsi @(
+    "C:\caminho\FlatCAM-FX-0.1.0-beta.3-windows-x64-setup.msi",
+    "C:\caminho\FlatCAM-FX-0.1.0-beta.4-windows-x64-setup.msi"
+)
+```
+
+`flatcam.beta.revision` no POM distingue revisões da mesma Beta (0..9).
+Arquivos/notas/manifesto usam `-rN` quando N > 0; a versão Maven/app permanece
+a mesma. A versão MSI agora reserva dez builds por Beta:
+`major.minor.(patch*1000 + beta*10 + revisão)`. Beta 4 r1 = 0.1.41; uma futura
+Beta 5 r0 = 0.1.50. MSIs antigos 0.1.3/0.1.4 continuam abaixo e a família
+permanece. O verificador compara versões MSI numéricas, permitindo atualizar
+uma revisão da mesma versão do app. Conferir o commit nos JARs impede aceitar
+o JAR anterior quando o nome do arquivo não muda. A revisão do ponteiro padrão
+também precisa coincidir com o POM.
+
+Revisões não movem tags/pacotes já entregues: recebem tag `v<versão>-rN` e
+pasta nova. Para reproduzir versões históricas, use os scripts do seu commit.
+
 O projeto do ensaio fica fora da pasta instalada. Um ensaio inicial dentro
 dessa pasta foi apagado pela remoção recursiva do MSI da Beta 1 (FileRemove
 confirmado no log). Isso é uma limitação real, documentada nas notas da Beta 2:

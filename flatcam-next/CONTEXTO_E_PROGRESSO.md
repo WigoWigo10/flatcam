@@ -16,6 +16,13 @@ obsoleta cobertos. Detalhes em
 Preparação da Beta 4 revisão 1 em andamento para incluir o recurso, preservar
 o pacote original e permitir upgrade também de quem já instalou a Beta 4.
 
+Implementação commitada em **6d3e69ef**. Regressão de diâmetros CAM e teclado:
+48 aprovados em `target/excellon-diameter-cam-regression.log`. A revisão 1
+mantém a versão app/Maven 0.1.0-beta.4, usa `betaRevision=1`, nomes `-r1` e
+MSI 0.1.41. O verificador aceita múltiplos MSIs anteriores e distingue revisão
+por versão numérica/commit, inclusive quando o JAR tem o mesmo nome. Probe
+ampliado compilou; build/validação da distribuição ainda pendentes.
+
 ## Beta 4: distribuição validada — 2026-11-01
 
 Salvar original/cópia e tooltip de Cancelar commitados em **420d8885**;

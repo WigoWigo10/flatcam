@@ -1,4 +1,4 @@
-param([string]$BuildDirectory,[switch]$SkipInstallation,[string]$PreviousMsi)
+param([string]$BuildDirectory,[switch]$SkipInstallation,[string[]]$PreviousMsi)
 $ErrorActionPreference='Stop'
 $betaBuildExplicit=[bool]$BuildDirectory
 function Run-Isolated([string]$Program,[string[]]$Arguments,[string]$Log,[string]$WorkingDirectory) {
@@ -52,11 +52,14 @@ function Read-MsiProperty([string]$Path,[string]$Property) {
 function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[string]$Classes,$Manifest,[string]$Revision) {
     $oldProduct=Read-MsiProperty $Previous 'ProductCode'
     $newProduct=Read-MsiProperty $Current 'ProductCode'
+    $oldInstallerVersion=Read-MsiProperty $Previous 'ProductVersion'
+    $newInstallerVersion=Read-MsiProperty $Current 'ProductVersion'
+    if([version]$oldInstallerVersion -ge [version]$newInstallerVersion) {throw 'Previous MSI must have a lower numeric installer version.'}
     if($oldProduct -eq $newProduct -or
         (Read-MsiProperty $Previous 'UpgradeCode') -ne (Read-MsiProperty $Current 'UpgradeCode')) {
         throw 'Upgrade test requires different products from the same upgrade family.'
     }
-    $report=Join-Path $Outside 'upgrade';New-Item -ItemType Directory -Path $report | Out-Null
+    $report=Join-Path $Outside ('upgrade-'+$oldInstallerVersion);New-Item -ItemType Directory -Path $report | Out-Null
     $installed=Join-Path $report 'instalado'
     $owned=[Collections.Generic.List[string]]::new()
     $installer=New-Object -ComObject WindowsInstaller.Installer
@@ -67,7 +70,6 @@ function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[strin
         if($installer.ProductInfo($oldProduct,'AssignmentType') -ne '0') {throw 'Previous test installation is not per-user.'}
         $oldManifest=Get-Content -LiteralPath (Join-Path $installed 'flatcam-release.json') -Raw | ConvertFrom-Json
         $oldVersion=$oldManifest.version
-        if($oldVersion -eq $Manifest.version) {throw 'Previous installer must be an older Beta.'}
         # The legacy installer recursively removes its app directory. User projects must live outside it.
         $projectDirectory=Join-Path $report 'projects';New-Item -ItemType Directory -Path $projectDirectory | Out-Null
         $project=Join-Path $projectDirectory 'tester-project.fcnproj'
@@ -79,7 +81,7 @@ function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[strin
         if($installer.ProductState($newProduct) -ne 5) {throw 'New MSI product is not registered.'}
         if($installer.ProductInfo($newProduct,'AssignmentType') -ne '0') {throw 'Upgraded test installation is not per-user.'}
         if((Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash -ne $projectHash) {throw 'Upgrade modified the test project.'}
-        if(Test-Path -LiteralPath (Join-Path $installed "app\flatcam-fx-$oldVersion.jar")) {throw 'Upgrade left the previous application JAR installed.'}
+        if($oldVersion -ne $Manifest.version -and (Test-Path -LiteralPath (Join-Path $installed "app\flatcam-fx-$oldVersion.jar"))) {throw 'Upgrade left the previous application JAR installed.'}
         Smoke-Image $installed (Join-Path $report 'upgraded-smoke') $Classes $Manifest.version $Revision
     } finally {
         foreach($product in @($newProduct,$oldProduct)) {
@@ -90,13 +92,13 @@ function Test-Upgrade([string]$Previous,[string]$Current,[string]$Outside,[strin
     }
     if(Test-Path -LiteralPath (Join-Path $installed 'FlatCAM FX Beta.exe')) {throw 'Upgrade uninstall left the executable installed.'}
     if((Get-FileHash -LiteralPath $project -Algorithm SHA256).Hash -ne $projectHash) {throw 'Uninstall modified the test project.'}
-    return $oldVersion
+    return [ordered]@{previousVersion=$oldVersion;previousInstallerVersion=$oldInstallerVersion;installerVersion=$newInstallerVersion;status='PASS';report=$report}
 }
 Push-Location $PSScriptRoot
 try {
     if($PreviousMsi) {
         if($SkipInstallation) {throw '-PreviousMsi requires installation testing.'}
-        $PreviousMsi=(Resolve-Path -LiteralPath $PreviousMsi).Path
+        $PreviousMsi=@($PreviousMsi | ForEach-Object {(Resolve-Path -LiteralPath $_).Path})
     }
     if(!$BuildDirectory) {$BuildDirectory=(Get-Content -LiteralPath 'target\beta-latest.txt' -Raw).Trim()}
     $BuildDirectory=(Resolve-Path -LiteralPath $BuildDirectory).Path
@@ -105,6 +107,9 @@ try {
         $betaCandidate=Get-Content -LiteralPath (Join-Path $BuildDirectory 'image\FlatCAM FX Beta\flatcam-release.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         if($betaCandidate.version -ne [string]$betaCurrentPom.project.version) {
             throw "Latest build version $($betaCandidate.version) differs from current source $($betaCurrentPom.project.version). Use -BuildDirectory explicitly to validate a historical build."
+        }
+        if([int]$betaCandidate.betaRevision -ne [int]$betaCurrentPom.project.properties.'flatcam.beta.revision') {
+            throw 'Latest build Beta revision differs from current source. Use -BuildDirectory explicitly for a historical build.'
         }
     }
     $artifacts=Get-Content -LiteralPath (Join-Path $BuildDirectory 'artifacts.json') -Raw | ConvertFrom-Json
@@ -161,19 +166,21 @@ try {
         if(Test-Path -LiteralPath (Join-Path $installed 'FlatCAM FX Beta.exe')) {throw 'Uninstaller left the executable installed.'}
         $installResult='PASS'
     }
-    $upgradeResult='NOT_RUN';$previousVersion=$null
+    $upgradeResult='NOT_RUN';$previousVersion=$null;$upgrades=@()
     if($PreviousMsi) {
-        $previousVersion=Test-Upgrade $PreviousMsi (Join-Path $BuildDirectory $msi.file) $outside $classes $manifest $revision
+        foreach($previous in $PreviousMsi) {$upgrades+=Test-Upgrade $previous (Join-Path $BuildDirectory $msi.file) $outside $classes $manifest $revision}
+        $previousVersion=($upgrades | ForEach-Object {$_.previousVersion}) -join ', '
         $upgradeResult='PASS'
     }
-    $report=[ordered]@{status='PASS';version=$manifest.version;sourceCommit=$manifest.sourceCommit;dirty=$manifest.dirty;
+    $report=[ordered]@{status='PASS';version=$manifest.version;betaRevision=$manifest.betaRevision;releaseLabel=$manifest.releaseLabel;installerVersion=$manifest.installerVersion;sourceCommit=$manifest.sourceCommit;dirty=$manifest.dirty;
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
         camDraftAndDiameterEditing='PASS';perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
+        upgrades=$upgrades;excellonObjectDiameterEditing='PASS';
         machiningZPolicies='PASS';gcodeOriginalAndCopySave='PASS';cancelPreservesSavedFiles='PASS';camTableUndoRedo='PASS';
         projectPreservationScope='Outside installation directory; legacy uninstall deletes extra files inside app directory';
         fullVerification=$(if($manifest.verification){$manifest.verification}else{'NOT_RUN'});
         environment='Windows x64 on build machine, outside repository; no VM/second PC or physical CNC test'}
-    [IO.File]::WriteAllText((Join-Path $BuildDirectory 'validation.json'),($report | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText((Join-Path $BuildDirectory 'validation.json'),($report | ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
     Write-Host "Beta validation passed: $outside"
 } finally {Pop-Location}

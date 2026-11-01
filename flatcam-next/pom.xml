@@ -23,6 +23,7 @@
         <!-- Allow callers to add JVM test arguments without overriding native access. -->
         <argLine></argLine>
         <flatcam.build.revision>development</flatcam.build.revision>
+        <flatcam.beta.revision>1</flatcam.beta.revision>
         <!-- HotSpot 25.0.4.1 on AVX2 can return false for UTF16.contains(Latin1).
              Repro: tools/JdkStringSearchProbe.java. Keep other CPU/GPU acceleration enabled. -->
         <flatcam.jvm.stringSearchWorkaround>-XX:+UnlockDiagnosticVMOptions -XX:DisableIntrinsic=_indexOfUL</flatcam.jvm.stringSearchWorkaround>

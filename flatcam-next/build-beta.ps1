@@ -32,9 +32,15 @@ try {
     [xml]$pom=Get-Content -LiteralPath pom.xml
     $version=[string]$pom.project.version
     if($version -notmatch '^(\d+)\.(\d+)\.(\d+)-beta\.(\d+)$') { throw 'Expected a beta SemVer in pom.xml.' }
-    # Windows Installer has a numeric three-part version. Beta has its own upgrade family.
-    $installerVersion="$($Matches[1]).$($Matches[2]).$([int]$Matches[3]*1000+[int]$Matches[4])"
-    if(!(Get-Content -LiteralPath 'native-launcher\FlatCAMFX.rc' -Raw).Contains('VALUE "ProductVersion", "'+$version+'\0"')) {
+    # Reserve ten numeric builds per Beta, so a revised Beta upgrades its first installer.
+    $betaRevision=0
+    if($pom.project.properties.'flatcam.beta.revision') {$betaRevision=[int]$pom.project.properties.'flatcam.beta.revision'}
+    if($betaRevision -lt 0 -or $betaRevision -gt 9 -or [int]$Matches[4] -gt 99) {throw 'Use Beta revision 0..9 and Beta number 0..99.'}
+    $installerBuild=[int]$Matches[3]*1000+[int]$Matches[4]*10+$betaRevision
+    if($installerBuild -gt 65535) {throw 'Windows Installer build version exceeds 65535.'}
+    $installerVersion="$($Matches[1]).$($Matches[2]).$installerBuild"
+    $releaseLabel=$version+$(if($betaRevision -gt 0){"-r$betaRevision"}else{''})
+    if(!(Get-Content -LiteralPath 'native-launcher\FlatCAMFX.rc' -Raw).Contains('VALUE "ProductVersion", "'+$releaseLabel+'\0"')) {
         throw 'Native executable version and Maven version must match.'
     }
     $commit=(& git rev-parse HEAD).Trim()
@@ -69,7 +75,7 @@ try {
         $env:PATH="$wix;$env:PATH"
     }
     $env:MAVEN_OPTS="$env:MAVEN_OPTS -XX:+UnlockDiagnosticVMOptions -XX:DisableIntrinsic=_indexOfUL"
-    $build=Join-Path $PSScriptRoot ("target\releases\$version-"+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
+    $build=Join-Path $PSScriptRoot ("target\releases\$releaseLabel-"+[DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff'))
     New-Item -ItemType Directory -Path $build | Out-Null
     if(!$SkipTests) {
         & cmd.exe /d /c ".\mvnw.cmd verify -Dflatcam.build.revision=$revision 2>&1" *> (Join-Path $build 'verify.log')
@@ -108,9 +114,9 @@ try {
         "-I$env:JAVA_HOME\include","-I$env:JAVA_HOME\include\win32",'native-launcher\FlatCAMFX.cpp','target\native\FlatCAMFX-res.o',
         '-lshell32','-o',(Join-Path $image 'FlatCAM FX Beta.exe'))
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\LICENSE') -Destination (Join-Path $image 'LICENSE.txt')
-    Copy-Item -LiteralPath "release\BETA-$version.md" -Destination (Join-Path $image 'LEIA-ME-BETA.md')
+    Copy-Item -LiteralPath "release\BETA-$releaseLabel.md" -Destination (Join-Path $image 'LEIA-ME-BETA.md')
     Copy-Item -LiteralPath 'USER_GUIDE.md' -Destination $image
-    $manifest=[ordered]@{version=$version;channel='beta';installerVersion=$installerVersion;sourceCommit=$commit;
+    $manifest=[ordered]@{version=$version;betaRevision=$betaRevision;releaseLabel=$releaseLabel;channel='beta';installerVersion=$installerVersion;sourceCommit=$commit;
         dirty=$dirty;verification=$(if($SkipTests){'NOT_RUN'}else{'PASS'});builtUtc=[DateTime]::UtcNow.ToString('o');runtime='Temurin 25.0.5+8';runtimeSource=$runtimeUrl;
         runtimeArchiveSha256=$runtimeSha;platform='windows-x64';signed=$false}
     if($PSBoundParameters.ContainsKey('RuntimeJdk')) { $manifest.runtime=$runtimeRelease; $manifest.runtimeSource='provided OpenJDK';$manifest.runtimeArchiveSha256=$null }
@@ -120,18 +126,18 @@ try {
         (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()+'  '+$_.FullName.Substring($image.Length+1).Replace('\','/')
     }
     Write-Utf8 (Join-Path $image 'SHA256SUMS.txt') (($sums -join "`n")+"`n")
-    $zip=Join-Path $build "FlatCAM-FX-$version-windows-x64.zip"
+    $zip=Join-Path $build "FlatCAM-FX-$releaseLabel-windows-x64.zip"
     Invoke-Checked 'tar.exe' @('-a','-cf',$zip,'-C',$imageParent,'FlatCAM FX Beta')
     if(!$PortableOnly) {
         foreach($kind in @('msi','exe')) {
             Invoke-Checked $jpackage @('--type',$kind,'--name','FlatCAM FX Beta','--app-image',$image,'--app-version',$installerVersion,
-                '--vendor','FlatCAM FX contributors','--description',"FlatCAM FX $version - Beta testing",
+                '--vendor','FlatCAM FX contributors','--description',"FlatCAM FX $releaseLabel - Beta testing",
                 '--license-file',(Join-Path $image 'LICENSE.txt'),'--dest',$build,'--install-dir','FlatCAM FX Beta',
                 '--win-per-user-install','--win-menu','--win-menu-group','FlatCAM FX Beta','--win-shortcut','--win-dir-chooser',
                 '--win-upgrade-uuid','5AE0F49D-3943-495D-81E3-B4B945BE5356')
             $installer=Get-ChildItem -LiteralPath $build -Filter "*.$kind" | Select-Object -First 1
             if(!$installer) {throw "Missing $kind installer"}
-            Rename-Item -LiteralPath $installer.FullName -NewName "FlatCAM-FX-$version-windows-x64-setup.$kind"
+            Rename-Item -LiteralPath $installer.FullName -NewName "FlatCAM-FX-$releaseLabel-windows-x64-setup.$kind"
         }
     }
     $artifacts=Get-ChildItem -LiteralPath $build -File | Where-Object {$_.Extension -in '.zip','.exe','.msi'} | ForEach-Object {

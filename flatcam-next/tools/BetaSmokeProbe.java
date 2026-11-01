@@ -47,6 +47,7 @@ public final class BetaSmokeProbe {
             Path copperFile=output.resolve("Cobre-á.gbr"),edgeFile=output.resolve("Contorno.gbr"),drillFile=output.resolve("Furação.drl");
             Files.writeString(copperFile,copper);Files.writeString(edgeFile,outline);Files.writeString(drillFile,drills);
             window.openGerber(copperFile,"Copper");window.openGerber(edgeFile,"Edge_Cuts");window.openExcellon(drillFile,"Drills");
+            checkExcellonDiameter();
             fx(()-> {call("selectProjectItem",new Class<?>[]{TreeItem.class},item("gerberByItem","Edge_Cuts"));call("convertOutlineToArea",new Class<?>[]{});return null;});
             awaitJob();check(window.objectNames().contains("Edge_Cuts_area"),"Outline conversion failed");
             fx(()-> {
@@ -82,6 +83,8 @@ public final class BetaSmokeProbe {
             for(Path saved:List.of(nativeProject,pythonProject)) {
                 window.openProject(saved,true);check(new HashSet<>(names).equals(new HashSet<>(window.objectNames())),"Object inventory lost after reopening "+saved.getFileName());
                 for(var code:programs.entrySet())check(code.getValue().equals(window.exportGcode(code.getKey(),"","")),"G-code lost after reopening");
+                check(((ExcellonImage)fx(()->map("excellonByItem").get(item("excellonByItem","Drills")))).toolDiameters().get(1)==.1981234567,
+                        "Edited Excellon tool diameter lost after project reopen");
                 if(saved.equals(nativeProject))checkSavedNccDraft();
             }
             check(Files.readString(copperFile).equals(copper) && Files.readString(edgeFile).equals(outline) && Files.readString(drillFile).equals(drills),"Original inputs were changed");
@@ -92,7 +95,8 @@ public final class BetaSmokeProbe {
                             "NCC Seed to Standard with preserved draft","NCC and Isolation edited diameter reaches generated geometry",
                             "exact Add spinner confirmation","Delete row versus text","global NCC draft resume","native NCC draft persistence",
                             "Standard and Machinist Z in Geometry Drilling Cutout MM IN",
-                            "G-code original save and copy save","Cancel help and saved files preserved","CAM table undo and redo")).toString(2));
+                            "G-code original save and copy save","Cancel help and saved files preserved","CAM table undo and redo",
+                            "Excellon properties diameter edit Plot undo redo and project persistence")).toString(2));
             System.out.println("PASS beta smoke "+AboutInfo.version()+" "+args[2]);
         } catch(Throwable error) {error.printStackTrace();exit=1;}
         finally {
@@ -100,6 +104,39 @@ public final class BetaSmokeProbe {
             if(jobs!=null)jobs.shutdown();Platform.exit();
         }
         System.exit(exit);
+    }
+    private static void checkExcellonDiameter() throws Exception {
+        var source=fx(()->item("excellonByItem","Drills"));
+        var before=fx(()->(ExcellonImage)map("excellonByItem").get(source));
+        var form=fx(()-> {
+            call("selectProjectItem",new Class<?>[]{TreeItem.class},source);
+            call("showProperties",new Class<?>[]{TreeItem.class},source);
+            var tabs=(TabPane)field("leftTabs");tabs.getSelectionModel().select((Tab)field("propertiesTab"));
+            var root=(javafx.scene.Parent)stage.getScene().getRoot();root.applyCss();root.layout();
+            return ((ScrollPane)((javafx.scene.layout.StackPane)field("propertiesContainer")).getChildren().getFirst()).getContent();
+        });
+        fx(()-> {
+            var table=(TableView<?>)form.lookup("#excellon-object-tools");check(table!=null,"Excellon properties table missing");
+            table.getSelectionModel().clearAndSelect(0);
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.F2,false,false,false,false));
+            stage.getScene().getRoot().applyCss();stage.getScene().getRoot().layout();
+            var editor=(TextField)table.lookup("#tool-diameter-editor");check(editor!=null,"Excellon diameter F2 failed");
+            editor.setText("0,1981234567");editor.fireEvent(new javafx.event.ActionEvent());
+            check(field("runningJob")!=null,"Excellon diameter did not use a worker");return null;
+        });awaitJob();
+        fx(()-> {
+            var image=(ExcellonImage)map("excellonByItem").get(source);
+            check(image.toolDiameters().get(1)==.1981234567,"Excellon diameter was rounded");
+            check(image.drills().equals(before.drills()) && image.slots().equals(before.slots()),"Diameter moved/reassigned hits");
+            var plot=(PlotAreaView)field("plotAreaView");
+            check(plot.visibleSelectableLayers().stream().anyMatch(layer->layer.key()==source && layer.geometry()==image.solidGeometry()),"Diameter did not update Plot");
+            form.lookup("#excellon-object-tools").fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Z,false,true,false,false));return null;
+        });awaitJob();
+        fx(()-> {
+            check(((ExcellonImage)map("excellonByItem").get(source)).toolDiameters().get(1)==.8,"Excellon diameter Undo failed");
+            form.lookup("#excellon-object-tools").fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Y,false,true,false,false));return null;
+        });awaitJob();
+        fx(()-> {check(((ExcellonImage)map("excellonByItem").get(source)).toolDiameters().get(1)==.1981234567,"Excellon diameter Redo failed");return null;});
     }
     private static void checkZPolicies() throws Exception {
         fx(()-> {
