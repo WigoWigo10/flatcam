@@ -6157,7 +6157,7 @@
     "canonical": false
   },
   "ui.0812ae6fee63": {
-    "source": "Edite o texto e clique Aplicar para atualizar o CNC Job em memória. Salvar arquivo grava uma copia do rascunho; não altera o arquivo original automaticamente. Cancelar descarta as alterações. A pré-visualização cobre movimentos G0/G1, arcos G2/G3 em XY e os subconjuntos lineares ISEL ICP, HPGL e Roland RML-1 (^IN/^PA/Z/V/!MC); sondagem G31 e referência G92 deixam a prévia indisponível. Macros e resets de origem não são simulados e não valida a segurança do programa para uma máquina CNC.",
+    "source": "Edite o texto e use Aplicar ao CNC Job para atualizar o objeto em memória e sua prévia. Salvar grava no arquivo original indicado; se não houver arquivo associado, pede um destino. Salvar como grava uma cópia em outro destino e mantém o original. Cancelar descarta o rascunho em memória, mas não desfaz arquivos já gravados. A prévia cobre movimentos G0/G1, arcos G2/G3 em XY e os subconjuntos lineares ISEL ICP, HPGL e Roland RML-1. Sondagem G31 e referência G92 deixam a prévia indisponível. Macros e resets de origem não são simulados.",
     "locations": [
       "GCodeEditorController.java"
     ],
@@ -6171,7 +6171,7 @@
     "canonical": false
   },
   "ui.63c04841d645": {
-    "source": "Ctrl+F busca • Ctrl+Z / Ctrl+Y desfaz/refaz.\nA prévia não valida a segurança para CNC.",
+    "source": "Ctrl+F busca • Ctrl+Z / Ctrl+Y desfazem/refazem.\nCtrl+S salva • Ctrl+Shift+S salva uma cópia.\nA prévia não valida a segurança na CNC.",
     "locations": [
       "GCodeEditorController.java"
     ],
@@ -27186,7 +27186,7 @@
     "canonical": false
   },
   "guide.topic.code.steps": {
-    "source": "Abra Editar no objeto CNC Job. Use a busca do editor para localizar comandos ou coordenadas.\nEdite o rascunho; use Ctrl+Z/Ctrl+Y para desfazer/refazer no texto.\nUse Aplicar ao CNC Job para atualizar o objeto em memória e aguarde a análise da prévia.\nConfira as mensagens e a nova trajetória. Use Salvar arquivo para gravar uma cópia do rascunho quando desejar.\nPara abandonar mudanças ainda não aplicadas, use Cancelar edição.",
+    "source": "Abra Editar no objeto CNC Job. Use a busca do editor para localizar comandos ou coordenadas.\nEdite o rascunho; use Ctrl+Z/Ctrl+Y para desfazer/refazer no texto.\nUse Aplicar ao CNC Job para atualizar o objeto em memória e aguarde a análise da prévia.\nConfira as mensagens e a nova trajetória. Use Salvar (Ctrl+S) para atualizar o arquivo original, ou Salvar como (Ctrl+Shift+S) para gravar uma cópia em outro destino. Sem arquivo original, Salvar pede um destino na primeira vez.\nPara abandonar mudanças ainda não aplicadas, use Cancelar edição.",
     "locations": [
       "HelpGuideCatalog.java"
     ],
@@ -27774,6 +27774,85 @@
     "source": ". Persistido ao salvar os padrões. Vale na próxima geração, inclusive em painéis abertos; não reescreve objetos ou CNC Jobs existentes. ",
     "locations": [
       "ToolDefaultsDescriptions.java"
+    ],
+    "canonical": false
+  },
+  "gcode.save": {
+    "source": "Salvar",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.saveAs": {
+    "source": "Salvar como…",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.file.current": {
+    "source": "Arquivo original: ",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.file.none": {
+    "source": "Sem arquivo original disponível. Salvar pedirá um destino na primeira vez.",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.save.help": {
+    "source": "**Salvar — Ctrl+S**\n\nGrava o texto do editor no arquivo original indicado acima. Sem arquivo associado, pede um destino e passa a usá-lo nos próximos salvamentos.\n\nO programa é revisado antes da gravação. Para atualizar também o objeto e a prévia no projeto, use Aplicar ao CNC Job.",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.saveAs.help": {
+    "source": "**Salvar como — Ctrl+Shift+S**\n\nEscolhe outro destino e grava uma cópia do texto. Mantém o arquivo original e sua associação com Salvar.\n\nSalvar a cópia não aplica o rascunho ao CNC Job em memória.",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.save.review": {
+    "source": "Salvar grava o texto do editor no arquivo de destino. Não aplica o rascunho ao CNC Job em memória; use Aplicar ao CNC Job para atualizar o objeto e a prévia.",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.saveAs.review": {
+    "source": "Salvar como grava uma cópia. Não aplica o rascunho ao CNC Job em memória nem altera o arquivo original associado ao editor.",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.saveAs.sameFile": {
+    "source": "Para salvar uma cópia, escolha um arquivo diferente do original. Use Salvar para atualizar o original.",
+    "locations": [
+      "GCodeEditorController.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "gcode.cancel.help": {
+    "source": "**Cancelar edição**\n\nFecha o editor e descarta o rascunho ainda não aplicado ao CNC Job em memória.\n\n**Não desfaz arquivos já gravados** por Salvar ou Salvar como. Para mudar um arquivo salvo, edite novamente e salve a correção.",
+    "locations": [
+      "GCodeEditorController.java"
     ],
     "canonical": false
   }

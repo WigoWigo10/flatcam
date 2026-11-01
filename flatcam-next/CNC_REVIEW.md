@@ -1,5 +1,13 @@
 # Revisão antes de salvar CNC — 2026-10-13
 
+## Salvar e Salvar como no editor — 2026-11-01
+
+O editor G-code agora oferece Salvar no original (Ctrl+S) e Salvar como uma
+cópia (Ctrl+Shift+S). Ambos mantêm a revisão antes da gravação. Sem original
+associado, Salvar pede o primeiro destino. Aplicar ao CNC Job continua sendo
+a atualização do objeto e da prévia em memória. Caminho, associação, testes e
+limites em [GCODE_SAVE_20261101.md](GCODE_SAVE_20261101.md).
+
 ## Rascunhos e programas auxiliares — 2026-10-23
 
 Editor G-code, Calibration e SolderPaste agora compartilham o fluxo assíncrono

@@ -1,5 +1,6 @@
 package org.flatcam.fx;
 
+import java.nio.file.Path;
 import java.util.function.Consumer;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
@@ -10,8 +11,10 @@ import javafx.scene.control.TabPane;
 import javafx.scene.control.TreeItem;
 import javafx.scene.layout.VBox;
 
-/** Edits one CNC Job's machine-code text without touching its source file. */
+/** Edits one CNC Job; applying to the project and explicitly saving to disk are separate actions. */
 final class GCodeEditorController {
+
+    record SaveResult(Path file, String message) { }
 
     interface Host {
         void openToolPanel(String label, Node content);
@@ -20,7 +23,7 @@ final class GCodeEditorController {
 
         boolean apply(TreeItem<String> item, String text, Runnable onSuccess, Consumer<String> onFailure);
 
-        boolean saveAs(String text, Consumer<String> onComplete);
+        boolean save(TreeItem<String> item, String text, Path target, boolean copy, Consumer<SaveResult> onComplete);
 
         void log(String message);
     }
@@ -32,8 +35,11 @@ final class GCodeEditorController {
     private CodeEditor editor;
     private Button applyButton;
     private Button saveButton;
+    private Button saveAsButton;
     private Button cancelButton;
     private Label stateLabel;
+    private Label fileLabel;
+    private Path file;
     private String originalText;
     private boolean dirty;
     private boolean busy;
@@ -56,12 +62,17 @@ final class GCodeEditorController {
     }
 
     void start(TreeItem<String> selectedItem, String gcode) {
+        start(selectedItem,gcode,null);
+    }
+
+    void start(TreeItem<String> selectedItem, String gcode, Path originalFile) {
         if (isActive()) {
             tabs.getSelectionModel().select(tab);
             host.log(I18n.text("ui.d64f50edc999"));
             return;
         }
         item = selectedItem;
+        file = originalFile;
         originalText = CodeEditor.normalize(gcode);
         editor = new CodeEditor(gcode, CodeSyntax.Language.MACHINE, true);
         editor.onEdit(() -> {
@@ -85,16 +96,33 @@ final class GCodeEditorController {
         stateLabel = new Label();
         stateLabel.setWrapText(true);
         applyButton = new Button(I18n.text("ui.250a5bfb7e6f"));
-        saveButton = new Button(I18n.text("ui.e9a460daf1f0"));
+        saveButton = new Button(I18n.text("gcode.save"));
+        saveButton.setId("gcode-save");
+        ToolDescriptions.apply(saveButton,I18n.text("gcode.save"),I18n.text("gcode.save.help"));
+        saveAsButton = new Button(I18n.text("gcode.saveAs"));
+        saveAsButton.setId("gcode-save-as");
+        ToolDescriptions.apply(saveAsButton,I18n.text("gcode.saveAs"),I18n.text("gcode.saveAs.help"));
+        fileLabel = new Label(); fileLabel.setId("gcode-file"); fileLabel.setWrapText(true);
+        updateFileLabel();
         cancelButton = new Button(I18n.text("ui.f1cb621ee9d8"));
-        for (Button button : new Button[]{applyButton, saveButton, cancelButton}) {
+        cancelButton.setId("gcode-cancel");
+        ToolDescriptions.apply(cancelButton,I18n.text("ui.f1cb621ee9d8"),I18n.text("gcode.cancel.help"));
+        for (Button button : new Button[]{applyButton, saveButton, saveAsButton, cancelButton}) {
             button.setMaxWidth(Double.MAX_VALUE);
         }
         applyButton.setOnAction(event -> apply());
-        saveButton.setOnAction(event -> saveAs());
+        saveButton.setOnAction(event -> save(false));
+        saveAsButton.setOnAction(event -> save(true));
         cancelButton.setOnAction(event -> cancel());
-        VBox panel = new VBox(10, info, hint, stateLabel, applyButton, saveButton, cancelButton, details);
+        VBox panel = new VBox(10, info, fileLabel, hint, stateLabel, applyButton, saveButton, saveAsButton, cancelButton, details);
         panel.setPadding(new Insets(12));
+        javafx.event.EventHandler<javafx.scene.input.KeyEvent> saveShortcut = event -> {
+            if (event.isShortcutDown() && !event.isAltDown() && event.getCode() == javafx.scene.input.KeyCode.S) {
+                save(event.isShiftDown()); event.consume();
+            }
+        };
+        editor.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED,saveShortcut);
+        panel.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED,saveShortcut);
         host.openToolPanel(I18n.text("ui.7d9970b93974"), panel);
         updateButtons();
         editor.focusCode();
@@ -151,23 +179,30 @@ final class GCodeEditorController {
         }
     }
 
-    private void saveAs() {
+    void save(boolean copy) {
         if (!isActive() || busy || editor.isLoading() || editor.getText().isBlank()) {
             return;
         }
         String text = editor.getText();
+        TreeItem<String> editing = item;
         busy = true;
         updateButtons();
-        if (!host.saveAs(text, message -> {
-            if (isActive()) {
+        if (!host.save(editing, text, copy ? null : file, copy, result -> {
+            if (item == editing) {
+                if (result.file() != null && !copy) { file = result.file(); updateFileLabel(); }
                 busy = false;
                 updateButtons();
-                stateLabel.setText(message);
+                stateLabel.setText(result.message());
             }
         })) {
             busy = false;
             updateButtons();
         }
+    }
+
+    private void updateFileLabel() {
+        fileLabel.setText(file == null ? I18n.text("gcode.file.none") : I18n.text("gcode.file.current") + file);
+        fileLabel.setAccessibleHelp(fileLabel.getText());
     }
 
     private void updateButtons() {
@@ -176,6 +211,7 @@ final class GCodeEditorController {
         }
         applyButton.setDisable(busy || editor.isLoading() || !dirty);
         saveButton.setDisable(busy || editor.isLoading() || editor.area().getLength() == 0);
+        saveAsButton.setDisable(saveButton.isDisabled());
         cancelButton.setDisable(busy);
         editor.setEditable(!busy);
         stateLabel.setText(busy ? "Processando..." : editor.isLoading() ? I18n.text("ui.e6888121aa1b")
@@ -192,6 +228,9 @@ final class GCodeEditorController {
         editor = null;
         applyButton = null;
         saveButton = null;
+        saveAsButton = null;
+        fileLabel = null;
+        file = null;
         cancelButton = null;
         stateLabel = null;
         originalText = null;

@@ -105,7 +105,9 @@ final class ToolPanelIcons {
             Map.entry("Array de furos selecionados", "addarray16.png"),
             Map.entry("Array de slots selecionados", "slot_array26.png"),
             Map.entry("Aplicar ao CNC Job", "close_edit_file32.png"),
-            Map.entry("Salvar arquivo...", "save_as.png"));
+            Map.entry("Salvar arquivo...", "save_as.png"),
+            Map.entry("Salvar", "project_save16.png"),
+            Map.entry("Salvar como…", "save_as.png"));
 
     private static final Map<String, String> SECTIONS = Map.of(
             "Opções avançadas", "settings18.png",

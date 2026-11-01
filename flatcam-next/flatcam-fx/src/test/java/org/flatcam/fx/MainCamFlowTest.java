@@ -251,7 +251,8 @@ class MainCamFlowTest {
                 public void openToolPanel(String name, javafx.scene.Node content) { }
                 public void closeToolPanel() { }
                 public boolean apply(TreeItem<String> item, String text, Runnable success, java.util.function.Consumer<String> failure) { return false; }
-                public boolean saveAs(String text, java.util.function.Consumer<String> done) { return false; }
+                public boolean save(TreeItem<String> item, String text, Path target, boolean copy,
+                                    java.util.function.Consumer<GCodeEditorController.SaveResult> done) { return false; }
                 public void log(String text) { }
             });
             field("gcodeEditor").set(session.window, controller);

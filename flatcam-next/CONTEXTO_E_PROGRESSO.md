@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Salvar / Salvar como no editor G-code — 2026-11-01
+
+Políticas Z anteriores commitadas em **77bc29b8**, branch `flatcam-next`.
+O editor agora distingue Salvar no original e Salvar como cópia, com Ctrl+S e
+Ctrl+Shift+S, caminho visível, tooltips/guia PT-BR/EN e ícones dos dois temas.
+Salvar sem original pede o primeiro destino; nomes relativos embutidos em
+projetos não são tratados como arquivo original. Salvar como mantém a
+associação anterior e não pode sobrescrever o próprio original.
+
+Revisão, worker, cancelamento, validação de origem e substituição por temporário
+foram reutilizados. Aplicar atualiza o CNC Job em memória; salvar arquivo não
+o aplica automaticamente. Falha/cancelamento mantêm rascunho e associação.
+Escopo e evidências em [GCODE_SAVE_20261101.md](GCODE_SAVE_20261101.md).
+Focado: **18 aprovados, zero falhas/erros**. Verify integral: **2.316 aprovados,
+18 opcionais ignorados, zero falhas/erros**, `target/gcode-save-verify.log`.
+Contagens em `target/gcode-save-verification.json`. Versão/instaladores
+continuam Beta 3.
+
+Cancelar edição também tem tooltip próprio PT-BR/EN, com destaque para não
+desfazer arquivos já gravados. Focado após o reforço: 19 aprovados, zero
+falhas/erros, `target/gcode-cancel-tooltip.log`. Próxima distribuição: Beta 4.
+
 ## Políticas Z padrão e Machinist — 2026-11-01
 
 Implementadas as duas políticas do Python em Geometry → CNC, Drilling,

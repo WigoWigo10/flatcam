@@ -488,8 +488,9 @@ final class MainWindow implements TclFlatcamHost {
                 }
 
                 @Override
-                public boolean saveAs(String text, Consumer<String> onComplete) {
-                    return MainWindow.this.saveGCodeDraftAs(text, onComplete);
+                public boolean save(TreeItem<String> item, String text, Path target, boolean copy,
+                                    Consumer<GCodeEditorController.SaveResult> onComplete) {
+                    return MainWindow.this.saveGCodeDraft(item, text, target, copy, onComplete);
                 }
 
                 @Override
@@ -697,13 +698,52 @@ final class MainWindow implements TclFlatcamHost {
         }
     }
 
-    private boolean saveGCodeDraftAs(String text, Consumer<String> onComplete) {
+    /** Embedded Python jobs have relative placeholder names, not an original machine-code file. */
+    static Path originalGCodeFile(Path path) {
+        if (path == null || !path.isAbsolute() || !Files.isRegularFile(path)) return null;
+        String name = path.getFileName().toString().toLowerCase(java.util.Locale.ROOT);
+        return java.util.stream.Stream.of(".nc", ".gcode", ".tap", ".ngc", ".imf", ".plt", ".hpgl", ".hpg", ".rml", ".prn", ".cnc", ".txt")
+                .anyMatch(name::endsWith) ? path.normalize() : null;
+    }
+
+    boolean saveGCodeDraft(TreeItem<String> item, String text, Path target, boolean copy,
+                           Consumer<GCodeEditorController.SaveResult> onComplete) {
+        CncJobEntry original = cncJobByItem.get(item);
+        if (original == null || !gcodeEditor.isEditing(item)) return false;
+        Path source = originalGCodeFile(original.outputFile());
         String extension = GCodeToolpathParser.isIcpProgram(text) ? ".imf" : GCodeToolpathParser.isHpglProgram(text)
                 ? ".plt" : GCodeToolpathParser.isRolandProgram(text) ? ".rml" : ".nc";
-        return saveReviewedProgram(I18n.text("ui.506598c4212b"), "program_edit" + extension,
+        String filename = source == null ? "program_edit" + extension : source.getFileName().toString();
+        if (copy && source != null) {
+            int dot=filename.lastIndexOf('.'); filename=filename.substring(0,dot)+"_copy"+filename.substring(dot);
+        }
+        Path[] saved = {null};
+        return saveReviewedProgram(I18n.text("ui.506598c4212b"), filename,
                 () -> new PendingCncProgram(text, null,
-                        I18n.text("ui.dd3a87f029e5"), path -> {}),
-                () -> true, onComplete);
+                        I18n.text(copy ? "gcode.saveAs.review" : "gcode.save.review"), path -> {
+                            saved[0] = path;
+                            if (!copy && target == null)
+                                cncJobByItem.put(item, new CncJobEntry(original.sourceName(),path,original.gcode(),
+                                        original.travelGeometry(),original.cutGeometry(),original.travelCenterlines(),
+                                        original.cutCenterlines(),original.previewStrokeWidth(),original.stats()));
+                        }),
+                () -> gcodeEditor.isEditing(item) && cncJobByItem.get(item) == original,
+                message -> onComplete.accept(new GCodeEditorController.SaveResult(saved[0],message)),
+                (name,code) -> {
+                    if (target != null) return target.toFile();
+                    File chosen = cncExportDestination.apply(name,code);
+                    if (copy && source != null && chosen != null) {
+                        Path chosenPath=chosen.toPath().toAbsolutePath().normalize();
+                        if (source.equals(chosenPath) || Files.exists(chosenPath) && sameFile(source,chosenPath))
+                            throw new IllegalArgumentException(I18n.text("gcode.saveAs.sameFile"));
+                    }
+                    return chosen;
+                });
+    }
+
+    private static boolean sameFile(Path a, Path b) {
+        try { return Files.isSameFile(a,b); }
+        catch (java.io.IOException error) { throw new java.io.UncheckedIOException(error); }
     }
 
     record PendingCncProgram(String text, GCodeToolpathParser.ToolpathStats stats, String warning, Consumer<Path> saved) { }
@@ -726,6 +766,11 @@ final class MainWindow implements TclFlatcamHost {
     /** Generate/analyse on a worker; review on FX; revalidate before publishing the exact reviewed text. */
     boolean saveReviewedProgram(String name, String filename, java.util.function.Supplier<PendingCncProgram> prepare,
             BooleanSupplier valid, Consumer<String> complete) {
+        return saveReviewedProgram(name,filename,prepare,valid,complete,cncExportDestination);
+    }
+
+    private boolean saveReviewedProgram(String name, String filename, java.util.function.Supplier<PendingCncProgram> prepare,
+            BooleanSupplier valid, Consumer<String> complete, java.util.function.BiFunction<String,String,File> destination) {
         if (runningJob != null || terminalPanel != null && terminalPanel.isBusy()) {
             appendConsole(I18n.text("ui.ac7b76696bc0")); return false;
         }
@@ -750,7 +795,7 @@ final class MainWindow implements TclFlatcamHost {
                     setStatus(I18n.text("ui.2d89cfee4d37"),IDLE_COLOR); complete.accept(I18n.text("ui.27d1a7c672e9")); return;
                 }
                 if (!current.getAsBoolean()) { complete.accept(I18n.text("ui.5ee605dbe9f9")); return; }
-                File selected = cncExportDestination.apply(filename, reviewed.program().text());
+                File selected = destination.apply(filename, reviewed.program().text());
                 if (selected == null) { setStatus(I18n.text("ui.2d89cfee4d37"),IDLE_COLOR); complete.accept(I18n.text("ui.b7a0fe342c6b")); return; }
                 if (!current.getAsBoolean() || runningJob != null || terminalPanel != null && terminalPanel.isBusy()) {
                     complete.accept(I18n.text("ui.15cef3c93b56")); return;
@@ -888,7 +933,9 @@ final class MainWindow implements TclFlatcamHost {
                     return;
                 }
             }
-            if (event.getCode() == KeyCode.ESCAPE && (geometryEditor.cancelEraserFromShortcut() || geometryEditor.cancelRotationFromShortcut() || excellonEditor.cancelArrayFromShortcut())) {
+            if (gcodeEditor.isActive() && event.isShortcutDown() && !event.isAltDown() && event.getCode() == KeyCode.S) {
+                gcodeEditor.save(event.isShiftDown()); event.consume();
+            } else if (event.getCode() == KeyCode.ESCAPE && (geometryEditor.cancelEraserFromShortcut() || geometryEditor.cancelRotationFromShortcut() || excellonEditor.cancelArrayFromShortcut())) {
                 event.consume();
             } else if (event.getCode() == KeyCode.ESCAPE && plotAreaView.isPlacementActive()) {
                 plotAreaView.cancelPlacement();
@@ -1269,7 +1316,7 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole(I18n.text("ui.64e056852205"));
             return;
         }
-        gcodeEditor.start(item, entry.gcode());
+        gcodeEditor.start(item, entry.gcode(), originalGCodeFile(entry.outputFile()));
     }
 
     private void saveAndCloseEditor() {
