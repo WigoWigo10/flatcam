@@ -14,7 +14,7 @@ Para validar também a atualização da Beta anterior, use o MSI realmente
 distribuído na rodada anterior:
 
 ```powershell
-.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.2-windows-x64-setup.msi"
+.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.3-windows-x64-setup.msi"
 ```
 
 O teste recusa substituir uma instalação do usuário. Instala a versão antiga
@@ -22,6 +22,10 @@ em uma pasta temporária, atualiza pela mesma família de upgrade, confere a
 remoção do produto/JAR antigo e a preservação de um projeto de teste, executa
 os probes no atualizado e desinstala. Sem `-PreviousMsi`, essa verificação fica
 explicitamente `NOT_RUN` em `validation.json`.
+
+A Beta 4 também verifica, nos JARs do pacote, os modos Z padrão/Machinist em
+Geometry/Drilling/Cutout MM/IN, Salvar original versus Salvar como cópia no
+editor G-code, tooltip de Cancelar e Undo/Redo das tabelas CAM.
 
 O projeto do ensaio fica fora da pasta instalada. Um ensaio inicial dentro
 dessa pasta foi apagado pela remoção recursiva do MSI da Beta 1 (FileRemove

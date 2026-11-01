@@ -1,5 +1,19 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Candidata Beta 4 — 2026-11-01
+
+Salvar original/cópia e tooltip de Cancelar commitados em **420d8885**;
+políticas Z em **77bc29b8**, histórico CAM em **4a4c6cc4**. Preparada a versão
+**0.1.0-beta.4**, MSI **0.1.4**, mantendo a família de atualização.
+Notas em [release/BETA-0.1.0-beta.4.md](release/BETA-0.1.0-beta.4.md).
+O probe de distribuição agora também confere Z padrão/Machinist nos três
+painéis MM/IN, Salvar original/cópia, Cancelar e Undo/Redo CAM usando os JARs
+distribuídos. Compilação preliminar do probe passou.
+
+Geração/validação ainda pendentes nesta preparação. Serão registrados o commit
+exato dos binários, hashes, instalação e upgrade com o MSI Beta 3 entregue.
+Não confundir esta preparação com pacote já validado nem com publicação remota.
+
 ## Salvar / Salvar como no editor G-code — 2026-11-01
 
 Políticas Z anteriores commitadas em **77bc29b8**, branch `flatcam-next`.

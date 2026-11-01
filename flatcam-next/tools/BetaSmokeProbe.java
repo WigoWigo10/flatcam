@@ -74,6 +74,8 @@ public final class BetaSmokeProbe {
             var request=new TclDrillRequest(List.of(),null,1.6,false,.5,2,50,500,10000,false,5,null,null,2,null,false,0,GCodePreprocessor.GRBL_11_NO_M6,false);
             String drillCnc=window.drillcncjob("Drills_panelized","Drilling_cnc",request);
             programs.put(drillCnc,window.exportGcode(drillCnc,"",""));window.writeGcode(drillCnc,output.resolve("Drilling.nc"),"","");
+            checkZPolicies();
+            checkEditorFileSaves(output);
             var names=window.objectNames();
             Path nativeProject=output.resolve("Painel-testado.fcnproj"),pythonProject=output.resolve("Painel-testado.FlatPrj");
             window.saveProject(nativeProject);window.saveProject(pythonProject);
@@ -88,7 +90,9 @@ public final class BetaSmokeProbe {
                     .put("checks",List.of("invisible main window","offline Outline guide","Gerber/Excellon import","Outline to Area","shared 2x2 panel",
                             "Isolation","NCC","Cutout","CNC and Drilling export","native and Python project reopen","source files unchanged",
                             "NCC Seed to Standard with preserved draft","NCC and Isolation edited diameter reaches generated geometry",
-                            "exact Add spinner confirmation","Delete row versus text","global NCC draft resume","native NCC draft persistence")).toString(2));
+                            "exact Add spinner confirmation","Delete row versus text","global NCC draft resume","native NCC draft persistence",
+                            "Standard and Machinist Z in Geometry Drilling Cutout MM IN",
+                            "G-code original save and copy save","Cancel help and saved files preserved","CAM table undo and redo")).toString(2));
             System.out.println("PASS beta smoke "+AboutInfo.version()+" "+args[2]);
         } catch(Throwable error) {error.printStackTrace();exit=1;}
         finally {
@@ -96,6 +100,85 @@ public final class BetaSmokeProbe {
             if(jobs!=null)jobs.shutdown();Platform.exit();
         }
         System.exit(exit);
+    }
+    private static void checkZPolicies() throws Exception {
+        fx(()-> {
+            var path=new org.locationtech.jts.geom.GeometryFactory().createLineString(new org.locationtech.jts.geom.Coordinate[]{
+                    new org.locationtech.jts.geom.Coordinate(1,0),new org.locationtech.jts.geom.Coordinate(2,0)});
+            try {
+                for(String units:List.of("MM","IN")) for(boolean machinist:List.of(false,true)) for(double z:new double[]{-.1,0,.1}) {
+                    ToolDefaults.set("cnc.machinist",true,Boolean.toString(machinist));
+                    for(String tool:List.of("Geometry","Drilling","Cutout")) {
+                        var result=new java.util.concurrent.atomic.AtomicReference<Object>();
+                        javafx.scene.Node form;String cutId,generateId;
+                        if(tool.equals("Geometry")) {
+                            form=GeometryCncToolPanel.build(units,path,List.of(),result::set,()->{});
+                            cutId="cnc-cut-depth";generateId="cnc-generate";
+                        } else if(tool.equals("Drilling")) {
+                            var image=new org.flatcam.cam.excellon.ExcellonParser().parse(List.of("M48",units.equals("MM") ? "METRIC" : "INCH","T1C1.0","%","T1","X1.0Y0.0","M30"));
+                            var source=new DrillGCodeToolPanel.SourceCandidate(new TreeItem<>("Z-probe"),image,Map.of());
+                            form=DrillGCodeToolPanel.build(List.of(source),source,List::of,result::set,()->{});
+                            cutId="drill-cut-z";generateId="drill-generate";
+                        } else {
+                            form=CutoutToolPanel.build(units,(polygon,done,cancel)->false,()->{},result::set,()->{});
+                            cutId="cutout-cut-z";generateId="cutout-generate-freeform";
+                        }
+                        ((TextField)form.lookup("#"+cutId)).setText(Double.toString(z));
+                        ((Button)form.lookup("#"+generateId)).fire();
+                        String context=tool+" "+units+" machinist="+machinist+" CutZ="+z;
+                        if(!machinist && z==0) {check(result.get()==null,"Standard zero was accepted: "+context);continue;}
+                        check(result.get()!=null,"Signed Z generation refused: "+context);
+                        double target=machinist ? z : -Math.abs(z);
+                        double actual=result.get() instanceof GeometryCncToolPanel.Result r ? r.parameters().cutZ()
+                                : result.get() instanceof DrillGCodeToolPanel.Result r ? r.settingsByTool().get(1).cutZ()
+                                : ((CutoutToolPanel.Result)result.get()).machining().cutZ();
+                        check(actual==target,"Wrong Z target: "+context);
+                        if(result.get() instanceof GeometryCncToolPanel.Result r) {
+                            String code=org.flatcam.cam.gcode.GCodeGenerator.generateGeometryCncJob(units,path,r.parameters(),1,
+                                    org.flatcam.cam.CancellationToken.none()).gcode();
+                            check(code.contains("G1 Z"+String.format(Locale.ROOT,"%.4f",target==0 ? 0 : target)),"Wrong emitted Z: "+context);
+                        }
+                    }
+                }
+            } finally {ToolDefaults.set("cnc.machinist",true,"false");}
+            return null;
+        });
+    }
+    private static void checkEditorFileSaves(Path output) throws Exception {
+        Path original=output.resolve("Editor-original.nc"),copy=output.resolve("Editor-copy.nc");
+        String initial="G21\nG90\nM5\n",saved="G21\nG90\nG0 Z3\nM5\n",copied="G21\nG90\nG0 Z4\nM5\n";
+        Files.writeString(original,initial);
+        fx(()-> {
+            var item=(TreeItem<String>)call("addCncJobToProject",new Class<?>[]{String.class,String.class,Path.class,String.class,
+                    org.locationtech.jts.geom.Geometry.class,org.locationtech.jts.geom.Geometry.class},
+                    "Editor-smoke.nc","Editor smoke",original,initial,null,null);
+            call("selectProjectItem",new Class<?>[]{TreeItem.class},item);call("editSelectedGCode",new Class<?>[]{});
+            var decision=MainWindow.class.getDeclaredField("cncExportDecision");decision.setAccessible(true);
+            decision.set(window,(java.util.function.Predicate<CncPreflight.Report>)report->true);
+            var chooser=MainWindow.class.getDeclaredField("cncExportDestination");chooser.setAccessible(true);
+            chooser.set(window,(java.util.function.BiFunction<String,String,java.io.File>)(name,text)->copy.toFile());
+            var tabs=(TabPane)field("centerTabs"); var editor=(CodeEditor)tabs.getSelectionModel().getSelectedItem().getContent();
+            editor.area().replaceText(saved);
+            var form=((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
+            check(form.lookup("#gcode-cancel").getAccessibleHelp().contains("Não desfaz arquivos já gravados"),"Cancel tooltip must explain saved files");
+            ((Button)form.lookup("#gcode-save")).fire();return null;
+        });
+        awaitJob();check(Files.readString(original).equals(saved),"Save did not update the original");
+        check(!Files.exists(copy),"Save unexpectedly used Save as");
+        fx(()-> {
+            var tabs=(TabPane)field("centerTabs"); var editor=(CodeEditor)tabs.getSelectionModel().getSelectedItem().getContent();
+            editor.area().replaceText(copied);
+            var form=((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
+            ((Button)form.lookup("#gcode-save-as")).fire();return null;
+        });
+        awaitJob();check(Files.readString(copy).equals(copied),"Save as did not write the copy");
+        check(Files.readString(original).equals(saved),"Save as changed the original");
+        fx(()-> {
+            var form=((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
+            ((Button)form.lookup("#gcode-cancel")).fire();
+            check(!((GCodeEditorController)field("gcodeEditor")).isActive(),"Cancel did not close the editor");return null;
+        });
+        check(Files.readString(original).equals(saved) && Files.readString(copy).equals(copied),"Cancel undid saved files");
     }
     private static void checkCamDraftAndDiameter(String tool) throws Exception {
         double diameter=.1981234567;
@@ -121,6 +204,10 @@ public final class BetaSmokeProbe {
             check(((Number)table.getColumns().get(1).getCellData(count)).doubleValue()==.3171234567,"Spinner confirmation rounded the new cutter");
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
             check(table.getItems().size()==count,"Delete did not remove exactly the selected cutter");
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Z,false,true,false,false));
+            check(table.getItems().size()==count+1,"CAM table Undo did not restore the removed cutter");
+            table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Y,false,true,false,false));
+            check(table.getItems().size()==count,"CAM table Redo did not remove the cutter again");
             check(inventory.equals(Set.copyOf(window.objectNames())),"Table Delete removed a project object");
             return null;
         });

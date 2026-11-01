@@ -170,6 +170,7 @@ try {
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
         camDraftAndDiameterEditing='PASS';perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
+        machiningZPolicies='PASS';gcodeOriginalAndCopySave='PASS';cancelPreservesSavedFiles='PASS';camTableUndoRedo='PASS';
         projectPreservationScope='Outside installation directory; legacy uninstall deletes extra files inside app directory';
         fullVerification=$(if($manifest.verification){$manifest.verification}else{'NOT_RUN'});
         environment='Windows x64 on build machine, outside repository; no VM/second PC or physical CNC test'}
