@@ -48,6 +48,13 @@ class AboutDialogTest {
                 tabs.getSelectionModel().select(3); pane.applyCss(); pane.layout();
                 TextArea license = (TextArea) pane.lookup("#about-license"); assertFalse(license.isEditable());
                 assertEquals(AboutInfo.resource("LICENSE").replace("\r\n", "\n"), license.getText());
+                var flagLicense = (javafx.scene.control.TitledPane)pane.lookup("#about-flag-license-pane");
+                assertFalse(flagLicense.isExpanded()); flagLicense.setExpanded(true);
+                pane.applyCss(); pane.layout();
+                var flagNotices = (TextArea)pane.lookup("#about-flag-license");
+                assertFalse(flagNotices.isEditable());
+                assertTrue(flagNotices.getText().contains("Copyright (c) 2026 HatScripts"));
+                assertTrue(flagNotices.getText().contains("English: FX composition"));
                 tabs.getSelectionModel().select(5); pane.applyCss(); pane.layout();
                 var detailsPane = (javafx.scene.control.TitledPane) pane.lookup("#about-graphics-details-pane");
                 assertFalse(detailsPane.isExpanded());
@@ -58,10 +65,11 @@ class AboutDialogTest {
                 assertFalse(dialog.isShowing()); // the copy action does not invoke Dialog.show/close.
                 tabs.getSelectionModel().selectFirst(); pane.applyCss(); pane.layout();
                 var links = pane.lookupAll(".hyperlink").stream().map(node -> (Hyperlink) node).toList();
-                assertEquals(9, links.size()); assertTrue(opened.isEmpty());
+                assertEquals(10, links.size()); assertTrue(opened.isEmpty());
                 links.forEach(Hyperlink::fire);
-                assertEquals(9, opened.size());
+                assertEquals(10, opened.size());
                 assertTrue(opened.contains("http://flatcam.org/"));
+                assertTrue(opened.contains("https://github.com/HatScripts/circle-flags"));
                 assertTrue(opened.stream().allMatch(url -> url.startsWith("http")));
                 if (Boolean.getBoolean("flatcam.tests.snapshots")) {
                     pane.resize(700, 510); pane.applyCss(); pane.layout();

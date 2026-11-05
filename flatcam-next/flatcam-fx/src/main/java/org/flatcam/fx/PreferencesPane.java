@@ -273,6 +273,7 @@ final class PreferencesPane extends BorderPane {
     private Node appearance() {
         ComboBox<UiLanguage> language = new ComboBox<>(); language.setId("preferences-language");
         language.getItems().setAll(UiLanguage.values()); language.setValue(host.language());
+        LanguagePicker.decorate(language);
         help(language, I18n.text("preferences.language"), I18n.text("preferences.language.help"));
         Label languageLabel = new Label(I18n.text("preferences.language") + ":"); languageLabel.setLabelFor(language);
         ComboBox<ThemeOption> theme = new ComboBox<>(); theme.setId("preferences-theme");

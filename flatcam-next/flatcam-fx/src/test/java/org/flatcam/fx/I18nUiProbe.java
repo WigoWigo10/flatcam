@@ -28,21 +28,36 @@ public class I18nUiProbe {
             I18n.initialize(language == UiLanguage.EN ? UiLanguage.PT_BR : UiLanguage.EN);
             assertEquals(language, I18n.language(), "initialization must not live-switch the catalogs");
             new TooltipAuditTest().inventory("-"+language.tag, roots -> {
-                if (language == UiLanguage.EN) {
+                if (language != UiLanguage.PT_BR) {
                     var issues = new ArrayList<String>();
                     roots.forEach((context,root) -> inspect(context,root,issues));
-                    try { Files.write(output.resolve("untranslated-en.txt"),issues); }
+                    try { Files.write(output.resolve("untranslated-"+language.tag+".txt"),issues); }
                     catch(java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
-                    assertEquals(List.of(), issues, "Portuguese captions still displayed in English");
+                    assertEquals(List.of(), issues, "Portuguese captions still displayed in " + language);
                 }
             });
             TerminalPanelTest.fx(() -> {
+                if (language == UiLanguage.ES) {
+                    assertEquals("Blanco puro", ThemeOption.CLASSIC_LIGHT.label());
+                    assertEquals("Negro puro", ThemeOption.CLASSIC_DARK.label());
+                    assertEquals("Blanco hielo", ThemeOption.ICE_LIGHT.label());
+                    assertEquals("Negro hielo", ThemeOption.ICE_DARK.label());
+                } else if (language == UiLanguage.FR) {
+                    assertEquals("Blanc pur", ThemeOption.CLASSIC_LIGHT.label());
+                    assertEquals("Noir pur", ThemeOption.CLASSIC_DARK.label());
+                    assertEquals("Blanc glacé", ThemeOption.ICE_LIGHT.label());
+                    assertEquals("Noir glacé", ThemeOption.ICE_DARK.label());
+                }
                 for (ThemeOption theme : ThemeOption.values()) {
                     var view = PreferencesPaneTest.view(theme);
                     PreferencesPaneTest.select(view, "general");
                     @SuppressWarnings("unchecked") var languageChoice = (ComboBox<UiLanguage>)view.pane().lookup("#preferences-language");
                     languageChoice.setValue(language);
                     assertNotNull(view.pane().lookup("#preferences-language"));
+                    assertEquals(List.of(UiLanguage.values()), List.copyOf(languageChoice.getItems()));
+                    var apply = (Button)view.pane().lookup("#preferences-general-apply");
+                    if (language == UiLanguage.ES) assertEquals("Aplicar y guardar", apply.getText());
+                    if (language == UiLanguage.FR) assertEquals("Appliquer et enregistrer", apply.getText());
                     for(String section:List.of("general","numbers","fonts")) {
                         PreferencesPaneTest.select(view,section);
                         view.pane().setPrefSize(1024,800); view.pane().resize(1024,800); view.pane().applyCss(); view.pane().layout();
@@ -73,8 +88,11 @@ public class I18nUiProbe {
                 assertEquals(I18n.caption("Cancelar"), ((Button)pane.lookupButton(ButtonType.CANCEL)).getText());
                 assertEquals(I18n.caption("Fechar"), ((Button)pane.lookupButton(ButtonType.CLOSE)).getText());
                 assertEquals("copy32.png", ToolPanelIcons.buttonIcon(I18n.caption("Copiar")));
+                assertEquals("Copiar", I18n.source(I18n.caption("Copiar"), "Copiar", "Remover"));
+                assertEquals("Remover", I18n.source(I18n.caption("Remover"), "Copiar", "Remover"));
                 assertNotNull(CommandHelpCatalog.help(I18n.caption("Salvar Projeto")));
                 assertNotNull(PanelTooltips.help("Milling Tool", I18n.caption("Diâmetro da ferramenta (")+"MM):"));
+                assertNotNull(PanelTooltips.help("Editor Gerber", I18n.text("ui.7cd23abc62e0")+" (MM):"));
                 assertNotNull(PanelTooltips.help(I18n.caption("Editor Gerber"), I18n.caption("Adicionar abertura ")+"C"));
                 return null;
             });
@@ -103,7 +121,10 @@ public class I18nUiProbe {
                 light.visibleProperty().bind(darkMode.not());dark.visibleProperty().bind(darkMode);
                 return new javafx.scene.layout.StackPane(light,dark);
             });
-            assertTrue(HelpGuideCatalog.search(language==UiLanguage.EN ? "desynchronize" : "dessincronizar")
+            assertTrue(HelpGuideCatalog.search(switch (language) {
+                case PT_BR -> "dessincronizar"; case EN -> "desynchronize";
+                case ES -> "desincronizar"; case FR -> "désynchroniser";
+            })
                     .stream().anyMatch(topic->topic.id().equals("panelize")));
             Platform.setImplicitExit(false);
             var scene=new javafx.scene.Scene(guide,1024,800);
@@ -150,15 +171,15 @@ public class I18nUiProbe {
         if (item instanceof Menu menu) menu.getItems().forEach(I18nUiProbe::inspectMenu);
         if (item instanceof SeparatorMenuItem) return;
         assertNotNull(item.getText());
-        if (I18n.language() == UiLanguage.EN) {
+        if (I18n.language() != UiLanguage.PT_BR) {
             var problems = new ArrayList<String>(); check("Menu",item.getText(),problems);
             assertEquals(List.of(),problems);
         }
     }
     private static void check(String context,String text,List<String> issues) {
         if (text == null || text.isBlank()) return;
-        var pt=I18n.catalog(UiLanguage.PT_BR); var en=I18n.catalog(UiLanguage.EN);
-        for (var entry:pt.entrySet()) if(entry.getValue().equals(text) && !text.equals(en.get(entry.getKey()))) {
+        var pt=I18n.catalog(UiLanguage.PT_BR); var translated=I18n.catalog(I18n.language());
+        for (var entry:pt.entrySet()) if(entry.getValue().equals(text) && !text.equals(translated.get(entry.getKey()))) {
             issues.add(context+" | "+text); break;
         }
     }

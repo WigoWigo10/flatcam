@@ -2,7 +2,8 @@ package org.flatcam.fx;
 
 /** UI language only: does not change numeric, machine-code or file-format locales. */
 enum UiLanguage {
-    PT_BR("pt-BR", "Português (Brasil)", "pt_BR"), EN("en", "English", "en");
+    PT_BR("pt-BR", "Português (Brasil)", "pt_BR"), EN("en", "English", "en"),
+    ES("es", "Español", "es"), FR("fr", "Français", "fr");
 
     final String tag, label, catalog;
     UiLanguage(String tag, String label, String catalog) { this.tag = tag; this.label = label; this.catalog = catalog; }

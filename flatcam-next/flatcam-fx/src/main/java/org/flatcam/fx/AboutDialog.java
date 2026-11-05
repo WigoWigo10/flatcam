@@ -86,13 +86,19 @@ final class AboutDialog extends Dialog<Void> {
         TextArea editorNotices = readOnly(AboutInfo.resource("editor-licenses.txt")); editorNotices.setPrefRowCount(7);
         var editorLicenses = new javafx.scene.control.TitledPane(I18n.text("ui.be92bda03b09"), editorNotices);
         editorLicenses.setExpanded(false); license.getChildren().add(editorLicenses);
+        TextArea flagNotices = readOnly(AboutInfo.resource("circle-flags-LICENSE.txt")); flagNotices.setPrefRowCount(7);
+        flagNotices.setId("about-flag-license");
+        var flagLicense = new javafx.scene.control.TitledPane("Circle Flags — MIT", flagNotices);
+        flagLicense.setId("about-flag-license-pane");
+        flagLicense.setExpanded(false); license.getChildren().add(flagLicense);
         VBox attributions = new VBox(10, label(I18n.text("ui.6386f3b3cee6")),
                 link("Freepik / Flaticon", "https://www.flaticon.com/authors/freepik", openLink),
                 link("Icons8", "https://icons8.com", openLink),
                 link("oNline Web Fonts", "http://www.onlinewebfonts.com", openLink),
                 link("Pixel perfect / Flaticon", "https://www.flaticon.com/authors/pixel-perfect", openLink),
                 label(I18n.text("ui.c0ae1cb85a18")),
-                label(I18n.text("ui.76a644cb04fc")));
+                label(I18n.text("ui.76a644cb04fc")),
+                link("Circle Flags — HatScripts (MIT)", "https://github.com/HatScripts/circle-flags", openLink));
         TextArea system = readOnly(AboutInfo.systemSummary(null, null)); system.setId("about-system");
         TextArea graphicsDetails = readOnly(I18n.text("ui.b966f2846b46")); graphicsDetails.setId("about-graphics-details");
         graphicsDetails.setPrefRowCount(7);

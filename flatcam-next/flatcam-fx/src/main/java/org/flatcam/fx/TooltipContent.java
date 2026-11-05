@@ -18,12 +18,21 @@ record TooltipContent(List<Span> spans) {
             + "Salvar PDF|Posicionar cursor|Adicionar ponto|Confirmar array|Cancelar prévia|"
             + "Text|Eraser|Save database|Export database|Import database|Mark all|Rounded corners|Generate Geometry|Generate CNC Job|"
             + "Save PDF|Place cursor|Add point|Confirm array|Cancel preview|mm/min or in/min|mm or in|C1 to C4|seconds|degrees|"
+            + "Texto|Borrador|Guardar base de datos|Exportar base de datos|Importar base de datos|Marcar todos|Esquinas redondeadas|Generar Geometry|Generar CNC Job|"
+            + "Guardar PDF|Colocar cursor|Añadir punto|Confirmar matriz|Cancelar vista previa|mm/min o in/min|mm o in|C1 a C4|segundos|grados|"
+            + "Texte|Gomme|Enregistrer la base|Exporter la base|Importer la base|Tout cocher|Coins arrondis|Générer Geometry|Générer CNC Job|"
+            + "Enregistrer le PDF|Positionner le curseur|Ajouter un point|Confirmer la matrice|Annuler l'aperçu|mm/min ou in/min|mm ou in|C1 à C4|secondes|degrés|"
             + "Save DB|Export DB|Import DB|Ctrl\\+(?:Shift\\+)?(?:[A-Z]|[0-9])|Shift\\+[A-Z]|Shift\\+Enter|Shift\\+F3|Enter|F3|Esc|"
             + "G(?:0[0-3]?|[1-3]|85|90|91)|LZ|TZ|LINEAR|CIRCULAR|GRID|ANGLE|CW|CCW|"
             + "Around|Over|Over Z|Rest Machining|None|MM|IN|DPI|RPM|segundos|graus)\\b");
-    private static final Pattern PREFIX = Pattern.compile(
-            "(?m)^(Integração FX:|Atenção:|Limitação:|Limitações:|Unidades:|Atalho:|Atalhos:|Progresso:|Prévia:|Resultado:|Referência:|Exemplo:"
-            + "|FX integration:|Warning:|Limitation:|Limitations:|Units:|Shortcut:|Shortcuts:|Progress:|Preview:|Result:|Reference:|Example:)");
+    private static final String NOTES = "Integração FX|Atenção|Limitação|Limitações|FX integration|Warning|Limitation|Limitations"
+            + "|Integración FX|Atención|Advertencia|Limitación|Limitaciones|Intégration FX|Attention|Avertissement";
+    private static final Pattern NOTE = Pattern.compile("(?:" + NOTES + ")\\h*:");
+    private static final Pattern PREFIX = Pattern.compile("(?m)^(?:" + NOTES
+            + "|Unidades|Atalho|Atalhos|Progresso|Prévia|Resultado|Referência|Exemplo"
+            + "|Units|Shortcut|Shortcuts|Progress|Preview|Result|Reference|Example"
+            + "|Atajo|Atajos|Progreso|Vista previa|Referencia|Ejemplo"
+            + "|Unités|Raccourci|Raccourcis|Progression|Aperçu|Résultat|Référence|Exemple)\\h*:");
     private static final Pattern TOKENS = Pattern.compile(PREFIX.pattern() + "|" + EMPHASIS.pattern(), Pattern.MULTILINE);
     enum Style { NORMAL, BOLD, ACCENT, NOTE }
     record Span(String text, Style style) { }
@@ -44,9 +53,7 @@ record TooltipContent(List<Span> spans) {
             while (matches.find()) {
                 if (matches.start() > cursor) spans.add(new Span(paragraph.substring(cursor, matches.start()), Style.NORMAL));
                 String token = matches.group();
-                Style style = token.endsWith(":") ? (token.equals("Integração FX:") || token.equals("Atenção:")
-                        || token.equals("Limitação:") || token.equals("Limitações:") || token.equals("FX integration:")
-                        || token.equals("Warning:") || token.equals("Limitation:") || token.equals("Limitations:")
+                Style style = token.endsWith(":") ? (NOTE.matcher(token).matches()
                         ? Style.NOTE : Style.ACCENT) : Style.BOLD;
                 spans.add(new Span(token, style));
                 cursor = matches.end();

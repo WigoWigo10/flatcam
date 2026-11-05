@@ -10,7 +10,7 @@ import org.junit.jupiter.api.condition.OS;
 /** Restart-only catalogs are exercised in fresh JVMs, never mixed into the shared test toolkit. */
 @EnabledOnOs(OS.WINDOWS)
 class I18nUiTest {
-    @Test void bothLanguagesKeepTheirHelpActionsAndMachineOutput() throws Exception {
+    @Test void allLanguagesKeepTheirHelpActionsAndMachineOutput() throws Exception {
         Path output = Path.of("target/i18n-review").toAbsolutePath(); Files.createDirectories(output);
         for (UiLanguage language : UiLanguage.values()) {
             Path log = output.resolve(language.tag + ".log");
@@ -25,7 +25,9 @@ class I18nUiTest {
                 assertEquals(0,child.exitValue(), () -> { try { return Files.readString(log); } catch(Exception e) { return e.toString(); } });
             } finally { if(child.isAlive()) { child.destroyForcibly(); child.waitFor(5,TimeUnit.SECONDS); } }
         }
-        assertArrayEquals(Files.readAllBytes(output.resolve("pt-BR.nc")),Files.readAllBytes(output.resolve("en.nc")), "UI language must not rewrite machine code");
-        assertArrayEquals(Files.readAllBytes(output.resolve("pt-BR.csv")),Files.readAllBytes(output.resolve("en.csv")), "CSV schema and numbers stay stable");
+        for (UiLanguage language : UiLanguage.values()) {
+            assertArrayEquals(Files.readAllBytes(output.resolve("pt-BR.nc")),Files.readAllBytes(output.resolve(language.tag+".nc")), language + ": UI language must not rewrite machine code");
+            assertArrayEquals(Files.readAllBytes(output.resolve("pt-BR.csv")),Files.readAllBytes(output.resolve(language.tag+".csv")), language + ": CSV schema and numbers stay stable");
+        }
     }
 }

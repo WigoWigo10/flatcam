@@ -1,4 +1,4 @@
-"""Write both UTF-8 catalogs from the reviewed extraction plan and English translations.
+"""Write UTF-8 UI resources from the canonical plan and explicit translations.
 
 --strict refuses untranslated entries. The non-strict mode is for migration work
 only; it reports every missing key instead of inventing a machine translation.
@@ -10,6 +10,7 @@ import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DIRECTORY = ROOT / "flatcam-fx/src/main/resources/org/flatcam/fx/i18n"
+LANGUAGES = ("en", "es", "fr")
 
 
 def escape(value):
@@ -25,44 +26,53 @@ def main():
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--check", action="store_true", help="Validate committed resources without rewriting them")
     parser.add_argument("--import-batch", type=Path, action="append", default=[])
+    parser.add_argument("--language", choices=LANGUAGES, default="en", help="Language receiving --import-batch (all catalogs are still validated)")
     args = parser.parse_args()
     plan = json.loads((ROOT / "tools/ui_text_catalog.json").read_text(encoding="utf-8"))
-    translations = json.loads((ROOT / "tools/ui_text_en.json").read_text(encoding="utf-8"))
+    catalogs = {code: json.loads((ROOT / f"tools/ui_text_{code}.json").read_text(encoding="utf-8")) for code in LANGUAGES}
+    translations = catalogs[args.language]
     keys = list(plan)
     for batch in args.import_batch:
         for index, value in json.loads(batch.read_text(encoding="utf-8")):
             assert isinstance(value,str) and value.strip(), (batch,index)
             translations[keys[index]] = value
     if args.import_batch:
-        (ROOT / "tools/ui_text_en.json").write_text(json.dumps(translations,ensure_ascii=False,indent=2),encoding="utf-8")
-    pending = {key: entry for key, entry in plan.items() if key not in translations}
+        (ROOT / f"tools/ui_text_{args.language}.json").write_text(json.dumps(translations,ensure_ascii=False,indent=2),encoding="utf-8")
+    pending = {code: {key: entry for key, entry in plan.items() if key not in values} for code, values in catalogs.items()}
     (ROOT / "target").mkdir(exist_ok=True)
     (ROOT / "target/i18n-pending.json").write_text(json.dumps(pending,ensure_ascii=False,indent=2),encoding="utf-8")
-    if args.strict and pending:
-        raise SystemExit(f"Missing English translations: {len(pending)} (target/i18n-pending.json)")
-    if set(translations) - set(plan):
-        raise SystemExit("English translations contain unknown keys")
+    if args.strict and any(pending.values()):
+        raise SystemExit(f"Missing translations: { {code: len(values) for code, values in pending.items()} } (target/i18n-pending.json)")
     formats = re.compile(r"%(?:[0-9]+\$)?[-#+0,(<]*[0-9]*(?:\.[0-9]+)?[bBhHsScCdoxXeEfgGaAn%]")
-    for key, entry in plan.items():
-        if key not in translations:
-            continue
-        source, translated = entry["source"], translations[key]
-        if not translated.strip() or "\ufffd" in source + translated:
-            raise SystemExit(f"Invalid Unicode/empty translation: {key}")
-        if formats.findall(source) != formats.findall(translated):
-            raise SystemExit(f"Format arguments changed: {key}")
-        for opening, closing in (("(", ")"), ("[", "]")):
-            if source.count(opening) - source.count(closing) != translated.count(opening) - translated.count(closing):
-                raise SystemExit(f"Unbalanced fragment changed: {key}")
-        if len(source) - len(source.lstrip()) != len(translated) - len(translated.lstrip()) or len(source) - len(source.rstrip()) != len(translated) - len(translated.rstrip()):
-            raise SystemExit(f"Fragment boundary whitespace changed: {key}")
+    for code, values in catalogs.items():
+        if set(values) - set(plan):
+            raise SystemExit(f"{code}: translations contain unknown keys")
+        for key, entry in plan.items():
+            if key not in values:
+                continue
+            source, translated = entry["source"], values[key]
+            if not isinstance(translated, str) or not translated.strip() or "\ufffd" in source + translated:
+                raise SystemExit(f"{code}: invalid Unicode/empty translation: {key}")
+            if formats.findall(source) != formats.findall(translated):
+                raise SystemExit(f"{code}: format arguments changed: {key}")
+            for opening, closing in (("(", ")"), ("[", "]")):
+                if source.count(opening) - source.count(closing) != translated.count(opening) - translated.count(closing):
+                    raise SystemExit(f"{code}: unbalanced fragment changed: {key}")
+            if len(source) - len(source.lstrip()) != len(translated) - len(translated.lstrip()) or len(source) - len(source.rstrip()) != len(translated) - len(translated.rstrip()):
+                raise SystemExit(f"{code}: fragment boundary whitespace changed: {key}")
+            if source.count("\n") != translated.count("\n"):
+                raise SystemExit(f"{code}: line breaks changed: {key}")
+            if source.count("**") != translated.count("**"):
+                raise SystemExit(f"{code}: guide emphasis changed: {key}")
+            if re.search(r"__FX(?:ROW|TOKEN|NL)\d*__", translated):
+                raise SystemExit(f"{code}: unresolved authoring marker: {key}")
     DIRECTORY.mkdir(parents=True, exist_ok=True)
-    for code in ("pt_BR", "en"):
-        lines = ["# UTF-8. Generated by tools/write_ui_catalogs.py; edit tools/ui_text_en.json for English.",
+    for code in ("pt_BR", *LANGUAGES):
+        lines = ["# UTF-8. Generated by tools/write_ui_catalogs.py; edit tools/ui_text_catalog.json or ui_text_<language>.json.",
                  "# Canonical identifiers, user data and machine-code formats are not localized.", ""]
         for key, entry in plan.items():
             lines.append("# " + ", ".join(sorted(set(entry["locations"]))))
-            lines.append(key + "=" + escape(entry["source"] if code == "pt_BR" else translations.get(key, entry["source"])))
+            lines.append(key + "=" + escape(entry["source"] if code == "pt_BR" else catalogs[code].get(key, entry["source"])))
         path = DIRECTORY / f"messages_{code}.properties"
         content = "\n".join(lines)+"\n"
         if args.check:
@@ -70,7 +80,7 @@ def main():
                 raise SystemExit(f"Generated catalog is outdated: {path}")
         else:
             path.write_text(content,encoding="utf-8")
-    print(json.dumps({"keys":len(plan), "translated":len(plan)-len(pending), "pending":len(pending)}))
+    print(json.dumps({"keys":len(plan), "languages":{code:{"translated":len(plan)-len(values),"pending":len(values)} for code, values in pending.items()}}))
 
 
 if __name__ == "__main__":

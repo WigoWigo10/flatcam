@@ -66,20 +66,26 @@ Integral: 2128 aprovações, 18 skips opcionais, zero falhas/erros (2146 registr
 Regressão adicional da medição após mudar unidades e auditorias de 1502
 ocorrências por idioma aprovadas.
 
-## Idiomas e revisão do inventário de preferências — 2026-10-27
+## Idiomas e revisão do inventário de preferências — atualizado em 2026-11-05
 
-Catálogos UTF-8 com 3649 entradas por idioma; Português (Brasil) e English em
+Catálogos UTF-8 com 3867 entradas por idioma; Português (Brasil), English,
+Español e Français em
 Geral, persistidos e aplicados na próxima abertura, inclusive na splash.
 Mensagens, menus, painéis, editores e tooltips compartilham os catálogos. IDs,
 nomes de arquivos/objetos, comandos e formato numérico de usinagem preservados.
 Auditoria em JVMs separadas com preferências em memória; os controles
-inventariados conservam ajuda própria nos dois idiomas. O mesmo caso GRBL
+inventariados conservam ajuda própria nos quatro idiomas. O mesmo caso GRBL
 gerou G-code/CSV idênticos byte a byte. Quatro temas capturados sem abrir janela.
 Não representa todos os catálogos Python nem tradução de texto arbitrário de
-bibliotecas/backend. [I18N.md](I18N.md).
+bibliotecas/backend. Espanhol/Francês têm tradução assistida e revisão técnica;
+revisão linguística nativa integral permanece pendente. [I18N.md](I18N.md).
 
-Integral: 2123 aprovações, 18 skips opcionais, zero falhas/erros (2141 registros).
-Auditorias: 1497 ocorrências com ajuda em cada idioma. Build/probe nativos passaram.
+Validação inicial de 2026-10-27: 2123 aprovações, 18 skips opcionais, zero
+falhas/erros (2141 registros); 1497 ocorrências com ajuda por idioma e
+build/probe nativos aprovados. Ampliação ES/FR: rodada focada com 31 testes
+aprovados, quatro temas por idioma e caso GRBL/CSV byte a byte idêntico.
+Verify de 2026-11-05: 2326 aprovações, 18 opcionais ignorados, zero falhas/erros;
+1560 controles com ajuda em cada idioma, sem ausências.
 
 Inventário de [PREFERENCIAS.md](PREFERENCIAS.md) atualizado: cores,
 exportação CAM, importação e padrões dos editores não são mais lacunas totais.

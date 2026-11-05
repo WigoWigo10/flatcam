@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/HatScripts/circle-flags",
+  "commit": "379588b5da95482d6bbf10bd45644a35b0609ea6",
+  "files": {
+    "br.svg": {
+      "path": "flags/br.svg",
+      "sha256": "2333b293cbc44e8b736565ac84d4bd03cb136f017e5194d321dcc8ca46aa0464"
+    },
+    "us.svg": {
+      "path": "flags/us.svg",
+      "sha256": "7f3012f520e4aefcff6acbb8cc7198fee604f3f806fd228f59c94077437bda82"
+    },
+    "gb.svg": {
+      "path": "flags/gb.svg",
+      "sha256": "88169c656c516ac6374fe2a7988e103f6eb99db165ce6478aa68ce1b74e67ba9"
+    },
+    "es.svg": {
+      "path": "flags/es.svg",
+      "sha256": "a1bb2d6b70b35386101376e01a18a56172cfdaa8bcf58691c1dd633e27161593"
+    },
+    "fr.svg": {
+      "path": "flags/fr.svg",
+      "sha256": "1d0c12a2157fc4a25fb7eb4e989b7555289c118fcb20c5eacebbfe0dafcbe30c"
+    }
+  }
+}

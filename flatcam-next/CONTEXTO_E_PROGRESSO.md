@@ -1,5 +1,54 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Ícones SVG de idiomas — 2026-11-05
+
+Seletor de idiomas com bandeiras Circle Flags (MIT), mostrando ícone e nome
+na lista e no valor escolhido. Português usa Brasil, Espanhol Espanha,
+Francês França; English combina diagonalmente EUA/Reino Unido com paths do
+mesmo pacote. Vetores JavaFX nativos a partir de SVGs locais, sem novas
+dependências, rasterização, WebView ou rede. Os rascunhos continuam sem gravar
+até Aplicar; acessibilidade usa os nomes dos idiomas e as células descartam
+ícones antigos ao ficarem vazias.
+
+Upstream fixado em **379588b5da95482d6bbf10bd45644a35b0609ea6**; inventário
+em `icons/languages/source.json`. Combinado English é adaptação do FX.
+Licença e link de atribuição em Ajuda > Sobre. **49 testes aprovados**, zero
+falhas/erros: `target/language-flags-tests2.log`. Capturas dos quatro temas
+em `flatcam-fx/target/language-flags-review/`; transparência e tamanho vetorial
+22/44/66 px conferidos. Primeira rodada registrou fixture com Scene duplicada
+e contagem antiga de links; corrigidos sem remover as verificações.
+Launcher nativo sincronizado e probe aprovado: `target/language-flags-native.log`.
+Quatro SVGs, classes e licença no JAR conferidos contra as fontes atuais:
+`target/language-flags-verification.json`. MSI anterior permanece preservado.
+
+## Espanhol e Francês — 2026-11-05
+
+Implementados Español (`es`) e Français (`fr`) ao lado de Português e Inglês:
+**3.867 entradas por idioma**, incluindo menus, propriedades, ferramentas,
+diálogos, guia, splash e tooltips. Seleção em Preferências > Geral; aplicar
+salva e a próxima abertura usa o idioma. O padrão continua Português.
+
+Ajuda/ícones resolvem aliases no idioma ativo, inclusive rótulos com MM/IN
+acrescentados. Tooltips reconhecem prefixos ES/FR e mantêm cores, ênfase e
+atalhos. Temas usam inicial maiúscula (Blanco puro/Negro puro; Blanc pur/Noir pur).
+IDs, números, arquivos do usuário e G-code continuam canônicos. O gerador
+valida os quatro recursos offline, sem chaves faltantes.
+
+Tradução inicial reaproveita gettext do Python e usa tradução assistida para
+os textos novos; revisão técnica de fluxos e termos críticos, sem alegar
+revisão nativa integral. Focado: 31 testes aprovados em
+`target/i18n-es-fr-focused2.log`; a primeira rodada encontrou e levou à correção
+da ajuda do diâmetro Gerber com sufixo MM. Verify integral aprovado:
+**2.326 testes aprovados, 18 opcionais ignorados, zero falhas/erros** (2344 casos),
+`target/i18n-es-fr-verify.log`. Auditoria: **1560 controles com ajuda por idioma,
+zero ausências**, `target/i18n-es-fr-verification.json`. Revisão final visual
+também corrigiu Aplicar em Francês e acentos de Éditeur; teste do botão real e
+dos quatro nomes de tema acrescentado. Rodada final com **31 testes aprovados**:
+`target/i18n-es-fr-final-review.log`. Launcher nativo sincronizado, probe aprovado
+e quatro catálogos no JAR iguais às fontes: `target/i18n-es-fr-native-final.log`.
+Os MSIs Beta 4 r1 anteriores não foram regenerados nesta etapa.
+Detalhes e manutenção: [I18N.md](I18N.md).
+
 ## Diâmetro nas propriedades Excellon — 2026-11-01
 
 Coluna Diameter editável diretamente por duplo clique/F2/Enter, com ponto ou

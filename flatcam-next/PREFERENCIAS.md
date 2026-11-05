@@ -41,7 +41,7 @@ Os valores em mm/in continuam independentes, sem conversão ao alternar unidades
   MM e quatro casas nas duas unidades. Escopo e testes em
   [GENERAL_NUMERIC_PREFERENCES.md](GENERAL_NUMERIC_PREFERENCES.md).
 - Geral e Plot: **Aplicar e salvar** atualiza a interface e persiste somente essa
-  seção. O idioma é aplicado na próxima abertura; a confirmação informa quando
+  seção. Há Português (Brasil), English, Español e Français. O idioma é aplicado na próxima abertura; a confirmação informa quando
   é preciso reiniciar. Os dois passos da grade são validados antes de qualquer aplicação;
   zero, negativos e valores não finitos são recusados. Aceita ponto/vírgula decimal.
 - **Restaurar padrão** em Geral/Plot prepara o rascunho. Aplicar confirma.
