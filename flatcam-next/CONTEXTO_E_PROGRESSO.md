@@ -1,5 +1,15 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Preparação da Beta 5 — 2026-11-05
+
+Recortes internos e UX commitados em **617f2791**. A Beta 5 reúne essa ferramenta
+e o suporte a quatro idiomas/ícones de **68da8707**. Maven/app/nativo agora
+`0.1.0-beta.5`, revisão 0, MSI 0.1.50; mesma família de upgrade. Notas em
+[BETA-0.1.0-beta.5.md](release/BETA-0.1.0-beta.5.md). Probe da distribuição ampliado
+para prévia/validação/geração CNC dos recortes, persistência e catálogos/SVGs.
+Geração e validação da candidata ainda pendentes nesta preparação; o relatório
+posterior deve registrar o commit efetivamente empacotado e os hashes.
+
 ## Recortes internos: prévia e UX — 2026-11-05
 
 Prévia semântica em `InternalCutoutPreview`: abertura tracejada, centro da fresa,

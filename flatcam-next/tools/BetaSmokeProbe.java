@@ -63,11 +63,12 @@ public final class BetaSmokeProbe {
                 check(panel.drills().stream().anyMatch(d->Math.abs(d.x()-(2+dx))<1e-9 && Math.abs(d.y()-(2+dy))<1e-9),"Shared panel pitch lost");
             checkCamDraftAndDiameter("NCC");
             checkCamDraftAndDiameter("Isolation");
+            String internal=checkInternalCutouts();
             String iso=window.isolate("Copper_panelized","Isolation",.4,1,.1,IsolationType.BOTH);
             String ncc=window.nccClear("Copper_panelized","NCC",List.of(.8),.4,1,NccMethod.STANDARD,true,true,false,new NccBoundary.Itself());
             String cutout=window.cutoutRectangular("Edge_Cuts_area","Cutout",.8,.1,1,GapPattern.FOUR);
             var programs=new LinkedHashMap<String,String>();
-            for(String geometry:List.of(iso,ncc,cutout)) {
+            for(String geometry:List.of(iso,ncc,cutout,internal)) {
                 String cnc=window.cncjob(geometry,geometry+"_cnc",geometry.equals(iso) ? .4 : .8,-.1,2,100,60,500);
                 String code=window.exportGcode(cnc,"","");check(code.contains("G1") || code.contains("G01"),"Empty cutting program");
                 window.writeGcode(cnc,output.resolve(cnc+".nc"),"","");programs.put(cnc,code);
@@ -85,6 +86,13 @@ public final class BetaSmokeProbe {
                 for(var code:programs.entrySet())check(code.getValue().equals(window.exportGcode(code.getKey(),"","")),"G-code lost after reopening");
                 check(((ExcellonImage)fx(()->map("excellonByItem").get(item("excellonByItem","Drills")))).toolDiameters().get(1)==.1981234567,
                         "Edited Excellon tool diameter lost after project reopen");
+                var internalProject=saved.equals(nativeProject) ? org.flatcam.app.project.ProjectFileIO.load(saved)
+                        : org.flatcam.app.project.PythonProjectIO.load(saved);
+                var internalSaved=internalProject.geometries().stream()
+                        .filter(g->g.name().equals(internal)).findFirst().orElseThrow();
+                check(internalSaved.tools().getFirst().toolDiameter()==.1981234567,"Internal cutout tool precision lost");
+                check(internalSaved.geometry().getNumGeometries()==1 && ((org.locationtech.jts.geom.LineString)internalSaved.geometry()).isClosed(),
+                        "Internal cutout contour lost after reopening");
                 if(saved.equals(nativeProject))checkSavedNccDraft();
             }
             check(Files.readString(copperFile).equals(copper) && Files.readString(edgeFile).equals(outline) && Files.readString(drillFile).equals(drills),"Original inputs were changed");
@@ -96,7 +104,9 @@ public final class BetaSmokeProbe {
                             "exact Add spinner confirmation","Delete row versus text","global NCC draft resume","native NCC draft persistence",
                             "Standard and Machinist Z in Geometry Drilling Cutout MM IN",
                             "G-code original save and copy save","Cancel help and saved files preserved","CAM table undo and redo",
-                            "Excellon properties diameter edit Plot undo redo and project persistence")).toString(2));
+                            "Excellon properties diameter edit Plot undo redo and project persistence",
+                            "internal cutout panel preview footprint validation CNC and project reopen",
+                            "four language catalogs and SVG language flags")).toString(2));
             System.out.println("PASS beta smoke "+AboutInfo.version()+" "+args[2]);
         } catch(Throwable error) {error.printStackTrace();exit=1;}
         finally {
@@ -104,6 +114,60 @@ public final class BetaSmokeProbe {
             if(jobs!=null)jobs.shutdown();Platform.exit();
         }
         System.exit(exit);
+    }
+    private static String checkInternalCutouts() throws Exception {
+        var factory=new org.locationtech.jts.geom.GeometryFactory();
+        var board=factory.toGeometry(new org.locationtech.jts.geom.Envelope(0,40,0,30))
+                .difference(factory.toGeometry(new org.locationtech.jts.geom.Envelope(5,15,5,13)));
+        String original=board.toText();
+        var source=fx(()->(TreeItem<String>)call("addGeometryToProject",new Class<?>[]{String.class,String.class,String.class,
+                org.locationtech.jts.geom.Geometry.class,boolean.class},"Internal-source","","MM",board,false));
+        var form=fx(()-> {
+            for(UiLanguage language:UiLanguage.values()) {
+                check(I18n.catalog(language).size()==I18n.catalog(UiLanguage.PT_BR).size(),"Incomplete packaged language catalog");
+                check(I18n.catalog(language).containsKey("cutout.internal.legend_help"),"Internal cutout help missing");
+                check(LanguageFlagIcons.icon(language,22)!=null,"Packaged SVG flag unavailable");
+            }
+            var entry=map("geometryByItem").get(source);
+            call("generateCutout",new Class<?>[]{TreeItem.class,entry.getClass()},source,entry);
+            var external=((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
+            ((Button)external.lookup("#cutout-open-internal")).fire();
+            return ((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
+        });
+        awaitCondition(()->((TableView<?>)form.lookup("#cutout-internal-openings")).getItems().size()==1);
+        fx(()-> {
+            ((TextField)form.lookup("#cutout-internal-diameter")).setText("50");
+            ((TextField)form.lookup("#cutout-internal-margin")).setText("0");
+            ((TextField)form.lookup("#cutout-internal-cut-z")).setText("-1.6");
+            ((TableView<?>)form.lookup("#cutout-internal-openings")).getSelectionModel().select(0);return null;
+        });
+        awaitCondition(()->!((Label)form.lookup("#cutout-internal-error")).getText().isBlank());
+        fx(()-> {
+            check(form.lookup("#cutout-internal-generate").isDisabled(),"Invalid internal cutout can generate");
+            ((TextField)form.lookup("#cutout-internal-diameter")).setText(".1981234567");return null;
+        });
+        awaitCondition(()->!form.lookup("#cutout-internal-generate").isDisabled());
+        var before=fx(()->Set.copyOf(map("geometryByItem").keySet()));
+        fx(()-> {
+            check(form.lookup("#cutout-internal-legend")!=null && form.lookup("#cutout-internal-summary")!=null,"Preview legend/summary missing");
+            check(form.lookup("#cutout-internal-frame").getAccessibleHelp()!=null,"Frame selection help missing");
+            var plot=(PlotAreaView)field("plotAreaView");var f=PlotAreaView.class.getDeclaredField("internalCutoutPreview");f.setAccessible(true);
+            var preview=(InternalCutoutPreview)f.get(plot);
+            check(preview!=null && preview.swept()!=null && preview.paths()!=null,"Cutter footprint preview missing");
+            check(!preview.swept().covers(factory.createPoint(new org.locationtech.jts.geom.Coordinate(10,9))),"Preview incorrectly shows a cleared pocket");
+            ((Button)form.lookup("#cutout-internal-generate")).fire();return null;
+        });awaitJob();
+        return fx(()-> {
+            var added=map("geometryByItem").keySet().stream().filter(i->!before.contains(i)).toList();
+            check(added.size()==1 && added.getFirst().getValue().endsWith("_internal_cutout"),"Internal generation produced incorrect objects");
+            check(original.equals(board.toText()),"Internal cutout changed the source");
+            check(((ScrollPane)((Tab)field("toolTab")).getContent()).getContent()==form,"Internal cutout draft closed after generation");
+            return added.getFirst().getValue();
+        });
+    }
+    private static void awaitCondition(Callable<Boolean> condition) throws Exception {
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(10);
+        while(!fx(condition)){if(System.nanoTime()>deadline)throw new TimeoutException("Internal cutout preview timed out");Thread.sleep(15);}
     }
     private static void checkExcellonDiameter() throws Exception {
         var source=fx(()->item("excellonByItem","Drills"));

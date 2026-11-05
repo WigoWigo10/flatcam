@@ -10,6 +10,12 @@ esses requisitos são só de quem gera a distribuição.
 .\test-beta.ps1
 ```
 
+Na Beta 5, o probe dos JARs distribuídos também exercita o painel de recortes
+internos, recusa de fresa inviável, faixa de corte, geração/CNC e persistência nos
+dois formatos de projeto. Confere catálogos e SVGs dos quatro idiomas. Para o
+caminho de atualização mais recente, forneça o MSI da Beta 4 revisão 1 em
+`-PreviousMsi`; a candidata Beta 5 usa MSI 0.1.50.
+
 Para validar também a atualização da Beta anterior, use o MSI realmente
 distribuído na rodada anterior:
 
