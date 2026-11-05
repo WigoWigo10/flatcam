@@ -8,8 +8,9 @@ Beta 4 r1 (0.1.41) -> Beta 5 (0.1.50) upgrade passed. Packaged probes verify
 internal cutout preview/validation/CNC/project reopening, four language catalogs
 and SVG flags alongside existing CAM/editor/Excellon checks. Each UI smoke has
 22 objects and five programs. External project SHA preserved; no registered
-family products left behind. EXE/MSI/ZIP/hashes in Downloads. No push, physical
-CNC, second PC/VM, new benchmark or EXE wizard click test. See
+family products left behind. EXE/MSI/ZIP/hashes in Downloads. No physical CNC,
+second PC/VM, new benchmark or EXE wizard click test. Agent did not invoke push;
+remote-tracking fork branch was observed at the binary commit with an update-by-push reflog. See
 flatcam-next/release/VALIDACAO-0.1.0-beta.5.md; later documentation commit does
 not change binary source identity. Prior Windows temporary-cleanup error did
 not recur in this candidate's complete verify. Skill runner qa.mjs not present;

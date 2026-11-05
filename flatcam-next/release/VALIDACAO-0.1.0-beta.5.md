@@ -55,7 +55,9 @@ prefixo `FlatCAM-FX-0.1.0-beta.5-`. ProductCode:
 Não foram executados: clique no assistente EXE, outro computador/VM, revisão
 exaustiva de todos os monitores/DPIs, novo benchmark, auditoria de segurança,
 certificação física CNC ou downgrade automático. A preservação de dados testada
-é **fora da pasta instalada**. Não houve push, upload ou envio ao testador.
+é **fora da pasta instalada**. Nenhum envio ao testador foi feito nesta sessão.
+Ao concluir, a referência local `fork/flatcam-next` estava em **8e2fcc18**, com
+reflog `update by push`; nenhum comando push foi chamado diretamente pelo agente.
 
 Recomendação: disponibilizar para testes controlados com cópias dos projetos,
 mantendo os limites das notas. A autorização do usuário para gerar a Beta não

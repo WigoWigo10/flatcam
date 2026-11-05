@@ -18,7 +18,9 @@ probes dos JARs do pacote, GPU/Software, caminho acentuado, ambiente reduzido,
 JFR, cinco programas/22 objetos, recortes internos e idiomas/SVGs. Projeto externo
 preservado e zero produtos da família registrados após desinstalar os ensaios.
 Geração/ensaio passaram na primeira rodada. Sem nova validação física CNC,
-segunda máquina/VM, benchmark ou cliques do assistente EXE. Sem push/upload.
+segunda máquina/VM, benchmark ou cliques do assistente EXE. Nenhum envio ao
+testador foi feito nesta sessão. `fork/flatcam-next` foi observado em **8e2fcc18**
+com reflog `update by push`; o agente não chamou diretamente um comando push.
 Evidência e hashes em [VALIDACAO-0.1.0-beta.5.md](release/VALIDACAO-0.1.0-beta.5.md).
 
 ## Recortes internos: prévia e UX — 2026-11-05
