@@ -4,6 +4,80 @@ Cutout gera Geometry; a configuração e geração CNC são etapas posteriores.
 Os valores usam as unidades do objeto de origem. Confira os caminhos, as alturas
 e as profundidades antes de executar na máquina.
 
+## Somente recortes internos — 2026-11-05
+
+Na **Cutout Tool**, abra **Recortes internos…**. Use a área preenchida do
+contorno físico, convertida do Outline/Edge_Cuts (veja
+[OUTLINE_TO_AREA.md](OUTLINE_TO_AREA.md)). O painel lista as aberturas existentes,
+sem selecionar nenhuma automaticamente. Escolha na tabela ou use **Escolher no
+Plot** para alternar aberturas pelo clique. Também é possível desenhar:
+
+- **Retângulo:** dois cantos opostos.
+- **Círculo:** centro e um ponto do raio.
+- **Polígono:** vértices por clique e botão direito para concluir.
+
+Esc ou **Encerrar escolha/desenho** encerra a interação. Na escolha pelo Plot,
+botão direito também encerra. A seleção já confirmada permanece; um hit ainda
+aguardando publicação é descartado. **Remover desenhadas** ou Delete na tabela
+remove apenas os desenhos selecionados do rascunho; aberturas detectadas e o
+objeto original não são apagados.
+
+Defina diâmetro, margem, Cut Z e passadas. A prévia é calculada em worker e mostra
+o caminho compensado para dentro em `margem + diâmetro / 2`. Diâmetro usa a
+precisão digitada; a formatação da tabela não arredonda o cálculo. Margem deve
+ser não negativa. O perfil e os parâmetros de usinagem do Cutout são transferidos.
+
+### Prévia e revisão — refinamento UX de 2026-11-05
+
+A prévia distingue **abertura desejada** (tracejado turquesa), **centro da fresa**
+(linha contínua) e **faixa removida** (preenchimento laranja translúcido). A faixa
+é o buffer do trajeto pelo raio informado; o restante do miolo não aparece como
+desbastado. Cálculo do caminho e dessa faixa continuam em worker. A legenda e o
+contraste acompanham os quatro temas, inclusive ao trocar de tema com o painel
+aberto. São geometrias temporárias, sem alterar os objetos ou o G-code.
+
+**Enquadrar seleção** aproxima as aberturas escolhidas. A seleção é compartilhada
+entre tabela e Plot. Um erro geométrico destaca a abertura no Plot e marca sua
+linha com `!`, borda vermelha e mensagem com o ID da tabela, sem depender só de cor.
+Campos numéricos inválidos recebem borda e mensagem. **Gerar** permanece
+desabilitado enquanto a prévia está pendente, há erro, não existe seleção ou um
+gesto de escolha/desenho está ativo. Alterar diâmetro, margem ou seleção invalida
+imediatamente o resultado anterior antes de iniciar o debounce.
+
+O resumo mostra quantidade selecionada, diâmetro, margem, Cut Z após a política
+Standard/Machinist e passo do Multi-Depth ou passada única. O comprimento mostrado
+é **por passada**, sem rápidos, mergulhos ou estimativa de tempo. A prévia é plana:
+não é uma simulação de profundidade, colisões ou perfil 3D da ferramenta.
+
+Tooltips específicos de diâmetro, margem, legenda, enquadramento e resumo usam
+parágrafos e ênfase/cor semântica. A margem tem exemplo de abertura de 10 mm com
+0,2 mm de material por lado; as instruções essenciais continuam visíveis. As
+mensagens de erro sem conteúdo não ocupam espaço na coluna.
+
+**Gerar recortes internos** cria uma Geometry `_internal_cutout`, contendo
+somente os contornos escolhidos. Não gera o perímetro externo, pontes, Thin ou
+M-Bites. O painel continua aberto, seguindo a política das ferramentas CAM.
+Abra a Geometry para gerar CNC, revisar e exportar pelo fluxo normal. O guia
+offline da Cutout explica as duas alternativas.
+
+A geração inteira é recusada se uma abertura tocar/cruzar o perímetro externo,
+se sobrepor a outra selecionada ou a uma abertura existente diferente, ou ficar
+vazia/dividida após a compensação. Não há saída parcial silenciosa. Origem
+removida/alterada, troca de projeto e cancelamento invalidam a geração pendente.
+Fechar o painel encerra gestos e prévias, seguindo a política CAM existente para
+uma geração já solicitada.
+
+É perfilamento fechado: **não esvazia um bolso**, não corrige cantos inacessíveis
+e o miolo pode se soltar. Confira a fixação e a ordem CNC. O rascunho de desenhos
+e seleção existe enquanto o painel está aberto; a Geometry gerada, ferramentas e
+parâmetros são preservados ao salvar/reabrir `.fcnproj` ou `.FlatPrj`.
+
+Testes cobrem MM/IN, seleção parcial em painel, formas desenhadas, compensação,
+geometria inviável, cancelamento, gestos no Plot, Delete, quatro temas e o fluxo
+MainWindow → Geometry → CNC/G-code → salvar/reabrir. Isso não substitui ensaio
+físico na máquina. A opção antiga **Incluir recortes internos** continua no
+fluxo externo e é descrita abaixo.
+
 ## Pontes pelo cursor — 2026-10-24
 
 Use **Posicionar gaps (Free-form)** ou **Posicionar gaps (Rectangular)**.

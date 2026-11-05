@@ -27025,7 +27025,7 @@
     "canonical": false
   },
   "guide.topic.cutout.summary": {
-    "source": "A **Cutout Tool** cria o trajeto de recorte externo e as interrupções que mantêm a placa presa. O fluxo pode usar contorno livre ou recorte retangular.",
+    "source": "A **Cutout Tool** cria trajetos de recorte externo, pontes de fixação e recortes internos. Use o fluxo principal para a borda da placa ou o painel **Recortes internos** para usinar somente as aberturas escolhidas.",
     "locations": [
       "HelpGuideCatalog.java"
     ],
@@ -27039,7 +27039,7 @@
     "canonical": false
   },
   "guide.topic.cutout.steps": {
-    "source": "Abra Cutout Tool a partir do objeto ou do menu Ferramentas e confira o objeto selecionado.\nEscolha placa única ou painel conforme o desenho. Defina Tool Dia e Margin a partir da ferramenta e do contorno pretendido.\nDefina Gap size, posição/padrão de Gaps e o tipo de ponte. Revise os campos adicionais de Thin ou M-Bites quando esses modos estiverem ativos.\nGere o contorno livre ou retangular conforme o formato desejado. Confira a Geometry e a posição das pontes no Plot.\nAbra a geração CNC e confirme profundidade final, múltiplas passadas e os parâmetros específicos transferidos pelo Cutout.",
+    "source": "Abra Cutout Tool a partir do objeto ou do menu Ferramentas e confira o objeto selecionado.\nPara a borda externa, escolha placa única ou painel. Defina Tool Dia, Margin, Gap size, posição/padrão de Gaps e o tipo de ponte; revise Thin ou M-Bites quando ativos.\nGere o contorno livre ou retangular. Confira a Geometry e as pontes no Plot.\nPara cortar somente aberturas, use a área preenchida obtida do Outline/Edge_Cuts e abra Recortes internos. Selecione aberturas na tabela ou pelo Plot; também pode desenhar retângulos, círculos e polígonos.\nDefina diâmetro, margem e profundidade. Confira a prévia compensada e use Gerar recortes internos: uma Geometry separada é criada, sem cortar o perímetro externo.\nAbra a geração CNC da Geometry desejada e confirme profundidade final, múltiplas passadas e os demais parâmetros antes de exportar.",
     "locations": [
       "HelpGuideCatalog.java"
     ],
@@ -27053,7 +27053,7 @@
     "canonical": false
   },
   "guide.topic.cutout.note": {
-    "source": "O contorno externo do painel inteiro e o recorte individual das placas são trabalhos diferentes. Não use o limite de uma área de cobre como substituto automático do contorno físico da placa.",
+    "source": "Recortar o painel inteiro e recortar cada placa são trabalhos diferentes. Use o contorno físico, em vez do limite de uma área de cobre. Os recortes internos são contornos fechados sem pontes: o miolo se desprende e precisa de fixação adequada. Este modo não desbasta todo o bolso. Os desenhos temporários duram enquanto o painel está aberto; a Geometry gerada é salva com o projeto.",
     "locations": [
       "HelpGuideCatalog.java"
     ],
@@ -27909,6 +27909,639 @@
     "locations": [
       "ExcellonObjectToolsTable.java",
       "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.open": {
+    "source": "Recortes internos…",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.title": {
+    "source": "Cutout — Recortes internos",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.open_help": {
+    "source": "Abre o modo dedicado para selecionar ou desenhar aberturas e gerar somente seus contornos internos. Transfere os parâmetros atuais da fresa e de profundidade; não gera o perímetro externo.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.source": {
+    "source": "Origem: %s — %s",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.help": {
+    "source": "Use a área preenchida do Outline/Edge_Cuts. Selecione aberturas ou desenhe novas formas. Confira a prévia antes de gerar.\n\nSomente contornos internos, sem pontes ou desbaste do miolo.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.profile": {
+    "source": "Tipo de fresa",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.tool_help": {
+    "source": "Diâmetro real da fresa e margem nas unidades do objeto. O centro da fresa fica para dentro da abertura por raio + margem. Margem positiva deixa material adicional. Aberturas estreitas ou que se dividem são recusadas; cantos internos mantêm o raio da fresa.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.depth_help": {
+    "source": "Cut Z e Multi-Depth são transferidos à Geometry para a geração do CNC Job. Profundidade por passada deve ser positiva quando Multi-Depth está ativo. Confira a espessura da placa, as alturas e os avanços no painel CNC antes de exportar.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.detected": {
+    "source": "Detectada",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.drawn": {
+    "source": "Desenhada",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.dimensions": {
+    "source": "Largura × altura",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.no_openings": {
+    "source": "Sem aberturas detectadas. Desenhe uma nova forma.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.all": {
+    "source": "Selecionar todas",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.none": {
+    "source": "Limpar seleção",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.selection_help": {
+    "source": "Selecione somente as aberturas a usinar. Ctrl/Shift permitem seleção múltipla. Selecionar todas inclui formas detectadas e desenhadas; Limpar seleção não altera a origem. Somente as linhas selecionadas entram na prévia e na geração.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.pick": {
+    "source": "Escolher no Plot",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.pick_help": {
+    "source": "Clique dentro de uma abertura para alternar sua seleção. Repita para outras aberturas. Esc ou botão direito encerra a escolha, mantendo a seleção. O Snap atual também se aplica aos cliques.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.remove": {
+    "source": "Remover desenhadas",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.remove_help": {
+    "source": "Remove somente as formas desenhadas selecionadas deste rascunho. Delete na tabela faz o mesmo. Aberturas detectadas não são apagadas da placa; desmarque-as usando Limpar seleção. O objeto de origem permanece intacto.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_rectangle": {
+    "source": "Retângulo",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_circle": {
+    "source": "Círculo",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_polygon": {
+    "source": "Polígono",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_help": {
+    "source": "Desenha uma abertura no rascunho, sem editar o Outline. Retângulo: dois cantos opostos. Círculo: centro e raio. Polígono: vértices, Enter ou botão direito para fechar. Esc cancela o desenho atual. A abertura deve ficar inteiramente dentro de uma placa e não sobrepor outras aberturas.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_prompt_rectangle": {
+    "source": "Clique nos dois cantos opostos do retângulo.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_prompt_circle": {
+    "source": "Clique no centro e depois em um ponto do raio.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_prompt_polygon": {
+    "source": "Clique nos vértices; Enter ou botão direito fecha o polígono.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.draw_invalid": {
+    "source": "Desenho sem área válida. Tente novamente.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.stop": {
+    "source": "Encerrar escolha/desenho",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.stop_help": {
+    "source": "Encerra a interação atual no Plot, mantendo as aberturas já adicionadas e selecionadas. Esc também encerra. Não cria Geometry nem salva o rascunho no projeto.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.stopped": {
+    "source": "Interação encerrada; seleção mantida.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.generate": {
+    "source": "Gerar recortes internos",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.generate_help": {
+    "source": "Cria uma Geometry independente somente com os contornos internos selecionados, compensados pelo raio da fresa e pela margem. Não gera contorno externo, pontes, Thin ou M-Bites. Depois, abra a Geometry para revisar e gerar o CNC Job. O arquivo original não é modificado.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.close_help": {
+    "source": "Fecha esta ferramenta e descarta o rascunho de seleção e desenho. Geometries já geradas permanecem no projeto.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.loading": {
+    "source": "Localizando aberturas…",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.loaded": {
+    "source": "%d aberturas detectadas. Selecione ou desenhe as que deseja usinar.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.selected": {
+    "source": "%d aberturas selecionadas.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.previewing": {
+    "source": "Calculando prévia…",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.preview_ready": {
+    "source": "Prévia pronta. Confira os caminhos antes de gerar.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.no_hit": {
+    "source": "Nenhuma abertura nesse ponto. Clique dentro de uma forma listada.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.unavailable": {
+    "source": "Interação indisponível. Encerre a operação atual e tente novamente.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.stale": {
+    "source": "A origem foi alterada ou removida. Reabra Recortes internos.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.failed": {
+    "source": "Não foi possível calcular os recortes: %s",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.invalid_board": {
+    "source": "Use uma área de placa preenchida e válida, obtida de Outline/Edge_Cuts.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.empty_selection": {
+    "source": "Selecione pelo menos uma abertura.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.invalid_opening": {
+    "source": "O item %d da seleção não é um polígono fechado válido e sem ilhas.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.outside_board": {
+    "source": "O item %d da seleção toca ou ultrapassa o contorno externo da placa.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.overlapping_openings": {
+    "source": "O item %d da seleção sobrepõe ou toca outra abertura selecionada.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.intersects_existing_hole": {
+    "source": "O item %d da seleção invade outra abertura existente. Ajuste o desenho ou use a abertura detectada.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.tool_does_not_fit": {
+    "source": "O item %d da seleção não comporta a fresa/margem ou se divide. Reduza a fresa ou ajuste o desenho.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.error.bad_parameters": {
+    "source": "Use diâmetro positivo e margem zero ou positiva, com valores finitos.",
+    "locations": [
+      "InternalCutoutToolPanel.java",
+      "InternalCutoutController.java",
+      "InternalCutoutMessages.java",
+      "CutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.frame": {
+    "source": "Enquadrar seleção",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.frame_help": {
+    "source": "Prévia: aproxima o Plot das aberturas selecionadas, sem mover ou alterar a placa.\n\nUse para conferir a compensação da fresa. O zoom continua livre depois do enquadramento.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.legend_opening": {
+    "source": "Abertura desejada",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.legend_path": {
+    "source": "Centro da fresa",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.legend_swept": {
+    "source": "Faixa removida",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.legend_invalid": {
+    "source": "! Verificar",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.legend_help": {
+    "source": "Prévia: contorno tracejado = abertura desejada; linha contínua = centro da fresa; faixa preenchida = material removido ao percorrer o contorno.\n\nAtenção: o interior restante não é desbastado. Não há pontes internas; confira a fixação do miolo. A prévia é plana e não simula profundidade ou colisões.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.diameter_help": {
+    "source": "Diâmetro real da fresa nas unidades da origem. O cálculo preserva a precisão digitada, como 0,198 mm.\n\nPrévia: a linha representa o centro da fresa; a faixa mostra a largura removida. A fresa deve caber em toda a abertura.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.margin_help": {
+    "source": "Material deixado junto à borda da abertura. O centro da fresa é deslocado para dentro pela margem mais o raio da fresa.\n\nExemplo: abertura de 10 mm e margem de 0,2 mm deixam aproximadamente 9,6 mm entre bordas opostas usinadas. Margem zero corta até o contorno desejado, respeitando o raio nos cantos.\n\nLimitação: margem negativa não é aceita neste modo.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.length_pending": {
+    "source": "Comprimento: aguardando prévia válida.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.length": {
+    "source": "Percurso por passada: %s %s",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.opening_error": {
+    "source": "Abertura #%d — %s",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.needs_correction": {
+    "source": "Corrija o item destacado para gerar.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.pass_positive": {
+    "source": "Depth / Pass deve ser maior que zero.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.summary": {
+    "source": "%d recortes • Fresa %s %s • Margem %s %s\nCut Z: %s %s • %s",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.summary_pass": {
+    "source": "Multi-Depth: %s %s/passe",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.single_pass": {
+    "source": "Passada única",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.summary_invalid": {
+    "source": "Revise os parâmetros destacados.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "cutout.internal.summary_help": {
+    "source": "Resultado: a geração cria uma Geometry separada com os recortes selecionados e as configurações mostradas aqui.\n\nO comprimento é por passada e não inclui movimentos rápidos, mergulhos ou tempo de usinagem. Cut Z mostra o valor após a política Standard/Machinist.\n\nPróximo passo: abra a Geometry, revise os demais parâmetros CNC e gere o CNC Job.",
+    "locations": [
+      "InternalCutoutToolPanel.java"
     ],
     "canonical": false
   }

@@ -16,6 +16,7 @@ class I18nUiTest {
             Path log = output.resolve(language.tag + ".log");
             Process child = new ProcessBuilder(Path.of(System.getProperty("java.home"),"bin","java.exe").toString(),
                     "--enable-native-access=ALL-UNNAMED", "-XX:+UnlockDiagnosticVMOptions", "-XX:DisableIntrinsic=_indexOfUL",
+                    "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8",
                     "-Djava.util.prefs.PreferencesFactory=" + StartupSplashTest.MemoryFactory.class.getName(),
                     "-cp", System.getProperty("surefire.test.class.path",System.getProperty("java.class.path")),
                     I18nUiProbe.class.getName(), language.tag, output.toString())

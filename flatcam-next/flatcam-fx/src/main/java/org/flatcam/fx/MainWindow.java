@@ -2577,6 +2577,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void clearToolOverlays() {
+        plotAreaView.setInternalCutoutPreview(null);
         cancelPointPick();
         plotAreaView.cancelPlacement();
         plotAreaView.setEditorContent(null);
@@ -7435,8 +7436,17 @@ final class MainWindow implements TclFlatcamHost {
                 }, () -> {
                     gaps.cancel();
                     closeToolPanel();
-                }));
+                }, settings -> openInternalCutoutTool(item,units,source,sourceAvailable,settings)));
         activeToolCleanup = gaps::close;
+    }
+
+    private void openInternalCutoutTool(TreeItem<String> item, String units, Geometry source,
+                                        BooleanSupplier available, InternalCutoutToolPanel.Settings settings) {
+        var controller = new InternalCutoutController(plotAreaView,jobExecutor,units,source,available);
+        var panel = new InternalCutoutToolPanel(units,item.getValue(),settings,controller,this::legacyIcon,
+                result -> runCutoutGeneration(item,units,source,available,result),this::closeToolPanel);
+        openToolPanel("Cutout Tool",panel);
+        activeToolCleanup = controller::close;
     }
 
     private record CutoutJobOutcome(CutoutResult cutout, ExcellonImage mouseBites) {
@@ -7454,7 +7464,10 @@ final class MainWindow implements TclFlatcamHost {
         activeCamGeneration = before;
         JobHandle<CutoutJobOutcome> handle = jobExecutor.submit(context -> {
             context.reportProgress(0.05, I18n.text("ui.e4eb5e7c7a1b"));
-            CutoutResult cutout = CutoutGenerator.generate(
+            CutoutResult cutout = result.internalAreas() != null
+                    ? org.flatcam.cam.cutout.InternalCutoutGenerator.generate(units,source,result.internalAreas(),
+                        result.cutoutParams().toolDiameter(),result.cutoutParams().margin(),context::isCancelled)
+                    : CutoutGenerator.generate(
                     units, source, result.cutoutParams(),
                     result.manualGapAreas(), context::isCancelled);
             ExcellonImage mouseBites = result.gapType() == CutoutToolPanel.GapType.M_BITES
@@ -7481,7 +7494,7 @@ final class MainWindow implements TclFlatcamHost {
                     } else {
                         appendConsole(String.format(I18n.text("ui.16e9baccfea1"),
                                 cutout.partCount(), cutout.totalLength(), Arrays.toString(cutout.bounds())));
-                        String name = uniqueDerivedName(item.getValue() + "_cutout");
+                        String name = uniqueDerivedName(item.getValue() + (result.internalAreas()!=null ? "_internal_cutout" : "_cutout"));
                         TreeItem<String> generated = addGeometryToProject(name, item.getValue(), units,
                                 cutout.geometry(), true,
                                 List.of(new ToolGeometry(result.cutoutParams().toolDiameter(), cutout.geometry(), result.profile())), result.machining());
@@ -7517,7 +7530,9 @@ final class MainWindow implements TclFlatcamHost {
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
                         if (runningJob != handle) return;
-                        reportJobError(error, I18n.text("ui.09cc9fd6693a"));
+                        reportJobError(result.internalAreas()!=null && !isCancellation(error)
+                                ? new IllegalArgumentException(InternalCutoutMessages.error(error)) : error,
+                                I18n.text("ui.09cc9fd6693a"));
                         onJobFinished();
                     });
                     return null;

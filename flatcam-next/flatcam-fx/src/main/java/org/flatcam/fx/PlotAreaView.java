@@ -415,6 +415,8 @@ final class PlotAreaView extends StackPane {
     private Color editorHighlightColor = EDITOR_HIGHLIGHT_COLOR;
     /** A dashed reference companion to the editor highlight, with theme-aware outline contrast. */
     private Geometry editorReferenceGeometry;
+    private InternalCutoutPreview internalCutoutPreview;
+    private static final Object[] CUTOUT_PREVIEW_KEYS = {new Object(),new Object(),new Object(),new Object()};
     private static final Color EDITOR_REFERENCE_LIGHT = Color.web("#2358C4");
     private static final Color EDITOR_REFERENCE_DARK = Color.web("#7DBBFF");
     static Color editorReferenceColor(boolean dark) { return dark ? EDITOR_REFERENCE_DARK : EDITOR_REFERENCE_LIGHT; }
@@ -904,6 +906,14 @@ final class PlotAreaView extends StackPane {
         drawEditorHighlight();
     }
 
+    void setInternalCutoutPreview(InternalCutoutPreview preview) {
+        Geometry[] before = internalCutoutPreview == null ? new Geometry[4] : internalCutoutPreview.geometries();
+        Geometry[] after = preview == null ? new Geometry[4] : preview.geometries();
+        for (int i=0;i<4;i++) if (before[i]!=after[i]) forgetOverlay(CUTOUT_PREVIEW_KEYS[i]);
+        internalCutoutPreview = preview;
+        drawEditorHighlight();
+    }
+
     void setEditorHighlight(Geometry geometry, boolean strokeOnly) {
         setEditorHighlight(geometry, strokeOnly, EDITOR_HIGHLIGHT_COLOR);
     }
@@ -1058,6 +1068,8 @@ final class PlotAreaView extends StackPane {
         stepView.clear();
         editorHighlightGeometry = null;
         editorReferenceGeometry = null;
+        internalCutoutPreview = null;
+        for (Object key : CUTOUT_PREVIEW_KEYS) forgetOverlay(key);
         forgetOverlay(HIGHLIGHT_KEY);
         forgetOverlay(REFERENCE_KEY);
         editorFillGeometry = null;
@@ -1436,6 +1448,15 @@ final class PlotAreaView extends StackPane {
         placementTwoPointShape = TwoPointShape.RECTANGLE;
         redraw();
         return true;
+    }
+
+    /** Center/radius circle for CAM area drafts outside an editor session. */
+    boolean beginAreaCirclePlacement(int steps, PlacementHandler handler) {
+        org.flatcam.cam.geometry.EditorArc.validateSteps(steps);
+        if (selectionHandler != null || handler == null || !startPlacement(List.of(), List.of(), 0, 0, false, handler)) return false;
+        placementTwoPointShape = TwoPointShape.CIRCLE;
+        placementCircleSteps = 4 * (steps / 4);
+        redraw(); return true;
     }
 
     boolean beginCursorPlacement(CursorPlacementHandler handler) {
@@ -2340,6 +2361,23 @@ final class PlotAreaView extends StackPane {
                 drawOverlay(gc, new PreviewOverlayKey(layer.category(), layer.strokeOnly()),
                         new RenderLayer(layer.geometry(), layer.strokeOnly(), ink.fill(), ink.stroke(),
                                 true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth, contentHeight);
+            }
+            gc.restore();
+        }
+        if (internalCutoutPreview != null) {
+            gc.save(); gc.beginPath(); gc.rect(rulerLeftWidth,rulerTopHeight,contentWidth,contentHeight); gc.clip();
+            boolean dark=palette.background().getBrightness()<.5;
+            Geometry[] shapes=internalCutoutPreview.geometries();
+            // Footprint first, then dashed target, solid centerline and the error outline.
+            for (int i : new int[]{2,0,1,3}) {
+                Geometry shape=shapes[i]; if(shape==null || shape.isEmpty())continue;
+                Color ink=switch(i) {
+                    case 0 -> InternalCutoutPreview.opening(dark); case 1 -> InternalCutoutPreview.path(dark);
+                    case 2 -> InternalCutoutPreview.swept(dark); default -> InternalCutoutPreview.invalid(dark);
+                };
+                gc.setLineDashes(i==0 ? new double[]{7,5} : new double[0]);
+                drawOverlay(gc,CUTOUT_PREVIEW_KEYS[i],new RenderLayer(shape,i!=2,ink,i==2?Color.TRANSPARENT:ink,
+                        true,LayerCategory.OVERLAY,true,false),viewBounds,contentWidth,contentHeight);
             }
             gc.restore();
         }

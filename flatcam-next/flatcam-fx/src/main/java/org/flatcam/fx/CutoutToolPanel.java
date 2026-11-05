@@ -54,7 +54,13 @@ final class CutoutToolPanel {
     record Result(CutoutParameters cutoutParams, GapType gapType,
                   double biteDiameter, double biteSpacing, List<Geometry> manualGapAreas,
                   GeometryGCodeParameters machining, GeometryGCodeParameters thinMachining, ToolProfile profile,
-                  org.flatcam.app.project.CncJobDefaults jobDefaults) {
+                  org.flatcam.app.project.CncJobDefaults jobDefaults, List<Geometry> internalAreas) {
+        Result(CutoutParameters cutoutParams, GapType gapType, double biteDiameter, double biteSpacing, List<Geometry> manualGapAreas,
+               GeometryGCodeParameters machining, GeometryGCodeParameters thinMachining, ToolProfile profile,
+               org.flatcam.app.project.CncJobDefaults jobDefaults) {
+            this(cutoutParams,gapType,biteDiameter,biteSpacing,manualGapAreas,machining,thinMachining,profile,jobDefaults,null);
+        }
+        Result { if (internalAreas != null) internalAreas = List.copyOf(internalAreas); }
         Result(CutoutParameters cutoutParams, GapType gapType, double biteDiameter, double biteSpacing, List<Geometry> manualGapAreas,
                GeometryGCodeParameters machining, GeometryGCodeParameters thinMachining, ToolProfile profile) {
             this(cutoutParams, gapType, biteDiameter, biteSpacing, manualGapAreas, machining, thinMachining, profile,
@@ -83,6 +89,13 @@ final class CutoutToolPanel {
     static Node build(String units, AreaSelectionStarter areaStarter, Runnable cancelArea,
                       java.util.function.Supplier<List<org.flatcam.app.project.LegacyToolsDatabase.CutoutTool>> database,
                       CursorSelectionStarter cursorStarter, Consumer<Result> onGenerate, Runnable onClose) {
+        return build(units,areaStarter,cancelArea,database,cursorStarter,onGenerate,onClose,null);
+    }
+
+    static Node build(String units, AreaSelectionStarter areaStarter, Runnable cancelArea,
+                      java.util.function.Supplier<List<org.flatcam.app.project.LegacyToolsDatabase.CutoutTool>> database,
+                      CursorSelectionStarter cursorStarter, Consumer<Result> onGenerate, Runnable onClose,
+                      Consumer<InternalCutoutToolPanel.Settings> onInternal) {
         boolean metric = "MM".equals(units);
 
         RadioButton singleRadio = new RadioButton("Single");
@@ -298,6 +311,14 @@ final class CutoutToolPanel {
                 picker, transferNote, grid, cursorFreeform, cursorRectangular, rectangleGapButton, polygonGapButton, clearManualButton, manualStatus, workflowNote,
                 zInput.view(), errorLabel, freeformButton, rectangularButton, closeButton);
         box.setPadding(new Insets(12));
+        if (onInternal != null) {
+            Button internalMode = new Button(I18n.text("cutout.internal.open")); internalMode.setId("cutout-open-internal");
+            internalMode.setMaxWidth(Double.MAX_VALUE);
+            ToolDescriptions.apply(internalMode,I18n.text("cutout.internal.title"),I18n.text("cutout.internal.open_help"));
+            internalMode.setOnAction(event -> onInternal.accept(new InternalCutoutToolPanel.Settings(toolDiaField.getText(),
+                    marginField.getText(),cutZ.getText(),multiDepth.isSelected(),perPass.getText(),seed.get(),profile.get(),commonDefaults.get())));
+            box.getChildren().add(2,internalMode);
+        }
         return box;
     }
 

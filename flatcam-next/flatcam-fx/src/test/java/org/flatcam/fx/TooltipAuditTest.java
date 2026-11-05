@@ -65,6 +65,7 @@ class TooltipAuditTest {
             var ncc = new NccToolPanel.SourceCandidate(new javafx.scene.control.TreeItem<>("Copper"),"Copper","MM",true,geometry);
             roots.put("NCC Tool",NccToolPanel.build(List.of(ncc),ncc,List.of(),(a,b,c,d)->false,()->{},List::of,r->{},()->{}));
             roots.put("Cutout Tool",CutoutToolPanel.build("MM",(a,b,c)->false,()->{},r->{},()->{}));
+            roots.put("Recortes internos",InternalCutoutUiTest.auditPanel());
             roots.put("Geometry CNC Job",GeometryCncToolPanel.build("MM",geometry,List.of(),r->{},()->{}));
             var excellon = new org.flatcam.cam.excellon.ExcellonParser().parse(List.of("M48","METRIC","T1C1.0","%","T1","X1.0Y1.0","M30"));
             var drill = new DrillGCodeToolPanel.SourceCandidate(new javafx.scene.control.TreeItem<>("Drills"),excellon,Map.of());

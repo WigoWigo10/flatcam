@@ -3,6 +3,9 @@
  * Plain JavaFX (Modena), without a third-party user-agent stylesheet.
  */
 .root {
+    -fc-cutout-opening: #007E82;
+    -fc-cutout-path: #753800;
+    -fc-cutout-swept: #D97A00;
     -fc-code-bg: #ffffff;
     -fc-code-gutter: #f1f3f5;
     -fc-code-text: #242b35;

@@ -1,0 +1,32 @@
+.cutout-swatch-opening {
+    -fx-fill: transparent;
+    -fx-stroke: -fc-cutout-opening;
+    -fx-stroke-width: 2;
+    -fx-stroke-dash-array: 5 3;
+}
+.cutout-swatch-path {
+    -fx-fill: -fc-cutout-path;
+}
+.cutout-swatch-swept {
+    -fx-fill: -fc-cutout-swept;
+}
+.cutout-swatch-invalid {
+    -fx-fill: transparent;
+    -fx-stroke: -fc-danger;
+    -fx-stroke-width: 2;
+}
+.cutout-review {
+    -fx-padding: 8;
+    -fx-background-color: -fc-surface;
+    -fx-border-color: -fc-panel-border;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+.table-row-cell:cutout-invalid {
+    -fx-border-color: -fc-danger;
+    -fx-border-width: 0 0 0 3;
+}
+.text-field:cutout-invalid {
+    -fx-border-color: -fc-danger;
+    -fx-border-radius: 3;
+}

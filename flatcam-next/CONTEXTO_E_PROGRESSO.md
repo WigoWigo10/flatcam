@@ -1,5 +1,82 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Recortes internos: prévia e UX — 2026-11-05
+
+Prévia semântica em `InternalCutoutPreview`: abertura tracejada, centro da fresa,
+faixa nominal removida e abertura inválida em camadas separadas. O worker prepara
+o buffer do trajeto pelo raio da fresa; o Plot reutiliza indexação/LOD de overlays.
+Legenda com cores dos quatro temas e botão Enquadrar seleção. Erros identificam
+o ID da linha e marcam tabela/Plot; campos inválidos recebem borda e mensagem.
+Gerar só fica disponível com prévia atual válida, parâmetros válidos e gesto
+encerrado. A seleção/diâmetro/margem cancela a prévia anterior imediatamente;
+profundidade e passo atualizam o resumo sem repetir cálculo geométrico.
+
+Resumo de quantidade, diâmetro, margem, Cut Z efetivo, Multi-Depth/passada única
+e comprimento **por passada**. Não estima tempo ou rápidos e não simula o perfil
+3D/colisões da ferramenta. Tooltips de margem e diâmetro separados, exemplo
+numérico e formatação semântica. Erros vazios não deixam espaço no layout.
+Catálogos agora com **3936 chaves por idioma**; ver [CUTOUT.md](CUTOUT.md).
+Capturas reais do painel/Plot com dados sintéticos e dos tooltips nos quatro
+temas em `flatcam-fx/target/internal-cutout-ux-review/`.
+
+Verify focado em recortes, Plot/renderização, outras prévias, temas, idiomas e
+tooltips: **95 aprovados, 3 opcionais ignorados, zero falhas/erros**,
+`target/internal-cutout-ux-regression.log`. Os testes verificam que a faixa não
+preenche o miolo, a largura corresponde ao raio, a geração espera a prévia e
+parâmetros válidos, e o erro mapeia para o ID correto da tabela. Capturas reais
+de retângulo/círculo selecionados e da ajuda de margem nos quatro temas.
+Auditoria: **1579 controles com ajuda por idioma**, zero ausências no inventário.
+Primeira rodada preservada em `target/internal-cutout-ux-focused.log`: o teste
+antigo tentava gerar antes da nova prévia ficar pronta; foi atualizado para
+aguardar a validação, com asserção separada de bloqueio durante o cálculo.
+Rodada intermediária aprovada em `target/internal-cutout-ux-focused2.log`.
+Launcher sincronizado e probe aprovado em `target/internal-cutout-ux-native.log`;
+15 classes/catálogos/folhas de estilo no JAR conferidos contra o build atual.
+Resumo: `target/internal-cutout-ux-verification.json`. Sem novo MSI ou commit.
+
+## Cutout: painel de recortes internos — 2026-11-05
+
+Novo modo **Recortes internos…** dentro da Cutout Tool: seleção de aberturas
+existentes pela tabela/Plot ou desenho de retângulo, círculo e polígono. Prévia
+compensada e cálculo em worker; geração cria somente os contornos selecionados
+em uma Geometry `_internal_cutout`, preservando origem e perímetro externo.
+Não é desbaste de bolso; contornos são fechados e sem pontes internas.
+
+Valida aberturas fora/tocando a borda, sobreposições e compensação inviável sem
+publicar saída parcial. Usa as unidades e a precisão integral do diâmetro,
+transfere perfil/usinagem e integra CNC/export/salvar/reabrir. Painel permanece
+aberto após gerar; rascunho temporário não é salvo como objeto até a geração.
+Cancelamento e origem/projeto obsoletos impedem publicação; encerrar a escolha
+descarta cliques ainda pendentes. Delete remove somente desenhos do rascunho.
+
+Guia e tooltips nos quatro idiomas, catálogo agora com **3917 chaves por idioma**.
+Detalhes e limites em [CUTOUT.md](CUTOUT.md). A opção antiga de incluir todos os
+recortes no Cutout externo foi preservada. Testes novos em
+`InternalCutoutGeneratorTest`, `InternalCutoutUiTest` e `MainInternalCutoutTest`.
+Validação focada: **65 aprovados, 1 opcional ignorado**, sem falhas/erros,
+`target/internal-cutout-focused2.log`. Capturas dos quatro temas em
+`flatcam-fx/target/internal-cutout-review/`, com revisão visual claro/escuro.
+Auditoria nos quatro idiomas: **1578 controles com ajuda por idioma**, sem
+ausências no inventário. Catálogos validados com `--strict --check`.
+
+Regressão integral: **2368 casos, 2349 aprovados, 18 opcionais ignorados e
+1 erro na limpeza de temporário**, sem falhas de asserção,
+`target/internal-cutout-verify.log`. Foi `DirectoryNotEmptyException` ao encerrar
+`TclLiveHostTest.saveRunsOutsideFxAndDoesNotBlockFxWhileSerializing`; o diretório
+já não existia na inspeção posterior. Causa externa/antivírus não confirmada.
+Repetição do teste existente junto dos três testes novos: **100 aprovados,
+1 opcional ignorado**, verify aprovado em
+`target/internal-cutout-cleanup-recheck.log`. Não se declara a primeira rodada
+integral aprovada nem se alterou a política de limpeza para esconder o erro.
+Primeira rodada focada também preservada: identificou tradução duplicada com
+rótulos diferentes para o mesmo texto; reutilizada a terminologia já existente,
+com log dos subprocessos de idiomas explicitamente UTF-8 para diagnóstico.
+Nenhuma validação física de CNC declarada.
+Launcher nativo sincronizado e probe aprovado em `target/internal-cutout-native.log`.
+Classes novas e catálogos dos quatro idiomas no JAR conferidos contra o build
+atual; resumo em `target/internal-cutout-verification.json`. Versão e MSI Beta 4
+revisão 1 anteriores não foram modificados nesta entrega.
+
 ## Ícones SVG de idiomas — 2026-11-05
 
 Seletor de idiomas com bandeiras Circle Flags (MIT), mostrando ícone e nome
