@@ -1,5 +1,20 @@
 # QA project context — FlatCAM FX
 
+Latest release evidence (2026-11-05): Beta 5 source
+8e2fcc186c20b5934927981e336fd1753447f552, clean tree, local annotated tag
+v0.1.0-beta.5. Full verify: 2374 cases, 2356 passed, 18 optional skips, zero
+failures/errors. Portable, clean per-user MSI install/uninstall and delivered
+Beta 4 r1 (0.1.41) -> Beta 5 (0.1.50) upgrade passed. Packaged probes verify
+internal cutout preview/validation/CNC/project reopening, four language catalogs
+and SVG flags alongside existing CAM/editor/Excellon checks. Each UI smoke has
+22 objects and five programs. External project SHA preserved; no registered
+family products left behind. EXE/MSI/ZIP/hashes in Downloads. No push, physical
+CNC, second PC/VM, new benchmark or EXE wizard click test. See
+flatcam-next/release/VALIDACAO-0.1.0-beta.5.md; later documentation commit does
+not change binary source identity. Prior Windows temporary-cleanup error did
+not recur in this candidate's complete verify. Skill runner qa.mjs not present;
+used established Maven and packaged-runtime probes instead.
+
 Latest release evidence (2026-11-01): Beta 4 revision 1 source 0c14179b,
 clean binary source, local tag v0.1.0-beta.4-r1. Full verify: 2343 cases,
 2325 passed, 18 optional skips, zero failures/errors. Excellon properties

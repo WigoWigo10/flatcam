@@ -1,14 +1,25 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
-## Preparação da Beta 5 — 2026-11-05
+## Beta 5 gerada e validada — 2026-11-05
 
 Recortes internos e UX commitados em **617f2791**. A Beta 5 reúne essa ferramenta
 e o suporte a quatro idiomas/ícones de **68da8707**. Maven/app/nativo agora
 `0.1.0-beta.5`, revisão 0, MSI 0.1.50; mesma família de upgrade. Notas em
 [BETA-0.1.0-beta.5.md](release/BETA-0.1.0-beta.5.md). Probe da distribuição ampliado
 para prévia/validação/geração CNC dos recortes, persistência e catálogos/SVGs.
-Geração e validação da candidata ainda pendentes nesta preparação; o relatório
-posterior deve registrar o commit efetivamente empacotado e os hashes.
+Fonte limpa dos binários: **8e2fcc186c20b5934927981e336fd1753447f552**, tag local
+**v0.1.0-beta.5**. Build integral: **2356 aprovados, 18 opcionais ignorados,
+zero falhas/erros**, 2374 casos; 10:57. Pacotes em
+`target/releases/0.1.0-beta.5-20261105-183738-780/`, copiados e reconferidos em
+Downloads: EXE/MSI/ZIP, notas, relatórios e hashes.
+
+Portátil, MSI limpo e upgrade **Beta 4 r1 (0.1.41) → Beta 5 (0.1.50)** passaram:
+probes dos JARs do pacote, GPU/Software, caminho acentuado, ambiente reduzido,
+JFR, cinco programas/22 objetos, recortes internos e idiomas/SVGs. Projeto externo
+preservado e zero produtos da família registrados após desinstalar os ensaios.
+Geração/ensaio passaram na primeira rodada. Sem nova validação física CNC,
+segunda máquina/VM, benchmark ou cliques do assistente EXE. Sem push/upload.
+Evidência e hashes em [VALIDACAO-0.1.0-beta.5.md](release/VALIDACAO-0.1.0-beta.5.md).
 
 ## Recortes internos: prévia e UX — 2026-11-05
 

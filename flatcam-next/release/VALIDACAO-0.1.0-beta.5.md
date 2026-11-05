@@ -1,4 +1,68 @@
-# Validação da Beta 5 — candidata em preparação
+# Validação da Beta 5 — 2026-11-05
+
+**Pronta para testes controlados da Beta.** Geração e ensaio da distribuição
+aprovados. Aceitação manual do testador e usinagem física permanecem pendentes.
+
+- Fonte dos binários: **8e2fcc186c20b5934927981e336fd1753447f552**, árvore limpa.
+- Implementação dos recortes: **617f2791**; idiomas/SVGs: **68da8707**.
+- Tag anotada local: **v0.1.0-beta.5**, apontando para a fonte dos binários.
+- Maven/app/nativo: `0.1.0-beta.5`, revisão 0; Windows Installer **0.1.50**.
+- Temurin 25.0.5+8 incluído, Windows x64, pacotes sem assinatura digital.
+- Pasta: `target/releases/0.1.0-beta.5-20261105-183738-780/`.
+- Validação: `2026-11-05T18:53:56.9929046Z` — 14:53 em Manaus.
+
+## Resultados da candidata
+
+| Verificação | Evidência e resultado |
+|---|---|
+| Verify integral | **PASS: 2374 casos, 2356 aprovados, 18 opcionais ignorados, zero falhas/erros.** `verify.log`, `verify-summary.json`; duração 10:57. A falha de limpeza temporária de uma rodada anterior da implementação não apareceu nesta candidata. |
+| Pacotes | PASS: ZIP, MSI e EXE gerados com runtime; `artifacts.json` registra tamanho/hash. POMs, versão nativa e MSI conferidos. |
+| Portátil isolado | PASS: ZIP extraído fora do repositório, pasta com espaço/acento, ambiente sem Java externo, hashes do inventário conferidos. |
+| Novo fluxo nos JARs distribuídos | PASS: painel de recortes internos real, recusa da fresa inviável, prévia com faixa sem esvaziar o miolo, legenda/resumo/tooltips, geração mantendo o painel aberto, CNC e reabertura nativa/Python com diâmetro preciso e fonte intacta. |
+| Idiomas e SVGs | PASS: catálogos dos quatro idiomas e ícones vetoriais carregados do pacote. A suíte da candidata também exerceu os idiomas em JVMs separadas e os quatro temas. |
+| Fluxos anteriores | PASS: importação, Outline, painel 2×2 alinhado, Isolation/NCC/Cutout/CNC/Drilling, edição Excellon, rascunho NCC, políticas Z MM/IN, Salvar/Salvar como, Cancelar e histórico CAM. Cada probe produziu 22 objetos, 8 furos/4 rasgos panelizados e cinco programas. |
+| GPU/Software e diagnóstico | PASS: probes nativos nos dois modos, manifesto UTF-8 e JFR usando o runtime incluído. Não é benchmark de FPS. |
+| MSI limpo | PASS: instalação por usuário em diretório temporário, probes nos instalados e desinstalação. |
+| Beta 4 r1 → Beta 5 | PASS: MSI entregue **0.1.41 → 0.1.50**, produto anterior removido, projeto externo preservado por SHA-256, probes nos atualizados e desinstalação. |
+| Limpeza final | PASS: consulta Windows Installer encontrou zero produtos da família registrados após os testes. |
+| Entrega | PASS: EXE/MSI/ZIP copiados para Downloads e SHA-256 reconferido. |
+
+Comandos executados: `build-beta.ps1`, sem `-SkipTests`/`-AllowDirty`, e
+`test-beta.ps1 -PreviousMsi` com o MSI da Beta 4 r1. O MSI anterior foi conferido
+contra seu `artifacts.json`: SHA-256
+`2bfda488e78661602525fe91b0c92d7fdc3b8c927453d5bc6a9bf6ae39bc320e`.
+
+`validation.json` registra a fonte, resultado e evidências externas em
+`%TEMP%/FlatCAM FX Beta teste-á-844ec03bde5b45dab946752edd7af152/`.
+Há `smoke.json` e logs em `portable-smoke`, `installed-smoke` e
+`upgrade-0.1.41/upgraded-smoke`. Os probes usam controles reais em janela
+invisível e preferências em memória; não são uma nova aceitação visual manual.
+Geração e ensaio da distribuição passaram na primeira rodada.
+
+## Arquivos em Downloads
+
+| Arquivo | Bytes | SHA-256 |
+|---|---:|---|
+| FlatCAM-FX-0.1.0-beta.5-windows-x64-setup.exe | 68977664 | `663665561cc4a4af13acf6ed6db76efd90c1200fb95fb3d30be14ebd4c537f4a` |
+| FlatCAM-FX-0.1.0-beta.5-windows-x64-setup.msi | 68403855 | `f9002841b181bc1dfb52b1c8b1d96497b12815349197f622595f723da1d49da2` |
+| FlatCAM-FX-0.1.0-beta.5-windows-x64.zip | 64509983 | `2719e8309d45ab8889e19e631f485ba01523641d11365e2d56fb89d9f969e6e2` |
+
+Notas, `artifacts.json`, `validation.json` e `SHA256SUMS.txt` também copiados com
+prefixo `FlatCAM-FX-0.1.0-beta.5-`. ProductCode:
+`{6C867D3D-729E-3CF1-ABA5-00D0E5568102}`. UpgradeCode preservado:
+`{5AE0F49D-3943-495D-81E3-B4B945BE5356}`. A Beta 4 r1 e sua tag foram preservadas.
+
+Não foram executados: clique no assistente EXE, outro computador/VM, revisão
+exaustiva de todos os monitores/DPIs, novo benchmark, auditoria de segurança,
+certificação física CNC ou downgrade automático. A preservação de dados testada
+é **fora da pasta instalada**. Não houve push, upload ou envio ao testador.
+
+Recomendação: disponibilizar para testes controlados com cópias dos projetos,
+mantendo os limites das notas. A autorização do usuário para gerar a Beta não
+representa aceitação manual ou homologação física. Este relatório entra em
+commit posterior; os binários e a tag continuam associados à fonte **8e2fcc18**.
+
+## Plano inicial de validação — registro anterior à execução
 
 Data local: 5 de novembro de 2026. Escopo: criar pacotes Windows x64 para testes
 práticos; não publicar remotamente ou instalar por cima do aplicativo do usuário.
