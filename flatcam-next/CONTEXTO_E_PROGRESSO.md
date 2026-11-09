@@ -1,5 +1,79 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Auditoria de interrupções/sobreposições Lines — 2026-11-09
+
+Ver [LINES_RAW_PATH_AUDIT.md](LINES_RAW_PATH_AUDIT.md). Gerados 64 controles
+nas oito placas (NCC/Paint, Connect/Contour, uma fresa de 0,4 mm). **34/64**
+com repetição de centro acima de 1e-7 mm; máximo Horizon MX NCC **746,7692 mm**
+(3,6831%). Zero pontas abertas inesperadas no interior da área segura, dentro
+da tolerância de 1% do diâmetro; isso não prova cobertura integral.
+Repetição raster/Contour de **35,2 mm** reproduzida no sintético e no kernel
+Python original. Sobreposição persistiu no G-code FX de uma passada, lido
+pelo parser Python (~35,21 mm). Na fonte comunitária, **13 regiões alcançáveis**
+ficam sem trajeto com Contour desligado; com ele ligado, recebem saída.
+O kernel Python reproduz esse caso na mesma área explícita.
+
+Matriz comunitária mede caminhos brutos/extremidades, com cobertura integral
+explicitamente `NOT_MEASURED`; não interpretar falhas por polígonos estreitos
+como exceção do gerador. Todos os arquivos/caches em
+`target/lines-path-audit-20261109/`. Três testes auxiliares aprovados.
+Sem mudança de produção nesta auditoria. Próximo refinamento: retirar raster
+redundante preservando Contour, avaliar custo dos conectores e sinalizar
+regiões alcançáveis sem caminhos quando Contour está desligado.
+
+## Coleção local de placas da comunidade — 2026-11-09
+
+Oito pacotes de sete projetos públicos em [samples/community/README.md](samples/community/README.md):
+duas fontes, Horizon MX/Choc, sensor ambiental de quatro camadas, áudio/RF de
+quatro camadas, adaptador e teclado capacitivo. São **90 arquivos de fabricação**
+(incluindo dois `.gbrjob`), **88 importados sem erro pelos parsers FX** e
+174 hashes locais reconferidos. Galeria produzida dessas geometrias em
+`samples/community/gallery.png`; 14,89 MiB de downloads originais, mais as
+cópias de fabricação/relatórios. Commits/URLs/Git blob SHA/SHA-256, avisos dos
+autores, CAD selecionado e licenças preservados. Dados brutos locais ignorados
+pelo Git; manifesto/scripts/checksums/catálogo são versionáveis.
+
+Limites: a fonte Single-Sided não publica drill no commit selecionado. O pacote
+capacitivo contém intermediários do fornecedor que o FX recusa (`*` antes de
+`%FS`); nove arquivos e a primeira falha ficaram em `validation/vendor-preview/`
+e no ZIP original. Para o conjunto final usou-se o ZIP KiCad de fabricação
+incluído no pacote, sem alterar bytes ou contar os intermediários como aprovados.
+Licenças de hardware/firmware separadas; MIT de áudio é declarado só no README.
+Não houve matriz NCC/Paint/Isolation ou validação Python/CNC de todas as placas.
+Próximo ensaio pode começar pelo adaptador (pads oblongos), fonte (pads circulares),
+sensor (SMD denso) e teclados (muitas repetições), comparando Connect e Contour.
+
+## Relatos da Beta 5: Lines e editor — 2026-11-09
+
+Complemento posterior com Python original: pads circulares, cantos arredondados
+e oblongos, NCC/Paint, Connect/Contour, MM/IN. **8 MATCH_SAMPLED, 8 DIFFERENT,
+zero ORACLE_ERROR**; os oito casos sem Connect coincidem, os oito com Connect
+diferem. Com Contour, resíduo alcançável <0,0001% em ambas as versões. Sem ele,
+há recortes de acabamento similares à imagem. Não contar cobertura igual como
+paridade dos conectores. Figuras/JSON em `target/rounded-pads-20261109/`;
+ferramentas de repetição e limites no documento abaixo. Sem alteração adicional
+do algoritmo de produção ou novo pacote neste complemento.
+
+Editor inacessível ao abrir outra ferramenta: reproduzido nos quatro editores
+e corrigido preservando o painel e a sessão até salvar/descartar. Contraprova
+com MainWindow original: 40/40 casos reproduziram o problema; fonte restaurada:
+40/40 passaram. Ângulo manual de varredura acrescentado ao NCC e Paint por
+fresa, com modo automático compatível, amostra de direção e tooltips nos quatro
+idiomas. NCC persiste o rascunho, incluindo texto incompleto; tabelas preservam
+a escolha no Undo/Redo. Catálogos: **3941 chaves por idioma**.
+
+O Lines foi verificado nas duas entradas com pads sintéticos, Connect,
+Contour, MM/IN e ângulos fixos. Sem falha de polígono ou perda significativa
+de cobertura nesses controles; **o defeito exato da captura não foi reproduzido**.
+Não declarar as interrupções resolvidas sem o projeto/parâmetros do relato.
+Ver [LINES_AND_EDITOR_REVIEW.md](LINES_AND_EDITOR_REVIEW.md) para limites e
+evidência; os pacotes Beta 5 já entregues permanecem inalterados.
+Build completo: **2388 aprovados, 18 opcionais ignorados, zero falhas/erros**,
+2406 casos; `target/lines-editor-full-verify.log`. Auditoria dos quatro idiomas,
+tooltips e controles em quatro temas aprovada; sem nova usinagem física.
+Launcher local reconstruído/probe aprovado; 106 classes/recursos conferidos e
+JAR CAM copiado idêntico ao build. `target/lines-editor-verification.json`.
+
 ## Beta 5 gerada e validada — 2026-11-05
 
 Recortes internos e UX commitados em **617f2791**. A Beta 5 reúne essa ferramenta

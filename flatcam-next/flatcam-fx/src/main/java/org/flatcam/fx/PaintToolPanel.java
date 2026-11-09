@@ -260,6 +260,7 @@ final class PaintToolPanel {
         ComboBox<NccMethod> method = new ComboBox<>();
         method.getItems().addAll(NccMethod.STANDARD, NccMethod.SEED, NccMethod.LINES, NccMethod.COMBO);
         method.setValue(ToolDefaults.choice("paint.method", NccMethod.class));
+        RasterAngleInput angle = new RasterAngleInput("paint", method.valueProperty());
         CheckBox connect = new CheckBox(I18n.text("ui.9e2edea69e20"));
         connect.setSelected(ToolDefaults.flag("paint.connect"));
         CheckBox contour = new CheckBox(I18n.text("ui.8185e1c34543"));
@@ -279,9 +280,11 @@ final class PaintToolPanel {
         ToolDescriptions.apply(toolTable, I18n.text("ui.4957942fd71b"),
                 I18n.text("ui.94944eac970d"));
         java.util.function.Supplier<String[]> capture = () -> new String[]{overlap.getText(), margin.getText(), method.getValue().name(),
-                Boolean.toString(connect.isSelected()), Boolean.toString(contour.isSelected())};
+                Boolean.toString(connect.isSelected()), Boolean.toString(contour.isSelected()),
+                Boolean.toString(angle.automatic.isSelected()), angle.degrees.getText()};
         java.util.function.Consumer<String[]> restore = s -> { overlap.setText(s[0]); margin.setText(s[1]);
-            method.setValue(NccMethod.valueOf(s[2])); connect.setSelected(Boolean.parseBoolean(s[3])); contour.setSelected(Boolean.parseBoolean(s[4])); };
+            method.setValue(NccMethod.valueOf(s[2])); connect.setSelected(Boolean.parseBoolean(s[3])); contour.setSelected(Boolean.parseBoolean(s[4]));
+            angle.draft(new RasterAngleInput.Draft(s.length <= 5 || Boolean.parseBoolean(s[5]), s.length <= 6 ? "0" : s[6])); };
         ToolRow[] editing = {new ToolRow(parseDiameters(diameters.getText()).getFirst(), capture.get())};
         boolean[] syncing = {false};
         toolTable.getItems().add(editing[0]); toolTable.getSelectionModel().selectFirst();
@@ -350,6 +353,8 @@ final class PaintToolPanel {
             toolTable.getSelectionModel().select(toolTable.getItems().stream().filter(row -> row.diameter == diameter).findFirst().orElseThrow());
             overlap.setText(Double.toString(p.overlapFraction() * 100)); margin.setText(Double.toString(p.offset()));
             method.setValue(p.method()); connect.setSelected(p.connect()); contour.setSelected(p.contour());
+            Double importedAngle = p.settingsFor(diameter).lineAngleDegrees();
+            angle.draft(new RasterAngleInput.Draft(importedAngle == null, importedAngle == null ? "0" : importedAngle.toString()));
         }, errorLabel);
         Label transferNote = new Label(I18n.text("ui.56a734d154cf"));
         transferNote.setWrapText(true);
@@ -379,7 +384,9 @@ final class PaintToolPanel {
                     double diameter = row.diameter; String[] s = row.settings;
                     try { settings.put(diameter,new PaintToolSettings(Double.parseDouble(s[0].trim().replace(',','.'))/100,
                             Double.parseDouble(s[1].trim().replace(',','.')), NccMethod.valueOf(s[2]),
-                            Boolean.parseBoolean(s[3]),Boolean.parseBoolean(s[4]))); }
+                            Boolean.parseBoolean(s[3]),Boolean.parseBoolean(s[4]),
+                            NccMethod.valueOf(s[2]) == NccMethod.LINES || NccMethod.valueOf(s[2]) == NccMethod.COMBO
+                                    ? RasterAngleInput.value(s.length <= 5 || Boolean.parseBoolean(s[5]), s.length <= 6 ? "0" : s[6]) : null)); }
                     catch (RuntimeException invalid) { throw new IllegalArgumentException(I18n.text("ui.10f99bd620cc") + diameter + ": " + invalid.getMessage()); }
                 }
                 PaintParameters parameters = new PaintParameters(toolTable.getItems().stream().map(row -> row.diameter).toList(),
@@ -408,6 +415,7 @@ final class PaintToolPanel {
                 new Label(I18n.text("ui.87aaa7e961d0")), new HBox(6,diameters,updateTools), toolTable, removeTool, database, transferNote, parameterTitle,
                 new HBox(6, new Label(I18n.text("ui.ea6b271e4830")), overlap, new Label(I18n.text("ui.16bab5b0d1de")), margin),
                 new HBox(6, new Label("Metodo:"), method),
+                angle,
                 new HBox(10, connect, contour), applyAll,
                 new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
                 paint, errorLabel, close);
@@ -423,8 +431,8 @@ final class PaintToolPanel {
                 parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0].diameter); errorLabel.setText("");
             } finally { syncing[0] = false; }
         }, diameterEditor, () -> syncing[0]);
-        history.observe(method.valueProperty(), connect.selectedProperty(), contour.selectedProperty());
-        history.watchText(overlap, margin);
+        history.observe(method.valueProperty(), connect.selectedProperty(), contour.selectedProperty(), angle.automatic.selectedProperty());
+        history.watchText(overlap, margin, angle.degrees);
         source.valueProperty().addListener((obs, old, next) -> history.reset());
         return panel;
     }

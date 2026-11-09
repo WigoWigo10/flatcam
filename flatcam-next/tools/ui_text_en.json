@@ -3934,5 +3934,10 @@
   "cutout.internal.summary_pass": "Multi-Depth: %s %s/pass",
   "cutout.internal.single_pass": "Single pass",
   "cutout.internal.summary_invalid": "Review the highlighted settings.",
-  "cutout.internal.summary_help": "Result: generation creates a separate Geometry with the selected cutouts and settings shown here.\n\nLength is per pass and excludes rapid moves, plunges and machining time. Cut Z shows the value after the Standard/Machinist policy.\n\nNext step: open Geometry, review the remaining CNC settings and generate the CNC Job."
+  "cutout.internal.summary_help": "Result: generation creates a separate Geometry with the selected cutouts and settings shown here.\n\nLength is per pass and excludes rapid moves, plunges and machining time. Cut Z shows the value after the Standard/Machinist policy.\n\nNext step: open Geometry, review the remaining CNC settings and generate the CNC Job.",
+  "editor.navigation.blocked": "Finish or discard the current edit before opening another tool. The editor remains open.",
+  "cam.lines.angle": "Scan angle",
+  "cam.lines.auto": "Automatic direction",
+  "cam.lines.angle.help": "Scan angle in degrees: 0° horizontal, 90° vertical and 45° diagonal. Positive rotation is counterclockwise.\n\nAutomatic preserves the previous orientation chosen from each region’s bounding box. Turn it off for a fixed angle from 0° to less than 180°. This applies to Lines and the first method in Combo.\n\nWarning: lines must stop at obstacles. Connect only joins safe segments; Contour adds a finishing pass around pads. Changing the angle does not modify the source or eliminate cutter lifts.",
+  "cam.lines.angle.invalid": "The Lines angle must be finite, from 0° to less than 180°."
 }

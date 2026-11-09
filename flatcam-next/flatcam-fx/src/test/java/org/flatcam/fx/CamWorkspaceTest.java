@@ -39,6 +39,8 @@ class CamWorkspaceTest {
                 ((TableView<?>) form.lookup("#ncc-tools")).getSelectionModel().clearAndSelect(0);
                 ((Spinner<?>) form.lookup("#ncc-margin")).getEditor().setText("3.1415926535");
                 ((ComboBox<NccMethod>) form.lookup("#ncc-method")).setValue(NccMethod.LINES);
+                ((CheckBox) form.lookup("#ncc-angle-auto")).setSelected(false);
+                ((TextField) form.lookup("#ncc-angle-degrees")).setText("37,5123456");
                 ((Button) form.lookup("#ncc-generate")).fire(); return job(s);
             });
             finish(s, handle);
@@ -51,6 +53,8 @@ class CamWorkspaceTest {
                 var form = panel(s).getContent();
                 assertEquals("3.1415926535", ((Spinner<?>) form.lookup("#ncc-margin")).getEditor().getText());
                 assertEquals(NccMethod.LINES, ((ComboBox<?>) form.lookup("#ncc-method")).getValue());
+                assertFalse(((CheckBox) form.lookup("#ncc-angle-auto")).isSelected());
+                assertEquals("37,5123456", ((TextField) form.lookup("#ncc-angle-degrees")).getText());
                 assertFalse(s.window.hasUnsavedProjectChanges(), "opening a restored draft must remain clean");
                 return null;
             });

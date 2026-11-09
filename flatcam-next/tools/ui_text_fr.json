@@ -3934,5 +3934,10 @@
   "cutout.internal.summary_pass": "Multi-Depth : %s %s/passe",
   "cutout.internal.single_pass": "Une seule passe",
   "cutout.internal.summary_invalid": "Vérifiez les paramètres signalés.",
-  "cutout.internal.summary_help": "Résultat : la génération crée une Geometry distincte avec les découpes sélectionnées et les réglages affichés ici.\n\nLa longueur est donnée par passe et exclut les déplacements rapides, les plongées et le temps d’usinage. Cut Z indique la valeur après application de la politique Standard/Machinist.\n\nÉtape suivante : ouvrez Geometry, vérifiez les autres paramètres CNC puis générez le CNC Job."
+  "cutout.internal.summary_help": "Résultat : la génération crée une Geometry distincte avec les découpes sélectionnées et les réglages affichés ici.\n\nLa longueur est donnée par passe et exclut les déplacements rapides, les plongées et le temps d’usinage. Cut Z indique la valeur après application de la politique Standard/Machinist.\n\nÉtape suivante : ouvrez Geometry, vérifiez les autres paramètres CNC puis générez le CNC Job.",
+  "editor.navigation.blocked": "Terminez ou abandonnez la modification en cours avant d’ouvrir un autre outil. L’éditeur reste ouvert.",
+  "cam.lines.angle": "Angle de balayage",
+  "cam.lines.auto": "Direction automatique",
+  "cam.lines.angle.help": "Angle de balayage en degrés : 0° horizontal, 90° vertical et 45° diagonal. La rotation positive est antihoraire.\n\nAutomatique conserve l’orientation précédente choisie selon la boîte de chaque région. Désactivez-le pour un angle fixe de 0° à moins de 180°. Ce réglage s’applique à Lines et à la première méthode de Combo.\n\nAttention : les lignes doivent s’arrêter aux obstacles. Connect ne relie que les segments sûrs ; Contour ajoute une passe de finition autour des pastilles. Modifier l’angle ne change pas la source et ne supprime pas les relevages de la fraise.",
+  "cam.lines.angle.invalid": "L’angle Lines doit être fini, de 0° à moins de 180°."
 }

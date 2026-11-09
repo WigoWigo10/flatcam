@@ -28544,5 +28544,40 @@
       "InternalCutoutToolPanel.java"
     ],
     "canonical": false
+  },
+  "editor.navigation.blocked": {
+    "source": "Conclua ou descarte a edição atual antes de abrir outra ferramenta. O editor continua aberto.",
+    "locations": [
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "cam.lines.angle": {
+    "source": "Ângulo da varredura",
+    "locations": [
+      "RasterAngleInput.java"
+    ],
+    "canonical": false
+  },
+  "cam.lines.auto": {
+    "source": "Direção automática",
+    "locations": [
+      "RasterAngleInput.java"
+    ],
+    "canonical": false
+  },
+  "cam.lines.angle.help": {
+    "source": "Ângulo de varredura, em graus: 0° horizontal, 90° vertical e 45° diagonal. O sentido positivo é anti-horário.\n\nAutomático mantém a orientação anterior, escolhida pela caixa de cada região. Desative para usar um ângulo fixo de 0° a menos de 180°. O campo se aplica a Lines e ao primeiro método do Combo.\n\nAtenção: as linhas precisam parar nos obstáculos. Connect só une trechos seguros; Contour acrescenta um passe de acabamento ao redor dos pads. Mudar o ângulo não altera a origem nem elimina a necessidade de levantar a fresa.",
+    "locations": [
+      "RasterAngleInput.java"
+    ],
+    "canonical": false
+  },
+  "cam.lines.angle.invalid": {
+    "source": "O ângulo Lines deve ser finito, de 0° a menos de 180°.",
+    "locations": [
+      "RasterAngleInput.java"
+    ],
+    "canonical": false
   }
 }

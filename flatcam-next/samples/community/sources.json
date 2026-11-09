@@ -1,0 +1,661 @@
+{
+  "schema": 1,
+  "created": "2026-11-09",
+  "boards": [
+    {
+      "id": "breadboard-power-supply",
+      "repo": "futureshocked/KicadLikeAPro-Project-1-BreadboardPowerSupply",
+      "name": "Breadboard Power Supply v2",
+      "category": "Fonte de alimentação THT",
+      "license": "MIT",
+      "fabrication": [
+        "Gerber.zip"
+      ],
+      "sourcePrefixes": [
+        "BreadboardPowerSupply_v2."
+      ],
+      "licenseBasis": "LICENSE",
+      "url": "https://github.com/futureshocked/KicadLikeAPro-Project-1-BreadboardPowerSupply",
+      "commit": "f65bb0fbea65addf6b35a963f8ddaca6ca131d32",
+      "files": [
+        {
+          "path": "BreadboardPowerSupply_v2.kicad_pcb",
+          "bytes": 323242,
+          "gitBlobSha": "f3f6d22b7675a685e8cb55ebbcbd1bbc08316b30",
+          "role": "upstream"
+        },
+        {
+          "path": "BreadboardPowerSupply_v2.pro",
+          "bytes": 925,
+          "gitBlobSha": "91fe66ec1a6e81440943da9f6d80d701bac77edb",
+          "role": "upstream"
+        },
+        {
+          "path": "BreadboardPowerSupply_v2.sch",
+          "bytes": 9975,
+          "gitBlobSha": "269926c0e03c1a55e497ae76626a2f53be5c3dcc",
+          "role": "upstream"
+        },
+        {
+          "path": "Gerber.zip",
+          "bytes": 102278,
+          "gitBlobSha": "5535f5b6eefefd37b7be2cb1337a5a1cdbd1c3d8",
+          "role": "fabrication"
+        },
+        {
+          "path": "LICENSE",
+          "bytes": 1071,
+          "gitBlobSha": "12d56893f28d19afe96df5b91450d684a7288547",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 2228,
+          "gitBlobSha": "6a6da747558f9bd18c1a31366fbc9897cea07c1c",
+          "role": "upstream"
+        }
+      ]
+    },
+    {
+      "id": "horizon-mx",
+      "repo": "skarrmann/horizon",
+      "name": "Horizon MX",
+      "category": "Teclado / matriz repetitiva",
+      "license": "MIT",
+      "fabrication": [
+        "gerbers/horizon-mx.zip"
+      ],
+      "sourcePrefixes": [
+        "kicad/mx/"
+      ],
+      "licenseBasis": "LICENSE",
+      "url": "https://github.com/skarrmann/horizon",
+      "commit": "80b319cd03beab5e4e4f083784ff7fabfe21f922",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1072,
+          "gitBlobSha": "261b6f75f19caabc9344ae9d9c3e7fe58defd1c0",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 10943,
+          "gitBlobSha": "3922a907a424fa37fa9db69bb27f4c7547ae5416",
+          "role": "upstream"
+        },
+        {
+          "path": "gerbers/horizon-mx.zip",
+          "bytes": 669123,
+          "gitBlobSha": "0fee5956c5368c9671df4f1f56da1890bffd146c",
+          "role": "fabrication"
+        },
+        {
+          "path": "kicad/mx/horizon-mx.kicad_pcb",
+          "bytes": 2558851,
+          "gitBlobSha": "b78a71f22b4b4b9ac17509c0265ff5b31bd241fd",
+          "role": "upstream"
+        },
+        {
+          "path": "kicad/mx/horizon-mx.kicad_pro",
+          "bytes": 11637,
+          "gitBlobSha": "d54f52bc1d6fe42d991a94d590a2eb9ba32d3a28",
+          "role": "upstream"
+        },
+        {
+          "path": "kicad/mx/horizon-mx.kicad_sch",
+          "bytes": 166154,
+          "gitBlobSha": "326258867fdceb4f2807cbc16a99cb05945ccf21",
+          "role": "upstream"
+        }
+      ]
+    },
+    {
+      "id": "horizon-choc",
+      "repo": "skarrmann/horizon",
+      "name": "Horizon Choc",
+      "category": "Teclado compacto / outro padrão de pads",
+      "license": "MIT",
+      "fabrication": [
+        "gerbers/horizon-choc.zip"
+      ],
+      "sourcePrefixes": [
+        "kicad/choc/"
+      ],
+      "licenseBasis": "LICENSE",
+      "url": "https://github.com/skarrmann/horizon",
+      "commit": "80b319cd03beab5e4e4f083784ff7fabfe21f922",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1072,
+          "gitBlobSha": "261b6f75f19caabc9344ae9d9c3e7fe58defd1c0",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 10943,
+          "gitBlobSha": "3922a907a424fa37fa9db69bb27f4c7547ae5416",
+          "role": "upstream"
+        },
+        {
+          "path": "gerbers/horizon-choc.zip",
+          "bytes": 774983,
+          "gitBlobSha": "adbbbac1384bcb55923f81b1d1c25820b90be6c9",
+          "role": "fabrication"
+        },
+        {
+          "path": "kicad/choc/horizon-choc.kicad_pcb",
+          "bytes": 3112758,
+          "gitBlobSha": "6da4a334c57966ec86f7aa6987e95663a0a83e51",
+          "role": "upstream"
+        },
+        {
+          "path": "kicad/choc/horizon-choc.kicad_pro",
+          "bytes": 10374,
+          "gitBlobSha": "a60f9e2e9f45988a4293dd4715e3074f67b94a63",
+          "role": "upstream"
+        },
+        {
+          "path": "kicad/choc/horizon-choc.kicad_sch",
+          "bytes": 167155,
+          "gitBlobSha": "11549995b17f99e1fd388d9f2ffcf5528c47e536",
+          "role": "upstream"
+        }
+      ]
+    },
+    {
+      "id": "air-quality-sensor",
+      "repo": "roepkefeller/air-quality-sensor",
+      "name": "Air Quality Sensor",
+      "category": "Sensor ambiental / quatro camadas",
+      "license": "CERN-OHL-S-2.0",
+      "fabrication": [
+        "hardware/pcb/air_quality_sensor/jlcpcb/production_files/GERBER-air_quality_sensor.zip"
+      ],
+      "sourcePrefixes": [
+        "hardware/pcb/air_quality_sensor/air_quality_sensor."
+      ],
+      "licenseBasis": "README.md#license",
+      "licenseNote": "Licença do hardware declarada no README; não confundir com MIT do firmware.",
+      "url": "https://github.com/roepkefeller/air-quality-sensor",
+      "commit": "7c879dc19d37323527742d8d7aa56966825af953",
+      "files": [
+        {
+          "path": "README.md",
+          "bytes": 27863,
+          "gitBlobSha": "b77199258d2642275f8f1ea3c30dacbbd71bbc00",
+          "role": "upstream"
+        },
+        {
+          "path": "hardware/pcb/air_quality_sensor/air_quality_sensor.kicad_pcb",
+          "bytes": 1253838,
+          "gitBlobSha": "5629b009b7606a72506e29166c5a5d3d2ebc04b3",
+          "role": "upstream"
+        },
+        {
+          "path": "hardware/pcb/air_quality_sensor/air_quality_sensor.kicad_pro",
+          "bytes": 22739,
+          "gitBlobSha": "e72a8659ef86550f52e2d3bc79dee2ad87b5b8c6",
+          "role": "upstream"
+        },
+        {
+          "path": "hardware/pcb/air_quality_sensor/air_quality_sensor.kicad_sch",
+          "bytes": 1599338,
+          "gitBlobSha": "437059c8c592a33e26577b6c17e199ed0c1ad002",
+          "role": "upstream"
+        },
+        {
+          "path": "hardware/pcb/air_quality_sensor/jlcpcb/production_files/GERBER-air_quality_sensor.zip",
+          "bytes": 242257,
+          "gitBlobSha": "82d8c4087266cfaab4668fe619f0630ae350c1f3",
+          "role": "fabrication"
+        }
+      ]
+    },
+    {
+      "id": "audio-watermark",
+      "repo": "kristiangoystdal/Audio_Watermark_Generator",
+      "name": "Audio Watermark Generator",
+      "category": "Áudio + RF / quatro camadas",
+      "license": "MIT-declared-in-README",
+      "fabrication": [
+        "Hardware/Gerber/"
+      ],
+      "sourcePrefixes": [
+        "Hardware/"
+      ],
+      "licenseBasis": "README.md#license",
+      "licenseNote": "O README declara MIT; o upstream não fornece arquivo LICENSE próprio. Preservada a declaração original; não se atribuiu o MIT de dependências ao hardware.",
+      "url": "https://github.com/kristiangoystdal/Audio_Watermark_Generator",
+      "commit": "6fc09014685454fb43bfb46b4ba1df1b49bb755e",
+      "files": [
+        {
+          "path": "Hardware/Audio_watermark_generator.kicad_pcb",
+          "bytes": 1024473,
+          "gitBlobSha": "f80b42191c2ee5deb459899136fb7f3bc48e4e51",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/Audio_watermark_generator.kicad_pro",
+          "bytes": 22345,
+          "gitBlobSha": "7ed056108030c0503b8de1b1068db0beb678aeaf",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/Audio_watermark_generator.kicad_sch",
+          "bytes": 12400,
+          "gitBlobSha": "389eabe2f3a63e9432c67a062855b6419b97fdd1",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-B_Cu.gbr",
+          "bytes": 9323,
+          "gitBlobSha": "cce4580e60bc2f672320769a26ff9a2b58d7a5c1",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-B_Mask.gbr",
+          "bytes": 1951,
+          "gitBlobSha": "b2f2e5daefa1db9b0ae55ee9b2d7611e4eeec315",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-B_Paste.gbr",
+          "bytes": 467,
+          "gitBlobSha": "27c186e1c1cb891fce54a55f1fab6ba9bbc1f195",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-B_Silkscreen.gbr",
+          "bytes": 2002,
+          "gitBlobSha": "6c49d945d3efe924328a78ea44e95b8fb3f34972",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-Edge_Cuts.gbr",
+          "bytes": 1328,
+          "gitBlobSha": "59b623032b6d432d85a6d3105fb5ed1c74fa792a",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-F_Cu.gbr",
+          "bytes": 61567,
+          "gitBlobSha": "e457885ef193005553bdb85b2434ba6c4f85993a",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-F_Mask.gbr",
+          "bytes": 22496,
+          "gitBlobSha": "afdb6c5b3167d3846502ff52ca11db0fd9200e60",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-F_Paste.gbr",
+          "bytes": 19614,
+          "gitBlobSha": "88ff409e8004186b8cbd12aaff189ff7018a451a",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-F_Silkscreen.gbr",
+          "bytes": 163453,
+          "gitBlobSha": "00addbf835ee1434bd8fe4f7f1a3047d82891986",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-In1_Cu.gbr",
+          "bytes": 116792,
+          "gitBlobSha": "7aa84cd7fad885ac5d815e7c3f8e88e29c933e73",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-In2_Cu.gbr",
+          "bytes": 187505,
+          "gitBlobSha": "3bbc6a3784d3587858d27a3bbfd3c300e3f85227",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-NPTH.drl",
+          "bytes": 836,
+          "gitBlobSha": "b73885bdc9e10ad8708cac8fdcdce372e04e69f8",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-PTH.drl",
+          "bytes": 2898,
+          "gitBlobSha": "bc5c4e47aa3a998f3dfdfbfe4b3cea4f860f0605",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-gm6.gbr",
+          "bytes": 6258,
+          "gitBlobSha": "d945b5f2dab8e422ac37ecf2dba504e85699f625",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-gm7.gbr",
+          "bytes": 6503,
+          "gitBlobSha": "f08e1e5cc048828e0af15c10b211394934c9d405",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Gerber/Audio_watermark_generator-job.gbrjob",
+          "bytes": 4082,
+          "gitBlobSha": "0945efbd993894fff43e95afe5ba4d0067707d15",
+          "role": "fabrication"
+        },
+        {
+          "path": "Hardware/Mixer.kicad_sch",
+          "bytes": 94717,
+          "gitBlobSha": "9af83edc28a4d34eb449f9e874a4cf36364c3705",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/RTC.kicad_sch",
+          "bytes": 12017,
+          "gitBlobSha": "cebffea6111e6b89543ffdf5bf09d780fc97cb56",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/STM32.kicad_sch",
+          "bytes": 147818,
+          "gitBlobSha": "14432070f62eca8be42236515e334fb3b764aaa4",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/Speaker.kicad_sch",
+          "bytes": 55794,
+          "gitBlobSha": "a70718a5b26468ce271587e506745b3358ac8b7c",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/Transceiver.kicad_sch",
+          "bytes": 105239,
+          "gitBlobSha": "425d36078c7a14fa1fc5afc8cda3a912111b48ff",
+          "role": "upstream"
+        },
+        {
+          "path": "Hardware/battery.kicad_sch",
+          "bytes": 57715,
+          "gitBlobSha": "6a8f5dcb81ec04d5037cc2ef101f333fd74cd08a",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 15190,
+          "gitBlobSha": "9a131646c1a48332bd757f09c2a2dffebec98c28",
+          "role": "upstream"
+        }
+      ]
+    },
+    {
+      "id": "modxo-adapter",
+      "repo": "m4x10187/Modxo_RP2040_Zero_Adapter",
+      "name": "Modxo RP2040-Zero Adapter",
+      "category": "Adaptador / pads THT e SMD",
+      "license": "CERN-OHL-P-2.0",
+      "fabrication": [
+        "gerbers/"
+      ],
+      "sourcePrefixes": [],
+      "licenseBasis": "LICENSE",
+      "url": "https://github.com/m4x10187/Modxo_RP2040_Zero_Adapter",
+      "commit": "106a13563d424df5e17c31b75e66653578c3112a",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 8852,
+          "gitBlobSha": "4fe041e077a8179e50d8d068fb5803cf1f80abba",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 789,
+          "gitBlobSha": "70ba53ffc0996020b1fc26d44df7fcea018a679f",
+          "role": "upstream"
+        },
+        {
+          "path": "gerbers/pcb-B_Cu.gbr",
+          "bytes": 18898,
+          "gitBlobSha": "35114e492574158ffea3eafe14b78770be86e147",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-B_Mask.gbr",
+          "bytes": 840,
+          "gitBlobSha": "5423cd653adb5db7ba2f788c125600cc1bedba1d",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-B_Paste.gbr",
+          "bytes": 446,
+          "gitBlobSha": "aa0ff9c5452c6409e4e6d769b99ee55b9752b3bd",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-B_Silkscreen.gbr",
+          "bytes": 108841,
+          "gitBlobSha": "ee39df4a06cb0107b0b5bcc8f1a02b37bb6f8698",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-Edge_Cuts.gbr",
+          "bytes": 1158,
+          "gitBlobSha": "1c5c60a44bd036804c96358314185a6f9e4f41d1",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-F_Cu.gbr",
+          "bytes": 56419,
+          "gitBlobSha": "2c92bdd97a58436c72770ca41f12e1e15705a074",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-F_Mask.gbr",
+          "bytes": 2504,
+          "gitBlobSha": "62fc05c002387430a0cc9096ea39051c9203f0c2",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-F_Paste.gbr",
+          "bytes": 1365,
+          "gitBlobSha": "7c6b628c491c21ca07c32231861d6b5d0430244e",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-F_Silkscreen.gbr",
+          "bytes": 36505,
+          "gitBlobSha": "2b098375db69dbf173a02f0ef6d50a1954d8a0d2",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-NPTH.drl",
+          "bytes": 265,
+          "gitBlobSha": "46ddb166395a7b42062b811beafef233530a9079",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/pcb-PTH.drl",
+          "bytes": 653,
+          "gitBlobSha": "7ebead840e0da17c59c98cc962e3a2ef032a1b8c",
+          "role": "fabrication"
+        }
+      ]
+    },
+    {
+      "id": "capacitive-keypad",
+      "repo": "2dom/keypad",
+      "name": "Zigbee Touch Keypad Y24",
+      "category": "Teclado capacitivo / grandes eletrodos",
+      "license": "CERN-OHL-S-2.0",
+      "fabrication": [
+        "touch_matrix_Y24.zip"
+      ],
+      "sourcePrefixes": [
+        "Touch matrix_mid_final."
+      ],
+      "licenseBasis": "LICENSE.hardware",
+      "licenseNote": "MIT na raiz cobre firmware; os Gerbers são CERN-OHL-S-2.0.",
+      "notes": ["Usa o ZIP de fabricação KiCad YG/PCB_2729439A_Y24.zip dentro do pacote original. Os intermediários do fabricante em ok/ foram recusados pelo FX e permanecem no ZIP; ver validation/vendor-preview/."],
+      "fabricationArchiveMember": "YG/PCB_2729439A_Y24.zip",
+      "preferredPreview": "F_Cu.gtl",
+      "url": "https://github.com/2dom/keypad",
+      "commit": "0b67f440d518bbb81f984c9871afa257dd8921b4",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1063,
+          "gitBlobSha": "c87c4eabf12a2a90d8fe39b375bc280b3eeb6b1c",
+          "role": "upstream"
+        },
+        {
+          "path": "LICENSE.hardware",
+          "bytes": 341,
+          "gitBlobSha": "3a317ab7877922ad0352fd51833e64886026d6b7",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 12561,
+          "gitBlobSha": "7f5347bd6b9b08dfa3523c6e6ee1fd4ca6acdb91",
+          "role": "upstream"
+        },
+        {
+          "path": "Touch matrix_mid_final.kicad_pcb",
+          "bytes": 202167,
+          "gitBlobSha": "3e262ef5d3d6e1d5cf4b65b0c66ceac5a9d655c0",
+          "role": "upstream"
+        },
+        {
+          "path": "Touch matrix_mid_final.kicad_pro",
+          "bytes": 15477,
+          "gitBlobSha": "2c106f4f92b43d942a0bf77bd75732efaf651b70",
+          "role": "upstream"
+        },
+        {
+          "path": "Touch matrix_mid_final.kicad_sch",
+          "bytes": 59819,
+          "gitBlobSha": "d41317f5114690429ce3120c2ba5b1e2213d9a00",
+          "role": "upstream"
+        },
+        {
+          "path": "touch_matrix_Y24.zip",
+          "bytes": 1596791,
+          "gitBlobSha": "511896024e4cab7f591ae35e5f10baed6b9548bf",
+          "role": "fabrication"
+        }
+      ]
+    },
+    {
+      "id": "single-sided-5v",
+      "repo": "Mimo-Mir/Single-Sided-5V-Power-Supply",
+      "name": "Single-Sided 5V Power Supply",
+      "category": "Fonte linear / caso parcial sem drill",
+      "license": "MIT",
+      "fabrication": [
+        "gerbers/"
+      ],
+      "sourcePrefixes": [
+        "Single-Sided 5V Power Supply."
+      ],
+      "licenseBasis": "LICENSE",
+      "notes": [
+        "O upstream não inclui arquivos de furação neste commit, apesar da descrição. Usar como caso parcial de Gerber; não como validação completa de Drilling."
+      ],
+      "url": "https://github.com/Mimo-Mir/Single-Sided-5V-Power-Supply",
+      "commit": "1b76af777e686318bf39467884db66879a75fe35",
+      "files": [
+        {
+          "path": "LICENSE",
+          "bytes": 1065,
+          "gitBlobSha": "8788df2b957832d5e6c162760ddd473c83c8eb77",
+          "role": "upstream"
+        },
+        {
+          "path": "README.md",
+          "bytes": 22934,
+          "gitBlobSha": "44f5285a10ad737bf95a754e9f4e5ad3d06a2c83",
+          "role": "upstream"
+        },
+        {
+          "path": "Single-Sided 5V Power Supply.kicad_pcb",
+          "bytes": 109706,
+          "gitBlobSha": "cf12fe7c4b060ed03982c6e44b19f40ddf1c927e",
+          "role": "upstream"
+        },
+        {
+          "path": "Single-Sided 5V Power Supply.kicad_pro",
+          "bytes": 15632,
+          "gitBlobSha": "ee7a9c328d81b97978c4ad8251db17842f638e30",
+          "role": "upstream"
+        },
+        {
+          "path": "Single-Sided 5V Power Supply.kicad_sch",
+          "bytes": 35091,
+          "gitBlobSha": "66489518cb76fe1a504acc2e4fedc00fbc5d4a6f",
+          "role": "upstream"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-B_Cu.gbr",
+          "bytes": 4278,
+          "gitBlobSha": "e71a3f23eaa7c65bddd64d910290edd3a435d028",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-B_Mask.gbr",
+          "bytes": 2008,
+          "gitBlobSha": "2fd0b177f517903e7beba606caa0d71ac9e5956b",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-B_Paste.gbr",
+          "bytes": 471,
+          "gitBlobSha": "82b20f87c2f02e96bf7ac1d76553a7529a6ccf1c",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-B_Silkscreen.gbr",
+          "bytes": 472,
+          "gitBlobSha": "e1a85a22f2689d538b968fec40d8ce51c13ba260",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-Edge_Cuts.gbr",
+          "bytes": 628,
+          "gitBlobSha": "122b7bb1c122eed5d9ed4f46052bc436648c6540",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-F_Cu.gbr",
+          "bytes": 7934,
+          "gitBlobSha": "8d5549f2bcbda7745c4cbc11bb4ca7dffb2b70f0",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-F_Mask.gbr",
+          "bytes": 2008,
+          "gitBlobSha": "484e791670b09c380c33fd272282aec70f8cedaf",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-F_Paste.gbr",
+          "bytes": 471,
+          "gitBlobSha": "4396a8c6ef63029b736bdebd635bb6daa81b12cf",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-F_Silkscreen.gbr",
+          "bytes": 43144,
+          "gitBlobSha": "6dc475d076efcd84f6f6a16fd89d9146dbcf80bd",
+          "role": "fabrication"
+        },
+        {
+          "path": "gerbers/Single-Sided 5V Power Supply-job.gbrjob",
+          "bytes": 2828,
+          "gitBlobSha": "77ce64c1d7784d8615abe4b54ebf0181d6cf29ef",
+          "role": "fabrication"
+        }
+      ]
+    }
+  ]
+}

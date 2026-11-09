@@ -315,6 +315,9 @@ final class MainWindow implements TclFlatcamHost {
     private Path currentProjectFile;
 
     private final PlotAreaView plotAreaView = new PlotAreaView();
+    /** An editor owns its panel until Save/Discard completes; unrelated tools cannot replace it. */
+    private Node activeEditorPanel;
+    private String activeEditorLabel;
 
     void disposeViewport() {
         releaseActiveTool();
@@ -325,7 +328,7 @@ final class MainWindow implements TclFlatcamHost {
             new GerberEditorController.Host() {
                 @Override
                 public void openToolPanel(String label, Node content) {
-                    MainWindow.this.openToolPanel(label, content);
+                    MainWindow.this.openEditorToolPanel(label, content);
                 }
 
                 @Override
@@ -368,7 +371,7 @@ final class MainWindow implements TclFlatcamHost {
             new GeometryEditorController.Host() {
                 @Override
                 public void openToolPanel(String label, Node content) {
-                    MainWindow.this.openToolPanel(label, content);
+                    MainWindow.this.openEditorToolPanel(label, content);
                 }
 
                 @Override
@@ -445,7 +448,7 @@ final class MainWindow implements TclFlatcamHost {
     private final ExcellonEditorController excellonEditor = new ExcellonEditorController(plotAreaView,
             new ExcellonEditorController.Host() {
                 @Override public void openToolPanel(String label, Node content) {
-                    MainWindow.this.openToolPanel(label, content);
+                    MainWindow.this.openEditorToolPanel(label, content);
                 }
                 @Override public void closeToolPanel() { MainWindow.this.closeToolPanel(); }
                 @Override public void showToolbar(Node toolbar) {
@@ -477,7 +480,7 @@ final class MainWindow implements TclFlatcamHost {
             new GCodeEditorController.Host() {
                 @Override
                 public void openToolPanel(String label, Node content) {
-                    MainWindow.this.openToolPanel(label, content);
+                    MainWindow.this.openEditorToolPanel(label, content);
                 }
 
                 @Override
@@ -1269,6 +1272,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void editSelectedObject() {
+        if (keepEditorVisible()) return;
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         if (cncJobByItem.containsKey(item)) {
             editSelectedGCode();
@@ -1712,6 +1716,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void openSelectedGerberTool(String label,
             java.util.function.BiConsumer<TreeItem<String>, GerberImage> action) {
+        if (keepEditorVisible()) return;
         if (resumeCamDraft(label + " Tool", null)) return;
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage image = gerberByItem.get(item);
@@ -1723,6 +1728,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openSelectedDrillingTool() {
+        if (keepEditorVisible()) return;
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         ExcellonImage image = excellonByItem.get(item);
         if (image == null) {
@@ -1733,6 +1739,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openSelectedNccTool() {
+        if (keepEditorVisible()) return;
         if (resumeCamDraft("NCC Tool", null)) return;
         TreeItem<String> item = projectTree.getSelectionModel().getSelectedItem();
         GerberImage gerber = gerberByItem.get(item);
@@ -1749,7 +1756,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private Runnable toolAction(String id) {
-        return switch (id) {
+        Runnable action = switch (id) {
             case "cutout" -> () -> openSelectedGerberTool("Cutout", this::generateCutout);
             case "ncc" -> this::openSelectedNccTool;
             case "isolation" -> () -> openSelectedGerberTool(I18n.text("ui.2fd3145b90e7"), this::generateIsolation);
@@ -1776,6 +1783,7 @@ final class MainWindow implements TclFlatcamHost {
             case "calibration" -> this::openCalibrationTool;
             default -> null;
         };
+        return action == null ? null : () -> { if (!keepEditorVisible()) action.run(); };
     }
 
     private void addToolCommands(Menu menu, List<LegacyUiManifest.Command> commands) {
@@ -2543,6 +2551,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private boolean resumeCamDraft(String label, TreeItem<String> requestedSource) {
+        if (keepEditorVisible()) return true;
         camDrafts.removeIf(draft -> {
             try { draft.input().get(); return false; }
             catch (IllegalStateException stale) { return true; }
@@ -2587,6 +2596,31 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openToolPanel(String label, Node content) {
+        if (keepEditorVisible()) return;
+        activeEditorPanel = null;
+        activeEditorLabel = null;
+        openToolPanelNow(label,content);
+    }
+
+    private void openEditorToolPanel(String label, Node content) {
+        openToolPanelNow(label,content);
+        activeEditorPanel = toolTab.getContent();
+        activeEditorLabel = label;
+    }
+
+    /** Avoids discarding input, ending the gesture or restarting the editor session. */
+    private boolean keepEditorVisible() {
+        if (!camEditorActive() || activeEditorPanel == null) return false;
+        toolTab.setText(activeEditorLabel);
+        toolTab.setContent(activeEditorPanel);
+        setSidebarVisible(true);
+        leftTabs.getSelectionModel().select(toolTab);
+        String message=I18n.text("editor.navigation.blocked");
+        appendConsole(message);setStatus(message,IDLE_COLOR);
+        return true;
+    }
+
+    private void openToolPanelNow(String label, Node content) {
         releaseActiveTool();
         setSidebarVisible(true);
         toolTab.setText(label);
@@ -2602,6 +2636,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Explicitly closes a tool or a finished editor; generation keeps the tool and its draft open. */
     private void closeToolPanel() {
+        activeEditorPanel = null; activeEditorLabel = null;
         if (toolTab == null) { releaseActiveTool(); return; }
         for (var draft : camDrafts) if (draft.panel() == toolTab.getContent() && CamToolState.of(draft.panel().getContent()) != null) {
             try {
@@ -3653,6 +3688,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Fiducials Tool: alignment marks on a copper Gerber (appTools/ToolFiducials.py). */
     private void openFiducialsTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -3729,6 +3765,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Calibration Tool: four points, verification G-code, scale/skew factors (appTools/ToolCalibration.py). */
     private void openCalibrationTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> sources = new ArrayList<>(gerbersNode.getChildren());
         sources.addAll(excellonNode.getChildren());
         sources.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item));
@@ -3852,6 +3889,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Copper Thieving Tool: thieving, robber bar and plating mask (appTools/ToolCopperThieving.py). */
     private void openCopperThievingTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4015,6 +4053,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Rules Check Tool: design rules over the board's layers (appTools/ToolRulesCheck.py). */
     private void openRulesCheckTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         List<TreeItem<String>> excellons = new ArrayList<>(excellonByItem.keySet());
@@ -4106,6 +4145,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Optimal Tool: the smallest gap between the copper features of a Gerber (appTools/ToolOptimal.py). */
     private void openOptimalTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4183,6 +4223,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Align Objects Tool: align a Gerber/Excellon to another by clicking pads or drills (appTools/ToolAlignObjects.py). */
     private void openAlignObjectsTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> objects = new ArrayList<>(gerbersNode.getChildren());
         objects.addAll(excellonNode.getChildren());
         objects.removeIf(item -> !gerberByItem.containsKey(item) && !excellonByItem.containsKey(item));
@@ -4248,6 +4289,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > SolderPaste Tool: dispensing paths and G-code for a paste mask (appTools/ToolSolderPaste.py). */
     private void openSolderPasteTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4354,6 +4396,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > QRCode Tool: a QR code of copper squares on a Gerber (appTools/ToolQRCode.py). */
     private void openQrCodeTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4405,6 +4448,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Corner Markers Tool: markers and drills at the corners of a Gerber (appTools/ToolCorners.py). */
     private void openCornerMarkersTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4470,6 +4514,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Film Tool: a printable SVG / PNG / PDF film of a Gerber or Geometry (appTools/ToolFilm.py). */
     private void openFilmTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> films = new ArrayList<>(gerbersNode.getChildren());
         films.addAll(geometryNode.getChildren());
         films.removeIf(item -> !gerberByItem.containsKey(item) && !geometryByItem.containsKey(item));
@@ -4578,6 +4623,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Etch Compensation Tool: copper grown for the lateral etch (appTools/ToolEtchCompensation.py). */
     private void openEtchCompensationTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4627,6 +4673,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Punch Gerber Tool: holes in the pads of a Gerber (appTools/ToolPunchGerber.py). */
     private void openPunchGerberTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         List<TreeItem<String>> excellons = new ArrayList<>(excellonNode.getChildren());
@@ -4703,6 +4750,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Extract Drills Tool: an Excellon from the flashed pads of a Gerber (appTools/ToolExtractDrills.py). */
     private void openExtractDrillsTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4749,6 +4797,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Subtract Tool: remove what one object covers from another (appTools/ToolSub.py). */
     private void openSubtractTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         List<TreeItem<String>> geometries = new ArrayList<>(geometryNode.getChildren());
@@ -4836,6 +4885,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Invert Gerber Tool: a new Gerber where copper and empty space swap places (appTools/ToolInvertGerber.py). */
     private void openInvertGerberTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> gerbers = new ArrayList<>(gerbersNode.getChildren());
         gerbers.removeIf(item -> !gerberByItem.containsKey(item));
         if (gerbers.isEmpty()) {
@@ -4878,6 +4928,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Panelize Tool: repeat a Gerber, Excellon or Geometry in a grid (appTools/ToolPanelize.py). */
     private void openPanelizeTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> sources = new ArrayList<>();
         sources.addAll(gerbersNode.getChildren());
         sources.addAll(excellonNode.getChildren());
@@ -5108,6 +5159,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Tools > Paint Tool: fills Gerber or Geometry polygons with toolpaths (appTools/ToolPaint.py). */
     private void openPaintTool() {
+        if (keepEditorVisible()) return;
         List<TreeItem<String>> sources = new ArrayList<>();
         sources.addAll(gerbersNode.getChildren());
         sources.addAll(geometryNode.getChildren());
@@ -5252,6 +5304,7 @@ final class MainWindow implements TclFlatcamHost {
 
     /** Edit > Tools > 2-Sided Tool: mirror objects and make alignment holes for a double-sided board. */
     private void openDoubleSidedTool() {
+        if (keepEditorVisible()) return;
         releaseActiveTool();
         openToolPanel(I18n.text("ui.b595bfb73393"), DoubleSidedToolPanel.build(new DoubleSidedToolPanel.Host() {
             @Override
@@ -5407,6 +5460,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openTransformTool() {
+        if (keepEditorVisible()) return;
         openToolPanel("Transform Tool", TransformToolPanel.build(
                 this::selectionCenterOrOrigin,
                 () -> projectItemsForTransform(), this::boundsOf,
@@ -6971,6 +7025,7 @@ final class MainWindow implements TclFlatcamHost {
      * JobExecutor, including keep-out routing, preview parsing and file writing.
      */
     private void generateDrillGCode(TreeItem<String> item, ExcellonImage image) {
+        if (keepEditorVisible()) return;
         List<DrillGCodeToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
                 .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
                 .map(entry -> new DrillGCodeToolPanel.SourceCandidate(entry.getKey(), entry.getValue(),
@@ -7071,6 +7126,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void generateExcellonMilling(TreeItem<String> item, ExcellonImage image) {
+        if (keepEditorVisible()) return;
         List<ExcellonMillingToolPanel.SourceCandidate> sources = excellonByItem.entrySet().stream()
                 .filter(entry -> image.units().equalsIgnoreCase(entry.getValue().units()))
                 .map(entry -> new ExcellonMillingToolPanel.SourceCandidate(entry.getKey(), entry.getValue()))
@@ -7417,6 +7473,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void openCutoutTool(TreeItem<String> item, String units, Geometry source,
                                 BooleanSupplier sourceAvailable) {
+        if (keepEditorVisible()) return;
         if (source == null || source.isEmpty() || source.getDimension() != 2) {
             appendConsole(I18n.text("ui.db1f6976be38"));
             return;
@@ -7442,6 +7499,7 @@ final class MainWindow implements TclFlatcamHost {
 
     private void openInternalCutoutTool(TreeItem<String> item, String units, Geometry source,
                                         BooleanSupplier available, InternalCutoutToolPanel.Settings settings) {
+        if (keepEditorVisible()) return;
         var controller = new InternalCutoutController(plotAreaView,jobExecutor,units,source,available);
         var panel = new InternalCutoutToolPanel(units,item.getValue(),settings,controller,this::legacyIcon,
                 result -> runCutoutGeneration(item,units,source,available,result),this::closeToolPanel);
@@ -7554,6 +7612,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void openNccTool(TreeItem<String> item, String units, Geometry source) {
+        if (keepEditorVisible()) return;
         if (resumeCamDraft("NCC Tool", item)) return;
         if (source == null || source.isEmpty() || source.getDimension() != 2) {
             appendConsole(I18n.text("ui.b58a53fe6493"));
@@ -7798,6 +7857,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry, GeometryCncToolPanel.Result draft) {
+        if (keepEditorVisible()) return;
         // Only this panel's successful generation may advance its expected source identity.
         // Reading the map unconditionally would also accept unrelated edits to a stale form.
         var currentSource = new java.util.concurrent.atomic.AtomicReference<>(entry);

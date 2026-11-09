@@ -1,5 +1,51 @@
 # QA project context — FlatCAM FX
 
+Raw Lines audit (2026-11-09): 64 cases on all eight community boards, NCC/Paint,
+Connect/Contour, one 0.4 mm cutter. 34 cases have repeated centerlines >1e-7 mm;
+max 746.7692 mm / 3.6831% in Horizon MX NCC. No unexpected interior open endpoints
+within 1%-diameter tolerance. Community full-area coverage NOT measured; explicit
+NOT_MEASURED in final report. Synthetic raster/Contour overlap 35.2 mm occurs
+in FX and original Python Lines kernel; survives one-pass portable G-code,
+read by original Python parser (~35.21 mm). Thirteen reachable polygons in
+breadboard board get no output with Contour off, produce output with Contour on;
+same original Python kernel control reproduces. Do not call all breaks bugs or
+all recutting waste: clearance breaks, stepover overlap, deliberate finishing
+and retravel to reduce lifts have different purposes. Three helper tests pass.
+No production change here. See flatcam-next/LINES_RAW_PATH_AUDIT.md and ignored
+target/lines-path-audit-20261109; spatial unions hide execution multiplicity.
+
+Public community corpus added locally (2026-11-09): samples/community/README.md,
+eight packages from seven projects, 90 fabrication files including two gbrjob
+metadata files, 88 production FX parser imports passed, 174 downloaded/extracted
+hashes rechecked. Raw data/gallery/reports are gitignored; manifest pins commits
+and original blob hashes. Not a Python or CAM/machine validation. A single-sided
+power board lacks published drills; nine capacitive-board supplier intermediates
+fail the FX parser on a bare '*' before %FS and are preserved as negative cases.
+The final capacitive manufacturing corpus uses the unmodified nested KiCad ZIP.
+Keep original license scopes (hardware CERN vs firmware MIT); audio's MIT is
+declared in its README, no standalone upstream LICENSE. No production fix here.
+
+Latest local correction (2026-11-09, not a new release): editor navigation trap
+reproduced in Geometry/Gerber/Excellon/G-code; unrelated tools now preserve and
+reveal the active editor until explicit completion/discard. Original MainWindow
+counterproof reproduced 40/40; restored fix passed 40/40. NCC and Paint now have
+opt-in per-tool raster angle, with automatic legacy behavior unchanged. Full
+verify: 2406 cases, 2388 passed, 18 optional skips, zero failures/errors, 4:45.
+Four-language/tooltips audit and narrow four-theme angle controls passed.
+Lines pad coverage guards pass in both public generators, but the exact tester
+report of broken Lines was NOT reproduced; no private project/parameters supplied.
+Do not claim an established coverage bug fixed. See
+flatcam-next/LINES_AND_EDITOR_REVIEW.md for evidence and numerical limits.
+Original Beta 5 installers in Downloads remain unchanged; no new version/MSI.
+Follow-up rounded-pad comparison runs the original Python NCC GUI initializer
+and Paint clearing kernel on public shared pads: 16 controls, 8 MATCH_SAMPLED,
+8 DIFFERENT, zero oracle errors. All Connect-off cases match; all Connect-on
+cases differ spatially despite nearly identical Contour-on coverage. Do NOT
+count this as full parity. No production algorithm changes in the follow-up.
+Images/data: flatcam-next/target/rounded-pads-20261109. Initial asymmetric raw/union
+comparison is preserved and superseded by symmetric existing spatial-union
+policy, with two helper tests. See the review's follow-up section for limits.
+
 Latest release evidence (2026-11-05): Beta 5 source
 8e2fcc186c20b5934927981e336fd1753447f552, clean tree, local annotated tag
 v0.1.0-beta.5. Full verify: 2374 cases, 2356 passed, 18 optional skips, zero

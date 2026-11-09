@@ -70,6 +70,8 @@ final class NccToolPanel {
         String overlapPercent = ToolDefaults.text("ncc.overlap", true);
         NccMethod method = ToolDefaults.choice("ncc.method", NccMethod.class);
         NccSeedPolicy seedPolicy = ToolDefaults.choice("ncc.seedpolicy", NccSeedPolicy.class);
+        boolean angleAutomatic = true;
+        String lineAngle = "0";
         boolean connect = ToolDefaults.flag("ncc.connect");
         boolean contour = ToolDefaults.flag("ncc.contour");
         boolean offsetEnabled;
@@ -82,17 +84,18 @@ final class NccToolPanel {
         }
 
         private record State(double diameter, ToolProfile profile, NccOperation operation, String overlap,
-                             NccMethod method, NccSeedPolicy seed, boolean connect, boolean contour,
+                             NccMethod method, NccSeedPolicy seed, boolean angleAutomatic, String lineAngle, boolean connect, boolean contour,
                              boolean offsetEnabled, String offset, LegacyToolsDatabase.MillingTool machining) {
             ToolRow row() {
                 var row = new ToolRow(diameter); row.toolProfile = profile; row.operation = operation;
                 row.overlapPercent = overlap; row.method = method; row.seedPolicy = seed; row.connect = connect;
+                row.angleAutomatic = angleAutomatic; row.lineAngle = lineAngle;
                 row.contour = contour; row.offsetEnabled = offsetEnabled; row.offset = offset; row.machining = machining;
                 return row;
             }
         }
         State state() { return new State(diameter, toolProfile, operation, overlapPercent, method, seedPolicy,
-                connect, contour, offsetEnabled, offset, machining); }
+                angleAutomatic, lineAngle, connect, contour, offsetEnabled, offset, machining); }
 
         void setDiameter(double value) {
             diameter = value;
@@ -104,13 +107,16 @@ final class NccToolPanel {
             String prefix = I18n.text("ui.10f99bd620cc") + format(diameter) + ": ";
             return new NccToolSettings(parseNumber(overlapPercent, prefix + "Overlap") / 100.0,
                     method, connect, contour,
-                    offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0, seedPolicy);
+                    offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0, seedPolicy,
+                    method == NccMethod.LINES || method == NccMethod.COMBO
+                            ? RasterAngleInput.value(angleAutomatic, lineAngle) : null);
         }
 
         JSONObject snapshot(String draft) {
             var json = new JSONObject().put("diameter", diameter).put("profile", toolProfile.name())
                     .put("operation", operation.name()).put("overlap", overlapPercent).put("method", method.name())
                     .put("seed", seedPolicy.name()).put("connect", connect).put("contour", contour)
+                    .put("angleAutomatic", angleAutomatic).put("lineAngle", lineAngle)
                     .put("offsetEnabled", offsetEnabled).put("offset", offset).put("diameterDraft", draft);
             if (machining != null) json.put("machining", LegacyToolsDatabase.millingDraftToJson(machining));
             return json;
@@ -122,6 +128,7 @@ final class NccToolPanel {
             var row = new ToolRow(diameter); row.toolProfile = ToolProfile.valueOf(json.getString("profile"));
             row.operation = NccOperation.valueOf(json.getString("operation")); row.overlapPercent = json.getString("overlap");
             row.method = NccMethod.valueOf(json.getString("method")); row.seedPolicy = NccSeedPolicy.valueOf(json.getString("seed"));
+            row.angleAutomatic = json.optBoolean("angleAutomatic", true); row.lineAngle = json.optString("lineAngle", "0");
             row.connect = json.getBoolean("connect"); row.contour = json.getBoolean("contour");
             row.offsetEnabled = json.getBoolean("offsetEnabled"); row.offset = json.getString("offset");
             if (json.has("machining")) {
@@ -397,6 +404,8 @@ final class NccToolPanel {
                     row.overlapPercent = CamNumericInput.text(settings.overlapFraction() * 100);
                     row.method = settings.method();
                     row.seedPolicy = settings.seedPolicy();
+                    row.angleAutomatic = settings.lineAngleDegrees() == null;
+                    row.lineAngle = row.angleAutomatic ? "0" : settings.lineAngleDegrees().toString();
                     row.connect = settings.connect();
                     row.contour = settings.contour();
                     row.offsetEnabled = settings.copperOffset() > 0;
@@ -583,6 +592,7 @@ final class NccToolPanel {
         methodCombo.setId("ncc-method");
         methodCombo.getItems().addAll(NccMethod.values());
         methodCombo.setValue(ToolDefaults.choice("ncc.method", NccMethod.class));
+        RasterAngleInput angle = new RasterAngleInput("ncc", methodCombo.valueProperty());
         methodCombo.setTooltip(tooltip(
                 I18n.text("ui.f3e1e0c3c5c5")));
         ComboBox<NccSeedPolicy> seedPolicyCombo = new ComboBox<>();
@@ -641,6 +651,8 @@ final class NccToolPanel {
                 () -> toolTable.getSelectionModel().getSelectedItems().size() != 1,
                 toolTable.getSelectionModel().getSelectedItems());
         BooleanBinding noClearTool = noSingleTool.or(isoRadio.selectedProperty());
+        VBox angleBox = new VBox(angle);
+        angleBox.disableProperty().bind(noClearTool);
         seedPolicyCombo.disableProperty().bind(noClearTool.or(Bindings.createBooleanBinding(
                 () -> methodCombo.getValue() != NccMethod.SEED && methodCombo.getValue() != NccMethod.COMBO,
                 methodCombo.valueProperty())));
@@ -671,6 +683,7 @@ final class NccToolPanel {
             overlapField.setText(row.overlapPercent);
             methodCombo.setValue(row.method);
             seedPolicyCombo.setValue(row.seedPolicy);
+            angle.draft(new RasterAngleInput.Draft(row.angleAutomatic, row.lineAngle));
             connectCb.setSelected(row.connect);
             contourCb.setSelected(row.contour);
             offsetCb.setSelected(row.offsetEnabled);
@@ -697,6 +710,14 @@ final class NccToolPanel {
             if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
                 toolTable.getSelectionModel().getSelectedItem().connect = value;
             }
+        });
+        angle.automatic.selectedProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1)
+                toolTable.getSelectionModel().getSelectedItem().angleAutomatic = value;
+        });
+        angle.degrees.textProperty().addListener((observable, oldValue, value) -> {
+            if (!loadingToolSettings[0] && toolTable.getSelectionModel().getSelectedItems().size() == 1)
+                toolTable.getSelectionModel().getSelectedItem().lineAngle = value;
         });
         seedPolicyCombo.valueProperty().addListener((observable, oldValue, value) -> {
             if (!loadingToolSettings[0] && value != null && toolTable.getSelectionModel().getSelectedItems().size() == 1) {
@@ -749,6 +770,7 @@ final class NccToolPanel {
         grid.addRow(3, connectCb, contourCb);
         grid.addRow(4, offsetCb, offsetSpinner);
         grid.addRow(5, new Label(I18n.text("ui.175da56e6ce7")), seedPolicyCombo);
+        grid.add(angleBox, 0, 6, 2, 1);
 
         GridPane restGrid = new GridPane();
         restGrid.setHgap(8);
@@ -773,6 +795,8 @@ final class NccToolPanel {
                     row.overlapPercent = selected.overlapPercent;
                     row.method = selected.method;
                     row.seedPolicy = selected.seedPolicy;
+                    row.angleAutomatic = selected.angleAutomatic;
+                    row.lineAngle = selected.lineAngle;
                     row.connect = selected.connect;
                     row.contour = selected.contour;
                     row.offsetEnabled = selected.offsetEnabled;
@@ -945,13 +969,13 @@ final class NccToolPanel {
         var feedback = new CamGenerationFeedback(box, () -> tools.stream().map(row ->
                 row.diameter + ":" + row.toolProfile + ":" + row.operation + ":" + row.overlapPercent + ":"
                         + row.method + ":" + row.seedPolicy + ":" + row.connect + ":" + row.contour + ":"
-                        + row.offsetEnabled + ":" + row.offset + ":" + row.machining + ":" + diameterEditor.draft(row)).toList().toString());
+                        + row.angleAutomatic + ":" + row.lineAngle + ":" + row.offsetEnabled + ":" + row.offset + ":" + row.machining + ":" + diameterEditor.draft(row)).toList().toString());
         box.getChildren().add(box.getChildren().indexOf(generateButton), feedback);
         var history = new CamTableHistory<>(box, toolTable, () -> tools.stream().map(ToolRow::state).toList(),
                 states -> { tools.setAll(states.stream().map(ToolRow.State::row).toList()); toolError.setText(""); }, diameterEditor, () -> loadingToolSettings[0]);
         history.observe(methodCombo.valueProperty(), seedPolicyCombo.valueProperty(), connectCb.selectedProperty(),
-                contourCb.selectedProperty(), offsetCb.selectedProperty(), clearRadio.selectedProperty(), isoRadio.selectedProperty());
-        history.watchText(overlapField, offsetField);
+                contourCb.selectedProperty(), offsetCb.selectedProperty(), clearRadio.selectedProperty(), isoRadio.selectedProperty(), angle.automatic.selectedProperty());
+        history.watchText(overlapField, offsetField, angle.degrees);
         sourceCombo.valueProperty().addListener((obs, old, next) -> history.reset());
         resetButton.addEventHandler(javafx.event.ActionEvent.ACTION, event -> history.reset());
         java.util.function.Function<Boolean, JSONObject> captureDraft = signatures -> {
@@ -1041,7 +1065,10 @@ final class NccToolPanel {
                     .append("%; Connect: ").append(p.restMachining() ? p.connect() : settings.connect())
                     .append("; Contour: ").append(p.restMachining() ? p.contour() : settings.contour())
                     .append("; Offset: ").append(p.restMachining() ? p.copperOffset() : settings.copperOffset())
-                    .append("; Seed: ").append(settings.seedPolicy()).append('\n');
+                    .append("; Seed: ").append(settings.seedPolicy());
+            if (settings.lineAngleDegrees() != null) text.append("; ").append(I18n.text("cam.lines.angle"))
+                    .append(": ").append(settings.lineAngleDegrees()).append("°");
+            text.append('\n');
         }
         for (double diameter : p.isolationToolDiameters()) text.append(diameter).append(" ").append(result.source().units()).append(" ISO\n");
         text.append(I18n.text("cam.recipe.original"));

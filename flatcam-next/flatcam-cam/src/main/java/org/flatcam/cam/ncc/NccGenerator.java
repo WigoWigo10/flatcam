@@ -19,6 +19,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.operation.buffer.BufferParameters;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 import org.locationtech.jts.operation.overlayng.OverlayNG;
@@ -547,7 +548,18 @@ public final class NccGenerator {
         }
         Envelope envelope = polygon.getEnvelopeInternal();
         GeometryFactory factory = polygon.getFactory();
-        if (envelope.getWidth() >= envelope.getHeight()) {
+        Geometry worldSafeArea = safeArea;
+        AffineTransformation toWorld = null;
+        if (settings.lineAngleDegrees() != null) {
+            // Clip in scan coordinates, then return to the project's unchanged coordinate system.
+            Coordinate pivot = envelope.centre();
+            double angle = Math.toRadians(settings.lineAngleDegrees());
+            var toScan = AffineTransformation.rotationInstance(-angle, pivot.x, pivot.y);
+            toWorld = AffineTransformation.rotationInstance(angle, pivot.x, pivot.y);
+            envelope = toScan.transform(polygon).getEnvelopeInternal();
+            safeArea = toScan.transform(safeArea);
+        }
+        if (settings.lineAngleDegrees() != null || envelope.getWidth() >= envelope.getHeight()) {
             int row = 0;
             for (double y = envelope.getMaxY() - toolRadius;
                  y >= envelope.getMinY() + toolRadius; y -= step, row++) {
@@ -576,8 +588,11 @@ public final class NccGenerator {
                 paths.addAll(columnLines);
             }
         }
+        if (toWorld != null) {
+            for (int i = 0; i < paths.size(); i++) paths.set(i, (LineString) toWorld.transform(paths.get(i)));
+        }
         if (settings.contour()) {
-            collectBoundaryLines(safeArea, paths);
+            collectBoundaryLines(worldSafeArea, paths);
         }
         return paths;
     }

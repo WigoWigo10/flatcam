@@ -47,7 +47,10 @@ class PaintDiameterEditingTest {
             ((TextField) form.lookup("#paint-overlap")).setText("37.5123456");
             ((TextField) form.lookup("#paint-margin")).setText("0.123456789");
             ((ComboBox<NccMethod>) form.lookup("#paint-method")).setValue(NccMethod.LINES);
+            ((CheckBox) form.lookup("#paint-angle-auto")).setSelected(false);
+            ((TextField) form.lookup("#paint-angle-degrees")).setText("37,5123456");
             table.getSelectionModel().clearAndSelect(1);
+            ((CheckBox) form.lookup("#paint-angle-auto")).setSelected(true);
             ((TextField) form.lookup("#paint-overlap")).setText("45");
             table.getSelectionModel().clearAndSelect(0);
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.F2,false,false,false,false));
@@ -60,6 +63,8 @@ class PaintDiameterEditingTest {
             assertEquals(37.5123456 / 100, result.settingsFor(.1981234567).overlapFraction());
             assertEquals(.123456789, result.settingsFor(.1981234567).offset());
             assertEquals(NccMethod.LINES, result.settingsFor(.1981234567).method());
+            assertEquals(37.5123456, result.settingsFor(.1981234567).lineAngleDegrees());
+            assertNull(result.settingsFor(.5).lineAngleDegrees());
             assertEquals(.45, result.settingsFor(.5).overlapFraction());
             table.getSelectionModel().clearAndSelect(0);
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
@@ -71,6 +76,7 @@ class PaintDiameterEditingTest {
             assertEquals(0, table.getSelectionModel().getSelectedIndex());
             ((Button) form.lookup("#paint-generate")).fire();
             assertEquals(NccMethod.LINES, output.get().settingsFor(.1981234567).method());
+            assertEquals(37.5123456, output.get().settingsFor(.1981234567).lineAngleDegrees());
             assertEquals(.123456789, output.get().settingsFor(.1981234567).offset());
             assertEquals(.45, output.get().settingsFor(.5).overlapFraction());
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.Y,false,true,false,false));
