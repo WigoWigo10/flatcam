@@ -1,6 +1,41 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
-## Vistoria dos fluxos próximos aos relatos — 2026-11-09
+## Beta 7: cinco correções CAM e entrega — 2026-11-09
+
+Implementação **a5a83060**, refinamento da liberação de eventos **b64ef4dc**.
+Fonte exata dos binários/tag local **v0.1.0-beta.7**:
+**b64ef4dc435e0334f21f9ccc62670972113b4cdb**, árvore limpa. App/Maven/nativo **0.1.0-beta.7**,
+revisão 0; MSI **0.1.70**. Ver [notas](release/BETA-0.1.0-beta.7.md) e
+[validação](release/VALIDACAO-0.1.0-beta.7.md).
+
+Corrigidos os cinco problemas da vistoria: menus de contexto não sobrepõem
+editores; Paint revalida origem/referência e cancelamento antes de publicar;
+seleção antiga é invalidada; painel Paint fixa/identifica a unidade e filtra
+origens/referências compatíveis; seletor aceita coleções unitárias aninhadas.
+Diâmetros/margens não são reinterpretados. Fechar/substituir o Paint desliga
+seus eventos, preservando gestos da ferramenta seguinte. Ajuda nos quatro idiomas.
+
+Regressões: primeira execução vermelha preservada; **92 testes focados** e
+**13 cenários × 10 repetições** aprovados com as classes finais; oito cenários
+continuam falhando nos binários intactos da Beta 6 como contraprova.
+Suíte integral final: **2435 casos, 2417 aprovados,
+18 opcionais ignorados, zero falhas/erros**. A pré-candidata anterior
+foi interrompida deliberadamente ao encontrar o efeito de eventos do painel
+fechado; não conta como aprovação. Fonte final revalidada integralmente.
+
+Portátil, MSI limpo e upgrade **Beta 6 (0.1.60) → Beta 7 (0.1.70)** aprovados,
+com 13 cenários CAM nos JARs de cada imagem, GPU/Software, JFR, projetos e
+fluxos anteriores. Mais 96 controles de afastamento Lines MM/IN aprovados nos
+pacotes; não medem cobertura ou duplicações. Zero produtos Beta registrados
+ao final. EXE/MSI/ZIP copiados para Downloads e hashes conferidos.
+Artefatos/evidências: `target/releases/0.1.0-beta.7-20261109-184101-491/`.
+
+As pendências de repetição/cobertura em `LINES_RAW_PATH_AUDIT.md` continuam
+abertas; esta entrega não altera o algoritmo de limpeza. Sem CNC física,
+outro PC, todos os DPIs, assistente EXE por cliques ou novo benchmark.
+Nenhum envio ao testador ou comando push foi executado pelo agente.
+
+## Registro da vistoria original da Beta 6 — 2026-11-09
 
 Ver [VISTORIA_CAM_BETA6.md](VISTORIA_CAM_BETA6.md). **Cinco problemas confirmados,
 ainda sem correção de produção nesta rodada:** menu Editar do Gerber sobrepõe

@@ -6,7 +6,7 @@ Pacotes Windows x64 com Java incluído: instalador EXE/MSI por usuário e ZIP
 portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.7.md),
 [geração e validação](release/BUILD_BETA.md). Artefatos são gerados localmente
 em `target/releases`; não há publicação automática ou paridade integral prometida.
-[Validação da entrega anterior, Beta 6](release/VALIDACAO-0.1.0-beta.6.md).
+[Validação da Beta 7](release/VALIDACAO-0.1.0-beta.7.md).
 
 A Beta 7 corrige cinco problemas de edição e Paint: entradas alternativas dos
 editores, origem/referência antiga, cancelamento tardio, unidades e seleção de

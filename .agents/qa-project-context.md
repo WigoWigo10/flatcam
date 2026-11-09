@@ -1,6 +1,32 @@
 # QA project context — FlatCAM FX
 
-Related CAM audit (2026-11-09), NOT a production fix: five confirmed issues in
+Beta 7 release (2026-11-09): binary source/local tag v0.1.0-beta.7 =
+b64ef4dc435e0334f21f9ccc62670972113b4cdb, clean tree; MSI 0.1.70. Five related CAM defects
+fixed in a5a83060, detached Paint listener cleanup refined in b64ef4dc. Editor
+context routes preserve one owner/panel/exit/history; Paint validates full source
+and optional reference identities separately from selected subsets, epoch and
+late cancellation; stale selected polygons are rejected. Fixed-unit Paint
+source/reference pickers and explicit localized help prevent 0.3 mm -> 0.3 in
+reinterpretation. Nested unit-member polygon collections are selectable.
+Observer cleanup on tool replacement prevents old Paint from cancelling the
+next tool's placement. No clearing algorithm or dependencies changed.
+92 focused tests pass; initial red assertions and first correction failures
+preserved. Identical audit: 13 cases x10 pass with fixed classes; unchanged Beta 6
+still fails eight cases. Cleanup has separate red/green identical-probe proof.
+Full final verify: 2435 cases, 2417 passed, 18 optional skips,
+zero failures/errors. First pre-candidate was deliberately interrupted after
+cleanup discovery, NOT a pass; final source was fully reverified.
+Portable, per-user MSI and delivered Beta 6 MSI 0.1.60 -> 0.1.70 upgrade pass,
+including 13 unexcluded CAM safety cases on EACH packaged image, source checks,
+GPU/software/JFR and prior CAM/project flows. Additional 96 packaged Lines
+distance controls pass with 0.5%-diameter allowance, NOT a coverage/duplication
+or physical-CNC proof. Zero family products left installed; EXE/MSI/ZIP hashes
+rechecked in Downloads. 3946 entries per language. See release/VALIDACAO-0.1.0-beta.7.md
+and target/releases/0.1.0-beta.7-20261109-184101-491. Old Lines findings remain open.
+No new benchmark, physical CNC, second PC/VM or EXE wizard click acceptance.
+No agent push or tester-message command. Prior Beta artifacts/tags preserved.
+
+Historical Beta 6 CAM audit (2026-11-09), before the fixes above: five confirmed issues in
 packaged Beta 6 c28019b7, also present in packaged Beta 5 8e2fcc18. Gerber context
 Edit bypasses other-editor guards (Geometry/Excellon/G-code), starts two editors
 and loses the original panel route; Paint publishes stale picked polygons after
