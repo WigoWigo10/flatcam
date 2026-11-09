@@ -96,6 +96,8 @@ class MainCamFlowTest {
         }
         Object result(String tool, boolean useReference) {
             double diameter = .5 * unit;
+            if (tool.equals("Paint")) return new PaintParameters(List.of(diameter), .4, 0,
+                    NccMethod.LINES, false, true, NccOrder.NONE, false);
             if (tool.equals("Isolation")) return new IsolationToolPanel.Result(
                     new IsolationToolPanel.SourceCandidate(item, image),
                     List.of(new IsolationParameters(diameter, 2, .1, IsolationType.BOTH)), Map.of(diameter, ToolProfile.C2),
@@ -119,6 +121,9 @@ class MainCamFlowTest {
         }
         JobHandle<?> startFx(String tool, Object result) throws Exception {
             switch (tool) {
+                case "Paint" -> invoke(window, "runPaintGeneration",
+                        new Class<?>[]{TreeItem.class, String.class, Geometry.class, PaintParameters.class},
+                        item, image.units(), image.solidGeometry(), result);
                 case "Isolation" -> invoke(window, "runIsolationGeneration",
                         new Class<?>[]{TreeItem.class, GerberImage.class, IsolationToolPanel.Result.class}, item, image, result);
                 case "Cutout" -> invoke(window, "runCutoutGeneration",
@@ -150,7 +155,8 @@ class MainCamFlowTest {
         }
     }
 
-    @ParameterizedTest @CsvSource({"Isolation,rename", "Isolation,remove", "Isolation,replace", "Isolation,project",
+    @ParameterizedTest @CsvSource({"Paint,rename", "Paint,remove", "Paint,replace", "Paint,project",
+            "Isolation,rename", "Isolation,remove", "Isolation,replace", "Isolation,project",
             "NCC,rename", "NCC,remove", "NCC,replace", "NCC,project",
             "Cutout,rename", "Cutout,remove", "Cutout,replace", "Cutout,project"})
     void changedInputsCannotPublishComputedGeometry(String tool, String change) throws Exception {
@@ -171,7 +177,7 @@ class MainCamFlowTest {
         }
     }
 
-    @ParameterizedTest @ValueSource(strings = {"Isolation", "NCC", "Cutout"})
+    @ParameterizedTest @ValueSource(strings = {"Paint", "Isolation", "NCC", "Cutout"})
     void stalePanelRefusesBeforeSubmittingAndBusyClickCannotReplaceJob(String tool) throws Exception {
         try (var session = new Session("MM")) {
             var handle = session.start(tool, false); assertNotNull(handle);
@@ -186,7 +192,7 @@ class MainCamFlowTest {
         }
     }
 
-    @ParameterizedTest @ValueSource(strings = {"Isolation", "NCC", "Cutout"})
+    @ParameterizedTest @ValueSource(strings = {"Paint", "Isolation", "NCC", "Cutout"})
     void cancellationAfterWorkerSuccessBeforeFxPublicationStillDiscardsTheResult(String tool) throws Exception {
         try (var session = new Session("MM")) {
             TerminalPanelTest.fx(() -> {

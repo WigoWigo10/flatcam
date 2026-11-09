@@ -34,6 +34,13 @@ function Smoke-Image([string]$Image,[string]$Report,[string]$Classes,[string]$Ve
     Run-Isolated (Join-Path $Image 'runtime\bin\java.exe') $options (Join-Path $Report 'ui-cam.log') $Report
     $summary=Get-Content -LiteralPath (Join-Path $Report 'smoke.json') -Raw | ConvertFrom-Json
     if($summary.status -ne 'PASS') {throw 'Smoke did not produce a PASS report.'}
+    $safetyDirectory=Join-Path $Report 'cam-safety'
+    $safetyVmOptions=@($vmOptions | Where-Object {$_ -notlike '-Djava.util.prefs.PreferencesFactory=*'})+
+        @('-Djava.util.prefs.PreferencesFactory=org.flatcam.fx.CamRelatedAuditProbe$MemoryFactory')
+    Run-Isolated (Join-Path $Image 'runtime\bin\java.exe') ($safetyVmOptions+@('org.flatcam.fx.CamRelatedAuditProbe',$safetyDirectory,'1')) (Join-Path $Report 'cam-safety.log') $Report
+    $safety=Get-Content -LiteralPath (Join-Path $safetyDirectory 'ui-audit.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if($safety.failedCases -ne 0 -or $safety.oracleErrors -ne 0 -or $safety.cases.Count -ne 12 -or $safety.excludedCases.Count -ne 0 -or
+        $safety.version -ne $Version -or $safety.binarySource -ne $Revision -or $safety.classOverrides) {throw 'Packaged CAM safety audit failed, excluded cases, or loaded the wrong source.'}
     $diagnostic=Join-Path $Report 'diagnostics'
     $options=$vmOptions+@("-Dflatcam.diagnostics.session=$diagnostic",'-Dflatcam.splash.enabled=false',
         '-Dflatcam.diagnostics.enabled=true','org.flatcam.fx.FlatCamLauncher','--diagnostics-probe')
@@ -134,7 +141,8 @@ try {
     # Capture benign compiler notes without PowerShell 5 turning native stderr into a terminating error.
     Run-Isolated "$env:JAVA_HOME\bin\javac.exe" @('--release','25','--module-path',(Join-Path $image 'app'),
         '--add-modules','javafx.controls','-cp',(Join-Path $image 'app\*'),'-d',$classes,
-        (Join-Path $PSScriptRoot 'tools\BetaSmokeProbe.java')) (Join-Path $outside 'probe-compile.log') $PSScriptRoot
+        (Join-Path $PSScriptRoot 'tools\BetaSmokeProbe.java'),
+        (Join-Path $PSScriptRoot 'tools\CamRelatedAuditProbe.java')) (Join-Path $outside 'probe-compile.log') $PSScriptRoot
     Smoke-Image $image (Join-Path $outside 'portable-smoke') $classes $manifest.version $revision
     $installResult='NOT_RUN'
     if(!$SkipInstallation) {
@@ -176,6 +184,7 @@ try {
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
         camDraftAndDiameterEditing='PASS';activeEditorNavigation='PASS';linesAnglesNccAndPaint='PASS';nccAngleProjectPersistence='PASS';
+        camSafetyCases=12;paintStateAndUnits='PASS';latePaintCancellation='PASS';contextEditorNavigation='PASS';nestedPaintPolygonSelection='PASS';
         perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
         upgrades=$upgrades;excellonObjectDiameterEditing='PASS';internalCutoutPreviewAndGeneration='PASS';fourLanguageCatalogsAndSvgFlags='PASS';
         machiningZPolicies='PASS';gcodeOriginalAndCopySave='PASS';cancelPreservesSavedFiles='PASS';camTableUndoRedo='PASS';

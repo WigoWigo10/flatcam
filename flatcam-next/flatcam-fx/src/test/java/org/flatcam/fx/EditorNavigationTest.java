@@ -24,6 +24,47 @@ class EditorNavigationTest {
         return java.util.stream.IntStream.range(0,Integer.getInteger("flatcam.test.editorNavigationRepeats",1))
                 .boxed().flatMap(i->java.util.stream.Stream.of("Geometry","Gerber","Excellon","GCode").map(kind->Arguments.of(kind,i)));
     }
+    static java.util.stream.Stream<Arguments> editorPairs() {
+        var kinds=List.of("Geometry","Gerber","Excellon","GCode");
+        return kinds.stream().flatMap(from->kinds.stream().filter(to->!to.equals(from)).map(to->Arguments.of(from,to)));
+    }
+    @ParameterizedTest @MethodSource("editorPairs")
+    void contextMenusKeepTheOriginalEditorAndItsExitCommands(String from,String to)throws Exception {
+        ToolDefaults.useStore(ToolDefaults.memoryStore());var jobs=new JobExecutor(1);
+        var window=TerminalPanelTest.fx(()->{var w=new MainWindow(jobs);w.createScene();return w;});
+        try {
+            TerminalPanelTest.fx(()->{
+                var f=new GeometryFactory();var shape=f.toGeometry(new Envelope(0,10,0,8));var items=new HashMap<String,TreeItem<String>>();
+                items.put("Geometry",(TreeItem<String>)call(window,"addGeometryToProject",new Class<?>[]{String.class,String.class,String.class,Geometry.class,boolean.class},"shape","","MM",shape,false));
+                items.put("Gerber",(TreeItem<String>)call(window,"addGerberToProject",new Class<?>[]{String.class,Path.class,GerberImage.class},"copper",null,GerberImage.of("MM",Map.of(),shape,shape.getBoundary(),Map.of())));
+                var drill=new ExcellonParser().parse(List.of("M48","METRIC","T1C1.0","%","T1","X1.0Y1.0","M30"));
+                items.put("Excellon",(TreeItem<String>)call(window,"addExcellonToProject",new Class<?>[]{String.class,Path.class,drill.getClass()},"holes",null,drill));
+                items.put("GCode",(TreeItem<String>)call(window,"addCncJobToProject",new Class<?>[]{String.class,String.class,Path.class,String.class,Geometry.class,Geometry.class},"code","",null,"G21\nG90\nG0 X1 Y1\nM5\n",null,null));
+                call(window,"selectProjectItem",new Class<?>[]{TreeItem.class},items.get(from));call(window,"editSelected"+from,new Class<?>[]{});
+                var tab=(Tab)field(window,"toolTab");var panel=tab.getContent();var title=tab.getText();
+                var owner=field(window,from.equals("GCode")?"gcodeEditor":from.toLowerCase(Locale.ROOT)+"Editor");
+                org.flatcam.cam.geometry.GeometryEditSession session=null;
+                if(from.equals("Geometry")){session=(org.flatcam.cam.geometry.GeometryEditSession)field(owner,"session");session.addRectangle(20,20,22,22,-1);}
+                call(window,"selectProjectItem",new Class<?>[]{TreeItem.class},items.get(to));
+                var menu=(ContextMenu)call(window,"buildContextMenuFor",new Class<?>[]{TreeItem.class},items.get(to));
+                String key=switch(to){case "Gerber"->"ui.2eba946b2e1e";case "Excellon"->"ui.56ea8270adb2";case "GCode"->"ui.fb1b561e4268";default->"ui.aa5faa2dd7cd";};
+                var edit=menu.getItems().stream().filter(item->I18n.text(key).equals(item.getText())).findFirst().orElseThrow();
+                if(!edit.isDisable())edit.fire();
+                assertSame(panel,tab.getContent(),"context edit must preserve the active editor panel");assertEquals(title,tab.getText());
+                assertSame(tab,((TabPane)field(window,"leftTabs")).getSelectionModel().getSelectedItem());
+                int active=0;for(String name:List.of("geometryEditor","gerberEditor","excellonEditor","gcodeEditor")){
+                    var controller=field(window,name);var method=controller.getClass().getDeclaredMethod("isActive");method.setAccessible(true);if((boolean)method.invoke(controller))active++;
+                }
+                assertEquals(1,active);if(session!=null){assertSame(session,field(owner,"session"));assertTrue(session.canUndo());}
+                var cancel=owner.getClass().getDeclaredMethod("cancel");cancel.setAccessible(true);cancel.invoke(owner);
+                assertNotSame(panel,tab.getContent(),"the original exit route must remain usable");return null;
+            });
+        }finally{
+            TerminalPanelTest.fx(()->{for(String name:List.of("geometryEditor","gerberEditor","excellonEditor","gcodeEditor")){
+                var controller=field(window,name);var cancel=controller.getClass().getDeclaredMethod("cancel");cancel.setAccessible(true);cancel.invoke(controller);
+            }window.disposeViewport();return null;});jobs.shutdown();
+        }
+    }
     @ParameterizedTest @MethodSource("editors")
     void openingAnotherToolNeverStrandsAnActiveEditor(String kind,int repetition)throws Exception {
         ToolDefaults.useStore(ToolDefaults.memoryStore());var jobs=new JobExecutor(1);

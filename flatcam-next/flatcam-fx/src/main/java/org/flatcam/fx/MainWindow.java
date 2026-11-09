@@ -1258,6 +1258,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void editSelectedGerber() {
+        if (keepEditorVisible()) return;
         if (gcodeEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive()) {
             appendConsole(I18n.text("ui.e613b5675fd3"));
             return;
@@ -1286,6 +1287,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void editSelectedExcellon() {
+        if (keepEditorVisible()) return;
         if (gerberEditor.isActive() || geometryEditor.isActive() || gcodeEditor.isActive()) {
             appendConsole(I18n.text("ui.6d917ff27aff"));
             return;
@@ -1300,6 +1302,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void editSelectedGeometry() {
+        if (keepEditorVisible()) return;
         if (gerberEditor.isActive() || gcodeEditor.isActive() || excellonEditor.isActive()) {
             appendConsole(I18n.text("ui.cbc0c8b47d95"));
             return;
@@ -1314,6 +1317,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void editSelectedGCode() {
+        if (keepEditorVisible()) return;
         if (gerberEditor.isActive() || geometryEditor.isActive() || excellonEditor.isActive()) {
             appendConsole(I18n.text("ui.a3b87351c688"));
             return;
@@ -5234,6 +5238,11 @@ final class MainWindow implements TclFlatcamHost {
             public void paint(TreeItem<String> item, String units, Geometry polygons, PaintParameters parameters) {
                 runPaintGeneration(item, units, polygons, parameters);
             }
+            @Override
+            public void paint(TreeItem<String> item, String units, Geometry polygons, PaintParameters parameters,
+                              TreeItem<String> reference, Geometry referenceGeometry) {
+                runPaintGeneration(item, units, polygons, parameters, reference, referenceGeometry);
+            }
         }, () -> {
             plotAreaView.cancelPlacement();
             closeToolPanel();
@@ -5242,29 +5251,35 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params) {
-        if (runningJob != null) {
-            appendConsole(I18n.text("ui.df12b110e3bb"));
-            return;
-        }
-        Node toolContent = toolTab.getContent();
+        runPaintGeneration(item, units, polygons, params, null, null);
+    }
+
+    private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params,
+                                    TreeItem<String> reference, Geometry referenceGeometry) {
+        CamGenerationState before;
+        try {
+            var gerber=gerberByItem.get(item);var geometry=geometryByItem.get(item);
+            Geometry source=gerber!=null ? gerber.solidGeometry() : geometry!=null ? geometry.geometry() : null;
+            String sourceUnits=gerber!=null ? gerber.units() : geometry!=null ? geometry.units() : null;
+            if (!units.equalsIgnoreCase(sourceUnits)) throw new IllegalStateException(I18n.text("paint.units.invalid"));
+            before=captureCamGeneration(item, source, reference, referenceGeometry);
+        } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
         beginJob(I18n.text("ui.1ad65b51bd48"));
+        activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
             var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,I18n.text("ui.1ad65b51bd48")));
+            context.checkCancelled();
             var paths=result.toolResults().stream().filter(tool -> !tool.isEmpty()).map(tool -> new ToolGeometry(tool.toolDiameter(),tool.geometry())).toList();
             var areas=new LinkedHashMap<Integer,Geometry>(); int index=0;
             for (var tool:result.toolResults()) if (!tool.isEmpty()) { if (tool.targetArea()!=null) areas.put(index,tool.targetArea().copy()); index++; }
             var target=areas.isEmpty() ? null : new org.flatcam.cam.gcode.MachiningTarget("PAINT",units,result.clearingArea().copy(),areas,
                     org.flatcam.cam.gcode.MachiningTarget.signature(paths,context::isCancelled));
             return new NccJobOutcome(result,OptionalDouble.empty(),target);
-        },
-                (fraction, message) -> Platform.runLater(() -> {
-                    updateProgress(fraction);
-                    statusLabel.setText(message);
-                }));
+        }, camProgress(before));
         runningJob = handle;
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
-                    if (runningJob!=handle) return;
+                    if (!acceptCamGeneration(before, handle)) return;
                     var result=outcome.result();
                     if (result.isEmpty()) {
                         appendConsole(I18n.text("ui.e06fe2d2f5dd"));
@@ -5283,9 +5298,8 @@ final class MainWindow implements TclFlatcamHost {
                                 I18n.text("ui.75543b5fbb07"),
                                 result.pathCount(), result.totalLength(), tools.size(),
                                 result.totalFailedPolygonCount()));
-                        if (toolTab.getContent() == toolContent) {
-                            selectProjectItem(generated);
-                            plotAreaView.fitToLayer(generated);
+                        if (toolTab.getContent() == before.panel()) {
+                            finishCamPanel(before, generated);
                             plotAreaView.setEditorHighlight(null, false);
                         }
                         setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
@@ -5295,6 +5309,7 @@ final class MainWindow implements TclFlatcamHost {
                 }))
                 .exceptionally(error -> {
                     Platform.runLater(() -> {
+                        if (runningJob != handle) return;
                         reportJobError(error, I18n.text("ui.c2720c540081"));
                         onJobFinished();
                     });
@@ -5910,7 +5925,10 @@ final class MainWindow implements TclFlatcamHost {
 
         MenuItem editItem = new MenuItem(I18n.text("ui.2eba946b2e1e"));
         setLegacyMenuIcon(editItem, "edit_ok32.png");
-        editItem.setOnAction(e -> gerberEditor.start(item, gerberByItem.getOrDefault(item, image)));
+        editItem.setOnAction(e -> {
+            selectProjectItem(item);
+            editSelectedGerber();
+        });
 
         MenuItem isolationItem = new MenuItem(I18n.text("ui.387688e2d97d"));
         setLegacyMenuIcon(isolationItem, "iso_16.png");

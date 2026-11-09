@@ -3939,5 +3939,10 @@
   "cam.lines.angle": "Angle de balayage",
   "cam.lines.auto": "Direction automatique",
   "cam.lines.angle.help": "Angle de balayage en degrés : 0° horizontal, 90° vertical et 45° diagonal. La rotation positive est antihoraire.\n\nAutomatique conserve l’orientation précédente choisie selon la boîte de chaque région. Désactivez-le pour un angle fixe de 0° à moins de 180°. Ce réglage s’applique à Lines et à la première méthode de Combo.\n\nAttention : les lignes doivent s’arrêter aux obstacles. Connect ne relie que les segments sûrs ; Contour ajoute une passe de finition autour des pastilles. Modifier l’angle ne change pas la source et ne supprime pas les relevages de la fraise.",
-  "cam.lines.angle.invalid": "L’angle Lines doit être fini, de 0° à moins de 180°."
+  "cam.lines.angle.invalid": "L’angle Lines doit être fini, de 0° à moins de 180°.",
+  "paint.units": "Unités : %s",
+  "paint.units.help.title": "Unités de Paint",
+  "paint.units.help": "La source, les références, les diamètres et les marges utilisent la **même unité**.\nPour changer d’unité, fermez Paint et ouvrez-le depuis l’objet souhaité.\nLes valeurs saisies ne sont pas réinterprétées dans une autre unité.",
+  "paint.units.invalid": "Choisissez un objet dans l’unité de ce panneau. Pour changer d’unité, fermez Paint et rouvrez-le depuis l’objet souhaité.",
+  "paint.selection.changed": "La source ou la référence a changé ou a été supprimée. Choisissez l’objet et sélectionnez à nouveau les polygones."
 }

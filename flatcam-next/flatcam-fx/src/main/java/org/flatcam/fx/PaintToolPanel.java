@@ -62,6 +62,11 @@ final class PaintToolPanel {
 
         void paint(TreeItem<String> source, String units, Geometry polygons, PaintParameters parameters);
 
+        default void paint(TreeItem<String> source, String units, Geometry polygons, PaintParameters parameters,
+                           TreeItem<String> reference, Geometry referenceGeometry) {
+            paint(source, units, polygons, parameters);
+        }
+
         default List<org.flatcam.app.project.LegacyToolsDatabase.PaintTool> databaseTools() { return List.of(); }
     }
 
@@ -113,7 +118,7 @@ final class PaintToolPanel {
                 Geometry part = geometry.getGeometryN(i);
                 if (part instanceof Polygon polygon && !polygon.isEmpty() && polygon.getArea() > 0) {
                     polygons.add(polygon);
-                } else if (part.getNumGeometries() > 1) {
+                } else if (part instanceof org.locationtech.jts.geom.GeometryCollection) {
                     polygons.addAll(polygonsOf(part));
                 }
             }
@@ -122,8 +127,15 @@ final class PaintToolPanel {
     }
 
     static Node build(Host host, Runnable onClose) {
+        var available = List.copyOf(host.sources());
+        TreeItem<String> requestedInitial = host.initialSource();
+        TreeItem<String> initial = requestedInitial != null && available.contains(requestedInitial) ? requestedInitial
+                : available.isEmpty() ? null : available.getFirst();
+        String units = initial == null ? "MM" : host.units(initial);
+        var compatible = available.stream().filter(item -> units.equalsIgnoreCase(host.units(item))).toList();
         ComboBox<TreeItem<String>> source = new ComboBox<>();
-        source.getItems().setAll(host.sources());
+        source.setId("paint-source-object");
+        source.getItems().setAll(compatible);
         source.setMaxWidth(Double.MAX_VALUE);
         javafx.util.StringConverter<TreeItem<String>> names = new javafx.util.StringConverter<>() {
             @Override
@@ -137,7 +149,7 @@ final class PaintToolPanel {
             }
         };
         source.setConverter(names);
-        source.getSelectionModel().select(host.initialSource());
+        source.getSelectionModel().select(initial);
         if (source.getValue() == null) {
             source.getSelectionModel().selectFirst();
         }
@@ -154,7 +166,8 @@ final class PaintToolPanel {
         all.setSelected(true);
 
         ComboBox<TreeItem<String>> referenceObject = new ComboBox<>();
-        referenceObject.getItems().setAll(host.sources());
+        referenceObject.setId("paint-reference-object");
+        referenceObject.getItems().setAll(compatible);
         referenceObject.setMaxWidth(Double.MAX_VALUE);
         referenceObject.setConverter(names);
         referenceObject.visibleProperty().bind(reference.selectedProperty());
@@ -165,6 +178,8 @@ final class PaintToolPanel {
         Button choose = new Button(I18n.text("ui.6a57618c2593"));
         Button clear = new Button(I18n.text("ui.33a042c0fd07"));
         List<Polygon> chosen = new ArrayList<>();
+        Geometry[] selectionSource = {null}, selectionReference = {null};
+        @SuppressWarnings("unchecked") TreeItem<String>[] selectionReferenceItem = new TreeItem[]{null};
         choose.visibleProperty().bind(all.selectedProperty().not());
         choose.managedProperty().bind(choose.visibleProperty());
         clear.visibleProperty().bind(all.selectedProperty().not());
@@ -188,21 +203,20 @@ final class PaintToolPanel {
             host.cancelPick();
             host.cancelAreaSelection();
         };
+        Runnable clearSelection = () -> {
+            stopPicking.run();chosen.clear();selectionSource[0]=null;
+            selectionReference[0]=null;selectionReferenceItem[0]=null;showSelection.run();
+        };
         selectionGroup.selectedToggleProperty().addListener((observable, previous, next) -> {
-            stopPicking.run();
-            chosen.clear();
+            clearSelection.run();
             errorLabel.setText("");
-            showSelection.run();
         });
         source.valueProperty().addListener((observable, previous, next) -> {
-            stopPicking.run();
-            chosen.clear();
-            showSelection.run();
+            clearSelection.run();
         });
+        referenceObject.valueProperty().addListener((observable, previous, next) -> clearSelection.run());
         clear.setOnAction(event -> {
-            stopPicking.run();
-            chosen.clear();
-            showSelection.run();
+            clearSelection.run();
         });
         choose.setOnAction(event -> {
             errorLabel.setText("");
@@ -212,6 +226,14 @@ final class PaintToolPanel {
                 return;
             }
             Geometry polygons = host.polygons(item);
+            if (polygons == null || polygons.isEmpty()) {
+                clearSelection.run();errorLabel.setText(I18n.text("paint.selection.changed"));return;
+            }
+            if (!source.getItems().contains(item) || !units.equalsIgnoreCase(host.units(item))) {
+                clearSelection.run();errorLabel.setText(I18n.text("paint.units.invalid"));return;
+            }
+            if (selectionSource[0] != polygons) chosen.clear();
+            selectionSource[0] = polygons;
             List<Polygon> candidates = polygonsOf(polygons);
             stopPicking.run();
             if (single.isSelected()) {
@@ -235,6 +257,10 @@ final class PaintToolPanel {
                     return;
                 }
                 Geometry referenceShape = host.polygons(ref);
+                if (!referenceObject.getItems().contains(ref) || !units.equalsIgnoreCase(host.units(ref))) {
+                    clearSelection.run();errorLabel.setText(I18n.text("paint.units.invalid"));return;
+                }
+                selectionReferenceItem[0] = ref;selectionReference[0] = referenceShape;
                 for (Polygon candidate : candidates) {
                     if (referenceShape != null && !referenceShape.isEmpty() && candidate.intersects(referenceShape)
                             && !chosen.contains(candidate)) {
@@ -248,7 +274,7 @@ final class PaintToolPanel {
 
         // --- parameters (Python's defaults) ---
         // The defaults of the units of the object the panel opens with (millimetres when there is none).
-        boolean metric = host.initialSource() == null || !"IN".equalsIgnoreCase(host.units(host.initialSource()));
+        boolean metric = !"IN".equalsIgnoreCase(units);
         TextField diameters = new TextField(ToolDefaults.text("paint.tooldia", metric));
         diameters.setMinWidth(0);
         HBox.setHgrow(diameters, javafx.scene.layout.Priority.ALWAYS);
@@ -372,7 +398,16 @@ final class PaintToolPanel {
                 if (item == null) {
                     throw new IllegalArgumentException(I18n.text("ui.4a12932cb623"));
                 }
-                Geometry polygons = all.isSelected() ? host.polygons(item)
+                if (!source.getItems().contains(item) || !units.equalsIgnoreCase(host.units(item)))
+                    throw new IllegalArgumentException(I18n.text("paint.units.invalid"));
+                Geometry current = host.polygons(item);
+                if (current == null || current.isEmpty()
+                        || !all.isSelected() && !chosen.isEmpty() && (selectionSource[0] != current
+                        || reference.isSelected() && (selectionReferenceItem[0] != referenceObject.getValue()
+                        || selectionReference[0] != host.polygons(selectionReferenceItem[0])))) {
+                    clearSelection.run();throw new IllegalArgumentException(I18n.text("paint.selection.changed"));
+                }
+                Geometry polygons = all.isSelected() ? current
                         : chosen.isEmpty() ? null : FACTORY.buildGeometry(new ArrayList<Geometry>(chosen));
                 if (polygons == null || polygons.isEmpty()) {
                     throw new IllegalArgumentException(all.isSelected() ? I18n.text("ui.b422a75b49fb")
@@ -394,7 +429,8 @@ final class PaintToolPanel {
                         connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected(), settings);
                 stopPicking.run();
                 errorLabel.setText("");
-                host.paint(item, host.units(item), polygons, parameters);
+                host.paint(item, units, polygons, parameters, reference.isSelected() ? selectionReferenceItem[0] : null,
+                        reference.isSelected() ? selectionReference[0] : null);
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
@@ -406,8 +442,13 @@ final class PaintToolPanel {
             onClose.run();
         });
 
+        Label unitLabel = new Label(String.format(I18n.text("paint.units"), units));unitLabel.setId("paint-units");
+        ToolDescriptions.apply(unitLabel,I18n.text("paint.units.help.title"),I18n.text("paint.units.help"));
+        ToolDescriptions.apply(source,I18n.text("paint.units.help.title"),I18n.text("paint.units.help"));
+        ToolDescriptions.apply(referenceObject,I18n.text("paint.units.help.title"),I18n.text("paint.units.help"));
         VBox panel = new VBox(8,
                 new Label(I18n.text("ui.00c986260e98")), source,
+                unitLabel,
                 new Label(I18n.text("ui.83e7115ae275")),
                 new VBox(4, all, single, rectangle, polygonArea, reference), referenceObject,
                 new HBox(6, choose, clear), selectedLabel,
@@ -420,6 +461,21 @@ final class PaintToolPanel {
                 new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
                 paint, errorLabel, close);
         panel.setPadding(new Insets(6));
+        // Weak listeners cannot retain a closed Paint panel through a project TreeItem.
+        var sourceListeners = new ArrayList<javafx.beans.value.ChangeListener<TreeItem<String>>>();
+        for (var item : compatible) {
+            javafx.beans.value.ChangeListener<TreeItem<String>> removed = (observable, oldParent, newParent) -> {
+                if (oldParent != null && newParent == null) {
+                    boolean wasSource=source.getValue()==item, wasReference=referenceObject.getValue()==item;
+                    if (wasSource || selectionReferenceItem[0] == item) clearSelection.run();
+                    source.getItems().remove(item);referenceObject.getItems().remove(item);
+                    if (wasSource) source.setValue(null);
+                    if (wasReference) referenceObject.setValue(null);
+                }
+            };
+            sourceListeners.add(removed);item.parentProperty().addListener(new javafx.beans.value.WeakChangeListener<>(removed));
+        }
+        panel.getProperties().put("paint.sourceListeners",sourceListeners);
         var history = new CamTableHistory<>(panel, toolTable, () -> {
             if (!syncing[0]) editing[0].settings = capture.get();
             return toolTable.getItems().stream().map(row -> new ToolState(row.diameter, List.of(row.settings))).toList();

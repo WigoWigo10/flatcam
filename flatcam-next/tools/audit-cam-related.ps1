@@ -1,4 +1,4 @@
-param([string]$BuildDirectory,[ValidateRange(1,100)][int]$Repeats=10,[string]$OutputDirectory,[switch]$Lines,[string]$CaseFilter='.*')
+param([string]$BuildDirectory,[ValidateRange(1,100)][int]$Repeats=10,[string]$OutputDirectory,[switch]$Lines,[string]$CaseFilter='.*',[string[]]$ClassOverrides)
 $ErrorActionPreference='Stop'
 $reactor=Split-Path -Parent $PSScriptRoot
 if(!$BuildDirectory){$BuildDirectory=(Get-Content -LiteralPath (Join-Path $reactor 'target\beta-latest.txt') -Raw).Trim()}
@@ -9,10 +9,12 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $OutputDirectory=(Resolve-Path -LiteralPath $OutputDirectory).Path
 $classes=Join-Path $OutputDirectory 'classes';New-Item -ItemType Directory -Force -Path $classes | Out-Null
 $app=Join-Path $image 'app'
+$overrides=if($ClassOverrides){($ClassOverrides | ForEach-Object {(Resolve-Path -LiteralPath $_).Path}) -join ';'}else{''}
+$appClasspath=$(if($overrides){$overrides+';'})+(Join-Path $app '*')
 $info=[Diagnostics.ProcessStartInfo]::new((Join-Path $env:JAVA_HOME 'bin\javac.exe'))
 $source=if($Lines){'LinesRelatedAuditProbe.java'}else{'CamRelatedAuditProbe.java'}
 $main=if($Lines){'org.flatcam.fx.LinesRelatedAuditProbe'}else{'org.flatcam.fx.CamRelatedAuditProbe'}
-$args=@('--release','25','--module-path',$app,'--add-modules','javafx.controls','-cp',(Join-Path $app '*'),'-d',$classes,(Join-Path $PSScriptRoot $source))
+$args=@('--release','25','--module-path',$app,'--add-modules','javafx.controls','-cp',$appClasspath,'-d',$classes,(Join-Path $PSScriptRoot $source))
 function Run([Diagnostics.ProcessStartInfo]$Info,[string[]]$Arguments,[string]$Log){
     $Info.Arguments=($Arguments | ForEach-Object {'"'+$_.Replace('"','\"')+'"'}) -join ' '
     $Info.UseShellExecute=$false;$Info.CreateNoWindow=$true;$Info.RedirectStandardOutput=$true;$Info.RedirectStandardError=$true
@@ -29,7 +31,7 @@ if((Run $info $args (Join-Path $OutputDirectory 'compile.log')) -ne 0){throw "Pr
 $info=[Diagnostics.ProcessStartInfo]::new((Join-Path $image 'runtime\bin\java.exe'))
 $args=@('--module-path',$app,'--add-modules','javafx.controls','--enable-native-access=javafx.graphics',
     '-XX:+UnlockDiagnosticVMOptions','-XX:DisableIntrinsic=_indexOfUL',
-    '-cp',($classes+';'+(Join-Path $app '*')))
+    ('-Dflatcam.audit.overrides='+$overrides),'-cp',($classes+';'+$appClasspath))
 if($Lines){$args+=@($main,(Join-Path $OutputDirectory 'lines-audit.json'))}
 else{$args+=@('-Djava.util.prefs.PreferencesFactory=org.flatcam.fx.CamRelatedAuditProbe$MemoryFactory',('-Dflatcam.audit.cases='+$CaseFilter),$main,$OutputDirectory,[string]$Repeats)}
 $code=Run $info $args (Join-Path $OutputDirectory 'audit.log')

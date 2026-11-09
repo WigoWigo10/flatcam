@@ -45,6 +45,7 @@ public final class CamRelatedAuditProbe {
             var report=new JSONObject().put("schema",1).put("version",AboutInfo.version())
                     .put("binarySource",AboutInfo.build().getProperty("sourceRevision"))
                     .put("appJar",MainWindow.class.getProtectionDomain().getCodeSource().getLocation().toString())
+                    .put("classOverrides",System.getProperty("flatcam.audit.overrides",""))
                     .put("repeatCount",repeats).put("cases",RESULTS).put("excludedCases",SKIPPED)
                     .put("scope","Synthetic packaged JavaFX controls; no visible Stage, registry preferences, private project or physical CNC");
             long failures=RESULTS.toList().stream().filter(x->((Map<?,?>)x).get("status").equals("FAIL")).count();
@@ -173,8 +174,17 @@ public final class CamRelatedAuditProbe {
             var image=GerberImage.of("IN",Map.of(),AffineTransformation.scaleInstance(1/25.4,1/25.4).transform(s.image.solidGeometry()),F.createGeometryCollection(),Map.of());
             var inch=(TreeItem<String>)call(s.window,"addGerberToProject",new Class<?>[]{String.class,Path.class,GerberImage.class},"inch-copper",null,image);
             call(s.window,"selectProjectItem",new Class<?>[]{TreeItem.class},s.gerber);call(s.window,"openPaintTool",new Class<?>[]{});
-            var form=form(s.window);var picker=(ComboBox<TreeItem<String>>)nodes(form).stream().filter(n->n instanceof ComboBox<?> c && c.getItems().contains(inch)).findFirst().orElseThrow();
+            var form=form(s.window);var picker=(ComboBox<TreeItem<String>>)nodes(form).stream().filter(n->n instanceof ComboBox<?> c && c.getItems().contains(s.gerber) && !c.visibleProperty().isBound()).findFirst().orElseThrow();
             double before=PaintToolPanel.parseDiameters(((TextField)form.lookup("#paint-diameters")).getText()).getFirst();
+            if(!picker.getItems().contains(inch)) {
+                // Both conversion and an explicit fixed-unit picker satisfy the original contract.
+                // Also test that a foreign value cannot bypass the policy programmatically.
+                picker.setValue(inch);((Button)form.lookup("#paint-generate")).fire();
+                var running=job(s.window);
+                evidence.put("ok",running==null).put("policy","fixed-unit-picker").put("beforeMillimeters",before)
+                        .put("crossUnitSourceAllowed",false).put("foreignValueRejected",running==null);
+                return running;
+            }
             picker.setValue(inch);double after=PaintToolPanel.parseDiameters(((TextField)form.lookup("#paint-diameters")).getText()).getFirst();
             evidence.put("ok",Math.abs(after*25.4-before)<1e-9).put("beforeMillimeters",before).put("afterInches",after).put("afterMillimeters",after*25.4).put("crossUnitSourceAllowed",picker.getItems().contains(inch));
             ((Button)form.lookup("#paint-generate")).fire();return job(s.window);
@@ -188,6 +198,7 @@ public final class CamRelatedAuditProbe {
                     var generated=(List<org.flatcam.cam.geometry.ToolGeometry>)tools.invoke(entry);
                     evidence.put("generatedUnits",units.invoke(entry)).put("generatedToolDiameter",generated.getFirst().toolDiameter());
                 }
+                if(!evidence.optBoolean("crossUnitSourceAllowed",true) && entry!=null)evidence.put("ok",false);
                 return evidence.put("geometryPublished",entry!=null);
             });
         }

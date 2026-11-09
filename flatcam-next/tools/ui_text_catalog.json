@@ -28579,5 +28579,41 @@
       "RasterAngleInput.java"
     ],
     "canonical": false
+  },
+  "paint.units": {
+    "source": "Unidades: %s",
+    "locations": [
+      "PaintToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "paint.units.help.title": {
+    "source": "Unidades do Paint",
+    "locations": [
+      "PaintToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "paint.units.help": {
+    "source": "A origem, as referências, os diâmetros e as margens usam a **mesma unidade**.\nPara trocar de unidade, feche o Paint e abra-o a partir do objeto desejado.\nOs valores digitados não são reinterpretados em outra unidade.",
+    "locations": [
+      "PaintToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "paint.units.invalid": {
+    "source": "Escolha um objeto nas unidades deste painel. Para trocar de unidade, feche e reabra o Paint a partir do objeto desejado.",
+    "locations": [
+      "PaintToolPanel.java",
+      "MainWindow.java"
+    ],
+    "canonical": false
+  },
+  "paint.selection.changed": {
+    "source": "A origem ou a referência mudou ou foi removida. Escolha o objeto e selecione os polígonos novamente.",
+    "locations": [
+      "PaintToolPanel.java"
+    ],
+    "canonical": false
   }
 }
