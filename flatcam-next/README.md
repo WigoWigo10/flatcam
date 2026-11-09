@@ -1,16 +1,18 @@
 # FlatCAM FX
 
-## Beta 0.1.0-beta.6
+## Beta 0.1.0-beta.7
 
 Pacotes Windows x64 com Java incluído: instalador EXE/MSI por usuário e ZIP
-portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.6.md),
+portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.7.md),
 [geração e validação](release/BUILD_BETA.md). Artefatos são gerados localmente
 em `target/releases`; não há publicação automática ou paridade integral prometida.
-[Validação da Beta 6](release/VALIDACAO-0.1.0-beta.6.md).
+[Validação da entrega anterior, Beta 6](release/VALIDACAO-0.1.0-beta.6.md).
 
-A Beta 6 permite definir o ângulo de varredura Lines por fresa em NCC/Paint e
-preserva o acesso aos quatro editores ao tentar abrir outra ferramenta.
-MSI 0.1.60 mantém a família de atualização das Betas anteriores.
+A Beta 7 corrige cinco problemas de edição e Paint: entradas alternativas dos
+editores, origem/referência antiga, cancelamento tardio, unidades e seleção de
+polígonos agrupados. O Paint informa a unidade fixa do painel e oferece apenas
+objetos compatíveis, preservando os valores digitados. Mantém o ângulo Lines
+por fresa. MSI 0.1.70 mantém a família de atualização das Betas anteriores.
 As repetições de trajetos identificadas na auditoria Lines continuam pendentes;
 veja [resultados e limites](LINES_RAW_PATH_AUDIT.md).
 

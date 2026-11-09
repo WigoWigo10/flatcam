@@ -1,5 +1,9 @@
 # Vistoria de NCC/Paint, tabelas e editores — 2026-11-09
 
+Atualização: os cinco problemas receberam correções no commit **a5a83060**,
+em preparação para a [Beta 7](release/BETA-0.1.0-beta.7.md). Os resultados
+originais da Beta 6 abaixo são preservados como evidência anterior à correção.
+
 **Cinco problemas confirmados, ainda sem correção de produção nesta vistoria.**
 Foram exercitados os controles e ações reais dos JARs distribuídos da Beta 6,
 com dados sintéticos e preferências em memória. Não foi uma sessão manual com
