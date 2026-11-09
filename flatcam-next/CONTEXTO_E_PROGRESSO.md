@@ -1,5 +1,28 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Beta 6 gerada e validada — 2026-11-09
+
+Alterações commitadas em **9e87ea55**; fonte exata dos binários/tag local
+**v0.1.0-beta.6**: **c28019b72b16ee65534c62ba9f7e4fdf02814f95** (árvore limpa).
+App/Maven/nativo **0.1.0-beta.6**, revisão 0; MSI **0.1.60**. Notas e ensaios:
+[BETA-0.1.0-beta.6.md](release/BETA-0.1.0-beta.6.md) e
+[VALIDACAO-0.1.0-beta.6.md](release/VALIDACAO-0.1.0-beta.6.md).
+
+Build integral: **2406 casos, 2388 aprovados, 18 opcionais ignorados, zero
+falhas/erros**, 5:07. Portátil, MSI por usuário e upgrade do MSI entregue da
+Beta 5 **0.1.50 → 0.1.60** aprovados, incluindo GPU/Software, JFR, novos ângulos
+NCC/Paint, preservação do editor e reabertura do rascunho NCC nos JARs do pacote.
+Três probes com 23 objetos/cinco programas cada; projeto externo preservado;
+zero produtos Beta registrados ao final. EXE/MSI/ZIP com runtime Temurin 25.0.5+8
+copiados para Downloads e hashes reconferidos. Artefatos e evidências em
+`target/releases/0.1.0-beta.6-20261109-153800-491/`.
+
+As pendências da auditoria Lines abaixo **continuam abertas**. Sem CNC física,
+outro PC, cliques do assistente EXE ou novo benchmark. Esta entrega não declara
+paridade integral. Nenhum comando push foi chamado pelo agente; durante a rodada
+a referência local `fork/flatcam-next` passou a apontar para `c28019b7`, com reflog
+`update by push`; a origem dessa atualização não foi determinada.
+
 ## Auditoria de interrupções/sobreposições Lines — 2026-11-09
 
 Ver [LINES_RAW_PATH_AUDIT.md](LINES_RAW_PATH_AUDIT.md). Gerados 64 controles

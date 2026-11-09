@@ -6,7 +6,7 @@ Pacotes Windows x64 com Java incluído: instalador EXE/MSI por usuário e ZIP
 portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.6.md),
 [geração e validação](release/BUILD_BETA.md). Artefatos são gerados localmente
 em `target/releases`; não há publicação automática ou paridade integral prometida.
-[Validação da distribuição anterior, Beta 5](release/VALIDACAO-0.1.0-beta.5.md).
+[Validação da Beta 6](release/VALIDACAO-0.1.0-beta.6.md).
 
 A Beta 6 permite definir o ângulo de varredura Lines por fresa em NCC/Paint e
 preserva o acesso aos quatro editores ao tentar abrir outra ferramenta.

@@ -1,5 +1,21 @@
 # QA project context — FlatCAM FX
 
+Beta 6 release (2026-11-09): implementation 9e87ea55, binary source/tag
+v0.1.0-beta.6 = c28019b72b16ee65534c62ba9f7e4fdf02814f95, clean tree;
+app 0.1.0-beta.6 revision 0, MSI 0.1.60. Full verify: 2406 cases, 2388 passed,
+18 optional skips, zero failures/errors, 5:07. Packaged portable, per-user MSI
+install/uninstall and delivered Beta 5 MSI 0.1.50 -> 0.1.60 upgrade PASS.
+All three probes exercise four editor navigation/cancel routes, NCC explicit
+Lines angle + native draft reopen and Paint angle through actual raster segments,
+alongside prior workflows (23 objects, five programs, 8 panel drills/4 slots).
+Bundled GPU/software/UTF-8/JFR probes pass; external project preserved by SHA-256;
+zero registered family products after tests. EXE/MSI/ZIP copied to Downloads,
+hashes rechecked. See flatcam-next/release/VALIDACAO-0.1.0-beta.6.md and candidate
+target/releases/0.1.0-beta.6-20261109-153800-491, including selected packaged logs.
+No physical CNC, EXE wizard clicks, second PC, new benchmark or full public-board
+coverage. Raw Lines defects below remain open. No agent push command; observed
+fork/flatcam-next ref reached c28019b7 with reflog 'update by push'.
+
 Raw Lines audit (2026-11-09): 64 cases on all eight community boards, NCC/Paint,
 Connect/Contour, one 0.4 mm cutter. 34 cases have repeated centerlines >1e-7 mm;
 max 746.7692 mm / 3.6831% in Horizon MX NCC. No unexpected interior open endpoints
