@@ -6,6 +6,7 @@ from traversing the same centerline again. It is a geometric diagnostic, not CNC
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 from shapely import wkt
 from shapely.geometry import Point, LineString
@@ -49,11 +50,31 @@ def audit(raw, area, copper, diameter, compute_coverage=True):
     # This is intentionally NOT a swept-material coverage measurement.
     from shapely.strtree import STRtree
     path_index=STRtree(paths) if paths else None
-    unserved=[]
+    unserved=[];exact_unserved=[];near_boundary=[]
+    magnitude=max(1.0,*(abs(value) for value in area.bounds)) if not area.is_empty else 1.0
+    region_tolerance=max(diameter*1e-10,32*math.ulp(magnitude))
+    minimum_near_span=max(16*region_tolerance,diameter*1e-6)
     for component in polygons(safe):
-        if path_index is None or not any(component.intersection(path).length>0 for path in path_index.query(component)):
-            unserved.append(component)
+        if path_index is not None and any(component.intersection(path).length>0 for path in path_index.query(component)):
+            continue
+        exact_unserved.append(component)
+        # GEOS and the Java buffer can differ by a few ULP at the same boundary.
+        # Keep that exact miss visible, and require a positive span far longer
+        # than the tolerance so an endpoint touch does not become a pass.
+        expanded=component.buffer(region_tolerance)
+        nearby=[] if path_index is None else path_index.query(expanded)
+        span=max((expanded.intersection(path).length for path in nearby),default=0)
+        if span>minimum_near_span:
+            near_boundary.append({'bounds':list(component.bounds),'cutterCenterArea':component.area,
+                                  'distance':min(component.distance(path) for path in nearby),
+                                  'intersectionLengthWithinTolerance':span})
+        else:unserved.append(component)
     result['regions']={'reachableComponentCount':len(polygons(safe)),
+                      'exactUnservedReachableComponentCount':len(exact_unserved),
+                      'nearBoundaryComponentCount':len(near_boundary),
+                      'numericalTolerance':region_tolerance,
+                      'minimumNearBoundarySpan':minimum_near_span,
+                      'nearBoundaryExamples':near_boundary[:8],
                       'unservedReachableComponentCount':len(unserved),
                       'unservedCutterCenterArea':sum(part.area for part in unserved)}
     if not compute_coverage:
@@ -111,7 +132,7 @@ def main():
             cached=cache/(file.stem+('-raw.json' if args.skip_coverage else '-coverage.json'))
             if cached.exists():
                 saved=json.loads(cached.read_text(encoding='utf-8'))
-                if saved.get('inputSha256')==digest and saved.get('auditVersion')==3:
+                if saved.get('inputSha256')==digest and saved.get('auditVersion')==4:
                     records.append(saved['result']);print(file.stem,'cached',flush=True);continue
             case=json.loads(content)
             if case['status']!='GENERATED':
@@ -119,7 +140,7 @@ def main():
             raw=wkt.loads(case['rawPathsWkt']);area=wkt.loads(case['clearingAreaWkt']);copper=wkt.loads(case['copperWkt'])
             record={k:case[k] for k in ['id','board','units','operation','connect','contour','failedPolygons','diameter']}
             record.update(audit(raw,area,copper,case['diameter'],not args.skip_coverage));records.append(record)
-            cached.write_text(json.dumps({'inputSha256':digest,'auditVersion':3,'result':record},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+            cached.write_text(json.dumps({'inputSha256':digest,'auditVersion':4,'result':record},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
             print(record['id'],record['repeatedCenterlineLength'],record['interiorEndpointCount'],flush=True)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps({'schema':1,'scope':'Raw FX path audit; no machine or Python execution/order claim',

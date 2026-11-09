@@ -1,9 +1,27 @@
 import unittest
+import math
 from shapely.geometry import LineString,GeometryCollection,box,Point
 from audit_lines_paths import audit,overlap_example
 
 
 class RawLinesAuditTest(unittest.TestCase):
+    def test_a_boundary_pass_one_ulp_outside_geos_is_reported_without_hiding_the_exact_miss(self):
+        area=box(0,0,1,1);diameter=.2
+        safe=area.buffer(-diameter/1.99999999,resolution=64);x,y,right,top=safe.bounds
+        raw=LineString([(math.nextafter(x,-math.inf),y),(math.nextafter(x,-math.inf),top)])
+        result=audit(raw,area,Point(20,20).buffer(1),diameter,False)['regions']
+        self.assertEqual(0,result['unservedReachableComponentCount'])
+        self.assertEqual(1,result['exactUnservedReachableComponentCount'])
+        self.assertEqual(1,result['nearBoundaryComponentCount'])
+
+    def test_numerical_tolerance_does_not_turn_an_endpoint_touch_into_a_pass(self):
+        area=box(0,0,1,1);diameter=.2
+        x,y,right,top=area.buffer(-diameter/1.99999999,resolution=64).bounds
+        raw=LineString([(x-1,y),(x,y)])
+        result=audit(raw,area,Point(20,20).buffer(1),diameter,False)['regions']
+        self.assertEqual(1,result['exactUnservedReachableComponentCount'])
+        self.assertEqual(0,result['nearBoundaryComponentCount'])
+        self.assertEqual(1,result['unservedReachableComponentCount'])
     def test_a_path_in_a_large_component_does_not_hide_an_unserved_small_island(self):
         area=box(0,0,10,6).union(Point(12,1.05).buffer(.21,resolution=64))
         raw=LineString([(.21,1),(9.79,1)])

@@ -1,5 +1,44 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Desenvolvimento após Beta 7: Lines e diagnóstico por fresa — 2026-11-09
+
+Ver [refinamento e evidências](LINES_REFINEMENT.md). NCC e Paint retiram do
+raster a repetição colinear exata com Contour, preservando o acabamento fechado,
+e acrescentam uma passada paralela em componentes alcançáveis que a varredura
+não atingiu. Combo conserva Seed/Standard quando o raster inteiro está vazio.
+O painel informa, por fresa, regiões sem espaço, complementadas e alcançáveis
+sem trajeto, com destaque no Plot, ajuda nos quatro idiomas e limpeza na troca
+da ferramenta. São dados da última execução, não uma medição de toda a cobertura.
+
+Buffers/união das áreas varridas só são calculados quando alimentam o Rest.
+A política de footprints do Rest permanece protegida pelo mesmo teste geométrico.
+Connect ainda pode recaminhar para economizar levantamentos; não foi reescrito.
+Essas melhorias deliberadamente deixam de repetir dois defeitos do Python.
+
+Commits: núcleo **0c3aaf3e**, interface **57cb94f3**. A rodada completa executou
+**2.468 casos**; após corrigir a busca de controles do auxiliar de teste,
+**86 casos afetados** e os **sete casos finais** do diagnóstico passaram em
+novas verificações do reator. Consolidação: **2.450 aprovados, 18 opcionais,
+zero falhas/erros**. O log integral anterior e a reexecução são preservados;
+não confundir a consolidação com um único log integral verde.
+As **96 verificações de distância** passaram com as classes finais.
+
+Corpus: **64/64** configurações geraram trajetos. Quatro Connect de Horizon Choc
+precisaram elevar o orçamento de 90 para 300 segundos (111–137 s observados).
+O auditor independente mantém diferenças exatas e tolerância numérica
+separadas, sem alterar os caminhos. Ver a fórmula, testes e limites no documento.
+Nos 64 resultados, zero componentes omitidos além da tolerância e zero pontas
+internas inesperadas no critério documentado; repetições de centro acima de
+0,000001 mm caíram de **34 para 22 casos**, todos os restantes com Connect.
+A cobertura integral comunitária permanece **NOT_MEASURED**.
+
+**Distribuição:** os instaladores e a tag Beta 7 abaixo continuam sendo os da
+rodada anterior. As mudanças desta seção precisam entrar na próxima Beta.
+Próximo trabalho: concluir a validação de ponta a ponta dos programas do corpus,
+incluindo painéis, Rest, ângulos e MM/IN; avaliar separadamente custo/repetição do
+Connect denso e cobertura integral. Não interpretar componentes com uma passada
+como prova de remoção de todo o material.
+
 ## Beta 7: cinco correções CAM e entrega — 2026-11-09
 
 Implementação **a5a83060**, refinamento da liberação de eventos **b64ef4dc**.

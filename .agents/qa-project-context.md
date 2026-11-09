@@ -1,5 +1,42 @@
 # QA project context — FlatCAM FX
 
+Post-Beta 7 Lines refinement (2026-11-09): exact positive collinear raster/Contour
+overlap is removed from raster only; closed finishing rings remain. Contour-off
+Lines supplements each missed positive cutter-inset component with a clipped,
+parallel interior pass, preserving angle and units. Combo keeps Seed/Standard
+fallback for an entirely empty raster. Per-tool result diagnostics
+separate cutter-inset-empty polygons, supplemented components and reachable
+components without a pass. NCC/Paint historical result panels highlight each
+category, reset on generation/tool cleanup, and explain that these are NOT full
+swept-coverage measurements. Four-language rich/accessibility help and narrow
+sidebar/theme checks are present. Footprint buffers/union now run only for Rest;
+its existing geometrical oracle retains the original policy. See
+flatcam-next/LINES_REFINEMENT.md for red/green/counterproof evidence and limits.
+These changes are development source; Beta 7 tag and installers below are intact.
+CAM commit 0c3aaf3e; FX UI commit 57cb94f3. The complete reactor executed 2468
+cases; one UI test visitor failed on a lawful empty TitledPane. Its null guard
+preserves all reference-identity assertions. A subsequent reactor verify with
+86 affected cases passed; seven diagnostics cases passed again after the final
+diameter-only label change (empty cutters must not invent CNC T numbers).
+Final per-class state for this round: 2450 pass, 18 optional skips, no failures
+or errors; obsolete LauncherConfigurationTest XML (three older cases) excluded.
+Do not describe the earlier integral log as a single uninterrupted green run.
+Final 96 distance checks pass. Public matrix generated 64/64: 60 within the
+90-second cooperative budget, four Horizon Choc Connect retries took 111-137s
+with a 300s budget. Attempts, SHA-256 selection manifest and old results retained.
+Dense Connect runtime/retracing and full swept coverage remain follow-ups.
+The independent auditor v4 keeps exact missed-component counts separate from
+ULP-scale near-boundary passes, requiring a span much longer than the numeric
+tolerance; it never changes production paths. Six Python controls pass, and the
+new one-ULP test fails with unchanged v3. See LINES_REFINEMENT.md for formula,
+counterproof, data directories and what has NOT been physically validated.
+Final independent audit: 64 cases; no unserved reachable components beyond its
+explicit numerical tolerance, no unexpected interior endpoints at 1% diameter.
+Exact one-component ULP misses remain visible in four Horizon Choc configurations.
+Repeated-centerline cases above 1e-6 mm: 34 -> 22; all remaining cases have Connect
+on. Every community record retains coverageStatus=NOT_MEASURED. Eight-board
+raw inputs, 90s failures and 300s retries have a SHA-256 selection manifest.
+
 Beta 7 release (2026-11-09): binary source/local tag v0.1.0-beta.7 =
 b64ef4dc435e0334f21f9ccc62670972113b4cdb, clean tree; MSI 0.1.70. Five related CAM defects
 fixed in a5a83060, detached Paint listener cleanup refined in b64ef4dc. Editor
