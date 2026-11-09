@@ -47,6 +47,7 @@ class MainCamFlowTest {
     }
 
     private static javafx.scene.Node control(javafx.scene.Node root, String id) {
+        if (root == null) return null; // A hidden result TitledPane has no content before the first run.
         if (id.equals(root.getId())) return root;
         if (root instanceof TitledPane pane) {
             var found = control(pane.getContent(), id); if (found != null) return found;

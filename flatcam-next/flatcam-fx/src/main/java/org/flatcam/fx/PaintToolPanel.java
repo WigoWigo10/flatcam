@@ -468,6 +468,7 @@ final class PaintToolPanel {
                 new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
                 paint, errorLabel, close);
         panel.setPadding(new Insets(6));
+        panel.getChildren().add(panel.getChildren().indexOf(paint),new ClearingRegionFeedback(panel));
         // Weak listeners cannot retain a closed Paint panel through a project TreeItem.
         var sourceListeners = new ArrayList<javafx.beans.value.ChangeListener<TreeItem<String>>>();
         var sourceCleanup = new ArrayList<Runnable>();

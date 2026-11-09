@@ -971,6 +971,7 @@ final class NccToolPanel {
                         + row.method + ":" + row.seedPolicy + ":" + row.connect + ":" + row.contour + ":"
                         + row.angleAutomatic + ":" + row.lineAngle + ":" + row.offsetEnabled + ":" + row.offset + ":" + row.machining + ":" + diameterEditor.draft(row)).toList().toString());
         box.getChildren().add(box.getChildren().indexOf(generateButton), feedback);
+        box.getChildren().add(box.getChildren().indexOf(generateButton),new ClearingRegionFeedback(box));
         var history = new CamTableHistory<>(box, toolTable, () -> tools.stream().map(ToolRow::state).toList(),
                 states -> { tools.setAll(states.stream().map(ToolRow.State::row).toList()); toolError.setText(""); }, diameterEditor, () -> loadingToolSettings[0]);
         history.observe(methodCombo.valueProperty(), seedPolicyCombo.valueProperty(), connectCb.selectedProperty(),

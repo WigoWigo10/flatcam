@@ -2590,6 +2590,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void clearToolOverlays() {
+        plotAreaView.setCoverageResidual(null);
         plotAreaView.setInternalCutoutPreview(null);
         cancelPointPick();
         plotAreaView.cancelPlacement();
@@ -5265,6 +5266,7 @@ final class MainWindow implements TclFlatcamHost {
             if (!units.equalsIgnoreCase(sourceUnits)) throw new IllegalStateException(I18n.text("paint.units.invalid"));
             before=captureCamGeneration(item, source, reference, referenceGeometry);
         } catch (IllegalStateException invalid) { appendConsole(invalid.getMessage()); return; }
+        startClearingDiagnostics(before);
         beginJob(I18n.text("ui.1ad65b51bd48"));
         activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
@@ -5305,6 +5307,7 @@ final class MainWindow implements TclFlatcamHost {
                         }
                         setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     }
+                    completeClearingDiagnostics(before,result);
                     updateProgress(1);
                     onJobFinished();
                 }))
@@ -7781,6 +7784,7 @@ final class MainWindow implements TclFlatcamHost {
         String recipe = NccToolPanel.recipe(panelResult);
         var feedback = CamGenerationFeedback.of(before.panel());
         if (feedback != null) feedback.started(recipe, item);
+        startClearingDiagnostics(before);
         beginJob(I18n.text("ui.6aba42688d88"));
         activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
@@ -7858,6 +7862,7 @@ final class MainWindow implements TclFlatcamHost {
                         finishCamPanel(before, generated);
                         setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
                     }
+                    completeClearingDiagnostics(before,result);
                     updateProgress(1);
                     onJobFinished();
                 }))
@@ -7873,6 +7878,19 @@ final class MainWindow implements TclFlatcamHost {
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry) {
         generateGeometryCncJob(item, entry, null);
+    }
+
+    private void startClearingDiagnostics(CamGenerationState before) {
+        plotAreaView.setCoverageResidual(null);
+        var feedback=ClearingRegionFeedback.of(before.panel());if(feedback!=null)feedback.started();
+    }
+    private void completeClearingDiagnostics(CamGenerationState before,NccResult result) {
+        var owner=before.panel();
+        if(toolTab.getContent()!=owner)return;
+        var feedback=ClearingRegionFeedback.of(owner);
+        if(feedback!=null)feedback.complete(result,geometry->{
+            if(toolTab.getContent()==owner && runningJob==null)plotAreaView.setCoverageResidual(geometry);
+        });
     }
 
     private void generateGeometryCncJob(TreeItem<String> item, GeometryEntry entry, GeometryCncToolPanel.Result draft) {

@@ -11313,7 +11313,7 @@
     "canonical": false
   },
   "ui.75543b5fbb07": {
-    "source": "Paint: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d.",
+    "source": "Paint: %d caminhos, comprimento total=%.4f, %d ferramenta(s), polígonos sem trajetos=%d.",
     "locations": [
       "MainWindow.java"
     ],
@@ -12242,7 +12242,7 @@
     "canonical": false
   },
   "ui.cb92cd552a9f": {
-    "source": "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), falhas=%d, bounds=%s",
+    "source": "NCC: %d caminhos, comprimento total=%.4f, %d ferramenta(s), polígonos sem trajetos=%d, bounds=%s",
     "locations": [
       "MainWindow.java"
     ],
@@ -28613,6 +28613,76 @@
     "source": "A origem ou a referência mudou ou foi removida. Escolha o objeto e selecione os polígonos novamente.",
     "locations": [
       "PaintToolPanel.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.title": {
+    "source": "Regiões da última execução — Lines / Combo",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.limit": {
+    "source": "Resultado dos parâmetros enviados na última execução; editar os campos não atualiza estes destaques. Cada fresa é avaliada antes da próxima fresa do Rest. Uma região com trajeto ainda pode conter material: confira a análise de cobertura no CNC Job.",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.unreachable": {
+    "source": "Fresa não cabe: %d",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.supplemented": {
+    "source": "Varredura complementada: %d",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.unserved": {
+    "source": "Alcançáveis sem trajeto: %d",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.unreachable.help": {
+    "source": "Fresa não cabe\nMostra as regiões cujo espaço para o centro da fresa desapareceu ao descontar seu raio.\nNo Rest, uma fresa menor pode alcançá-las depois; não são necessariamente falhas de geração.",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.supplemented.help": {
+    "source": "Passada complementar\nDestaca o espaço seguro para o centro da fresa nas ilhas que a grade de varredura não atingiu.\nUma passada paralela foi acrescentada, respeitando o ângulo e mantendo Contour desligado. Isso não comprova cobertura integral.",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.unserved.help": {
+    "source": "Região alcançável sem trajeto\nHá espaço para o centro da fresa, mas o método não produziu uma passada nesse componente.\nRevise o método e os parâmetros antes de gerar ou exportar o G-code. O destaque não representa toda a área residual.",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.hide": {
+    "source": "Ocultar destaque das regiões",
+    "locations": [
+      "ClearingRegionFeedback.java"
+    ],
+    "canonical": false
+  },
+  "clearing.regions.hide.help": {
+    "source": "Remove apenas o destaque de diagnóstico do Plot Area. Não altera os trajetos nem os objetos do projeto.",
+    "locations": [
+      "ClearingRegionFeedback.java"
     ],
     "canonical": false
   }
