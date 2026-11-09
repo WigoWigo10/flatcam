@@ -78,6 +78,8 @@ public final class BetaSmokeProbe {
             programs.put(drillCnc,window.exportGcode(drillCnc,"",""));window.writeGcode(drillCnc,output.resolve("Drilling.nc"),"","");
             checkZPolicies();
             checkEditorFileSaves(output);
+            checkEditorNavigation(programs.keySet().iterator().next());
+            checkPaintAngle();
             var names=window.objectNames();
             Path nativeProject=output.resolve("Painel-testado.fcnproj"),pythonProject=output.resolve("Painel-testado.FlatPrj");
             window.saveProject(nativeProject);window.saveProject(pythonProject);
@@ -106,7 +108,10 @@ public final class BetaSmokeProbe {
                             "G-code original save and copy save","Cancel help and saved files preserved","CAM table undo and redo",
                             "Excellon properties diameter edit Plot undo redo and project persistence",
                             "internal cutout panel preview footprint validation CNC and project reopen",
-                            "four language catalogs and SVG language flags")).toString(2));
+                            "four language catalogs and SVG language flags",
+                            "four active editors preserve their panel when opening other tools",
+                            "NCC explicit Lines angle and native draft reopen",
+                            "Paint explicit Lines angle reaches generated segments")).toString(2));
             System.out.println("PASS beta smoke "+AboutInfo.version()+" "+args[2]);
         } catch(Throwable error) {error.printStackTrace();exit=1;}
         finally {
@@ -312,7 +317,7 @@ public final class BetaSmokeProbe {
             check(inventory.equals(Set.copyOf(window.objectNames())),"Table Delete removed a project object");
             return null;
         });
-        for(int run=0;run<(tool.equals("NCC") ? 2 : 1);run++) {
+        for(int run=0;run<(tool.equals("NCC") ? 3 : 1);run++) {
             int current=run;
             var before=fx(()->Set.copyOf(map("geometryByItem").keySet()));
             fx(()-> {
@@ -328,7 +333,11 @@ public final class BetaSmokeProbe {
                     editor.setText("0,1981234567");
                 }
                 if(tool.equals("NCC")) {
-                    ((ComboBox<NccMethod>)form.lookup("#ncc-method")).setValue(current==0 ? NccMethod.SEED : NccMethod.STANDARD);
+                    ((ComboBox<NccMethod>)form.lookup("#ncc-method")).setValue(current==0 ? NccMethod.SEED : current==1 ? NccMethod.STANDARD : NccMethod.LINES);
+                    if(current==2) {
+                        ((CheckBox)form.lookup("#ncc-angle-auto")).setSelected(false);
+                        ((TextField)form.lookup("#ncc-angle-degrees")).setText("37,5123456");
+                    }
                     if(current==0) {
                         ((Spinner<?>)form.lookup("#ncc-margin")).getEditor().setText("1.7");
                         ((Spinner<?>)form.lookup("#ncc-overlap")).getEditor().setText("37.5");
@@ -347,7 +356,8 @@ public final class BetaSmokeProbe {
                 var tools=(List<org.flatcam.cam.geometry.ToolGeometry>)method.invoke(created.getFirst().getValue());
                 check(tools.size()==1 && tools.getFirst().toolDiameter()==diameter,"Generated geometry lost the user diameter");
                 if(tool.equals("NCC")) {
-                    check(((ComboBox<?>)form.lookup("#ncc-method")).getValue()==(current==0 ? NccMethod.SEED : NccMethod.STANDARD),"NCC method reset");
+                    check(((ComboBox<?>)form.lookup("#ncc-method")).getValue()==(current==0 ? NccMethod.SEED : current==1 ? NccMethod.STANDARD : NccMethod.LINES),"NCC method reset");
+                    if(current==2)check(((TextField)form.lookup("#ncc-angle-degrees")).getText().equals("37,5123456"),"NCC angle reset");
                     check(((Spinner<?>)form.lookup("#ncc-margin")).getEditor().getText().equals("1.7"),"NCC margin reset");
                     check(((Spinner<?>)form.lookup("#ncc-overlap")).getEditor().getText().equals("37.5"),"NCC overlap reset");
                 }
@@ -366,12 +376,65 @@ public final class BetaSmokeProbe {
             var source=item("gerberByItem","Copper");
             call("generateNcc",new Class<?>[]{TreeItem.class,GerberImage.class},source,(GerberImage)map("gerberByItem").get(source));
             var form=((ScrollPane)((Tab)field("toolTab")).getContent()).getContent();
-            check(((ComboBox<?>)form.lookup("#ncc-method")).getValue()==NccMethod.STANDARD,"Native project lost NCC method");
+            check(((ComboBox<?>)form.lookup("#ncc-method")).getValue()==NccMethod.LINES,"Native project lost NCC method");
+            check(!((CheckBox)form.lookup("#ncc-angle-auto")).isSelected(),"Native project lost explicit NCC direction");
+            check(((TextField)form.lookup("#ncc-angle-degrees")).getText().equals("37,5123456"),"Native project lost NCC angle precision");
             check(((Spinner<?>)form.lookup("#ncc-margin")).getEditor().getText().equals("1.7"),"Native project lost NCC margin");
             var table=(TableView<?>)form.lookup("#ncc-tools");
             check(((Number)table.getColumns().get(1).getCellData(0)).doubleValue()==.1981234567,"Native project lost NCC tool precision");
             return null;
         });
+    }
+    private static void checkEditorNavigation(String cncName) throws Exception {
+        fx(()-> {
+            for(String kind:List.of("Geometry","Gerber","Excellon","GCode")) {
+                String mapName=switch(kind){case "Gerber"->"gerberByItem";case "Excellon"->"excellonByItem";case "GCode"->"cncJobByItem";default->"geometryByItem";};
+                TreeItem<String> source=item(mapName,kind.equals("GCode") ? cncName : kind.equals("Geometry") ? "Edge_Cuts_area" : kind.equals("Gerber") ? "Copper" : "Drills");
+                call("selectProjectItem",new Class<?>[]{TreeItem.class},source);
+                call("editSelected"+kind,new Class<?>[]{});
+                var controller=field(kind.equals("GCode") ? "gcodeEditor" : kind.toLowerCase(Locale.ROOT)+"Editor");
+                var active=controller.getClass().getDeclaredMethod("isActive");active.setAccessible(true);
+                check(Boolean.TRUE.equals(active.invoke(controller)),kind+" editor did not open");
+                var tab=(Tab)field("toolTab");var panel=tab.getContent();String title=tab.getText();
+                ((Runnable)call("toolAction",new Class<?>[]{String.class},"calculators")).run();
+                call("openPanelizeTool",new Class<?>[]{});
+                check(tab.getContent()==panel && tab.getText().equals(title) && Boolean.TRUE.equals(active.invoke(controller)),kind+" editor stranded by navigation");
+                var cancel=controller.getClass().getDeclaredMethod("cancel");cancel.setAccessible(true);cancel.invoke(controller);
+                check(Boolean.FALSE.equals(active.invoke(controller)) && tab.getContent()!=panel,kind+" editor cannot exit");
+            }
+            return null;
+        });
+    }
+    private static void checkPaintAngle() throws Exception {
+        var parameters=fx(()-> {
+            var output=new java.util.concurrent.atomic.AtomicReference<PaintParameters>();var source=new TreeItem<String>("angle");
+            var geometry=new org.locationtech.jts.geom.GeometryFactory().toGeometry(new org.locationtech.jts.geom.Envelope(0,10,0,8));
+            var form=PaintToolPanel.build(new PaintToolPanel.Host() {
+                public List<TreeItem<String>> sources(){return List.of(source);}public TreeItem<String> initialSource(){return source;}
+                public String units(TreeItem<String> item){return "MM";}public org.locationtech.jts.geom.Geometry polygons(TreeItem<String> item){return geometry;}
+                public void pickPoint(java.util.function.Consumer<org.locationtech.jts.geom.Coordinate> callback){}public void cancelPick(){}
+                public void selectArea(org.locationtech.jts.geom.Geometry area,boolean polygon,java.util.function.Consumer<org.locationtech.jts.geom.Geometry> done,Runnable cancel){}
+                public void cancelAreaSelection(){}public void preview(org.locationtech.jts.geom.Geometry area){}
+                public void paint(TreeItem<String> item,String units,org.locationtech.jts.geom.Geometry area,PaintParameters p){output.set(p);}
+            },()->{});
+            var root=new javafx.scene.layout.VBox(form);new javafx.scene.Scene(root,540,1300);root.applyCss();root.layout();
+            ((ComboBox<NccMethod>)form.lookup("#paint-method")).setValue(NccMethod.LINES);
+            ((CheckBox)form.lookup("#paint-angle-auto")).setSelected(false);
+            ((TextField)form.lookup("#paint-angle-degrees")).setText("37,5123456");
+            ((Button)form.lookup("#paint-generate")).fire();
+            var result=output.get();check(result!=null,"Paint angle request rejected");
+            check(result.settingsFor(result.toolDiameters().getFirst()).lineAngleDegrees()==37.5123456,"Paint angle precision lost");
+            return result;
+        });
+        double diameter=parameters.toolDiameters().getFirst();
+        var settings=new PaintToolSettings(.3,0,NccMethod.LINES,false,false,parameters.settingsFor(diameter).lineAngleDegrees());
+        var area=new org.locationtech.jts.geom.GeometryFactory().toGeometry(new org.locationtech.jts.geom.Envelope(0,10,0,8));
+        var result=NccGenerator.paint("MM",area,new PaintParameters(List.of(diameter),.3,0,NccMethod.LINES,false,false,NccOrder.NONE,false,Map.of(diameter,settings)),org.flatcam.cam.CancellationToken.NONE,org.flatcam.cam.ProgressCallback.none());
+        check(!result.isEmpty(),"Explicit angle produced no Paint paths");
+        for(int i=0;i<result.geometry().getNumGeometries();i++) {
+            var c=result.geometry().getGeometryN(i).getCoordinates();check(c.length==2,"Unexpected Paint raster shape");
+            check(Math.abs(Math.sin(Math.atan2(c[1].y-c[0].y,c[1].x-c[0].x)-Math.toRadians(37.5123456)))<1e-10,"Paint segments ignored requested angle");
+        }
     }
     private static void check(boolean value,String message) {if(!value)throw new IllegalStateException(message);}
     private static <T> T fx(Callable<T> action) throws Exception {var task=new FutureTask<T>(action);Platform.runLater(task);return task.get(20,TimeUnit.SECONDS);}

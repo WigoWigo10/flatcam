@@ -1,16 +1,18 @@
 # FlatCAM FX
 
-## Beta 0.1.0-beta.5
+## Beta 0.1.0-beta.6
 
 Pacotes Windows x64 com Java incluído: instalador EXE/MSI por usuário e ZIP
-portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.5.md),
+portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.6.md),
 [geração e validação](release/BUILD_BETA.md). Artefatos são gerados localmente
 em `target/releases`; não há publicação automática ou paridade integral prometida.
-[Validação da Beta 5](release/VALIDACAO-0.1.0-beta.5.md).
+[Validação da distribuição anterior, Beta 5](release/VALIDACAO-0.1.0-beta.5.md).
 
-A Beta 5 acrescenta recortes internos com prévia compensada, legenda, validação
-e tooltips, além de Espanhol/Francês e ícones SVG no seletor de idiomas.
-MSI 0.1.50 mantém a família de atualização das Betas anteriores.
+A Beta 6 permite definir o ângulo de varredura Lines por fresa em NCC/Paint e
+preserva o acesso aos quatro editores ao tentar abrir outra ferramenta.
+MSI 0.1.60 mantém a família de atualização das Betas anteriores.
+As repetições de trajetos identificadas na auditoria Lines continuam pendentes;
+veja [resultados e limites](LINES_RAW_PATH_AUDIT.md).
 
 Reimplementação gradual do FlatCAM Python/PyQt5 em Java 25 + JavaFX. O projeto
 já oferece uma fatia funcional para carregar e exibir Gerber/Excellon, executar

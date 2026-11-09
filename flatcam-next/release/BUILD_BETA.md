@@ -10,17 +10,17 @@ esses requisitos são só de quem gera a distribuição.
 .\test-beta.ps1
 ```
 
-Na Beta 5, o probe dos JARs distribuídos também exercita o painel de recortes
-internos, recusa de fresa inviável, faixa de corte, geração/CNC e persistência nos
-dois formatos de projeto. Confere catálogos e SVGs dos quatro idiomas. Para o
-caminho de atualização mais recente, forneça o MSI da Beta 4 revisão 1 em
-`-PreviousMsi`; a candidata Beta 5 usa MSI 0.1.50.
+Na Beta 6, o probe dos JARs distribuídos também exercita o ângulo explícito Lines
+em NCC/Paint, sua persistência no rascunho NCC e a navegação nos quatro editores.
+Mantém os ensaios de recortes internos, geração/CNC, projetos e quatro idiomas.
+Para o caminho de atualização mais recente, forneça o MSI entregue da Beta 5 em
+`-PreviousMsi`; a candidata Beta 6 usa MSI 0.1.60.
 
 Para validar também a atualização da Beta anterior, use o MSI realmente
 distribuído na rodada anterior:
 
 ```powershell
-.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.3-windows-x64-setup.msi"
+.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.5-windows-x64-setup.msi"
 ```
 
 O teste recusa substituir uma instalação do usuário. Instala a versão antiga
@@ -47,8 +47,8 @@ caminhos de atualização, forneça os MSIs anteriores como array:
 `flatcam.beta.revision` no POM distingue revisões da mesma Beta (0..9).
 Arquivos/notas/manifesto usam `-rN` quando N > 0; a versão Maven/app permanece
 a mesma. A versão MSI agora reserva dez builds por Beta:
-`major.minor.(patch*1000 + beta*10 + revisão)`. Beta 4 r1 = 0.1.41; uma futura
-Beta 5 r0 = 0.1.50. MSIs antigos 0.1.3/0.1.4 continuam abaixo e a família
+`major.minor.(patch*1000 + beta*10 + revisão)`. Beta 4 r1 = 0.1.41;
+Beta 5 r0 = 0.1.50; Beta 6 r0 = 0.1.60. MSIs antigos 0.1.3/0.1.4 continuam abaixo e a família
 permanece. O verificador compara versões MSI numéricas, permitindo atualizar
 uma revisão da mesma versão do app. Conferir o commit nos JARs impede aceitar
 o JAR anterior quando o nome do arquivo não muda. A revisão do ponteiro padrão

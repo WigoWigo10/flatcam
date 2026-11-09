@@ -175,7 +175,8 @@ try {
     $report=[ordered]@{status='PASS';version=$manifest.version;betaRevision=$manifest.betaRevision;releaseLabel=$manifest.releaseLabel;installerVersion=$manifest.installerVersion;sourceCommit=$manifest.sourceCommit;dirty=$manifest.dirty;
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
-        camDraftAndDiameterEditing='PASS';perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
+        camDraftAndDiameterEditing='PASS';activeEditorNavigation='PASS';linesAnglesNccAndPaint='PASS';nccAngleProjectPersistence='PASS';
+        perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
         upgrades=$upgrades;excellonObjectDiameterEditing='PASS';internalCutoutPreviewAndGeneration='PASS';fourLanguageCatalogsAndSvgFlags='PASS';
         machiningZPolicies='PASS';gcodeOriginalAndCopySave='PASS';cancelPreservesSavedFiles='PASS';camTableUndoRedo='PASS';
         projectPreservationScope='Outside installation directory; legacy uninstall deletes extra files inside app directory';
