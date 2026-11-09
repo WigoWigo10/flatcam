@@ -4,6 +4,15 @@ from audit_lines_paths import audit,overlap_example
 
 
 class RawLinesAuditTest(unittest.TestCase):
+    def test_a_path_in_a_large_component_does_not_hide_an_unserved_small_island(self):
+        area=box(0,0,10,6).union(Point(12,1.05).buffer(.21,resolution=64))
+        raw=LineString([(.21,1),(9.79,1)])
+        before=audit(raw,area,Point(20,20).buffer(1),.4,False)
+        self.assertEqual(1,before['regions']['unservedReachableComponentCount'])
+        fixed=GeometryCollection([raw,LineString([(11.995,1.05),(12.005,1.05)])])
+        after=audit(fixed,area,Point(20,20).buffer(1),.4,False)
+        self.assertEqual(0,after['regions']['unservedReachableComponentCount'])
+        self.assertEqual('NOT_MEASURED',after['coverageStatus'])
     def test_reversed_duplicate_is_seen_before_spatial_union(self):
         a=LineString([(1,1),(9,1)]);raw=GeometryCollection([a,LineString(list(a.coords)[::-1])])
         result=audit(raw,box(0,0,10,5),Point(20,20).buffer(1),1)

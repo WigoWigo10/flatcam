@@ -45,6 +45,17 @@ def audit(raw, area, copper, diameter, compute_coverage=True):
             'repeatedCenterlinePercent':duplicate/raw.length*100 if raw.length else 0,
             'openEndpointCount':open_ends,'interiorEndpointCount':len(interior),
             'endpointTolerance':tolerance,'interiorEndpointExamples':interior[:8]}
+    # Independent GEOS check of omitted components, not the FX diagnostic counters.
+    # This is intentionally NOT a swept-material coverage measurement.
+    from shapely.strtree import STRtree
+    path_index=STRtree(paths) if paths else None
+    unserved=[]
+    for component in polygons(safe):
+        if path_index is None or not any(component.intersection(path).length>0 for path in path_index.query(component)):
+            unserved.append(component)
+    result['regions']={'reachableComponentCount':len(polygons(safe)),
+                      'unservedReachableComponentCount':len(unserved),
+                      'unservedCutterCenterArea':sum(part.area for part in unserved)}
     if not compute_coverage:
         result['coverage']=None
         result['coverageStatus']='NOT_MEASURED'
@@ -52,6 +63,12 @@ def audit(raw, area, copper, diameter, compute_coverage=True):
         result['coverage']=footprint_metrics(spatial,area,copper,diameter)
     else:result['coverage']=None
     return result
+
+
+def polygons(geometry):
+    if geometry.is_empty:return []
+    if geometry.geom_type=='Polygon':return [geometry]
+    return [polygon for part in getattr(geometry,'geoms',[]) for polygon in polygons(part)]
 
 
 def overlap_example(raw):
@@ -94,7 +111,7 @@ def main():
             cached=cache/(file.stem+('-raw.json' if args.skip_coverage else '-coverage.json'))
             if cached.exists():
                 saved=json.loads(cached.read_text(encoding='utf-8'))
-                if saved.get('inputSha256')==digest and saved.get('auditVersion')==2:
+                if saved.get('inputSha256')==digest and saved.get('auditVersion')==3:
                     records.append(saved['result']);print(file.stem,'cached',flush=True);continue
             case=json.loads(content)
             if case['status']!='GENERATED':
@@ -102,7 +119,7 @@ def main():
             raw=wkt.loads(case['rawPathsWkt']);area=wkt.loads(case['clearingAreaWkt']);copper=wkt.loads(case['copperWkt'])
             record={k:case[k] for k in ['id','board','units','operation','connect','contour','failedPolygons','diameter']}
             record.update(audit(raw,area,copper,case['diameter'],not args.skip_coverage));records.append(record)
-            cached.write_text(json.dumps({'inputSha256':digest,'auditVersion':2,'result':record},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+            cached.write_text(json.dumps({'inputSha256':digest,'auditVersion':3,'result':record},ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
             print(record['id'],record['repeatedCenterlineLength'],record['interiorEndpointCount'],flush=True)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     args.output.write_text(json.dumps({'schema':1,'scope':'Raw FX path audit; no machine or Python execution/order claim',

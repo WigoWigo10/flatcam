@@ -164,10 +164,10 @@ public final class NccGenerator {
             }
             int toolIndex = t;
             int toolCount = orderedTools.size();
-            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, settings, params.restMachining(), cancellation,
+            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, settings, params.restMachining(), params.restMachining(), cancellation,
                     fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
             toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures(),
-                    NccOperation.CLEAR, areaForThisTool));
+                    NccOperation.CLEAR, areaForThisTool, toolClear.diagnostics()));
             if (!toolClear.geometry().isEmpty()) {
                 combinedPaths.add(toolClear.geometry());
             }
@@ -224,9 +224,9 @@ public final class NccGenerator {
             int index = t;
             ToolClearResult result = areaForTool.isEmpty()
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
-                    : clearArea(areaForTool, diameter, settings, false, cancellation,
+                    : clearArea(areaForTool, diameter, settings, false, params.restMachining(), cancellation,
                             fraction -> progress.report((index + fraction) / tools.size()));
-            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR,areaForTool));
+            toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR,areaForTool,result.diagnostics()));
             if (!result.geometry().isEmpty()) {
                 combinedPaths.add(result.geometry());
             }
@@ -324,12 +324,16 @@ public final class NccGenerator {
         return tools;
     }
 
-    private record ToolClearResult(Geometry geometry, Geometry footprint, int failures) {
+    private record ToolClearResult(Geometry geometry, Geometry footprint, int failures, NccRegionDiagnostics diagnostics) {
+        ToolClearResult(Geometry geometry,Geometry footprint,int failures){this(geometry,footprint,failures,null);}
+    }
+    private record PolygonPaths(List<LineString> paths,Geometry safeArea,List<Polygon> supplemented) {
+        PolygonPaths(List<LineString> paths){this(paths,null,List.of());}
     }
 
     /** Clears every polygon in {@code area} with one tool, and reports the actual swept footprint (for Rest Machining). */
     private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccToolSettings settings,
-                                             boolean nccRest,
+                                             boolean nccRest, boolean computeFootprint,
                                              CancellationToken cancellation, DoubleConsumer progressWithinTool) {
         GeometryFactory factory = area.getFactory();
         List<Polygon> polygons = new ArrayList<>();
@@ -337,6 +341,8 @@ public final class NccGenerator {
         List<LineString> allPaths = new ArrayList<>();
         List<Geometry> footprints = new ArrayList<>();
         int failures = 0;
+        boolean diagnose=settings.method()==NccMethod.LINES || settings.method()==NccMethod.COMBO;
+        var unreachable=new ArrayList<Geometry>();var supplemented=new ArrayList<Geometry>();var unserved=new ArrayList<Geometry>();
         // GUI NCC Rest differs from the Tcl implementation: Shapely's default
         // resolution (16), tool/1.9999999 and a final +1e-7 repair buffer.
         // Preserve Paint's independent conservative footprint policy.
@@ -348,10 +354,19 @@ public final class NccGenerator {
             // this cutter for the next smaller tool. They are not algorithm
             // failures and must not make an otherwise completed Rest job partial.
             if (nccRest && preciseRoundBuffer(polygon, -toolDiameter / 2.0).isEmpty()) {
+                if(diagnose)unreachable.add(polygon);
                 progressWithinTool.accept((i + 1.0) / Math.max(1, polygons.size()));
                 continue;
             }
-            List<LineString> paths = clearPolygon(polygon, toolDiameter, settings, cancellation);
+            var polygonPaths=clearPolygon(polygon, toolDiameter, settings, cancellation);
+            List<LineString> paths = polygonPaths.paths();
+            if(polygonPaths.safeArea()!=null) {
+                if(polygonPaths.safeArea().isEmpty())unreachable.add(polygon);
+                // Contour explicitly appends every safe component's complete boundary.
+                // Re-intersecting those dense rings cannot reveal an omitted component.
+                else if(!settings.contour())unserved.addAll(LinesRasterRefinement.unvisitedComponents(polygonPaths.safeArea(),paths,cancellation));
+                supplemented.addAll(polygonPaths.supplemented());
+            }
             if (paths.isEmpty()) {
                 failures++;
             } else {
@@ -361,7 +376,9 @@ public final class NccGenerator {
                     paths = connectSafePaths(paths, polygon, toolDiameter, factory, cancellation);
                 }
                 allPaths.addAll(paths);
-                for (LineString path : paths) {
+                // Swept areas feed only the next Rest cutter. Buffering and unioning
+                // thousands of paths otherwise wastes time and can trigger costly overlay repairs.
+                if(computeFootprint)for (LineString path : paths) {
                     footprints.add(nccRest
                             ? GeosBufferOp.bufferOp(path,footprintRadius,new BufferParameters(16))
                             : path.buffer(footprintRadius, QUADRANT_SEGMENTS));
@@ -387,7 +404,9 @@ public final class NccGenerator {
         } else {
             footprint = footprints.isEmpty() ? factory.createGeometryCollection() : OverlayNGRobust.union(footprints);
         }
-        return new ToolClearResult(geometry, footprint, failures);
+        var diagnostics=diagnose ? new NccRegionDiagnostics(factory.buildGeometry(unreachable),
+                factory.buildGeometry(supplemented),factory.buildGeometry(unserved)) : null;
+        return new ToolClearResult(geometry, footprint, failures, diagnostics);
     }
 
     private static Geometry prepareBoundary(Geometry geometry, NccParameters params,
@@ -430,21 +449,22 @@ public final class NccGenerator {
         return GeosBufferOp.bufferOp(geometry, distance, parameters);
     }
 
-    private static List<LineString> clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,
+    private static PolygonPaths clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                   CancellationToken cancellation) {
         return switch (settings.method()) {
-            case STANDARD -> standardPaths(polygon, toolDiameter, settings, cancellation);
-            case SEED -> seedPaths(polygon, toolDiameter, settings, cancellation);
+            case STANDARD -> new PolygonPaths(standardPaths(polygon, toolDiameter, settings, cancellation));
+            case SEED -> new PolygonPaths(seedPaths(polygon, toolDiameter, settings, cancellation));
             case LINES -> linePaths(polygon, toolDiameter, settings, cancellation);
             case COMBO -> {
-                List<LineString> paths = linePaths(polygon, toolDiameter, settings, cancellation);
+                var raster = linePaths(polygon, toolDiameter, settings, cancellation);
+                List<LineString> paths = raster.paths();
                 if (paths.isEmpty()) {
                     paths = seedPaths(polygon, toolDiameter, settings, cancellation);
                 }
                 if (paths.isEmpty()) {
                     paths = standardPaths(polygon, toolDiameter, settings, cancellation);
                 }
-                yield paths;
+                yield new PolygonPaths(paths,raster.safeArea(),raster.supplemented());
             }
         };
     }
@@ -537,14 +557,14 @@ public final class NccGenerator {
     }
 
     /** Parallel raster strategy: the legacy clear_polygon3() method. */
-    private static List<LineString> linePaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
+    private static PolygonPaths linePaths(Polygon polygon, double toolDiameter, NccToolSettings settings,
                                                CancellationToken cancellation) {
         List<LineString> paths = new ArrayList<>();
         double toolRadius = toolDiameter / 1.99999999;
         double step = toolDiameter * (1.0 - settings.overlapFraction());
         Geometry safeArea = preciseRoundBuffer(polygon, -toolRadius);
         if (safeArea.isEmpty()) {
-            return paths;
+            return new PolygonPaths(paths,safeArea,List.of());
         }
         Envelope envelope = polygon.getEnvelopeInternal();
         GeometryFactory factory = polygon.getFactory();
@@ -559,7 +579,8 @@ public final class NccGenerator {
             envelope = toScan.transform(polygon).getEnvelopeInternal();
             safeArea = toScan.transform(safeArea);
         }
-        if (settings.lineAngleDegrees() != null || envelope.getWidth() >= envelope.getHeight()) {
+        boolean horizontal=settings.lineAngleDegrees() != null || envelope.getWidth() >= envelope.getHeight();
+        if (horizontal) {
             int row = 0;
             for (double y = envelope.getMaxY() - toolRadius;
                  y >= envelope.getMinY() + toolRadius; y -= step, row++) {
@@ -588,13 +609,23 @@ public final class NccGenerator {
                 paths.addAll(columnLines);
             }
         }
+        var supplemented=new ArrayList<Polygon>();
+        // Combo keeps its Seed/Standard fallback when the entire raster is empty.
+        if(!settings.contour() && (settings.method()!=NccMethod.COMBO || !paths.isEmpty())) {
+            supplemented.addAll(LinesRasterRefinement.unvisitedComponents(safeArea,paths,cancellation));
+            LinesRasterRefinement.supplement(paths,supplemented,horizontal,cancellation);
+        }
+        if (settings.contour()) {
+            paths = LinesRasterRefinement.withoutContourOverlap(paths, safeArea.getBoundary(), cancellation);
+        }
         if (toWorld != null) {
             for (int i = 0; i < paths.size(); i++) paths.set(i, (LineString) toWorld.transform(paths.get(i)));
+            for (int i = 0; i < supplemented.size(); i++) supplemented.set(i,(Polygon)toWorld.transform(supplemented.get(i)));
         }
         if (settings.contour()) {
             collectBoundaryLines(worldSafeArea, paths);
         }
-        return paths;
+        return new PolygonPaths(paths,worldSafeArea,supplemented);
     }
 
     private static void reverseAll(List<LineString> lines) {

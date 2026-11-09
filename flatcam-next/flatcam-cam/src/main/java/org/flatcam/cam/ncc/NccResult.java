@@ -5,7 +5,8 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 
 /**
- * Resulting center-line toolpaths plus the non-copper area they cover.
+ * Resulting center-line toolpaths and the requested non-copper target area.
+ * The target is not a guarantee of complete swept coverage.
  * {@code toolResults} holds each tool's own contribution, in the order it was
  * processed (see NccGenerator) - mirrors Python's multigeo Geometry object,
  * where each NCC tool owns its own solid_geometry. {@code geometry} is every

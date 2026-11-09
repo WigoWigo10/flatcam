@@ -124,13 +124,13 @@ class NccGeneratorTest {
     @Test
     void restBuffersTheOverlappingSweptPathsBeforePreparingTheNextTool() throws Exception {
         var clear = NccGenerator.class.getDeclaredMethod("clearArea",Geometry.class,double.class,
-                NccToolSettings.class,boolean.class,CancellationToken.class,java.util.function.DoubleConsumer.class);
+                NccToolSettings.class,boolean.class,boolean.class,CancellationToken.class,java.util.function.DoubleConsumer.class);
         clear.setAccessible(true);
         for (double scale : List.of(1.,1/25.4)) {
             Geometry area = FACTORY.toGeometry(new Envelope(0,8*scale,0,6*scale))
                     .difference(FACTORY.createPoint(new Coordinate(3*scale,3*scale)).buffer(scale));
             Object result = clear.invoke(null,area,scale,
-                    new NccToolSettings(.4,NccMethod.STANDARD,true,true,0),true,
+                    new NccToolSettings(.4,NccMethod.STANDARD,true,true,0),true,true,
                     CancellationToken.none(),(java.util.function.DoubleConsumer)(v -> { }));
             var geometry = result.getClass().getDeclaredMethod("geometry");
             var footprint = result.getClass().getDeclaredMethod("footprint");
