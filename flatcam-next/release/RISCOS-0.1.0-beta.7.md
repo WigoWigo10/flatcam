@@ -5,6 +5,12 @@ Os escores priorizam ensaios; não representam taxas de incidentes medidas.
 As cinco correções estão em `a5a83060`; o relatório final deve identificar a
 fonte exata da candidata, resultados e exclusões, sem inferir homologação física.
 
+A primeira pré-candidata foi interrompida após uma contraprova adicional mostrar
+eventos de um Paint fechado cancelando a seleção da ferramenta seguinte. A
+liberação explícita desses eventos recebeu regressão própria e entrou também
+no probe empacotado, agora com 13 cenários. Preservar os logs interrompidos e
+executar novamente a suíte integral na fonte final.
+
 | Risco / gatilho | I × P | Evidência exigida | Limite |
 | --- | --- | --- | --- |
 | Abrir editor pelo contexto esconde uma sessão anterior | 4 × 3 = 12 | Matriz de 12 trocas entre editores, painel/saída/histórico preservados; contraprova na Beta 6; probe dos JARs | Rotas automatizadas, sem revisão manual de todos os gestos |

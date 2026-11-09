@@ -11,8 +11,9 @@ esses requisitos são só de quem gera a distribuição.
 ```
 
 Na Beta 7, cada imagem (portátil, instalada e atualizada) também executa os
-12 cenários da vistoria CAM: menus de editor, Paint com origem removida,
-cancelamento tardio, unidade fixa, polígonos agrupados e parâmetros por fresa.
+13 cenários CAM: menus de editor, Paint com origem removida,
+cancelamento tardio, unidade fixa, polígonos agrupados, parâmetros por fresa e
+preservação da seleção da ferramenta seguinte ao fechar o Paint.
 O relatório rejeita exclusões, erros do instrumento ou identidade divergente.
 Mantém ângulo Lines, rascunho NCC, recortes internos, CNC/projetos e idiomas.
 Forneça o MSI entregue da Beta 6 em `-PreviousMsi`; Beta 7 usa MSI 0.1.70.

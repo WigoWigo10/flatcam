@@ -90,4 +90,19 @@ class PaintSafetyTest {
         assertEquals(List.of(polygon),PaintToolPanel.polygonsOf(nested));
         assertEquals(List.of(polygon),PaintToolPanel.polygonsOf(F.createGeometryCollection(new Geometry[]{F.createMultiPolygon(new Polygon[]{polygon}),polygon.getBoundary(),F.createGeometryCollection()})));
     }
+    @Test void replacingPaintCannotCancelTheNextToolsPlacementWhenItsOldSourceIsRemoved()throws Exception {
+        try(var s=new MainCamFlowTest.Session("MM")) {
+            TerminalPanelTest.fx(()->{
+                MainToolPersistenceTest.call(s.window,"openPaintTool",new Class<?>[]{});
+                var oldPanel=MainToolPersistenceTest.panel(s);
+                MainToolPersistenceTest.call(s.window,"openToolPanel",new Class<?>[]{String.class,Node.class},"Other",new Label("other"));
+                var plot=(PlotAreaView)MainToolPersistenceTest.field(s.window,"plotAreaView");
+                plot.beginAreaRectanglePlacement(new PlotAreaView.PlacementHandler(){public void onAnchorChosen(double x,double y){}public void onCommit(double x,double y){}public void onCancel(){}});
+                assertTrue(plot.isPlacementActive());
+                MainToolPersistenceTest.call(s.window,"removeSelectionFromProject",new Class<?>[]{List.class},List.of(s.item));
+                assertTrue(plot.isPlacementActive(),"the detached Paint panel must not cancel another tool's gesture");
+                assertNotSame(oldPanel,((Tab)MainToolPersistenceTest.field(s.window,"toolTab")).getContent());return null;
+            });
+        }
+    }
 }

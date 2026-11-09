@@ -23,6 +23,8 @@ ativo sem seus comandos de saída.
   publicação na interface. Isso não desfaz uma Geometry já publicada.
 - Polígonos dentro de coleções com um único componente intermediário passam a
   ser reconhecidos pelo contador e pelos modos de seleção do Paint.
+- Fechar ou substituir o Paint libera seus eventos de origem. Remover um objeto
+  antigo não cancela uma seleção iniciada na ferramenta seguinte.
 
 ## Paint: unidade explícita do painel
 

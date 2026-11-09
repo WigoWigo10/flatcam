@@ -39,7 +39,7 @@ function Smoke-Image([string]$Image,[string]$Report,[string]$Classes,[string]$Ve
         @('-Djava.util.prefs.PreferencesFactory=org.flatcam.fx.CamRelatedAuditProbe$MemoryFactory')
     Run-Isolated (Join-Path $Image 'runtime\bin\java.exe') ($safetyVmOptions+@('org.flatcam.fx.CamRelatedAuditProbe',$safetyDirectory,'1')) (Join-Path $Report 'cam-safety.log') $Report
     $safety=Get-Content -LiteralPath (Join-Path $safetyDirectory 'ui-audit.json') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if($safety.failedCases -ne 0 -or $safety.oracleErrors -ne 0 -or $safety.cases.Count -ne 12 -or $safety.excludedCases.Count -ne 0 -or
+    if($safety.failedCases -ne 0 -or $safety.oracleErrors -ne 0 -or $safety.cases.Count -ne 13 -or $safety.excludedCases.Count -ne 0 -or
         $safety.version -ne $Version -or $safety.binarySource -ne $Revision -or $safety.classOverrides) {throw 'Packaged CAM safety audit failed, excluded cases, or loaded the wrong source.'}
     $diagnostic=Join-Path $Report 'diagnostics'
     $options=$vmOptions+@("-Dflatcam.diagnostics.session=$diagnostic",'-Dflatcam.splash.enabled=false',
@@ -184,7 +184,7 @@ try {
         checkedUtc=[DateTime]::UtcNow.ToString('o');externalDirectory=$outside;portable='PASS';perUserInstallAndUninstall=$installResult;
         nativeGpuAndSoftware='PASS';uiCamAndProjectReopen='PASS';diagnosticsAndJfr='PASS';
         camDraftAndDiameterEditing='PASS';activeEditorNavigation='PASS';linesAnglesNccAndPaint='PASS';nccAngleProjectPersistence='PASS';
-        camSafetyCases=12;paintStateAndUnits='PASS';latePaintCancellation='PASS';contextEditorNavigation='PASS';nestedPaintPolygonSelection='PASS';
+        camSafetyCases=13;paintStateAndUnits='PASS';latePaintCancellation='PASS';contextEditorNavigation='PASS';nestedPaintPolygonSelection='PASS';paintDetachedPanelCleanup='PASS';
         perUserUpgrade=$upgradeResult;previousVersion=$previousVersion;
         upgrades=$upgrades;excellonObjectDiameterEditing='PASS';internalCutoutPreviewAndGeneration='PASS';fourLanguageCatalogsAndSvgFlags='PASS';
         machiningZPolicies='PASS';gcodeOriginalAndCopySave='PASS';cancelPreservesSavedFiles='PASS';camTableUndoRedo='PASS';

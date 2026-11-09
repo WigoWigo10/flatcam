@@ -42,6 +42,7 @@ public final class CamRelatedAuditProbe {
             check("paint-source-unit-switch",CamRelatedAuditProbe::unitSwitch);
             check("paint-single-member-collection-selection",CamRelatedAuditProbe::singleCollection);
             check("paint-settings-survive-switch-and-apply-all",CamRelatedAuditProbe::paintSettings);
+            check("paint-detached-panel-keeps-next-tool-selection",CamRelatedAuditProbe::detachedPanel);
             var report=new JSONObject().put("schema",1).put("version",AboutInfo.version())
                     .put("binarySource",AboutInfo.build().getProperty("sourceRevision"))
                     .put("appJar",MainWindow.class.getProtectionDomain().getCodeSource().getLocation().toString())
@@ -210,6 +211,17 @@ public final class CamRelatedAuditProbe {
         return new JSONObject().put("ok",counted==1 && direct==1 && oneWrapper==1).put("uiSelectablePolygons",counted)
                 .put("directPolygonCount",direct).put("singleWrapperCount",oneWrapper).put("kernelAcceptedSameGeometry",!generated.isEmpty());
     });}
+    private static JSONObject detachedPanel()throws Exception {
+        try(var s=new Session("MM")){return fx(()->{
+            call(s.window,"openPaintTool",new Class<?>[]{});var oldPanel=((Tab)field(s.window,"toolTab")).getContent();
+            call(s.window,"openToolPanel",new Class<?>[]{String.class,Node.class},"Other",new Label("other"));
+            var plot=(PlotAreaView)field(s.window,"plotAreaView");
+            plot.beginAreaRectanglePlacement(new PlotAreaView.PlacementHandler(){public void onAnchorChosen(double x,double y){}public void onCommit(double x,double y){}public void onCancel(){}});
+            boolean before=plot.isPlacementActive();removeGerber(s);boolean after=plot.isPlacementActive();
+            return new JSONObject().put("ok",before && after && ((Tab)field(s.window,"toolTab")).getContent()!=oldPanel)
+                    .put("nextToolSelectionBefore",before).put("nextToolSelectionAfter",after);
+        });}
+    }
     private static JSONObject paintSettings()throws Exception {return fx(()->{
         var output=new AtomicReference<PaintParameters>();var shape=F.toGeometry(new Envelope(0,10,0,8));var source=new TreeItem<String>("fixture");
         var form=PaintToolPanel.build(new PaintToolPanel.Host(){

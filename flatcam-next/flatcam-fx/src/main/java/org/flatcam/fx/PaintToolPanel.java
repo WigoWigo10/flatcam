@@ -79,8 +79,15 @@ final class PaintToolPanel {
     }
 
     private static final GeometryFactory FACTORY = new GeometryFactory();
+    private static final String SOURCE_CLEANUP=PaintToolPanel.class.getName()+".sourceCleanup";
 
     private PaintToolPanel() {
+    }
+
+    /** A replaced/closed panel must not cancel picks belonging to the next tool. */
+    static void release(Node panel) {
+        var cleanup=panel.getProperties().remove(SOURCE_CLEANUP);
+        if (cleanup instanceof Runnable action) action.run();
     }
 
     /** Semicolon/space separates tools; a decimal comma is accepted. Legacy decimal-point comma lists remain readable. */
@@ -463,6 +470,7 @@ final class PaintToolPanel {
         panel.setPadding(new Insets(6));
         // Weak listeners cannot retain a closed Paint panel through a project TreeItem.
         var sourceListeners = new ArrayList<javafx.beans.value.ChangeListener<TreeItem<String>>>();
+        var sourceCleanup = new ArrayList<Runnable>();
         for (var item : compatible) {
             javafx.beans.value.ChangeListener<TreeItem<String>> removed = (observable, oldParent, newParent) -> {
                 if (oldParent != null && newParent == null) {
@@ -473,9 +481,14 @@ final class PaintToolPanel {
                     if (wasReference) referenceObject.setValue(null);
                 }
             };
-            sourceListeners.add(removed);item.parentProperty().addListener(new javafx.beans.value.WeakChangeListener<>(removed));
+            var weak=new javafx.beans.value.WeakChangeListener<>(removed);
+            sourceListeners.add(removed);item.parentProperty().addListener(weak);
+            sourceCleanup.add(()->item.parentProperty().removeListener(weak));
         }
         panel.getProperties().put("paint.sourceListeners",sourceListeners);
+        panel.getProperties().put(SOURCE_CLEANUP,(Runnable)()->{
+            sourceCleanup.forEach(Runnable::run);sourceCleanup.clear();sourceListeners.clear();
+        });
         var history = new CamTableHistory<>(panel, toolTable, () -> {
             if (!syncing[0]) editing[0].settings = capture.get();
             return toolTable.getItems().stream().map(row -> new ToolState(row.diameter, List.of(row.settings))).toList();

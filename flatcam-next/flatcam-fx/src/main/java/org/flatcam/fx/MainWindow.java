@@ -5174,7 +5174,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         TreeItem<String> initial = selectedObjects().stream().filter(sources::contains).findFirst().orElse(null);
         releaseActiveTool();
-        openToolPanel("Paint Tool", PaintToolPanel.build(new PaintToolPanel.Host() {
+        Node paintPanel = PaintToolPanel.build(new PaintToolPanel.Host() {
             @Override public List<LegacyToolsDatabase.PaintTool> databaseTools() {
                 return toolsDatabaseTools(LegacyToolsDatabase::paintTools);
             }
@@ -5246,8 +5246,9 @@ final class MainWindow implements TclFlatcamHost {
         }, () -> {
             plotAreaView.cancelPlacement();
             closeToolPanel();
-        }));
-        activeToolCleanup = this::clearToolOverlays;
+        });
+        openToolPanel("Paint Tool",paintPanel);
+        activeToolCleanup = () -> { PaintToolPanel.release(paintPanel); clearToolOverlays(); };
     }
 
     private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params) {
