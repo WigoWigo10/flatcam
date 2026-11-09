@@ -1,5 +1,24 @@
 # QA project context — FlatCAM FX
 
+Related CAM audit (2026-11-09), NOT a production fix: five confirmed issues in
+packaged Beta 6 c28019b7, also present in packaged Beta 5 8e2fcc18. Gerber context
+Edit bypasses other-editor guards (Geometry/Excellon/G-code), starts two editors
+and loses the original panel route; Paint publishes stale picked polygons after
+source removal before/during calculation; Paint MM->IN source switch reinterprets
+0.3 mm as 0.3 in, confirmed in generated Geometry (7.62 mm); Paint ignores a cancel
+requested after worker completion but before FX publication; polygonsOf drops
+unit-member nested GeometryCollections even though Paint core accepts them.
+12 UI scenarios x10: eight failed contracts x10, four passing controls x10,
+zero final instrument errors. Beta 5: same eight failures in one run each;
+angle control explicitly excluded because absent. No known-good baseline or
+introducing commit identified. NCC stale/cancel controls pass. Additional 96
+synthetic Lines distance cases MM/IN, two cutters, per-tool angles, Rest,
+Connect/Contour pass with 0.5%-diameter allowance for arc approximation; NOT
+whole-area coverage, duplicate-path, efficiency, FPS or physical CNC proof.
+See flatcam-next/VISTORIA_CAM_BETA6.md and tools/audit-cam-related.ps1. Raw
+evidence target/cam-related-audit-20261109-*. No app code/MSI/tag changed;
+do not call editor guards complete or Paint state lifecycle fully protected.
+
 Beta 6 release (2026-11-09): implementation 9e87ea55, binary source/tag
 v0.1.0-beta.6 = c28019b72b16ee65534c62ba9f7e4fdf02814f95, clean tree;
 app 0.1.0-beta.6 revision 0, MSI 0.1.60. Full verify: 2406 cases, 2388 passed,
@@ -41,7 +60,7 @@ The final capacitive manufacturing corpus uses the unmodified nested KiCad ZIP.
 Keep original license scopes (hardware CERN vs firmware MIT); audio's MIT is
 declared in its README, no standalone upstream LICENSE. No production fix here.
 
-Latest local correction (2026-11-09, not a new release): editor navigation trap
+Earlier implementation validation (2026-11-09, subsequently included in Beta 6): editor navigation trap
 reproduced in Geometry/Gerber/Excellon/G-code; unrelated tools now preserve and
 reveal the active editor until explicit completion/discard. Original MainWindow
 counterproof reproduced 40/40; restored fix passed 40/40. NCC and Paint now have
@@ -52,7 +71,8 @@ Lines pad coverage guards pass in both public generators, but the exact tester
 report of broken Lines was NOT reproduced; no private project/parameters supplied.
 Do not claim an established coverage bug fixed. See
 flatcam-next/LINES_AND_EDITOR_REVIEW.md for evidence and numerical limits.
-Original Beta 5 installers in Downloads remain unchanged; no new version/MSI.
+Original Beta 5 installers in Downloads remain unchanged; that implementation
+was subsequently included in the Beta 6 release recorded above.
 Follow-up rounded-pad comparison runs the original Python NCC GUI initializer
 and Paint clearing kernel on public shared pads: 16 controls, 8 MATCH_SAMPLED,
 8 DIFFERENT, zero oracle errors. All Connect-off cases match; all Connect-on

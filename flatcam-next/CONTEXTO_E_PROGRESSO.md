@@ -1,5 +1,25 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Vistoria dos fluxos próximos aos relatos — 2026-11-09
+
+Ver [VISTORIA_CAM_BETA6.md](VISTORIA_CAM_BETA6.md). **Cinco problemas confirmados,
+ainda sem correção de produção nesta rodada:** menu Editar do Gerber sobrepõe
+outro editor; Paint usa seleção/origem removida; troca MM → IN mantém diâmetro
+numérico e gera 0,3 in onde antes havia 0,3 mm; cancelamento tardio Paint não
+impede publicação; seletor Paint ignora coleções unitárias aninhadas válidas.
+Na Beta 6 empacotada, 12 cenários × 10 repetições: oito cenários falhos em
+10/10, quatro controles aprovados, zero erros finais do instrumento. Os mesmos
+oito cenários falham na Beta 5; não são regressões atribuídas ao novo ângulo.
+
+Mais 96 controles geométricos Lines NCC/Paint MM/IN com pads redondos,
+arredondados/cápsulas, ângulos por fresa, Rest/Connect/Contour passaram os
+critérios de afastamento (tolerância 0,5% do diâmetro). Não medem cobertura
+integral ou repetição e não encerram a auditoria Lines anterior.
+Probes reproduzíveis: `tools/audit-cam-related.ps1`; dados/logs em
+`target/cam-related-audit-20261109-*`. Nenhum MSI/tag/arquivo privado alterado.
+Próximo: corrigir as entradas de editor, revalidação/cancelamento Paint,
+unidades Paint e recursão do seletor; depois retornar aos trajetos repetidos.
+
 ## Beta 6 gerada e validada — 2026-11-09
 
 Alterações commitadas em **9e87ea55**; fonte exata dos binários/tag local
