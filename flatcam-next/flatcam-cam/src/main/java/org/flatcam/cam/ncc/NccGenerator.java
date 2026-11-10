@@ -19,6 +19,7 @@ import org.locationtech.jts.geom.LineString;
 import org.locationtech.jts.geom.MultiLineString;
 import org.locationtech.jts.geom.MultiPolygon;
 import org.locationtech.jts.geom.Polygon;
+import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.geom.util.AffineTransformation;
 import org.locationtech.jts.operation.buffer.BufferParameters;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
@@ -651,7 +652,16 @@ public final class NccGenerator {
             return source;
         }
         double maxWalk = 10 * toolDiameter;
-        List<LineString> remaining = new ArrayList<>(source);
+        // Fetch each read-only path's coordinate array once. Some sequence
+        // implementations materialize it; the default array sequence returns its array.
+        List<Coordinate[]> remaining = new ArrayList<>(source.size());
+        for (LineString path : source) {
+            cancellation.throwIfCancellationRequested();
+            remaining.add(path.getCoordinates());
+        }
+        // contains is the converse of within (not covers). Reuse the area's
+        // point/segment indexes while preserving the full swept-tool test.
+        var preparedArea = PreparedGeometryFactory.prepare(safeArea);
         List<LineString> connected = new ArrayList<>();
         List<Coordinate> current = new ArrayList<>();
         // Legacy paint_connect starts at the path nearest (0,0), preserving its
@@ -661,12 +671,12 @@ public final class NccGenerator {
         Coordinate origin = new Coordinate(0, 0);
         for (int i = 0; i < remaining.size(); i++) {
             cancellation.throwIfCancellationRequested();
-            Coordinate[] points = remaining.get(i).getCoordinates();
+            Coordinate[] points = remaining.get(i);
             double distance = Math.min(points[0].distance(origin), points[points.length - 1].distance(origin));
             if (distance < firstDistance) { firstIndex = i; firstDistance = distance; }
         }
-        LineString first = remaining.remove(firstIndex);
-        addCoordinates(current, first.getCoordinates(), false);
+        Coordinate[] first = remaining.remove(firstIndex);
+        addCoordinates(current, first, false);
 
         while (!remaining.isEmpty()) {
             cancellation.throwIfCancellationRequested();
@@ -675,7 +685,7 @@ public final class NccGenerator {
             boolean reverse = false;
             double bestDistance = Double.POSITIVE_INFINITY;
             for (int i = 0; i < remaining.size(); i++) {
-                Coordinate[] coordinates = remaining.get(i).getCoordinates();
+                Coordinate[] coordinates = remaining.get(i);
                 double toStart = end.distance(coordinates[0]);
                 double toEnd = end.distance(coordinates[coordinates.length - 1]);
                 if (toStart < bestDistance) {
@@ -689,14 +699,13 @@ public final class NccGenerator {
                     reverse = true;
                 }
             }
-            LineString next = remaining.remove(bestIndex);
-            Coordinate[] coordinates = next.getCoordinates();
+            Coordinate[] coordinates = remaining.remove(bestIndex);
             if (reverse) {
                 coordinates = reversed(coordinates);
             }
             boolean walkable = bestDistance < maxWalk
-                    && factory.createLineString(new Coordinate[]{end, coordinates[0]})
-                            .buffer(toolDiameter / 2.0, QUADRANT_SEGMENTS).within(safeArea);
+                    && preparedArea.contains(factory.createLineString(new Coordinate[]{end, coordinates[0]})
+                            .buffer(toolDiameter / 2.0, QUADRANT_SEGMENTS));
             if (walkable) {
                 addCoordinates(current, coordinates, true);
             } else {
