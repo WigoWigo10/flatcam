@@ -1,0 +1,970 @@
+{
+  "schema": 1,
+  "baselineRevision": "513cbccb",
+  "matrixComplete": true,
+  "expectedCases": 48,
+  "cases": [
+    {
+      "id": "air-quality-sensor-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 201.31766000444617,
+      "beforeMM2": {
+        "nominalUncut": 0.7386080693899606,
+        "stableUncut": 0.016380523153226013,
+        "stableCore": 1.1548078914005232e-08,
+        "precisionSensitiveUncut": 0.7222275462371064,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.7386080693899606,
+        "stableUncut": 0.016380523153226013,
+        "stableCore": 1.1548078914005232e-08,
+        "precisionSensitiveUncut": 0.7222275462371064,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "air-quality-sensor-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 201.31765673084487,
+      "beforeMM2": {
+        "nominalUncut": 4.973385099963267,
+        "stableUncut": 1.2207646696874732,
+        "stableCore": 1.1830165087882303,
+        "precisionSensitiveUncut": 3.7526196404180507,
+        "gcodeStableCore": 1.182085589422536
+      },
+      "afterMM2": {
+        "nominalUncut": 3.769087915303284,
+        "stableUncut": 0.016467540012838688,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 3.752620375290515,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "air-quality-sensor-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 201.31766000444617,
+      "beforeMM2": {
+        "nominalUncut": 1.9428754642798958,
+        "stableUncut": 1.2206477774638689,
+        "stableCore": 1.1829199722156027,
+        "precisionSensitiveUncut": 0.7222276868163002,
+        "gcodeStableCore": 1.1798248887187743
+      },
+      "afterMM2": {
+        "nominalUncut": 0.738704649279947,
+        "stableUncut": 0.01647701727372187,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.7222276320061921,
+        "gcodeStableCore": 4.631861645905808e-06
+      }
+    },
+    {
+      "id": "air-quality-sensor-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 201.31766000444617,
+      "beforeMM2": {
+        "nominalUncut": 0.7385939131225624,
+        "stableUncut": 0.016366366923846895,
+        "stableCore": 1.1548078914005232e-08,
+        "precisionSensitiveUncut": 0.7222275461990854,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.7385939131225624,
+        "stableUncut": 0.016366366923846895,
+        "stableCore": 1.1548078914005232e-08,
+        "precisionSensitiveUncut": 0.7222275461990854,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "air-quality-sensor-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 201.31765673084487,
+      "beforeMM2": {
+        "nominalUncut": 4.973764781954143,
+        "stableUncut": 1.2211443858452034,
+        "stableCore": 1.1833363365687888,
+        "precisionSensitiveUncut": 3.7526196035108343,
+        "gcodeStableCore": 1.1824483237565804
+      },
+      "afterMM2": {
+        "nominalUncut": 3.7690902138226408,
+        "stableUncut": 0.01646986548826799,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 3.7526203483343097,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "air-quality-sensor-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 201.31766000444617,
+      "beforeMM2": {
+        "nominalUncut": 1.9434454942517971,
+        "stableUncut": 1.2212177722977586,
+        "stableCore": 1.1834240408191756,
+        "precisionSensitiveUncut": 0.7222277219540808,
+        "gcodeStableCore": 1.1803419370454526
+      },
+      "afterMM2": {
+        "nominalUncut": 0.7386777648898828,
+        "stableUncut": 0.01645010652582133,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.722227658363882,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "audio-watermark-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 2482.7419386217766,
+      "beforeMM2": {
+        "nominalUncut": 0.051912355262347186,
+        "stableUncut": 0.051808291018378694,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.00010260639585305537,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.051912355262347186,
+        "stableUncut": 0.051808291018378694,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.00010260639585305537,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "audio-watermark-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 2482.7419290586026,
+      "beforeMM2": {
+        "nominalUncut": 38.75300922587237,
+        "stableUncut": 38.733983602210635,
+        "stableCore": 38.079894859944496,
+        "precisionSensitiveUncut": 0.019021664479144135,
+        "gcodeStableCore": 38.057356500547925
+      },
+      "afterMM2": {
+        "nominalUncut": 0.07187610089162245,
+        "stableUncut": 0.052854099110374635,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 0.019022016792569117,
+        "gcodeStableCore": 3.085042656218782e-08
+      }
+    },
+    {
+      "id": "audio-watermark-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 2482.7419386217766,
+      "beforeMM2": {
+        "nominalUncut": 38.733977836456404,
+        "stableUncut": 38.73387024866952,
+        "stableCore": 38.08001126667301,
+        "precisionSensitiveUncut": 0.00010759341455331847,
+        "gcodeStableCore": 37.99363185584951
+      },
+      "afterMM2": {
+        "nominalUncut": 0.05295571345113291,
+        "stableUncut": 0.05285178669108737,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.00010238958944178012,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "audio-watermark-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 2482.7419381191767,
+      "beforeMM2": {
+        "nominalUncut": 0.05191239421196543,
+        "stableUncut": 0.05180787362824101,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.0001030644518735005,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.05191239421196543,
+        "stableUncut": 0.05180787362824101,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.0001030644518735005,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "audio-watermark-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 2482.7412920315815,
+      "beforeMM2": {
+        "nominalUncut": 38.78169793382085,
+        "stableUncut": 38.762671940025946,
+        "stableCore": 38.102261231883425,
+        "precisionSensitiveUncut": 0.019022060095386487,
+        "gcodeStableCore": 38.07978561214082
+      },
+      "afterMM2": {
+        "nominalUncut": 0.07172801682898798,
+        "stableUncut": 0.05270570982092192,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 0.019020779161213183,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "audio-watermark-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 2482.741301594691,
+      "beforeMM2": {
+        "nominalUncut": 38.76268801537273,
+        "stableUncut": 38.76258004988545,
+        "stableCore": 38.1018775731487,
+        "precisionSensitiveUncut": 0.00010797091769364004,
+        "gcodeStableCore": 38.01582372638605
+      },
+      "afterMM2": {
+        "nominalUncut": 0.05308634935909664,
+        "stableUncut": 0.05298189722586066,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 0.00010446710828876711,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "breadboard-power-supply-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 447.57561231880055,
+      "beforeMM2": {
+        "nominalUncut": 0.011736597645490454,
+        "stableUncut": 0.011731146051816525,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.4533742056327265e-06,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.011736597645490454,
+        "stableUncut": 0.011731146051816525,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.4533742056327265e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "breadboard-power-supply-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 447.5756137406237,
+      "beforeMM2": {
+        "nominalUncut": 2.281927735500536,
+        "stableUncut": 2.2819232167554264,
+        "stableCore": 2.216980273745423,
+        "precisionSensitiveUncut": 4.518745015513577e-06,
+        "gcodeStableCore": 2.2150753202571787
+      },
+      "afterMM2": {
+        "nominalUncut": 0.011777889912530965,
+        "stableUncut": 0.01177387567169732,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.035771439490554e-06,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "breadboard-power-supply-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 447.57561231880055,
+      "beforeMM2": {
+        "nominalUncut": 2.2825324453515488,
+        "stableUncut": 2.2825268734345787,
+        "stableCore": 2.1005531626194904,
+        "precisionSensitiveUncut": 5.071597196655388e-06,
+        "gcodeStableCore": 2.2101928395018
+      },
+      "afterMM2": {
+        "nominalUncut": 0.01171926731055494,
+        "stableUncut": 0.011713818948221912,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.071597196655388e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "breadboard-power-supply-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 447.575612316827,
+      "beforeMM2": {
+        "nominalUncut": 0.011741736311182825,
+        "stableUncut": 0.011736283842506866,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.454305236489688e-06,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.011741736311182825,
+        "stableUncut": 0.011736283842506866,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.454305236489688e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "breadboard-power-supply-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 447.57561374347586,
+      "beforeMM2": {
+        "nominalUncut": 2.287964023369798,
+        "stableUncut": 2.287959857555246,
+        "stableCore": 2.2219014816999096,
+        "precisionSensitiveUncut": 4.167607265724697e-06,
+        "gcodeStableCore": 2.2200763595667485
+      },
+      "afterMM2": {
+        "nominalUncut": 0.011727593838585605,
+        "stableUncut": 0.011723571764510724,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.024174320421687e-06,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "breadboard-power-supply-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 447.5756123216525,
+      "beforeMM2": {
+        "nominalUncut": 2.287440181243803,
+        "stableUncut": 2.28743458019395,
+        "stableCore": 2.2213923511322715,
+        "precisionSensitiveUncut": 5.602211547374873e-06,
+        "gcodeStableCore": 2.213877173272972
+      },
+      "afterMM2": {
+        "nominalUncut": 0.011771614968271338,
+        "stableUncut": 0.011766165730106063,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.072226118954032e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "capacitive-keypad-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 56.27366388175942,
+      "beforeMM2": {
+        "nominalUncut": 0.0003400836048723326,
+        "stableUncut": 0.0003400445396095087,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.906523929729098e-08,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0003400836048723326,
+        "stableUncut": 0.0003400445396095087,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.906523929729098e-08,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "capacitive-keypad-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 56.27366388175944,
+      "beforeMM2": {
+        "nominalUncut": 0.30238157954497363,
+        "stableUncut": 0.30238150791783847,
+        "stableCore": 0.29758500019958395,
+        "precisionSensitiveUncut": 7.1627172269051e-08,
+        "gcodeStableCore": 0.2973828544121232
+      },
+      "afterMM2": {
+        "nominalUncut": 0.00038409226381032823,
+        "stableUncut": 0.00038402925969066327,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 6.300411457342553e-08,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "capacitive-keypad-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 56.27366388175942,
+      "beforeMM2": {
+        "nominalUncut": 0.30238157954480366,
+        "stableUncut": 0.3023815079178234,
+        "stableCore": 0.29758500019956874,
+        "precisionSensitiveUncut": 7.162698842025262e-08,
+        "gcodeStableCore": 0.29686042848832417
+      },
+      "afterMM2": {
+        "nominalUncut": 0.00038400125019292673,
+        "stableUncut": 0.0003839420464686037,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 5.9203746818737716e-08,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "capacitive-keypad-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 56.27366388175941,
+      "beforeMM2": {
+        "nominalUncut": 0.0003400836048507147,
+        "stableUncut": 0.0003400445396095086,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.906524109941188e-08,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0003400836048507147,
+        "stableUncut": 0.0003400445396095086,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.906524109941188e-08,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "capacitive-keypad-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 56.27366388175951,
+      "beforeMM2": {
+        "nominalUncut": 0.3023815795449737,
+        "stableUncut": 0.30238150791783847,
+        "stableCore": 0.29758500019958395,
+        "precisionSensitiveUncut": 7.162713531137087e-08,
+        "gcodeStableCore": 0.2973828544121232
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0003840012502899895,
+        "stableUncut": 0.0003839420464560693,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 5.9203834065618774e-08,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "capacitive-keypad-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 56.27366388175944,
+      "beforeMM2": {
+        "nominalUncut": 0.3023815795447907,
+        "stableUncut": 0.30238150791782337,
+        "stableCore": 0.29758500019956874,
+        "precisionSensitiveUncut": 7.162696754161669e-08,
+        "gcodeStableCore": 0.2968604284883243
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0003840922666792845,
+        "stableUncut": 0.00038402926272626217,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 6.300395163018989e-08,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-choc-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3526.7544880296464,
+      "beforeMM2": {
+        "nominalUncut": 0.10808374391593314,
+        "stableUncut": 0.10799282970488158,
+        "stableCore": 3.5049678213037786e-06,
+        "precisionSensitiveUncut": 8.776536183393014e-05,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.10808374391593314,
+        "stableUncut": 0.10799282970488158,
+        "stableCore": 3.5049678213037786e-06,
+        "precisionSensitiveUncut": 8.776536183393014e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-choc-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 3526.75452313564,
+      "beforeMM2": {
+        "nominalUncut": 10.575025608032039,
+        "stableUncut": 10.574980028192142,
+        "stableCore": 10.047661323107754,
+        "precisionSensitiveUncut": 4.096502810345479e-05,
+        "gcodeStableCore": 10.036964801375584
+      },
+      "afterMM2": {
+        "nominalUncut": 0.10774588192429548,
+        "stableUncut": 0.10770155182985049,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.096741565154082e-05,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "horizon-choc-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3526.7544880296464,
+      "beforeMM2": {
+        "nominalUncut": 10.575346673070387,
+        "stableUncut": 10.575254503260252,
+        "stableCore": 10.047478365951827,
+        "precisionSensitiveUncut": 8.77024677363685e-05,
+        "gcodeStableCore": 10.010526469116561
+      },
+      "afterMM2": {
+        "nominalUncut": 0.10773440286356918,
+        "stableUncut": 0.10764343767996831,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 8.772976447036967e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-choc-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3526.7544867471074,
+      "beforeMM2": {
+        "nominalUncut": 0.10806652525848419,
+        "stableUncut": 0.10798934393470175,
+        "stableCore": 3.5049678213037786e-06,
+        "precisionSensitiveUncut": 8.776546133420314e-05,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.10806652525848419,
+        "stableUncut": 0.10798934393470175,
+        "stableCore": 3.5049678213037786e-06,
+        "precisionSensitiveUncut": 8.776546133420314e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-choc-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 3526.7545218524965,
+      "beforeMM2": {
+        "nominalUncut": 10.593197149548326,
+        "stableUncut": 10.593151575384828,
+        "stableCore": 10.062288869667913,
+        "precisionSensitiveUncut": 4.096908635883643e-05,
+        "gcodeStableCore": 10.051235877550228
+      },
+      "afterMM2": {
+        "nominalUncut": 0.10771102573395266,
+        "stableUncut": 0.10766669530490418,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.0969085528850604e-05,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "horizon-choc-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3526.7544867470983,
+      "beforeMM2": {
+        "nominalUncut": 10.592627023183116,
+        "stableUncut": 10.592551927732975,
+        "stableCore": 10.06231784977609,
+        "precisionSensitiveUncut": 8.751582434011676e-05,
+        "gcodeStableCore": 10.0256823631777
+      },
+      "afterMM2": {
+        "nominalUncut": 0.10777677548145387,
+        "stableUncut": 0.10770579513306101,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 8.763311586245576e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-mx-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3901.812542681459,
+      "beforeMM2": {
+        "nominalUncut": 0.09524616870693674,
+        "stableUncut": 0.09522193625592891,
+        "stableCore": 3.7632270619417707e-06,
+        "precisionSensitiveUncut": 2.1159422928856424e-05,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.09524616870693674,
+        "stableUncut": 0.09522193625592891,
+        "stableCore": 3.7632270619417707e-06,
+        "precisionSensitiveUncut": 2.1159422928856424e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-mx-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 3901.812558504721,
+      "beforeMM2": {
+        "nominalUncut": 17.961782413322183,
+        "stableUncut": 17.96177704123953,
+        "stableCore": 17.26202728403453,
+        "precisionSensitiveUncut": 2.3148575851342612e-08,
+        "gcodeStableCore": 17.245980126892487
+      },
+      "afterMM2": {
+        "nominalUncut": 0.09653821800632711,
+        "stableUncut": 0.09653507086615691,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 2.6482380752908053e-08,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "horizon-mx-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3901.812542681459,
+      "beforeMM2": {
+        "nominalUncut": 17.964298022994495,
+        "stableUncut": 17.964271280812532,
+        "stableCore": 17.264241910246845,
+        "precisionSensitiveUncut": 2.675823189494181e-05,
+        "gcodeStableCore": 17.201050468405633
+      },
+      "afterMM2": {
+        "nominalUncut": 0.09690301135313388,
+        "stableUncut": 0.0968989996667487,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 2.1156869002388364e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-mx-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3901.8125424977484,
+      "beforeMM2": {
+        "nominalUncut": 0.09524355349009385,
+        "stableUncut": 0.09521549281542377,
+        "stableCore": 3.7632270619417707e-06,
+        "precisionSensitiveUncut": 2.1159422928856438e-05,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.09524355349009385,
+        "stableUncut": 0.09521549281542377,
+        "stableCore": 3.7632270619417707e-06,
+        "precisionSensitiveUncut": 2.1159422928856438e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "horizon-mx-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 3901.812558321014,
+      "beforeMM2": {
+        "nominalUncut": 18.01014463568186,
+        "stableUncut": 18.010166143927044,
+        "stableCore": 17.30353442375404,
+        "precisionSensitiveUncut": 1.829546736719051e-08,
+        "gcodeStableCore": 17.286464558604983
+      },
+      "afterMM2": {
+        "nominalUncut": 0.09687543212024102,
+        "stableUncut": 0.09689261874837034,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 2.322091034321529e-08,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "horizon-mx-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 3901.8125424977525,
+      "beforeMM2": {
+        "nominalUncut": 18.008223525354385,
+        "stableUncut": 18.00822350810633,
+        "stableCore": 17.302133463680253,
+        "precisionSensitiveUncut": 2.115270179379561e-05,
+        "gcodeStableCore": 17.2420180297469
+      },
+      "afterMM2": {
+        "nominalUncut": 0.09646004502263425,
+        "stableUncut": 0.09645586911670387,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 2.1122961067791934e-05,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "modxo-adapter-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 342.4079965076243,
+      "beforeMM2": {
+        "nominalUncut": 0.005087281900311718,
+        "stableUncut": 0.005083924488499698,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.357411846903034e-06,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.005087281900311718,
+        "stableUncut": 0.005083924488499698,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.357411846903034e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "modxo-adapter-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 342.4079957985802,
+      "beforeMM2": {
+        "nominalUncut": 3.1957120602561915,
+        "stableUncut": 3.195707546921822,
+        "stableCore": 3.152785854029891,
+        "precisionSensitiveUncut": 4.513332273530106e-06,
+        "gcodeStableCore": 3.151366441883262
+      },
+      "afterMM2": {
+        "nominalUncut": 0.005209622097734268,
+        "stableUncut": 0.0052052236889739215,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.398406647457782e-06,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "modxo-adapter-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 342.4079965076243,
+      "beforeMM2": {
+        "nominalUncut": 3.1959188401031824,
+        "stableUncut": 3.195915331757326,
+        "stableCore": 3.152993061787885,
+        "precisionSensitiveUncut": 3.5083458403304244e-06,
+        "gcodeStableCore": 3.1475763546224735
+      },
+      "afterMM2": {
+        "nominalUncut": 0.005201923401801287,
+        "stableUncut": 0.0051985238351974624,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.399566617661414e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "modxo-adapter-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 342.4079965076244,
+      "beforeMM2": {
+        "nominalUncut": 0.005087281900311718,
+        "stableUncut": 0.005083924488499698,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.357411846903034e-06,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.005087281900311718,
+        "stableUncut": 0.005083924488499698,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.357411846903034e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "modxo-adapter-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 342.4079957985802,
+      "beforeMM2": {
+        "nominalUncut": 3.1966126565204442,
+        "stableUncut": 3.196608153982224,
+        "stableCore": 3.153585649354618,
+        "precisionSensitiveUncut": 4.502536090245908e-06,
+        "gcodeStableCore": 3.152184248079838
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0052090266092185995,
+        "stableUncut": 0.005204606391398539,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.4202157168953675e-06,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "modxo-adapter-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 342.4079965076244,
+      "beforeMM2": {
+        "nominalUncut": 3.196362056598316,
+        "stableUncut": 3.1963585334920173,
+        "stableCore": 3.1533827211676733,
+        "precisionSensitiveUncut": 3.5231063083138856e-06,
+        "gcodeStableCore": 3.1480477544379593
+      },
+      "afterMM2": {
+        "nominalUncut": 0.005188991666922532,
+        "stableUncut": 0.005185617687754376,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 3.3739791860175098e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "single-sided-5v-ncc-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 659.8691439331523,
+      "beforeMM2": {
+        "nominalUncut": 0.0034785609165193278,
+        "stableUncut": 0.0034766438933629333,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 1.9170231946138364e-06,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0034785609165193278,
+        "stableUncut": 0.0034766438933629333,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 1.9170231946138364e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "single-sided-5v-ncc-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 659.8691419600614,
+      "beforeMM2": {
+        "nominalUncut": 2.6332525080502056,
+        "stableUncut": 2.6332481717092127,
+        "stableCore": 2.583387291830137,
+        "precisionSensitiveUncut": 4.336341115686261e-06,
+        "gcodeStableCore": 2.5816124308273998
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0035122595834151827,
+        "stableUncut": 0.0035081231312141933,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.136452165213828e-06,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "single-sided-5v-ncc-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 659.8691439331523,
+      "beforeMM2": {
+        "nominalUncut": 2.6332859101166686,
+        "stableUncut": 2.633283641141515,
+        "stableCore": 2.5834107954657886,
+        "precisionSensitiveUncut": 2.2689752242260868e-06,
+        "gcodeStableCore": 2.576682439738918
+      },
+      "afterMM2": {
+        "nominalUncut": 0.003529301122080587,
+        "stableUncut": 0.0035271915613805404,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 2.109560761990256e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "single-sided-5v-paint-c1-e1",
+      "rest": false,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 659.8691439331523,
+      "beforeMM2": {
+        "nominalUncut": 0.003478915286336344,
+        "stableUncut": 0.0034769983336062184,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 1.9169527315781717e-06,
+        "gcodeStableCore": 0
+      },
+      "afterMM2": {
+        "nominalUncut": 0.003478915286336344,
+        "stableUncut": 0.0034769983336062184,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 1.9169527315781717e-06,
+        "gcodeStableCore": 0
+      }
+    },
+    {
+      "id": "single-sided-5v-paint-rest-in",
+      "rest": true,
+      "sourceUnits": "IN",
+      "stableReachableAreaMM2": 659.8691419600608,
+      "beforeMM2": {
+        "nominalUncut": 2.636332047578061,
+        "stableUncut": 2.6363277030620655,
+        "stableCore": 2.5850781353857366,
+        "precisionSensitiveUncut": 4.344515996169189e-06,
+        "gcodeStableCore": 2.583289116692435
+      },
+      "afterMM2": {
+        "nominalUncut": 0.003520403248539671,
+        "stableUncut": 0.0035162671627798534,
+        "stableCore": 0.0,
+        "precisionSensitiveUncut": 4.136085809778503e-06,
+        "gcodeStableCore": 0.0
+      }
+    },
+    {
+      "id": "single-sided-5v-paint-rest-mm",
+      "rest": true,
+      "sourceUnits": "MM",
+      "stableReachableAreaMM2": 659.8691439331523,
+      "beforeMM2": {
+        "nominalUncut": 2.636385098584655,
+        "stableUncut": 2.636382829721694,
+        "stableCore": 2.5851289186640747,
+        "precisionSensitiveUncut": 2.268862955303178e-06,
+        "gcodeStableCore": 2.578414980328197
+      },
+      "afterMM2": {
+        "nominalUncut": 0.0035325157228232222,
+        "stableUncut": 0.003530406430459866,
+        "stableCore": 0,
+        "precisionSensitiveUncut": 2.1092923456610003e-06,
+        "gcodeStableCore": 0
+      }
+    }
+  ],
+  "failures": [],
+  "policy": "Areas normalized to mm2. Both sides use corrected closed-line cutter sweeps and the same nominal/stable-access classifier. Precision-sensitive access remains in raw nominal residuals. CNC compares actual GRBL exports: ordinary NEAREST vs regional SOURCE. Estimated minutes exclude acceleration/controller behavior; no physical machine-time, full cleanup, or FPS certification."
+}

@@ -55,7 +55,7 @@ public final class MachiningCoverage {
         } else if (paths instanceof GeometryCollection collection) {
             for (int i = 0; i < collection.getNumGeometries(); i++) collectStrokes(collection.getGeometryN(i), radius, strokes, cancellation);
         } else if (paths instanceof LineString || paths instanceof Point) {
-            strokes.add(paths.buffer(radius, 16)); cancellation.throwIfCancellationRequested();
+            strokes.add(org.flatcam.cam.geometry.CutterSweep.stroke(paths,radius,16,cancellation));
         } else throw new IllegalArgumentException("Tipo de trajeto sem análise de cobertura.");
     }
     private MachiningCoverage() { }

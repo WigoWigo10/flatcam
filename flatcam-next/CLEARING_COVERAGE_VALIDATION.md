@@ -1,5 +1,10 @@
 # Lines: cobertura nominal e exportação — 2026-11-10
 
+**Retificação posterior:** os resultados históricos abaixo usavam buffers que
+subestimavam anéis fechados minúsculos e não separavam acesso de encaixe exato.
+Não interpretar aqueles percentuais como defeitos de trajeto confirmados.
+Ver [reprodução, correção e comparação com o mesmo analisador nos dois lados](REST_COVERAGE_REFINEMENT.md).
+
 Esta rodada é desenvolvimento após a Beta 7. Não altera a versão nem gera
 instalador: cobertura, Connect e o protótipo por regiões entrarão juntos na
 próxima Beta, depois da consolidação.

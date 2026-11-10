@@ -8,6 +8,12 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.locationtech.jts.geom.*;
 
 class MachiningReachabilityTest {
+    @Test void exactFitAndEmptyAreasDoNotClaimStableInteriorAccess() {
+        var access=MachiningReachability.calculate(box(136.706,137.106,-84.069,-83.369),.4,CancellationToken.NONE);
+        assertTrue(access.stableReachable().isEmpty());
+        assertEquals(access.reachable().getArea(),access.precisionSensitiveReachable().getArea(),1e-12);
+        assertTrue(MachiningReachability.calculate(F.createPolygon(),.4,CancellationToken.NONE).stableReachable().isEmpty());
+    }
     private static final GeometryFactory F=new GeometryFactory();
     private static Geometry box(double a,double b,double c,double d){return F.toGeometry(new Envelope(a,b,c,d));}
     @ParameterizedTest @ValueSource(doubles={1,0.03937007874015748})

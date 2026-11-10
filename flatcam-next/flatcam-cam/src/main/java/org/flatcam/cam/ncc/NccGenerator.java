@@ -44,6 +44,9 @@ import org.locationtech.jts.operation.overlayng.OverlayNG;
  * that tool) is simply left untouched - since nothing gets subtracted for it,
  * it naturally stays available for the next, smaller tool, matching Python's
  * separate "rest_geo" bookkeeping without needing to reproduce it explicitly.
+ * Raster-family Rest selects work from that remainder but permits centers in
+ * the ORIGINAL allowed area: overlapping already cleared stock is necessary
+ * to reach small corners. Standard/Seed retain the historical inset-of-stock policy.
  */
 public final class NccGenerator {
 
@@ -165,7 +168,9 @@ public final class NccGenerator {
             }
             int toolIndex = t;
             int toolCount = orderedTools.size();
-            ToolClearResult toolClear = clearArea(areaForThisTool, toolDiameter, settings, params.restMachining(), params.restMachining(), cancellation,
+            boolean stockAccess=params.restMachining() && settings.method().usesRaster();
+            ToolClearResult toolClear = clearArea(stockAccess?clearingArea:areaForThisTool, toolDiameter, settings, params.restMachining(), params.restMachining(), cancellation,
+                    stockAccess?areaForThisTool:null,
                     fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
             toolResults.add(new NccToolResult(toolDiameter, toolClear.geometry(), toolClear.failures(),
                     NccOperation.CLEAR, areaForThisTool, toolClear.diagnostics()));
@@ -225,7 +230,9 @@ public final class NccGenerator {
             int index = t;
             ToolClearResult result = areaForTool.isEmpty()
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
-                    : clearArea(areaForTool, diameter, settings, false, params.restMachining(), cancellation,
+                    : clearArea(params.restMachining() && settings.method().usesRaster()?desired:areaForTool,
+                            diameter, settings, false, params.restMachining(), cancellation,
+                            params.restMachining() && settings.method().usesRaster()?areaForTool:null,
                             fraction -> progress.report((index + fraction) / tools.size()));
             toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR,areaForTool,result.diagnostics()));
             if (!result.geometry().isEmpty()) {
@@ -332,11 +339,24 @@ public final class NccGenerator {
         PolygonPaths(List<LineString> paths){this(paths,null,List.of());}
     }
 
-    /** Clears every polygon in {@code area} with one tool, and reports the actual swept footprint (for Rest Machining). */
+    /** Clears allowed polygons; an optional stock mask selects work without becoming a cutter-center boundary. */
     private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccToolSettings settings,
                                              boolean nccRest, boolean computeFootprint,
-                                             CancellationToken cancellation, DoubleConsumer progressWithinTool) {
+                                             CancellationToken cancellation, Geometry stock,DoubleConsumer progressWithinTool) {
         GeometryFactory factory = area.getFactory();
+        Geometry needed=null;
+        if(stock!=null) {
+            // Chord-sized stock fringes must not cause the next cutter to repeat the entire previous tool.
+            // This tolerance selects work only; original-area erosion and the user's cutter radius are unchanged.
+            double tolerance=toolDiameter*(1-Math.cos(Math.PI/(4*QUADRANT_SEGMENTS)));
+            Geometry core=GeosBufferOp.bufferOp(stock,-tolerance,new BufferParameters(QUADRANT_SEGMENTS));
+            needed=core.isEmpty()?factory.createPolygon():GeosBufferOp.bufferOp(core,toolDiameter/2+tolerance,new BufferParameters(QUADRANT_SEGMENTS));
+        }
+        var preparedNeed=needed==null?null:PreparedGeometryFactory.prepare(needed);
+        if(needed!=null && needed.isEmpty()) {
+            Geometry empty=factory.createGeometryCollection();
+            return new ToolClearResult(empty,empty,0,new NccRegionDiagnostics(empty,empty,empty));
+        }
         List<Polygon> polygons = new ArrayList<>();
         collectPolygons(area, polygons);
         List<LineString> allPaths = new ArrayList<>();
@@ -361,15 +381,26 @@ public final class NccGenerator {
             }
             var polygonPaths=clearPolygon(polygon, toolDiameter, settings, cancellation);
             List<LineString> paths = polygonPaths.paths();
+            if(needed!=null) {
+                var selected=new ArrayList<LineString>();
+                for(var path:paths) {
+                    cancellation.throwIfCancellationRequested();
+                    if(preparedNeed.covers(path))selected.add(path);
+                    else if(preparedNeed.intersects(path))collectLines(OverlayNGRobust.overlay(path,needed,OverlayNG.INTERSECTION),selected);
+                }
+                paths=selected;
+            }
             if(polygonPaths.safeArea()!=null) {
-                if(polygonPaths.safeArea().isEmpty())unreachable.add(polygon);
+                Geometry diagnosticSafe=needed==null || polygonPaths.safeArea().isEmpty()?polygonPaths.safeArea():
+                        OverlayNGRobust.overlay(polygonPaths.safeArea(),needed,OverlayNG.INTERSECTION);
+                if(polygonPaths.safeArea().isEmpty())unreachable.add(stock==null?polygon:OverlayNGRobust.overlay(polygon,stock,OverlayNG.INTERSECTION));
                 // Contour explicitly appends every safe component's complete boundary.
                 // Re-intersecting those dense rings cannot reveal an omitted component.
-                else if(!settings.contour())unserved.addAll(LinesRasterRefinement.unvisitedComponents(polygonPaths.safeArea(),paths,cancellation));
-                supplemented.addAll(polygonPaths.supplemented());
+                else if(!settings.contour()&&!diagnosticSafe.isEmpty())unserved.addAll(LinesRasterRefinement.unvisitedComponents(diagnosticSafe,paths,cancellation));
+                for(var supplement:polygonPaths.supplemented())if(preparedNeed==null||preparedNeed.intersects(supplement))supplemented.add(supplement);
             }
             if (paths.isEmpty()) {
-                failures++;
+                if(stock==null)failures++;
             } else {
                 if (settings.connect()) {
                     // paint_connect tests the swept tool against the ORIGINAL polygon.
@@ -382,7 +413,7 @@ public final class NccGenerator {
                 // Swept areas feed only the next Rest cutter. Buffering and unioning
                 // thousands of paths otherwise wastes time and can trigger costly overlay repairs.
                 if(computeFootprint)for (LineString path : paths) {
-                    footprints.add(nccRest
+                    footprints.add(stock!=null?org.flatcam.cam.geometry.CutterSweep.stroke(path,toolDiameter/2,QUADRANT_SEGMENTS,cancellation):nccRest
                             ? GeosBufferOp.bufferOp(path,footprintRadius,new BufferParameters(16))
                             : path.buffer(footprintRadius, QUADRANT_SEGMENTS));
                 }
@@ -392,7 +423,7 @@ public final class NccGenerator {
         Geometry geometry = allPaths.isEmpty()
                 ? factory.createGeometryCollection() : factory.buildGeometry(new ArrayList<>(allPaths));
         Geometry footprint;
-        if (nccRest && !footprints.isEmpty()) {
+        if (stock==null && nccRest && !footprints.isEmpty()) {
             // GUI gen_clear_area_rest constructs an overlapping MultiPolygon
             // of swept paths and THEN buffers it by +1e-7. A preliminary union
             // changes residual ring starts, so the next cutter's Connect walks

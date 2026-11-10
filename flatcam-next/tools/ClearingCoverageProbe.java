@@ -107,6 +107,7 @@ public class ClearingCoverageProbe {
             var stockGcode=MachiningReachability.classify(exported.finalRemaining(),access,approximation+quantum,token);
             report.put("status","MEASURED").put("profile","GRBL_11_no_M6").put("tools",details).put("targetArea",c.area().getArea())
                     .put("nominalUnreachableArea",access.unreachable().getArea()).put("geometry",metrics(raw,stock))
+                    .put("stableReachableArea",access.stableReachable().getArea()).put("centerTolerance",access.centerTolerance())
                     .put("gcode",metrics(exported,stockGcode)).put("gcodeTravelLength",totalTravel).put("gcodeCutLength",totalCut)
                     .put("gcodeCutPaths",paths).put("combinedLengthError",combinedError);
         }catch(Exception|AssertionError error){report.put("status","ERROR_OR_BUDGET").put("error",error.toString());}
@@ -115,7 +116,8 @@ public class ClearingCoverageProbe {
     }
     static JSONObject metrics(MachiningCoverage.Result result,MachiningReachability.Residual residual) {
         return new JSONObject().put("remainingArea",result.finalRemainingArea()).put("reachableUncutArea",residual.reachableUncut().getArea())
-                .put("reachableCoreArea",residual.coreBeyondTolerance().getArea()).put("outsideReachableArea",residual.outsideReachable().getArea()).put("analysisTolerance",residual.tolerance());
+                .put("reachableCoreArea",residual.coreBeyondTolerance().getArea()).put("outsideReachableArea",residual.outsideReachable().getArea()).put("analysisTolerance",residual.tolerance())
+                .put("stableReachableUncutArea",residual.stableReachableUncut().getArea()).put("stableCoreArea",residual.stableCore().getArea()).put("precisionSensitiveUncutArea",residual.precisionSensitiveUncut().getArea());
     }
     static MachiningCoverage.Result coverage(Case c,List<ToolGeometry> tools,String units,String op,GeometryGCodeParameters p,CancellationToken token){
         var own=new HashMap<Integer,Geometry>();for(int i=0;i<tools.size();i++)own.put(i,c.targets().get(i));
