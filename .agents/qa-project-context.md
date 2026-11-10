@@ -1,5 +1,24 @@
 # QA project context — FlatCAM FX
 
+Connect performance (2026-11-10), core commit 61859b6c: JFR found 3872 of 4035
+Connect execution samples under within. Prepare the original polygon once and
+reuse contains as the converse of sweptConnector.within(originalArea). Preserve
+the same buffer radius/resolution, strict max-walk, nearest scan and tie/direction
+rules. Fetch each read-only coordinate array once; default JTS array sequences
+return their array, so getter counts are NOT an allocation/byte measurement.
+No endpoint spatial index or path-ordering change was introduced.
+Three alternating fresh-JVM pairs on Horizon Choc, no JFR: median generation
+38277.781 -> 6013.878 ms (6.36x in this control). Raw paths/areas/diagnostics
+identical. 64/64 community outputs EXACT_MATCH; 96 distance controls pass.
+Full verify green: 2477 cases, 2459 passed, 18 optional skips, no errors/failures;
+nine Connect controls rerun after final accessor-contract naming changes pass.
+Frozen baseline jar still fails exactly two deterministic waste controls;
+seven behavior checks pass on both. Three Python comparator controls pass.
+See flatcam-next/CONNECT_OPTIMIZATION.md for all evidence/reproduction. JFR
+allocation weights are sampled estimates, NOT peak/resident RAM; performance
+is generation latency, not FPS or machine cycle time. Small inputs may not gain.
+Connect retracing and full swept-coverage limitations remain; no new installer.
+
 Post-Beta 7 Lines refinement (2026-11-09): exact positive collinear raster/Contour
 overlap is removed from raster only; closed finishing rings remain. Contour-off
 Lines supplements each missed positive cutter-inset component with a clipped,

@@ -1,5 +1,26 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Connect: otimização do cálculo com trajetos preservados — 2026-11-10
+
+Núcleo **61859b6c**. O perfil identificou o predicado de contenção como cerca de
+96% das amostras do Connect. Agora prepara o polígono original uma vez e usa
+`contains` como inverso do `within` anterior, mantendo o teste da área varrida,
+raio, resolução, limite, desempates e direção. Arrays são consultados uma vez
+por caminho. Não houve troca do algoritmo de ordenação nem mudança de rotas.
+
+Controle Horizon Choc: três pares alternados em JVMs novas, mediana
+**38,278 → 6,014 s** (**6,36×** nesse caso), com saídas idênticas. **64/64** casos
+comunitários são exatamente iguais aos anteriores; **96** verificações de
+distância passaram. Suíte integral verde: **2.477 casos, 2.459 aprovados,
+18 opcionais, zero falhas/erros**. Nove testes do Connect passaram novamente
+após os ajustes finais de nomes/contrato; o JAR anterior falha nos dois controles
+de desperdício. Três testes protegem o comparador de resultados.
+
+Ver [medição, limites e reprodução](CONNECT_OPTIMIZATION.md). O ganho é no
+cálculo; FPS, cobertura física e tempo de corte da máquina não foram medidos.
+Recaminhamentos do Connect e a busca linear continuam; avaliar alterações de
+rota separadamente. Os instaladores Beta 7 ainda são os da entrega anterior.
+
 ## Desenvolvimento após Beta 7: Lines e diagnóstico por fresa — 2026-11-09
 
 Ver [refinamento e evidências](LINES_REFINEMENT.md). NCC e Paint retiram do
