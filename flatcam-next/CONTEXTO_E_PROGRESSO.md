@@ -1,5 +1,52 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Rest corrigido e Connect integrado ao acabamento — 2026-11-10
+
+Itens 1 e 2 concluídos. **Retificação da análise anterior:** parte das supostas
+sobras vinha do buffer incorreto de anéis fechados minúsculos; parte do acesso
+nominal dependia de canais com apenas ULPs de folga. O analisador agora conserva
+os dados nominais e separa o acesso estável do sensível à precisão. Não reduzir
+a fresa nem forçar cortes em canais de encaixe exato para zerar um relatório.
+Correção de cobertura/Rest commitada em **4695f0f2**.
+
+O defeito real do Rest foi reproduzido num retângulo: a fresa 0,4 precisava
+sobrepor espaço limpo pela 0,8 para remover os cantos. Lines/Combo/regional agora
+selecionam trabalho na sobra e autorizam centros pela área original permitida,
+com o offset/margem de cada ferramenta. Standard/Seed mantêm sua política
+histórica. Ver [causas, correções e critérios](REST_COVERAGE_REFINEMENT.md).
+
+**48/48 pares comunitários** com o MESMO analisador corrigido nos dois lados,
+alvos e diâmetros iguais: 16 sem Rest e 32 Rest, oito placas, NCC/Paint, MM/IN,
+ângulos 37,5/90 e Contour/Connect. Zero regressões. O maior núcleo estável de
+sobra caiu de 38,1023 mm² para 0,000003764 mm² no conjunto; nos 32 Rest, o núcleo
+estável da Geometry ficou em zero após a tolerância. No G-code, máximo final
+0,000004632 mm². As sobras brutas, incluindo as sensíveis à precisão, continuam
+registradas. Isso não certifica remoção física perfeita nem substitui o Outline.
+
+**Connect regional:** ligações retas seguras primeiro, depois grafo de raster e
+acabamento com recaminhamentos curtos de bordas já cortadas. Ligações virtuais
+significam retração, nunca corte pelo cobre. **16/16 programas reais exportados**
+preservam continuamente os intervalos requeridos e reduzem retrações (10–1.455)
+e tempo estimado (4,1–25,7%) frente ao Lines comum com Proximidade padrão. XY
+rápido aumenta em 10/16; não confundir métricas. São estimativas com Safe Z 3,
+corte −0,1, XY 300 mm/min e rápido 1500; não tempo de máquina/FPS universal.
+Continua experimental, com ajuda atualizada nos quatro idiomas. Ver [detalhes](REGION_LINES.md).
+
+Suíte integral: **2.511 casos**, 2.493 aprovados, 18 opcionais, zero falhas/erros.
+Após a ajuda do Rest, 12 FX/i18n aprovados novamente; **192/192** guardas de
+distância, quatro guardas Java do auditor de segmentos e seis guardas Python do
+relatório aprovados. Contraprova: sete regressões falham no JAR de `513cbccb` e
+passam nas classes finais. O núcleo do primeiro commit também foi compilado e
+teve 12 controles aprovados isoladamente do refinamento do Connect.
+
+Snapshots: `validation/clearing-stock-fix-20261110.json` e
+`validation/region-cnc-refinement-20261110.json`. HTML e logs:
+`target/clearing-connect-fix-20261110/`. O relatório estrito reprova se faltar par.
+**Sem versão/instalador novo:** o usuário quer a próxima Beta com tudo junto.
+Próximo: validação prática do conjunto e consolidação da Beta; não trocar o
+modo padrão somente com base nesses ensaios nem buscar novos algoritmos antes
+de avaliar os parâmetros reais do usuário.
+
 ## Cobertura/G-code e Lines por regiões — 2026-11-10
 
 Itens 2 e 3 executados. **Não liberar nova Beta ainda**: o usuário quer juntar

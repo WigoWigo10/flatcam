@@ -1,0 +1,472 @@
+{
+  "cases": [
+    {
+      "travelDelta": 224.02493274483442,
+      "regional": {
+        "estimatedMinutes": 4.37353621301504,
+        "cutDeviation": 6.89452299305928E-5,
+        "travelXY": 554.429167710414,
+        "retractCommands": 106,
+        "sourcePaths": 103,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 817.4150303623985
+      },
+      "retractDelta": -31,
+      "estimatedMinuteDelta": -0.18722775685986193,
+      "id": "air-quality-sensor-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 4.560763969874902,
+        "cutDeviation": 6.89452299305928E-5,
+        "travelXY": 330.40423496557963,
+        "retractCommands": 137,
+        "sourcePaths": 134,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 803.0683439693399
+      },
+      "requiredCutDeviation": 1.5887469487677927E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "air-quality-sensor",
+      "status": "MEASURED",
+      "elapsedMs": 1134.5069
+    },
+    {
+      "travelDelta": 143.85065572320178,
+      "regional": {
+        "estimatedMinutes": 4.323085747530838,
+        "cutDeviation": 6.89452299305928E-5,
+        "travelXY": 474.39447631819917,
+        "retractCommands": 106,
+        "sourcePaths": 103,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 818.2868289955902
+      },
+      "retractDelta": -31,
+      "estimatedMinuteDelta": -0.23741306279161734,
+      "id": "air-quality-sensor-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 4.560498810322455,
+        "cutDeviation": 6.89452299305928E-5,
+        "travelXY": 330.5438205949974,
+        "retractCommands": 137,
+        "sourcePaths": 134,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 802.9608789777225
+      },
+      "requiredCutDeviation": 1.5887469487677927E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "air-quality-sensor",
+      "status": "MEASURED",
+      "elapsedMs": 461.0862
+    },
+    {
+      "travelDelta": -639.4787258338156,
+      "regional": {
+        "estimatedMinutes": 41.26982320153461,
+        "cutDeviation": 7.04560628259586E-5,
+        "travelXY": 351.7075295821856,
+        "retractCommands": 125,
+        "sourcePaths": 122,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 11856.165454541306
+      },
+      "retractDelta": -1294,
+      "estimatedMinuteDelta": -14.302402864626217,
+      "id": "audio-watermark-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 55.57222606616082,
+        "cutDeviation": 7.045606720717017E-5,
+        "travelXY": 991.1862554160011,
+        "retractCommands": 1419,
+        "sourcePaths": 1416,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 11205.310568764142
+      },
+      "requiredCutDeviation": 7.105427357601002E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "audio-watermark",
+      "status": "MEASURED",
+      "elapsedMs": 9571.3977
+    },
+    {
+      "travelDelta": -639.4787258338156,
+      "regional": {
+        "estimatedMinutes": 41.26982320153461,
+        "cutDeviation": 7.04560628259586E-5,
+        "travelXY": 351.7075295821856,
+        "retractCommands": 125,
+        "sourcePaths": 122,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 11856.165454541306
+      },
+      "retractDelta": -1294,
+      "estimatedMinuteDelta": -14.302402864626217,
+      "id": "audio-watermark-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 55.57222606616082,
+        "cutDeviation": 7.045606720717017E-5,
+        "travelXY": 991.1862554160011,
+        "retractCommands": 1419,
+        "sourcePaths": 1416,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 11205.310568764142
+      },
+      "requiredCutDeviation": 7.105427357601002E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "audio-watermark",
+      "status": "MEASURED",
+      "elapsedMs": 8372.447
+    },
+    {
+      "travelDelta": 376.126735344579,
+      "regional": {
+        "estimatedMinutes": 8.566945786095559,
+        "cutDeviation": 6.898595036434688E-5,
+        "travelXY": 676.2887341497424,
+        "retractCommands": 79,
+        "sourcePaths": 76,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2151.5059889986496
+      },
+      "retractDelta": -155,
+      "estimatedMinuteDelta": -1.285521608143556,
+      "id": "breadboard-power-supply-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 9.852467394239115,
+        "cutDeviation": 6.89859503643469E-5,
+        "travelXY": 300.16199880516336,
+        "retractCommands": 234,
+        "sourcePaths": 231,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2035.7878185106315
+      },
+      "requiredCutDeviation": 2.4170690696690168E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "breadboard-power-supply",
+      "status": "MEASURED",
+      "elapsedMs": 1197.032
+    },
+    {
+      "travelDelta": 125.66718836203395,
+      "regional": {
+        "estimatedMinutes": 8.467315116008386,
+        "cutDeviation": 6.898595036434688E-5,
+        "travelXY": 370.35388470445616,
+        "retractCommands": 86,
+        "sourcePaths": 83,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2156.7637578615636
+      },
+      "retractDelta": -149,
+      "estimatedMinuteDelta": -1.3601501439518913,
+      "id": "breadboard-power-supply-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 9.827465259960277,
+        "cutDeviation": 6.89859503643469E-5,
+        "travelXY": 244.6866963424222,
+        "retractCommands": 235,
+        "sourcePaths": 232,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2035.662238719525
+      },
+      "requiredCutDeviation": 2.4170690696690168E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "breadboard-power-supply",
+      "status": "MEASURED",
+      "elapsedMs": 1177.8863
+    },
+    {
+      "travelDelta": -16.807188441793148,
+      "regional": {
+        "estimatedMinutes": 0.905588032596634,
+        "cutDeviation": 6.802153521730658E-5,
+        "travelXY": 1.9493715770819007,
+        "retractCommands": 7,
+        "sourcePaths": 4,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 255.80653546357385
+      },
+      "retractDelta": -10,
+      "estimatedMinuteDelta": -0.10691234695847796,
+      "id": "capacitive-keypad-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 1.012500379555112,
+        "cutDeviation": 6.80215352173092E-5,
+        "travelXY": 18.75656001887505,
+        "retractCommands": 17,
+        "sourcePaths": 14,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 247.31880186275882
+      },
+      "requiredCutDeviation": 1.0868848967117017E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "capacitive-keypad",
+      "status": "MEASURED",
+      "elapsedMs": 45.9044
+    },
+    {
+      "travelDelta": -16.807188441793148,
+      "regional": {
+        "estimatedMinutes": 0.905588032596634,
+        "cutDeviation": 6.802153521730658E-5,
+        "travelXY": 1.9493715770819007,
+        "retractCommands": 7,
+        "sourcePaths": 4,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 255.80653546357385
+      },
+      "retractDelta": -10,
+      "estimatedMinuteDelta": -0.10691234695847796,
+      "id": "capacitive-keypad-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 1.012500379555112,
+        "cutDeviation": 6.80215352173092E-5,
+        "travelXY": 18.75656001887505,
+        "retractCommands": 17,
+        "sourcePaths": 14,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 247.31880186275882
+      },
+      "requiredCutDeviation": 1.0868848967117017E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "capacitive-keypad",
+      "status": "MEASURED",
+      "elapsedMs": 34.0659
+    },
+    {
+      "travelDelta": 4516.086242184647,
+      "regional": {
+        "estimatedMinutes": 76.62400102498921,
+        "cutDeviation": 6.800573963331088E-5,
+        "travelXY": 7388.7649604545395,
+        "retractCommands": 438,
+        "sourcePaths": 435,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 19890.647315406968
+      },
+      "retractDelta": -1319,
+      "estimatedMinuteDelta": -8.832954997074026,
+      "id": "horizon-choc-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 85.45695602206324,
+        "cutDeviation": 6.800573963331088E-5,
+        "travelXY": 2872.6787182698927,
+        "retractCommands": 1757,
+        "sourcePaths": 1754,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 18537.071062967578
+      },
+      "requiredCutDeviation": 4.907028977695834E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "horizon-choc",
+      "status": "MEASURED",
+      "elapsedMs": 15940.8195
+    },
+    {
+      "travelDelta": 2607.3292920615863,
+      "regional": {
+        "estimatedMinutes": 75.91303532390994,
+        "cutDeviation": 6.800573963331088E-5,
+        "travelXY": 5491.511778259732,
+        "retractCommands": 441,
+        "sourcePaths": 438,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 20045.648241527815
+      },
+      "retractDelta": -1338,
+      "estimatedMinuteDelta": -9.83991850594137,
+      "id": "horizon-choc-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 85.75295382985131,
+        "cutDeviation": 6.800573963331088E-5,
+        "travelXY": 2884.1824861981454,
+        "retractCommands": 1779,
+        "sourcePaths": 1776,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 18541.729651718473
+      },
+      "requiredCutDeviation": 4.907028977695834E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "horizon-choc",
+      "status": "MEASURED",
+      "elapsedMs": 17959.2283
+    },
+    {
+      "travelDelta": 2471.7654548708333,
+      "regional": {
+        "estimatedMinutes": 81.14998161542151,
+        "cutDeviation": 6.914882561802717E-5,
+        "travelXY": 5418.176195898547,
+        "retractCommands": 389,
+        "sourcePaths": 386,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 21824.83924545845
+      },
+      "retractDelta": -1423,
+      "estimatedMinuteDelta": -10.603891901658798,
+      "id": "horizon-mx-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 91.75387351708031,
+        "cutDeviation": 6.914882561802717E-5,
+        "travelXY": 2946.410741027714,
+        "retractCommands": 1812,
+        "sourcePaths": 1809,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 20206.79990695659
+      },
+      "requiredCutDeviation": 4.8684880183493937E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "horizon-mx",
+      "status": "MEASURED",
+      "elapsedMs": 16416.1866
+    },
+    {
+      "travelDelta": 2183.486171300929,
+      "regional": {
+        "estimatedMinutes": 80.7888930035459,
+        "cutDeviation": 6.914882561802717E-5,
+        "travelXY": 4945.78526042493,
+        "retractCommands": 383,
+        "sourcePaths": 380,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 21833.31084899313
+      },
+      "retractDelta": -1455,
+      "estimatedMinuteDelta": -11.143141590867742,
+      "id": "horizon-mx-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 91.93203459441364,
+        "cutDeviation": 6.914882561802717E-5,
+        "travelXY": 2762.299089124001,
+        "retractCommands": 1838,
+        "sourcePaths": 1835,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 20200.35056053012
+      },
+      "requiredCutDeviation": 4.8684880183493937E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "horizon-mx",
+      "status": "MEASURED",
+      "elapsedMs": 17300.4805
+    },
+    {
+      "travelDelta": 9.41834582004202,
+      "regional": {
+        "estimatedMinutes": 5.372680495686355,
+        "cutDeviation": 6.73355915922317E-5,
+        "travelXY": 138.38910177699032,
+        "retractCommands": 19,
+        "sourcePaths": 16,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 1524.006328350475
+      },
+      "retractDelta": -105,
+      "estimatedMinuteDelta": -1.136891166880039,
+      "id": "modxo-adapter-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 6.509571662566394,
+        "cutDeviation": 6.733545763115227E-5,
+        "travelXY": 128.9707559569483,
+        "retractCommands": 124,
+        "sourcePaths": 121,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 1476.3573475784956
+      },
+      "requiredCutDeviation": 1.2038079099659012E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "modxo-adapter",
+      "status": "MEASURED",
+      "elapsedMs": 461.0302
+    },
+    {
+      "travelDelta": 9.41834582004202,
+      "regional": {
+        "estimatedMinutes": 5.372680495686355,
+        "cutDeviation": 6.73355915922317E-5,
+        "travelXY": 138.38910177699032,
+        "retractCommands": 19,
+        "sourcePaths": 16,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 1524.006328350475
+      },
+      "retractDelta": -105,
+      "estimatedMinuteDelta": -1.136891166880039,
+      "id": "modxo-adapter-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 6.509571662566394,
+        "cutDeviation": 6.733545763115227E-5,
+        "travelXY": 128.9707559569483,
+        "retractCommands": 124,
+        "sourcePaths": 121,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 1476.3573475784956
+      },
+      "requiredCutDeviation": 1.2038079099659012E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "modxo-adapter",
+      "status": "MEASURED",
+      "elapsedMs": 586.8766
+    },
+    {
+      "travelDelta": -44.56822149123221,
+      "regional": {
+        "estimatedMinutes": 10.061391878228143,
+        "cutDeviation": 6.532666105668168E-5,
+        "travelXY": 106.02390015814308,
+        "retractCommands": 15,
+        "sourcePaths": 12,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2951.9727834367577
+      },
+      "retractDelta": -124,
+      "estimatedMinuteDelta": -1.3545689849011673,
+      "id": "single-sided-5v-ncc-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 11.41596086312931,
+        "cutDeviation": 6.532666105668168E-5,
+        "travelXY": 150.5921216493753,
+        "retractCommands": 139,
+        "sourcePaths": 136,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2888.1498346088483
+      },
+      "requiredCutDeviation": 2.5037832026438716E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "single-sided-5v",
+      "status": "MEASURED",
+      "elapsedMs": 905.5961
+    },
+    {
+      "travelDelta": -67.32057945899263,
+      "regional": {
+        "estimatedMinutes": 10.046455456212799,
+        "cutDeviation": 6.532666105668168E-5,
+        "travelXY": 83.61926713511349,
+        "retractCommands": 15,
+        "sourcePaths": 12,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2951.9727834367586
+      },
+      "retractDelta": -125,
+      "estimatedMinuteDelta": -1.3813372235463124,
+      "id": "single-sided-5v-paint-c1-e1",
+      "baseline": {
+        "estimatedMinutes": 11.427792679759111,
+        "cutDeviation": 6.532666105668168E-5,
+        "travelXY": 150.93984659410611,
+        "retractCommands": 140,
+        "sourcePaths": 137,
+        "roundingBound": 7.071067811865475E-5,
+        "cutLength": 2887.90983460885
+      },
+      "requiredCutDeviation": 2.5037832026438716E-14,
+      "uncoveredRequiredLength": 0,
+      "board": "single-sided-5v",
+      "status": "MEASURED",
+      "elapsedMs": 766.6266
+    }
+  ],
+  "matrixComplete": true,
+  "expectedCases": 16,
+  "errors": 0,
+  "policy": "GRBL_11_no_M6. Ordinary NEAREST vs regional SOURCE/preserved direction; safe Z 3 mm, cut Z -0.1 mm, XY 300 mm/min, default Z feed, rapid estimate 1500 mm/min. Parser estimate excludes acceleration, dwell and real controller behavior. Required source segments checked by continuous interval coverage within 1e-8 mm transverse/longitudinal tolerance; export fidelity samples vertices/midpoints within coordinate rounding. No physical CNC certification."
+}

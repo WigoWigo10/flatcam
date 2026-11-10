@@ -1,5 +1,32 @@
 # QA project context — FlatCAM FX
 
+Rest/Connect correction (2026-11-10, after 513cbccb): earlier nominal residual
+percentages were NOT confirmed toolpath defects. Closed-ring buffer simplification
+underestimated tiny cutter sweeps; access also included ULP-width exact-fit channels.
+CutterSweep preserves closed-path endcaps. Reachability retains nominal/raw residuals
+and separately reports stable vs precision-sensitive access; never shrink the cutter.
+Raster-family Rest (Lines/Combo/REGION_LINES) now selects work from stock while
+allowing centers in each original permitted area. Standard/Seed retain legacy policy.
+48/48 paired community measurements use the SAME corrected analyzer on both sides,
+unchanged targets/diameters, no regressions. Largest stable residual core: 38.1023
+mm2 before -> 0.000003764 mm2 after; stable Geometry cores in 32 Rest cases are zero
+after the declared tolerance. Max exported stable core 0.000004632 mm2. Raw nominal
+and precision-sensitive stock remain visible; not physical full-cleanup certification.
+Regional Connect now joins safe straight moves before integrating raster/finishing
+in a graph. Only short already-cut boundary sections may be retraced; virtual edges
+are lifts. 16/16 actual GRBL exports retain continuous required intervals, reduce
+retractions by 10..1455 and estimated minutes by 4.1..25.7% vs ordinary default
+NEAREST. Rapid XY increases in 10/16. Test parameters matter; no real machine/FPS
+or isolated generation benchmark claim, and the strategy remains experimental.
+Full reactor: 2511 cases, 2493 passed, 18 optional skips, no errors/failures. Final
+Rest help: 12 FX/i18n checks green. 192 distance controls, 4 Java interval-auditor
+guards and 6 Python report guards pass. Frozen-baseline counterproof: 7/7 failures;
+final classes: 7/7 pass; isolated first-stage kernel: 12/12 pass.
+See flatcam-next/REST_COVERAGE_REFINEMENT.md and REGION_LINES.md, snapshots under
+validation/, full evidence in target/clearing-connect-fix-20261110. No version bump
+or installer: user requested one combined next Beta. Historical numbers below
+must be read with this correction; do not erase the older evidence.
+
 Coverage + region prototype (2026-11-10): 96/96 community cases measured,
 including 32 two-cutter Rest/angle/MM-IN controls. Nominal access is computed
 from the original allowed area, not a thin Rest remainder. GRBL_11_no_M6 is
