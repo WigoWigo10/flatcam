@@ -1,0 +1,5083 @@
+{
+  "summary": {
+    "schema": 1,
+    "counts": {
+      "MEASURED": 96
+    },
+    "cases": 96,
+    "boards": [
+      "air-quality-sensor",
+      "audio-watermark",
+      "breadboard-power-supply",
+      "capacitive-keypad",
+      "horizon-choc",
+      "horizon-mx",
+      "modxo-adapter",
+      "single-sided-5v"
+    ],
+    "groups": {
+      "contour": {
+        "False": {
+          "count": 32,
+          "reachableUncutPercentRange": [
+            3.232520304855715,
+            22.192060869714275
+          ]
+        },
+        "True": {
+          "count": 64,
+          "reachableUncutPercentRange": [
+            0.0005615167833127256,
+            2.726458034247202
+          ]
+        }
+      },
+      "rest": {
+        "False": {
+          "count": 64,
+          "reachableUncutPercentRange": [
+            0.0005615167833127256,
+            22.192060869714275
+          ]
+        },
+        "True": {
+          "count": 32,
+          "reachableUncutPercentRange": [
+            0.3396653190177588,
+            2.726458034247202
+          ]
+        }
+      }
+    },
+    "policy": "Nominal circular swept footprints, Q16; original allowed-area access Q64. Raw residual retained. Core is residual eroded by the declared chord/rounding tolerance; it is not a general numerical error bound. Diagnostic copper bounding boxes are not physical PCB outlines or CNC validation.",
+    "errors": [],
+    "expectedCases": 96,
+    "matrixComplete": true
+  },
+  "cases": [
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 675.086200000001,
+      "targetArea": 396.98181207787735,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 8.052457758367382e-05,
+          "ownRemainingArea": 209.06616942973668,
+          "diameter": 0.4,
+          "paths": 342,
+          "maxSampleDeviation": 5.976452968477783e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 675.0862805245786,
+          "cutLength": 675.086200000001,
+          "cumulativeRemainingArea": 209.06616942973668
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.9419199130145,
+        "reachableUncutArea": 14.124259035448452,
+        "remainingArea": 209.0661789484628,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 13.991474040241341
+      },
+      "gcodeTravelLength": 671.7407422589139,
+      "gcodeCutPaths": 342,
+      "geometry": {
+        "outsideReachableArea": 194.94192095400643,
+        "reachableUncutArea": 14.124248475730884,
+        "remainingArea": 209.06616942973668,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 14.01854471222935
+      },
+      "id": "air-quality-sensor-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "air-quality-sensor",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 2163.8049
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 785.8571598113645,
+      "targetArea": 396.98181207787735,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.000274220601113484,
+          "ownRemainingArea": 196.11871276704795,
+          "diameter": 0.4,
+          "paths": 406,
+          "maxSampleDeviation": 6.89452299305928e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 785.8568855907633,
+          "cutLength": 785.8571598113645,
+          "cumulativeRemainingArea": 196.11871276704795
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.9418155897501,
+        "reachableUncutArea": 0.740969635187662,
+        "remainingArea": 195.68278522493796,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0.7206244795777594
+      },
+      "gcodeTravelLength": 758.1223608308985,
+      "gcodeCutPaths": 406,
+      "geometry": {
+        "outsideReachableArea": 194.94188567767122,
+        "reachableUncutArea": 1.1768270893771038,
+        "remainingArea": 196.11871276704795,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 1.151884260190425
+      },
+      "id": "air-quality-sensor-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "air-quality-sensor",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 2377.1183
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 690.4631917883819,
+      "targetArea": 396.98181207787735,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 4.6215424049478315e-05,
+          "ownRemainingArea": 208.42230016213338,
+          "diameter": 0.4,
+          "paths": 238,
+          "maxSampleDeviation": 5.976452968477783e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 690.4632380038059,
+          "cutLength": 690.4631917883819,
+          "cumulativeRemainingArea": 208.42230016213338
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.45866356717667,
+        "reachableUncutArea": 13.963669710175086,
+        "remainingArea": 208.42233327735178,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 13.837632908282435
+      },
+      "gcodeTravelLength": 588.0108339472957,
+      "gcodeCutPaths": 238,
+      "geometry": {
+        "outsideReachableArea": 194.45866460515163,
+        "reachableUncutArea": 13.963635556982032,
+        "remainingArea": 208.42230016213338,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 13.863359177498637
+      },
+      "id": "air-quality-sensor-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 997.8669
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 803.0683439693394,
+      "targetArea": 396.98181207787735,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00010526113248943147,
+          "ownRemainingArea": 196.11861447831882,
+          "diameter": 0.4,
+          "paths": 268,
+          "maxSampleDeviation": 6.89452299305928e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 803.0682387082069,
+          "cutLength": 803.0683439693394,
+          "cumulativeRemainingArea": 196.11861447831882
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.9418151206138,
+        "reachableUncutArea": 0.7409444464157909,
+        "remainingArea": 195.68275956702973,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0.7206244795777594
+      },
+      "gcodeTravelLength": 614.1754053500878,
+      "gcodeCutPaths": 268,
+      "geometry": {
+        "outsideReachableArea": 194.94188573949972,
+        "reachableUncutArea": 1.1767287388194099,
+        "remainingArea": 196.11861447831882,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 1.151881194349127
+      },
+      "id": "air-quality-sensor-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2177.1782
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 7.105427357601002e-15,
+      "gcodeCutLength": 17.29145392482844,
+      "targetArea": 0.6153230393667871,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.2974634679164856,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 5.30624928885004e-06,
+          "ownRemainingArea": 0.3423478116913681,
+          "diameter": 0.031496062992125984,
+          "paths": 20,
+          "maxSampleDeviation": 6.851506933044838e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 14.857021767605357,
+          "cutLength": 14.857027073854645,
+          "cumulativeRemainingArea": 0.3423478116913681
+        },
+        {
+          "lengthError": 5.487565005513062e-06,
+          "ownRemainingArea": 0.3061343578579073,
+          "diameter": 0.015748031496062992,
+          "paths": 244,
+          "maxSampleDeviation": 6.821765938471304e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 2.4344323385387994,
+          "cutLength": 2.434426850973794,
+          "cumulativeRemainingArea": 0.3061297289557674
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.2974634094944958,
+        "reachableUncutArea": 0.007711480666093584,
+        "remainingArea": 0.3051748901605896,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.0076226707917655
+      },
+      "gcodeTravelLength": 30.042309452715337,
+      "gcodeCutPaths": 264,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.29746342113233687,
+        "reachableUncutArea": 0.008666307823430471,
+        "remainingArea": 0.3061297289557674,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.008562196080439911
+      },
+      "id": "air-quality-sensor-ncc-rest-in",
+      "operation": "ncc",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2234.4478
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 2.2737367544323206e-13,
+      "gcodeCutLength": 476.071919703751,
+      "targetArea": 396.98181207787735,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0001850675179184691,
+          "ownRemainingArea": 220.5573871384271,
+          "diameter": 0.8,
+          "paths": 26,
+          "maxSampleDeviation": 6.938906253869507e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 411.1449841866456,
+          "cutLength": 411.1447991191277,
+          "cumulativeRemainingArea": 220.5573871384271
+        },
+        {
+          "lengthError": 0.0013049678842378398,
+          "ownRemainingArea": 197.32795689128324,
+          "diameter": 0.4,
+          "paths": 248,
+          "maxSampleDeviation": 6.89452299305928e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 64.92842555250756,
+          "cutLength": 64.92712058462332,
+          "cumulativeRemainingArea": 197.3278839498385
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.94181952829973,
+        "reachableUncutArea": 1.9454431742428313,
+        "remainingArea": 196.8872627025426,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 1.8995261887431911
+      },
+      "gcodeTravelLength": 694.0341280241023,
+      "gcodeCutPaths": 274,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 194.9418874853888,
+        "reachableUncutArea": 2.3859964644499945,
+        "remainingArea": 197.3278839498385,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 2.334656434844194
+      },
+      "id": "air-quality-sensor-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 1927.0338
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 675.0862000000009,
+      "targetArea": 396.9818120778773,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 8.052457758367382e-05,
+          "ownRemainingArea": 209.06616942973704,
+          "diameter": 0.4,
+          "paths": 342,
+          "maxSampleDeviation": 5.976452968477783e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 675.0862805245785,
+          "cutLength": 675.0862000000009,
+          "cumulativeRemainingArea": 209.06616942973704
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.9419199130144,
+        "reachableUncutArea": 14.124259035448453,
+        "remainingArea": 209.06617894846306,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 13.99147404024135
+      },
+      "gcodeTravelLength": 560.1232261234375,
+      "gcodeCutPaths": 342,
+      "geometry": {
+        "outsideReachableArea": 194.94192095400615,
+        "reachableUncutArea": 14.12424847573088,
+        "remainingArea": 209.06616942973704,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 14.018544712229355
+      },
+      "id": "air-quality-sensor-paint-c0-e0",
+      "operation": "paint",
+      "board": "air-quality-sensor",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 1184.1912
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 785.8571598113639,
+      "targetArea": 396.9818120778773,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0002742206007724235,
+          "ownRemainingArea": 196.11871233415104,
+          "diameter": 0.4,
+          "paths": 406,
+          "maxSampleDeviation": 6.89452299305928e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 785.8568855907631,
+          "cutLength": 785.8571598113639,
+          "cumulativeRemainingArea": 196.11871233415104
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.9418155983172,
+        "reachableUncutArea": 0.7409638813190875,
+        "remainingArea": 195.68277947963603,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0.7206244795777594
+      },
+      "gcodeTravelLength": 646.5254169861032,
+      "gcodeCutPaths": 406,
+      "geometry": {
+        "outsideReachableArea": 194.9418856545242,
+        "reachableUncutArea": 1.17682667962729,
+        "remainingArea": 196.11871233415104,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 1.1518842601904247
+      },
+      "id": "air-quality-sensor-paint-c0-e1",
+      "operation": "paint",
+      "board": "air-quality-sensor",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 2185.3934
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 690.4631917883816,
+      "targetArea": 396.9818120778773,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 4.621542427685199e-05,
+          "ownRemainingArea": 208.42230016213372,
+          "diameter": 0.4,
+          "paths": 238,
+          "maxSampleDeviation": 5.976452968477783e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 690.4632380038058,
+          "cutLength": 690.4631917883816,
+          "cumulativeRemainingArea": 208.42230016213372
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.45866356717656,
+        "reachableUncutArea": 13.963669710175093,
+        "remainingArea": 208.42233327735184,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 13.837632908282444
+      },
+      "gcodeTravelLength": 456.1573266604578,
+      "gcodeCutPaths": 238,
+      "geometry": {
+        "outsideReachableArea": 194.4586646051514,
+        "reachableUncutArea": 13.963635556982037,
+        "remainingArea": 208.42230016213372,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 13.863359177498642
+      },
+      "id": "air-quality-sensor-paint-c1-e0",
+      "operation": "paint",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 1072.2268
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 802.9608789777217,
+      "targetArea": 396.9818120778773,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 5.2427463515414274e-05,
+          "ownRemainingArea": 196.11860025005421,
+          "diameter": 0.4,
+          "paths": 268,
+          "maxSampleDeviation": 6.89452299305928e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 802.9608265502582,
+          "cutLength": 802.9608789777217,
+          "cumulativeRemainingArea": 196.11860025005421
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.94181512516724,
+        "reachableUncutArea": 0.7409333823538334,
+        "remainingArea": 195.68274850752087,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0.7206244795777594
+      },
+      "gcodeTravelLength": 482.8726468785569,
+      "gcodeCutPaths": 268,
+      "geometry": {
+        "outsideReachableArea": 194.94188566750256,
+        "reachableUncutArea": 1.176714582552012,
+        "remainingArea": 196.11860025005421,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 1.1518811943491267
+      },
+      "id": "air-quality-sensor-paint-c1-e1",
+      "operation": "paint",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 1652.3905
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 1.0658141036401503e-14,
+      "gcodeCutLength": 18.747092932152604,
+      "targetArea": 0.6153230393667874,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.2974634679164856,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 2.127635706727915e-06,
+          "ownRemainingArea": 0.3418646337982083,
+          "diameter": 0.031496062992125984,
+          "paths": 26,
+          "maxSampleDeviation": 6.851506933044838e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 16.186810401049154,
+          "cutLength": 16.186808273413448,
+          "cumulativeRemainingArea": 0.3418646337982077
+        },
+        {
+          "lengthError": 4.839434982528701e-06,
+          "ownRemainingArea": 0.3058254779167622,
+          "diameter": 0.015748031496062992,
+          "paths": 250,
+          "maxSampleDeviation": 6.821765938471304e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 2.5602894981741384,
+          "cutLength": 2.560284658739156,
+          "cumulativeRemainingArea": 0.3058352784340779
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.29746340907635993,
+        "reachableUncutArea": 0.0077122425890896055,
+        "remainingArea": 0.3051756516654498,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.0076233700848900255
+      },
+      "gcodeTravelLength": 25.808466355508795,
+      "gcodeCutPaths": 276,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.29746342113229574,
+        "reachableUncutArea": 0.008371857301782075,
+        "remainingArea": 0.3058352784340779,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.008271145888177782
+      },
+      "id": "air-quality-sensor-paint-rest-in",
+      "operation": "paint",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2430.5174
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 5.684341886080801e-13,
+      "gcodeCutLength": 439.24592650716585,
+      "targetArea": 396.9818120778777,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 194.94192367220592,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 8.427915435049727e-05,
+          "ownRemainingArea": 220.86911419080042,
+          "diameter": 0.8,
+          "paths": 20,
+          "maxSampleDeviation": 6.938906253869507e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 377.36835289717663,
+          "cutLength": 377.3682686180223,
+          "cumulativeRemainingArea": 220.86911419080045
+        },
+        {
+          "lengthError": 0.00022064756910111782,
+          "ownRemainingArea": 197.4848688802298,
+          "diameter": 0.4,
+          "paths": 246,
+          "maxSampleDeviation": 6.89452299305928e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 61.87787853671267,
+          "cutLength": 61.87765788914357,
+          "cumulativeRemainingArea": 197.4911752622044
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 194.94181931363386,
+        "reachableUncutArea": 1.9458758374947571,
+        "remainingArea": 196.88769515112838,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 1.8999440574025817
+      },
+      "gcodeTravelLength": 695.8580307914526,
+      "gcodeCutPaths": 266,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 194.94188747359632,
+        "reachableUncutArea": 2.549287788608184,
+        "remainingArea": 197.4911752622044,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 2.495959026628808
+      },
+      "id": "air-quality-sensor-paint-rest-mm",
+      "operation": "paint",
+      "board": "air-quality-sensor",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2384.671
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 8345.548500000012,
+      "targetArea": 2562.884073983618,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.015423714812641265,
+          "ownRemainingArea": 205.03922791043726,
+          "diameter": 0.4,
+          "paths": 5804,
+          "maxSampleDeviation": 6.720436784547895e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 8345.563923714824,
+          "cutLength": 8345.548500000012,
+          "cumulativeRemainingArea": 205.03922791043726
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14202071940112,
+        "reachableUncutArea": 124.90118480541284,
+        "remainingArea": 205.04320552480382,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 123.33560991107926
+      },
+      "gcodeTravelLength": 24712.96709691811,
+      "gcodeCutPaths": 5804,
+      "geometry": {
+        "outsideReachableArea": 80.14202070928958,
+        "reachableUncutArea": 124.89720720117563,
+        "remainingArea": 205.03922791043726,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 123.66269504245662
+      },
+      "id": "audio-watermark-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "audio-watermark",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 8880.6744
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 10745.417697812492,
+      "targetArea": 2562.884073983618,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.007619554264238104,
+          "ownRemainingArea": 80.23836234380838,
+          "diameter": 0.4,
+          "paths": 6100,
+          "maxSampleDeviation": 7.045606720717017e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 10745.425317366757,
+          "cutLength": 10745.417697812492,
+          "cumulativeRemainingArea": 80.23836234380838
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14172432831216,
+        "reachableUncutArea": 0.058200108887463325,
+        "remainingArea": 80.19992443895107,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 25965.277319909834,
+      "gcodeCutPaths": 6100,
+      "geometry": {
+        "outsideReachableArea": 80.14189504532067,
+        "reachableUncutArea": 0.09646612558589154,
+        "remainingArea": 80.23836234380838,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.040549120528324524
+      },
+      "id": "audio-watermark-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "audio-watermark",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 23725.1797
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 8814.386826203334,
+      "targetArea": 2562.884073983618,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.014693816900035017,
+          "ownRemainingArea": 198.0539163562534,
+          "diameter": 0.4,
+          "paths": 2658,
+          "maxSampleDeviation": 6.720436784547895e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 8814.401520020234,
+          "cutLength": 8814.386826203334,
+          "cumulativeRemainingArea": 198.0539163562534
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.1420204042028,
+        "reachableUncutArea": 117.9156531274229,
+        "remainingArea": 198.05767353161983,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 116.56934541771258
+      },
+      "gcodeTravelLength": 998.2733290700511,
+      "gcodeCutPaths": 2658,
+      "geometry": {
+        "outsideReachableArea": 80.14202070928958,
+        "reachableUncutArea": 117.91189564695034,
+        "remainingArea": 198.0539163562534,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 116.85212012688305
+      },
+      "id": "audio-watermark-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 8401.4642
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 11205.310568764146,
+      "targetArea": 2562.884073983618,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.006469028921856079,
+          "ownRemainingArea": 80.23789716520642,
+          "diameter": 0.4,
+          "paths": 2848,
+          "maxSampleDeviation": 7.045606720717017e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 11205.317037793067,
+          "cutLength": 11205.310568764146,
+          "cumulativeRemainingArea": 80.23789716520642
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14172276736647,
+        "reachableUncutArea": 0.05814378548082922,
+        "remainingArea": 80.19986655459877,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 1040.911772843068,
+      "gcodeCutPaths": 2848,
+      "geometry": {
+        "outsideReachableArea": 80.1418938413043,
+        "reachableUncutArea": 0.09600214784753928,
+        "remainingArea": 80.23789716520642,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.040549120528324524
+      },
+      "id": "audio-watermark-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 20386.1542
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 1.7053025658242404e-13,
+      "gcodeCutLength": 236.21201577003097,
+      "targetArea": 3.9724782596311274,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.12419107221656381,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 1.2359029710751201e-05,
+          "ownRemainingArea": 0.41158304928944794,
+          "diameter": 0.031496062992125984,
+          "paths": 1404,
+          "maxSampleDeviation": 7.017654067560832e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 209.74226182649537,
+          "cutLength": 209.74224946746565,
+          "cumulativeRemainingArea": 0.41158304928944794
+        },
+        {
+          "lengthError": 1.590711696053404e-05,
+          "ownRemainingArea": 0.1854414772385419,
+          "diameter": 0.015748031496062992,
+          "paths": 670,
+          "maxSampleDeviation": 7.029274754004224e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 26.469782209682283,
+          "cutLength": 26.469766302565322,
+          "cumulativeRemainingArea": 0.18599179748888656
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.12419097907315046,
+        "reachableUncutArea": 0.06008192685098727,
+        "remainingArea": 0.18427290592413836,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.059026427475281966
+      },
+      "gcodeTravelLength": 98.39790590528558,
+      "gcodeCutPaths": 2074,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.12419101907900362,
+        "reachableUncutArea": 0.061800777526110066,
+        "remainingArea": 0.18599179748888656,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.06076432684725238
+      },
+      "id": "audio-watermark-ncc-rest-in",
+      "operation": "ncc",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 21779.474
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 1.8189894035458565e-12,
+      "gcodeCutLength": 6115.605566903884,
+      "targetArea": 2562.884073983618,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.002808817029290367,
+          "ownRemainingArea": 265.59748195545956,
+          "diameter": 0.8,
+          "paths": 1478,
+          "maxSampleDeviation": 6.808902618500519e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 5402.389143806432,
+          "cutLength": 5402.391952623461,
+          "cumulativeRemainingArea": 265.59748195545956
+        },
+        {
+          "lengthError": 0.000634063516599781,
+          "ownRemainingArea": 119.6777024740104,
+          "diameter": 0.4,
+          "paths": 702,
+          "maxSampleDeviation": 6.9345496796205e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 713.2142483439397,
+          "cutLength": 713.2136142804231,
+          "cumulativeRemainingArea": 120.04460102724224
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14186868816145,
+        "reachableUncutArea": 38.74342787731947,
+        "remainingArea": 118.88529656550872,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 37.99876171441594
+      },
+      "gcodeTravelLength": 2514.6281607410374,
+      "gcodeCutPaths": 2180,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 80.14198749119028,
+        "reachableUncutArea": 39.90261296169823,
+        "remainingArea": 120.04460102724224,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 39.234397559636605
+      },
+      "id": "audio-watermark-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 19396.2782
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 8345.548500000012,
+      "targetArea": 2562.8840739836187,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.015423714812641265,
+          "ownRemainingArea": 205.0392279104364,
+          "diameter": 0.4,
+          "paths": 5804,
+          "maxSampleDeviation": 6.720436784547895e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 8345.563923714824,
+          "cutLength": 8345.548500000012,
+          "cumulativeRemainingArea": 205.0392279104364
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14202071940119,
+        "reachableUncutArea": 124.90118480541231,
+        "remainingArea": 205.04320552480496,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 123.33560991107926
+      },
+      "gcodeTravelLength": 24712.96709691811,
+      "gcodeCutPaths": 5804,
+      "geometry": {
+        "outsideReachableArea": 80.14202070928974,
+        "reachableUncutArea": 124.89720720117423,
+        "remainingArea": 205.0392279104364,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 123.66269504245662
+      },
+      "id": "audio-watermark-paint-c0-e0",
+      "operation": "paint",
+      "board": "audio-watermark",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 8228.04
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 10745.417697812492,
+      "targetArea": 2562.8840739836187,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.007619554264238104,
+          "ownRemainingArea": 80.23836234380843,
+          "diameter": 0.4,
+          "paths": 6100,
+          "maxSampleDeviation": 7.045606720717017e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 10745.425317366757,
+          "cutLength": 10745.417697812492,
+          "cumulativeRemainingArea": 80.23836234380843
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14172432831218,
+        "reachableUncutArea": 0.058200108887461854,
+        "remainingArea": 80.19992443895117,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 25965.277319909834,
+      "gcodeCutPaths": 6100,
+      "geometry": {
+        "outsideReachableArea": 80.14189504516808,
+        "reachableUncutArea": 0.09646612557809274,
+        "remainingArea": 80.23836234380843,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.040549120528324524
+      },
+      "id": "audio-watermark-paint-c0-e1",
+      "operation": "paint",
+      "board": "audio-watermark",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 20370.8899
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 8814.386826203334,
+      "targetArea": 2562.8840739836187,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.014693816900035017,
+          "ownRemainingArea": 198.0539163562526,
+          "diameter": 0.4,
+          "paths": 2658,
+          "maxSampleDeviation": 6.720436784547895e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 8814.401520020234,
+          "cutLength": 8814.386826203334,
+          "cumulativeRemainingArea": 198.0539163562526
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14202040420288,
+        "reachableUncutArea": 117.91565312742277,
+        "remainingArea": 198.05767353162094,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 116.56934541771258
+      },
+      "gcodeTravelLength": 998.2733290700511,
+      "gcodeCutPaths": 2658,
+      "geometry": {
+        "outsideReachableArea": 80.14202070928974,
+        "reachableUncutArea": 117.91189564694939,
+        "remainingArea": 198.0539163562526,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 116.85212012688305
+      },
+      "id": "audio-watermark-paint-c1-e0",
+      "operation": "paint",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 7130.4118
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 11205.310568764146,
+      "targetArea": 2562.8840739836187,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.006469028921856079,
+          "ownRemainingArea": 80.23789716520638,
+          "diameter": 0.4,
+          "paths": 2848,
+          "maxSampleDeviation": 7.045606720717017e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 11205.317037793067,
+          "cutLength": 11205.310568764146,
+          "cumulativeRemainingArea": 80.23789716520638
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.14172276736646,
+        "reachableUncutArea": 0.05814378548082892,
+        "remainingArea": 80.19986655459881,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 1040.911772843068,
+      "gcodeCutPaths": 2848,
+      "geometry": {
+        "outsideReachableArea": 80.1418938411517,
+        "reachableUncutArea": 0.09600214783974036,
+        "remainingArea": 80.23789716520638,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.040549120528324524
+      },
+      "id": "audio-watermark-paint-c1-e1",
+      "operation": "paint",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 17692.5751
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 1.9895196601282805e-13,
+      "gcodeCutLength": 241.0717842575121,
+      "targetArea": 3.972478259631127,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.12419107221656381,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 5.066584236601557e-06,
+          "ownRemainingArea": 0.41167696708161056,
+          "diameter": 0.031496062992125984,
+          "paths": 1474,
+          "maxSampleDeviation": 6.998297370035432e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 212.89321748500527,
+          "cutLength": 212.89321241842103,
+          "cumulativeRemainingArea": 0.4116769670816109
+        },
+        {
+          "lengthError": 5.864205379779719e-05,
+          "ownRemainingArea": 0.18505079114082207,
+          "diameter": 0.015748031496062992,
+          "paths": 728,
+          "maxSampleDeviation": 7.029274754004224e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 28.178630481144875,
+          "cutLength": 28.178571839091077,
+          "cumulativeRemainingArea": 0.18531821281190183
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.12419098376765983,
+        "reachableUncutArea": 0.06012666863132046,
+        "remainingArea": 0.1843176523989819,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.05906078094520854
+      },
+      "gcodeTravelLength": 93.72572324608916,
+      "gcodeCutPaths": 2202,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.12419102043095258,
+        "reachableUncutArea": 0.06112719149456724,
+        "remainingArea": 0.18531821281190183,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.06008469785699236
+      },
+      "id": "audio-watermark-paint-rest-in",
+      "operation": "paint",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 20846.5424
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 2.7284841053187847e-12,
+      "gcodeCutLength": 5984.128029047013,
+      "targetArea": 2562.884073983618,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 80.14202079530028,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0058230103149981005,
+          "ownRemainingArea": 265.53686150846414,
+          "diameter": 0.8,
+          "paths": 1420,
+          "maxSampleDeviation": 6.808902618500519e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 5312.172090497762,
+          "cutLength": 5312.177913508077,
+          "cumulativeRemainingArea": 265.5368615084652
+        },
+        {
+          "lengthError": 0.007202317546557424,
+          "ownRemainingArea": 119.32491290607074,
+          "diameter": 0.4,
+          "paths": 676,
+          "maxSampleDeviation": 6.9345496796205e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 671.9573178564827,
+          "cutLength": 671.9501155389362,
+          "cumulativeRemainingArea": 119.49727547083056
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 80.141868396963,
+        "reachableUncutArea": 38.77303679903782,
+        "remainingArea": 118.91490519602878,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 38.021311812918974
+      },
+      "gcodeTravelLength": 2311.9614410895824,
+      "gcodeCutPaths": 2096,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 80.14198685232405,
+        "reachableUncutArea": 39.355288045154396,
+        "remainingArea": 119.49727547083056,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 38.6834574411702
+      },
+      "id": "audio-watermark-paint-rest-mm",
+      "operation": "paint",
+      "board": "audio-watermark",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 18595.3196
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1253.8975000000003,
+      "targetArea": 449.3788226056825,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.003862475769892626,
+          "ownRemainingArea": 63.12250054926866,
+          "diameter": 0.4,
+          "paths": 1346,
+          "maxSampleDeviation": 6.401446575488112e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1253.9013624757702,
+          "cutLength": 1253.8975000000003,
+          "cumulativeRemainingArea": 63.12250054926866
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8032011151045593,
+        "reachableUncutArea": 61.320170225941936,
+        "remainingArea": 63.123371341696256,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 60.89794657500165
+      },
+      "gcodeTravelLength": 3984.5285841418586,
+      "gcodeCutPaths": 1346,
+      "geometry": {
+        "outsideReachableArea": 1.8032022379493897,
+        "reachableUncutArea": 61.31929831067184,
+        "remainingArea": 63.12250054926866,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 60.986754788126284
+      },
+      "id": "breadboard-power-supply-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "breadboard-power-supply",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 3816.9944
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1915.6043242029657,
+      "targetArea": 449.3788226056825,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0029994344479291613,
+          "ownRemainingArea": 1.8183292951710386,
+          "diameter": 0.4,
+          "paths": 1414,
+          "maxSampleDeviation": 6.89859503643469e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1915.6073236374136,
+          "cutLength": 1915.6043242029657,
+          "cumulativeRemainingArea": 1.8183292951710386
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.803155551719802,
+        "reachableUncutArea": 0.015783703310376804,
+        "remainingArea": 1.8189392556634683,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 4253.451238381294,
+      "gcodeCutPaths": 1414,
+      "geometry": {
+        "outsideReachableArea": 1.803191237020705,
+        "reachableUncutArea": 0.015137725465475973,
+        "remainingArea": 1.8183292951710386,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.002707315208118575
+      },
+      "id": "breadboard-power-supply-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "breadboard-power-supply",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 4108.8535
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1374.5978666579688,
+      "targetArea": 449.3788226056825,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.004060121895918201,
+          "ownRemainingArea": 61.08027251249852,
+          "diameter": 0.4,
+          "paths": 426,
+          "maxSampleDeviation": 6.391821723236372e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1374.6019267798647,
+          "cutLength": 1374.5978666579688,
+          "cumulativeRemainingArea": 61.08027251249852
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8032010333434032,
+        "reachableUncutArea": 59.27819821804884,
+        "remainingArea": 61.08139925204151,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 58.889395657402446
+      },
+      "gcodeTravelLength": 736.4619851644109,
+      "gcodeCutPaths": 426,
+      "geometry": {
+        "outsideReachableArea": 1.8032020951779,
+        "reachableUncutArea": 59.27707041667267,
+        "remainingArea": 61.08027251249852,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 58.97124725807286
+      },
+      "id": "breadboard-power-supply-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 1839.7433
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2035.7878185106313,
+      "targetArea": 449.3788226056825,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.002935543975809196,
+          "ownRemainingArea": 1.8182525093296482,
+          "diameter": 0.4,
+          "paths": 462,
+          "maxSampleDeviation": 6.89859503643469e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2035.790754054607,
+          "cutLength": 2035.7878185106313,
+          "cumulativeRemainingArea": 1.8182525093296482
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8031553118630346,
+        "reachableUncutArea": 0.0157079000064677,
+        "remainingArea": 1.8188632125723554,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 824.5949245256711,
+      "gcodeCutPaths": 462,
+      "geometry": {
+        "outsideReachableArea": 1.8031910141827099,
+        "reachableUncutArea": 0.015061162716452017,
+        "remainingArea": 1.8182525093296482,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.0027073152081185745
+      },
+      "id": "breadboard-power-supply-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2245.999
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 4.263256414560601e-14,
+      "gcodeCutLength": 52.4268504872099,
+      "targetArea": 0.6965385681159441,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.0027949690705069094,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 3.6831139276216618e-06,
+          "ownRemainingArea": 0.22169244125970394,
+          "diameter": 0.031496062992125984,
+          "paths": 66,
+          "maxSampleDeviation": 6.192530851984606e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 24.44197221365848,
+          "cutLength": 24.44197589677241,
+          "cumulativeRemainingArea": 0.22169244125970394
+        },
+        {
+          "lengthError": 7.787267257697295e-07,
+          "ownRemainingArea": 0.007423804341220815,
+          "diameter": 0.015748031496062992,
+          "paths": 364,
+          "maxSampleDeviation": 7.006342704439635e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 27.984873811710763,
+          "cutLength": 27.98487459043749,
+          "cumulativeRemainingArea": 0.007435929925899214
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.002794958631356642,
+        "reachableUncutArea": 0.0035409745932876344,
+        "remainingArea": 0.006335933225896544,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.0034356297831145814
+      },
+      "gcodeTravelLength": 40.052654316035714,
+      "gcodeCutPaths": 430,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.0027949606263087366,
+        "reachableUncutArea": 0.00464096929858214,
+        "remainingArea": 0.007435929925899214,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.004531509721377229
+      },
+      "id": "breadboard-power-supply-ncc-rest-in",
+      "operation": "ncc",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2130.6489
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 6.821210263296962e-13,
+      "gcodeCutLength": 1466.1452094948258,
+      "targetArea": 449.3788226056825,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0005953302730858923,
+          "ownRemainingArea": 142.79417731481837,
+          "diameter": 0.8,
+          "paths": 72,
+          "maxSampleDeviation": 6.527085538212009e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 693.6297079715674,
+          "cutLength": 693.6303033018405,
+          "cumulativeRemainingArea": 142.79417731481837
+        },
+        {
+          "lengthError": 0.004565556621059841,
+          "ownRemainingArea": 4.55962090925858,
+          "diameter": 0.4,
+          "paths": 418,
+          "maxSampleDeviation": 6.920326483103143e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 772.5194717496063,
+          "cutLength": 772.5149061929852,
+          "cumulativeRemainingArea": 4.5663046484410375
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8031629822280189,
+        "reachableUncutArea": 2.2873779501909164,
+        "remainingArea": 4.09054093305216,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 2.211136896319647
+      },
+      "gcodeTravelLength": 1000.7257669049695,
+      "gcodeCutPaths": 490,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 1.8031968074338496,
+        "reachableUncutArea": 2.763107427792792,
+        "remainingArea": 4.5663046484410375,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 2.694283915833796
+      },
+      "id": "breadboard-power-supply-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2942.5722
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1253.897500000001,
+      "targetArea": 449.37882260568233,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.0038624757708021207,
+          "ownRemainingArea": 63.12250054926863,
+          "diameter": 0.4,
+          "paths": 1346,
+          "maxSampleDeviation": 6.401446575488112e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1253.9013624757717,
+          "cutLength": 1253.897500000001,
+          "cumulativeRemainingArea": 63.12250054926863
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8032011151045626,
+        "reachableUncutArea": 61.32017022594195,
+        "remainingArea": 63.12337134169508,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 60.89794657500942
+      },
+      "gcodeTravelLength": 3696.454497152505,
+      "gcodeCutPaths": 1346,
+      "geometry": {
+        "outsideReachableArea": 1.8032022379493917,
+        "reachableUncutArea": 61.31929831067195,
+        "remainingArea": 63.12250054926863,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 60.986754788126284
+      },
+      "id": "breadboard-power-supply-paint-c0-e0",
+      "operation": "paint",
+      "board": "breadboard-power-supply",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 2082.5019
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1915.6043242029648,
+      "targetArea": 449.37882260568233,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0029994345456998417,
+          "ownRemainingArea": 1.8183293888344465,
+          "diameter": 0.4,
+          "paths": 1414,
+          "maxSampleDeviation": 6.89859503643469e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1915.6073236375105,
+          "cutLength": 1915.6043242029648,
+          "cumulativeRemainingArea": 1.8183293888344465
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.803155523667606,
+        "reachableUncutArea": 0.015782817957470677,
+        "remainingArea": 1.8189383422583991,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 3886.4865232614325,
+      "gcodeCutPaths": 1414,
+      "geometry": {
+        "outsideReachableArea": 1.8031912376894497,
+        "reachableUncutArea": 0.015137818459943353,
+        "remainingArea": 1.8183293888344465,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.002707315208118575
+      },
+      "id": "breadboard-power-supply-paint-c0-e1",
+      "operation": "paint",
+      "board": "breadboard-power-supply",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 2365.7019
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1374.59786665797,
+      "targetArea": 449.37882260568233,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.0040601218945539586,
+          "ownRemainingArea": 61.080272512498446,
+          "diameter": 0.4,
+          "paths": 426,
+          "maxSampleDeviation": 6.391821723236372e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1374.6019267798645,
+          "cutLength": 1374.59786665797,
+          "cumulativeRemainingArea": 61.080272512498446
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8032010333434063,
+        "reachableUncutArea": 59.27819821804913,
+        "remainingArea": 61.0813992520408,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 58.88939565741022
+      },
+      "gcodeTravelLength": 457.6550009923672,
+      "gcodeCutPaths": 426,
+      "geometry": {
+        "outsideReachableArea": 1.8032020951779024,
+        "reachableUncutArea": 59.277070416672885,
+        "remainingArea": 61.080272512498446,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 58.97124725807286
+      },
+      "id": "breadboard-power-supply-paint-c1-e0",
+      "operation": "paint",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 1807.1704
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2035.6622387195239,
+      "targetArea": 449.37882260568233,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.003237231469938706,
+          "ownRemainingArea": 1.8182614420742256,
+          "diameter": 0.4,
+          "paths": 464,
+          "maxSampleDeviation": 6.89859503643469e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2035.6654759509938,
+          "cutLength": 2035.6622387195239,
+          "cumulativeRemainingArea": 1.8182614420742256
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.803155301811422,
+        "reachableUncutArea": 0.015704783879558096,
+        "remainingArea": 1.8188600863938742,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 473.4967917635799,
+      "gcodeCutPaths": 464,
+      "geometry": {
+        "outsideReachableArea": 1.8031910382015501,
+        "reachableUncutArea": 0.01507007096979937,
+        "remainingArea": 1.8182614420742256,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.0027073152081185745
+      },
+      "id": "breadboard-power-supply-paint-c1-e1",
+      "operation": "paint",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2043.7521
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 7.105427357601002e-15,
+      "gcodeCutLength": 57.542247703961536,
+      "targetArea": 0.6965385681159446,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.0027949690705069094,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 2.608626772371281e-06,
+          "ownRemainingArea": 0.2213314175054535,
+          "diameter": 0.031496062992125984,
+          "paths": 72,
+          "maxSampleDeviation": 6.192530851984606e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 27.3082562193481,
+          "cutLength": 27.308253610721327,
+          "cumulativeRemainingArea": 0.22133141750545401
+        },
+        {
+          "lengthError": 1.8237033330592567e-05,
+          "ownRemainingArea": 0.007065402444058175,
+          "diameter": 0.015748031496062992,
+          "paths": 414,
+          "maxSampleDeviation": 7.006342704439635e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 30.234012330273536,
+          "cutLength": 30.233994093240206,
+          "cumulativeRemainingArea": 0.007085834526945175
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.0027949583203616696,
+        "reachableUncutArea": 0.003549847003311959,
+        "remainingArea": 0.006344805324949631,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.003442573522437064
+      },
+      "gcodeTravelLength": 42.80966084640084,
+      "gcodeCutPaths": 486,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.0027949605672044206,
+        "reachableUncutArea": 0.004290873355420842,
+        "remainingArea": 0.007085834526945175,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.004182334682726027
+      },
+      "id": "breadboard-power-supply-paint-rest-in",
+      "operation": "paint",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 2542.2196
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 9.094947017729282e-13,
+      "gcodeCutLength": 1334.7178745108595,
+      "targetArea": 449.3788226056826,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.8032022395565455,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 4.975683873453818e-05,
+          "ownRemainingArea": 143.02709539814575,
+          "diameter": 0.8,
+          "paths": 66,
+          "maxSampleDeviation": 6.217596271759861e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 620.8260942282924,
+          "cutLength": 620.8260444714537,
+          "cumulativeRemainingArea": 143.02709539814586
+        },
+        {
+          "lengthError": 0.0033064194593634966,
+          "ownRemainingArea": 4.789729943447776,
+          "diameter": 0.4,
+          "paths": 382,
+          "maxSampleDeviation": 6.733545764645963e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 713.8951364588653,
+          "cutLength": 713.8918300394059,
+          "cumulativeRemainingArea": 4.803046128088259
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.8031628832401394,
+        "reachableUncutArea": 2.2926352567680306,
+        "remainingArea": 4.09579814094005,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 2.2152673594798236
+      },
+      "gcodeTravelLength": 1040.7108521918199,
+      "gcodeCutPaths": 448,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 1.803196494513679,
+        "reachableUncutArea": 2.9998492442323768,
+        "remainingArea": 4.803046128088259,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 2.927979189835867
+      },
+      "id": "breadboard-power-supply-paint-rest-mm",
+      "operation": "paint",
+      "board": "breadboard-power-supply",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 3016.6103
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 196.82789999999997,
+      "targetArea": 151.52939810747404,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 5.716279844136807e-06,
+          "ownRemainingArea": 98.87533427015545,
+          "diameter": 0.4,
+          "paths": 56,
+          "maxSampleDeviation": 4.922291953896169e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 196.82789428372013,
+          "cutLength": 196.82789999999997,
+          "cumulativeRemainingArea": 98.87533427015545
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.2557340307207,
+        "reachableUncutArea": 3.619595624696839,
+        "remainingArea": 98.87532965541747,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 3.5883039440598523
+      },
+      "gcodeTravelLength": 257.84306069716865,
+      "gcodeCutPaths": 56,
+      "geometry": {
+        "outsideReachableArea": 95.2557340307207,
+        "reachableUncutArea": 3.619600239434874,
+        "remainingArea": 98.87533427015545,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.5949976307664038
+      },
+      "id": "capacitive-keypad-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "capacitive-keypad",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 114.3177
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 243.00972926223824,
+      "targetArea": 151.52939810747404,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00018488086021761774,
+          "ownRemainingArea": 95.25611746161063,
+          "diameter": 0.4,
+          "paths": 58,
+          "maxSampleDeviation": 6.80215352173092e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 243.00954438137802,
+          "cutLength": 243.00972926223824,
+          "cumulativeRemainingArea": 95.25611746161063
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.2557303401398,
+        "reachableUncutArea": 0.00038613207747533915,
+        "remainingArea": 95.25611647221722,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 275.25545179374126,
+      "gcodeCutPaths": 58,
+      "geometry": {
+        "outsideReachableArea": 95.25573348547489,
+        "reachableUncutArea": 0.00038397613568780773,
+        "remainingArea": 95.25611746161063,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "capacitive-keypad-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "capacitive-keypad",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 59.4683
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 201.13697260052055,
+      "targetArea": 151.52939810747404,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 2.2627528011298637e-05,
+          "ownRemainingArea": 98.78472325583176,
+          "diameter": 0.4,
+          "paths": 26,
+          "maxSampleDeviation": 4.922291953896169e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 201.13699522804856,
+          "cutLength": 201.13697260052055,
+          "cumulativeRemainingArea": 98.78472325583176
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.2557340307207,
+        "reachableUncutArea": 3.5289989480392756,
+        "remainingArea": 98.78473297875992,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 3.5005440416214197
+      },
+      "gcodeTravelLength": 14.976201865728793,
+      "gcodeCutPaths": 26,
+      "geometry": {
+        "outsideReachableArea": 95.2557340307207,
+        "reachableUncutArea": 3.528989225110898,
+        "remainingArea": 98.78472325583176,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.506640844405269
+      },
+      "id": "capacitive-keypad-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 37.7117
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 247.3188018627588,
+      "targetArea": 151.52939810747404,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00015653705230533888,
+          "ownRemainingArea": 95.25611746161063,
+          "diameter": 0.4,
+          "paths": 28,
+          "maxSampleDeviation": 6.80215352173092e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 247.31864532570648,
+          "cutLength": 247.3188018627588,
+          "cumulativeRemainingArea": 95.25611746161063
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.2557303401398,
+        "reachableUncutArea": 0.0003858957479420424,
+        "remainingArea": 95.25611623588769,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 15.040406071198525,
+      "gcodeCutPaths": 28,
+      "geometry": {
+        "outsideReachableArea": 95.25573348547489,
+        "reachableUncutArea": 0.00038397613568780773,
+        "remainingArea": 95.25611746161063,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "capacitive-keypad-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 42.3842
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 4.543935493399106,
+      "targetArea": 0.23487103680865848,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.14764668304098272,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 1.2391817243440073e-06,
+          "ownRemainingArea": 0.14811562877157994,
+          "diameter": 0.031496062992125984,
+          "paths": 18,
+          "maxSampleDeviation": 6.740911843284692e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 4.5439342542173815,
+          "cutLength": 4.543935493399106,
+          "cumulativeRemainingArea": 0.14811562877157994
+        },
+        {
+          "lengthError": 0,
+          "ownRemainingArea": 0.14811562930574096,
+          "diameter": 0.015748031496062992,
+          "paths": 0,
+          "maxSampleDeviation": 0,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 0,
+          "cutLength": 0,
+          "cumulativeRemainingArea": 0.14811562877158063
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.14764668304098286,
+        "reachableUncutArea": 0.0004691138465265167,
+        "remainingArea": 0.14811579688751006,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.00046113951900326696
+      },
+      "gcodeTravelLength": 0.5341935605851584,
+      "gcodeCutPaths": 18,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.14764668304098286,
+        "reachableUncutArea": 0.0004689457305971529,
+        "remainingArea": 0.14811562877158063,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.00046149697849972096
+      },
+      "id": "capacitive-keypad-ncc-rest-in",
+      "operation": "ncc",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 68.9242
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 134.70553964593344,
+      "targetArea": 151.52939810747404,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 4.625721427942153e-05,
+          "ownRemainingArea": 95.55827905827239,
+          "diameter": 0.8,
+          "paths": 22,
+          "maxSampleDeviation": 6.0235838322388276e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 134.70558590314772,
+          "cutLength": 134.70553964593344,
+          "cumulativeRemainingArea": 95.55827905827239
+        },
+        {
+          "lengthError": 0,
+          "ownRemainingArea": 95.55829021771855,
+          "diameter": 0.4,
+          "paths": 0,
+          "maxSampleDeviation": 0,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 0,
+          "cutLength": 0,
+          "cumulativeRemainingArea": 95.5582790582725
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.25573403072016,
+        "reachableUncutArea": 0.3024573336601944,
+        "remainingArea": 95.55819136438087,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 0.2969847394158999
+      },
+      "gcodeTravelLength": 7.578714837661694,
+      "gcodeCutPaths": 22,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 95.25573403072016,
+        "reachableUncutArea": 0.30254502755185525,
+        "remainingArea": 95.5582790582725,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 0.29773939064887894
+      },
+      "id": "capacitive-keypad-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 88.6204
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 196.82789999999997,
+      "targetArea": 151.52939810747367,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 5.716279844136807e-06,
+          "ownRemainingArea": 98.87533427015553,
+          "diameter": 0.4,
+          "paths": 56,
+          "maxSampleDeviation": 4.922291953896169e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 196.82789428372013,
+          "cutLength": 196.82789999999997,
+          "cumulativeRemainingArea": 98.87533427015553
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.25573403072077,
+        "reachableUncutArea": 3.6195956246969403,
+        "remainingArea": 98.87532965541732,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 3.5883039440598523
+      },
+      "gcodeTravelLength": 257.84306069716865,
+      "gcodeCutPaths": 56,
+      "geometry": {
+        "outsideReachableArea": 95.25573403072077,
+        "reachableUncutArea": 3.6196002394349094,
+        "remainingArea": 98.87533427015553,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.5949976307664038
+      },
+      "id": "capacitive-keypad-paint-c0-e0",
+      "operation": "paint",
+      "board": "capacitive-keypad",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 51.2724
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 243.00972926223824,
+      "targetArea": 151.52939810747367,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00018488086021761774,
+          "ownRemainingArea": 95.25611746161057,
+          "diameter": 0.4,
+          "paths": 58,
+          "maxSampleDeviation": 6.80215352173092e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 243.00954438137802,
+          "cutLength": 243.00972926223824,
+          "cumulativeRemainingArea": 95.25611746161057
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.25573034013989,
+        "reachableUncutArea": 0.0003861320774753391,
+        "remainingArea": 95.25611647221716,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 275.25545179374126,
+      "gcodeCutPaths": 58,
+      "geometry": {
+        "outsideReachableArea": 95.25573348547498,
+        "reachableUncutArea": 0.00038397613568362727,
+        "remainingArea": 95.25611746161057,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "capacitive-keypad-paint-c0-e1",
+      "operation": "paint",
+      "board": "capacitive-keypad",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 57.6372
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 201.13697260052055,
+      "targetArea": 151.52939810747367,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 2.2627528011298637e-05,
+          "ownRemainingArea": 98.78472325583184,
+          "diameter": 0.4,
+          "paths": 26,
+          "maxSampleDeviation": 4.922291953896169e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 201.13699522804856,
+          "cutLength": 201.13697260052055,
+          "cumulativeRemainingArea": 98.78472325583184
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.25573403072077,
+        "reachableUncutArea": 3.5289989480392774,
+        "remainingArea": 98.78473297876002,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 3.500544041621424
+      },
+      "gcodeTravelLength": 14.976201865728793,
+      "gcodeCutPaths": 26,
+      "geometry": {
+        "outsideReachableArea": 95.25573403072077,
+        "reachableUncutArea": 3.5289892251109336,
+        "remainingArea": 98.78472325583184,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.506640844405269
+      },
+      "id": "capacitive-keypad-paint-c1-e0",
+      "operation": "paint",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 37.7525
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 247.3188018627588,
+      "targetArea": 151.52939810747367,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00015653705230533888,
+          "ownRemainingArea": 95.25611746161057,
+          "diameter": 0.4,
+          "paths": 28,
+          "maxSampleDeviation": 6.80215352173092e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 247.31864532570648,
+          "cutLength": 247.3188018627588,
+          "cumulativeRemainingArea": 95.25611746161057
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.25573034013989,
+        "reachableUncutArea": 0.0003858957479420425,
+        "remainingArea": 95.25611623588763,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 15.040406071198525,
+      "gcodeCutPaths": 28,
+      "geometry": {
+        "outsideReachableArea": 95.25573348547498,
+        "reachableUncutArea": 0.00038397613568362727,
+        "remainingArea": 95.25611746161057,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "capacitive-keypad-paint-c1-e1",
+      "operation": "paint",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 88.3387
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 5.303360429524133,
+      "targetArea": 0.2348710368086586,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.14764668304098272,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 9.094222028771526e-06,
+          "ownRemainingArea": 0.14811562877158008,
+          "diameter": 0.031496062992125984,
+          "paths": 22,
+          "maxSampleDeviation": 6.740911843284692e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 5.303369523746162,
+          "cutLength": 5.303360429524133,
+          "cumulativeRemainingArea": 0.14811562877158083
+        },
+        {
+          "lengthError": 0,
+          "ownRemainingArea": 0.14811358340134828,
+          "diameter": 0.015748031496062992,
+          "paths": 0,
+          "maxSampleDeviation": 0,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 0,
+          "cutLength": 0,
+          "cumulativeRemainingArea": 0.1481156287715802
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.14764668304098263,
+        "reachableUncutArea": 0.00046911384652652326,
+        "remainingArea": 0.1481157968875096,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.00046113951900326696
+      },
+      "gcodeTravelLength": 0.2983824058330308,
+      "gcodeCutPaths": 22,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.14764668304098263,
+        "reachableUncutArea": 0.00046894573059713023,
+        "remainingArea": 0.1481156287715802,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.00046149697849972096
+      },
+      "id": "capacitive-keypad-paint-rest-in",
+      "operation": "paint",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 98.0102
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 115.41596117904896,
+      "targetArea": 151.52939810747367,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 95.2557340307206,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 3.1121920102350487e-05,
+          "ownRemainingArea": 95.55827905827232,
+          "diameter": 0.8,
+          "paths": 18,
+          "maxSampleDeviation": 6.0235838322388276e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 115.41593005712886,
+          "cutLength": 115.41596117904896,
+          "cumulativeRemainingArea": 95.55827905827249
+        },
+        {
+          "lengthError": 0,
+          "ownRemainingArea": 95.55695946721391,
+          "diameter": 0.4,
+          "paths": 0,
+          "maxSampleDeviation": 0,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 0,
+          "cutLength": 0,
+          "cumulativeRemainingArea": 95.55827905827257
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 95.2557340307208,
+        "reachableUncutArea": 0.30245733366019434,
+        "remainingArea": 95.55819136438093,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 0.2969847394159
+      },
+      "gcodeTravelLength": 13.568555941775491,
+      "gcodeCutPaths": 18,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 95.2557340307208,
+        "reachableUncutArea": 0.3025450275518706,
+        "remainingArea": 95.55827905827257,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 0.29773939064887894
+      },
+      "id": "capacitive-keypad-paint-rest-mm",
+      "operation": "paint",
+      "board": "capacitive-keypad",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 104.0028
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 6467.205399999985,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.05729664456794126,
+          "ownRemainingArea": 950.0793596328105,
+          "diameter": 0.4,
+          "paths": 19448,
+          "maxSampleDeviation": 6.315002199375202e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 6467.262696644553,
+          "cutLength": 6467.205399999985,
+          "cumulativeRemainingArea": 950.0793596328105
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.46988227482854,
+        "reachableUncutArea": 781.6236240383602,
+        "remainingArea": 950.0935063068193,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 775.6262459515481
+      },
+      "gcodeTravelLength": 120829.07098889547,
+      "gcodeCutPaths": 19448,
+      "geometry": {
+        "outsideReachableArea": 168.46988253716012,
+        "reachableUncutArea": 781.6094771026554,
+        "remainingArea": 950.0793596328105,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 776.8814196757946
+      },
+      "id": "horizon-choc-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "horizon-choc",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 65713.3337
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 16237.913492228108,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.037075718222695286,
+          "ownRemainingArea": 168.5784777610621,
+          "diameter": 0.4,
+          "paths": 19791,
+          "maxSampleDeviation": 6.800573963331088e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 16237.950567946331,
+          "cutLength": 16237.913492228108,
+          "cumulativeRemainingArea": 168.5784777610621
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.4691062451988,
+        "reachableUncutArea": 0.13775401575263602,
+        "remainingArea": 168.60686025707787,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 123746.7736120592,
+      "gcodeCutPaths": 19791,
+      "geometry": {
+        "outsideReachableArea": 168.46959678540622,
+        "reachableUncutArea": 0.1088757613697192,
+        "remainingArea": 168.5784777610621,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.5064470511829215e-06
+      },
+      "id": "horizon-choc-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "horizon-choc",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 58160.7804
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 8947.807574328192,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.039173297554953024,
+          "ownRemainingArea": 913.2081748922258,
+          "diameter": 0.4,
+          "paths": 3326,
+          "maxSampleDeviation": 6.315002199375202e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 8947.846747625747,
+          "cutLength": 8947.807574328192,
+          "cumulativeRemainingArea": 913.2081748922258
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.46988211373414,
+        "reachableUncutArea": 744.751035680295,
+        "remainingArea": 913.2209177877724,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 739.2064028057172
+      },
+      "gcodeTravelLength": 8118.951050422926,
+      "gcodeCutPaths": 3326,
+      "geometry": {
+        "outsideReachableArea": 168.46988253716012,
+        "reachableUncutArea": 744.738292362056,
+        "remainingArea": 913.2081748922258,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 740.3684057615052
+      },
+      "id": "horizon-choc-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 31546.8593
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 18537.071062967567,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.022421526999096386,
+          "ownRemainingArea": 168.57799331290002,
+          "diameter": 0.4,
+          "paths": 3551,
+          "maxSampleDeviation": 6.800573963331088e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 18537.093484494566,
+          "cutLength": 18537.071062967567,
+          "cumulativeRemainingArea": 168.57799331290002
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.4691038156388,
+        "reachableUncutArea": 0.13753601100289534,
+        "remainingArea": 168.60663982291908,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 8218.494286337802,
+      "gcodeCutPaths": 3551,
+      "geometry": {
+        "outsideReachableArea": 168.46959653247694,
+        "reachableUncutArea": 0.10839154660422087,
+        "remainingArea": 168.57799331290002,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.506434184128705e-06
+      },
+      "id": "horizon-choc-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 60031.9012
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 4.547473508864641e-13,
+      "gcodeCutLength": 629.0006468232317,
+      "targetArea": 5.7276094285761525,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.2611288576125585,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 1.951311588754834e-06,
+          "ownRemainingArea": 3.493563745694538,
+          "diameter": 0.031496062992125984,
+          "paths": 500,
+          "maxSampleDeviation": 6.951974913313341e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 136.58241921881503,
+          "cutLength": 136.58241726750344,
+          "cumulativeRemainingArea": 3.493563745694538
+        },
+        {
+          "lengthError": 0.0006758856715691763,
+          "ownRemainingArea": 0.2796554609595269,
+          "diameter": 0.015748031496062992,
+          "paths": 3246,
+          "maxSampleDeviation": 7.047095443376232e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 492.41890544139983,
+          "cutLength": 492.41822955572826,
+          "cumulativeRemainingArea": 0.27969619810559176
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.2611283308567622,
+        "reachableUncutArea": 0.01640906513896573,
+        "remainingArea": 0.2775373959930218,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.015562945512167706
+      },
+      "gcodeTravelLength": 467.418849094841,
+      "gcodeCutPaths": 3746,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.26112844900730264,
+        "reachableUncutArea": 0.018567738670407296,
+        "remainingArea": 0.27969619810559176,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.01773294357923003
+      },
+      "id": "horizon-choc-ncc-rest-in",
+      "operation": "ncc",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 72168.9386
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 3.637978807091713e-11,
+      "gcodeCutLength": 15419.525184014139,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.003570541946828598,
+          "ownRemainingArea": 2254.206933496242,
+          "diameter": 0.8,
+          "paths": 488,
+          "maxSampleDeviation": 6.858173001701797e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 3187.948351481868,
+          "cutLength": 3187.944780939921,
+          "cumulativeRemainingArea": 2254.206933496242
+        },
+        {
+          "lengthError": 0.019551520705135772,
+          "ownRemainingArea": 180.7250923420847,
+          "diameter": 0.4,
+          "paths": 3163,
+          "maxSampleDeviation": 6.947003114116717e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 12231.560851553513,
+          "cutLength": 12231.580403074218,
+          "cumulativeRemainingArea": 180.74803724329996
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.46919281162647,
+        "reachableUncutArea": 10.597635893256388,
+        "remainingArea": 179.0668287019859,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 10.014262849927224
+      },
+      "gcodeTravelLength": 11939.684095182238,
+      "gcodeCutPaths": 3651,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 168.46961902815082,
+        "reachableUncutArea": 12.278411471659584,
+        "remainingArea": 180.74803724329996,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 11.736712582380324
+      },
+      "id": "horizon-choc-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 60941.5824
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 6467.205399999724,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.05729495888954261,
+          "ownRemainingArea": 950.0793600712368,
+          "diameter": 0.4,
+          "paths": 19448,
+          "maxSampleDeviation": 6.315002199375202e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 6467.262694958614,
+          "cutLength": 6467.205399999724,
+          "cumulativeRemainingArea": 950.0793600712368
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.4698822748263,
+        "reachableUncutArea": 781.6236240382872,
+        "remainingArea": 950.0935063068255,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 775.6262459503821
+      },
+      "gcodeTravelLength": 118585.98582860178,
+      "gcodeCutPaths": 19448,
+      "geometry": {
+        "outsideReachableArea": 168.46988253715773,
+        "reachableUncutArea": 781.6094775410603,
+        "remainingArea": 950.0793600712368,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 776.8814200793421
+      },
+      "id": "horizon-choc-paint-c0-e0",
+      "operation": "paint",
+      "board": "horizon-choc",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 54052.8003
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 16237.913492227526,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.037073224964842666,
+          "ownRemainingArea": 168.57847871060517,
+          "diameter": 0.4,
+          "paths": 19791,
+          "maxSampleDeviation": 6.800573963331088e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 16237.950565452491,
+          "cutLength": 16237.913492227526,
+          "cumulativeRemainingArea": 168.57847871060517
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.46910624210605,
+        "reachableUncutArea": 0.13776357602730946,
+        "remainingArea": 168.60686981426844,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 121617.99353423339,
+      "gcodeCutPaths": 19791,
+      "geometry": {
+        "outsideReachableArea": 168.46943084084796,
+        "reachableUncutArea": 0.10886221054486968,
+        "remainingArea": 168.57847871060517,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.5064470511829215e-06
+      },
+      "id": "horizon-choc-paint-c0-e1",
+      "operation": "paint",
+      "board": "horizon-choc",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 68119.3934
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 8947.807574328199,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.03917153602378676,
+          "ownRemainingArea": 913.2081753049068,
+          "diameter": 0.4,
+          "paths": 3326,
+          "maxSampleDeviation": 6.315002199375202e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 8947.846745864223,
+          "cutLength": 8947.807574328199,
+          "cumulativeRemainingArea": 913.2081753049068
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.46988211373136,
+        "reachableUncutArea": 744.7510356802552,
+        "remainingArea": 913.2209177877781,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 739.2064028047084
+      },
+      "gcodeTravelLength": 5900.5099926866205,
+      "gcodeCutPaths": 3326,
+      "geometry": {
+        "outsideReachableArea": 168.46988253715773,
+        "reachableUncutArea": 744.7382927747345,
+        "remainingArea": 913.2081753049068,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 740.3684061471947
+      },
+      "id": "horizon-choc-paint-c1-e0",
+      "operation": "paint",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 28208.6966
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 18541.72965171841,
+      "targetArea": 3695.224498940182,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.02526566594315227,
+          "ownRemainingArea": 168.57799223191088,
+          "diameter": 0.4,
+          "paths": 3595,
+          "maxSampleDeviation": 6.800573963331088e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 18541.754917384354,
+          "cutLength": 18541.72965171841,
+          "cumulativeRemainingArea": 168.57799223191088
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.46910381254762,
+        "reachableUncutArea": 0.13746534296073515,
+        "remainingArea": 168.60656915179516,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 5966.244995558419,
+      "gcodeCutPaths": 3595,
+      "geometry": {
+        "outsideReachableArea": 168.46943058479147,
+        "reachableUncutArea": 0.10837581659887961,
+        "remainingArea": 168.57799223191088,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.506434184128705e-06
+      },
+      "id": "horizon-choc-paint-c1-e1",
+      "operation": "paint",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 64922.0728
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 6.821210263296962e-13,
+      "gcodeCutLength": 605.1887544582893,
+      "targetArea": 5.727609428576173,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.2611288576125585,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 5.083506160019624e-05,
+          "ownRemainingArea": 3.494027788212461,
+          "diameter": 0.031496062992125984,
+          "paths": 500,
+          "maxSampleDeviation": 6.951974913313341e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 124.72470971889183,
+          "cutLength": 124.72465888383023,
+          "cumulativeRemainingArea": 3.4940277882124637
+        },
+        {
+          "lengthError": 0.00023423616653417412,
+          "ownRemainingArea": 0.2799096423259589,
+          "diameter": 0.015748031496062992,
+          "paths": 3190,
+          "maxSampleDeviation": 7.012903720965682e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 480.4643298106256,
+          "cutLength": 480.46409557445907,
+          "cumulativeRemainingArea": 0.28018881125788136
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.2611283254671875,
+        "reachableUncutArea": 0.0164366847693427,
+        "remainingArea": 0.27756501023393576,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.015585844655140077
+      },
+      "gcodeTravelLength": 362.6333804631911,
+      "gcodeCutPaths": 3690,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.2611284511064604,
+        "reachableUncutArea": 0.019060349913885267,
+        "remainingArea": 0.28018881125788136,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.018215460242512707
+      },
+      "id": "horizon-choc-paint-rest-in",
+      "operation": "paint",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 73287.8669
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 5.638867150992155e-11,
+      "gcodeCutLength": 16024.845055181724,
+      "targetArea": 3695.224498940165,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 168.4698825690992,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0007371307601715671,
+          "ownRemainingArea": 2253.90755874102,
+          "diameter": 0.8,
+          "paths": 498,
+          "maxSampleDeviation": 6.858173001701797e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 3479.3082131705237,
+          "cutLength": 3479.3074760397635,
+          "cumulativeRemainingArea": 2253.9075587410166
+        },
+        {
+          "lengthError": 0.016406856315370533,
+          "ownRemainingArea": 180.2875698630464,
+          "diameter": 0.4,
+          "paths": 3311,
+          "maxSampleDeviation": 6.842534820335068e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 12545.553985998276,
+          "cutLength": 12545.537579141961,
+          "cumulativeRemainingArea": 180.46713721711313
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 168.4691938367493,
+        "reachableUncutArea": 10.61559584517583,
+        "remainingArea": 179.08478967895115,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 10.029382649568486
+      },
+      "gcodeTravelLength": 8985.938863439056,
+      "gcodeCutPaths": 3809,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 168.46945326148554,
+        "reachableUncutArea": 11.997492422948405,
+        "remainingArea": 180.46713721711313,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 11.455593332900964
+      },
+      "id": "horizon-choc-paint-rest-mm",
+      "operation": "paint",
+      "board": "horizon-choc",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 81690.9381
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 7511.731599999965,
+      "targetArea": 4077.9223200925794,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.06758930200794566,
+          "ownRemainingArea": 1042.0023428004015,
+          "diameter": 0.4,
+          "paths": 20754,
+          "maxSampleDeviation": 6.409121171236785e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 7511.799189301973,
+          "cutLength": 7511.731599999965,
+          "cumulativeRemainingArea": 1042.0023428004015
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10971402758096,
+        "reachableUncutArea": 865.909803935605,
+        "remainingArea": 1042.0195179618538,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 859.7546783722183
+      },
+      "gcodeTravelLength": 136761.03990039448,
+      "gcodeCutPaths": 20754,
+      "geometry": {
+        "outsideReachableArea": 176.10971431426677,
+        "reachableUncutArea": 865.8926284880563,
+        "remainingArea": 1042.0023428004015,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 861.0393190862325
+      },
+      "id": "horizon-mx-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "horizon-mx",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 102227.1955
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 17793.27110157759,
+      "targetArea": 4077.9223200925794,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.04152747302578064,
+          "ownRemainingArea": 176.20534251870873,
+          "diameter": 0.4,
+          "paths": 21126,
+          "maxSampleDeviation": 6.914882561802717e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 17793.312629050615,
+          "cutLength": 17793.27110157759,
+          "cumulativeRemainingArea": 176.20534251870873
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10888862038286,
+        "reachableUncutArea": 0.12941223009019545,
+        "remainingArea": 176.2383008504668,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 139377.58338338634,
+      "gcodeCutPaths": 21126,
+      "geometry": {
+        "outsideReachableArea": 176.10948558325435,
+        "reachableUncutArea": 0.09585150943834697,
+        "remainingArea": 176.20534251870873,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.764729531322425e-06
+      },
+      "id": "horizon-mx-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "horizon-mx",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 48366.7287
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 9948.450720659785,
+      "targetArea": 4077.9223200925794,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.046252861866378225,
+          "ownRemainingArea": 1004.6620797923023,
+          "diameter": 0.4,
+          "paths": 3496,
+          "maxSampleDeviation": 6.409121171236785e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 9948.496973521651,
+          "cutLength": 9948.450720659785,
+          "cumulativeRemainingArea": 1004.6620797923023
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10971391095245,
+        "reachableUncutArea": 828.5677576346658,
+        "remainingArea": 1004.6774715443067,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 822.9707057292773
+      },
+      "gcodeTravelLength": 6407.416359691958,
+      "gcodeCutPaths": 3496,
+      "geometry": {
+        "outsideReachableArea": 176.10971431268405,
+        "reachableUncutArea": 828.5523654815433,
+        "remainingArea": 1004.6620797923023,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 824.1405067034143
+      },
+      "id": "horizon-mx-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 33802.9226
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 20206.799906956523,
+      "targetArea": 4077.9223200925794,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.020565434348100098,
+          "ownRemainingArea": 176.2050540666152,
+          "diameter": 0.4,
+          "paths": 3666,
+          "maxSampleDeviation": 6.914882561802717e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 20206.82047239087,
+          "cutLength": 20206.799906956523,
+          "cumulativeRemainingArea": 176.2050540666152
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10888751085852,
+        "reachableUncutArea": 0.129334216423857,
+        "remainingArea": 176.23822172723268,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 6434.509592354657,
+      "gcodeCutPaths": 3666,
+      "geometry": {
+        "outsideReachableArea": 176.1094857845628,
+        "reachableUncutArea": 0.09556284182642853,
+        "remainingArea": 176.2050540666152,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.764744180243017e-06
+      },
+      "id": "horizon-mx-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 43430.7382
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 3.069544618483633e-12,
+      "gcodeCutLength": 665.2457659320061,
+      "targetArea": 6.320792237727964,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.2729706115414883,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00019060311691987408,
+          "ownRemainingArea": 3.6204073447387457,
+          "diameter": 0.031496062992125984,
+          "paths": 792,
+          "maxSampleDeviation": 6.877884652449493e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 162.75485396926905,
+          "cutLength": 162.75466336615213,
+          "cumulativeRemainingArea": 3.6204073447387457
+        },
+        {
+          "lengthError": 0.0016177554936689376,
+          "ownRemainingArea": 0.3035733550818131,
+          "diameter": 0.015748031496062992,
+          "paths": 2562,
+          "maxSampleDeviation": 6.96610701124615e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 502.49272032134763,
+          "cutLength": 502.49110256585396,
+          "cumulativeRemainingArea": 0.30360744757536984
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.2729701962418359,
+        "reachableUncutArea": 0.027868402015169595,
+        "remainingArea": 0.30083859825715253,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.026739025470640766
+      },
+      "gcodeTravelLength": 436.88279598366273,
+      "gcodeCutPaths": 3354,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.27297029309019766,
+        "reachableUncutArea": 0.030637143921977503,
+        "remainingArea": 0.30360744757536984,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.029530820462130423
+      },
+      "id": "horizon-mx-ncc-rest-in",
+      "operation": "ncc",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 67604.8168
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 7.275957614183426e-12,
+      "gcodeCutLength": 16988.750539088112,
+      "targetArea": 4077.9223200925794,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.004122344687857549,
+          "ownRemainingArea": 2335.860376734673,
+          "diameter": 0.8,
+          "paths": 676,
+          "maxSampleDeviation": 6.530458031556705e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 4194.216404533642,
+          "cutLength": 4194.212282188954,
+          "cumulativeRemainingArea": 2335.860376734673
+        },
+        {
+          "lengthError": 0.030358879597770283,
+          "ownRemainingArea": 195.9811577956843,
+          "diameter": 0.4,
+          "paths": 2760,
+          "maxSampleDeviation": 6.914882561802717e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 12794.50789801956,
+          "cutLength": 12794.538256899157,
+          "cumulativeRemainingArea": 196.00048445567455
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10905326105083,
+        "reachableUncutArea": 18.00195621171879,
+        "remainingArea": 194.11100947455944,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 17.204625955308423
+      },
+      "gcodeTravelLength": 11348.90605925956,
+      "gcodeCutPaths": 3436,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 176.10951032455358,
+        "reachableUncutArea": 19.89096925165183,
+        "remainingArea": 196.00048445567455,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 19.176414585949892
+      },
+      "id": "horizon-mx-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 57347.9332
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 7511.731599999974,
+      "targetArea": 4077.922320092574,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.06759090327977901,
+          "ownRemainingArea": 1042.0023423931445,
+          "diameter": 0.4,
+          "paths": 20754,
+          "maxSampleDeviation": 6.409121171236785e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 7511.7991909032535,
+          "cutLength": 7511.731599999974,
+          "cumulativeRemainingArea": 1042.0023423931445
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10971402758494,
+        "reachableUncutArea": 865.9098039355644,
+        "remainingArea": 1042.019517961919,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 859.7546783726891
+      },
+      "gcodeTravelLength": 136250.98621028758,
+      "gcodeCutPaths": 20754,
+      "geometry": {
+        "outsideReachableArea": 176.10971431427018,
+        "reachableUncutArea": 865.8926280806925,
+        "remainingArea": 1042.0023423931445,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 861.0393187193989
+      },
+      "id": "horizon-mx-paint-c0-e0",
+      "operation": "paint",
+      "board": "horizon-mx",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 97896.7537
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 17793.27110157651,
+      "targetArea": 4077.922320092574,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.04152912438803469,
+          "ownRemainingArea": 176.20534221326298,
+          "diameter": 0.4,
+          "paths": 21126,
+          "maxSampleDeviation": 6.914882561802717e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 17793.312630700897,
+          "cutLength": 17793.27110157651,
+          "cumulativeRemainingArea": 176.20534221326298
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10888861883876,
+        "reachableUncutArea": 0.12938085364625923,
+        "remainingArea": 176.2382694724773,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 139216.00600139776,
+      "gcodeCutPaths": 21126,
+      "geometry": {
+        "outsideReachableArea": 176.10948673814224,
+        "reachableUncutArea": 0.09585547471792201,
+        "remainingArea": 176.20534221326298,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.76473017345328e-06
+      },
+      "id": "horizon-mx-paint-c0-e1",
+      "operation": "paint",
+      "board": "horizon-mx",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 75474.352
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 9948.450720659783,
+      "targetArea": 4077.922320092574,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.046254447210230865,
+          "ownRemainingArea": 1004.6620793856812,
+          "diameter": 0.4,
+          "paths": 3496,
+          "maxSampleDeviation": 6.409121171236785e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 9948.496975106993,
+          "cutLength": 9948.450720659783,
+          "cumulativeRemainingArea": 1004.6620793856812
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.1097139109559,
+        "reachableUncutArea": 828.5677576346494,
+        "remainingArea": 1004.6774715443374,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 822.9707057292687
+      },
+      "gcodeTravelLength": 6305.185988580629,
+      "gcodeCutPaths": 3496,
+      "geometry": {
+        "outsideReachableArea": 176.10971431268715,
+        "reachableUncutArea": 828.5523650749217,
+        "remainingArea": 1004.6620793856812,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 824.1405063443568
+      },
+      "id": "horizon-mx-paint-c1-e0",
+      "operation": "paint",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 43437.7234
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 20200.350560530114,
+      "targetArea": 4077.922320092574,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.02011844040680444,
+          "ownRemainingArea": 176.2050539177108,
+          "diameter": 0.4,
+          "paths": 3718,
+          "maxSampleDeviation": 6.914882561802717e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 20200.37067897052,
+          "cutLength": 20200.350560530114,
+          "cumulativeRemainingArea": 176.2050539177108
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10888750931394,
+        "reachableUncutArea": 0.12930060381848732,
+        "remainingArea": 176.23818811308092,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 6324.607678797624,
+      "gcodeCutPaths": 3718,
+      "geometry": {
+        "outsideReachableArea": 176.10948694718243,
+        "reachableUncutArea": 0.0955669702170255,
+        "remainingArea": 176.2050539177108,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 3.7647449604653783e-06
+      },
+      "id": "horizon-mx-paint-c1-e1",
+      "operation": "paint",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 59172.6962
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 9.094947017729282e-13,
+      "gcodeCutLength": 667.6075818905388,
+      "targetArea": 6.320792237727973,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.2729706115414883,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 5.641850370352586e-05,
+          "ownRemainingArea": 3.620590806296917,
+          "diameter": 0.031496062992125984,
+          "paths": 688,
+          "maxSampleDeviation": 6.877884652449493e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 165.13569936909664,
+          "cutLength": 165.13564295059294,
+          "cumulativeRemainingArea": 3.620590806296914
+        },
+        {
+          "lengthError": 0.0008187258998759717,
+          "ownRemainingArea": 0.30357984633724255,
+          "diameter": 0.015748031496062992,
+          "paths": 2872,
+          "maxSampleDeviation": 6.96610701124615e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 502.4727576658457,
+          "cutLength": 502.4719389399458,
+          "cumulativeRemainingArea": 0.3038696714640421
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.2729701972441745,
+        "reachableUncutArea": 0.027939381420804925,
+        "remainingArea": 0.30090957866502566,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.026800156389097995
+      },
+      "gcodeTravelLength": 433.2024861709308,
+      "gcodeCutPaths": 3560,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.2729701269677166,
+        "reachableUncutArea": 0.030899328082345707,
+        "remainingArea": 0.3038696714640421,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.029781265342512006
+      },
+      "id": "horizon-mx-paint-rest-in",
+      "operation": "paint",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 81414.9078
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 16876.607209893627,
+      "targetArea": 4077.9223200925476,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 176.1097143523503,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.005641218946038862,
+          "ownRemainingArea": 2335.741952576428,
+          "diameter": 0.8,
+          "paths": 790,
+          "maxSampleDeviation": 6.29235837709913e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 4134.422725675547,
+          "cutLength": 4134.417084456601,
+          "cumulativeRemainingArea": 2335.7419525764226
+        },
+        {
+          "lengthError": 0.03171479148113576,
+          "ownRemainingArea": 195.7369552251787,
+          "diameter": 0.4,
+          "paths": 2648,
+          "maxSampleDeviation": 6.914882561802717e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 12742.221840228509,
+          "cutLength": 12742.190125437028,
+          "cumulativeRemainingArea": 195.92596435704027
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 176.10905344170163,
+        "reachableUncutArea": 18.0518055478921,
+        "remainingArea": 194.1608589914006,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 17.2473121140669
+      },
+      "gcodeTravelLength": 11107.328508223873,
+      "gcodeCutPaths": 3438,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 176.10951025291274,
+        "reachableUncutArea": 19.816449199078303,
+        "remainingArea": 195.92596435704027,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 19.095497048849236
+      },
+      "id": "horizon-mx-paint-rest-mm",
+      "operation": "paint",
+      "board": "horizon-mx",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 60294.3532
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1255.5286999999985,
+      "targetArea": 419.5728428922148,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.0005619093115001306,
+          "ownRemainingArea": 90.0121846931306,
+          "diameter": 0.4,
+          "paths": 486,
+          "maxSampleDeviation": 4.976819016927394e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1255.528138090687,
+          "cutLength": 1255.5286999999985,
+          "cumulativeRemainingArea": 90.0121846931306
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16484236300316,
+        "reachableUncutArea": 12.847333258675537,
+        "remainingArea": 90.01217562167851,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 12.719023341184958
+      },
+      "gcodeTravelLength": 2700.818450990707,
+      "gcodeCutPaths": 486,
+      "geometry": {
+        "outsideReachableArea": 77.1648423757979,
+        "reachableUncutArea": 12.847342317336683,
+        "remainingArea": 90.0121846931306,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 12.745953867661333
+      },
+      "id": "modxo-adapter-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "modxo-adapter",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 667.1246
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1442.5742290999938,
+      "targetArea": 419.5728428922148,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0017031776212661498,
+          "ownRemainingArea": 77.30976946126151,
+          "diameter": 0.4,
+          "paths": 505,
+          "maxSampleDeviation": 6.733545763115227e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1442.5725259223725,
+          "cutLength": 1442.5742290999938,
+          "cumulativeRemainingArea": 77.30976946126151
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16480724799905,
+        "reachableUncutArea": 0.005600269024865615,
+        "remainingArea": 77.17040751702379,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 2801.8559465445246,
+      "gcodeCutPaths": 505,
+      "geometry": {
+        "outsideReachableArea": 77.1648353932007,
+        "reachableUncutArea": 0.1449340680608296,
+        "remainingArea": 77.30976946126151,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.13887159304883623
+      },
+      "id": "modxo-adapter-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "modxo-adapter",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 743.9003
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1288.2644474471533,
+      "targetArea": 419.5728428922148,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.0005627070756872854,
+          "ownRemainingArea": 89.53238162145709,
+          "diameter": 0.4,
+          "paths": 230,
+          "maxSampleDeviation": 4.976819016927394e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1288.2638847400776,
+          "cutLength": 1288.2644474471533,
+          "cumulativeRemainingArea": 89.53238162145709
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16484233991237,
+        "reachableUncutArea": 12.367588769424616,
+        "remainingArea": 89.53243110933687,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 12.258554655853063
+      },
+      "gcodeTravelLength": 169.64388129320315,
+      "gcodeCutPaths": 230,
+      "geometry": {
+        "outsideReachableArea": 77.16484235267427,
+        "reachableUncutArea": 12.367539268781476,
+        "remainingArea": 89.53238162145709,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 12.281462632338183
+      },
+      "id": "modxo-adapter-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 395.6212
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1476.3573475784956,
+      "targetArea": 419.5728428922148,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0017113711762704042,
+          "ownRemainingArea": 77.30971935323338,
+          "diameter": 0.4,
+          "paths": 243,
+          "maxSampleDeviation": 6.733545763115227e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1476.3556362073193,
+          "cutLength": 1476.3573475784956,
+          "cumulativeRemainingArea": 77.30971935323338
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16480738442074,
+        "reachableUncutArea": 0.0055854893723037225,
+        "remainingArea": 77.1703928737935,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 171.35946835830697,
+      "gcodeCutPaths": 243,
+      "geometry": {
+        "outsideReachableArea": 77.16483542351467,
+        "reachableUncutArea": 0.14488392971865524,
+        "remainingArea": 77.30971935323338,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.1388715930488362
+      },
+      "id": "modxo-adapter-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 564.5943
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 7.105427357601002e-15,
+      "gcodeCutLength": 29.348806682505273,
+      "targetArea": 0.6503392071613507,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.11960574446442641,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 1.2823345699075617e-05,
+          "ownRemainingArea": 0.13621973735560436,
+          "diameter": 0.031496062992125984,
+          "paths": 78,
+          "maxSampleDeviation": 7.018426397513177e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 28.10235297692377,
+          "cutLength": 28.10234015357807,
+          "cumulativeRemainingArea": 0.13621973735560436
+        },
+        {
+          "lengthError": 3.164198654204142e-07,
+          "ownRemainingArea": 0.12477581104327223,
+          "diameter": 0.015748031496062992,
+          "paths": 60,
+          "maxSampleDeviation": 6.722131201721128e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 1.2464668453470686,
+          "cutLength": 1.2464665289272032,
+          "cumulativeRemainingArea": 0.12477654585391239
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.11960573851699835,
+        "reachableUncutArea": 0.00495484535163814,
+        "remainingArea": 0.1245605838686367,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.004885265176955397
+      },
+      "gcodeTravelLength": 7.670519467220904,
+      "gcodeCutPaths": 138,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.11960574014197377,
+        "reachableUncutArea": 0.005170805711469224,
+        "remainingArea": 0.12477654585391239,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.005102340034265512
+      },
+      "id": "modxo-adapter-ncc-rest-in",
+      "operation": "ncc",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 1022.6116
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 777.6366350270386,
+      "targetArea": 419.5728428922148,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0008054878084067241,
+          "ownRemainingArea": 87.88348007481036,
+          "diameter": 0.8,
+          "paths": 90,
+          "maxSampleDeviation": 6.706576024722102e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 744.9254851221348,
+          "cutLength": 744.9246796343264,
+          "cumulativeRemainingArea": 87.88348007481036
+        },
+        {
+          "lengthError": 0.0002025074949045802,
+          "ownRemainingArea": 80.50047479297865,
+          "diameter": 0.4,
+          "paths": 54,
+          "maxSampleDeviation": 6.73354576263854e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 32.71175288521725,
+          "cutLength": 32.711955392712156,
+          "cumulativeRemainingArea": 80.50086679385389
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16482464391345,
+        "reachableUncutArea": 3.196780414274074,
+        "remainingArea": 80.36160505818741,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 3.1478575494296686
+      },
+      "gcodeTravelLength": 194.73570330231732,
+      "gcodeCutPaths": 144,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 77.16483934898261,
+        "reachableUncutArea": 3.336027444871253,
+        "remainingArea": 80.50086679385389,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 3.2918308904022258
+      },
+      "id": "modxo-adapter-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 854.8643
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1255.5286999999985,
+      "targetArea": 419.5728428922136,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.0005619093115001306,
+          "ownRemainingArea": 90.01218469313235,
+          "diameter": 0.4,
+          "paths": 486,
+          "maxSampleDeviation": 4.976819016927394e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1255.528138090687,
+          "cutLength": 1255.5286999999985,
+          "cumulativeRemainingArea": 90.01218469313235
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16484236300315,
+        "reachableUncutArea": 12.847333258675546,
+        "remainingArea": 90.0121756216787,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 12.719023341184958
+      },
+      "gcodeTravelLength": 2700.818450990707,
+      "gcodeCutPaths": 486,
+      "geometry": {
+        "outsideReachableArea": 77.16484237579795,
+        "reachableUncutArea": 12.847342317336683,
+        "remainingArea": 90.01218469313235,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 12.745953867661333
+      },
+      "id": "modxo-adapter-paint-c0-e0",
+      "operation": "paint",
+      "board": "modxo-adapter",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 530.1234
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1442.5742290999938,
+      "targetArea": 419.5728428922136,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0017031776212661498,
+          "ownRemainingArea": 77.3097694612615,
+          "diameter": 0.4,
+          "paths": 505,
+          "maxSampleDeviation": 6.733545763115227e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1442.5725259223725,
+          "cutLength": 1442.5742290999938,
+          "cumulativeRemainingArea": 77.3097694612615
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16480724799908,
+        "reachableUncutArea": 0.005600269024865614,
+        "remainingArea": 77.17040751702413,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 2801.8559465445246,
+      "gcodeCutPaths": 505,
+      "geometry": {
+        "outsideReachableArea": 77.1648353932007,
+        "reachableUncutArea": 0.1449340680608296,
+        "remainingArea": 77.3097694612615,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.13887159304883623
+      },
+      "id": "modxo-adapter-paint-c0-e1",
+      "operation": "paint",
+      "board": "modxo-adapter",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 680.057
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1288.2644474471533,
+      "targetArea": 419.5728428922136,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.0005627070756872854,
+          "ownRemainingArea": 89.53238162145885,
+          "diameter": 0.4,
+          "paths": 230,
+          "maxSampleDeviation": 4.976819016927394e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1288.2638847400776,
+          "cutLength": 1288.2644474471533,
+          "cumulativeRemainingArea": 89.53238162145885
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16484233991237,
+        "reachableUncutArea": 12.367588769424625,
+        "remainingArea": 89.53243110933697,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 12.258554655853063
+      },
+      "gcodeTravelLength": 169.64388129320315,
+      "gcodeCutPaths": 230,
+      "geometry": {
+        "outsideReachableArea": 77.16484235267431,
+        "reachableUncutArea": 12.367539268781476,
+        "remainingArea": 89.53238162145885,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 12.281462632338183
+      },
+      "id": "modxo-adapter-paint-c1-e0",
+      "operation": "paint",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 457.564
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 1476.3573475784956,
+      "targetArea": 419.5728428922136,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0017113711762704042,
+          "ownRemainingArea": 77.30971935323338,
+          "diameter": 0.4,
+          "paths": 243,
+          "maxSampleDeviation": 6.733545763115227e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1476.3556362073193,
+          "cutLength": 1476.3573475784956,
+          "cumulativeRemainingArea": 77.30971935323338
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16480738442075,
+        "reachableUncutArea": 0.0055854893723037225,
+        "remainingArea": 77.17039287379384,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 171.35946835830697,
+      "gcodeCutPaths": 243,
+      "geometry": {
+        "outsideReachableArea": 77.16483542351467,
+        "reachableUncutArea": 0.14488392971865524,
+        "remainingArea": 77.30971935323338,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0.1388715930488362
+      },
+      "id": "modxo-adapter-paint-c1-e1",
+      "operation": "paint",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 639.5006
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 3.552713678800501e-15,
+      "gcodeCutLength": 30.621870343592704,
+      "targetArea": 0.6503392071613454,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.11960574446442641,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 3.5935355775507105e-06,
+          "ownRemainingArea": 0.13621966655526566,
+          "diameter": 0.031496062992125984,
+          "paths": 90,
+          "maxSampleDeviation": 7.018426397513177e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 29.32777500480829,
+          "cutLength": 29.327771411272714,
+          "cumulativeRemainingArea": 0.1362196665552651
+        },
+        {
+          "lengthError": 2.4280793031739023e-06,
+          "ownRemainingArea": 0.12476098038161375,
+          "diameter": 0.015748031496062992,
+          "paths": 52,
+          "maxSampleDeviation": 6.722131201721128e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 1.2941013603992941,
+          "cutLength": 1.294098932319991,
+          "cumulativeRemainingArea": 0.12477762817691092
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.11960573816468219,
+        "reachableUncutArea": 0.0049560767778597204,
+        "remainingArea": 0.12456181494254213,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.004886295847793788
+      },
+      "gcodeTravelLength": 7.676998391750304,
+      "gcodeCutPaths": 142,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.11960573969255615,
+        "reachableUncutArea": 0.005171888484055495,
+        "remainingArea": 0.12477762817691092,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.005103252560486099
+      },
+      "id": "modxo-adapter-paint-rest-in",
+      "operation": "paint",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 834.236
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 4.547473508864641e-13,
+      "gcodeCutLength": 745.2480396391676,
+      "targetArea": 419.572842892215,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 77.164842391806,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0005180598418519367,
+          "ownRemainingArea": 87.88352575255338,
+          "diameter": 0.8,
+          "paths": 78,
+          "maxSampleDeviation": 6.706576024722102e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 713.7997656138617,
+          "cutLength": 713.7992475540199,
+          "cumulativeRemainingArea": 87.88352575255279
+        },
+        {
+          "lengthError": 0.0006857048984620917,
+          "ownRemainingArea": 80.49082750404649,
+          "diameter": 0.4,
+          "paths": 62,
+          "maxSampleDeviation": 6.73354576263854e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 31.449477790046156,
+          "cutLength": 31.448792085147694,
+          "cumulativeRemainingArea": 80.50161625383781
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 77.16482428545045,
+        "reachableUncutArea": 3.197516746727104,
+        "remainingArea": 80.3623410321774,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 3.148485759212242
+      },
+      "gcodeTravelLength": 194.84941789318253,
+      "gcodeCutPaths": 140,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 77.16483960802634,
+        "reachableUncutArea": 3.3367766458114922,
+        "remainingArea": 80.50161625383781,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 3.292465622965236
+      },
+      "id": "modxo-adapter-paint-rest-mm",
+      "operation": "paint",
+      "board": "modxo-adapter",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 991.1313
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2417.4833999999964,
+      "targetArea": 661.4117575026503,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.005599891387191747,
+          "ownRemainingArea": 24.363755701731932,
+          "diameter": 0.4,
+          "paths": 856,
+          "maxSampleDeviation": 5.008696459164384e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2417.4889998913836,
+          "cutLength": 2417.4833999999964,
+          "cumulativeRemainingArea": 24.363755701731932
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5426094590271704,
+        "reachableUncutArea": 22.822515069482694,
+        "remainingArea": 24.365124528509106,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 22.568185313858706
+      },
+      "gcodeTravelLength": 3970.7883717625477,
+      "gcodeCutPaths": 856,
+      "geometry": {
+        "outsideReachableArea": 1.5426103162956903,
+        "reachableUncutArea": 22.821145385438715,
+        "remainingArea": 24.363755701731932,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 22.620609747983632
+      },
+      "id": "single-sided-5v-ncc-c0-e0",
+      "operation": "ncc",
+      "board": "single-sided-5v",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 928.5568
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2801.933504068036,
+      "targetArea": 661.4117575026503,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0056904975508587086,
+          "ownRemainingArea": 1.5463412218511305,
+          "diameter": 0.4,
+          "paths": 874,
+          "maxSampleDeviation": 6.532666105668168e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2801.939194565587,
+          "cutLength": 2801.933504068036,
+          "cumulativeRemainingArea": 1.5463412218511305
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5425980862792505,
+        "reachableUncutArea": 0.004381226135327057,
+        "remainingArea": 1.5469793124156679,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 4107.424128049549,
+      "gcodeCutPaths": 874,
+      "geometry": {
+        "outsideReachableArea": 1.5426067873324953,
+        "reachableUncutArea": 0.0037344345194229626,
+        "remainingArea": 1.5463412218511305,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "single-sided-5v-ncc-c0-e1",
+      "operation": "ncc",
+      "board": "single-sided-5v",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 1067.1329
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2504.7961114100194,
+      "targetArea": 661.4117575026503,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.005537974766866682,
+          "ownRemainingArea": 22.873014481768962,
+          "diameter": 0.4,
+          "paths": 250,
+          "maxSampleDeviation": 5.008696459164384e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2504.8016493847863,
+          "cutLength": 2504.7961114100194,
+          "cumulativeRemainingArea": 22.873014481768962
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5426094508155817,
+        "reachableUncutArea": 21.33177613688072,
+        "remainingArea": 22.874385587697372,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 21.124334397651307
+      },
+      "gcodeTravelLength": 212.6788831718991,
+      "gcodeCutPaths": 250,
+      "geometry": {
+        "outsideReachableArea": 1.5426103134963174,
+        "reachableUncutArea": 21.330404168277155,
+        "remainingArea": 22.873014481768962,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 21.167396274061396
+      },
+      "id": "single-sided-5v-ncc-c1-e0",
+      "operation": "ncc",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 509.3448
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2888.149834608848,
+      "targetArea": 661.4117575026503,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0055815595937929174,
+          "ownRemainingArea": 1.546312045361616,
+          "diameter": 0.4,
+          "paths": 272,
+          "maxSampleDeviation": 6.532666105668168e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2888.1554161684417,
+          "cutLength": 2888.149834608848,
+          "cumulativeRemainingArea": 1.546312045361616
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.542597896205441,
+        "reachableUncutArea": 0.004381031751926374,
+        "remainingArea": 1.5469789279584696,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 223.90175274158346,
+      "gcodeCutPaths": 272,
+      "geometry": {
+        "outsideReachableArea": 1.5426067693527932,
+        "reachableUncutArea": 0.0037052760096391623,
+        "remainingArea": 1.546312045361616,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "single-sided-5v-ncc-c1-e1",
+      "operation": "ncc",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 768.3541
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 60.45892785953989,
+      "targetArea": 1.0251902745096584,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.0023910506195827528,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 9.647501414633552e-06,
+          "ownRemainingArea": 0.01929346567684833,
+          "diameter": 0.031496062992125984,
+          "paths": 156,
+          "maxSampleDeviation": 6.833467293383062e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 59.17673778991491,
+          "cutLength": 59.176747437416324,
+          "cumulativeRemainingArea": 0.01929346567684833
+        },
+        {
+          "lengthError": 5.614589633440303e-06,
+          "ownRemainingArea": 0.0064789241496019424,
+          "diameter": 0.015748031496062992,
+          "paths": 24,
+          "maxSampleDeviation": 6.28516394785149e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 1.2821860367132005,
+          "cutLength": 1.282180422123567,
+          "cumulativeRemainingArea": 0.006479967925196996
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.002391048507488669,
+        "reachableUncutArea": 0.004083676745078573,
+        "remainingArea": 0.006474725252567331,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.0040021712619830695
+      },
+      "gcodeTravelLength": 10.666277981275814,
+      "gcodeCutPaths": 180,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 0.002391048611671305,
+        "reachableUncutArea": 0.004088919313525652,
+        "remainingArea": 0.006479967925196996,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.004011223923967156
+      },
+      "id": "single-sided-5v-ncc-rest-in",
+      "operation": "ncc",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 615.7297
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 2.2737367544323206e-13,
+      "gcodeCutLength": 1586.6163406876217,
+      "targetArea": 661.4117575026504,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0010592264129627438,
+          "ownRemainingArea": 12.538815559428135,
+          "diameter": 0.8,
+          "paths": 172,
+          "maxSampleDeviation": 6.999660687368932e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1544.9403490998395,
+          "cutLength": 1544.9392898734266,
+          "cumulativeRemainingArea": 12.538815559428135
+        },
+        {
+          "lengthError": 0.00024274963335102484,
+          "ownRemainingArea": 4.271446202651769,
+          "diameter": 0.4,
+          "paths": 32,
+          "maxSampleDeviation": 6.313869937274902e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 41.67729356382855,
+          "cutLength": 41.6770508141952,
+          "cumulativeRemainingArea": 4.272110121797046
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5426078310395968,
+        "reachableUncutArea": 2.63414449862673,
+        "remainingArea": 4.176752329671995,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 2.577186338558935
+      },
+      "gcodeTravelLength": 312.4007264592746,
+      "gcodeCutPaths": 204,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 1.5426090208715557,
+        "reachableUncutArea": 2.7295011009253316,
+        "remainingArea": 4.272110121797046,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 2.6786779261112352
+      },
+      "id": "single-sided-5v-ncc-rest-mm",
+      "operation": "ncc",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 819.7296
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2417.4833999999996,
+      "targetArea": 661.4117575026506,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.005599891387646494,
+          "ownRemainingArea": 24.363755701731936,
+          "diameter": 0.4,
+          "paths": 856,
+          "maxSampleDeviation": 5.008696459164384e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2417.4889998913873,
+          "cutLength": 2417.4833999999996,
+          "cumulativeRemainingArea": 24.363755701731936
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5426094590271717,
+        "reachableUncutArea": 22.822515069482918,
+        "remainingArea": 24.365124528509003,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 22.568185313858706
+      },
+      "gcodeTravelLength": 3988.4549442370067,
+      "gcodeCutPaths": 856,
+      "geometry": {
+        "outsideReachableArea": 1.542610316295692,
+        "reachableUncutArea": 22.821145385438832,
+        "remainingArea": 24.363755701731936,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 22.620609747983632
+      },
+      "id": "single-sided-5v-paint-c0-e0",
+      "operation": "paint",
+      "board": "single-sided-5v",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 829.1196
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2801.933504068041,
+      "targetArea": 661.4117575026506,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.00569049754722073,
+          "ownRemainingArea": 1.5463412218516543,
+          "diameter": 0.4,
+          "paths": 874,
+          "maxSampleDeviation": 6.532666105668168e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2801.9391945655884,
+          "cutLength": 2801.933504068041,
+          "cumulativeRemainingArea": 1.5463412218516543
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.542598086279252,
+        "reachableUncutArea": 0.004381309212405728,
+        "remainingArea": 1.546979395492748,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 4117.802819295735,
+      "gcodeCutPaths": 874,
+      "geometry": {
+        "outsideReachableArea": 1.5426067873324956,
+        "reachableUncutArea": 0.0037344345192364824,
+        "remainingArea": 1.5463412218516543,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "single-sided-5v-paint-c0-e1",
+      "operation": "paint",
+      "board": "single-sided-5v",
+      "connect": false,
+      "status": "MEASURED",
+      "elapsedMs": 869.8797
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2504.7961114100194,
+      "targetArea": 661.4117575026506,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": false,
+      "tools": [
+        {
+          "lengthError": 0.005537974765957188,
+          "ownRemainingArea": 22.873014481768063,
+          "diameter": 0.4,
+          "paths": 250,
+          "maxSampleDeviation": 5.008696459164384e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2504.8016493847854,
+          "cutLength": 2504.7961114100194,
+          "cumulativeRemainingArea": 22.873014481768063
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5426094508155828,
+        "reachableUncutArea": 21.331776136880794,
+        "remainingArea": 22.874385587697283,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 21.124334397651307
+      },
+      "gcodeTravelLength": 190.66139785328258,
+      "gcodeCutPaths": 250,
+      "geometry": {
+        "outsideReachableArea": 1.542610313496319,
+        "reachableUncutArea": 21.330404168277177,
+        "remainingArea": 22.873014481768063,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 21.167396274061396
+      },
+      "id": "single-sided-5v-paint-c1-e0",
+      "operation": "paint",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 481.0801
+    },
+    {
+      "schema": 1,
+      "rest": false,
+      "combinedLengthError": 0,
+      "gcodeCutLength": 2887.9098346088476,
+      "targetArea": 661.4117575026506,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.005581559592883423,
+          "ownRemainingArea": 1.5463120453620227,
+          "diameter": 0.4,
+          "paths": 274,
+          "maxSampleDeviation": 6.532666105668168e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 2887.9154161684405,
+          "cutLength": 2887.9098346088476,
+          "cumulativeRemainingArea": 1.5463120453620227
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.5425978962054423,
+        "reachableUncutArea": 0.004381114829005044,
+        "remainingArea": 1.5469790110355501,
+        "analysisTolerance": 0.00032668006925527316,
+        "reachableCoreArea": 0
+      },
+      "gcodeTravelLength": 212.77132418209686,
+      "gcodeCutPaths": 274,
+      "geometry": {
+        "outsideReachableArea": 1.5426067693527934,
+        "reachableUncutArea": 0.003705276009353935,
+        "remainingArea": 1.5463120453620227,
+        "analysisTolerance": 0.0002559693911366184,
+        "reachableCoreArea": 0
+      },
+      "id": "single-sided-5v-paint-c1-e1",
+      "operation": "paint",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 570.9539
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 7.105427357601002e-15,
+      "gcodeCutLength": 62.58490949185838,
+      "targetArea": 1.0251902745096566,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "IN",
+      "nominalUnreachableArea": 0.0023910506195827528,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 2.2374612917985814e-05,
+          "ownRemainingArea": 0.019435201919229216,
+          "diameter": 0.031496062992125984,
+          "paths": 170,
+          "maxSampleDeviation": 6.833467293383062e-07,
+          "index": 0,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 60.92546012593951,
+          "cutLength": 60.92543775132659,
+          "cumulativeRemainingArea": 0.019435201919229216
+        },
+        {
+          "lengthError": 6.143578948458739e-06,
+          "ownRemainingArea": 0.006599205218082961,
+          "diameter": 0.015748031496062992,
+          "paths": 30,
+          "maxSampleDeviation": 6.144554431158017e-07,
+          "index": 1,
+          "roundingBound": 7.071067811865476e-07,
+          "sourceLength": 1.6594778841107414,
+          "cutLength": 1.659471740531793,
+          "cumulativeRemainingArea": 0.0066202964804814475
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 0.0023910485074610734,
+        "reachableUncutArea": 0.004088478673736021,
+        "remainingArea": 0.006479527181196956,
+        "analysisTolerance": 2.0269238674971485e-05,
+        "reachableCoreArea": 0.004004804668558069
+      },
+      "gcodeTravelLength": 12.697871146342395,
+      "gcodeCutPaths": 200,
+      "angle": 37.5,
+      "geometry": {
+        "outsideReachableArea": 0.0023910486116711727,
+        "reachableUncutArea": 0.004229247868810215,
+        "remainingArea": 0.0066202964804814475,
+        "analysisTolerance": 1.9562131893784936e-05,
+        "reachableCoreArea": 0.004148527482129987
+      },
+      "id": "single-sided-5v-paint-rest-in",
+      "operation": "paint",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 817.5012
+    },
+    {
+      "schema": 1,
+      "rest": true,
+      "combinedLengthError": 4.547473508864641e-13,
+      "gcodeCutLength": 1534.5215305251243,
+      "targetArea": 661.4117575026504,
+      "profile": "GRBL_11_no_M6",
+      "boundaryPolicy": "copper bounding rectangle; diagnostic, not a CNC setup",
+      "units": "MM",
+      "nominalUnreachableArea": 1.542610316295701,
+      "contour": true,
+      "tools": [
+        {
+          "lengthError": 0.0018281391674008773,
+          "ownRemainingArea": 12.447390165687867,
+          "diameter": 0.8,
+          "paths": 156,
+          "maxSampleDeviation": 6.999660687368932e-05,
+          "index": 0,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 1501.7188382115169,
+          "cutLength": 1501.7206663506843,
+          "cumulativeRemainingArea": 12.447390165687866
+        },
+        {
+          "lengthError": 0.000411594108371105,
+          "ownRemainingArea": 4.166152891538162,
+          "diameter": 0.4,
+          "paths": 24,
+          "maxSampleDeviation": 6.276250813208905e-05,
+          "index": 1,
+          "roundingBound": 7.071067811865475e-05,
+          "sourceLength": 32.80045258033161,
+          "cutLength": 32.80086417443998,
+          "cumulativeRemainingArea": 4.179753202441788
+        }
+      ],
+      "gcode": {
+        "outsideReachableArea": 1.542607872139288,
+        "reachableUncutArea": 2.637055369477961,
+        "remainingArea": 4.179663241624465,
+        "analysisTolerance": 0.0005675888282207921,
+        "reachableCoreArea": 2.5788188729962167
+      },
+      "gcodeTravelLength": 272.36379447953857,
+      "gcodeCutPaths": 180,
+      "angle": 90,
+      "geometry": {
+        "outsideReachableArea": 1.542609020871559,
+        "reachableUncutArea": 2.6371441815702985,
+        "remainingArea": 4.179753202441788,
+        "analysisTolerance": 0.0004968781501021374,
+        "reachableCoreArea": 2.5857533286847625
+      },
+      "id": "single-sided-5v-paint-rest-mm",
+      "operation": "paint",
+      "board": "single-sided-5v",
+      "connect": true,
+      "status": "MEASURED",
+      "elapsedMs": 812.2058
+    }
+  ]
+}
