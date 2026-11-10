@@ -1,5 +1,23 @@
 # QA project context — FlatCAM FX
 
+Coverage + region prototype (2026-11-10): 96/96 community cases measured,
+including 32 two-cutter Rest/angle/MM-IN controls. Nominal access is computed
+from the original allowed area, not a thin Rest remainder. GRBL_11_no_M6 is
+exported/parsed per cutter and combined; no sampled deviation beyond rounding.
+This is not full cleanup: reachable residual reaches 0.5825% with Contour/no
+Rest and 2.7265% with Rest; nonzero residual cores remain beyond the declared
+chord/rounding tolerance. See flatcam-next/CLEARING_COVERAGE_VALIDATION.md.
+REGION_LINES is opt-in in NCC/Paint. It preserves raster cuts, finishes sampled
+cells and keeps SOURCE CNC order/direction; existing explicit settings survive.
+32/32 raw edge comparisons preserve cuts. SOURCE/no-Connect XY travel decreases
+7.7–91.3%; with Connect, 14/16 worsen XY travel and all increase separate cut
+sequences (+1..+543). Do NOT promote this prototype or claim a default CNC,
+physical cycle, rendering or FPS win. See flatcam-next/REGION_LINES.md.
+Full reactor: 2503 cases, 2485 passed, 18 optional skips, no errors/failures.
+Final localized NCC recipe: 12 FX/i18n checks rerun green. Three Python comparator
+tests and 96 regional distance controls pass. Snapshots are under validation/.
+No version bump/installer: user wants all changes in the next Beta together.
+
 Connect performance (2026-11-10), core commit 61859b6c: JFR found 3872 of 4035
 Connect execution samples under within. Prepare the original polygon once and
 reuse contains as the converse of sweptConnector.within(originalArea). Preserve

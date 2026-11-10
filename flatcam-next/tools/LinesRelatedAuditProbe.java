@@ -14,6 +14,7 @@ public final class LinesRelatedAuditProbe {
     private static Geometry box(double x1,double x2,double y1,double y2){return F.toGeometry(new Envelope(x1,x2,y1,y2));}
     private static Geometry trace(double x1,double y1,double x2,double y2,double radius){return F.createLineString(new Coordinate[]{new Coordinate(x1,y1),new Coordinate(x2,y2)}).buffer(radius,64);}
     public static void main(String[] args)throws Exception {
+        NccMethod method=NccMethod.valueOf(System.getProperty("flatcam.audit.method","LINES"));
         Geometry board=box(0,36,0,24);
         Geometry copper=F.createPoint(new Coordinate(10,17)).buffer(2.8,64)
                 .union(F.createPoint(new Coordinate(10,7)).buffer(2.8,64))
@@ -28,10 +29,10 @@ public final class LinesRelatedAuditProbe {
                 var row=new JSONObject().put("units",units).put("angle",angle).put("rest",rest).put("connect",connect).put("contour",contour).put("operation",operation);
                 try {
                     double d=.8*scale,small=.4*scale;var tools=List.of(d,small);
-                    var nccSettings=Map.of(d,new NccToolSettings(.4,NccMethod.LINES,connect,contour,0,NccSeedPolicy.STABLE,angle),small,new NccToolSettings(.4,NccMethod.LINES,connect,contour,0,NccSeedPolicy.STABLE,135.));
-                    var paintSettings=Map.of(d,new PaintToolSettings(.4,0,NccMethod.LINES,connect,contour,angle),small,new PaintToolSettings(.4,0,NccMethod.LINES,connect,contour,135.));
-                    var result=operation.equals("NCC")?NccGenerator.generate(units,c,new NccParameters(tools,.4,0,NccMethod.LINES,connect,contour,0,rest,NccOrder.NONE,new NccBoundary.Area(b),List.of(),nccSettings))
-                            :NccGenerator.paint(units,area,new PaintParameters(tools,.4,0,NccMethod.LINES,connect,contour,NccOrder.NONE,rest,paintSettings),CancellationToken.NONE,ProgressCallback.none());
+                    var nccSettings=Map.of(d,new NccToolSettings(.4,method,connect,contour,0,NccSeedPolicy.STABLE,angle),small,new NccToolSettings(.4,method,connect,contour,0,NccSeedPolicy.STABLE,135.));
+                    var paintSettings=Map.of(d,new PaintToolSettings(.4,0,method,connect,contour,angle),small,new PaintToolSettings(.4,0,method,connect,contour,135.));
+                    var result=operation.equals("NCC")?NccGenerator.generate(units,c,new NccParameters(tools,.4,0,method,connect,contour,0,rest,NccOrder.NONE,new NccBoundary.Area(b),List.of(),nccSettings))
+                            :NccGenerator.paint(units,area,new PaintParameters(tools,.4,0,method,connect,contour,NccOrder.NONE,rest,paintSettings),CancellationToken.NONE,ProgressCallback.none());
                     var details=new JSONArray();boolean ok=!result.isEmpty() && before.equals(c.toText());
                     for(var tool:result.toolResults()) {
                         if(tool.isEmpty())continue;
@@ -50,7 +51,7 @@ public final class LinesRelatedAuditProbe {
         var output=Path.of(args[0]);Files.createDirectories(output.toAbsolutePath().getParent());
         Files.writeString(output,new JSONObject().put("schema",1).put("version",AboutInfo.version()).put("binarySource",AboutInfo.build().getProperty("sourceRevision"))
                 .put("fixture","rounded pads, round rectangles and capsules; 36x24 mm diagnostic board; two cutters .8/.4 mm; smaller angle 135 degrees")
-                .put("scope","96 synthetic MM/IN Lines controls: angle, Rest, Connect, Contour. Global copper/outer-edge distances with 0.5%-diameter allowance; no whole-area coverage, path duplication, runtime or physical CNC proof")
+                .put("method",method.name()).put("scope","96 synthetic MM/IN raster controls: angle, Rest, Connect, Contour. Global copper/outer-edge distances with 0.5%-diameter allowance; no whole-area coverage, path duplication, runtime or physical CNC proof")
                 .put("cases",cases).put("failedCases",failures).put("oracleErrors",errors).toString(2));
         System.out.println("Lines distance audit: "+cases.length()+" cases; "+failures+" failed; "+errors+" errors");System.exit(failures>0 || errors>0?1:0);
     }

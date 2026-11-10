@@ -16,6 +16,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class LegacyToolsDatabaseTest {
+    @Test void experimentalFxMethodMustNotAcceptAPythonReservedNumericId() throws Exception {
+        Path file=tempDir.resolve("reserved.FlatDB");
+        Files.writeString(file,"{\"1\":{\"tooldia\":0.4,\"data\":{\"tool_target\":5,\"tools_ncc_method\":4}}}");
+        assertThrows(IOException.class,()->LegacyToolsDatabase.loadNccTools(file));
+    }
 
     @Test void positiveDrillCutZIsPreservedAsADraftWithoutSilentlyTurningIntoACutBelowTheSurface() throws IOException {
         var db = new org.json.JSONObject("""

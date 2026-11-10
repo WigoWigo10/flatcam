@@ -108,7 +108,7 @@ final class NccToolPanel {
             return new NccToolSettings(parseNumber(overlapPercent, prefix + "Overlap") / 100.0,
                     method, connect, contour,
                     offsetEnabled ? parseNumber(offset, prefix + "Copper offset") : 0, seedPolicy,
-                    method == NccMethod.LINES || method == NccMethod.COMBO
+                    method.usesRaster()
                             ? RasterAngleInput.value(angleAutomatic, lineAngle) : null);
         }
 
@@ -591,10 +591,9 @@ final class NccToolPanel {
         ComboBox<NccMethod> methodCombo = new ComboBox<>();
         methodCombo.setId("ncc-method");
         methodCombo.getItems().addAll(NccMethod.values());
+        RegionLinesUi.configure(methodCombo);
         methodCombo.setValue(ToolDefaults.choice("ncc.method", NccMethod.class));
         RasterAngleInput angle = new RasterAngleInput("ncc", methodCombo.valueProperty());
-        methodCombo.setTooltip(tooltip(
-                I18n.text("ui.f3e1e0c3c5c5")));
         ComboBox<NccSeedPolicy> seedPolicyCombo = new ComboBox<>();
         seedPolicyCombo.setId("ncc-seed-policy");
         seedPolicyCombo.getItems().addAll(NccSeedPolicy.values());
@@ -1062,7 +1061,7 @@ final class NccToolPanel {
             var settings = p.settingsFor(diameter);
             text.append(diameter).append(" ").append(result.source().units()).append(" [")
                     .append(result.toolProfiles().getOrDefault(diameter, ToolProfile.C1)).append("] CLEAR: ")
-                    .append(settings.method()).append("; Overlap: ").append(settings.overlapFraction() * 100)
+                    .append(I18n.caption(settings.method().toString())).append("; Overlap: ").append(settings.overlapFraction() * 100)
                     .append("%; Connect: ").append(p.restMachining() ? p.connect() : settings.connect())
                     .append("; Contour: ").append(p.restMachining() ? p.contour() : settings.contour())
                     .append("; Offset: ").append(p.restMachining() ? p.copperOffset() : settings.copperOffset())

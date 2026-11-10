@@ -342,7 +342,7 @@ public final class NccGenerator {
         List<LineString> allPaths = new ArrayList<>();
         List<Geometry> footprints = new ArrayList<>();
         int failures = 0;
-        boolean diagnose=settings.method()==NccMethod.LINES || settings.method()==NccMethod.COMBO;
+        boolean diagnose=settings.method().usesRaster();
         var unreachable=new ArrayList<Geometry>();var supplemented=new ArrayList<Geometry>();var unserved=new ArrayList<Geometry>();
         // GUI NCC Rest differs from the Tcl implementation: Shapely's default
         // resolution (16), tool/1.9999999 and a final +1e-7 repair buffer.
@@ -374,7 +374,9 @@ public final class NccGenerator {
                 if (settings.connect()) {
                     // paint_connect tests the swept tool against the ORIGINAL polygon.
                     // Eroding here as well would subtract the radius twice.
-                    paths = connectSafePaths(paths, polygon, toolDiameter, factory, cancellation);
+                    paths = settings.method()==NccMethod.REGION_LINES
+                            ? connectOrderedPaths(paths,polygon,toolDiameter,factory,cancellation)
+                            : connectSafePaths(paths, polygon, toolDiameter, factory, cancellation);
                 }
                 allPaths.addAll(paths);
                 // Swept areas feed only the next Rest cutter. Buffering and unioning
@@ -456,6 +458,13 @@ public final class NccGenerator {
             case STANDARD -> new PolygonPaths(standardPaths(polygon, toolDiameter, settings, cancellation));
             case SEED -> new PolygonPaths(seedPaths(polygon, toolDiameter, settings, cancellation));
             case LINES -> linePaths(polygon, toolDiameter, settings, cancellation);
+            case REGION_LINES -> {
+                var raster=linePaths(polygon,toolDiameter,settings,cancellation);
+                var box=polygon.getEnvelopeInternal();
+                double angle=settings.lineAngleDegrees()!=null?settings.lineAngleDegrees():box.getWidth()>=box.getHeight()?0:90;
+                yield new PolygonPaths(RegionLinesPlanner.order(raster.paths(),raster.safeArea(),angle,
+                        toolDiameter*(1-settings.overlapFraction()),cancellation),raster.safeArea(),raster.supplemented());
+            }
             case COMBO -> {
                 var raster = linePaths(polygon, toolDiameter, settings, cancellation);
                 List<LineString> paths = raster.paths();
@@ -718,6 +727,23 @@ public final class NccGenerator {
             connected.add(factory.createLineString(current.toArray(new Coordinate[0])));
         }
         return connected;
+    }
+
+    /** Preserve the cell plan. The legacy global nearest-path search would undo it. */
+    static List<LineString> connectOrderedPaths(List<LineString> paths,Geometry area,double diameter,GeometryFactory factory,CancellationToken token) {
+        if(paths.size()<2)return paths;
+        var prepared=PreparedGeometryFactory.prepare(area);var result=new ArrayList<LineString>();var current=new ArrayList<Coordinate>();
+        for(var path:paths) {
+            token.throwIfCancellationRequested();var points=path.getCoordinates();
+            if(!current.isEmpty()) {
+                var end=current.get(current.size()-1);
+                boolean safe=end.distance(points[0])<10*diameter && prepared.contains(
+                        factory.createLineString(new Coordinate[]{end,points[0]}).buffer(diameter/2,QUADRANT_SEGMENTS));
+                if(!safe){result.add(factory.createLineString(current.toArray(Coordinate[]::new)));current.clear();}
+            }
+            addCoordinates(current,points,true);
+        }
+        if(!current.isEmpty())result.add(factory.createLineString(current.toArray(Coordinate[]::new)));return result;
     }
 
     private static void addCoordinates(List<Coordinate> target, Coordinate[] coordinates, boolean skipDuplicateFirst) {

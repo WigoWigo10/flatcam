@@ -1,0 +1,619 @@
+{
+  "schema": 1,
+  "counts": {
+    "PRESERVED": 32
+  },
+  "cases": [
+    {
+      "id": "air-quality-sensor-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 203,
+        "travelLength": 916.4608346643168,
+        "cutLength": 785.8568855907874
+      },
+      "regional": {
+        "cutPaths": 203,
+        "travelLength": 803.6686717727612,
+        "cutLength": 785.8568855907877
+      },
+      "travelDelta": -112.79216289155568,
+      "pathDelta": 0
+    },
+    {
+      "id": "air-quality-sensor-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 47,
+      "baseline": {
+        "cutPaths": 134,
+        "travelLength": 772.3582499954094,
+        "cutLength": 803.06823870823
+      },
+      "regional": {
+        "cutPaths": 156,
+        "travelLength": 790.3474293861865,
+        "cutLength": 799.1781279773622
+      },
+      "travelDelta": 17.989179390777053,
+      "pathDelta": 22
+    },
+    {
+      "id": "air-quality-sensor-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 203,
+        "travelLength": 804.8642393160926,
+        "cutLength": 785.8568855907736
+      },
+      "regional": {
+        "cutPaths": 203,
+        "travelLength": 742.8362662410616,
+        "cutLength": 785.8568855907736
+      },
+      "travelDelta": -62.027973075031014,
+      "pathDelta": 0
+    },
+    {
+      "id": "air-quality-sensor-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 47,
+      "baseline": {
+        "cutPaths": 134,
+        "travelLength": 641.0555021842624,
+        "cutLength": 802.9608265502678
+      },
+      "regional": {
+        "cutPaths": 156,
+        "travelLength": 729.5150238544866,
+        "cutLength": 799.1781279773483
+      },
+      "travelDelta": 88.45952167022415,
+      "pathDelta": 22
+    },
+    {
+      "id": "audio-watermark-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 3042,
+        "travelLength": 26020.556082711628,
+        "cutLength": 10745.425317414245
+      },
+      "regional": {
+        "cutPaths": 3042,
+        "travelLength": 3081.215224164946,
+        "cutLength": 10745.42531741423
+      },
+      "travelDelta": -22939.340858546682,
+      "pathDelta": 0
+    },
+    {
+      "id": "audio-watermark-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 1566,
+      "baseline": {
+        "cutPaths": 1416,
+        "travelLength": 1096.190332535232,
+        "cutLength": 11205.317037801431
+      },
+      "regional": {
+        "cutPaths": 1476,
+        "travelLength": 2611.5929110006077,
+        "cutLength": 11215.047630578441
+      },
+      "travelDelta": 1515.4025784653757,
+      "pathDelta": 60
+    },
+    {
+      "id": "audio-watermark-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 3042,
+        "travelLength": 26020.556082711628,
+        "cutLength": 10745.425317414245
+      },
+      "regional": {
+        "cutPaths": 3042,
+        "travelLength": 3081.215224164946,
+        "cutLength": 10745.42531741423
+      },
+      "travelDelta": -22939.340858546682,
+      "pathDelta": 0
+    },
+    {
+      "id": "audio-watermark-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 1566,
+      "baseline": {
+        "cutPaths": 1416,
+        "travelLength": 1096.190332535232,
+        "cutLength": 11205.317037801431
+      },
+      "regional": {
+        "cutPaths": 1476,
+        "travelLength": 2611.5929110006077,
+        "cutLength": 11215.047630578441
+      },
+      "travelDelta": 1515.4025784653757,
+      "pathDelta": 60
+    },
+    {
+      "id": "breadboard-power-supply-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 707,
+        "travelLength": 4401.755430651794,
+        "cutLength": 1915.6073236369227
+      },
+      "regional": {
+        "cutPaths": 707,
+        "travelLength": 1377.1587480220119,
+        "cutLength": 1915.6073236369236
+      },
+      "travelDelta": -3024.596682629782,
+      "pathDelta": 0
+    },
+    {
+      "id": "breadboard-power-supply-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 416,
+      "baseline": {
+        "cutPaths": 231,
+        "travelLength": 972.8971767446199,
+        "cutLength": 2035.79075405421
+      },
+      "regional": {
+        "cutPaths": 291,
+        "travelLength": 1264.0604223873436,
+        "cutLength": 2028.7056492715856
+      },
+      "travelDelta": 291.1632456427237,
+      "pathDelta": 60
+    },
+    {
+      "id": "breadboard-power-supply-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 707,
+        "travelLength": 4049.640714529455,
+        "cutLength": 1915.6073236371333
+      },
+      "regional": {
+        "cutPaths": 707,
+        "travelLength": 1016.094308762775,
+        "cutLength": 1915.6073236371328
+      },
+      "travelDelta": -3033.5464057666804,
+      "pathDelta": 0
+    },
+    {
+      "id": "breadboard-power-supply-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 416,
+      "baseline": {
+        "cutPaths": 232,
+        "travelLength": 636.6483109846349,
+        "cutLength": 2035.6654759506632
+      },
+      "regional": {
+        "cutPaths": 291,
+        "travelLength": 903.5368221069069,
+        "cutLength": 2028.1648102929923
+      },
+      "travelDelta": 266.888511122272,
+      "pathDelta": 59
+    },
+    {
+      "id": "capacitive-keypad-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 29,
+        "travelLength": 395.65769304850227,
+        "cutLength": 243.00954438137714
+      },
+      "regional": {
+        "cutPaths": 29,
+        "travelLength": 155.01327874489454,
+        "cutLength": 243.00954438137708
+      },
+      "travelDelta": -240.64441430360773,
+      "pathDelta": 0
+    },
+    {
+      "id": "capacitive-keypad-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 14,
+      "baseline": {
+        "cutPaths": 14,
+        "travelLength": 151.39842485429986,
+        "cutLength": 247.3186453257056
+      },
+      "regional": {
+        "cutPaths": 15,
+        "travelLength": 150.92399995372213,
+        "cutLength": 247.09882317254946
+      },
+      "travelDelta": -0.47442490057773057,
+      "pathDelta": 1
+    },
+    {
+      "id": "capacitive-keypad-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 29,
+        "travelLength": 395.65769304850227,
+        "cutLength": 243.00954438137714
+      },
+      "regional": {
+        "cutPaths": 29,
+        "travelLength": 155.01327874489454,
+        "cutLength": 243.00954438137708
+      },
+      "travelDelta": -240.64441430360773,
+      "pathDelta": 0
+    },
+    {
+      "id": "capacitive-keypad-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 14,
+      "baseline": {
+        "cutPaths": 14,
+        "travelLength": 151.39842485429986,
+        "cutLength": 247.3186453257056
+      },
+      "regional": {
+        "cutPaths": 15,
+        "travelLength": 150.92399995372213,
+        "cutLength": 247.09882317254946
+      },
+      "travelDelta": -0.47442490057773057,
+      "pathDelta": 1
+    },
+    {
+      "id": "horizon-choc-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 9874,
+        "travelLength": 123886.7344005038,
+        "cutLength": 16237.950567958595
+      },
+      "regional": {
+        "cutPaths": 9874,
+        "travelLength": 14115.538786628458,
+        "cutLength": 16237.950567958489
+      },
+      "travelDelta": -109771.19561387534,
+      "pathDelta": 0
+    },
+    {
+      "id": "horizon-choc-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 7812,
+      "baseline": {
+        "cutPaths": 1754,
+        "travelLength": 8358.439052392425,
+        "cutLength": 18537.093484500565
+      },
+      "regional": {
+        "cutPaths": 2062,
+        "travelLength": 11767.848210184888,
+        "cutLength": 18585.641144396235
+      },
+      "travelDelta": 3409.409157792463,
+      "pathDelta": 308
+    },
+    {
+      "id": "horizon-choc-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 9874,
+        "travelLength": 121757.95374319665,
+        "cutLength": 16237.950565458863
+      },
+      "regional": {
+        "cutPaths": 9874,
+        "travelLength": 11821.844650607918,
+        "cutLength": 16237.950565458874
+      },
+      "travelDelta": -109936.10909258873,
+      "pathDelta": 0
+    },
+    {
+      "id": "horizon-choc-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 7811,
+      "baseline": {
+        "cutPaths": 1776,
+        "travelLength": 6106.186510863311,
+        "cutLength": 18541.75491737501
+      },
+      "regional": {
+        "cutPaths": 2063,
+        "travelLength": 9485.411537882652,
+        "cutLength": 18574.383678170456
+      },
+      "travelDelta": 3379.225027019341,
+      "pathDelta": 287
+    },
+    {
+      "id": "horizon-mx-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 10539,
+        "travelLength": 139520.56275036183,
+        "cutLength": 17793.31262905984
+      },
+      "regional": {
+        "cutPaths": 10539,
+        "travelLength": 12263.09736178327,
+        "cutLength": 17793.31262905982
+      },
+      "travelDelta": -127257.46538857857,
+      "pathDelta": 0
+    },
+    {
+      "id": "horizon-mx-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 8187,
+      "baseline": {
+        "cutPaths": 1809,
+        "travelLength": 6577.466940823918,
+        "cutLength": 20206.82047240269
+      },
+      "regional": {
+        "cutPaths": 2352,
+        "travelLength": 9885.84382858073,
+        "cutLength": 20170.566162262618
+      },
+      "travelDelta": 3308.376887756812,
+      "pathDelta": 543
+    },
+    {
+      "id": "horizon-mx-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 10539,
+        "travelLength": 139358.98464808357,
+        "cutLength": 17793.312630714252
+      },
+      "regional": {
+        "cutPaths": 10539,
+        "travelLength": 12082.003036444996,
+        "cutLength": 17793.312630714427
+      },
+      "travelDelta": -127276.98161163858,
+      "pathDelta": 0
+    },
+    {
+      "id": "horizon-mx-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 8187,
+      "baseline": {
+        "cutPaths": 1835,
+        "travelLength": 6467.5650632562,
+        "cutLength": 20200.370678952433
+      },
+      "regional": {
+        "cutPaths": 2352,
+        "travelLength": 9704.749502768354,
+        "cutLength": 20170.566164367636
+      },
+      "travelDelta": 3237.1844395121543,
+      "pathDelta": 517
+    },
+    {
+      "id": "modxo-adapter-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 252,
+        "travelLength": 2863.5345104979547,
+        "cutLength": 1442.5725259221995
+      },
+      "regional": {
+        "cutPaths": 252,
+        "travelLength": 390.65232949804243,
+        "cutLength": 1442.5725259221997
+      },
+      "travelDelta": -2472.882180999912,
+      "pathDelta": 0
+    },
+    {
+      "id": "modxo-adapter-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 124,
+      "baseline": {
+        "cutPaths": 121,
+        "travelLength": 232.67570878085004,
+        "cutLength": 1476.3556362072743
+      },
+      "regional": {
+        "cutPaths": 128,
+        "travelLength": 359.43670189496964,
+        "cutLength": 1473.7881535252723
+      },
+      "travelDelta": 126.7609931141196,
+      "pathDelta": 7
+    },
+    {
+      "id": "modxo-adapter-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 252,
+        "travelLength": 2863.5345104979547,
+        "cutLength": 1442.5725259221995
+      },
+      "regional": {
+        "cutPaths": 252,
+        "travelLength": 390.65232949804243,
+        "cutLength": 1442.5725259221997
+      },
+      "travelDelta": -2472.882180999912,
+      "pathDelta": 0
+    },
+    {
+      "id": "modxo-adapter-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 124,
+      "baseline": {
+        "cutPaths": 121,
+        "travelLength": 232.67570878085004,
+        "cutLength": 1476.3556362072743
+      },
+      "regional": {
+        "cutPaths": 128,
+        "travelLength": 359.43670189496964,
+        "cutLength": 1473.7881535252723
+      },
+      "travelDelta": 126.7609931141196,
+      "pathDelta": 7
+    },
+    {
+      "id": "single-sided-5v-ncc-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 437,
+        "travelLength": 4282.359052277393,
+        "cutLength": 2801.9391945657053
+      },
+      "regional": {
+        "cutPaths": 437,
+        "travelLength": 643.9735931827232,
+        "cutLength": 2801.939194565704
+      },
+      "travelDelta": -3638.38545909467,
+      "pathDelta": 0
+    },
+    {
+      "id": "single-sided-5v-ncc-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 291,
+      "baseline": {
+        "cutPaths": 136,
+        "travelLength": 395.1832497172141,
+        "cutLength": 2888.1554161685553
+      },
+      "regional": {
+        "cutPaths": 146,
+        "travelLength": 564.1920393548961,
+        "cutLength": 2881.720748393511
+      },
+      "travelDelta": 169.008789637682,
+      "pathDelta": 10
+    },
+    {
+      "id": "single-sided-5v-paint-c0-e1",
+      "connect": false,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 0,
+      "baseline": {
+        "cutPaths": 437,
+        "travelLength": 4292.737835891128,
+        "cutLength": 2801.939194566004
+      },
+      "regional": {
+        "cutPaths": 437,
+        "travelLength": 645.0361510074478,
+        "cutLength": 2801.9391945660045
+      },
+      "travelDelta": -3647.7016848836806,
+      "pathDelta": 0
+    },
+    {
+      "id": "single-sided-5v-paint-c1-e1",
+      "connect": true,
+      "status": "PRESERVED",
+      "missingEdges": 0,
+      "addedEdges": 291,
+      "baseline": {
+        "cutPaths": 137,
+        "travelLength": 384.05265257817086,
+        "cutLength": 2887.915416168732
+      },
+      "regional": {
+        "cutPaths": 146,
+        "travelLength": 565.2545971796205,
+        "cutLength": 2881.7207483938205
+      },
+      "travelDelta": 181.20194460144967,
+      "pathDelta": 9
+    }
+  ],
+  "expectedCases": 32,
+  "matrixComplete": true,
+  "policy": "Exact undirected edge multiplicity against unconnected Lines. Connect may only add bridges. XY travel assumes SOURCE routing, origin (0,0), no final return, tool changes or machine timing. These are route comparisons, not performance benchmarks or proof of physical coverage."
+}

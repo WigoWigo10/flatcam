@@ -276,11 +276,11 @@ public final class LegacyToolsDatabase {
                 }
                 double overlap = data.optDouble("tools_ncc_overlap", 40) / 100.0;
                 int method = data.optInt("tools_ncc_method", 0);
-                if (method < 0 || method >= NccMethod.values().length) {
+                if (method < 0 || method >= NccMethod.legacyValues().length) {
                     throw new IllegalArgumentException("unsupported NCC method " + method);
                 }
                 boolean offsetEnabled = data.optBoolean("tools_ncc_offset_choice", false);
-                NccToolSettings settings = new NccToolSettings(overlap, NccMethod.values()[method],
+                NccToolSettings settings = new NccToolSettings(overlap, NccMethod.legacyValues()[method],
                         data.optBoolean("tools_ncc_connect", true),
                         data.optBoolean("tools_ncc_contour", true),
                         offsetEnabled ? data.optDouble("tools_ncc_offset_value", 0) : 0);

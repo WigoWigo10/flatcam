@@ -26,7 +26,7 @@ final class RasterAngleInput extends VBox {
         degrees.setMinWidth(0);
         degrees.setMaxWidth(90);
         disableProperty().bind(Bindings.createBooleanBinding(
-                () -> method.getValue() != NccMethod.LINES && method.getValue() != NccMethod.COMBO, method));
+                () -> method.getValue() == null || !method.getValue().usesRaster(), method));
         degrees.disableProperty().bind(automatic.selectedProperty());
         var row = new HBox(6, degrees, new Label("°"), sample);
         row.setAlignment(Pos.CENTER_LEFT);

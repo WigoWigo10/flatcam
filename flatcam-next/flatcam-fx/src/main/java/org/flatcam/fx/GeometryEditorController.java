@@ -481,7 +481,7 @@ final class GeometryEditorController {
         paintDiameter = new TextField("0.3"); paintDiameter.setId("geometry-paint-diameter");
         paintOverlap = new TextField("40"); paintOverlap.setId("geometry-paint-overlap");
         paintMargin = new TextField("0"); paintMargin.setId("geometry-paint-margin");
-        paintMethod = new ComboBox<>(FXCollections.observableArrayList(org.flatcam.cam.ncc.NccMethod.values()));
+        paintMethod = new ComboBox<>(FXCollections.observableArrayList(org.flatcam.cam.ncc.NccMethod.legacyValues()));
         paintMethod.setValue(org.flatcam.cam.ncc.NccMethod.STANDARD); paintMethod.setId("geometry-paint-method");
         paintConnect = new CheckBox("Connect"); paintConnect.setSelected(true);
         paintContour = new CheckBox("Contour"); paintContour.setSelected(true);

@@ -1,4 +1,4 @@
-param([string]$BuildDirectory,[ValidateRange(1,100)][int]$Repeats=10,[string]$OutputDirectory,[switch]$Lines,[string]$CaseFilter='.*',[string[]]$ClassOverrides)
+param([string]$BuildDirectory,[ValidateRange(1,100)][int]$Repeats=10,[string]$OutputDirectory,[switch]$Lines,[string]$CaseFilter='.*',[string[]]$ClassOverrides,[ValidateSet('LINES','REGION_LINES')][string]$Method='LINES')
 $ErrorActionPreference='Stop'
 $reactor=Split-Path -Parent $PSScriptRoot
 if(!$BuildDirectory){$BuildDirectory=(Get-Content -LiteralPath (Join-Path $reactor 'target\beta-latest.txt') -Raw).Trim()}
@@ -32,7 +32,7 @@ $info=[Diagnostics.ProcessStartInfo]::new((Join-Path $image 'runtime\bin\java.ex
 $args=@('--module-path',$app,'--add-modules','javafx.controls','--enable-native-access=javafx.graphics',
     '-XX:+UnlockDiagnosticVMOptions','-XX:DisableIntrinsic=_indexOfUL',
     ('-Dflatcam.audit.overrides='+$overrides),'-cp',($classes+';'+$appClasspath))
-if($Lines){$args+=@($main,(Join-Path $OutputDirectory 'lines-audit.json'))}
+if($Lines){$args+=@(('-Dflatcam.audit.method='+$Method),$main,(Join-Path $OutputDirectory 'lines-audit.json'))}
 else{$args+=@('-Djava.util.prefs.PreferencesFactory=org.flatcam.fx.CamRelatedAuditProbe$MemoryFactory',('-Dflatcam.audit.cases='+$CaseFilter),$main,$OutputDirectory,[string]$Repeats)}
 $code=Run $info $args (Join-Path $OutputDirectory 'audit.log')
 Write-Output "Audit report: $OutputDirectory"

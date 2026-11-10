@@ -1,5 +1,45 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Cobertura/G-code e Lines por regiões — 2026-11-10
+
+Itens 2 e 3 executados. **Não liberar nova Beta ainda**: o usuário quer juntar
+essas mudanças e as anteriores em uma entrega. Versão/instaladores Beta 7
+continuam; não houve bump, tag ou novo MSI.
+Auditoria de cobertura e exportação commitada em **02eb93c6**.
+
+Cobertura: **96/96 casos comunitários medidos**, oito placas, NCC/Paint,
+Connect/Contour e mais 32 combinações Rest/ângulos/MM-IN. Acesso nominal usa a
+área original, não a sobra estreita do Rest. GRBL_11_no_M6 foi exportado/relido
+por fresa e em programa combinado; nenhum erro nem desvio amostrado acima do
+arredondamento. Isso não significa remoção completa: sobra alcançável observada
+sem Rest/sem Contour **3,233–22,192%**, com Contour **0,00056–0,5825%**; Rest com
+Contour **0,3397–2,7265%**. Há núcleos além da tolerância. Ver
+[modelo, ensaio e limites](CLEARING_COVERAGE_VALIDATION.md); a antiga indicação
+NOT_MEASURED para esse corpus está superada por essa rodada diagnóstica.
+
+Protótipo **Lines por regiões (experimental)** em NCC/Paint: mantém as passadas,
+agrupa células por continuidade/split/merge entre linhas e termina cada célula.
+Connect preserva o plano e testa a fresa inteira. Geometry recebe ordem CNC
+SOURCE/direção preservada; posições e opções explícitas não são apagadas.
+Ângulos, ajuda nos quatro idiomas e temas testados; IDs Python preservados.
+
+**32/32 comparações** mantiveram as arestas originais exatamente. Em SOURCE,
+sem Connect, as 16 reduziram deslocamento em **7,7–91,3%**. Com Connect, 14
+pioraram deslocamento e todas aumentaram sequências de corte (+1 a +543).
+Não promover ao padrão: falta integrar acabamento/entradas/saídas entre células.
+Esses números não comparam a otimização NEAREST do CNC comum, nem medem ciclo
+de máquina ou FPS. Ver [protótipo e comparação](REGION_LINES.md).
+
+Verificação integrada: **2.503 casos**, 2.485 aprovados, 18 opcionais ignorados,
+zero falhas/erros. Após o último ajuste de tradução da receita, 12 testes FX/i18n
+aprovados novamente. Três testes do comparador Python e **96/96 controles de
+distância do modo regional** aprovados. Snapshots em `validation/`; relatórios
+HTML/logs em `target/coverage-regions-20261110` e `target/regions-*.log`.
+
+Próximos candidatos: corrigir núcleos alcançáveis deixados pelo Lines/Rest;
+refinar Connect entre células e acabamento com comparação CNC real em SOURCE
+versus NEAREST; só então consolidar a Beta e executar a validação prática.
+
 ## Connect: otimização do cálculo com trajetos preservados — 2026-11-10
 
 Núcleo **61859b6c**. O perfil identificou o predicado de contenção como cerca de

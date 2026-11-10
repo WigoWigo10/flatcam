@@ -12,6 +12,7 @@ public class LinesCommunityProbe {
         if(args.length<2||args.length>3)throw new IllegalArgumentException("Usage: LinesCommunityProbe.java FX_IMPORT_JSON OUTPUT_DIR [BOARD_ID]");
         var inventory=new JSONObject(Files.readString(Path.of(args[0])));var directory=Path.of(args[1]);Files.createDirectories(directory);
         var writer=new WKTWriter();var reader=new WKTReader();
+        NccMethod method=NccMethod.valueOf(System.getProperty("flatcam.audit.method","LINES"));
         double budgetSeconds=Double.parseDouble(System.getProperty("flatcam.audit.caseBudgetSeconds","90"));
         if(!Double.isFinite(budgetSeconds)||budgetSeconds<=0||budgetSeconds>600)throw new IllegalArgumentException("Case budget must be in (0,600] seconds");
         for(Object entry:inventory.getJSONArray("boards")) {
@@ -31,12 +32,12 @@ public class LinesCommunityProbe {
                 CancellationToken cancellation=()->System.nanoTime()-start>budgetSeconds*1_000_000_000L;
                 var document=new JSONObject().put("schema",1).put("id",caseId).put("board",id).put("name",board.getString("name"))
                         .put("source",preview.getString("path")).put("units",units).put("operation",operation).put("diameter",diameter)
-                        .put("overlap",.4).put("connect",connect).put("contour",contour)
+                        .put("overlap",.4).put("connect",connect).put("contour",contour).put("method",method.name())
                         .put("boundaryPolicy","explicit copper bounding rectangle; diagnostic, not a CNC setup");
                 try {
                     NccResult result=operation.equals("ncc")
-                            ?NccGenerator.generate(units,copper,new NccParameters(List.of(diameter),.4,0,NccMethod.LINES,connect,contour,0,false,NccOrder.NONE,new NccBoundary.Area(boundary)),cancellation,ProgressCallback.none())
-                            :NccGenerator.paint(units,paintArea,new PaintParameters(List.of(diameter),.4,0,NccMethod.LINES,connect,contour,NccOrder.NONE,false),cancellation,ProgressCallback.none());
+                            ?NccGenerator.generate(units,copper,new NccParameters(List.of(diameter),.4,0,method,connect,contour,0,false,NccOrder.NONE,new NccBoundary.Area(boundary)),cancellation,ProgressCallback.none())
+                            :NccGenerator.paint(units,paintArea,new PaintParameters(List.of(diameter),.4,0,method,connect,contour,NccOrder.NONE,false),cancellation,ProgressCallback.none());
                     document.put("status","GENERATED").put("rawPathsWkt",writer.write(result.geometry()))
                             .put("clearingAreaWkt",writer.write(result.clearingArea())).put("copperWkt",writer.write(copper))
                             .put("failedPolygons",result.totalFailedPolygonCount());

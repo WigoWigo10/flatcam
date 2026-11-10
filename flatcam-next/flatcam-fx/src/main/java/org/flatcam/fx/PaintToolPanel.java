@@ -291,7 +291,8 @@ final class PaintToolPanel {
         overlap.setPrefColumnCount(5);
         margin.setPrefColumnCount(5);
         ComboBox<NccMethod> method = new ComboBox<>();
-        method.getItems().addAll(NccMethod.STANDARD, NccMethod.SEED, NccMethod.LINES, NccMethod.COMBO);
+        method.getItems().addAll(NccMethod.values());
+        RegionLinesUi.configure(method);
         method.setValue(ToolDefaults.choice("paint.method", NccMethod.class));
         RasterAngleInput angle = new RasterAngleInput("paint", method.valueProperty());
         CheckBox connect = new CheckBox(I18n.text("ui.9e2edea69e20"));
@@ -427,7 +428,7 @@ final class PaintToolPanel {
                     try { settings.put(diameter,new PaintToolSettings(Double.parseDouble(s[0].trim().replace(',','.'))/100,
                             Double.parseDouble(s[1].trim().replace(',','.')), NccMethod.valueOf(s[2]),
                             Boolean.parseBoolean(s[3]),Boolean.parseBoolean(s[4]),
-                            NccMethod.valueOf(s[2]) == NccMethod.LINES || NccMethod.valueOf(s[2]) == NccMethod.COMBO
+                            NccMethod.valueOf(s[2]).usesRaster()
                                     ? RasterAngleInput.value(s.length <= 5 || Boolean.parseBoolean(s[5]), s.length <= 6 ? "0" : s[6]) : null)); }
                     catch (RuntimeException invalid) { throw new IllegalArgumentException(I18n.text("ui.10f99bd620cc") + diameter + ": " + invalid.getMessage()); }
                 }

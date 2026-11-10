@@ -5296,7 +5296,10 @@ final class MainWindow implements TclFlatcamHost {
                         TreeItem<String> generated = addGeometryToProject(uniqueDerivedName(item.getValue() + "_paint"),
                                 item.getValue(), units, result.geometry(), true, tools);
                         var entry=geometryByItem.get(generated);
-                        geometryByItem.put(generated,new GeometryEntry(entry.sourceName(),entry.units(),entry.geometry(),entry.strokeOnly(),entry.tools(),entry.cncDefaults(),outcome.target()));
+                        boolean regional=params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method()==NccMethod.REGION_LINES);
+                        var defaults=regional?RegionLinesUi.sourceOrder(units,tools.size(),entry.cncDefaults()):entry.cncDefaults();
+                        geometryByItem.put(generated,new GeometryEntry(entry.sourceName(),entry.units(),entry.geometry(),entry.strokeOnly(),entry.tools(),defaults,outcome.target()));
+                        if(regional)appendConsole(I18n.text("cam.regionLines.order"));
                         appendConsole(String.format(java.util.Locale.ROOT,
                                 I18n.text("ui.75543b5fbb07"),
                                 result.pathCount(), result.totalLength(), tools.size(),
@@ -7851,8 +7854,11 @@ final class MainWindow implements TclFlatcamHost {
                                 result.geometry(), true, tools);
                         applyCamMachining(generated, panelResult.machining());
                         var created = geometryByItem.get(generated);
+                        boolean regional=params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method()==NccMethod.REGION_LINES);
+                        var defaults=regional?RegionLinesUi.sourceOrder(units,created.tools().size(),created.cncDefaults()):created.cncDefaults();
                         geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), created.geometry(),
-                                created.strokeOnly(), created.tools(), created.cncDefaults(), outcome.target()));
+                                created.strokeOnly(), created.tools(), defaults, outcome.target()));
+                        if(regional)appendConsole(I18n.text("cam.regionLines.order"));
                         camResultNotes.put(generated, new CamResultNote(item, recipe));
                         if (feedback != null) feedback.completed(generated, this::showOnlyCamVariant);
                         appendConsole(String.format(
