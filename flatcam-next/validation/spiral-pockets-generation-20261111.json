@@ -1,0 +1,622 @@
+{
+  "schema": 1,
+  "date": "2026-11-11",
+  "implementationCommit": "1eb3d33b",
+  "baselineRevision": "8330c5ff",
+  "inputSha256": "ded4c31f419188130775f5dca30ec800d6d8ff864a39b0496016e1dcea82ddac",
+  "hardware": {
+    "cpu": "Intel Core Ultra 7 155H",
+    "cores": 16,
+    "logicalProcessors": 22
+  },
+  "scope": "Generation only on this PC. Six fresh JVMs, three paired rounds in radial/adaptive, adaptive/radial, radial/adaptive order. Same Java 25 runtime and 3 GiB maximum heap. No concurrent Maven or coverage runs. Parse, G-code, coverage, file writes and source-launch startup excluded. Per-board repeat zero retained but excluded from warm summaries: later board first calls are not fresh-JVM cold. Six warm samples per variant per board. Process CPU includes JVM/JIT/GC threads, not just machining kernel. No peak RAM, renderer FPS or physical CNC timing measured. OS background load and thermal behavior not controlled.",
+  "summary": [
+    {
+      "board": "breadboard-power-supply",
+      "radial": {
+        "warmSamples": 6,
+        "medianGenerationMs": 3810.38895,
+        "minGenerationMs": 3763.8095,
+        "maxGenerationMs": 3946.23,
+        "medianProcessCpuMs": 4335.9375
+      },
+      "adaptive": {
+        "warmSamples": 6,
+        "medianGenerationMs": 116.2611,
+        "minGenerationMs": 106.9373,
+        "maxGenerationMs": 121.978,
+        "medianProcessCpuMs": 585.9375
+      },
+      "medianWallReductionPercent": 96.94883904174665
+    },
+    {
+      "board": "modxo-adapter",
+      "radial": {
+        "warmSamples": 6,
+        "medianGenerationMs": 122.023,
+        "minGenerationMs": 113.0485,
+        "maxGenerationMs": 132.2461,
+        "medianProcessCpuMs": 257.8125
+      },
+      "adaptive": {
+        "warmSamples": 6,
+        "medianGenerationMs": 110.21805,
+        "minGenerationMs": 100.7018,
+        "maxGenerationMs": 114.2525,
+        "medianProcessCpuMs": 257.8125
+      },
+      "medianWallReductionPercent": 9.674364668955848
+    },
+    {
+      "board": "single-sided-5v",
+      "radial": {
+        "warmSamples": 6,
+        "medianGenerationMs": 288.552,
+        "minGenerationMs": 278.6552,
+        "maxGenerationMs": 295.2392,
+        "medianProcessCpuMs": 335.9375
+      },
+      "adaptive": {
+        "warmSamples": 6,
+        "medianGenerationMs": 164.34224999999998,
+        "minGenerationMs": 157.8309,
+        "maxGenerationMs": 167.9352,
+        "medianProcessCpuMs": 320.3125
+      },
+      "medianWallReductionPercent": 43.04588081177744
+    }
+  ],
+  "runs": [
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: same three MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "adaptive-1",
+      "processors": 22,
+      "measurements": [
+        {
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 1875,
+          "generationMs": 333.0716,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 562.5,
+          "generationMs": 116.819,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 640.625,
+          "generationMs": 113.2958,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 546.875,
+          "generationMs": 127.0868,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 296.875,
+          "generationMs": 114.2525,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 250,
+          "generationMs": 106.9998,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 406.25,
+          "generationMs": 178.6079,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 281.25,
+          "generationMs": 159.5964,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 359.375,
+          "generationMs": 167.8215,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: same three MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "adaptive-2",
+      "processors": 22,
+      "measurements": [
+        {
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 1906.25,
+          "generationMs": 347.9745,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 609.375,
+          "generationMs": 121.978,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 625,
+          "generationMs": 115.7032,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 390.625,
+          "generationMs": 117.2418,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 281.25,
+          "generationMs": 111.8764,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 187.5,
+          "generationMs": 100.7018,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 546.875,
+          "generationMs": 186.2512,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 468.75,
+          "generationMs": 164.4542,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 359.375,
+          "generationMs": 167.9352,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: same three MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "adaptive-3",
+      "processors": 22,
+      "measurements": [
+        {
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 1953.125,
+          "generationMs": 333.1146,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 437.5,
+          "generationMs": 119.2783,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 531.25,
+          "generationMs": 106.9373,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 468.75,
+          "generationMs": 126.5243,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 265.625,
+          "generationMs": 111.1671,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 187.5,
+          "generationMs": 109.269,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 500,
+          "generationMs": 187.6484,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 281.25,
+          "generationMs": 157.8309,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 203.125,
+          "generationMs": 164.2303,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: same three MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "radial-1",
+      "processors": 22,
+      "measurements": [
+        {
+          "paths": 827,
+          "repeat": 0,
+          "processCpuMs": 11812.5,
+          "generationMs": 4243.892,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 827,
+          "repeat": 1,
+          "processCpuMs": 4421.875,
+          "generationMs": 3763.8095,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 827,
+          "repeat": 2,
+          "processCpuMs": 4203.125,
+          "generationMs": 3827.9154,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 231,
+          "repeat": 0,
+          "processCpuMs": 390.625,
+          "generationMs": 123.7545,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 231,
+          "repeat": 1,
+          "processCpuMs": 250,
+          "generationMs": 113.0485,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 231,
+          "repeat": 2,
+          "processCpuMs": 187.5,
+          "generationMs": 116.755,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 472,
+          "repeat": 0,
+          "processCpuMs": 453.125,
+          "generationMs": 286.5787,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        },
+        {
+          "paths": 472,
+          "repeat": 1,
+          "processCpuMs": 343.75,
+          "generationMs": 291.9219,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        },
+        {
+          "paths": 472,
+          "repeat": 2,
+          "processCpuMs": 312.5,
+          "generationMs": 285.4984,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: same three MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "radial-2",
+      "processors": 22,
+      "measurements": [
+        {
+          "paths": 827,
+          "repeat": 0,
+          "processCpuMs": 11406.25,
+          "generationMs": 4144.6623,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 827,
+          "repeat": 1,
+          "processCpuMs": 4968.75,
+          "generationMs": 3906.5125,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 827,
+          "repeat": 2,
+          "processCpuMs": 4250,
+          "generationMs": 3946.23,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 231,
+          "repeat": 0,
+          "processCpuMs": 281.25,
+          "generationMs": 137.7923,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 231,
+          "repeat": 1,
+          "processCpuMs": 250,
+          "generationMs": 132.2451,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 231,
+          "repeat": 2,
+          "processCpuMs": 265.625,
+          "generationMs": 117.2593,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 472,
+          "repeat": 0,
+          "processCpuMs": 500,
+          "generationMs": 313.6223,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        },
+        {
+          "paths": 472,
+          "repeat": 1,
+          "processCpuMs": 406.25,
+          "generationMs": 295.2392,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        },
+        {
+          "paths": 472,
+          "repeat": 2,
+          "processCpuMs": 359.375,
+          "generationMs": 290.2746,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: same three MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "radial-3",
+      "processors": 22,
+      "measurements": [
+        {
+          "paths": 827,
+          "repeat": 0,
+          "processCpuMs": 13156.25,
+          "generationMs": 4480.8607,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 827,
+          "repeat": 1,
+          "processCpuMs": 4703.125,
+          "generationMs": 3792.8625,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 827,
+          "repeat": 2,
+          "processCpuMs": 4031.25,
+          "generationMs": 3789.2259,
+          "board": "breadboard-power-supply",
+          "cutLength": 2225.5897605890095,
+          "points": 26986
+        },
+        {
+          "paths": 231,
+          "repeat": 0,
+          "processCpuMs": 296.875,
+          "generationMs": 134.1696,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 231,
+          "repeat": 1,
+          "processCpuMs": 265.625,
+          "generationMs": 126.7867,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 231,
+          "repeat": 2,
+          "processCpuMs": 265.625,
+          "generationMs": 132.2461,
+          "board": "modxo-adapter",
+          "cutLength": 1496.866272482427,
+          "points": 15933
+        },
+        {
+          "paths": 472,
+          "repeat": 0,
+          "processCpuMs": 406.25,
+          "generationMs": 276.9359,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        },
+        {
+          "paths": 472,
+          "repeat": 1,
+          "processCpuMs": 328.125,
+          "generationMs": 286.8294,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        },
+        {
+          "paths": 472,
+          "repeat": 2,
+          "processCpuMs": 328.125,
+          "generationMs": 278.6552,
+          "board": "single-sided-5v",
+          "cutLength": 2970.623041440872,
+          "points": 26120
+        }
+      ]
+    }
+  ],
+  "baselineClassesSha256": {
+    "NccGenerator": "91a5bd20544096d0bf797698c8ce42eea93f2337ed1afb1d813a798da2eceba7",
+    "SpiralClearing": "227d5be3671b1b2e27e262f7826d058fe38494547f046b577b51e5ae890d13d7",
+    "SpiralConnector": "44f28389bff50e940c3b5865424b1bfda607871fdc3cdbb8409dd32cc2aed952"
+  },
+  "candidateClassesSha256": {
+    "NccGenerator": "6604088bb8a168c59ea93950103550e73995b896f0e3431a80e550be91a08285",
+    "SpiralClearing": "a919eb0235ee72f6fd9e93947659922c780122e1ab04015e83d19cc5e719c6be",
+    "SpiralPocketPlanner": "cb2da10747e3144ef92b6d055fa76f5a43b3a6628ddeef9822a2a2f92ea2c9c1",
+    "SpiralConnector": "44f28389bff50e940c3b5865424b1bfda607871fdc3cdbb8409dd32cc2aed952"
+  }
+}

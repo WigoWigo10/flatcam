@@ -17,6 +17,8 @@ public class SpiralCommunityProbe {
         Path out=Path.of(args[1]);Files.createDirectories(out);var cases=new JSONArray();int errors=0,boards=0;
         var inventory=new JSONObject(Files.readString(Path.of(args[0])));
         boolean connect=Boolean.parseBoolean(System.getProperty("flatcam.spiral.connect","true"));
+        var methods=Arrays.stream(System.getProperty("flatcam.spiral.methods","LINES,SEED,SPIRAL").split(",")).map(String::trim).map(NccMethod::valueOf).distinct().toList();
+        if(methods.isEmpty())throw new IllegalArgumentException("Choose at least one method");
         for(Object entry:inventory.getJSONArray("boards")) {
             var board=(JSONObject)entry;String id=board.getString("id");
             if(!id.matches(System.getProperty("flatcam.spiral.boards","breadboard-power-supply|modxo-adapter|single-sided-5v")))continue;
@@ -24,7 +26,7 @@ public class SpiralCommunityProbe {
             Geometry copper=new WKTReader().read(board.getJSONObject("preview").getString("wkt"));
             if(!board.getJSONObject("preview").getString("units").equals("MM"))throw new IllegalArgumentException("Probe requires MM input");
             Geometry area=copper.getFactory().toGeometry(copper.getEnvelopeInternal()).difference(copper);String source=copper.toText();
-            for(var method:List.of(NccMethod.LINES,NccMethod.SEED,NccMethod.SPIRAL)) {
+            for(var method:methods) {
                 String caseId=id+"-"+method.name();Path file=out.resolve(caseId+".json");
                 if(Files.exists(file)){var saved=new JSONObject(Files.readString(file));cases.put(saved);if(!saved.getString("status").equals("MEASURED"))errors++;continue;}
                 var row=new JSONObject().put("id",caseId).put("method",method.name()).put("board",id).put("connect",connect);
@@ -33,6 +35,7 @@ public class SpiralCommunityProbe {
                     long generation=System.nanoTime();
                     var result=NccGenerator.paint("MM",area,new PaintParameters(List.of(.4),.4,0,method,connect,true,NccOrder.NONE,false),token,ProgressCallback.none());
                     row.put("generationMs",(System.nanoTime()-generation)/1e6);
+                    row.put("radialFallback",result.toolResults().stream().anyMatch(t->t.regionDiagnostics()!=null&&t.regionDiagnostics().radialFallback()));
                     Files.writeString(out.resolve(caseId+".wkt"),result.geometry().toText());
                     var tools=result.toolResults().stream().filter(t->!t.isEmpty()).map(t->new ToolGeometry(t.toolDiameter(),t.geometry())).toList();
                     if(tools.isEmpty())throw new AssertionError("No toolpaths");
@@ -55,6 +58,8 @@ public class SpiralCommunityProbe {
                     // Q16 footprint/chord/export fringe is declared separately; raw residual is never discarded.
                     double tolerance=.2*(1-Math.cos(Math.PI/64))+.0004+Math.sqrt(2)*.00005;
                     var residual=MachiningReachability.classify(coverage.finalRemaining(),access,tolerance,token);
+                    Files.writeString(out.resolve(caseId+"-remaining.wkt"),coverage.finalRemaining().toText());
+                    Files.writeString(out.resolve(caseId+"-stable-core.wkt"),residual.stableCore().toText());
                     if(!source.equals(copper.toText()))throw new AssertionError("Source changed");
                     row.put("status","MEASURED").put("targetArea",area.getArea()).put("reachableArea",access.reachable().getArea())
                         .put("rawReachableUncutArea",residual.reachableUncut().getArea()).put("stableUncutArea",residual.stableReachableUncut().getArea())
@@ -69,9 +74,9 @@ public class SpiralCommunityProbe {
                 System.out.println(caseId+": "+row.getString("status")+" "+row.getDouble("elapsedMs")+" ms");System.out.flush();
             }
         }
-        boolean complete=boards>0&&cases.length()==3*boards;
+        boolean complete=boards>0&&cases.length()==methods.size()*boards;
         Files.writeString(out.resolve("comparison.json"),new JSONObject().put("schema",1).put("cases",cases).put("errors",errors).put("matrixComplete",complete)
-            .put("policy","Three public boards, same MM diagnostic copper bounding box minus copper, .4 mm cutter, 40% overlap, Connect recorded per case, Contour on, no Rest. Paint kernel. GRBL_11_no_M6 export/parse. Lines/Seed default NEAREST vs spiral SOURCE/preserved direction. Cold sequential generation timings are observations, not an isolated benchmark. Program estimate excludes acceleration and controller behavior; boundary is not a physical Outline. Nominal Q16 swept area and Q64 reachability; raw and stable-core residuals retained. Cooperative case budget 240 seconds.").toString(2));
+            .put("policy","Selected public boards, same MM diagnostic copper bounding box minus copper, .4 mm cutter, 40% overlap, Connect recorded per case, Contour on, no Rest. Paint kernel. GRBL_11_no_M6 export/parse. Lines/Seed default NEAREST vs spiral SOURCE/preserved direction. Cold sequential generation timings are observations, not an isolated benchmark. Program estimate excludes acceleration and controller behavior; boundary is not a physical Outline. Nominal Q16 swept area and Q64 reachability; raw and stable-core residuals retained. Cooperative case budget 240 seconds.").toString(2));
         if(errors>0||!complete)System.exit(1);
     }
     static double deviation(Geometry source,Geometry target,CancellationToken token){return sample(source,new IndexedFacetDistance(target),token);}

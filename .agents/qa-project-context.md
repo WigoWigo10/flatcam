@@ -1,5 +1,25 @@
 # QA project context — FlatCAM FX
 
+Adaptive pocket spiral (2026-11-11): enabled by default for non-round SPIRAL
+components in Paint/NCC/Rest. Inward-offset tree splits at necks, visits each
+branch before siblings, and adds local half-step traces where lobes disappear.
+Round regions keep Archimedean paths; diameter unchanged. Budget exhaustion
+retries the whole cutter radially with fresh budget and explicit per-cutter UI
+notice; cancellation propagates. Audio Watermark fallback is byte-identical to
+baseline WKT/G-code, including its existing 2.0477e-5 mm² stable residual core;
+do not count that as clean coverage. Seven other public boards: zero classified
+stable cores, better program estimates than Lines. Standard has nonzero cores
+in three corpus cases; deferred separate investigation. See SPIRAL_POCKETS.md,
+validation/spiral-pockets-20261111.json and distance matrix. Estimates exclude
+machine acceleration/controller effects; benchmark generation separately.
+Generation-only paired fresh-JVM replay on Ultra 7 155H, six warm samples: wall
+medians Breadboard 3810->116 ms, Modxo 122->110 ms, 5V 289->164 ms. Raw first
+calls, CPU times and ranges in validation/spiral-pockets-generation-20261111.json.
+Not FPS, peak RAM or physical CNC time; background/thermal state uncontrolled.
+Full verify: 2,568 cases, 2,549 passed, 19 optional skipped, zero failures/errors.
+Beta remains 0.1.0-beta.7; no version/installer/push in this task.
+
+
 Clearing preview + spiral Connect refinement (2026-11-11): NCC now shares Paint's
 background cancellable preview, without creating project objects. Distinct cut,
 rapid and entry roles, themed legend switches and per-cutter route statistics.

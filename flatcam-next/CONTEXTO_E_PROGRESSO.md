@@ -1,5 +1,35 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Espiral adaptativa por bolsões — 2026-11-11
+
+Otimização integrada em Paint/NCC/Rest: offsets que seguem bordas, árvore de
+sub-bolsões nos estreitamentos, conclusão por ramo e passes locais nos lóbulos
+que desaparecem entre níveis. Áreas quase circulares mantêm a radial. Connect,
+Contour, diâmetro exato e IDs legados preservados; sem alterar outros métodos.
+Nome/ajuda em quatro idiomas. Ao exceder orçamento adaptativo, a fresa inteira
+é refeita pela radial, com aviso/tooltip no painel; cancelamento não vira retry.
+Sem bump, tag, push ou MSI; permanece a entrega Beta conjunta.
+
+Build completo: 2.568 casos, 2.549 aprovados, 19 opcionais ignorados, sem falhas.
+
+Nos três exemplos públicos, minutos de programa estimados:
+21,936→7,412; 8,838→5,061; 18,075→9,680. G0 Z: 830→69; 234→22; 475→30.
+Ficou 15–25% abaixo da estimativa de Lines nessas três placas. Benchmark de
+geração isolado, seis amostras aquecidas: Breadboard 3.810→116 ms, Modxo
+122→110 ms, Single-sided 289→164 ms; dados brutos em
+`validation/spiral-pockets-generation-20261111.json`. Sete das oito
+placas tiveram ganho e núcleo estável de sobra zero na tolerância publicada.
+Audio Watermark usa retry radial: WKT/G-code idênticos ao baseline, inclusive
+pequena sobra preexistente (0,0000204773 mm²); não conta como cobertura completa
+nem como ganho. Standard deixou núcleos em três casos: achado para investigação
+separada. Não confundir estimativa de programa, benchmark de geração e FPS.
+
+Ver [algoritmo, critérios, limites e reprodução](SPIRAL_POCKETS.md), relatório
+`validation/spiral-pockets-20261111.json` e matriz de 32 controles de distância
+`validation/spiral-pockets-distance-20261111.json`. Históricos abaixo conservam
+as medições da radial anterior; não representam o estado atual da estratégia.
+
+
 ## Prévia NCC/Paint e Connect da espiral refinados — 2026-11-11
 
 Itens 1 e 2 concluídos. **Prévia dos trajetos** agora também no NCC, com cortes,

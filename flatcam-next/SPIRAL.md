@@ -1,4 +1,15 @@
-# Espiral radial experimental — 2026-11-11
+# Espiral adaptativa experimental — 2026-11-11
+
+**Atualização integrada:** a estratégia agora acompanha bordas por offsets e
+processa sub-bolsões, preservando a radial em regiões quase circulares ou como
+retorno explícito por limite. Nome na interface: **Espiral adaptativa
+(experimental)**. Medições, limites, resíduos e critérios atuais estão em
+[SPIRAL_POCKETS.md](SPIRAL_POCKETS.md). Nos três exemplos principais, a estimativa
+do programa caiu de 21,94/8,84/18,08 para 7,41/5,06/9,68 min. Não é promessa de
+tempo físico de máquina, cobertura universal ou controle de engajamento.
+
+**Histórico da radial e do Connect abaixo:** descreve a baseline anterior;
+a indicação de perda para Lines e os números de testes são daquela etapa.
 
 **Refinamento dos itens 1 e 2:** Paint e NCC agora têm prévia de cortes,
 deslocamentos e entradas, com legenda, resumo por fresa e estimativa XY
@@ -21,7 +32,7 @@ instalador nesta rodada, conforme a entrega conjunta solicitada.
 ## Usar e visualizar
 
 No Paint, escolha o objeto/área, configure cada fresa e selecione
-**Espiral contínua (experimental)**. Use **Prévia dos trajetos**: calcula com
+**Espiral adaptativa (experimental)**. Use **Prévia dos trajetos**: calcula com
 os mesmos parâmetros de Gerar, em segundo plano, com progresso/cancelamento,
 sem adicionar objetos. Alterar parâmetros, seleção, fonte ou fechar a ferramenta
 descarta a prévia e cancela a publicação pendente. Gerar continua criando Geometry.
@@ -32,7 +43,7 @@ sua cor; os trajetos usam a paleta de Geometry das prévias, adaptada ao tema.
 Tooltips e mensagens novas estão em PT-BR, inglês, espanhol e francês.
 
 O NCC oferece a mesma estratégia por fresa. O ângulo de varredura fica inativo:
-nesta implementação, a espiral parte do centro para fora em sentido anti-horário.
+a versão atual processa bolsões e voltas por offset; o ângulo raster não se aplica.
 Connect liga somente trechos autorizados pelos limites originais; Contour adiciona
 as bordas de acabamento. Rest permite passar por espaço já limpo para alcançar
 a sobra, mantendo a área autorizada e os offsets individuais de cada fresa.
@@ -43,7 +54,7 @@ Proximidade pode reorganizar os trechos e perder a progressão radial.
 
 ## Qual espiral
 
-É uma espiral de Arquimedes, com `r = passo × θ / (2π)` e
+A variante radial histórica (ainda usada em regiões quase circulares e no retorno por limite) é uma espiral de Arquimedes, com `r = passo × θ / (2π)` e
 `passo = diâmetro × (1 − overlap)`. Uma fresa de 0,4 mm com overlap de 40%
 produz passo radial de 0,24 mm. O diâmetro informado é mantido, sem arredondar
 ou reduzir a fresa para fazer trajetos caberem.

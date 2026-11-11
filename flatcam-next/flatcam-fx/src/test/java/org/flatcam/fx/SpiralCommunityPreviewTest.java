@@ -44,7 +44,7 @@ class SpiralCommunityPreviewTest {
                 var sidebar=(TabPane)field(s.window,"leftTabs");sidebar.setMinWidth(330);sidebar.setPrefWidth(330);sidebar.setMaxWidth(330);
                 plot.setLayerColors(gerber,javafx.scene.paint.Color.web("#95CC62"),javafx.scene.paint.Color.web("#50753E"));
                 var view=new BorderPane(plot);view.setLeft(sidebar);
-                var title=new Label("Espiral — Breadboard Power Supply v2  |  Fresa 0,4 mm  |  Overlap 40%");title.setStyle("-fx-padding: 10; -fx-font-size: 16px; -fx-font-weight: bold;");view.setTop(title);
+                var title=new Label("Espiral adaptativa — Breadboard Power Supply v2  |  Fresa 0,4 mm  |  Overlap 40%");title.setStyle("-fx-padding: 10; -fx-font-size: 16px; -fx-font-weight: bold;");view.setTop(title);
                 var status=new Label();status.textProperty().bind(((Label)field(s.window,"statusLabel")).textProperty());
                 var legend=new Label("Cobre em verde • Cortes em lilás • Deslocamentos em ciano • Entradas em âmbar • Caixa do cobre usada como limite diagnóstico");
                 var footer=new VBox(4,status,legend);footer.setStyle("-fx-padding: 8;");view.setBottom(footer);
@@ -56,7 +56,7 @@ class SpiralCommunityPreviewTest {
             awaitDrawing(s);
             TerminalPanelTest.fx(()->{root.applyCss();root.layout();panel(s).setVvalue(1);save(root,folder.resolve("breadboard-spiral-preview.png"));return null;});
             var preview=(PlotAreaView.PreviewLayer)TerminalPanelTest.fx(()->SpiralPreviewUiTest.highlight(s));
-            LineString longest=null;for(int i=0;i<preview.geometry().getNumGeometries();i++)if(preview.geometry().getGeometryN(i) instanceof LineString line&&!line.isClosed()&&(longest==null||line.getNumPoints()>longest.getNumPoints()))longest=line;
+            LineString longest=null;for(int i=0;i<preview.geometry().getNumGeometries();i++)if(preview.geometry().getGeometryN(i) instanceof LineString line&&(longest==null||line.getNumPoints()>longest.getNumPoints()))longest=line;
             assertNotNull(longest);Envelope detail=new Envelope();var coords=longest.getCoordinates();
             for(int i=0;i<Math.min(260,coords.length);i++)detail.expandToInclude(coords[i]);detail.expandBy(.7);
             TerminalPanelTest.fx(()->{((PlotAreaView)field(s.window,"plotAreaView")).fitToBounds(detail);return null;});awaitDrawing(s);
