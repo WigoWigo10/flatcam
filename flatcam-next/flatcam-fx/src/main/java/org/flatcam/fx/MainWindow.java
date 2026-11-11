@@ -872,6 +872,7 @@ final class MainWindow implements TclFlatcamHost {
     private boolean restoringProject;
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
+    private JobHandle<?> paintPreviewJob;
     private ContextMenu plotContextMenu;
     private ContextMenu projectContextMenu;
     private final PlotMoveHistory<TreeItem<String>> plotMoveHistory = new PlotMoveHistory<>();
@@ -5235,6 +5236,16 @@ final class MainWindow implements TclFlatcamHost {
                 plotAreaView.setEditorHighlight(geometry, false);
             }
 
+            @Override public void invalidatePreview() {
+                if(paintPreviewJob!=null)paintPreviewJob.cancel();
+                plotAreaView.setEditorHighlight(null,false);
+                plotAreaView.setToolPreviewContent(null,List.of());
+            }
+            @Override public void previewPaint(TreeItem<String> item,String units,Geometry polygons,PaintParameters parameters,
+                    TreeItem<String> reference,Geometry referenceGeometry,java.util.function.BooleanSupplier current) {
+                runPaintGeneration(item,units,polygons,parameters,reference,referenceGeometry,true,current);
+            }
+
             @Override
             public void paint(TreeItem<String> item, String units, Geometry polygons, PaintParameters parameters) {
                 runPaintGeneration(item, units, polygons, parameters);
@@ -5258,6 +5269,11 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runPaintGeneration(TreeItem<String> item, String units, Geometry polygons, PaintParameters params,
                                     TreeItem<String> reference, Geometry referenceGeometry) {
+        runPaintGeneration(item,units,polygons,params,reference,referenceGeometry,false,()->true);
+    }
+
+    private void runPaintGeneration(TreeItem<String> item,String units,Geometry polygons,PaintParameters params,
+            TreeItem<String> reference,Geometry referenceGeometry,boolean previewOnly,java.util.function.BooleanSupplier current) {
         CamGenerationState before;
         try {
             var gerber=gerberByItem.get(item);var geometry=geometryByItem.get(item);
@@ -5272,6 +5288,7 @@ final class MainWindow implements TclFlatcamHost {
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
             var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,I18n.text("ui.1ad65b51bd48")));
             context.checkCancelled();
+            if(previewOnly)return new NccJobOutcome(result,OptionalDouble.empty(),null);
             var paths=result.toolResults().stream().filter(tool -> !tool.isEmpty()).map(tool -> new ToolGeometry(tool.toolDiameter(),tool.geometry())).toList();
             var areas=new LinkedHashMap<Integer,Geometry>(); int index=0;
             for (var tool:result.toolResults()) if (!tool.isEmpty()) { if (tool.targetArea()!=null) areas.put(index,tool.targetArea().copy()); index++; }
@@ -5280,10 +5297,20 @@ final class MainWindow implements TclFlatcamHost {
             return new NccJobOutcome(result,OptionalDouble.empty(),target);
         }, camProgress(before));
         runningJob = handle;
+        if(previewOnly)paintPreviewJob=handle;
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
                     if (!acceptCamGeneration(before, handle)) return;
                     var result=outcome.result();
+                    if(previewOnly) {
+                        if(toolTab.getContent()==before.panel()&&current.getAsBoolean()) {
+                            plotAreaView.setEditorHighlight(null,false);
+                            plotAreaView.setToolPreviewContent(null,List.of(new PlotAreaView.PreviewLayer(result.geometry(),PlotAreaView.LayerCategory.GEOMETRY,true)));
+                            completeClearingDiagnostics(before,result);
+                            setStatus(I18n.text(result.isEmpty()?"ui.e06fe2d2f5dd":"cam.preview.ready"),IDLE_COLOR);
+                        }
+                        updateProgress(1);onJobFinished();return;
+                    }
                     if (result.isEmpty()) {
                         appendConsole(I18n.text("ui.e06fe2d2f5dd"));
                         setStatus(I18n.text("ui.712cdeb8cbda"), ERROR_COLOR);
@@ -5296,10 +5323,10 @@ final class MainWindow implements TclFlatcamHost {
                         TreeItem<String> generated = addGeometryToProject(uniqueDerivedName(item.getValue() + "_paint"),
                                 item.getValue(), units, result.geometry(), true, tools);
                         var entry=geometryByItem.get(generated);
-                        boolean regional=params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method()==NccMethod.REGION_LINES);
+                        boolean regional=params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method().prefersSourceOrder());
                         var defaults=regional?RegionLinesUi.sourceOrder(units,tools.size(),entry.cncDefaults()):entry.cncDefaults();
                         geometryByItem.put(generated,new GeometryEntry(entry.sourceName(),entry.units(),entry.geometry(),entry.strokeOnly(),entry.tools(),defaults,outcome.target()));
-                        if(regional)appendConsole(I18n.text("cam.regionLines.order"));
+                        if(regional)appendConsole(I18n.text(params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method()==NccMethod.SPIRAL)?"cam.spiral.order":"cam.regionLines.order"));
                         appendConsole(String.format(java.util.Locale.ROOT,
                                 I18n.text("ui.75543b5fbb07"),
                                 result.pathCount(), result.totalLength(), tools.size(),
@@ -7854,11 +7881,11 @@ final class MainWindow implements TclFlatcamHost {
                                 result.geometry(), true, tools);
                         applyCamMachining(generated, panelResult.machining());
                         var created = geometryByItem.get(generated);
-                        boolean regional=params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method()==NccMethod.REGION_LINES);
+                        boolean regional=params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method().prefersSourceOrder());
                         var defaults=regional?RegionLinesUi.sourceOrder(units,created.tools().size(),created.cncDefaults()):created.cncDefaults();
                         geometryByItem.put(generated, new GeometryEntry(created.sourceName(), created.units(), created.geometry(),
                                 created.strokeOnly(), created.tools(), defaults, outcome.target()));
-                        if(regional)appendConsole(I18n.text("cam.regionLines.order"));
+                        if(regional)appendConsole(I18n.text(params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method()==NccMethod.SPIRAL)?"cam.spiral.order":"cam.regionLines.order"));
                         camResultNotes.put(generated, new CamResultNote(item, recipe));
                         if (feedback != null) feedback.completed(generated, this::showOnlyCamVariant);
                         appendConsole(String.format(
@@ -10513,7 +10540,8 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole(I18n.text("ui.f102bb211dda"));
         } else {
             setStatus(I18n.text("ui.1e18211d36c4"), ERROR_COLOR);
-            appendConsole(failurePrefix + error.getMessage());
+            Throwable detail=error;while(detail.getCause()!=null&&detail.getCause()!=detail)detail=detail.getCause();
+            appendConsole(failurePrefix + ("CAM_SPIRAL_SAMPLE_LIMIT".equals(detail.getMessage())?I18n.text("cam.spiral.limit"):error.getMessage()));
         }
     }
 
@@ -11095,6 +11123,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void onJobFinished() {
+        paintPreviewJob=null;
         if (activeCamGeneration != null) {
             var feedback = CamGenerationFeedback.of(activeCamGeneration.panel());
             if (feedback != null) feedback.stopped();

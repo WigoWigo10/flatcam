@@ -14,7 +14,12 @@ final class RegionLinesUi {
             @Override public String toString(NccMethod m){return m==null?"":I18n.caption(m.toString());}
             @Override public NccMethod fromString(String value){return combo.getValue();}
         });
-        ToolDescriptions.apply(combo,I18n.text("cam.regionLines.label"),I18n.text("ui.f3e1e0c3c5c5")+"\n\n"+I18n.text("cam.regionLines.help"));
+        Runnable help=()-> {
+            boolean spiral=combo.getValue()==NccMethod.SPIRAL;
+            ToolDescriptions.apply(combo,I18n.text(spiral?"cam.spiral.label":"cam.regionLines.label"),
+                    spiral?I18n.text("cam.spiral.help"):I18n.text("ui.f3e1e0c3c5c5")+"\n\n"+I18n.text("cam.regionLines.help"));
+        };
+        combo.valueProperty().addListener((o,a,b)->help.run());help.run();
     }
     static GeometryGCodeParameters sourceOrder(String units,int toolCount,GeometryGCodeParameters existing) {
         boolean metric="MM".equalsIgnoreCase(units);

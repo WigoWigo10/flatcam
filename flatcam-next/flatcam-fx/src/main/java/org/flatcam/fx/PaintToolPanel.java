@@ -61,6 +61,11 @@ final class PaintToolPanel {
         void preview(Geometry geometry);
 
         void paint(TreeItem<String> source, String units, Geometry polygons, PaintParameters parameters);
+        default void previewPaint(TreeItem<String> source,String units,Geometry polygons,PaintParameters parameters,
+                                  TreeItem<String> reference,Geometry referenceGeometry,java.util.function.BooleanSupplier current) {
+            throw new IllegalArgumentException(I18n.text("cam.preview.unavailable"));
+        }
+        default void invalidatePreview(){preview(null);}
 
         default void paint(TreeItem<String> source, String units, Geometry polygons, PaintParameters parameters,
                            TreeItem<String> reference, Geometry referenceGeometry) {
@@ -86,6 +91,8 @@ final class PaintToolPanel {
 
     /** A replaced/closed panel must not cancel picks belonging to the next tool. */
     static void release(Node panel) {
+        var preview=panel.getProperties().remove("paint.invalidatePreview");
+        if(preview instanceof Runnable action)action.run();
         var cleanup=panel.getProperties().remove(SOURCE_CLEANUP);
         if (cleanup instanceof Runnable action) action.run();
     }
@@ -140,6 +147,11 @@ final class PaintToolPanel {
                 : available.isEmpty() ? null : available.getFirst();
         String units = initial == null ? "MM" : host.units(initial);
         var compatible = available.stream().filter(item -> units.equalsIgnoreCase(host.units(item))).toList();
+        var previewVersion=new java.util.concurrent.atomic.AtomicLong();boolean[] previewRequested={false};
+        Runnable invalidatePreview=()->{
+            previewVersion.incrementAndGet();
+            if(previewRequested[0]){previewRequested[0]=false;host.invalidatePreview();}
+        };
         ComboBox<TreeItem<String>> source = new ComboBox<>();
         source.setId("paint-source-object");
         source.getItems().setAll(compatible);
@@ -197,6 +209,7 @@ final class PaintToolPanel {
         errorLabel.setWrapText(true);
 
         Runnable showSelection = () -> {
+            invalidatePreview.run();
             if (all.isSelected()) {
                 int count = source.getValue() == null ? 0 : polygonsOf(host.polygons(source.getValue())).size();
                 selectedLabel.setText(count + I18n.text("ui.cf58180bf39e"));
@@ -296,13 +309,16 @@ final class PaintToolPanel {
         method.setValue(ToolDefaults.choice("paint.method", NccMethod.class));
         RasterAngleInput angle = new RasterAngleInput("paint", method.valueProperty());
         CheckBox connect = new CheckBox(I18n.text("ui.9e2edea69e20"));
+        connect.setId("paint-connect");
         connect.setSelected(ToolDefaults.flag("paint.connect"));
         CheckBox contour = new CheckBox(I18n.text("ui.8185e1c34543"));
+        contour.setId("paint-contour");
         contour.setSelected(ToolDefaults.flag("paint.contour"));
         ComboBox<NccOrder> order = new ComboBox<>();
         order.getItems().addAll(NccOrder.values());
         order.setValue(ToolDefaults.choice("paint.order", NccOrder.class));
         CheckBox rest = new CheckBox("Rest machining");
+        rest.setId("paint-rest");
         rest.setTooltip(tooltip(I18n.text("ui.9d7de9524372")));
         order.disableProperty().bind(rest.selectedProperty());
         TableView<ToolRow> toolTable = new TableView<>(); toolTable.setId("paint-tools");
@@ -400,7 +416,7 @@ final class PaintToolPanel {
         paint.setMaxWidth(Double.MAX_VALUE);
         ToolDescriptions.apply(paint, I18n.text("ui.0127d5fe2cc0"),
                 I18n.text("ui.31777f4df7cb"));
-        paint.setOnAction(event -> {
+        java.util.function.Consumer<Boolean> execute=previewOnly -> {
             try {
                 TreeItem<String> item = source.getValue();
                 if (item == null) {
@@ -437,14 +453,26 @@ final class PaintToolPanel {
                         connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected(), settings);
                 stopPicking.run();
                 errorLabel.setText("");
-                host.paint(item, units, polygons, parameters, reference.isSelected() ? selectionReferenceItem[0] : null,
-                        reference.isSelected() ? selectionReference[0] : null);
+                if(previewOnly) {
+                    invalidatePreview.run();previewRequested[0]=true;long version=previewVersion.get();
+                    host.previewPaint(item,units,polygons,parameters,reference.isSelected()?selectionReferenceItem[0]:null,
+                            reference.isSelected()?selectionReference[0]:null,()->previewRequested[0]&&previewVersion.get()==version);
+                } else {
+                    invalidatePreview.run();
+                    host.paint(item, units, polygons, parameters, reference.isSelected() ? selectionReferenceItem[0] : null,
+                            reference.isSelected() ? selectionReference[0] : null);
+                }
             } catch (IllegalArgumentException invalid) {
                 errorLabel.setText(invalid.getMessage());
             }
-        });
+        };
+        paint.setOnAction(event->execute.accept(false));
+        Button preview=new Button(I18n.text("cam.preview.paths"));preview.setId("paint-preview-paths");preview.setMaxWidth(Double.MAX_VALUE);
+        ToolDescriptions.apply(preview,I18n.text("cam.preview.paths"),I18n.text("cam.preview.help"));
+        preview.setOnAction(event->execute.accept(true));
         Button close = new Button(I18n.text("ui.0f2bd88ef0ac"));
         close.setOnAction(event -> {
+            invalidatePreview.run();
             stopPicking.run();
             host.preview(null);
             onClose.run();
@@ -467,7 +495,8 @@ final class PaintToolPanel {
                 angle,
                 new HBox(10, connect, contour), applyAll,
                 new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
-                paint, errorLabel, close);
+                preview,paint, errorLabel, close);
+        panel.getProperties().put("paint.invalidatePreview",invalidatePreview);
         panel.setPadding(new Insets(6));
         panel.getChildren().add(panel.getChildren().indexOf(paint),new ClearingRegionFeedback(panel));
         // Weak listeners cannot retain a closed Paint panel through a project TreeItem.
@@ -505,6 +534,10 @@ final class PaintToolPanel {
         history.observe(method.valueProperty(), connect.selectedProperty(), contour.selectedProperty(), angle.automatic.selectedProperty());
         history.watchText(overlap, margin, angle.degrees);
         source.valueProperty().addListener((obs, old, next) -> history.reset());
+        for(var property:java.util.List.of(diameters.textProperty(),overlap.textProperty(),margin.textProperty(),method.valueProperty(),
+                connect.selectedProperty(),contour.selectedProperty(),rest.selectedProperty(),order.valueProperty(),angle.automatic.selectedProperty(),angle.degrees.textProperty()))
+            property.addListener((obs,old,next)->invalidatePreview.run());
+        toolTable.getItems().addListener((javafx.collections.ListChangeListener<ToolRow>)change->invalidatePreview.run());
         return panel;
     }
 

@@ -168,7 +168,7 @@ public final class NccGenerator {
             }
             int toolIndex = t;
             int toolCount = orderedTools.size();
-            boolean stockAccess=params.restMachining() && settings.method().usesRaster();
+            boolean stockAccess=params.restMachining() && settings.method().usesOriginalRestAccess();
             ToolClearResult toolClear = clearArea(stockAccess?clearingArea:areaForThisTool, toolDiameter, settings, params.restMachining(), params.restMachining(), cancellation,
                     stockAccess?areaForThisTool:null,
                     fraction -> progress.report(0.08 + 0.90 * (toolIndex + fraction) / toolCount));
@@ -230,9 +230,9 @@ public final class NccGenerator {
             int index = t;
             ToolClearResult result = areaForTool.isEmpty()
                     ? new ToolClearResult(factory.createGeometryCollection(), factory.createGeometryCollection(), 0)
-                    : clearArea(params.restMachining() && settings.method().usesRaster()?desired:areaForTool,
+                    : clearArea(params.restMachining() && settings.method().usesOriginalRestAccess()?desired:areaForTool,
                             diameter, settings, false, params.restMachining(), cancellation,
-                            params.restMachining() && settings.method().usesRaster()?areaForTool:null,
+                            params.restMachining() && settings.method().usesOriginalRestAccess()?areaForTool:null,
                             fraction -> progress.report((index + fraction) / tools.size()));
             toolResults.add(new NccToolResult(diameter, result.geometry(), result.failures(), NccOperation.CLEAR,areaForTool,result.diagnostics()));
             if (!result.geometry().isEmpty()) {
@@ -344,6 +344,7 @@ public final class NccGenerator {
                                              boolean nccRest, boolean computeFootprint,
                                              CancellationToken cancellation, Geometry stock,DoubleConsumer progressWithinTool) {
         GeometryFactory factory = area.getFactory();
+        var spiralBudget=new SpiralClearing.Budget();
         Geometry needed=null;
         if(stock!=null) {
             // Chord-sized stock fringes must not cause the next cutter to repeat the entire previous tool.
@@ -362,7 +363,7 @@ public final class NccGenerator {
         List<LineString> allPaths = new ArrayList<>();
         List<Geometry> footprints = new ArrayList<>();
         int failures = 0;
-        boolean diagnose=settings.method().usesRaster();
+        boolean diagnose=settings.method().usesRaster() || settings.method()==NccMethod.SPIRAL;
         var unreachable=new ArrayList<Geometry>();var supplemented=new ArrayList<Geometry>();var unserved=new ArrayList<Geometry>();
         // GUI NCC Rest differs from the Tcl implementation: Shapely's default
         // resolution (16), tool/1.9999999 and a final +1e-7 repair buffer.
@@ -379,14 +380,17 @@ public final class NccGenerator {
                 progressWithinTool.accept((i + 1.0) / Math.max(1, polygons.size()));
                 continue;
             }
-            var polygonPaths=clearPolygon(polygon, toolDiameter, settings, cancellation);
+            var polygonPaths=clearPolygon(polygon, toolDiameter, settings,spiralBudget,cancellation);
             List<LineString> paths = polygonPaths.paths();
             if(needed!=null) {
                 var selected=new ArrayList<LineString>();
                 for(var path:paths) {
                     cancellation.throwIfCancellationRequested();
                     if(preparedNeed.covers(path))selected.add(path);
-                    else if(preparedNeed.intersects(path))collectLines(OverlayNGRobust.overlay(path,needed,OverlayNG.INTERSECTION),selected);
+                    else if(preparedNeed.intersects(path)) {
+                        if(settings.method()==NccMethod.SPIRAL&&!path.isClosed())selected.addAll(SpiralClearing.orderedClip(path,needed,toolDiameter,cancellation));
+                        else collectLines(OverlayNGRobust.overlay(path,needed,OverlayNG.INTERSECTION),selected);
+                    }
                 }
                 paths=selected;
             }
@@ -410,7 +414,7 @@ public final class NccGenerator {
                         paths=connectSafePaths(paths,polygon,toolDiameter,factory,cancellation);
                         paths=RegionContourConnector.connect(paths,priorities,polygonPaths.safeArea(),toolDiameter,cancellation);
                         paths=connectSafePaths(paths,polygon,toolDiameter,factory,cancellation);
-                    } else paths = settings.method()==NccMethod.REGION_LINES
+                    } else paths = settings.method().prefersSourceOrder()
                             ? connectOrderedPaths(paths,polygon,toolDiameter,factory,cancellation)
                             : connectSafePaths(paths, polygon, toolDiameter, factory, cancellation);
                 }
@@ -488,12 +492,16 @@ public final class NccGenerator {
         return GeosBufferOp.bufferOp(geometry, distance, parameters);
     }
 
-    private static PolygonPaths clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,
+    private static PolygonPaths clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,SpiralClearing.Budget spiralBudget,
                                                   CancellationToken cancellation) {
         return switch (settings.method()) {
             case STANDARD -> new PolygonPaths(standardPaths(polygon, toolDiameter, settings, cancellation));
             case SEED -> new PolygonPaths(seedPaths(polygon, toolDiameter, settings, cancellation));
             case LINES -> linePaths(polygon, toolDiameter, settings, cancellation);
+            case SPIRAL -> {
+                var spiral=SpiralClearing.generate(polygon,toolDiameter,settings,spiralBudget,cancellation);
+                yield new PolygonPaths(spiral.paths(),spiral.centers(),List.of());
+            }
             case REGION_LINES -> {
                 var raster=linePaths(polygon,toolDiameter,settings,cancellation);
                 var box=polygon.getEnvelopeInternal();
