@@ -16,6 +16,7 @@ public class SpiralCommunityProbe {
         if(args.length!=2)throw new IllegalArgumentException("Usage: SpiralCommunityProbe.java FX_IMPORT_JSON OUTPUT_DIR");
         Path out=Path.of(args[1]);Files.createDirectories(out);var cases=new JSONArray();int errors=0,boards=0;
         var inventory=new JSONObject(Files.readString(Path.of(args[0])));
+        boolean connect=Boolean.parseBoolean(System.getProperty("flatcam.spiral.connect","true"));
         for(Object entry:inventory.getJSONArray("boards")) {
             var board=(JSONObject)entry;String id=board.getString("id");
             if(!id.matches(System.getProperty("flatcam.spiral.boards","breadboard-power-supply|modxo-adapter|single-sided-5v")))continue;
@@ -26,12 +27,13 @@ public class SpiralCommunityProbe {
             for(var method:List.of(NccMethod.LINES,NccMethod.SEED,NccMethod.SPIRAL)) {
                 String caseId=id+"-"+method.name();Path file=out.resolve(caseId+".json");
                 if(Files.exists(file)){var saved=new JSONObject(Files.readString(file));cases.put(saved);if(!saved.getString("status").equals("MEASURED"))errors++;continue;}
-                var row=new JSONObject().put("id",caseId).put("method",method.name()).put("board",id);
+                var row=new JSONObject().put("id",caseId).put("method",method.name()).put("board",id).put("connect",connect);
                 long start=System.nanoTime();CancellationToken token=()->System.nanoTime()-start>240e9;
                 try {
                     long generation=System.nanoTime();
-                    var result=NccGenerator.paint("MM",area,new PaintParameters(List.of(.4),.4,0,method,true,true,NccOrder.NONE,false),token,ProgressCallback.none());
+                    var result=NccGenerator.paint("MM",area,new PaintParameters(List.of(.4),.4,0,method,connect,true,NccOrder.NONE,false),token,ProgressCallback.none());
                     row.put("generationMs",(System.nanoTime()-generation)/1e6);
+                    Files.writeString(out.resolve(caseId+".wkt"),result.geometry().toText());
                     var tools=result.toolResults().stream().filter(t->!t.isEmpty()).map(t->new ToolGeometry(t.toolDiameter(),t.geometry())).toList();
                     if(tools.isEmpty())throw new AssertionError("No toolpaths");
                     // Legacy failure count includes regions too small for this cutter; retain it alongside reachability.
@@ -69,7 +71,7 @@ public class SpiralCommunityProbe {
         }
         boolean complete=boards>0&&cases.length()==3*boards;
         Files.writeString(out.resolve("comparison.json"),new JSONObject().put("schema",1).put("cases",cases).put("errors",errors).put("matrixComplete",complete)
-            .put("policy","Three public boards, same MM diagnostic copper bounding box minus copper, .4 mm cutter, 40% overlap, Connect/Contour on, no Rest. Paint kernel. GRBL_11_no_M6 export/parse. Lines/Seed default NEAREST vs spiral SOURCE/preserved direction. Cold sequential generation timings are observations, not an isolated benchmark. Program estimate excludes acceleration and controller behavior; boundary is not a physical Outline. Nominal Q16 swept area and Q64 reachability; raw and stable-core residuals retained. Cooperative case budget 240 seconds.").toString(2));
+            .put("policy","Three public boards, same MM diagnostic copper bounding box minus copper, .4 mm cutter, 40% overlap, Connect recorded per case, Contour on, no Rest. Paint kernel. GRBL_11_no_M6 export/parse. Lines/Seed default NEAREST vs spiral SOURCE/preserved direction. Cold sequential generation timings are observations, not an isolated benchmark. Program estimate excludes acceleration and controller behavior; boundary is not a physical Outline. Nominal Q16 swept area and Q64 reachability; raw and stable-core residuals retained. Cooperative case budget 240 seconds.").toString(2));
         if(errors>0||!complete)System.exit(1);
     }
     static double deviation(Geometry source,Geometry target,CancellationToken token){return sample(source,new IndexedFacetDistance(target),token);}

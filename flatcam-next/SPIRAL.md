@@ -1,5 +1,17 @@
 # Espiral radial experimental — 2026-11-11
 
+**Refinamento dos itens 1 e 2:** Paint e NCC agora têm prévia de cortes,
+deslocamentos e entradas, com legenda, resumo por fresa e estimativa XY
+explicitamente nominal. Connect tenta percursos curtos pela borda permitida e
+integra o acabamento sem adiar contornos para depois de outro bolsão. Nos três
+exemplos, os contadores G0 Z caíram de 935/240/484 para 830/234/475, preservando
+todos os intervalos de corte exigidos. Continua experimental e atrás de Lines
+nesses exemplos. Ver [escopo, testes e comparação final](CLEARING_PREVIEW_REFINEMENTS.md).
+
+**O inventário de testes e os números abaixo registram a primeira implementação**
+(`fc981a5b`), preservados como baseline. A validação final do refinamento tem
+2.537 casos: 2.518 aprovados e 19 opcionais ignorados, sem falhas/erros.
+
 Implementação: `fc981a5b`. Correção dos frames de prévia densos: `26d15170`.
 
 Disponível em **Paint** e **NCC**, inclusive Rest. Os padrões atuais não mudam.

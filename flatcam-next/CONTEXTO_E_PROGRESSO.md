@@ -1,5 +1,41 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Prévia NCC/Paint e Connect da espiral refinados — 2026-11-11
+
+Itens 1 e 2 concluídos. **Prévia dos trajetos** agora também no NCC, com cortes,
+deslocamentos e entradas em cores distintas nos quatro temas. Legenda permite
+ocultar cada categoria. Resumo por fresa: entradas/levantamentos, comprimentos e
+estimativa de **uma passada XY**, origem (0,0), corte 300 e rápidos 1500 mm/min;
+exclui Z, aceleração, trocas, múltiplas profundidades e retorno final. Tooltips nos
+quatro idiomas explicam a diferença para o CNC Job final. Edições/troca/fechamento
+cancelam a prévia; trocar a legenda não altera a receita. Rascunho NCC pode ser
+retomado após trocar de ferramenta. Não cria objetos.
+
+Connect preserva os cortes abertos da espiral; tenta ligações retas ou caminhadas
+curtas na mesma borda permitida. Novas ligações têm distância contínua ao limite
+de pelo menos o raio nominal. Contour pode entrar num contato existente da
+espiral; contornos restantes são rotacionados quando seguro e finalizados antes
+de visitar outro bolsão. Escolha local não aumenta entradas em relação ao Connect
+anterior; no empate, usa menor custo XY nominal. Índices e cache evitam repetir
+verificações da mesma borda. Os demais métodos e os padrões não mudam.
+
+**Resultado:** três placas públicas, G0 Z 935→830, 240→234, 484→475; minutos de
+programa estimados 22,84→21,94, 8,93→8,84, 18,19→18,08. **9/9 comparações**
+preservam intervalos contínuos de cortes/contornos exigidos a 1e-8 mm; Lines/Seed
+idênticos, núcleos estáveis de sobra zerados após tolerância declarada. Sobras
+brutas permanecem no relatório. **32/32 controles de distância** NCC/Paint,
+MM/IN, Rest/Connect/Contour e duas fresas passaram. Há custo adicional de geração;
+os tempos observados não são benchmark isolado. Ainda perde para Lines nesses
+exemplos e não é promessa de tempo real de máquina ou FPS.
+
+Build completo: **2.537 casos, 2.518 aprovados, 19 opcionais ignorados**, sem
+falhas/erros. Capturas nativas Paint/escuro e NCC/claro passaram à parte.
+Ver [plano, critérios, comandos e evidências](CLEARING_PREVIEW_REFINEMENTS.md),
+`validation/spiral-connect-refinement-20261111.json` e
+`validation/spiral-connect-distance-20261111.json`. Sem bump, tag ou novo MSI;
+continua a Beta conjunta. Os itens 3/4 (centros/decomposição e espiral adaptada às
+bordas) não foram implementados nesta rodada.
+
 ## Espiral experimental e prévia de trajetos Paint — 2026-11-11
 
 Implementados **Espiral contínua (experimental)** em Paint/NCC/Rest e o botão

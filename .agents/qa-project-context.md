@@ -1,5 +1,30 @@
 # QA project context — FlatCAM FX
 
+Clearing preview + spiral Connect refinement (2026-11-11): NCC now shares Paint's
+background cancellable preview, without creating project objects. Distinct cut,
+rapid and entry roles, themed legend switches and per-cutter route statistics.
+Nominal XY estimate: single pass, origin (0,0), 300 mm/min cuts, 1500 rapids,
+converted to IN; excludes Z, acceleration, tool changes, multiple depths and
+final return. Four-language authored help states this; not final CNC Job timing.
+NCC edits/switch/close invalidate queued preview; drafts resume; legend isn't an
+edit. Dense renderer binding/late-frame guards include all three roles.
+Spiral Connect tries safe straight links then <=10-diameter center-boundary
+walks, using exact polygonal clearance >= nominal cutter radius for new links.
+Finishing laps may be inserted at spiral contacts; other contours finish in
+source component order (no delayed jump back to a distant pocket). Per-pocket
+selection never increases entry count vs prior ordered Connect; ties use nominal
+XY cost. Preparation and failed-lap feasibility are cached; legacy methods intact.
+9/9 same-input community comparisons preserve required intervals continuously at
+1e-8 mm; Lines/Seed unchanged. Spiral G0 Z 935->830, 240->234, 484->475; estimated
+program minutes 22.84->21.94, 8.93->8.84, 18.19->18.08. Stable residual cores zero
+at stated tolerance, raw residual retained. 32/32 MM/IN NCC/Paint Rest/Connect/
+Contour distance controls plus four interval-auditor guards pass. Still worse than
+Lines here. Extra planning cost; observations aren't isolated generation benchmarks.
+Final full verify: 2537 cases, 2518 passed, 19 optional skips, zero failures/errors
+(20 test support + 1060 CAM + 185 application + 1272 FX). Native Paint/dark and
+NCC/light captures pass separately. See flatcam-next/CLEARING_PREVIEW_REFINEMENTS.md
+and validation/spiral-connect-*-20261111.json. No version bump or installer.
+
 Experimental spiral (2026-11-11): Paint/NCC/Rest now expose opt-in SPIRAL, a
 clipped adaptive Archimedean spiral with exact nominal diameter/overlap pitch.
 Not golden-angle/Fibonacci, boundary-morphing, constant-engagement or a Python
