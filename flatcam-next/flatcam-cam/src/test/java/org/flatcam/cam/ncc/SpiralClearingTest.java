@@ -61,6 +61,12 @@ class SpiralClearingTest {
         var settings=new NccToolSettings(.4,NccMethod.SPIRAL,false,true,0);
         assertThrows(java.util.concurrent.CancellationException.class,()->SpiralClearing.generate(p,.4,settings,new SpiralClearing.Budget(),()->true));
         assertThrows(SpiralClearing.SampleLimitException.class,()->SpiralClearing.generate(p,1e-8,settings,new SpiralClearing.Budget(),CancellationToken.NONE));
+        // The generator may retry radially, but must still refuse if the radial plan also exceeds the budget.
+        String before=p.toText();
+        assertThrows(SpiralClearing.SampleLimitException.class,()->paint("MM",p,1e-8,false,true,false));
+        assertThrows(java.util.concurrent.CancellationException.class,()->NccGenerator.paint("MM",p,
+                new PaintParameters(List.of(.4),.4,0,NccMethod.SPIRAL,false,true,NccOrder.NONE,false),()->true,ProgressCallback.none()));
+        assertEquals(before,p.toText());
     }
     @ParameterizedTest @ValueSource(strings={"MM","IN"})
     void bothRestCuttersRetainTheirPathSequenceAndDirectionInActualGrblExport(String units) {

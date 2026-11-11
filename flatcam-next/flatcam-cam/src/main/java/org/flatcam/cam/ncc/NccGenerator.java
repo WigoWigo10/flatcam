@@ -343,6 +343,22 @@ public final class NccGenerator {
     private static ToolClearResult clearArea(Geometry area, double toolDiameter, NccToolSettings settings,
                                              boolean nccRest, boolean computeFootprint,
                                              CancellationToken cancellation, Geometry stock,DoubleConsumer progressWithinTool) {
+        boolean adaptive=settings.method()==NccMethod.SPIRAL && SpiralClearing.adaptiveEnabled();
+        try {
+            return clearAreaImpl(area,toolDiameter,settings,nccRest,computeFootprint,cancellation,stock,progressWithinTool,adaptive);
+        } catch(SpiralClearing.SampleLimitException limit) {
+            if(!adaptive)throw limit;
+            cancellation.throwIfCancellationRequested();
+            // Retry the entire cutter with a fresh budget. No partial adaptive paths or Rest footprints escape.
+            var radial=clearAreaImpl(area,toolDiameter,settings,nccRest,computeFootprint,cancellation,stock,progressWithinTool,false);
+            var d=radial.diagnostics();
+            return new ToolClearResult(radial.geometry(),radial.footprint(),radial.failures(),
+                    new NccRegionDiagnostics(d.unreachableArea(),d.supplementedArea(),d.unservedArea(),true));
+        }
+    }
+    private static ToolClearResult clearAreaImpl(Geometry area,double toolDiameter,NccToolSettings settings,
+            boolean nccRest,boolean computeFootprint,CancellationToken cancellation,Geometry stock,
+            DoubleConsumer progressWithinTool,boolean adaptive) {
         GeometryFactory factory = area.getFactory();
         var spiralBudget=new SpiralClearing.Budget();
         Geometry needed=null;
@@ -380,7 +396,7 @@ public final class NccGenerator {
                 progressWithinTool.accept((i + 1.0) / Math.max(1, polygons.size()));
                 continue;
             }
-            var polygonPaths=clearPolygon(polygon, toolDiameter, settings,spiralBudget,cancellation);
+            var polygonPaths=clearPolygon(polygon, toolDiameter, settings,spiralBudget,cancellation,adaptive);
             List<LineString> paths = polygonPaths.paths();
             if(needed!=null) {
                 var selected=new ArrayList<LineString>();
@@ -495,13 +511,13 @@ public final class NccGenerator {
     }
 
     private static PolygonPaths clearPolygon(Polygon polygon, double toolDiameter, NccToolSettings settings,SpiralClearing.Budget spiralBudget,
-                                                  CancellationToken cancellation) {
+                                                  CancellationToken cancellation,boolean adaptive) {
         return switch (settings.method()) {
             case STANDARD -> new PolygonPaths(standardPaths(polygon, toolDiameter, settings, cancellation));
             case SEED -> new PolygonPaths(seedPaths(polygon, toolDiameter, settings, cancellation));
             case LINES -> linePaths(polygon, toolDiameter, settings, cancellation);
             case SPIRAL -> {
-                var spiral=SpiralClearing.generate(polygon,toolDiameter,settings,spiralBudget,cancellation);
+                var spiral=SpiralClearing.generate(polygon,toolDiameter,settings,spiralBudget,cancellation,adaptive);
                 yield new PolygonPaths(spiral.paths(),spiral.centers(),List.of());
             }
             case REGION_LINES -> {

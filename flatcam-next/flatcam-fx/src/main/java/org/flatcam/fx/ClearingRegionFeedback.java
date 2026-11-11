@@ -26,6 +26,11 @@ final class ClearingRegionFeedback extends TitledPane {
             int toolIndex=++index;var diagnostics=tool.regionDiagnostics();if(diagnostics==null)continue;
             // A tool with no paths is omitted from the generated CNC tool list; don't invent T numbers here.
             content.getChildren().add(label("Ø "+CncPreflight.number(tool.toolDiameter())+" "+result.units()));
+            if(diagnostics.radialFallback()) {
+                var notice=label(I18n.text("cam.spiral.fallback"));notice.setId("spiral-radial-fallback-"+toolIndex);
+                ToolDescriptions.apply(notice,notice.getText(),I18n.text("cam.spiral.fallback.help"));
+                content.getChildren().add(notice);
+            }
             add(content,"unreachable",diagnostics.unreachableCount(),diagnostics.unreachableArea(),highlight,toolIndex);
             add(content,"supplemented",diagnostics.supplementedCount(),diagnostics.supplementedArea(),highlight,toolIndex);
             add(content,"unserved",diagnostics.unservedCount(),diagnostics.unservedArea(),highlight,toolIndex);
@@ -36,7 +41,7 @@ final class ClearingRegionFeedback extends TitledPane {
         ToolDescriptions.apply(clear,clear.getText(),I18n.text("clearing.regions.hide.help"));
         content.getChildren().add(clear);setContent(content);setVisible(true);
         setExpanded(result.toolResults().stream().filter(tool->tool.regionDiagnostics()!=null)
-                .anyMatch(tool->{var d=tool.regionDiagnostics();return d.unreachableCount()+d.supplementedCount()+d.unservedCount()>0;}));
+                .anyMatch(tool->{var d=tool.regionDiagnostics();return d.radialFallback()||d.unreachableCount()+d.supplementedCount()+d.unservedCount()>0;}));
     }
     private static Label label(String text){var label=new Label(text);label.setWrapText(true);label.setMinWidth(0);return label;}
     private static void add(VBox content,String category,int count,Geometry geometry,Consumer<Geometry> highlight,int tool) {

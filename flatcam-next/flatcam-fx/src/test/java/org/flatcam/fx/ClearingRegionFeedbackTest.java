@@ -35,6 +35,20 @@ class ClearingRegionFeedbackTest {
             javax.imageio.ImageIO.write(output,"png",directory.resolve(theme.name()+".png").toFile());return null;
         });
     }
+    @Test void radialRetryNoticeIsVisibleExpandedAndHasHelp() throws Exception {
+        var empty=F.createPolygon();var path=F.createLineString(new Coordinate[]{new Coordinate(0,0),new Coordinate(1,0)});
+        var tool=new NccToolResult(.4,path,0,NccOperation.CLEAR,empty,new NccRegionDiagnostics(empty,empty,empty,true));
+        var constructor=NccResult.class.getDeclaredConstructor(String.class,Geometry.class,Geometry.class,List.class);
+        constructor.setAccessible(true);var result=constructor.newInstance("MM",path,empty,List.of(tool));
+        TerminalPanelTest.fx(()->{
+            var form=new VBox();var feedback=new ClearingRegionFeedback(form);form.getChildren().add(feedback);
+            feedback.complete(result,g->{});assertTrue(feedback.isVisible());assertTrue(feedback.isExpanded());
+            var notice=(Label)feedback.getContent().lookup("#spiral-radial-fallback-1");
+            assertNotNull(notice);assertTrue(notice.isWrapText());assertNotNull(notice.getAccessibleHelp());
+            assertInstanceOf(TooltipContent.class,notice.getProperties().get(FluidTooltips.CONTENT_KEY));
+            feedback.started();assertFalse(feedback.isVisible());return null;
+        });
+    }
     @Test void regionButtonsShowTheRequestedHistoricalCategoryAndResetForANewRun() throws Exception {
         var area=F.createPoint(new Coordinate()).buffer(.21,64)
                 .union(F.createPoint(new Coordinate(2,0)).buffer(.1,64));

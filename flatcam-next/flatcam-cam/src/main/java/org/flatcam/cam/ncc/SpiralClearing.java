@@ -9,8 +9,8 @@ import org.locationtech.jts.operation.buffer.BufferParameters;
 import org.locationtech.jts.operation.overlayng.OverlayNG;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
-/** Experimental Archimedean spiral, separately clipped and ordered in each cutter-center component.
- * This is not a medial-axis morphing spiral or a constant-engagement/trochoidal strategy. */
+/** Experimental boundary-guided spiral with offset-pocket branches; nearly round regions keep
+ * the Archimedean path. This is not medial-axis morphing or constant-engagement/trochoidal machining. */
 final class SpiralClearing {
     static final int MAX_POINTS_PER_TOOL=1_000_000;
     static final class Budget {
@@ -26,13 +26,18 @@ final class SpiralClearing {
     private record Ranked(LineString line,double from) { }
 
     static Result generate(Polygon allowed,double diameter,NccToolSettings settings,Budget budget,CancellationToken token) {
+        return generate(allowed,diameter,settings,budget,token,adaptiveEnabled());
+    }
+    static boolean adaptiveEnabled() {
+        return !"false".equalsIgnoreCase(System.getProperty("flatcam.spiral.adaptive","true"));
+    }
+    static Result generate(Polygon allowed,double diameter,NccToolSettings settings,Budget budget,CancellationToken token,boolean adaptive) {
         token.throwIfCancellationRequested();
         Geometry safe=GeosBufferOp.bufferOp(allowed,-diameter/1.99999999,new BufferParameters(64));
         var output=new ArrayList<LineString>();
         if(safe.isEmpty())return new Result(output,safe);
         // Radial pitch is exactly the user's maximum stepover; adaptive chords only approximate the curve.
-        double pitch=diameter*(1-settings.overlapFraction()),b=pitch/(2*Math.PI);
-        double chordTolerance=Math.min(diameter*.001,pitch*.01);
+        double pitch=diameter*(1-settings.overlapFraction());
         var components=new ArrayList<>(LinesRasterRefinement.polygons(safe));
         // Keep disconnected regions separate; their numerical order must not imply an unsafe cutting bridge.
         Coordinate cursor=new Coordinate(0,0);
@@ -41,27 +46,8 @@ final class SpiralClearing {
             Point at=allowed.getFactory().createPoint(cursor);
             for(int i=0;i<components.size();i++){double d=components.get(i).distance(at);if(d<best){best=d;nearest=i;}}
             Polygon component=components.remove(nearest);
-            Coordinate seed=StableInteriorPoint.find(component,diameter*.005,token);
-            if(seed==null)seed=component.getInteriorPoint().getCoordinate();
-            double radius=0;
-            for(var point:component.getExteriorRing().getCoordinates())radius=Math.max(radius,Math.hypot(point.x-seed.x,point.y-seed.y));
-            double maximum=(radius+pitch)/b;
-            budget.minimum(Math.ceil(maximum/(Math.PI/12)));
-            var points=new ArrayList<Coordinate>();budget.point();points.add(new Coordinate(seed));
-            double theta=0;
-            while(theta<maximum) {
-                token.throwIfCancellationRequested();double r=b*theta;
-                // Linear-interpolation error <= max|p''(theta)| * delta^2/8.
-                // r + 2b + b*pi/12 bounds that derivative norm over this bounded angular step.
-                double delta=Math.min(Math.PI/12,Math.sqrt(8*chordTolerance/(r+2*b+b*Math.PI/12)));
-                double next=Math.min(maximum,theta+delta);
-                if(!(next>theta)||!Double.isFinite(next))throw new SampleLimitException();
-                theta=next;double rr=b*theta;budget.point();points.add(new Coordinate(seed.x+rr*Math.cos(theta),seed.y+rr*Math.sin(theta)));
-            }
-            var spiral=allowed.getFactory().createLineString(points.toArray(Coordinate[]::new));
-            token.throwIfCancellationRequested();Geometry clipped=OverlayNGRobust.overlay(spiral,component,OverlayNG.INTERSECTION);token.throwIfCancellationRequested();
-            var fragments=new ArrayList<LineString>();collect(clipped,fragments);
-            output.addAll(orderFragments(spiral,fragments,diameter,token));
+            output.addAll(adaptive&&SpiralPocketPlanner.needsAdaptation(component)
+                    ?SpiralPocketPlanner.generate(component,diameter,pitch,settings.contour(),budget,token):radial(component,component,diameter,pitch,budget,token));
             if(settings.contour()) {
                 output.add(component.getFactory().createLineString(component.getExteriorRing().getCoordinates()));
                 for(int i=0;i<component.getNumInteriorRing();i++)output.add(component.getFactory().createLineString(component.getInteriorRingN(i).getCoordinates()));
@@ -69,6 +55,22 @@ final class SpiralClearing {
             if(!output.isEmpty()){var last=output.getLast();cursor=last.getCoordinateN(last.getNumPoints()-1);}
         }
         return new Result(output,safe);
+    }
+    static List<LineString> radial(Polygon cell,Geometry clip,double diameter,double pitch,Budget budget,CancellationToken token) {
+        double b=pitch/(2*Math.PI),chordTolerance=Math.min(diameter*.001,pitch*.01);
+        Coordinate seed=StableInteriorPoint.find(cell,diameter*.005,token);
+        if(seed==null)seed=cell.getInteriorPoint().getCoordinate();
+        double radius=0;for(var point:cell.getExteriorRing().getCoordinates())radius=Math.max(radius,Math.hypot(point.x-seed.x,point.y-seed.y));
+        double maximum=(radius+pitch)/b;budget.minimum(Math.ceil(maximum/(Math.PI/12)));
+        var points=new ArrayList<Coordinate>();budget.point();points.add(new Coordinate(seed));double theta=0;
+        while(theta<maximum) {
+            token.throwIfCancellationRequested();double r=b*theta;
+            double delta=Math.min(Math.PI/12,Math.sqrt(8*chordTolerance/(r+2*b+b*Math.PI/12)));
+            double next=Math.min(maximum,theta+delta);
+            if(!(next>theta)||!Double.isFinite(next))throw new SampleLimitException();
+            theta=next;double rr=b*theta;budget.point();points.add(new Coordinate(seed.x+rr*Math.cos(theta),seed.y+rr*Math.sin(theta)));
+        }
+        var spiral=cell.getFactory().createLineString(points.toArray(Coordinate[]::new));return orderedClip(spiral,clip,diameter,token);
     }
     static List<LineString> orderedClip(LineString source,Geometry mask,double diameter,CancellationToken token) {
         token.throwIfCancellationRequested();Geometry clipped=OverlayNGRobust.overlay(source,mask,OverlayNG.INTERSECTION);

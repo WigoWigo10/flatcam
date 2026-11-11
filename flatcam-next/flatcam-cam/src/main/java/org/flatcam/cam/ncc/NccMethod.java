@@ -7,7 +7,7 @@ public enum NccMethod {
     LINES("Lines"),
     COMBO("Combo"),
     REGION_LINES("Lines por regiões (experimental)"),
-    SPIRAL("Espiral contínua (experimental)");
+    SPIRAL("Espiral adaptativa (experimental)");
 
     private final String label;
 
