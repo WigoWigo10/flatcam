@@ -89,7 +89,7 @@ final class CamGenerationFeedback extends VBox {
         Platform.runLater(() -> { queued = false; refresh(); });
     }
     private void watch(Node node) {
-        if (node == this || node instanceof ClearingRegionFeedback) return;
+        if (node == this || node instanceof ClearingRegionFeedback || node instanceof ClearingPreviewFeedback) return;
         if (node instanceof Spinner<?> spinner) { watch(spinner.getEditor()); return; }
         if (node instanceof TextInputControl text) text.textProperty().addListener((o,a,b) -> schedule());
         else if (node instanceof ComboBox<?> combo) combo.valueProperty().addListener((o,a,b) -> schedule());
@@ -104,6 +104,7 @@ final class CamGenerationFeedback extends VBox {
         if (node instanceof Parent p) for (Node child : p.getChildrenUnmodifiable()) watch(child);
     }
     private String fingerprint(Node node) {
+        if(node instanceof ClearingPreviewFeedback)return "";
         if (node == this || node instanceof ClearingRegionFeedback) return "";
         if (node instanceof Spinner<?> spinner) return "S[" + spinner.getEditor().getText() + "]";
         if (node instanceof TextInputControl text) return "T[" + text.getText() + "]";

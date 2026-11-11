@@ -3,6 +3,10 @@
  * Plain JavaFX (Modena), without a third-party user-agent stylesheet.
  */
 .root {
+    -fc-cam-preview-content: #CE9FFF;
+    -fc-cam-preview-rapid: #51CEED;
+    -fc-cam-preview-entry: #FFD166;
+
     -fc-cutout-opening: #5DE0D4;
     -fc-cutout-path: #FFE29A;
     -fc-cutout-swept: #FFB347;

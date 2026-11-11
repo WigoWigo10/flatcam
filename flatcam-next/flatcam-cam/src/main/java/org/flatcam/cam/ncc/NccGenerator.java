@@ -409,7 +409,9 @@ public final class NccGenerator {
                 if (settings.connect()) {
                     // paint_connect tests the swept tool against the ORIGINAL polygon.
                     // Eroding here as well would subtract the radius twice.
-                    if(settings.method()==NccMethod.REGION_LINES && settings.contour()) {
+                    if(settings.method()==NccMethod.SPIRAL) {
+                        paths=SpiralConnector.connect(paths,polygon,polygonPaths.safeArea(),toolDiameter,settings.contour(),cancellation);
+                    } else if(settings.method()==NccMethod.REGION_LINES && settings.contour()) {
                         var priorities=paths;
                         paths=connectSafePaths(paths,polygon,toolDiameter,factory,cancellation);
                         paths=RegionContourConnector.connect(paths,priorities,polygonPaths.safeArea(),toolDiameter,cancellation);

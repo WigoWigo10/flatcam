@@ -80,15 +80,30 @@ final class PlotAreaView extends StackPane {
     }
 
     /** Display-only tool content. Categories retain distinct inks without creating project layers. */
-    record PreviewLayer(Geometry geometry, LayerCategory category, boolean strokeOnly) {
+    enum PreviewRole { CONTENT, RAPID, ENTRY }
+    record PreviewLayer(Geometry geometry, LayerCategory category, boolean strokeOnly,PreviewRole role) {
+        PreviewLayer(Geometry geometry,LayerCategory category,boolean strokeOnly){this(geometry,category,strokeOnly,PreviewRole.CONTENT);}
         PreviewLayer {
             java.util.Objects.requireNonNull(geometry);
+            java.util.Objects.requireNonNull(role);
             if (category != LayerCategory.GERBER && category != LayerCategory.EXCELLON && category != LayerCategory.GEOMETRY)
                 throw new IllegalArgumentException("Unsupported tool preview category: " + category);
         }
     }
-    private record PreviewOverlayKey(LayerCategory category, boolean strokeOnly) { }
+    private record PreviewOverlayKey(LayerCategory category, boolean strokeOnly,PreviewRole role) {
+        PreviewOverlayKey(LayerCategory category,boolean strokeOnly){this(category,strokeOnly,PreviewRole.CONTENT);}
+    }
+    private static PreviewOverlayKey previewKey(PreviewLayer layer){return new PreviewOverlayKey(layer.category(),layer.strokeOnly(),layer.role());}
     record PreviewColors(Color fill, Color stroke) { }
+
+    static PreviewColors clearingPreviewColors(PreviewRole role,boolean dark) {
+        Color ink=switch(role) {
+            case CONTENT -> toolPreviewColors(LayerCategory.GEOMETRY,dark).stroke();
+            case RAPID -> Color.web(dark?"#51CEED":"#006B85");
+            case ENTRY -> Color.web(dark?"#FFD166":"#885000");
+        };
+        return new PreviewColors(ink,ink);
+    }
 
     static PreviewColors toolPreviewColors(LayerCategory category, boolean dark) {
         return switch (category) {
@@ -858,17 +873,15 @@ final class PlotAreaView extends StackPane {
         List<PreviewLayer> next = List.copyOf(contents);
         var styles = new java.util.HashSet<PreviewOverlayKey>();
         for (PreviewLayer layer : next)
-            if (!styles.add(new PreviewOverlayKey(layer.category(), layer.strokeOnly())))
+            if (!styles.add(previewKey(layer)))
                 throw new IllegalArgumentException("Duplicate category/style in tool preview.");
         for (PreviewLayer previous : toolPreviewContents) {
-            if (next.stream().noneMatch(layer -> layer.category() == previous.category()
-                    && layer.strokeOnly() == previous.strokeOnly()))
-                forgetOverlay(new PreviewOverlayKey(previous.category(), previous.strokeOnly()));
+            if (next.stream().noneMatch(layer -> previewKey(layer).equals(previewKey(previous))))
+                forgetOverlay(previewKey(previous));
         }
         for (PreviewLayer layer : next) {
-            PreviewLayer previous = toolPreviewContents.stream().filter(before -> before.category() == layer.category()
-                    && before.strokeOnly() == layer.strokeOnly()).findFirst().orElse(null);
-            Object key = new PreviewOverlayKey(layer.category(), layer.strokeOnly());
+            PreviewLayer previous = toolPreviewContents.stream().filter(before -> previewKey(before).equals(previewKey(layer))).findFirst().orElse(null);
+            Object key = previewKey(layer);
             invalidateEditorIndex(key, previous == null ? null : previous.geometry(), layer.geometry());
             if (previous == null || previous.geometry() != layer.geometry()) invalidateDensity(key);
         }
@@ -880,7 +893,7 @@ final class PlotAreaView extends StackPane {
 
     private void clearToolPreviewContents() {
         for (PreviewLayer layer : toolPreviewContents)
-            forgetOverlay(new PreviewOverlayKey(layer.category(), layer.strokeOnly()));
+            forgetOverlay(previewKey(layer));
         toolPreviewContents = List.of();
     }
 
@@ -2267,7 +2280,7 @@ final class PlotAreaView extends StackPane {
         if(key==FILL_KEY)return editorFillGeometry!=null;
         if(key==REFERENCE_FILL_KEY)return editorReferenceFillGeometry!=null;
         if(key instanceof PreviewOverlayKey preview)return toolPreviewContents.stream().anyMatch(layer->
-                preview.equals(new PreviewOverlayKey(layer.category(),layer.strokeOnly())));
+                preview.equals(previewKey(layer)));
         if(internalCutoutPreview!=null) {
             Geometry[] shapes=internalCutoutPreview.geometries();
             for(int i=0;i<CUTOUT_PREVIEW_KEYS.length;i++)if(key==CUTOUT_PREVIEW_KEYS[i])return shapes[i]!=null;
@@ -2370,10 +2383,11 @@ final class PlotAreaView extends StackPane {
             gc.clip();
             for (PreviewLayer layer : toolPreviewContents) {
                 if (layer.geometry().isEmpty()) continue;
-                PreviewColors ink = toolPreviewColors(layer.category(), palette.background().getBrightness() < .5);
-                drawOverlay(gc, new PreviewOverlayKey(layer.category(), layer.strokeOnly()),
+                boolean dark=palette.background().getBrightness()<.5;
+                PreviewColors ink = layer.role()==PreviewRole.CONTENT?toolPreviewColors(layer.category(),dark):clearingPreviewColors(layer.role(),dark);
+                drawOverlay(gc, previewKey(layer),
                         new RenderLayer(layer.geometry(), layer.strokeOnly(), ink.fill(), ink.stroke(),
-                                true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth, contentHeight);
+                                true, LayerCategory.OVERLAY, true, false), viewBounds, contentWidth, contentHeight,layer.role()==PreviewRole.ENTRY?5:layer.strokeOnly()?1.5:1);
             }
             gc.restore();
         }
@@ -2408,11 +2422,16 @@ final class PlotAreaView extends StackPane {
      */
     private void drawOverlay(GraphicsContext gc, Object key, RenderLayer layer, Envelope viewBounds,
                              double contentWidth, double contentHeight) {
+        drawOverlay(gc,key,layer,viewBounds,contentWidth,contentHeight,layer.strokeOnly()?1.5:1);
+    }
+    private void drawOverlay(GraphicsContext gc,Object key,RenderLayer layer,Envelope viewBounds,
+                             double contentWidth,double contentHeight,double lineWidth) {
         PlotDrawableIndex index = overlayIndex(key, layer.geometry());
         if (index == null) return;
         if (!drawDensityLayer(gc, key, layer, index, viewBounds, contentWidth, contentHeight,
-                layer.strokeOnly() ? 1.5 : 1)) {
-            drawLayer(gc, layer, contentWidth, contentHeight, viewBounds, index);
+                lineWidth)) {
+            vectorRenderer.draw(gc,camera(contentWidth,contentHeight),new PlotRenderSnapshot(index.geometry(),index,
+                    layer.strokeOnly(),layer.filled(),layer.multicolor(),layer.fillColor(),layer.strokeColor(),lineWidth,viewBounds));
         }
     }
 

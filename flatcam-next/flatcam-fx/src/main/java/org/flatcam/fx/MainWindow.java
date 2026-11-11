@@ -122,6 +122,7 @@ import org.flatcam.cam.excellon.ExcellonImage;
 import org.flatcam.cam.excellon.ExcellonMillingGenerator;
 import org.flatcam.cam.excellon.ExcellonParser;
 import org.flatcam.cam.gcode.CncJobResult;
+import org.flatcam.cam.gcode.ClearingRoutePreview;
 import org.flatcam.cam.gcode.DrillGCodeParameters;
 import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GCodeToolpathParser;
@@ -872,7 +873,7 @@ final class MainWindow implements TclFlatcamHost {
     private boolean restoringProject;
     private final BooleanProperty darkIcons = new SimpleBooleanProperty(currentTheme.isDark());
     private JobHandle<?> runningJob;
-    private JobHandle<?> paintPreviewJob;
+    private JobHandle<?> camPreviewJob;
     private ContextMenu plotContextMenu;
     private ContextMenu projectContextMenu;
     private final PlotMoveHistory<TreeItem<String>> plotMoveHistory = new PlotMoveHistory<>();
@@ -2591,6 +2592,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void clearToolOverlays() {
+        NccToolPanel.release(toolTab==null?null:toolTab.getContent());
         plotAreaView.setCoverageResidual(null);
         plotAreaView.setInternalCutoutPreview(null);
         cancelPointPick();
@@ -5237,9 +5239,7 @@ final class MainWindow implements TclFlatcamHost {
             }
 
             @Override public void invalidatePreview() {
-                if(paintPreviewJob!=null)paintPreviewJob.cancel();
-                plotAreaView.setEditorHighlight(null,false);
-                plotAreaView.setToolPreviewContent(null,List.of());
+                invalidateClearingPreview();
             }
             @Override public void previewPaint(TreeItem<String> item,String units,Geometry polygons,PaintParameters parameters,
                     TreeItem<String> reference,Geometry referenceGeometry,java.util.function.BooleanSupplier current) {
@@ -5286,9 +5286,10 @@ final class MainWindow implements TclFlatcamHost {
         beginJob(I18n.text("ui.1ad65b51bd48"));
         activeCamGeneration = before;
         JobHandle<NccJobOutcome> handle = jobExecutor.submit(context -> {
-            var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(fraction,I18n.text("ui.1ad65b51bd48")));
+            var result=NccGenerator.paint(units,polygons,params,context::isCancelled,fraction -> context.reportProgress(previewOnly?.9*fraction:fraction,I18n.text("ui.1ad65b51bd48")));
             context.checkCancelled();
-            if(previewOnly)return new NccJobOutcome(result,OptionalDouble.empty(),null);
+            if(previewOnly)return new NccJobOutcome(result,OptionalDouble.empty(),null,
+                    ClearingRoutePreview.calculate(result,params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method().prefersSourceOrder()),context::isCancelled));
             var paths=result.toolResults().stream().filter(tool -> !tool.isEmpty()).map(tool -> new ToolGeometry(tool.toolDiameter(),tool.geometry())).toList();
             var areas=new LinkedHashMap<Integer,Geometry>(); int index=0;
             for (var tool:result.toolResults()) if (!tool.isEmpty()) { if (tool.targetArea()!=null) areas.put(index,tool.targetArea().copy()); index++; }
@@ -5297,17 +5298,14 @@ final class MainWindow implements TclFlatcamHost {
             return new NccJobOutcome(result,OptionalDouble.empty(),target);
         }, camProgress(before));
         runningJob = handle;
-        if(previewOnly)paintPreviewJob=handle;
+        if(previewOnly)camPreviewJob=handle;
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
                     if (!acceptCamGeneration(before, handle)) return;
                     var result=outcome.result();
                     if(previewOnly) {
                         if(toolTab.getContent()==before.panel()&&current.getAsBoolean()) {
-                            plotAreaView.setEditorHighlight(null,false);
-                            plotAreaView.setToolPreviewContent(null,List.of(new PlotAreaView.PreviewLayer(result.geometry(),PlotAreaView.LayerCategory.GEOMETRY,true)));
-                            completeClearingDiagnostics(before,result);
-                            setStatus(I18n.text(result.isEmpty()?"ui.e06fe2d2f5dd":"cam.preview.ready"),IDLE_COLOR);
+                            publishClearingPreview(before,result,outcome.preview());
                         }
                         updateProgress(1);onJobFinished();return;
                     }
@@ -7651,7 +7649,8 @@ final class MainWindow implements TclFlatcamHost {
 
     /** One tool's contribution plus, optionally, the NCC-wide diameter-validity check - see NccToolPanel.Result. */
     private record NccJobOutcome(NccResult result, OptionalDouble minCopperClearance,
-                                 org.flatcam.cam.gcode.MachiningTarget target) {
+                                 org.flatcam.cam.gcode.MachiningTarget target,ClearingRoutePreview preview) {
+        NccJobOutcome(NccResult result,OptionalDouble min,org.flatcam.cam.gcode.MachiningTarget target){this(result,min,target,null);}
     }
 
     /** NCC accepts a Gerber or Geometry source and produces an intermediate Geometry object. */
@@ -7715,7 +7714,10 @@ final class MainWindow implements TclFlatcamHost {
                     plotAreaView.cancelPlacement();
                     NccToolPanel.SourceCandidate chosen = result.source();
                     runNccGeneration(chosen.item(), chosen.units(), chosen.geometry(), chosen.gerber(), result);
-                }, () -> {
+                }, (result,current)->{
+                    plotAreaView.cancelPlacement();var chosen=result.source();
+                    runNccGeneration(chosen.item(),chosen.units(),chosen.geometry(),chosen.gerber(),result,true,current);
+                },this::invalidateClearingPreview, () -> {
                     plotAreaView.cancelPlacement();
                     closeToolPanel();
                 }));
@@ -7799,6 +7801,10 @@ final class MainWindow implements TclFlatcamHost {
 
     private void runNccGeneration(TreeItem<String> item, String units, Geometry source, boolean gerberSource,
                                   NccToolPanel.Result panelResult) {
+        runNccGeneration(item,units,source,gerberSource,panelResult,false,()->true);
+    }
+    private void runNccGeneration(TreeItem<String> item,String units,Geometry source,boolean gerberSource,
+                                  NccToolPanel.Result panelResult,boolean previewOnly,java.util.function.BooleanSupplier current) {
         CamGenerationState before;
         try {
             if (gerberSource != gerberByItem.containsKey(item))
@@ -7813,7 +7819,7 @@ final class MainWindow implements TclFlatcamHost {
         NccParameters params = panelResult.parameters();
         String recipe = NccToolPanel.recipe(panelResult);
         var feedback = CamGenerationFeedback.of(before.panel());
-        if (feedback != null) feedback.started(recipe, item);
+        if (feedback != null && !previewOnly) feedback.started(recipe, item);
         startClearingDiagnostics(before);
         beginJob(I18n.text("ui.6aba42688d88"));
         activeCamGeneration = before;
@@ -7823,8 +7829,10 @@ final class MainWindow implements TclFlatcamHost {
                     : OptionalDouble.empty();
             NccResult result = NccGenerator.generate(units, source, params,
                     context::isCancelled,
-                    fraction -> context.reportProgress(fraction, I18n.text("ui.6aba42688d88")));
+                    fraction -> context.reportProgress(previewOnly?.9*fraction:fraction, I18n.text("ui.6aba42688d88")));
             context.checkCancelled();
+            if(previewOnly)return new NccJobOutcome(result,minClearance,null,
+                    ClearingRoutePreview.calculate(result,params.toolDiameters().stream().anyMatch(d->params.settingsFor(d).method().prefersSourceOrder()),context::isCancelled));
             var ordered = result.toolResults().stream().filter(tool -> !tool.isEmpty())
                     .map(tool -> new ToolGeometry(tool.toolDiameter(), tool.geometry())).toList();
             var areas = new LinkedHashMap<Integer, Geometry>(); int index = 0;
@@ -7837,6 +7845,7 @@ final class MainWindow implements TclFlatcamHost {
             return new NccJobOutcome(result, minClearance, target);
         }, camProgress(before));
         runningJob = handle;
+        if(previewOnly)camPreviewJob=handle;
 
         handle.completion()
                 .thenAccept(outcome -> Platform.runLater(() -> {
@@ -7848,6 +7857,10 @@ final class MainWindow implements TclFlatcamHost {
                         return;
                     }
                     NccResult result = outcome.result();
+                    if(previewOnly){
+                        if(toolTab.getContent()==before.panel()&&current.getAsBoolean())publishClearingPreview(before,result,outcome.preview());
+                        updateProgress(1);onJobFinished();return;
+                    }
                     outcome.minCopperClearance().ifPresent(minClearance -> {
                         boolean anySuitable = java.util.stream.Stream.concat(params.toolDiameters().stream(),
                                 params.isolationToolDiameters().stream()).anyMatch(d -> d <= minClearance);
@@ -7914,8 +7927,22 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void startClearingDiagnostics(CamGenerationState before) {
+        var summary=ClearingPreviewFeedback.of(before.panel());if(summary!=null)summary.clear();
+        plotAreaView.setToolPreviewContent(null,List.of());
         plotAreaView.setCoverageResidual(null);
         var feedback=ClearingRegionFeedback.of(before.panel());if(feedback!=null)feedback.started();
+    }
+    private void invalidateClearingPreview(){
+        if(camPreviewJob!=null)camPreviewJob.cancel();
+        var feedback=ClearingPreviewFeedback.of(toolTab.getContent());if(feedback!=null)feedback.clear();
+        plotAreaView.setEditorHighlight(null,false);plotAreaView.setToolPreviewContent(null,List.of());
+    }
+    private void publishClearingPreview(CamGenerationState before,NccResult result,ClearingRoutePreview preview){
+        plotAreaView.setEditorHighlight(null,false);
+        var feedback=ClearingPreviewFeedback.of(before.panel());
+        if(feedback!=null)feedback.complete(preview,layers->{if(toolTab.getContent()==before.panel())plotAreaView.setToolPreviewContent(null,layers);});
+        completeClearingDiagnostics(before,result);
+        setStatus(I18n.text(result.isEmpty()?"ui.e06fe2d2f5dd":"cam.preview.ready"),IDLE_COLOR);
     }
     private void completeClearingDiagnostics(CamGenerationState before,NccResult result) {
         var owner=before.panel();
@@ -11123,7 +11150,7 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private void onJobFinished() {
-        paintPreviewJob=null;
+        camPreviewJob=null;
         if (activeCamGeneration != null) {
             var feedback = CamGenerationFeedback.of(activeCamGeneration.panel());
             if (feedback != null) feedback.stopped();

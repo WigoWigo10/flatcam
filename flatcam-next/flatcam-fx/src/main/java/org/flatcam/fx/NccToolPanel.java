@@ -203,6 +203,20 @@ final class NccToolPanel {
                       Runnable cancelArea,
                       Supplier<List<LegacyToolsDatabase.NccTool>> databaseLoader,
                       Consumer<Result> onGenerate, Runnable onClose) {
+        return build(sourceCandidates,initialSource,referenceCandidates,areaSelector,cancelArea,databaseLoader,onGenerate,null,()->{},onClose);
+    }
+    static void release(Node panel) {
+        Node form=panel instanceof javafx.scene.control.ScrollPane p?p.getContent():panel;
+        if(form==null)return;
+        // NCC drafts remain alive when switching tools; keep their invalidation hook for a later resume.
+        var cleanup=form.getProperties().get("ncc.invalidatePreview");if(cleanup instanceof Runnable action)action.run();
+    }
+    static Node build(List<SourceCandidate> sourceCandidates,SourceCandidate initialSource,List<ReferenceCandidate> referenceCandidates,
+                      AreaSelector areaSelector,Runnable cancelArea,Supplier<List<LegacyToolsDatabase.NccTool>> databaseLoader,
+                      Consumer<Result> onGenerate,java.util.function.BiConsumer<Result,java.util.function.BooleanSupplier> onPreview,
+                      Runnable onInvalidate,Runnable onClose) {
+        var previewRevision=new java.util.concurrent.atomic.AtomicLong();boolean[] previewActive={false};
+        Runnable invalidatePreview=()->{previewRevision.incrementAndGet();if(previewActive[0]){previewActive[0]=false;onInvalidate.run();}};
         String units = initialSource.units();
         boolean metric = "MM".equalsIgnoreCase(units);
         ComboBox<SourceCandidate> sourceCombo = new ComboBox<>();
@@ -611,6 +625,7 @@ final class NccToolPanel {
         connectCb.setSelected(ToolDefaults.flag("ncc.connect"));
         connectCb.setTooltip(tooltip(I18n.text("ui.1fd4963c87ad")));
         CheckBox contourCb = new CheckBox("Contour");
+        contourCb.setId("ncc-contour");
         contourCb.setSelected(ToolDefaults.flag("ncc.contour"));
         contourCb.setTooltip(tooltip(I18n.text("ui.ac74b4e42449")));
         CheckBox offsetCb = new CheckBox("Copper offset");
@@ -844,7 +859,7 @@ final class NccToolPanel {
         generateButton.setId("ncc-generate");
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
-        generateButton.setOnAction(e -> {
+        java.util.function.Consumer<Boolean> execute=previewOnly -> {
             if (!diameterEditor.commit()) return;
             try {
                 SourceCandidate chosenSource = sourceCombo.getValue();
@@ -902,16 +917,23 @@ final class NccToolPanel {
                         boundary, isoDiameters, individualSettings,
                         conventionalRadio.isSelected() ? NccMillingType.CONVENTIONAL : NccMillingType.CLIMB);
                 errorLabel.setText("");
-                onGenerate.accept(new Result(chosenSource, params, checkValidityCb.isSelected(),
+                var submission=new Result(chosenSource, params, checkValidityCb.isSelected(),
                         Map.copyOf(selectedProfiles), BOUNDARY_REFERENCE.equals(boundaryKindCombo.getValue())
-                                ? referenceCombo.getValue() : null, Map.copyOf(machining)));
+                                ? referenceCombo.getValue() : null, Map.copyOf(machining));
+                invalidatePreview.run();
+                if(previewOnly){previewActive[0]=true;long version=previewRevision.get();onPreview.accept(submission,()->previewActive[0]&&previewRevision.get()==version);}
+                else onGenerate.accept(submission);
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
             }
-        });
+        };
+        generateButton.setOnAction(e->execute.accept(false));
+        Button previewButton=new Button(I18n.text("cam.preview.paths"));previewButton.setId("ncc-preview-paths");previewButton.setMaxWidth(Double.MAX_VALUE);
+        previewButton.setDisable(onPreview==null);previewButton.setOnAction(e->execute.accept(true));
+        ToolDescriptions.apply(previewButton,previewButton.getText(),I18n.text("cam.preview.help"));
         Button closeButton = new Button(I18n.text("ui.0f2bd88ef0ac"));
         closeButton.setMaxWidth(Double.MAX_VALUE);
-        closeButton.setOnAction(e -> onClose.run());
+        closeButton.setOnAction(e -> {invalidatePreview.run();onClose.run();});
 
         HBox orderRow = new HBox(8, new Label(I18n.text("ui.3b41aae0bd17")), noOrderRadio,
                 forwardOrderRadio, reverseOrderRadio);
@@ -963,7 +985,9 @@ final class NccToolPanel {
                 toolError, new Separator(), selectedToolTitle, operationRow, millingRow,
                 grid, applyAllButton, new Separator(), sectionTitle("Common Parameters"),
                 restGrid, boundaryGrid, checkValidityCb,
-                new Separator(), note, errorLabel, generateButton, finalButtons);
+                new Separator(), note, errorLabel, previewButton,generateButton, finalButtons);
+        box.getProperties().put("ncc.invalidatePreview",invalidatePreview);
+        box.getChildren().add(box.getChildren().indexOf(previewButton),new ClearingPreviewFeedback(box));
         box.setPadding(new Insets(12));
         var feedback = new CamGenerationFeedback(box, () -> tools.stream().map(row ->
                 row.diameter + ":" + row.toolProfile + ":" + row.operation + ":" + row.overlapPercent + ":"
@@ -978,6 +1002,8 @@ final class NccToolPanel {
         history.watchText(overlapField, offsetField, angle.degrees);
         sourceCombo.valueProperty().addListener((obs, old, next) -> history.reset());
         resetButton.addEventHandler(javafx.event.ActionEvent.ACTION, event -> history.reset());
+        ClearingPreviewFeedback.watchEdits(box,invalidatePreview);
+        selectedAreaLabel.textProperty().addListener((o,a,b)->invalidatePreview.run());
         java.util.function.Function<Boolean, JSONObject> captureDraft = signatures -> {
             var chosen = sourceCombo.getValue();
             var json = new JSONObject().put("version", 1).put("units", chosen.units()).put("source", chosen.item().getValue())

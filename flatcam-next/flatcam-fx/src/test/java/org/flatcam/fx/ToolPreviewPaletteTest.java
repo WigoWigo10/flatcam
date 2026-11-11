@@ -21,6 +21,9 @@ class ToolPreviewPaletteTest {
             assertTrue(ink.fill().getOpacity() > 0 && ink.fill().getOpacity() < 1);
         }
         Color editorReference=PlotAreaView.editorReferenceColor(dark);
+        var routeInks=java.util.Arrays.stream(PlotAreaView.PreviewRole.values()).map(role->PlotAreaView.clearingPreviewColors(role,dark).stroke()).toList();
+        assertEquals(3,routeInks.stream().distinct().count());
+        for(var ink:routeInks){double a=luminance(background),b=luminance(ink);assertTrue((Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=3,"route legend contrast in "+theme);}
         double foreground=luminance(editorReference), backgroundLuma=luminance(background);
         assertEquals(1,editorReference.getOpacity(),"thin preview stroke must not fade into the background");
         assertTrue((Math.max(foreground,backgroundLuma)+.05)/(Math.min(foreground,backgroundLuma)+.05)>=3,"editor preview contrast in "+theme);

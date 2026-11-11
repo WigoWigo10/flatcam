@@ -497,6 +497,7 @@ final class PaintToolPanel {
                 new HBox(6, new Label(I18n.text("ui.3b41aae0bd17")), order), rest,
                 preview,paint, errorLabel, close);
         panel.getProperties().put("paint.invalidatePreview",invalidatePreview);
+        panel.getChildren().add(panel.getChildren().indexOf(preview),new ClearingPreviewFeedback(panel));
         panel.setPadding(new Insets(6));
         panel.getChildren().add(panel.getChildren().indexOf(paint),new ClearingRegionFeedback(panel));
         // Weak listeners cannot retain a closed Paint panel through a project TreeItem.
@@ -538,6 +539,7 @@ final class PaintToolPanel {
                 connect.selectedProperty(),contour.selectedProperty(),rest.selectedProperty(),order.valueProperty(),angle.automatic.selectedProperty(),angle.degrees.textProperty()))
             property.addListener((obs,old,next)->invalidatePreview.run());
         toolTable.getItems().addListener((javafx.collections.ListChangeListener<ToolRow>)change->invalidatePreview.run());
+        toolTable.editingCellProperty().addListener((o,a,b)->invalidatePreview.run());
         return panel;
     }
 

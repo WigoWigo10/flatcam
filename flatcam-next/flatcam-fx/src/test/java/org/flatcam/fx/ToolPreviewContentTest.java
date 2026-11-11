@@ -24,6 +24,12 @@ class ToolPreviewContentTest {
                 plot.setToolPreviewContent(null,List.of(new PlotAreaView.PreviewLayer(geometry,PlotAreaView.LayerCategory.GEOMETRY,true)));
                 assertEquals(true,accepts.invoke(plot,key),"Dense overlays must publish just like project layers");
                 plot.setToolPreviewContent(null,List.of());assertEquals(false,accepts.invoke(plot,key),"Removed preview must reject late frames");
+                var roleConstructor=keyType.getDeclaredConstructor(PlotAreaView.LayerCategory.class,boolean.class,PlotAreaView.PreviewRole.class);roleConstructor.setAccessible(true);
+                var roles=java.util.Arrays.stream(PlotAreaView.PreviewRole.values()).map(role->new PlotAreaView.PreviewLayer(geometry,PlotAreaView.LayerCategory.GEOMETRY,true,role)).toList();
+                plot.setToolPreviewContent(null,roles);
+                for(var role:PlotAreaView.PreviewRole.values())assertEquals(true,accepts.invoke(plot,roleConstructor.newInstance(PlotAreaView.LayerCategory.GEOMETRY,true,role)));
+                plot.setToolPreviewContent(null,List.of());
+                for(var role:PlotAreaView.PreviewRole.values())assertEquals(false,accepts.invoke(plot,roleConstructor.newInstance(PlotAreaView.LayerCategory.GEOMETRY,true,role)));
             }finally{plot.dispose();}return null;
         });
     }
