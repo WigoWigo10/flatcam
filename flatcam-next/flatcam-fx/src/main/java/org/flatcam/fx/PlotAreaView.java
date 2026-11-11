@@ -2259,7 +2259,20 @@ final class PlotAreaView extends StackPane {
     private void invalidateDensity(Object key) { densityRenderer.invalidate(key); }
 
     private boolean acceptDensityFrame(Object key) {
-        return !disposed && (layers.containsKey(key) || key == HIGHLIGHT_KEY || key == REFERENCE_KEY);
+        if(disposed)return false;
+        if(layers.containsKey(key))return true;
+        if(key==HIGHLIGHT_KEY)return editorHighlightGeometry!=null;
+        if(key==REFERENCE_KEY)return editorReferenceGeometry!=null;
+        if(key==CONTENT_KEY)return editorContentGeometry!=null;
+        if(key==FILL_KEY)return editorFillGeometry!=null;
+        if(key==REFERENCE_FILL_KEY)return editorReferenceFillGeometry!=null;
+        if(key instanceof PreviewOverlayKey preview)return toolPreviewContents.stream().anyMatch(layer->
+                preview.equals(new PreviewOverlayKey(layer.category(),layer.strokeOnly())));
+        if(internalCutoutPreview!=null) {
+            Geometry[] shapes=internalCutoutPreview.geometries();
+            for(int i=0;i<CUTOUT_PREVIEW_KEYS.length;i++)if(key==CUTOUT_PREVIEW_KEYS[i])return shapes[i]!=null;
+        }
+        return false;
     }
 
     PlotDensityRenderer.Stats rasterStats() { return densityRenderer.stats(); }

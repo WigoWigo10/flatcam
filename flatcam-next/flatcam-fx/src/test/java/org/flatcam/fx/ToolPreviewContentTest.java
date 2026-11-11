@@ -11,6 +11,22 @@ import org.locationtech.jts.geom.GeometryFactory;
 
 @EnabledOnOs(OS.WINDOWS)
 class ToolPreviewContentTest {
+    @Test void denseFramesAreAcceptedOnlyWhileTheirPreviewBindingExists()throws Exception {
+        TerminalPanelTest.fx(()->{
+            var plot=new PlotAreaView();
+            try {
+                var keyType=Class.forName("org.flatcam.fx.PlotAreaView$PreviewOverlayKey");
+                var constructor=keyType.getDeclaredConstructor(PlotAreaView.LayerCategory.class,boolean.class);constructor.setAccessible(true);
+                Object key=constructor.newInstance(PlotAreaView.LayerCategory.GEOMETRY,true);
+                var accepts=PlotAreaView.class.getDeclaredMethod("acceptDensityFrame",Object.class);accepts.setAccessible(true);
+                assertEquals(false,accepts.invoke(plot,key));
+                var geometry=new GeometryFactory().toGeometry(new Envelope(0,10,0,8)).getBoundary();
+                plot.setToolPreviewContent(null,List.of(new PlotAreaView.PreviewLayer(geometry,PlotAreaView.LayerCategory.GEOMETRY,true)));
+                assertEquals(true,accepts.invoke(plot,key),"Dense overlays must publish just like project layers");
+                plot.setToolPreviewContent(null,List.of());assertEquals(false,accepts.invoke(plot,key),"Removed preview must reject late frames");
+            }finally{plot.dispose();}return null;
+        });
+    }
     @Test void replacingClosingOrSwitchingToLegacyOverlaysForgetsCategoryBindingsNotProjectColors() throws Exception {
         TerminalPanelTest.fx(() -> {
             var plot = new PlotAreaView();
