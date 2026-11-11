@@ -1,5 +1,24 @@
 # QA project context — FlatCAM FX
 
+Experimental spiral (2026-11-11): Paint/NCC/Rest now expose opt-in SPIRAL, a
+clipped adaptive Archimedean spiral with exact nominal diameter/overlap pitch.
+Not golden-angle/Fibonacci, boundary-morphing, constant-engagement or a Python
+method-ID port. Original four Python numeric IDs and all defaults remain.
+Paint has asynchronous cancellable toolpath preview, no new objects, discarded
+on parameter/source/selection edits or closing. Shared themed Geometry preview.
+Actual native preview test found dense auxiliary frames were rejected by
+acceptDensityFrame; fixed active binding acceptance and late-frame rejection.
+Full verify: 2526 cases, 2507 passed, 19 optional skips, zero failures/errors
+(20 test support + 1052 CAM + 185 application + 1269 FX). Nine spiral core cases,
+four UI cases, one renderer guard; optional real-board image passed separately.
+32/32 two-tool NCC/Paint MM/IN Rest/Connect/Contour distance controls pass.
+Nine community Lines/Seed/Spiral GRBL exports measured on three public boards:
+export deviation within rounding, stable residual cores zero at declared tolerance,
+raw residual retained. Spiral has MORE retracts and WORSE estimated time on all
+three obstacle-heavy boards. Do not promote it or claim a performance win.
+Use SPIRAL.md, validation/spiral-*-20261111.json and target/spiral-* evidence.
+No version bump/installer; keep the requested combined next Beta.
+
 Rest/Connect correction (2026-11-10, after 513cbccb): earlier nominal residual
 percentages were NOT confirmed toolpath defects. Closed-ring buffer simplification
 underestimated tiny cutter sweeps; access also included ULP-width exact-fit channels.

@@ -1,5 +1,36 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Espiral experimental e prévia de trajetos Paint — 2026-11-11
+
+Implementados **Espiral contínua (experimental)** em Paint/NCC/Rest e o botão
+**Prévia dos trajetos** no Paint. Cálculo em worker com cancelamento; prévia não
+cria objetos e é descartada ao alterar a configuração ou sair da ferramenta.
+Tooltips/mensagens nos quatro idiomas; desenho adapta a cor ao tema. Corrigido
+também um defeito do renderer que descartava frames densos de camadas auxiliares.
+Números legados do Python e padrões existentes preservados. Sem nova versão/MSI.
+
+É uma **espiral radial de Arquimedes recortada**, com passo derivado do diâmetro
+e overlap, não Fibonacci/ângulo de ouro nem espiral que se deforma pelas bordas.
+Pode fragmentar em ilhas/passagens; Connect só une movimentos autorizados.
+Os CNC Jobs começam preservando ordem/direção, respeitando alternativas explícitas.
+
+Validação: build completo **2.526 casos, 2.507 aprovados, 19 opcionais ignorados**,
+sem falhas/erros; nove casos novos de núcleo, quatro de UI e um de publicação do
+renderer. Captura nativa opt-in da Breadboard Power Supply v2 passou à parte.
+**32/32 controles de distância** NCC/Paint × MM/IN × Rest × Connect × Contour,
+duas fresas. **9/9 medições comunitárias** com G-code GRBL real, três placas ×
+Lines/Seed/Espiral; desvio amostrado dentro do arredondamento, núcleos estáveis
+de sobra zerados após tolerância declarada, mantendo sobras brutas.
+
+**Limitação medida:** nos três exemplos a espiral teve mais levantamentos e maior
+tempo estimado que Lines e Seed. Não promover ao padrão ou prometer ganho.
+Próximo refinamento do método, se priorizado: adaptar a espiral às bordas para
+reduzir fragmentação, mantendo o comparador de cobertura e exportação.
+Uso, fórmulas, matriz, resultados, comandos e limites em [SPIRAL.md](SPIRAL.md);
+snapshots em `validation/spiral-community-20261111.json` e
+`validation/spiral-distance-20261111.json`. Prévia real em
+`flatcam-fx/target/spiral-preview-review/breadboard-spiral-preview.png`.
+
 ## Rest corrigido e Connect integrado ao acabamento — 2026-11-10
 
 Itens 1 e 2 concluídos. **Retificação da análise anterior:** parte das supostas

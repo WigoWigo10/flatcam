@@ -1,4 +1,4 @@
-param([string]$BuildDirectory,[ValidateRange(1,100)][int]$Repeats=10,[string]$OutputDirectory,[switch]$Lines,[string]$CaseFilter='.*',[string[]]$ClassOverrides,[ValidateSet('LINES','REGION_LINES')][string]$Method='LINES')
+param([string]$BuildDirectory,[ValidateRange(1,100)][int]$Repeats=10,[string]$OutputDirectory,[switch]$Lines,[string]$CaseFilter='.*',[string[]]$ClassOverrides,[ValidateSet('LINES','REGION_LINES','SPIRAL')][string]$Method='LINES')
 $ErrorActionPreference='Stop'
 $reactor=Split-Path -Parent $PSScriptRoot
 if(!$BuildDirectory){$BuildDirectory=(Get-Content -LiteralPath (Join-Path $reactor 'target\beta-latest.txt') -Raw).Trim()}
