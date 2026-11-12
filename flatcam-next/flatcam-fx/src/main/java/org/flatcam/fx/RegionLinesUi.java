@@ -16,6 +16,9 @@ final class RegionLinesUi {
         });
         Runnable help=()-> {
             boolean spiral=combo.getValue()==NccMethod.SPIRAL;
+            if(combo.getValue()==NccMethod.STANDARD) {
+                ToolDescriptions.apply(combo,"Standard",I18n.text("cam.standard.help"));return;
+            }
             ToolDescriptions.apply(combo,I18n.text(spiral?"cam.spiral.label":"cam.regionLines.label"),
                     spiral?I18n.text("cam.spiral.help"):I18n.text("ui.f3e1e0c3c5c5")+"\n\n"+I18n.text("cam.regionLines.help"));
         };

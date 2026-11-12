@@ -81,6 +81,16 @@ class RegionLinesUiTest {
         var custom=p.withJobOptions(p.jobOptions().withRouting(new CncRouting(CncRouting.Mode.NEAREST,true,true,List.of(),0)));
         assertSame(custom,RegionLinesUi.sourceOrder("MM",2,custom));
     }
+    @Test void standardExplainsItsLocalPassesAndRestWithoutTheExperimentalTitle() throws Exception {
+        TerminalPanelTest.fx(()->{
+            var method=new ComboBox<NccMethod>();RegionLinesUi.configure(method);method.setValue(NccMethod.STANDARD);
+            assertEquals(I18n.text("cam.standard.help"),method.getAccessibleHelp());
+            assertInstanceOf(TooltipContent.class,method.getProperties().get(FluidTooltips.CONTENT_KEY));
+            method.setValue(NccMethod.SPIRAL);assertEquals(I18n.text("cam.spiral.help"),method.getAccessibleHelp());
+            return null;
+        });
+        for(var language:UiLanguage.values())assertTrue(I18n.catalog(language).get("cam.standard.help").contains("\n\n"));
+    }
     @Test void labelsAndExperimentalHelpExistInAllFourLanguages() {
         for(var language:UiLanguage.values()) {
             var catalog=I18n.catalog(language);assertFalse(catalog.get("cam.regionLines.label").isBlank());

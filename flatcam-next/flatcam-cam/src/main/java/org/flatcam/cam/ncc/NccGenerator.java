@@ -571,6 +571,7 @@ public final class NccGenerator {
             cancellation.throwIfCancellationRequested();
             collectBoundaryLines(current, paths);
             Geometry next = GeosBufferOp.bufferOp(current, -step, parameters);
+            if(StandardCoverageRefinement.enabled())StandardCoverageRefinement.supplement(current,next,toolDiameter,step,paths,cancellation);
             if (next.isEmpty() || Math.abs(next.getArea() - current.getArea()) < 1e-14) {
                 break;
             }

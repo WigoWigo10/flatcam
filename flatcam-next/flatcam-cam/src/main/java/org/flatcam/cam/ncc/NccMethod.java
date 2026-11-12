@@ -16,7 +16,7 @@ public enum NccMethod {
     }
 
     public boolean usesRaster() { return this==LINES || this==COMBO || this==REGION_LINES; }
-    public boolean usesOriginalRestAccess() { return usesRaster() || this==SPIRAL; }
+    public boolean usesOriginalRestAccess() { return usesRaster() || this==SPIRAL || this==STANDARD&&StandardCoverageRefinement.enabled(); }
     public boolean prefersSourceOrder() { return this==REGION_LINES || this==SPIRAL; }
 
     /** Stable Python identifiers; the experimental FX strategy has no Python numeric identifier. */

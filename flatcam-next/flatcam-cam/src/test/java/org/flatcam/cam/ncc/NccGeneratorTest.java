@@ -497,7 +497,7 @@ class NccGeneratorTest {
     }
 
     @Test
-    void pointTouchingAreaSeamsSurvivePreparationAcrossRestConnectAndUnits() throws Exception {
+    void pointTouchingAreaSeamsPreserveRawPythonBaselineAndRefinedCutsAcrossRestConnectAndUnits() throws Exception {
         // Independent public fixture: a diamond touches both edges of a rectangle.
         // Original ToolNCC GUI Rest passes the subtraction straight to clear_polygon;
         // buffer(0) rotates the right component from (30,20) to (5,0), changing
@@ -509,9 +509,21 @@ class NccGeneratorTest {
             for (boolean connect : List.of(false,true)) {
                 var transform = org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(u,u);
                 Geometry copper = transform.transform(source);
-                var result = NccGenerator.generate(u == 1 ? "MM" : "IN",copper,
-                        new NccParameters(List.of(u),.4,0,NccMethod.STANDARD,connect,true,0,
-                                rest,NccOrder.NONE,new NccBoundary.ReferenceGeometry(transform.transform(reference))));
+                var params=new NccParameters(List.of(u),.4,0,NccMethod.STANDARD,connect,true,0,
+                        rest,NccOrder.NONE,new NccBoundary.ReferenceGeometry(transform.transform(reference)));
+                var refined=NccGenerator.generate(u==1?"MM":"IN",copper,params);
+                NccResult result;String previous=System.getProperty("flatcam.standard.refine");
+                try {
+                    // Explicit diagnostic baseline keeps the exact Python oracle; production defaults repair missing stock.
+                    System.setProperty("flatcam.standard.refine","false");
+                    result=NccGenerator.generate(u==1?"MM":"IN",copper,params);
+                    var required=NccGenerator.generate(u==1?"MM":"IN",copper,
+                            new NccParameters(List.of(u),.4,0,NccMethod.STANDARD,false,true,0,
+                                    rest,NccOrder.NONE,new NccBoundary.ReferenceGeometry(transform.transform(reference))));
+                    assertTrue(refined.geometry().buffer(1e-9*u).covers(required.geometry()),"Every original clearing contour must survive refinement");
+                } finally {
+                    if(previous==null)System.clearProperty("flatcam.standard.refine");else System.setProperty("flatcam.standard.refine",previous);
+                }
                 // Original ToolNCC GUI and camlib, Shapely 1.8.5.post1 / GEOS
                 // 3.10.3, 64 quadrant segments, overlap .4; no normalized rings.
                 double expectedLength = connect ? 883.6995235475384 : 851.9040249778097;
@@ -544,8 +556,15 @@ class NccGeneratorTest {
     void restFootprintMatchesGuiDefaultResolutionAndRepairPolicy() throws Exception {
         Geometry copper = new org.locationtech.jts.io.WKTReader().read(
                 "POLYGON ((0 0,30 0,30 20,0 20,0 0),(4 4,4 16,26 16,26 4,4 4))");
-        var result = NccGenerator.generate("MM",copper,new NccParameters(List.of(.2,1.),.4,1,
-                NccMethod.STANDARD,false,true,0,true,NccOrder.NONE));
+        NccResult result;String previous=System.getProperty("flatcam.standard.refine");
+        try {
+            // This golden records the original GUI footprint policy, not refined Rest work selection.
+            System.setProperty("flatcam.standard.refine","false");
+            result=NccGenerator.generate("MM",copper,new NccParameters(List.of(.2,1.),.4,1,
+                    NccMethod.STANDARD,false,true,0,true,NccOrder.NONE));
+        } finally {
+            if(previous==null)System.clearProperty("flatcam.standard.refine");else System.setProperty("flatcam.standard.refine",previous);
+        }
         // Captured independently from the unchanged GUI initializer under
         // Shapely 1.8.5.post1 / GEOS 3.10.3 on this public polygon.
         assertEquals(431.1408414811011,result.toolResults().getFirst().geometry().getLength(),1e-7);
