@@ -25,7 +25,7 @@ public final class LinesRelatedAuditProbe {
         for(String units:List.of("MM","IN")) {
             double scale=units.equals("MM")?1:1/25.4;var transform=AffineTransformation.scaleInstance(scale,scale);
             Geometry b=transform.transform(board),c=transform.transform(copper),area=b.difference(c);String before=c.toText();
-            for(double angle:method==NccMethod.SPIRAL?List.of(0.):List.of(0.,37.5123456,90.))for(boolean rest:List.of(false,true))for(boolean connect:List.of(false,true))for(boolean contour:List.of(false,true))for(String operation:List.of("NCC","Paint")) {
+            for(double angle:!method.usesRaster()?List.of(0.):List.of(0.,37.5123456,90.))for(boolean rest:List.of(false,true))for(boolean connect:List.of(false,true))for(boolean contour:List.of(false,true))for(String operation:List.of("NCC","Paint")) {
                 var row=new JSONObject().put("units",units).put("angle",angle).put("rest",rest).put("connect",connect).put("contour",contour).put("operation",operation);
                 try {
                     double d=.8*scale,small=.4*scale;var tools=List.of(d,small);
@@ -51,7 +51,7 @@ public final class LinesRelatedAuditProbe {
         var output=Path.of(args[0]);Files.createDirectories(output.toAbsolutePath().getParent());
         Files.writeString(output,new JSONObject().put("schema",1).put("version",AboutInfo.version()).put("binarySource",AboutInfo.build().getProperty("sourceRevision"))
                 .put("fixture","rounded pads, round rectangles and capsules; 36x24 mm diagnostic board; two cutters .8/.4 mm; smaller angle 135 degrees")
-                .put("method",method.name()).put("scope","96 synthetic MM/IN raster controls, or 32 spiral controls: Rest, Connect, Contour. Spiral ignores raster angles. Global copper/outer-edge distances with 0.5%-diameter allowance; no whole-area coverage, path duplication, runtime or physical CNC proof")
+                .put("method",method.name()).put("scope","96 synthetic MM/IN raster controls, or 32 angle-independent controls: Rest, Connect, Contour. Spiral ignores raster angles. Global copper/outer-edge distances with 0.5%-diameter allowance; no whole-area coverage, path duplication, runtime or physical CNC proof")
                 .put("cases",cases).put("failedCases",failures).put("oracleErrors",errors).toString(2));
         System.out.println("Lines distance audit: "+cases.length()+" cases; "+failures+" failed; "+errors+" errors");System.exit(failures>0 || errors>0?1:0);
     }

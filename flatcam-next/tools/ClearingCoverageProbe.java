@@ -30,6 +30,7 @@ public class ClearingCoverageProbe {
                 },input);
             }
         }
+        var method=NccMethod.valueOf(System.getProperty("flatcam.audit.method","LINES"));
         var inventory=new JSONObject(Files.readString(Path.of(args[1])));
         for(Object object:inventory.getJSONArray("boards")) {
             var board=(JSONObject)object;if(!board.has("preview"))continue;
@@ -38,8 +39,8 @@ public class ClearingCoverageProbe {
                 if(!selected(id)||Files.exists(out.resolve(id+".json")))continue;
                 double scale=units.equals("IN")?1/25.4:1;
                 // Pairwise: both operations, units and two non-default angles, with two Rest cutters.
-                double angle=(units.equals("MM")==op.equals("ncc"))?37.5:90;
-                var metadata=new JSONObject().put("rest",true).put("angle",angle).put("connect",true).put("contour",true);
+                double angle=method.usesRaster()?((units.equals("MM")==op.equals("ncc"))?37.5:90):0;
+                var metadata=new JSONObject().put("method",method.name()).put("rest",true).put("angle",angle).put("connect",true).put("contour",true);
                 audit(out,id,board.getString("id"),units,op,token->{
                     Geometry copper=AffineTransformation.scaleInstance(scale,scale).transform(READER.read(board.getJSONObject("preview").getString("wkt")));
                     String before=copper.toText();Geometry box=copper.getFactory().toGeometry(copper.getEnvelopeInternal());
@@ -47,12 +48,12 @@ public class ClearingCoverageProbe {
                     NccResult result;
                     if(op.equals("ncc")) {
                         var settings=new HashMap<Double,NccToolSettings>();
-                        for(double d:diameters)settings.put(d,new NccToolSettings(.4,NccMethod.LINES,true,true,0,NccSeedPolicy.STABLE,angle));
-                        result=NccGenerator.generate(units,copper,new NccParameters(diameters,.4,0,NccMethod.LINES,true,true,0,true,NccOrder.NONE,new NccBoundary.Area(box),List.of(),settings),token,ProgressCallback.none());
+                        for(double d:diameters)settings.put(d,new NccToolSettings(.4,method,true,true,0,NccSeedPolicy.STABLE,angle));
+                        result=NccGenerator.generate(units,copper,new NccParameters(diameters,.4,0,method,true,true,0,true,NccOrder.NONE,new NccBoundary.Area(box),List.of(),settings),token,ProgressCallback.none());
                     } else {
                         var settings=new HashMap<Double,PaintToolSettings>();
-                        for(double d:diameters)settings.put(d,new PaintToolSettings(.4,0,NccMethod.LINES,true,true,angle));
-                        result=NccGenerator.paint(units,box.difference(copper),new PaintParameters(diameters,.4,0,NccMethod.LINES,true,true,NccOrder.NONE,true,settings),token,ProgressCallback.none());
+                        for(double d:diameters)settings.put(d,new PaintToolSettings(.4,0,method,true,true,angle));
+                        result=NccGenerator.paint(units,box.difference(copper),new PaintParameters(diameters,.4,0,method,true,true,NccOrder.NONE,true,settings),token,ProgressCallback.none());
                     }
                     if(!before.equals(copper.toText()))throw new AssertionError("Source changed");
                     return new Case(result.clearingArea(),result.toolResults().stream().map(t->new ToolGeometry(t.toolDiameter(),t.geometry())).toList(),result.toolResults().stream().map(t->t.targetArea()==null?result.clearingArea():t.targetArea()).toList());
@@ -66,7 +67,7 @@ public class ClearingCoverageProbe {
     static void audit(Path out,String id,String board,String units,String operation,Generate generate,JSONObject metadata)throws Exception {
         long start=System.nanoTime();CancellationToken token=()->System.nanoTime()-start>BUDGET*1e9;
         var report=new JSONObject().put("schema",1).put("id",id).put("board",board).put("units",units).put("operation",operation)
-                .put("rest",metadata.optBoolean("rest",false)).put("connect",metadata.optBoolean("connect",false)).put("contour",metadata.optBoolean("contour",false))
+                .put("method",metadata.optString("method","UNSPECIFIED")).put("rest",metadata.optBoolean("rest",false)).put("connect",metadata.optBoolean("connect",false)).put("contour",metadata.optBoolean("contour",false))
                 .put("angle",metadata.opt("angle")).put("boundaryPolicy","copper bounding rectangle; diagnostic, not a CNC setup");
         try {
             Case c=generate.get(token);double scale=units.equals("IN")?1/25.4:1;

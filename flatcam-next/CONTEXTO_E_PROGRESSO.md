@@ -1,5 +1,38 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Standard: sobras entre offsets corrigidas — 2026-11-12
+
+Build completo: 2.603 casos, 2.584 aprovados, 19 opcionais ignorados, zero falhas.
+Rodada 11:03; fluxo panelizado passou, mas custou mais nesta execução. Não é
+benchmark isolado; não anunciar ganho de desempenho, e medir o custo adicional
+de complementos/recorte Rest em rodada própria.
+
+Item 1 concluído: o Standard herdava do Python uma falha ao perder lóbulos ou
+bolsões estreitos entre offsets. Caso mínimo 4×0,84 mm, Ø0,4 mm, overlap 40%:
+centro a 0,22 mm dos caminhos para raio 0,20 mm. Confirmado em dez execuções da
+rotina Python real e por pontos independentes nas três placas públicas.
+
+Mantidos os offsets/contornos originais e o diâmetro exato; complementos locais
+a meio passo removem a sobra. No Rest Standard, centros usam a área original,
+e a sobra seleciona o trabalho. Help específico em quatro idiomas explica a
+mudança e o Contour. Outros métodos/IDs preservados. Modo técnico bruto para
+oracles: `-Dflatcam.standard.refine=false`; não confundir essa baseline com o
+padrão corrigido, que difere intencionalmente do Python nos passes necessários.
+
+Núcleos estáveis nas três placas: 0,100934 / 0,002297 / 0,341856 mm² → zero na
+tolerância publicada. Estimativas do programa +0,5–2,4%, por cortar a sobra.
+34 testes novos: vermelho antes, verde depois e vermelho novamente no legado.
+12 casos reais de Rest (duas fresas, Paint/NCC, MM/IN) zeraram os núcleos na
+geometria e no GRBL relido. 32 controles de distância aprovados. Sobras brutas
+e áreas fisicamente inacessíveis continuam no relatório, sem certificação CNC.
+
+Ver [causa, escopo, reprodução e evidências](STANDARD_COVERAGE.md),
+`validation/standard-coverage-20261112.json` e
+`validation/standard-distance-20261112.json`. Sem bump ou MSI; continua Beta 7.
+O próximo item continua sendo reduzir a necessidade de retorno à radial na
+placa mais densa; não foi implementado nesta correção.
+
+
 ## Espiral adaptativa por bolsões — 2026-11-11
 
 Otimização integrada em Paint/NCC/Rest: offsets que seguem bordas, árvore de

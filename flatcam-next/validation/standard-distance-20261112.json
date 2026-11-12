@@ -1,0 +1,908 @@
+{
+  "schema": 1,
+  "fixture": "rounded pads, round rectangles and capsules; 36x24 mm diagnostic board; two cutters .8/.4 mm; smaller angle 135 degrees",
+  "cases": [
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 11,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 11,
+          "diameter": 0.4,
+          "copperDistance": 0.199985040360346,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "MM",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.8,
+          "copperDistance": 0.3999700807206942,
+          "edgeDistance": 0.4000002000001,
+          "allowance": 0.004,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.4,
+          "copperDistance": 0.19998504036034775,
+          "edgeDistance": 0.20000010000004664,
+          "allowance": 0.002,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 101,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 11,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": false,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 11,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840406,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.00787342678584047,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.00787342678584047,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.00787342678584047,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 66,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 15,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.00787342678584047,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": false,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840472,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": false,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840472,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "NCC",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840472,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    },
+    {
+      "rest": true,
+      "failedPolygons": 0,
+      "angle": 0,
+      "units": "IN",
+      "contour": true,
+      "operation": "Paint",
+      "tools": [
+        {
+          "topLevelPathParts": 7,
+          "diameter": 0.031496062992125984,
+          "copperDistance": 0.015746853571680867,
+          "edgeDistance": 0.015748039370082623,
+          "allowance": 1.5748031496062991E-4,
+          "safeWithinAllowance": true
+        },
+        {
+          "topLevelPathParts": 12,
+          "diameter": 0.015748031496062992,
+          "copperDistance": 0.007873426785840472,
+          "edgeDistance": 0.007874019685041311,
+          "allowance": 7.874015748031496E-5,
+          "safeWithinAllowance": true
+        }
+      ],
+      "connect": true,
+      "status": "PASS"
+    }
+  ],
+  "binarySource": "b64ef4dc435e0334f21f9ccc62670972113b4cdb",
+  "method": "STANDARD",
+  "scope": "96 synthetic MM/IN raster controls, or 32 angle-independent controls: Rest, Connect, Contour. Spiral ignores raster angles. Global copper/outer-edge distances with 0.5%-diameter allowance; no whole-area coverage, path duplication, runtime or physical CNC proof",
+  "version": "0.1.0-beta.7",
+  "failedCases": 0,
+  "oracleErrors": 0
+}

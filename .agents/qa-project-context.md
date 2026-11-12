@@ -1,5 +1,28 @@
 # QA project context — FlatCAM FX
 
+Standard coverage repair (2026-11-12): confirmed inherited Python defect, not
+analysis-only fringes. Minimal 4x.84 mm rectangle, .4 cutter/40% overlap leaves
+center .22 mm from paths for .20 radius; real Python routine repeats identically
+10 times. Preserve all legacy offsets and add local half-step traces for stock
+lost between levels, including terminal/local lobes and zero-overlap corners.
+Standard Rest now selects work from stock within original allowed center space.
+Nominal diameter unchanged. Default intentionally differs from Python output;
+flatcam.standard.refine=false restores raw paths AND old Rest selection for
+strict oracle diagnosis. Two exact Python goldens are explicit legacy tests;
+new default coverage checks stay live. Specific four-language Standard help.
+34 red-before/green-after cases, 34 fail again with raw behavior; 12 real-board
+Rest Paint/NCC MM/IN two-tool cases and 32 distance controls pass. Three stable
+cores .100934/.002297/.341856 mm² -> zero at declared tolerance; program estimate
+increases .5-2.4% to cut previously omitted material. Raw/inaccessible stock
+retained, no physical-machine certification or isolated generation benchmark.
+Full verify: 2603 cases, 2584 passed, 19 optional skips, zero failures/errors.
+Suite 11:03 vs previous 04:55; panelized class 270.1 s vs 92.36 s, uncontrolled
+load/JIT, not an isolated benchmark. Extra Standard preparation and original-space
+Rest clipping can cost more: don't claim speed gains; profile separately.
+See STANDARD_COVERAGE.md and validation/standard-*-20261112.json. Beta 7 unchanged.
+Dense spiral radial fallback optimization remains next, not part of this fix.
+
+
 Adaptive pocket spiral (2026-11-11): enabled by default for non-round SPIRAL
 components in Paint/NCC/Rest. Inward-offset tree splits at necks, visits each
 branch before siblings, and adds local half-step traces where lobes disappear.

@@ -92,7 +92,10 @@ na trajetória. A falha inicial e o retry estão preservados no relatório.
 Standard foi ligeiramente mais rápido em três casos, mas deixou núcleos de
 0,100934 / 0,002297 / 0,341856 mm². Não é comparado como vencedor com cobertura
 equivalente. Isso é um achado para investigação própria, sem alterar Standard
-nesta otimização.
+nesta otimização. **Atualização de 2026-11-12:** essas sobras foram confirmadas
+na rotina Python e corrigidas no Standard do FX; ver
+[STANDARD_COVERAGE.md](STANDARD_COVERAGE.md). Os números acima preservam a
+comparação histórica anterior à correção.
 
 ## Custo de geração no PC atual
 
