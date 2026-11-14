@@ -6376,11 +6376,7 @@ final class MainWindow implements TclFlatcamHost {
         if (gerber != null) {
             // The editor names objects "board.gbr_edit"; suggest a real
             // Gerber extension instead of saving an unrecognizable suffix.
-            suggestedName = suggestedName.replaceFirst(
-                    "(?i)\\.(gbr|cmp|gtl|gbl|gm1|txt)(_edit(?:_\\d+)?)$", "$2.$1");
-            if (!suggestedName.matches("(?i).*\\.(gbr|cmp|gtl|gbl|gm1|txt)$")) {
-                suggestedName += ".gbr";
-            }
+            suggestedName = CamFileFilters.gerberSaveName(suggestedName);
         } else if (excellon != null && !suggestedName.matches("(?i).*\\.(drl|exc|txt|xln)$")) {
             suggestedName += ".drl";
         }
@@ -6389,7 +6385,7 @@ final class MainWindow implements TclFlatcamHost {
             chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Well-Known Text", "*.wkt", "*.txt"));
         } else if (gerber != null) {
             chooser.getExtensionFilters().add(
-                    new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
+                    CamFileFilters.gerber());
         } else if (excellon != null) {
             chooser.getExtensionFilters().add(
                     new FileChooser.ExtensionFilter("Excellon", "*.drl", "*.exc", "*.txt", "*.xln"));
@@ -6468,7 +6464,7 @@ final class MainWindow implements TclFlatcamHost {
         if (asGerber) {
             Optional<GerberExporter.Format> format = CamExportDialog.askGerberFormat(scene.getWindow(), gerber.units());
             File destination = format.isEmpty() ? null : chooseExportFile(I18n.text("ui.b36acceab0dc"), item, ".gbr",
-                    new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.gtl", "*.gbl", "*.gm1", "*.cmp", "*.txt"));
+                    CamFileFilters.gerber());
             if (destination != null) {
                 runExport(item.getValue(), I18n.text("ui.17c9bcf1da4d"), destination,
                         path -> new GerberExporter().write(gerber, format.get(), path));
@@ -10090,7 +10086,7 @@ final class MainWindow implements TclFlatcamHost {
      */
     private void openGerberPrototype() {
         List<File> files = pickCamFiles(I18n.text("ui.585b99a363f7"),
-                new FileChooser.ExtensionFilter("Gerber", "*.gbr", "*.cmp", "*.gtl", "*.gbl", "*.gm1", "*.txt"));
+                CamFileFilters.gerber());
         if (!files.isEmpty()) {
             openGerberQueue(files, 0);
         }
@@ -10529,7 +10525,7 @@ final class MainWindow implements TclFlatcamHost {
         }
         FileChooser chooser = new FileChooser();
         chooser.setTitle(title);
-        chooser.getExtensionFilters().add(filter);
+        CamFileFilters.configureOpen(chooser,filter);
         String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {

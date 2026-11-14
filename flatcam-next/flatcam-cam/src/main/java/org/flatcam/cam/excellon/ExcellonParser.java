@@ -165,6 +165,7 @@ public final class ExcellonParser {
             cancellationToken.throwIfCancellationRequested();
             reportProgressStep(progressCallback, lineIndex, rawLines.size(), 0, 0.95);
             String rawLine = rawLines.get(lineIndex);
+            if(lineIndex==0&&rawLine.startsWith("\uFEFF"))rawLine=rawLine.substring(1);
             String line = rawLine.strip();
             if (line.isEmpty() || IGNORABLE_EXACT.contains(line)) {
                 continue;

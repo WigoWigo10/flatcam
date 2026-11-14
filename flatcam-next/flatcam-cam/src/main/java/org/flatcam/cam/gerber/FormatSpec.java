@@ -1,5 +1,6 @@
 package org.flatcam.cam.gerber;
 
+import java.math.BigDecimal;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -67,14 +68,11 @@ public final class FormatSpec {
         if (s.isEmpty()) {
             return 0.0;
         }
-        int totalDigits = intDigits + decDigits;
-        if (zeroSuppression == 'T') {
-            long value = Long.parseLong(s);
-            double result = value * Math.pow(10, totalDigits - s.length() - decDigits);
-            return negative ? -result : result;
-        }
         long value = Long.parseLong(s);
-        double result = value / Math.pow(10, decDigits);
+        int scale = zeroSuppression == 'T' ? s.length() - intDigits : decDigits;
+        // Convert the exact decimal once. Multiplying by a binary power-of-ten approximation
+        // made identical full-width LZ/TZ coordinates differ by one ULP, changing arc sampling.
+        double result = BigDecimal.valueOf(value).scaleByPowerOfTen(-scale).doubleValue();
         return negative ? -result : result;
     }
 }

@@ -1,6 +1,7 @@
 package org.flatcam.cam.gerber;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,24 +24,26 @@ import org.locationtech.jts.operation.overlayng.OverlayNG;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
 /**
- * A from-scratch RS-274X Gerber parser covering exactly the subset exercised
+ * A from-scratch RS-274X Gerber parser characterized against the corpus exercised
  * by the Fase 0 baseline corpus (tests/gerber_files/, characterized in
  * ../../../tests/test_gerber_characterization.py against the legacy Python
- * parser): leading-zero-omitted absolute coordinates, linear draws, flashes,
- * region fills, standard C/R/O apertures, one aperture-macro primitive
- * (polygon, code 5), dark/clear polarity, and circular interpolation (G02/
+ * parser): zero-suppressed absolute/incremental coordinates, linear draws, flashes,
+ * region fills, standard apertures and supported aperture-macro primitives,
+ * dark/clear polarity, and circular interpolation (G02/
  * G03 with I/J offsets, both G74 single-quadrant and G75 multi-quadrant
  * modes) - ported from appParsers/ParseGerber.py's circ_re handling plus
  * camlib.py's arc()/arc_angle() helpers, needed to open board-outline
  * (Edge_Cuts) Gerbers, whose rounded corners are drawn as arcs.
  *
  * <p>Deliberately NOT yet a full Gerber implementation: step-and-repeat (%SR)
- * and some aperture-macro primitives are unimplemented. Unsupported input
+ * and non-neutral legacy image transforms are unimplemented. Unsupported input
  * raises {@link GerberParseException} rather than silently producing wrong
  * geometry - see GerberParserBaselineTest for what this is validated against.
  */
 public final class GerberParser {
 
+    private static final String DECIMAL="[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)";
+    private static final Pattern LEGACY_IMAGE_TRANSFORM=Pattern.compile("^%(OF|SF)(?:A("+DECIMAL+"))?(?:B("+DECIMAL+"))?\\*%?$");
     private static final Pattern MO_LINE = Pattern.compile("^%MO(IN|MM)\\*%?$");
     private static final Pattern AD_LINE =
             Pattern.compile("^%ADD(\\d+)([a-zA-Z_$.][a-zA-Z0-9_$.\\-]*)(?:,(.*))?\\*%?$");
@@ -88,7 +91,7 @@ public final class GerberParser {
             "M00*", "M01*", "M02*", "M30*"
     );
     private static final List<String> IGNORABLE_PREFIXES = List.of(
-            "G04", "%OF", "%SF", "%LN", "%AS", "%IP",
+            "G04", "%LN",
             // Gerber X2 attributes (%TF/%TA/%TO file/aperture/object attributes, %TD deletes one) -
             // metadata for CAM tooling (net names, component refs, ...), no effect on geometry.
             "%TF", "%TA", "%TD", "%TO"
@@ -189,9 +192,12 @@ public final class GerberParser {
                 continue;
             }
 
-            if (isIgnorable(line)) {
+            if (isNeutralLegacyImageCommand(line) || isIgnorable(line)) {
                 continue;
             }
+            // Some EasyEDA exports put only the interpolation mode on a line without '*'.
+            // Tolerate that exact modal form, never an unterminated coordinate or arbitrary command.
+            if (line.matches("G0?[123]")) line += "*";
             if (line.equals("G90*") || line.equals("G91*")) {
                 incrementalMode = line.equals("G91*");
                 continue;
@@ -227,12 +233,14 @@ public final class GerberParser {
                 continue;
             }
             if (line.equals("G36*")) {
+                if(regionMode)throw new GerberParseException("Nested Gerber region: G36 before G37");
                 regionMode = true;
                 regionContours = new ArrayList<>();
                 currentContour = null;
                 continue;
             }
             if (line.equals("G37*")) {
+                if(!regionMode)throw new GerberParseException("G37 without an open Gerber region (G36)");
                 if (currentContour != null && currentContour.size() > 2) {
                     regionContours.add(currentContour);
                 }
@@ -352,6 +360,7 @@ public final class GerberParser {
             posY = newY;
         }
 
+        if(regionMode)throw new GerberParseException("Unterminated Gerber region: missing G37");
         progressCallback.report(0.90);
         Map<String, Geometry> apertureGeometry = new LazyApertureGeometry(shapesByAperture);
 
@@ -398,6 +407,7 @@ public final class GerberParser {
      */
     private static List<String> splitStatements(List<String> rawLines) {
         String source = String.join("\n", rawLines);
+        if(source.startsWith("\uFEFF"))source=source.substring(1); // UTF-8 byte-order mark, only at file start.
         List<String> statements = new ArrayList<>();
         int cursor = 0;
         while (cursor < source.length()) {
@@ -425,6 +435,7 @@ public final class GerberParser {
             String statement = source.substring(cursor, end).strip();
             if (!statement.isEmpty()) {
                 statements.add(statement);
+                if(statement.equals("M02*")||statement.equals("M30*"))break;
             }
             cursor = end;
         }
@@ -456,6 +467,24 @@ public final class GerberParser {
                 statements.add("%" + trimmed + "*%");
             }
         }
+    }
+
+    /** Preserve neutral deprecated headers, but never silently discard an image transform. */
+    private static boolean isNeutralLegacyImageCommand(String line) {
+        if(line.startsWith("%OF")||line.startsWith("%SF")) {
+            var matcher=LEGACY_IMAGE_TRANSFORM.matcher(line);
+            if(!matcher.matches())throw new GerberParseException("Unsupported Gerber image transform: "+line);
+            BigDecimal neutral=matcher.group(1).equals("OF")?BigDecimal.ZERO:BigDecimal.ONE;
+            for(int group=2;group<=3;group++)if(matcher.group(group)!=null&&new BigDecimal(matcher.group(group)).compareTo(neutral)!=0)
+                throw new GerberParseException("Unsupported Gerber image transform: "+line);
+            return true;
+        }
+        if(line.startsWith("%AS")||line.startsWith("%IP")) {
+            if(!line.equals("%ASAXBY*%")&&!line.equals("%IPPOS*%"))
+                throw new GerberParseException("Unsupported Gerber image transform: "+line);
+            return true;
+        }
+        return false;
     }
 
     /**
