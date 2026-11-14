@@ -5,6 +5,7 @@ import org.flatcam.cam.CancellationToken;
 import org.flatcam.cam.ncc.geosbuffer.GeosBufferOp;
 import org.locationtech.jts.algorithm.Orientation;
 import org.locationtech.jts.geom.*;
+import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.locationtech.jts.linearref.LengthIndexedLine;
 import org.locationtech.jts.operation.buffer.BufferParameters;
 import org.locationtech.jts.operation.overlayng.*;
@@ -13,9 +14,11 @@ import org.locationtech.jts.operation.overlayng.*;
  * Connect joins the local laps. No medial-axis, curvature or constant-engagement guarantee. */
 final class SpiralPocketPlanner {
     static final int MAX_NODES=4096,MAX_DEPTH=2048;
+    private static final int LOCAL_OFFSET_POINTS=2048,OFFSET_CACHE_LEVELS=8;
     static final class Pocket {
-        final Polygon area;final List<Pocket> children=new ArrayList<>();final List<LineString> supplements=new ArrayList<>();final boolean root;boolean fallback;
-        Pocket(Polygon area,boolean root){this.area=area;this.root=root;}
+        final Polygon area;final List<Pocket> children=new ArrayList<>();final List<LineString> supplements=new ArrayList<>();final boolean root;final double distance;boolean fallback;
+        Pocket(Polygon area,boolean root){this(area,root,0);}
+        Pocket(Polygon area,boolean root,double distance){this.area=area;this.root=root;this.distance=distance;}
     }
     private record Pending(Pocket pocket,int depth) { }
     private static final class Visit {
@@ -32,12 +35,21 @@ final class SpiralPocketPlanner {
         budget.minimum(3*Math.floor(clearance/pitch));
         var root=new Pocket(component,true);var pending=new ArrayDeque<Pending>();pending.add(new Pending(root,0));int nodes=1;
         var parameters=new BufferParameters(64);
+        // Rebase dense offsets on this immutable center component, not on the previous sampled arc.
+        // Keep only a few levels alive; the published-path budget is unchanged.
+        var offsets=new LinkedHashMap<Double,Geometry>(OFFSET_CACHE_LEVELS,.75f,true){
+            @Override protected boolean removeEldestEntry(Map.Entry<Double,Geometry> entry){return size()>OFFSET_CACHE_LEVELS;}
+        };
         while(!pending.isEmpty()) {
             token.throwIfCancellationRequested();var work=pending.remove();var node=work.pocket();
             if(work.depth()>=MAX_DEPTH){node.fallback=true;continue;}
             double localStep=cornerStep(node.area,diameter,pitch);
             double step=node.root&&!contour?localStep/2:localStep;
-            Geometry eroded=GeosBufferOp.bufferOp(node.area,-step,parameters);token.throwIfCancellationRequested();
+            Geometry local=GeosBufferOp.bufferOp(node.area,-step,parameters);token.throwIfCancellationRequested();
+            // Small branches and terminal passes are cheaper locally; only dense levels need rebasing.
+            Geometry eroded=local.getNumPoints()<=LOCAL_OFFSET_POINTS?local:
+                    directOffset(component,node.distance+step,node.area,offsets,token);
+            token.throwIfCancellationRequested();
             if(!eroded.isEmpty()&&eroded.getArea()>=node.area.getArea()){node.fallback=true;continue;}
             var children=LinesRasterRefinement.polygons(eroded);boolean terminal=false;
             if(children.isEmpty()) {
@@ -63,12 +75,26 @@ final class SpiralPocketPlanner {
             }
             if(nodes+children.size()>MAX_NODES){node.fallback=true;continue;}
             for(var child:children)if(child.getArea()>0) {
-                token.throwIfCancellationRequested();var next=new Pocket(child,false);node.children.add(next);nodes++;
+                token.throwIfCancellationRequested();var next=new Pocket(child,false,node.distance+(terminal?step/2:step));node.children.add(next);nodes++;
                 for(int i=0;i<child.getNumPoints();i++)budget.point();
                 if(!terminal)pending.add(new Pending(next,work.depth()+1));
             }
         }
         return root;
+    }
+    /** Keep each rebased child inside its actual parent; do not introduce a bridge across pocket branches. */
+    private static Geometry directOffset(Polygon root,double distance,Polygon parent,Map<Double,Geometry> cache,CancellationToken token){
+        token.throwIfCancellationRequested();
+        Geometry offset=cache.computeIfAbsent(distance,d->GeosBufferOp.bufferOp(root,-d,new BufferParameters(64)));
+        token.throwIfCancellationRequested();
+        if(offset.isEmpty())return offset;
+        var prepared=PreparedGeometryFactory.prepare(parent);var pieces=new ArrayList<Polygon>();var bounds=parent.getEnvelopeInternal();
+        for(var part:LinesRasterRefinement.polygons(offset)){
+            token.throwIfCancellationRequested();if(!bounds.intersects(part.getEnvelopeInternal()))continue;
+            if(prepared.covers(part))pieces.add(part);
+            else if(prepared.intersects(part))pieces.addAll(LinesRasterRefinement.polygons(OverlayNGRobust.overlay(part,parent,OverlayNG.INTERSECTION)));
+        }
+        return parent.getFactory().buildGeometry(pieces);
     }
     /** Convex corners need a smaller normal step so the nominal circular cutter covers their bisectors. */
     static double cornerStep(Polygon area,double diameter,double requested) {
