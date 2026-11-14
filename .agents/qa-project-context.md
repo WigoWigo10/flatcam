@@ -1,5 +1,26 @@
 # QA project context — FlatCAM FX
 
+User priority (2026-11-14): machining/spiral implementation and optimization are
+PAUSED at the user's request. Focus on Yago's import bugs. Do not automatically
+resume radial fallback or Standard optimization after closing this task.
+Gerber filters unified across open/export/save, common legacy suffixes/internal
+layers/case variants plus All files, preserving edited layer suffixes. Only
+isolated G1/G01/G2/G02/G3/G03 tolerate a missing star. UTF-8 BOM at stream start
+works for Gerber/Excellon. Reject malformed regions; stop at M02/M30, keep M00/M01.
+Exact decimal decoding stabilizes equivalent LZ/TZ arc sampling; original GKO
+LZ already decoded zeros correctly. Neutral OF/SF/AS/IP accepted; unsupported
+non-neutral image transforms now explicitly refused, never silently ignored.
+Private original ZIP: seven Gerbers + two drills parsed and published through
+real UI queues in an isolated no-Stage test; 21 drills, one expected empty Via.
+64 new mandatory tests + one opt-in private ZIP test. Same 41 CAM test bodies
+repeated 10x on frozen baseline/current classes: 240/410 old failures, 0/410 fixed.
+88 public corpus files on 8 boards pass, all 8 preview WKTs unchanged.
+Final verify: 2668 cases, 2648 passed, 20 optional skips, zero failures/errors.
+Private-ZIP UI queue test run separately under the memory PreferencesFactory. Never
+commit the user's archive or raw private Gerbers. See GERBER_IMPORT_REVIEW.md
+and validation/gerber-import-review-20261114.json. Beta remains 7; no MSI/push.
+
+
 Standard coverage repair (2026-11-12): confirmed inherited Python defect, not
 analysis-only fringes. Minimal 4x.84 mm rectangle, .4 cutter/40% overlap leaves
 center .22 mm from paths for .20 radius; real Python routine repeats identically

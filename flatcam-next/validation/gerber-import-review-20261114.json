@@ -1,0 +1,385 @@
+{
+  "schema": 1,
+  "date": "2026-11-14",
+  "baselineRevision": "1a93f3dd",
+  "priority": "Machining/spiral implementation and optimization paused by explicit user request; import bugs are the current priority.",
+  "input": {
+    "archiveName": "Gerber_RELE_MODULE_PCB_RELE_MODULE_2026-11-13.zip",
+    "sha256BeforeAndAfter": "eea32b7a2a39c64475b8bfde76159333e3920fcf9e2f925b5ff5741d6e8a7c62",
+    "originalUnchanged": true,
+    "rawArchiveAndManufacturingGeometryCommitted": false
+  },
+  "originalParserReplay": {
+    "schema": 1,
+    "java": "25.0.4.1",
+    "cases": [
+      {
+        "slots": {},
+        "file": "Drill_PTH_Through.DRL",
+        "sha256": "59c17b40f2722ac63b1a50486523739feb42e4966a4021844a5042aebe3e2909",
+        "drills": {
+          "1": 3,
+          "2": 4,
+          "3": 6,
+          "4": 5,
+          "5": 3
+        },
+        "bounds": "Env[1.0 : 43.0, 1.0 : 31.0]",
+        "units": "MM",
+        "type": "Excellon",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "slots": {},
+        "file": "Drill_PTH_Through_Via.DRL",
+        "sha256": "e2da2bc94dcf62d2defe75009a8ba1d3fb21ad33788fd507b4a16bc03f047662",
+        "drills": {},
+        "bounds": "Env[0.0 : -1.0, 0.0 : -1.0]",
+        "units": "MM",
+        "type": "Excellon",
+        "empty": true,
+        "status": "PARSED"
+      },
+      {
+        "area": 37.739038061648216,
+        "valid": true,
+        "followBounds": "Env[0.0 : 43.99991, 0.0 : 32.004]",
+        "file": "Gerber_BoardOutlineLayer.GKO",
+        "sha256": "ca6293c29a6dab74892a6459b9691c7c2abeafbd767c0f406d09c4996fbae72e",
+        "shapes": 8,
+        "bounds": "Env[-0.127 : 44.126909956125274, -0.127 : 32.131]",
+        "apertures": 2,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 785.5722187016603,
+        "valid": true,
+        "followBounds": "Env[0.25908 : 40.99991, 0.25908 : 31.74492]",
+        "file": "Gerber_BottomLayer.GBL",
+        "sha256": "d7410bed7e46243d7082231bcafa0b96cbdec5b31c382604475091a8152a9277",
+        "shapes": 67,
+        "bounds": "Env[0.25908 : 42.99991, 0.25908 : 31.74492]",
+        "apertures": 10,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 113.84173608349086,
+        "valid": true,
+        "followBounds": "Env[2.99999 : 40.99991, 2.99999 : 28.99994]",
+        "file": "Gerber_BottomSolderMaskLayer.GBS",
+        "sha256": "163bc2fb4fd35fcd013da0aa33f263506aa6f05654a593f70316ceadf6031aec",
+        "shapes": 21,
+        "bounds": "Env[0.9491899999999998 : 43.05071, 0.9491899999999998 : 31.050739999999998]",
+        "apertures": 8,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_DocumentLayer.GDL",
+        "sha256": "4edaf3a878af9c3ebcc03bdb0ff181d0cc85b0b946c658d60d0ad8078b04aa5a",
+        "error": "org.flatcam.cam.gerber.GerberParseException: Unsupported Gerber line: G01",
+        "status": "ERROR"
+      },
+      {
+        "area": 105.60855574987445,
+        "valid": true,
+        "followBounds": "Env[2.99999 : 40.99991, 2.99999 : 28.99994]",
+        "file": "Gerber_TopLayer.GTL",
+        "sha256": "5bd999be57b404dae665a4ba6450a3675987f79d4960be3fce5acd9d8f07a85f",
+        "shapes": 21,
+        "bounds": "Env[0.9999899999999999 : 42.99991, 0.9999899999999999 : 30.99994]",
+        "apertures": 8,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_TopSilkscreenLayer.GTO",
+        "sha256": "fa847a2b68dfce1be6f5d7aea88f702c1abd56bbaa54e6f2caab0008086dd70c",
+        "error": "org.flatcam.cam.gerber.GerberParseException: Unsupported Gerber line: G01",
+        "status": "ERROR"
+      },
+      {
+        "area": 113.84173608349086,
+        "valid": true,
+        "followBounds": "Env[2.99999 : 40.99991, 2.99999 : 28.99994]",
+        "file": "Gerber_TopSolderMaskLayer.GTS",
+        "sha256": "7a480678ef44b54f5ce2ffd563b6662c28f8d53d37b0c926d448c3c0b6277ee6",
+        "shapes": 21,
+        "bounds": "Env[0.9491899999999998 : 43.05071, 0.9491899999999998 : 31.050739999999998]",
+        "apertures": 8,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      }
+    ],
+    "zeroSuppressionBasicChecks": true
+  },
+  "fixedParserReplay": {
+    "schema": 1,
+    "java": "25.0.4.1",
+    "cases": [
+      {
+        "slots": {},
+        "file": "Drill_PTH_Through.DRL",
+        "sha256": "59c17b40f2722ac63b1a50486523739feb42e4966a4021844a5042aebe3e2909",
+        "drills": {
+          "1": 3,
+          "2": 4,
+          "3": 6,
+          "4": 5,
+          "5": 3
+        },
+        "bounds": "Env[1.0 : 43.0, 1.0 : 31.0]",
+        "units": "MM",
+        "type": "Excellon",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "slots": {},
+        "file": "Drill_PTH_Through_Via.DRL",
+        "sha256": "e2da2bc94dcf62d2defe75009a8ba1d3fb21ad33788fd507b4a16bc03f047662",
+        "drills": {},
+        "bounds": "Env[0.0 : -1.0, 0.0 : -1.0]",
+        "units": "MM",
+        "type": "Excellon",
+        "empty": true,
+        "status": "PARSED"
+      },
+      {
+        "area": 37.739038061648216,
+        "valid": true,
+        "followBounds": "Env[0.0 : 43.99991, 0.0 : 32.004]",
+        "file": "Gerber_BoardOutlineLayer.GKO",
+        "sha256": "ca6293c29a6dab74892a6459b9691c7c2abeafbd767c0f406d09c4996fbae72e",
+        "shapes": 8,
+        "bounds": "Env[-0.127 : 44.126909956125274, -0.127 : 32.131]",
+        "apertures": 2,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 785.5722187016603,
+        "valid": true,
+        "followBounds": "Env[0.25908 : 40.99991, 0.25908 : 31.74492]",
+        "file": "Gerber_BottomLayer.GBL",
+        "sha256": "d7410bed7e46243d7082231bcafa0b96cbdec5b31c382604475091a8152a9277",
+        "shapes": 67,
+        "bounds": "Env[0.25908 : 42.99991, 0.25908 : 31.74492]",
+        "apertures": 10,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 113.84173608349086,
+        "valid": true,
+        "followBounds": "Env[2.99999 : 40.99991, 2.99999 : 28.99994]",
+        "file": "Gerber_BottomSolderMaskLayer.GBS",
+        "sha256": "163bc2fb4fd35fcd013da0aa33f263506aa6f05654a593f70316ceadf6031aec",
+        "shapes": 21,
+        "bounds": "Env[0.9491899999999998 : 43.05071, 0.9491899999999998 : 31.050739999999998]",
+        "apertures": 8,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 36.69181011444019,
+        "valid": true,
+        "followBounds": "Env[5.39394 : 41.08196, 2.85597 : 32.05073]",
+        "file": "Gerber_DocumentLayer.GDL",
+        "sha256": "4edaf3a878af9c3ebcc03bdb0ff181d0cc85b0b946c658d60d0ad8078b04aa5a",
+        "shapes": 18,
+        "bounds": "Env[5.39394 : 41.08196, 2.606271135948707 : 32.05073]",
+        "apertures": 2,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 105.60855574987445,
+        "valid": true,
+        "followBounds": "Env[2.99999 : 40.99991, 2.99999 : 28.99994]",
+        "file": "Gerber_TopLayer.GTL",
+        "sha256": "5bd999be57b404dae665a4ba6450a3675987f79d4960be3fce5acd9d8f07a85f",
+        "shapes": 21,
+        "bounds": "Env[0.9999899999999999 : 42.99991, 0.9999899999999999 : 30.99994]",
+        "apertures": 8,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 111.50798696197987,
+        "valid": true,
+        "followBounds": "Env[5.519719871257079 : 41.95699, 0.4445 : 31.92398]",
+        "file": "Gerber_TopSilkscreenLayer.GTO",
+        "sha256": "fa847a2b68dfce1be6f5d7aea88f702c1abd56bbaa54e6f2caab0008086dd70c",
+        "shapes": 199,
+        "bounds": "Env[5.392867517883552 : 42.08399, 0.3683 : 32.05098]",
+        "apertures": 4,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      },
+      {
+        "area": 113.84173608349086,
+        "valid": true,
+        "followBounds": "Env[2.99999 : 40.99991, 2.99999 : 28.99994]",
+        "file": "Gerber_TopSolderMaskLayer.GTS",
+        "sha256": "7a480678ef44b54f5ce2ffd563b6662c28f8d53d37b0c926d448c3c0b6277ee6",
+        "shapes": 21,
+        "bounds": "Env[0.9491899999999998 : 43.05071, 0.9491899999999998 : 31.050739999999998]",
+        "apertures": 8,
+        "units": "MM",
+        "type": "Gerber",
+        "empty": false,
+        "status": "PARSED"
+      }
+    ],
+    "zeroSuppressionBasicChecks": true
+  },
+  "originalPythonParserReplay": {
+    "cases": [
+      {
+        "file": "Gerber_BoardOutlineLayer.GKO",
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_BottomLayer.GBL",
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_BottomSolderMaskLayer.GBS",
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_DocumentLayer.GDL",
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_TopLayer.GTL",
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_TopSilkscreenLayer.GTO",
+        "status": "PARSED"
+      },
+      {
+        "file": "Gerber_TopSolderMaskLayer.GTS",
+        "status": "PARSED"
+      }
+    ],
+    "scope": "Real Python parsing with test stub app; not full GUI."
+  },
+  "zeroVariants": {
+    "variants": [
+      {
+        "mode": "padded",
+        "exactGeometry": true,
+        "hausdorffMM": 0.0
+      },
+      {
+        "mode": "trailing",
+        "exactGeometry": true,
+        "hausdorffMM": 0.0
+      },
+      {
+        "mode": "fixed",
+        "exactGeometry": true,
+        "hausdorffMM": 0.0
+      }
+    ]
+  },
+  "zeroEquivalenceBefore": {
+    "fullWidthLZ": 43.99991,
+    "fullWidthTZ": 43.99991000000001,
+    "outlineApproximationHausdorffMM": 0.002281632889390364,
+    "note": "Not a change of board scale. One-ULP decoding difference changed arc sampling; fixed with exact decimal conversion."
+  },
+  "newTests": {
+    "mandatory": 64,
+    "privateZipOptIn": 1,
+    "camBodyCases": 41,
+    "camLegacyFailuresPerRepetition": 24,
+    "camCorrectedFailures": 0,
+    "camRepeatCount": 10,
+    "camLegacyTotalExecutions": 410,
+    "camLegacyTotalFailures": 240,
+    "camCorrectedTotalFailures": 0,
+    "filterCases": 23,
+    "filterFailuresBefore": 21,
+    "filterFailuresAfter": 0
+  },
+  "corpus": {
+    "parsed": 88,
+    "boards": 8,
+    "perFileMetadataSemanticallyUnchanged": true,
+    "previewWktUnchanged": true,
+    "normalization": "Compare the textual drill-tool Map as key/value pairs, since Map.copyOf iteration order varies between JVMs. No coordinate normalization or rounding.",
+    "errors": 0
+  },
+  "fullVerify": {
+    "cases": 2668,
+    "passed": 2648,
+    "skipped": 20,
+    "failures": 0,
+    "errors": 0,
+    "duration": "06:00",
+    "log": "target/gerber-relay-audit-20261114/final-full-verify.log"
+  },
+  "fixes": [
+    "Common Gerber suffixes and uppercase patterns centralized across open/export/save.",
+    "All files fallback while keeping the primary open filter selected.",
+    "Preserve the layer suffix after editor naming.",
+    "Accept only isolated G1/G01/G2/G02/G3/G03 without a star.",
+    "UTF-8 BOM at start for Gerber and Excellon.",
+    "Reject unmatched, nested or unclosed regions with a domain error.",
+    "Stop at Gerber EOF, preserve optional stop behavior.",
+    "Consistent exact-decimal coordinate conversion across zero-suppression modes.",
+    "Accept neutral legacy OF/SF/AS/IP; refuse unsupported non-neutral transformations instead of silently ignoring."
+  ],
+  "limits": [
+    "The OS-native file dialog was not shown; tests check the FileChooser objects wired into MainWindow and replay real UI import queues without a Stage.",
+    "No new image-transform or step-and-repeat implementation, no claim of universal Gerber support.",
+    "No physical CNC validation, version bump, installer or remote push in this task."
+  ],
+  "finalSourceSha256": {
+    "GerberParser": "5fef5eb1b81ea99fbbf567279c2f5f7388d444970850ff09d8a428dda75eb7c1",
+    "FormatSpec": "301aeac66df83b44509c0f988f1cf95e37ce031feb3688613380c5e92db35a2b",
+    "ExcellonParser": "722a45386a8764022d24842ef339d50e9494135d38272e015593d9fb3cea03c0",
+    "CamFileFilters": "54dfc66f91092acbd5a16a6148f1ecd9e142596367362241db8d555cdd1026f3"
+  },
+  "privateZipUiReplay": {
+    "tests": 1,
+    "passed": 1,
+    "failures": 0,
+    "errors": 0,
+    "newGerbers": 7,
+    "excellons": 2,
+    "drills": 21,
+    "expectedEmptyViaFiles": 1,
+    "log": "target/gerber-relay-audit-20261114/final-ui-queue.log"
+  },
+  "implementationCommit": "017ba0fd"
+}

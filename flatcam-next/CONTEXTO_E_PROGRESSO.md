@@ -1,5 +1,34 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Prioridade: bugs de importação de Yago — 2026-11-14
+
+**Implementação/otimização de usinagem e Espiral pausada por pedido do usuário.**
+Não retomar automaticamente a otimização do fallback radial ou Standard ao
+terminar estes bugs; aguardar novo direcionamento. A prioridade é importação.
+
+Build completo final: 2.668 casos, 2.648 aprovados, 20 opcionais ignorados,
+zero falhas/erros; teste privado da fila real executado separadamente.
+
+Corrigidos filtros Gerber unificados (incluindo GKO/GTO/GDL/GTS/GBS, camadas
+internas, maiúsculas e Todos os arquivos), nomes .GKO_edit ao salvar, e comandos
+G1/G01/G2/G02/G3/G03 isolados sem `*`, como no ZIP do relato. Os sete Gerbers
+originais e dois DRLs abrem; 21 furos preservados, arquivo Via legitimamente vazio.
+Teste optativo passa pela fila real da interface, sem Stage ou preferências reais.
+
+Revisão também corrigiu BOM UTF-8 Gerber/Excellon, validação de regiões, leitura
+após EOF e arredondamento consistente de coordenadas LZ/TZ. GKO LZ original já
+lia zeros corretamente; variantes equivalentes agora são idênticas, sem alterar
+escala. Cabeçalhos antigos OF/SF/AS/IP neutros mantidos; transformações não
+implementadas são recusadas claramente, em vez de ignoradas.
+
+64 testes novos obrigatórios e um optativo com ZIP privado; 41 casos CAM
+repetidos 10x contra classes antigas/corrigidas confirmam regressões. Acervo:
+88 arquivos/8 placas sem erros, oito prévias anteriores preservadas exatamente.
+Ver [escopo, evidência e reprodução](GERBER_IMPORT_REVIEW.md) e
+`validation/gerber-import-review-20261114.json`. Não adicionar o ZIP privado ao
+Git. Sem bump/MSI ou push; permanece a próxima Beta conjunta.
+
+
 ## Standard: sobras entre offsets corrigidas — 2026-11-12
 
 Build completo: 2.603 casos, 2.584 aprovados, 19 opcionais ignorados, zero falhas.
