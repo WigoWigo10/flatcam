@@ -10,19 +10,20 @@ esses requisitos são só de quem gera a distribuição.
 .\test-beta.ps1
 ```
 
-Na Beta 7, cada imagem (portátil, instalada e atualizada) também executa os
+Desde a Beta 7, cada imagem (portátil, instalada e atualizada) também executa os
 13 cenários CAM: menus de editor, Paint com origem removida,
 cancelamento tardio, unidade fixa, polígonos agrupados, parâmetros por fresa e
 preservação da seleção da ferramenta seguinte ao fechar o Paint.
 O relatório rejeita exclusões, erros do instrumento ou identidade divergente.
 Mantém ângulo Lines, rascunho NCC, recortes internos, CNC/projetos e idiomas.
-Forneça o MSI entregue da Beta 6 em `-PreviousMsi`; Beta 7 usa MSI 0.1.70.
+Na Beta 8, forneça o MSI entregue da Beta 7 em `-PreviousMsi`; a versão MSI
+passa de 0.1.70 para 0.1.80.
 
 Para validar também a atualização da Beta anterior, use o MSI realmente
 distribuído na rodada anterior:
 
 ```powershell
-.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.6-windows-x64-setup.msi"
+.\test-beta.ps1 -PreviousMsi "C:\caminho\FlatCAM-FX-0.1.0-beta.7-windows-x64-setup.msi"
 ```
 
 O teste recusa substituir uma instalação do usuário. Instala a versão antiga
@@ -50,7 +51,7 @@ caminhos de atualização, forneça os MSIs anteriores como array:
 Arquivos/notas/manifesto usam `-rN` quando N > 0; a versão Maven/app permanece
 a mesma. A versão MSI agora reserva dez builds por Beta:
 `major.minor.(patch*1000 + beta*10 + revisão)`. Beta 4 r1 = 0.1.41;
-Beta 5 r0 = 0.1.50; Beta 6 r0 = 0.1.60; Beta 7 r0 = 0.1.70. MSIs antigos 0.1.3/0.1.4 continuam abaixo e a família
+Beta 5 r0 = 0.1.50; Beta 6 r0 = 0.1.60; Beta 7 r0 = 0.1.70; Beta 8 r0 = 0.1.80. MSIs antigos 0.1.3/0.1.4 continuam abaixo e a família
 permanece. O verificador compara versões MSI numéricas, permitindo atualizar
 uma revisão da mesma versão do app. Conferir o commit nos JARs impede aceitar
 o JAR anterior quando o nome do arquivo não muda. A revisão do ponteiro padrão

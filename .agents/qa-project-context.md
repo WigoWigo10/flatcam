@@ -1,5 +1,9 @@
 # QA project context — FlatCAM FX
 
+Beta 8 release explicitly requested on 2026-11-14: version 0.1.0-beta.8, MSI
+0.1.80. Build and package validation in progress. Prior "keep Beta 7/no MSI"
+notes below are historical. No remote push or tester delivery requested.
+
 Optimization resumed by explicit user request (2026-11-14): dense SPIRAL budget
 work is active again. The import fixes remain committed and validated. Dense
 offsets now use a fixed center-component reference; small/terminal branches
