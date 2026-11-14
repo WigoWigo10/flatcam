@@ -131,6 +131,34 @@ Isso não substitui uma VM limpa, um segundo computador, teste físico CNC,
 auditoria de segurança ou avaliação manual de todos os diálogos/DPI. Esses
 itens ficam explicitamente fora da aprovação automatizada desta primeira Beta.
 
+## Controles CAM adicionais da Beta 8
+
+A entrega também conferiu os seis métodos na Audio Watermark (cobertura e
+GRBL relido), mais 32 controles Standard, 32 Espiral e 96 Lines por regiões.
+Os probes foram compilados contra os JARs distribuídos e executados pelo Java
+incluído, sem classes CAM de desenvolvimento no classpath. Fonte, versão e
+commit foram conferidos; os seis WKT coincidiram com a revisão anterior à
+mudança de versão. O alvo comunitário é diagnóstico, não Outline físico.
+
+Para repetir a campanha em saídas novas, depois da geração:
+
+```powershell
+$betaBuild=(Get-Content target/beta-latest.txt -Raw).Trim()
+$betaImage=Join-Path $betaBuild 'image/FlatCAM FX Beta'
+$betaApp=Join-Path $betaImage 'app'
+$betaClasses=Join-Path $betaBuild 'cam-repeat-classes'
+New-Item -ItemType Directory -Path $betaClasses | Out-Null
+& "$env:JAVA_HOME/bin/javac.exe" -cp "$betaApp/*" -d $betaClasses tools/SpiralCommunityProbe.java
+& (Join-Path $betaImage 'runtime/bin/java.exe') -Xmx3g '-Dflatcam.spiral.methods=STANDARD,LINES,SEED,COMBO,REGION_LINES,SPIRAL' '-Dflatcam.spiral.boards=audio-watermark' -cp "$betaClasses;$betaApp/*" SpiralCommunityProbe samples/community/validation/fx-import.json (Join-Path $betaBuild 'cam-repeat-audio')
+foreach($method in @('STANDARD','SPIRAL','REGION_LINES')) {
+    .\tools\audit-cam-related.ps1 -BuildDirectory $betaBuild -Lines -Method $method -OutputDirectory (Join-Path $betaBuild ('cam-repeat-distance-'+$method))
+}
+```
+
+Conferir erros, completude, resíduos brutos/núcleo e origem das classes nos
+relatórios. `MEASURED` não certifica cobertura perfeita ou CNC física. Tempos
+dessas auditorias não são benchmark isolado.
+
 ## Opções para desenvolvimento
 
 `-AllowDirty` no gerador identifica o pacote como dirty; não deve receber tag

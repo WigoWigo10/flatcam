@@ -1,11 +1,14 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
-## Beta 8 solicitada — 2026-11-14
+## Beta 8 gerada e validada — 2026-11-14
 
 Versão 0.1.0-beta.8, MSI 0.1.80, reunindo as alterações pós-Beta 7.
-Preparação, build integral e validação do portátil/MSI/upgrade em andamento.
+Fonte dos pacotes: `0b910a9e`, árvore limpa. Build integral: 2.652 aprovados,
+20 opcionais ignorados, zero falhas/erros. Portátil, MSI e atualização Beta 7 → 8
+aprovados. Seis métodos de limpeza e 160 controles de distância conferidos nos
+JARs distribuídos, sem override. MSI/EXE/ZIP em Downloads com hashes verificados.
 As declarações anteriores de manter a Beta 7 ou adiar instaladores são históricas.
-Notas: `release/BETA-0.1.0-beta.8.md`; resultados serão registrados em
+Notas: `release/BETA-0.1.0-beta.8.md`; resultados registrados em
 `release/VALIDACAO-0.1.0-beta.8.md`. Sem push ou envio ao testador.
 
 ## Otimização retomada por solicitação do usuário — 2026-11-14

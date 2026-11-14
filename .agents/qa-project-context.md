@@ -1,7 +1,12 @@
 # QA project context — FlatCAM FX
 
 Beta 8 release explicitly requested on 2026-11-14: version 0.1.0-beta.8, MSI
-0.1.80. Build and package validation in progress. Prior "keep Beta 7/no MSI"
+0.1.80. Packages built from clean source 0b910a9e. Full verify: 2652 passed,
+20 optional skips, zero failures/errors. Portable, MSI install/uninstall and
+Beta 7 upgrade passed. Packaged six-method coverage and 160 distance controls
+passed without class overrides. MSI/EXE/ZIP hashes rechecked in Downloads.
+See release/VALIDACAO-0.1.0-beta.8.md and validation/beta8-distribution-20261114.json.
+Prior "keep Beta 7/no MSI"
 notes below are historical. No remote push or tester delivery requested.
 
 Optimization resumed by explicit user request (2026-11-14): dense SPIRAL budget
