@@ -1,0 +1,911 @@
+{
+  "schema": 1,
+  "date": "2026-11-14",
+  "baselineRevision": "d5cab46a",
+  "hardware": "Intel Core Ultra 7 155H; 22 logical processors; 31.4 GiB RAM",
+  "protocol": "Three fresh JVM pairs, order before/after, after/before, before/after. Three repetitions per board per JVM; first calls retained, excluded from warm median. Generation only. No other project validation processes during this run; OS background load and temperature uncontrolled. No FPS, peak RAM or actual CNC time measured.",
+  "summary": [
+    {
+      "board": "audio-watermark",
+      "before": {
+        "warmSamples": 6,
+        "medianMs": 4785.09505,
+        "minMs": 4651.9746,
+        "maxMs": 5498.6284,
+        "medianCpuMs": 6039.0625,
+        "radialFallback": [
+          true
+        ],
+        "points": [
+          141281
+        ]
+      },
+      "after": {
+        "warmSamples": 6,
+        "medianMs": 2588.7395500000002,
+        "minMs": 2511.5893,
+        "maxMs": 2771.9198,
+        "medianCpuMs": 3140.625,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          522224
+        ]
+      },
+      "medianReductionPercent": 45.899934631392526
+    },
+    {
+      "board": "breadboard-power-supply",
+      "before": {
+        "warmSamples": 6,
+        "medianMs": 143.3954,
+        "minMs": 118.4402,
+        "maxMs": 205.2285,
+        "medianCpuMs": 601.5625,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          37703
+        ]
+      },
+      "after": {
+        "warmSamples": 6,
+        "medianMs": 124.38795,
+        "minMs": 99.3942,
+        "maxMs": 153.2706,
+        "medianCpuMs": 593.75,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          30825
+        ]
+      },
+      "medianReductionPercent": 13.255271786961087
+    },
+    {
+      "board": "modxo-adapter",
+      "before": {
+        "warmSamples": 6,
+        "medianMs": 110.45224999999999,
+        "minMs": 94.0483,
+        "maxMs": 126.675,
+        "medianCpuMs": 125.0,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          118570
+        ]
+      },
+      "after": {
+        "warmSamples": 6,
+        "medianMs": 68.0786,
+        "minMs": 65.1207,
+        "maxMs": 99.0801,
+        "medianCpuMs": 101.5625,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          33977
+        ]
+      },
+      "medianReductionPercent": 38.36377258045898
+    },
+    {
+      "board": "single-sided-5v",
+      "before": {
+        "warmSamples": 6,
+        "medianMs": 170.19285,
+        "minMs": 158.8968,
+        "maxMs": 230.4832,
+        "medianCpuMs": 226.5625,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          249413
+        ]
+      },
+      "after": {
+        "warmSamples": 6,
+        "medianMs": 98.68005,
+        "minMs": 92.6732,
+        "maxMs": 191.5434,
+        "medianCpuMs": 140.625,
+        "radialFallback": [
+          false
+        ],
+        "points": [
+          73085
+        ]
+      },
+      "medianReductionPercent": 42.01868644893132
+    }
+  ],
+  "runs": [
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: selected MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "before-1",
+      "processors": 22,
+      "boardFilter": "breadboard-power-supply|modxo-adapter|single-sided-5v|audio-watermark",
+      "measurements": [
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 1921.875,
+          "generationMs": 332.9197,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 375,
+          "generationMs": 121.1012,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 468.75,
+          "generationMs": 118.4402,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 0,
+          "processCpuMs": 11609.375,
+          "generationMs": 5318.8199,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 1,
+          "processCpuMs": 5718.75,
+          "generationMs": 4651.9746,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 2,
+          "processCpuMs": 6359.375,
+          "generationMs": 4801.5213,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 171.875,
+          "generationMs": 102.292,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 250,
+          "generationMs": 123.0626,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 109.375,
+          "generationMs": 96.4001,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 203.125,
+          "generationMs": 163.9795,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 250,
+          "generationMs": 175.8011,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 156.25,
+          "generationMs": 158.8968,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: selected MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "after-1",
+      "processors": 22,
+      "boardFilter": "breadboard-power-supply|modxo-adapter|single-sided-5v|audio-watermark",
+      "measurements": [
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 2203.125,
+          "generationMs": 349.1634,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 593.75,
+          "generationMs": 142.1158,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 687.5,
+          "generationMs": 129.2963,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 0,
+          "processCpuMs": 4890.625,
+          "generationMs": 2738.6998,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 1,
+          "processCpuMs": 3000,
+          "generationMs": 2591.3548,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 2,
+          "processCpuMs": 3312.5,
+          "generationMs": 2538.037,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 78.125,
+          "generationMs": 68.1201,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 125,
+          "generationMs": 66.4165,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 78.125,
+          "generationMs": 65.1207,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 125,
+          "generationMs": 92.9936,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 156.25,
+          "generationMs": 100.1179,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 125,
+          "generationMs": 92.6732,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: selected MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "before-2",
+      "processors": 22,
+      "boardFilter": "breadboard-power-supply|modxo-adapter|single-sided-5v|audio-watermark",
+      "measurements": [
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 2609.375,
+          "generationMs": 522.3805,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 875,
+          "generationMs": 205.2285,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 718.75,
+          "generationMs": 153.9396,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 0,
+          "processCpuMs": 14296.875,
+          "generationMs": 6652.7024,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 1,
+          "processCpuMs": 7265.625,
+          "generationMs": 5498.6284,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 2,
+          "processCpuMs": 6968.75,
+          "generationMs": 5152.0501,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 156.25,
+          "generationMs": 127.7307,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 234.375,
+          "generationMs": 126.675,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 125,
+          "generationMs": 118.7664,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 328.125,
+          "generationMs": 263.1401,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 281.25,
+          "generationMs": 230.4832,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 218.75,
+          "generationMs": 214.1099,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: selected MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "after-2",
+      "processors": 22,
+      "boardFilter": "breadboard-power-supply|modxo-adapter|single-sided-5v|audio-watermark",
+      "measurements": [
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 1937.5,
+          "generationMs": 366.1115,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 687.5,
+          "generationMs": 153.2706,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 453.125,
+          "generationMs": 108.5162,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 0,
+          "processCpuMs": 5781.25,
+          "generationMs": 2973.8491,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 1,
+          "processCpuMs": 3093.75,
+          "generationMs": 2771.9198,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 2,
+          "processCpuMs": 3265.625,
+          "generationMs": 2748.4079,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 125,
+          "generationMs": 94.2631,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 218.75,
+          "generationMs": 99.0801,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 78.125,
+          "generationMs": 78.661,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 218.75,
+          "generationMs": 120.0084,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 234.375,
+          "generationMs": 191.5434,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 156.25,
+          "generationMs": 116.0388,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: selected MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "before-3",
+      "processors": 22,
+      "boardFilter": "breadboard-power-supply|modxo-adapter|single-sided-5v|audio-watermark",
+      "measurements": [
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 2203.125,
+          "generationMs": 440.2524,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 515.625,
+          "generationMs": 160.7744,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 687.5,
+          "generationMs": 132.8512,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.0127217989648,
+          "points": 37703
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 0,
+          "processCpuMs": 11640.625,
+          "generationMs": 5634.8838,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 1,
+          "processCpuMs": 5375,
+          "generationMs": 4674.2856,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": true,
+          "paths": 3167,
+          "repeat": 2,
+          "processCpuMs": 5468.75,
+          "generationMs": 4768.6688,
+          "board": "audio-watermark",
+          "cutLength": 11130.745558965571,
+          "points": 141281
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 125,
+          "generationMs": 97.8015,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 125,
+          "generationMs": 102.1381,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 93.75,
+          "generationMs": 94.0483,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0144825538935,
+          "points": 118570
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 234.375,
+          "generationMs": 164.8023,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 234.375,
+          "generationMs": 164.5846,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 140.625,
+          "generationMs": 162.2897,
+          "board": "single-sided-5v",
+          "cutLength": 2750.8342530684404,
+          "points": 249413
+        }
+      ]
+    },
+    {
+      "java": "25.0.4.1",
+      "scope": "Generation only: selected MM Paint targets, .4 mm, 40% overlap, Connect/Contour on, no Rest. Three repeats per board; repeat 0 includes cold/JIT effects, later repeats warm. Process CPU includes concurrent JVM threads; not renderer FPS, physical CNC time or peak RAM.",
+      "maxHeap": 3221225472,
+      "tag": "after-3",
+      "processors": 22,
+      "boardFilter": "breadboard-power-supply|modxo-adapter|single-sided-5v|audio-watermark",
+      "measurements": [
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 0,
+          "processCpuMs": 1921.875,
+          "generationMs": 337.3359,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 1,
+          "processCpuMs": 562.5,
+          "generationMs": 119.4796,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 66,
+          "repeat": 2,
+          "processCpuMs": 593.75,
+          "generationMs": 99.3942,
+          "board": "breadboard-power-supply",
+          "cutLength": 1860.010103175186,
+          "points": 30825
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 0,
+          "processCpuMs": 5406.25,
+          "generationMs": 2821.885,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 1,
+          "processCpuMs": 2875,
+          "generationMs": 2511.5893,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 308,
+          "repeat": 2,
+          "processCpuMs": 3187.5,
+          "generationMs": 2586.1243,
+          "board": "audio-watermark",
+          "cutLength": 10431.165699891,
+          "points": 522224
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 0,
+          "processCpuMs": 78.125,
+          "generationMs": 67.5768,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 1,
+          "processCpuMs": 156.25,
+          "generationMs": 69.7407,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 19,
+          "repeat": 2,
+          "processCpuMs": 62.5,
+          "generationMs": 65.1277,
+          "board": "modxo-adapter",
+          "cutLength": 1414.0617812249434,
+          "points": 33977
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 0,
+          "processCpuMs": 328.125,
+          "generationMs": 96.6675,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 1,
+          "processCpuMs": 125,
+          "generationMs": 94.815,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        },
+        {
+          "radialFallback": false,
+          "paths": 27,
+          "repeat": 2,
+          "processCpuMs": 109.375,
+          "generationMs": 97.2422,
+          "board": "single-sided-5v",
+          "cutLength": 2737.6021303252337,
+          "points": 73085
+        }
+      ]
+    }
+  ]
+}

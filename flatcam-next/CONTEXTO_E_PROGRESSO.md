@@ -1,5 +1,18 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Otimização retomada por solicitação do usuário — 2026-11-14
+
+A pausa foi revogada explicitamente. O foco voltou à espiral densa que atingia
+o orçamento e retornava à radial. Correções de importação permanecem commitadas.
+Referência fixa para offsets densos, cálculo local para ramos pequenos/finais,
+cache limitado; orçamento, diâmetro e fallback atômico preservados. Build:
+2.672 casos, 2.652 aprovados, 20 opcionais ignorados, zero falhas/erros.
+32 controles de distância aprovados; oito placas públicas e dois casos Rest
+densos conferidos. Audio: mediana de geração 4,785 → 2,589 s, sem retry radial;
+mais pontos de saída que a radial. Evidências e limites em
+`SPIRAL_BUDGET_OPTIMIZATION.md`. As notas de pausa abaixo são históricas.
+
+
 ## Prioridade: bugs de importação de Yago — 2026-11-14
 
 **Implementação/otimização de usinagem e Espiral pausada por pedido do usuário.**

@@ -1,5 +1,10 @@
 # Espiral adaptativa por bolsões — 2026-11-11
 
+Atualização de 14/11: offsets densos otimizados, incluindo Audio Watermark sem
+retry radial no ensaio de 0,4 mm. Estratégia, medições e limites atuais em
+[`SPIRAL_BUDGET_OPTIMIZATION.md`](SPIRAL_BUDGET_OPTIMIZATION.md). Os números e o
+retry Audio abaixo registram a rodada de 11/11.
+
 Escopo autorizado após `8330c5ff`: melhorar áreas alongadas e com ilhas,
 comparando cobertura, movimentos, G-code e custo de geração. Integrada em
 Paint/NCC/Rest, sem mudar IDs Python, outros métodos, padrões, diâmetros ou

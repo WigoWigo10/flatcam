@@ -56,13 +56,15 @@ public class ClearingCoverageProbe {
                         result=NccGenerator.paint(units,box.difference(copper),new PaintParameters(diameters,.4,0,method,true,true,NccOrder.NONE,true,settings),token,ProgressCallback.none());
                     }
                     if(!before.equals(copper.toText()))throw new AssertionError("Source changed");
-                    return new Case(result.clearingArea(),result.toolResults().stream().map(t->new ToolGeometry(t.toolDiameter(),t.geometry())).toList(),result.toolResults().stream().map(t->t.targetArea()==null?result.clearingArea():t.targetArea()).toList());
+                    return new Case(result.clearingArea(),result.toolResults().stream().map(t->new ToolGeometry(t.toolDiameter(),t.geometry())).toList(),result.toolResults().stream().map(t->t.targetArea()==null?result.clearingArea():t.targetArea()).toList(),result.toolResults().stream().map(t->t.regionDiagnostics()!=null&&t.regionDiagnostics().radialFallback()).toList());
                 },metadata);
             }
         }
     }
     interface Generate { Case get(CancellationToken token) throws Exception; }
-    record Case(Geometry area,List<ToolGeometry> tools,List<Geometry> targets) { }
+    record Case(Geometry area,List<ToolGeometry> tools,List<Geometry> targets,List<Boolean> radialFallback) {
+        Case(Geometry area,List<ToolGeometry> tools,List<Geometry> targets){this(area,tools,targets,List.of());}
+    }
     static boolean selected(String id){return id.matches(System.getProperty("flatcam.audit.caseFilter",".*"));}
     static void audit(Path out,String id,String board,String units,String operation,Generate generate,JSONObject metadata)throws Exception {
         long start=System.nanoTime();CancellationToken token=()->System.nanoTime()-start>BUDGET*1e9;
@@ -95,6 +97,10 @@ public class ClearingCoverageProbe {
                         .put("ownRemainingArea",raw.steps().get(i).ownRemainingArea()).put("cumulativeRemainingArea",raw.steps().get(i).cumulativeRemainingArea()));
             }
             // Multi-tool export is also parsed, so tool changes and collective ordering are exercised.
+            for(int i=0;i<details.length();i++) {
+                details.getJSONObject(i).put("sourcePoints",c.tools().get(i).geometry().getNumPoints());
+                if(i<c.radialFallback().size())details.getJSONObject(i).put("radialFallback",c.radialFallback().get(i));
+            }
             var combined=GCodeToolpathParser.parse(GCodeGenerator.generateGeometryCncJob(units,c.tools(),params,Map.of(),token,GCodePreprocessor.GRBL_11_NO_M6).gcode(),token,ProgressCallback.none());
             if(!combined.plotAvailable())throw new IllegalStateException(combined.warning());
             double combinedError=Math.abs(combined.cutCenterlines().getLength()-totalCut);

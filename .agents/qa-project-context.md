@@ -1,5 +1,17 @@
 # QA project context — FlatCAM FX
 
+Optimization resumed by explicit user request (2026-11-14): dense SPIRAL budget
+work is active again. The import fixes remain committed and validated. Dense
+offsets now use a fixed center-component reference; small/terminal branches
+stay local and the offset cache is bounded. Published sample/depth/node limits
+and the atomic radial fallback remain unchanged. Full build: 2672 cases, 2652
+passed, 20 optional skips, no failures/errors. All 32 distance controls passed;
+eight public boards and two dense Rest cases audited. Audio generation median
+4785 -> 2589 ms, no radial retry, but more output points than radial. See
+flatcam-next/SPIRAL_BUDGET_OPTIMIZATION.md for evidence and limitations.
+Earlier pause notes below are historical, not the current instruction.
+
+
 User priority (2026-11-14): machining/spiral implementation and optimization are
 PAUSED at the user's request. Focus on Yago's import bugs. Do not automatically
 resume radial fallback or Standard optimization after closing this task.
