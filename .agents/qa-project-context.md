@@ -1,5 +1,23 @@
 # QA project context — FlatCAM FX
 
+2026-11-17: initial Evo v1.09 reference review, no features ported. Isolated
+shallow clone at flatcam-next/target/evo-review-20261117, 18049df9. See
+FLATCAM_EVO_REVIEW.md; preserve the old Python oracle separately.
+Live mixed-DPI test on packaged Beta 8 FAILS for a restored 100% -> 200% move:
+native HWND DPI 192, JavaFX scales remain 1; maximizing recreates at scale 2
+with same Scene/object. See MULTI_MONITOR_REVIEW_20261117.md. Prior 80 focused
+splash/screen tests passed on Nov14, not a full live-window certification.
+Development fix now uses optional own-HWND Win32/FFM telemetry, stable monitor
+identity and Stage recreation preserving Scene/drafts and maximization intent.
+Live restored-window scale recovery passed both 100%/200% directions; isolated
+clean close/reopen retained primary monitor and its sidebar setting. Nine new
+tests passed, including deferred recovery with an owned dialog draft. Full verify:
+2661 passed, 20 optional skips, zero failures/errors; native launcher rebuilt.
+Full dialog/two-sidebar-width/unplug/Software matrix remains incomplete. UI
+connector foreground ambiguity ended the final visual capture, with no input
+sent to the wrong surface. All prefs stayed in fixture files. No new Beta/MSI;
+the original Beta 8 package still predates this fix.
+
 Beta 8 release explicitly requested on 2026-11-14: version 0.1.0-beta.8, MSI
 0.1.80. Packages built from clean source 0b910a9e. Full verify: 2652 passed,
 20 optional skips, zero failures/errors. Portable, MSI install/uninstall and

@@ -202,7 +202,7 @@ int launchApplication(int argc, wchar_t** argv) {
         "--module-path=" + utf8(paths.modulePath),
         "--add-modules=javafx.controls",
         // Glass/Prism load platform libraries in javafx.graphics (JDK 24+ native-access policy).
-        "--enable-native-access=javafx.graphics",
+        "--enable-native-access=javafx.graphics,ALL-UNNAMED",
         // Targeted workaround for HotSpot mixed UTF16/Latin1 substring false negatives.
         "-XX:+UnlockDiagnosticVMOptions",
         "-XX:DisableIntrinsic=_indexOfUL",

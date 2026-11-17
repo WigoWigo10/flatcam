@@ -1,5 +1,27 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Revisão Evo e ensaio multitela — 2026-11-17
+
+Evo v1.09 preservado em `target/evo-review-20261117`, commit `18049df9`;
+nenhuma funcionalidade integrada. Inventário inicial e riscos de `.FlatPrj`
+em `FLATCAM_EVO_REVIEW.md`. Candidato inicial: direção de corte por fresa
+NCC/Paint, com múltiplas profundidades e orientação preservadas.
+
+Ensaio real nos JARs Beta 8 confirmou falha ao mover a janela RESTAURADA de
+100% para 200%: HWND DPI 192, JavaFX output/renderScale 1, interface deformada.
+Maximizar recriou a Stage com escala 2 e preservou Scene/objeto. Os 80 testes
+focados de splash/posicionamento de 14/11 passaram, mas não cobrem esse caso.
+Correção de desenvolvimento agora recupera a escala também no modo restaurado,
+usando a janela/monitor Win32 e reaproveitando Scene e projeto. Ida e volta
+100%/200% confirmadas por telemetria; fechar/reabrir conserva a tela principal
+e seu ajuste da lateral. Nove testes novos passaram, incluindo rascunho de
+diálogo preservado. Build integral: 2.661 aprovados, 20 opcionais ignorados,
+zero falhas/erros; executável de desenvolvimento reconstruído.
+Matriz extensa de diálogos, larguras nas duas telas, Software e desconexão
+física ainda pendente. Ver
+`MULTI_MONITOR_REVIEW_20261117.md` e `validation/multi-monitor-live-20261117.json`.
+Sem nova Beta/MSI nesta rodada; os pacotes Beta 8 anteriores não contêm o reparo.
+
 ## Beta 8 gerada e validada — 2026-11-14
 
 Versão 0.1.0-beta.8, MSI 0.1.80, reunindo as alterações pós-Beta 7.

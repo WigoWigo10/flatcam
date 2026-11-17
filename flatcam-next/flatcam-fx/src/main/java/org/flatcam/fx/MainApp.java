@@ -40,6 +40,8 @@ public class MainApp extends Application {
     private Timeline maximizePoll;
     private String capturedScreenId;
     private double[] capturedScreenTopLeft;
+    private WindowsDpi.Sample lastNativeSample;
+    private int nativeStablePolls;
 
     private record StartupTarget(Screen screen, String screenId) {
     }
@@ -97,6 +99,11 @@ public class MainApp extends Application {
 
     private static StartupTarget startupTarget() {
         AppPreferences.SavedWindowScreen saved = AppPreferences.loadWindowScreen();
+        if (saved != null && saved.deviceId().startsWith("win32:")) {
+            for (Screen screen : Screen.getScreens()) {
+                if (saved.deviceId().equals(WindowsDpi.screenId(screen))) return new StartupTarget(screen, saved.deviceId());
+            }
+        }
         if (saved != null && isDeviceConnected(saved.deviceId())) {
             List<Screen> screens = Screen.getScreens();
             List<WindowScreenMatcher.Bounds> bounds = screens.stream()
@@ -144,54 +151,9 @@ public class MainApp extends Application {
         return best;
     }
 
-    /**
-     * Works around a real Glass/JavaFX limitation on Windows: dragging (not
-     * Win+Arrow snapping - confirmed that goes through a different,
-     * unaffected code path) a maximized window onto a monitor with a
-     * different DPI leaves the whole UI rendered at the WRONG scale once it
-     * re-maximizes there - confirmed via a live two-monitor test (200% and
-     * 100%) with a diagnostic poll logging the Stage's own bounds and
-     * Glass's reported render scale throughout the drag.
-     *
-     * <p>Two earlier versions of this workaround tried to detect the
-     * mismatch directly and both failed for reasons specific to this bug:
-     * <ul>
-     *   <li>{@code Stage.xProperty()}/{@code yProperty()}/{@code widthProperty()}/
-     *       {@code heightProperty()} change listeners never fired during a
-     *       real drag, despite those same properties' getters returning
-     *       fresh values on demand.</li>
-     *   <li>Re-deriving the correct scale independently via
-     *       {@code Screen.getScreensForRectangle(stage.getX(), getY(),
-     *       getWidth(), getHeight())} - reading the Stage's own bounds, not
-     *       its (stuck) {@code outputScaleX} - seemed promising, but logging
-     *       it throughout a real drag showed {@code getWidth()}/{@code
-     *       getHeight()} themselves inconsistently switch between physical
-     *       and logical pixel units while this bug is in effect. That
-     *       corrupts the very inputs this check depends on, so it can
-     *       under- or over-report a "match" against the last known scale
-     *       even while the visible bug is present.</li>
-     * </ul>
-     *
-     * <p>Since none of the Stage's own geometry can be trusted while this
-     * bug is active, this instead watches {@link Stage#isMaximized()} for a
-     * false-then-true transition: dragging a maximized window always
-     * restores it first and re-maximizes on drop (confirmed the same way),
-     * so that transition reliably brackets every drag-across-monitors,
-     * maximized or not. Once seen (held stable for
-     * {@link #STABILITY_THRESHOLD} polls, to ignore the brief un-maximized
-     * blip mid-drag), the Stage is unconditionally replaced with a brand new
-     * one on the same Scene (JavaFX allows reassigning a Scene to a
-     * different Window) - a new Stage, created fresh while already
-     * positioned on the current screen, computes its scale from scratch and
-     * gets it right every time (confirmed), the same way a full app restart
-     * on that monitor would. This never needs to know whether the scale
-     * was actually wrong; recreating when it wasn't is a harmless no-op.
-     *
-     * <p>The trade-off: a Stage moved (or dragged) between monitors while
-     * NOT maximized is not covered - this app is always launched maximized
-     * (see {@link #start}) and the reported bug and this port's own testing
-     * only concern the maximized case.
-     */
+    /** Poll native geometry as Glass may keep stale coordinates AND scales after a real drag.
+     * The native path handles restored/maximized windows; the legacy maximize transition
+     * remains a fallback when the optional Win32/Glass bridge is unavailable. */
     private void installDpiRescaleWorkaround(MainWindow mainWindow) {
         // Each recreate calls this again for the fresh Stage - without stopping the
         // PREVIOUS Timeline first, every past recreate left its own poll running
@@ -214,13 +176,20 @@ public class MainApp extends Application {
         // false (isMaximized() reads are ignored entirely) until ARM_DELAY after this
         // Stage was shown.
         armed = false;
+        lastNativeSample = null;
+        nativeStablePolls = 0;
         sawUnmaximizedSinceLastFix = false;
         maximizedStreak = 0;
         PauseTransition arm = new PauseTransition(ARM_DELAY);
         arm.setOnFinished(e -> armed = true);
         arm.play();
         maximizePoll = new Timeline(new KeyFrame(MAXIMIZE_POLL_INTERVAL, e -> {
-            if (recreatingStage || !armed) {
+            if (recreatingStage || !armed || !currentStage.isShowing()) {
+                return;
+            }
+            WindowsDpi.Sample sample = WindowsDpi.sample(currentStage);
+            if (sample != null) {
+                pollNativeDpi(mainWindow, sample);
                 return;
             }
             if (!currentStage.isMaximized()) {
@@ -259,35 +228,68 @@ public class MainApp extends Application {
         maximizePoll.play();
     }
 
-    private void recreateStageOnCurrentScreen(MainWindow mainWindow, String screenId, double[] screenTopLeft) {
+    private void pollNativeDpi(MainWindow window, WindowsDpi.Sample sample) {
+        if (sample.busy() || !currentStage.isFocused() || currentStage.isFullScreen() || hasOwnedWindow(currentStage)) {
+            lastNativeSample = null; nativeStablePolls = 0; return;
+        }
+        if (!sample.equals(lastNativeSample)) {
+            lastNativeSample = sample; nativeStablePolls = 1; return;
+        }
+        if (++nativeStablePolls < 3) return;
+        window.setCurrentScreenId(sample.deviceId());
+        if (Math.abs(currentStage.getOutputScaleX()-sample.scaleX()) < .001
+                && Math.abs(currentStage.getOutputScaleY()-sample.scaleY()) < .001) return;
+        recreatingStage = true;
+        try { recreateStage(window, sample.placement(), sample.deviceId()); }
+        finally { recreatingStage = false; }
+    }
+
+    private static boolean hasOwnedWindow(Stage owner) {
+        for (javafx.stage.Window other : javafx.stage.Window.getWindows()) {
+            if (!other.isShowing() || other == owner) continue;
+            javafx.stage.Window parent = other instanceof Stage stage ? stage.getOwner()
+                    : other instanceof javafx.stage.PopupWindow popup ? popup.getOwnerWindow() : null;
+            while (parent != null) {
+                if (parent == owner) return true;
+                parent = parent instanceof Stage stage ? stage.getOwner()
+                        : parent instanceof javafx.stage.PopupWindow popup ? popup.getOwnerWindow() : null;
+            }
+        }
+        return false;
+    }
+
+    private void recreateStageOnCurrentScreen(MainWindow window, String screenId, double[] screenTopLeft) {
+        if (hasOwnedWindow(currentStage)) { sawUnmaximizedSinceLastFix = true; return; }
+        double x = screenTopLeft == null ? currentStage.getX() : screenTopLeft[0];
+        double y = screenTopLeft == null ? currentStage.getY() : screenTopLeft[1];
+        recreateStage(window, new WindowsDpi.Placement(x,y,currentStage.getWidth(),currentStage.getHeight(),true),
+                screenId == null ? currentScreenId() : screenId);
+    }
+
+    private void recreateStage(MainWindow window, WindowsDpi.Placement placement, String screenId) {
         Stage old = currentStage;
         Scene scene = old.getScene();
-
-        Stage fresh = new Stage();
+        javafx.scene.Node focus = scene.getFocusOwner();
+        Stage fresh = new Stage(old.getStyle());
         fresh.setTitle(old.getTitle());
-        wireCloseHandler(fresh, mainWindow);
+        fresh.setOpacity(old.getOpacity());
+        fresh.getIcons().setAll(old.getIcons());
+        fresh.setResizable(old.isResizable());
+        fresh.setMinWidth(old.getMinWidth()); fresh.setMinHeight(old.getMinHeight());
+        fresh.setMaxWidth(old.getMaxWidth()); fresh.setMaxHeight(old.getMaxHeight());
+        wireCloseHandler(fresh, window);
         old.setOnCloseRequest(null);
         old.hide();
-
         fresh.setScene(scene);
-        // NOT old.getX()/getY(): confirmed those can themselves be wrong while this
-        // bug is active (same root cause as the width/height mixed-units problem in
-        // this method's own doc) - using them here to place the fresh Stage sent it
-        // right back to the ORIGINAL monitor every time, even while dragging onto the
-        // other one. Using the screen captured back when the maximize was first
-        // detected (see installDpiRescaleWorkaround), not recomputed now - by now the
-        // mouse may have drifted off the target monitor already.
-        if (screenTopLeft != null) {
-            fresh.setX(screenTopLeft[0]);
-            fresh.setY(screenTopLeft[1]);
-        }
-        fresh.setMaximized(true);
+        fresh.setX(placement.x()); fresh.setY(placement.y());
+        fresh.setWidth(placement.width()); fresh.setHeight(placement.height());
+        fresh.setMaximized(placement.maximized());
         fresh.show();
-
         currentStage = fresh;
-        mainWindow.setCurrentScreenId(screenId != null ? screenId : currentScreenId());
-        installDpiRescaleWorkaround(mainWindow);
-        LOG.log(Level.INFO, "Recreated Stage after a maximize transition (DPI rescale workaround)");
+        window.setCurrentScreenId(screenId);
+        if (focus != null) Platform.runLater(focus::requestFocus);
+        installDpiRescaleWorkaround(window);
+        LOG.log(Level.INFO, "Recreated Stage after a DPI transition; maximized=" + placement.maximized());
     }
 
     /**
@@ -334,9 +336,15 @@ public class MainApp extends Application {
 
     private void wireCloseHandler(Stage stage, MainWindow mainWindow) {
         Runnable close=() -> {
-            AppPreferences.saveWindowSize(stage.getWidth(), stage.getHeight());
-            AppPreferences.saveWindowScreen(mainWindow.currentScreenId(),
-                    screenBounds(screenContainingMostOf(stage).getBounds()));
+            WindowsDpi.Sample sample = WindowsDpi.sample(stage);
+            if (sample != null) {
+                var placement = sample.placement();
+                AppPreferences.saveWindowSize(placement.width(), placement.height());
+                AppPreferences.saveWindowScreen(sample.deviceId(), screenBounds(sample.screen().getBounds()));
+            } else {
+                AppPreferences.saveWindowSize(stage.getWidth(), stage.getHeight());
+                AppPreferences.saveWindowScreen(mainWindow.currentScreenId(), screenBounds(screenContainingMostOf(stage).getBounds()));
+            }
             mainWindow.saveSplitPositions();
             Platform.exit();
         };
@@ -346,6 +354,7 @@ public class MainApp extends Application {
 
     @Override
     public void stop() {
+        if (maximizePoll != null) maximizePoll.stop();
         FlatCamLauncher.stopSplash();
         FlatCamLauncher.stopUiMonitor();
         if (mainWindow != null) mainWindow.disposeViewport();

@@ -119,7 +119,7 @@
                     <mainClass>${javafx.mainClass}</mainClass>
                     <commandlineArgs>${flatcam.args}</commandlineArgs>
                     <options>
-                        <option>--enable-native-access=javafx.graphics</option>
+                        <option>--enable-native-access=javafx.graphics,ALL-UNNAMED</option>
                         <option>-XX:+UnlockDiagnosticVMOptions</option>
                         <option>-XX:DisableIntrinsic=_indexOfUL</option>
                         <!-- Optional read-only renderer bridge; keep in sync with the native launcher. -->

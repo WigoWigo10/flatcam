@@ -1,0 +1,797 @@
+{
+  "date": "2026-11-17",
+  "status": "FIXED_IN_DEVELOPMENT_TWO_MONITOR_RECOVERY_VALIDATED_PARTIAL_MATRIX",
+  "packagedSource": "0b910a9e40e0996b90c423fd713645f1d7adb0ea",
+  "version": "0.1.0-beta.8",
+  "fixture": "tools/MultiMonitorLiveProbe.java; subclass adds only isolated public-project setup; inherits MainApp start/stop/DPI handling from packaged JAR",
+  "preferences": "FileFactory under target/multi-monitor-live; no Windows user preference writes",
+  "focusedTests": {
+    "date": "2026-11-14",
+    "cases": 80,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "log": "target/multi-dpi-focused-20261114.log",
+    "scope": "WindowScreenMatcher, StartupSplashDisplay, NativeSplashTransition, StartupSplashReading; not full app monitor moves"
+  },
+  "failedState": {
+    "utc": "2026-11-17T20:10:54.987528100Z",
+    "objects": [
+      "Placa DPI"
+    ],
+    "dirty": false,
+    "sidebarScreenId": "\\Display1",
+    "window": {
+      "splits": [
+        {
+          "orientation": "VERTICAL",
+          "width": 3800,
+          "dividers": [],
+          "height": 1431
+        },
+        {
+          "orientation": "HORIZONTAL",
+          "width": 3798,
+          "dividers": [
+            0.220115850447604
+          ],
+          "height": 1429
+        }
+      ],
+      "renderScaleX": 1,
+      "renderScaleY": 1,
+      "sceneHeight": 1517,
+      "kind": "Stage",
+      "maximized": false,
+      "outputScaleX": 1,
+      "title": "FlatCAM FX — 0.1.0-beta.8",
+      "sceneIdentity": 2079173999,
+      "outputScaleY": 1,
+      "iconified": false,
+      "identity": 624127035,
+      "sceneWidth": 3800,
+      "x": -617,
+      "width": 3826,
+      "focused": true,
+      "y": 361,
+      "height": 1588
+    }
+  },
+  "recoveredAfterMaximize": {
+    "utc": "2026-11-17T20:11:27.597460100Z",
+    "objects": [
+      "Placa DPI"
+    ],
+    "dirty": false,
+    "sidebarScreenId": "\\Display0",
+    "window": {
+      "splits": [
+        {
+          "orientation": "VERTICAL",
+          "width": 1440,
+          "dividers": [],
+          "height": 743.5
+        },
+        {
+          "orientation": "HORIZONTAL",
+          "width": 1438,
+          "dividers": [
+            0.22
+          ],
+          "height": 741.5
+        }
+      ],
+      "renderScaleX": 2,
+      "renderScaleY": 2,
+      "sceneHeight": 829.5,
+      "kind": "Stage",
+      "maximized": true,
+      "outputScaleX": 2,
+      "title": "FlatCAM FX — 0.1.0-beta.8",
+      "sceneIdentity": 2079173999,
+      "outputScaleY": 2,
+      "iconified": false,
+      "identity": 43113474,
+      "sceneWidth": 1440,
+      "x": -6.5,
+      "width": 1453,
+      "focused": true,
+      "y": -6.5,
+      "height": 865
+    }
+  },
+  "nativeLastEvents": [
+    {
+      "millis": 344875,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": -1910,
+          "y": 822,
+          "width": 1913,
+          "height": 794,
+          "dpi": 96
+        }
+      ]
+    },
+    {
+      "millis": 393484,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": -617,
+          "y": 892,
+          "width": 3826,
+          "height": 1588,
+          "dpi": 192
+        }
+      ]
+    },
+    {
+      "millis": 424296,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": -591,
+          "y": 883,
+          "width": 3826,
+          "height": 1588,
+          "dpi": 192
+        }
+      ]
+    },
+    {
+      "millis": 424546,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": -211,
+          "y": 839,
+          "width": 3826,
+          "height": 1588,
+          "dpi": 192
+        }
+      ]
+    },
+    {
+      "millis": 424796,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": 388,
+          "y": 363,
+          "width": 3826,
+          "height": 1588,
+          "dpi": 192
+        }
+      ]
+    },
+    {
+      "millis": 425046,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": 206,
+          "y": -30,
+          "width": 3826,
+          "height": 1588,
+          "dpi": 192
+        }
+      ]
+    },
+    {
+      "millis": 425296,
+      "windows": [
+        {
+          "hwnd": 461732,
+          "x": -13,
+          "y": -13,
+          "width": 2906,
+          "height": 1730,
+          "dpi": 192
+        }
+      ]
+    },
+    {
+      "millis": 426296,
+      "windows": [
+        {
+          "hwnd": 527268,
+          "x": -13,
+          "y": -13,
+          "width": 2906,
+          "height": 1730,
+          "dpi": 192
+        }
+      ]
+    }
+  ],
+  "assertions": {
+    "publicObjectPreserved": true,
+    "projectStayedClean": true,
+    "scenePreservedOnRecreate": true,
+    "scaleRecoveredAfterMaximize": true
+  },
+  "unrun": [
+    "Extended repeated drag/maximize matrix",
+    "Two distinct manually saved sidebar widths roundtrip",
+    "Full visual dialog/menu matrix",
+    "Physical unplug/reconnect",
+    "Software repeat"
+  ],
+  "instrumentLimitations": [
+    "First native fixture launch had incomplete JNI classpath; fixed by using production runtimePaths on the packaged image. This was not an application failure.",
+    "Computer Use rejected targeting an owned native file chooser through its parent; only the open dialog was observed.",
+    "Drag endpoint outside the source window was rejected before input; later actual moves used endpoints inside the observed window.",
+    "Final capture returned a foreground surface inconsistent with selected test window; stopped all UI input and terminated only the path-verified isolated fixture process. No clean-close result inferred."
+  ],
+  "productionChanges": true,
+  "sourceInput": "Public Audio Watermark front copper; originals unchanged",
+  "baselineStatus": "FAIL_EXISTING_RESTORED_WINDOW_DPI_LIMITATION",
+  "developmentFix": {
+    "date": "2026-11-17",
+    "classes": "flatcam-fx/target/classes; release image and runtime unchanged",
+    "fixture": "target/multi-monitor-fixed-20261117",
+    "restoredRecovery": {
+      "2": {
+        "utc": "2026-11-17T20:42:46.265918900Z",
+        "window": {
+          "splits": [
+            {
+              "orientation": "VERTICAL",
+              "width": 1411,
+              "dividers": [],
+              "height": 714.5
+            },
+            {
+              "orientation": "HORIZONTAL",
+              "width": 1409,
+              "dividers": [
+                0.22
+              ],
+              "height": 712.5
+            }
+          ],
+          "renderScaleX": 2,
+          "renderScaleY": 2,
+          "sceneHeight": 800.5,
+          "kind": "Stage",
+          "maximized": false,
+          "outputScaleX": 2,
+          "title": "FlatCAM FX — 0.1.0-beta.8",
+          "sceneIdentity": 243077021,
+          "outputScaleY": 2,
+          "iconified": false,
+          "identity": 2130482103,
+          "sceneWidth": 1411,
+          "x": 8,
+          "width": 1424,
+          "focused": true,
+          "y": 8,
+          "height": 836
+        },
+        "objects": [
+          "Placa DPI"
+        ],
+        "projectDirty": false,
+        "sidebarScreenId": "\\Display0"
+      },
+      "1": {
+        "utc": "2026-11-17T20:43:24.833802900Z",
+        "window": {
+          "splits": [
+            {
+              "orientation": "VERTICAL",
+              "width": 1421,
+              "dividers": [],
+              "height": 747
+            },
+            {
+              "orientation": "HORIZONTAL",
+              "width": 1419,
+              "dividers": [
+                0.22
+              ],
+              "height": 745
+            }
+          ],
+          "renderScaleX": 1,
+          "renderScaleY": 1,
+          "sceneHeight": 833,
+          "kind": "Stage",
+          "maximized": false,
+          "outputScaleX": 1,
+          "title": "FlatCAM FX — 0.1.0-beta.8",
+          "sceneIdentity": 243077021,
+          "outputScaleY": 1,
+          "iconified": false,
+          "identity": 2014935724,
+          "sceneWidth": 1421,
+          "x": -1432,
+          "width": 1437,
+          "focused": true,
+          "y": -1,
+          "height": 872
+        },
+        "objects": [
+          "Placa DPI"
+        ],
+        "projectDirty": false,
+        "sidebarScreenId": "\\Display1"
+      }
+    },
+    "nativeTransitions": [
+      {
+        "millis": 2249765,
+        "windows": [
+          {
+            "hwnd": 1050344,
+            "x": -1928,
+            "y": 514,
+            "width": 1936,
+            "height": 1048,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2253890,
+        "windows": [
+          {
+            "hwnd": 1050344,
+            "x": -32000,
+            "y": -32000,
+            "width": 314,
+            "height": 50,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2254421,
+        "windows": [
+          {
+            "hwnd": 1050344,
+            "x": -1928,
+            "y": 514,
+            "width": 1936,
+            "height": 1048,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2285234,
+        "windows": [
+          {
+            "hwnd": 1050344,
+            "x": -1910,
+            "y": 532,
+            "width": 1913,
+            "height": 1084,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2303515,
+        "windows": [
+          {
+            "hwnd": 1050344,
+            "x": -1910,
+            "y": 532,
+            "width": 1913,
+            "height": 1084,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2303765,
+        "windows": [
+          {
+            "hwnd": 1050344,
+            "x": -1517,
+            "y": 769,
+            "width": 3826,
+            "height": 1830,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2304765,
+        "windows": []
+      },
+      {
+        "millis": 2305031,
+        "windows": [
+          {
+            "hwnd": 1115880,
+            "x": 16,
+            "y": 16,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2308781,
+        "windows": [
+          {
+            "hwnd": 1115880,
+            "x": -13,
+            "y": -13,
+            "width": 2906,
+            "height": 1730,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2332343,
+        "windows": [
+          {
+            "hwnd": 1115880,
+            "x": 16,
+            "y": 16,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2342359,
+        "windows": [
+          {
+            "hwnd": 1115880,
+            "x": 16,
+            "y": 16,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2342609,
+        "windows": [
+          {
+            "hwnd": 1115880,
+            "x": -939,
+            "y": 223,
+            "width": 1424,
+            "height": 836,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2343609,
+        "windows": [
+          {
+            "hwnd": 1181416,
+            "x": -1432,
+            "y": 530,
+            "width": 1437,
+            "height": 872,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2346375,
+        "windows": [
+          {
+            "hwnd": 1181416,
+            "x": -1439,
+            "y": 521,
+            "width": 1437,
+            "height": 872,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2346625,
+        "windows": [
+          {
+            "hwnd": 1181416,
+            "x": -1475,
+            "y": 501,
+            "width": 1437,
+            "height": 872,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2346875,
+        "windows": [
+          {
+            "hwnd": 1181416,
+            "x": -1928,
+            "y": 514,
+            "width": 1936,
+            "height": 1048,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2388468,
+        "windows": [
+          {
+            "hwnd": 1181416,
+            "x": -1432,
+            "y": 530,
+            "width": 1437,
+            "height": 872,
+            "dpi": 96
+          }
+        ]
+      },
+      {
+        "millis": 2409015,
+        "windows": [
+          {
+            "hwnd": 1181416,
+            "x": -639,
+            "y": 646,
+            "width": 2874,
+            "height": 1744,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2410015,
+        "windows": []
+      },
+      {
+        "millis": 2410265,
+        "windows": [
+          {
+            "hwnd": 1246952,
+            "x": 16,
+            "y": 16,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2448109,
+        "windows": [
+          {
+            "hwnd": 1838536,
+            "x": 1603,
+            "y": 807,
+            "width": 290,
+            "height": 164,
+            "dpi": 192
+          },
+          {
+            "hwnd": 1246952,
+            "x": 16,
+            "y": 16,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2453875,
+        "windows": [
+          {
+            "hwnd": 1246952,
+            "x": 16,
+            "y": 16,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2485437,
+        "windows": [
+          {
+            "hwnd": 1246952,
+            "x": -13,
+            "y": -13,
+            "width": 2906,
+            "height": 1730,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2521281,
+        "windows": [
+          {
+            "hwnd": 1246952,
+            "x": -13,
+            "y": 0,
+            "width": 2848,
+            "height": 1672,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2530546,
+        "windows": [
+          {
+            "hwnd": 1246952,
+            "x": -11,
+            "y": 0,
+            "width": 1462,
+            "height": 1715,
+            "dpi": 192
+          }
+        ]
+      },
+      {
+        "millis": 2590343,
+        "windows": [
+          {
+            "hwnd": 1312488,
+            "x": -13,
+            "y": -13,
+            "width": 2906,
+            "height": 1730,
+            "dpi": 192
+          }
+        ]
+      }
+    ],
+    "reopened": {
+      "preferencesFactory": "org.flatcam.fx.MultiMonitorLiveProbe$FileFactory",
+      "utc": "2026-11-17T20:47:33.242426700Z",
+      "projectDirty": false,
+      "session": "session-1794948447589",
+      "objects": [
+        "Placa DPI"
+      ],
+      "fxScreens": [
+        {
+          "scaleX": 2,
+          "scaleY": 2,
+          "bounds": [
+            0,
+            0,
+            1440,
+            900
+          ],
+          "visualBounds": [
+            0,
+            0,
+            1440,
+            852
+          ],
+          "dpi": 122,
+          "primary": true
+        },
+        {
+          "scaleX": 1,
+          "scaleY": 1,
+          "bounds": [
+            -1920,
+            -9,
+            1920,
+            1080
+          ],
+          "visualBounds": [
+            -1920,
+            -9,
+            1920,
+            1032
+          ],
+          "dpi": 95,
+          "primary": false
+        }
+      ],
+      "pid": 12388,
+      "source": "development",
+      "applicationJar": "file:/C:/Users/higor/Documents/VSCode/FlatCAM/flatcam-next-worktree/flatcam-next/flatcam-fx/target/classes/",
+      "windows": [
+        {
+          "splits": [
+            {
+              "orientation": "VERTICAL",
+              "width": 1440,
+              "dividers": [],
+              "height": 743.5
+            },
+            {
+              "orientation": "HORIZONTAL",
+              "width": 1438,
+              "dividers": [
+                0.3045897079276773
+              ],
+              "height": 741.5
+            }
+          ],
+          "renderScaleX": 2,
+          "renderScaleY": 2,
+          "sceneHeight": 829.5,
+          "kind": "Stage",
+          "maximized": true,
+          "outputScaleX": 2,
+          "title": "FlatCAM FX — 0.1.0-beta.8",
+          "sceneIdentity": 752423278,
+          "outputScaleY": 2,
+          "iconified": false,
+          "identity": 1093005087,
+          "sceneWidth": 1440,
+          "x": -6.5,
+          "width": 1453,
+          "focused": true,
+          "y": -6.5,
+          "height": 865
+        }
+      ],
+      "version": "0.1.0-beta.8",
+      "sidebarScreenId": "\\Display0",
+      "awtScreens": [
+        {
+          "scaleX": 2,
+          "scaleY": 2,
+          "bounds": [
+            0,
+            0,
+            1440,
+            900
+          ],
+          "id": "\\Display0",
+          "physicalMode": [
+            2880,
+            1800
+          ]
+        },
+        {
+          "scaleX": 1,
+          "scaleY": 1,
+          "bounds": [
+            -1920,
+            522,
+            1920,
+            1080
+          ],
+          "id": "\\Display1",
+          "physicalMode": [
+            1920,
+            1080
+          ]
+        }
+      ]
+    },
+    "fullVerify": {
+      "cases": 2681,
+      "passed": 2661,
+      "skipped": 20,
+      "failures": 0,
+      "errors": 0,
+      "log": "target/multi-dpi-full-verify.log"
+    },
+    "newTests": 9,
+    "nativeBuild": "target/multi-dpi-native-build.log",
+    "releasePackagesRebuilt": false,
+    "remaining": [
+      "Extended repeated drag/maximize matrix",
+      "Two distinct manually saved sidebar widths roundtrip",
+      "Full visual dialog/menu matrix",
+      "Physical unplug/reconnect",
+      "Software repeat"
+    ],
+    "instrumentLimitations": [
+      "Concurrent input warnings and Windows Snap overlay during GUI automation; refreshed selection before further actions.",
+      "Final reopen capture returned another foreground surface. No input followed; only path-verified test fixture terminated. Reopen monitor/scale/sidebar result comes from app telemetry."
+    ]
+  }
+}
