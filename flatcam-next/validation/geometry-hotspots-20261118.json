@@ -1,0 +1,1518 @@
+{
+  "schema": 1,
+  "date": "2026-11-18",
+  "status": "PROFILED_NO_PRODUCTION_OPTIMIZATION",
+  "priorWorkCommit": "fe4d6655",
+  "algorithmBaseRevision": "7d7110a853dfd8664f8117fe2518d96022fe564c",
+  "analyzerSourcesSha256": {
+    "tools/SummarizeGeometryHotspots.java": "74da1b1b2f388d9ff97b71ca89ec34cc7f856b9b3d537d64f79ab81b3abab5ec",
+    "tools/profile_geometry_hotspots.py": "e8952ab6fbf64284cb692bbfca8f345517c5042fecec30a8641c018673c8780b"
+  },
+  "generatorSourceSha256": "e65dd788bf27ee4fc78f3ae06e18023bb4df206189144d68ae5d3aa011188459",
+  "sourceMarkers": {
+    "maskCore": [
+      369
+    ],
+    "maskDilation": [
+      370
+    ],
+    "maskClip": [
+      408
+    ],
+    "footprintUnion": [
+      466
+    ],
+    "rasterIntersection": [
+      664,
+      678
+    ],
+    "standardOffsets": [
+      567,
+      573
+    ]
+  },
+  "originalProfiles": [
+    {
+      "id": "horizon-single-lines",
+      "recordingSha256": "628a196b028c43e8fbde28b24b200349e00ce35d06e006152d4a7ba6e69d48d4",
+      "instrumentedConnect": true,
+      "cpuSamples": 589,
+      "cpuSamplesWithGeneratorActive": 585,
+      "cpuThreads": [
+        {
+          "site": "main",
+          "weight": 589,
+          "events": 589
+        }
+      ],
+      "cpuWorkloadSamples": {
+        "rasterIntersection": 305,
+        "rasterSafeArea": 162,
+        "connect": 76,
+        "other": 46
+      },
+      "cpuWorkloadPercent": {
+        "rasterIntersection": 51.782682512733444,
+        "rasterSafeArea": 27.504244482173174,
+        "connect": 12.903225806451612,
+        "other": 7.809847198641766
+      },
+      "estimatedAllocationBytes": 1882854872,
+      "estimatedAllocationBytesByWorkload": {
+        "rasterSafeArea": 644590648,
+        "rasterIntersection": 628243784,
+        "connect": 379005512,
+        "other": 231008920
+      },
+      "topCpuCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 302,
+          "events": 302
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 162,
+          "events": 162
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:779 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 27,
+          "events": 27
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:761 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 21,
+          "events": 21
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:93",
+          "weight": 17,
+          "events": 17
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 14,
+          "events": 14
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:263 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 9,
+          "events": 9
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:762 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 8,
+          "events": 8
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:272 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 6,
+          "events": 6
+        },
+        {
+          "site": "org.flatcam.cam.ncc.LinesRasterRefinement.withoutContourOverlap:59 <- org.flatcam.cam.ncc.NccGenerator.linePaths:692 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 4,
+          "events": 4
+        }
+      ],
+      "topAllocationCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 644590648,
+          "events": 372
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 620816464,
+          "events": 538
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 351695880,
+          "events": 273
+        },
+        {
+          "site": "outsideApplication",
+          "weight": 159109696,
+          "events": 6
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:779 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 26261640,
+          "events": 24
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:93",
+          "weight": 12575432,
+          "events": 12
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:263 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 12407840,
+          "events": 20
+        },
+        {
+          "site": "org.flatcam.cam.ncc.LinesRasterRefinement.indexSegments:94 <- org.flatcam.cam.ncc.LinesRasterRefinement.indexSegments:96 <- org.flatcam.cam.ncc.LinesRasterRefinement.withoutContourOverlap:59 <- org.flatcam.cam.ncc.NccGenerator.linePaths:692",
+          "weight": 12007920,
+          "events": 12
+        }
+      ],
+      "cpuInclusiveApis": [
+        {
+          "site": "overlayOrUnion",
+          "weight": 325,
+          "events": 325
+        },
+        {
+          "site": "geometryIntersection",
+          "weight": 305,
+          "events": 305
+        },
+        {
+          "site": "buffer",
+          "weight": 199,
+          "events": 199
+        },
+        {
+          "site": "arrayCopy",
+          "weight": 36,
+          "events": 36
+        }
+      ],
+      "cpuArrayCopyOwners": [
+        {
+          "site": "org.locationtech.jts.index.ArrayListVisitor.visitItem",
+          "weight": 23,
+          "events": 23
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SimpleMCSweepLineIntersector.addEdge",
+          "weight": 7,
+          "events": 7
+        },
+        {
+          "site": "org.locationtech.jts.noding.MCIndexNoder.add",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.EdgeRing.addPoints",
+          "weight": 2,
+          "events": 2
+        },
+        {
+          "site": "org.locationtech.jts.noding.MCIndexSegmentSetMutualIntersector.addToMonoChains",
+          "weight": 1,
+          "events": 1
+        }
+      ],
+      "topAllocatedClasses": [
+        {
+          "site": "org.locationtech.jts.index.kdtree.KdTree$QueryStackFrame",
+          "weight": 474217664,
+          "events": 109
+        },
+        {
+          "site": "[Ljava.lang.Object;",
+          "weight": 315372176,
+          "events": 271
+        },
+        {
+          "site": "org.locationtech.jts.geom.Coordinate",
+          "weight": 250603216,
+          "events": 259
+        },
+        {
+          "site": "[I",
+          "weight": 223920632,
+          "events": 65
+        },
+        {
+          "site": "[Lorg.locationtech.jts.geom.Coordinate;",
+          "weight": 98585488,
+          "events": 96
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SweepLineEvent",
+          "weight": 93768648,
+          "events": 89
+        },
+        {
+          "site": "org.locationtech.jts.geom.Envelope",
+          "weight": 53697200,
+          "events": 56
+        },
+        {
+          "site": "org.locationtech.jts.geom.Polygon",
+          "weight": 37724176,
+          "events": 1
+        }
+      ],
+      "truncatedStacks": 0
+    },
+    {
+      "id": "horizon-panel-2x2-lines",
+      "recordingSha256": "cd1af69fc18a32d8ea76375585c3c965cff9a26caf08301faf857ec147a10ae5",
+      "instrumentedConnect": true,
+      "cpuSamples": 1598,
+      "cpuSamplesWithGeneratorActive": 1593,
+      "cpuThreads": [
+        {
+          "site": "main",
+          "weight": 1596,
+          "events": 1596
+        },
+        {
+          "site": "JFR Periodic Tasks",
+          "weight": 2,
+          "events": 2
+        }
+      ],
+      "cpuWorkloadSamples": {
+        "rasterIntersection": 961,
+        "rasterSafeArea": 174,
+        "connect": 264,
+        "other": 199
+      },
+      "cpuWorkloadPercent": {
+        "rasterIntersection": 60.13767209011264,
+        "rasterSafeArea": 10.888610763454318,
+        "connect": 16.520650813516895,
+        "other": 12.453066332916146
+      },
+      "estimatedAllocationBytes": 6222259120,
+      "estimatedAllocationBytesByWorkload": {
+        "rasterIntersection": 3041050552,
+        "rasterSafeArea": 1048661840,
+        "connect": 1003250968,
+        "other": 1129291168
+      },
+      "topCpuCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 956,
+          "events": 956
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 174,
+          "events": 174
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:779 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 82,
+          "events": 82
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:761 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 74,
+          "events": 74
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 74,
+          "events": 74
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:263 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 20,
+          "events": 20
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:272 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 19,
+          "events": 19
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:762 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 19,
+          "events": 19
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70",
+          "weight": 16,
+          "events": 16
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.union:36 <- org.flatcam.cam.ncc.NccGenerator.generate:93",
+          "weight": 15,
+          "events": 15
+        }
+      ],
+      "topAllocationCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 3030571216,
+          "events": 2075
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 1048661840,
+          "events": 480
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 918351016,
+          "events": 745
+        },
+        {
+          "site": "org.flatcam.cam.ncc.LinesRasterRefinement.indexSegments:94 <- org.flatcam.cam.ncc.LinesRasterRefinement.withoutContourOverlap:59 <- org.flatcam.cam.ncc.NccGenerator.linePaths:692 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518",
+          "weight": 274550768,
+          "events": 9
+        },
+        {
+          "site": "outsideApplication",
+          "weight": 166671696,
+          "events": 15
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.union:36 <- org.flatcam.cam.ncc.NccGenerator.generate:93",
+          "weight": 133721136,
+          "events": 43
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70",
+          "weight": 106944536,
+          "events": 26
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70",
+          "weight": 95216856,
+          "events": 30
+        }
+      ],
+      "cpuInclusiveApis": [
+        {
+          "site": "overlayOrUnion",
+          "weight": 1125,
+          "events": 1125
+        },
+        {
+          "site": "geometryIntersection",
+          "weight": 961,
+          "events": 961
+        },
+        {
+          "site": "buffer",
+          "weight": 267,
+          "events": 267
+        },
+        {
+          "site": "arrayCopy",
+          "weight": 126,
+          "events": 126
+        }
+      ],
+      "cpuArrayCopyOwners": [
+        {
+          "site": "org.locationtech.jts.index.ArrayListVisitor.visitItem",
+          "weight": 86,
+          "events": 86
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SimpleMCSweepLineIntersector.addEdge",
+          "weight": 11,
+          "events": 11
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.EdgeRing.addPoints",
+          "weight": 6,
+          "events": 6
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.buildLevel",
+          "weight": 6,
+          "events": 6
+        },
+        {
+          "site": "org.locationtech.jts.operation.buffer.OffsetSegmentString.addPt",
+          "weight": 4,
+          "events": 4
+        },
+        {
+          "site": "org.locationtech.jts.index.hprtree.HPRtree.insert",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.insert",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.locationtech.jts.index.strtree.AbstractSTRtree.queryInternal",
+          "weight": 2,
+          "events": 2
+        }
+      ],
+      "topAllocatedClasses": [
+        {
+          "site": "[Ljava.lang.Object;",
+          "weight": 1455113208,
+          "events": 917
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SweepLineEvent",
+          "weight": 692175008,
+          "events": 337
+        },
+        {
+          "site": "[Lorg.locationtech.jts.geom.Coordinate;",
+          "weight": 669091488,
+          "events": 373
+        },
+        {
+          "site": "org.locationtech.jts.geom.Coordinate",
+          "weight": 638375216,
+          "events": 548
+        },
+        {
+          "site": "org.locationtech.jts.geom.Envelope",
+          "weight": 328588320,
+          "events": 184
+        },
+        {
+          "site": "org.locationtech.jts.index.kdtree.KdTree$QueryStackFrame",
+          "weight": 285053472,
+          "events": 176
+        },
+        {
+          "site": "[I",
+          "weight": 277690048,
+          "events": 215
+        },
+        {
+          "site": "java.util.ArrayDeque",
+          "weight": 203308200,
+          "events": 2
+        }
+      ],
+      "truncatedStacks": 0
+    },
+    {
+      "id": "audio-three-clear-rest-lines",
+      "recordingSha256": "5c9d74fccc2c1d8415ea2221f5f475cedbf89df7cfc6d5f0269de9371bee3cb7",
+      "instrumentedConnect": true,
+      "cpuSamples": 1449,
+      "cpuSamplesWithGeneratorActive": 1443,
+      "cpuThreads": [
+        {
+          "site": "main",
+          "weight": 1445,
+          "events": 1445
+        },
+        {
+          "site": "JFR Periodic Tasks",
+          "weight": 4,
+          "events": 4
+        }
+      ],
+      "cpuWorkloadSamples": {
+        "maskDilation": 565,
+        "maskCore": 182,
+        "maskClip": 167,
+        "rasterIntersection": 143,
+        "footprintUnion": 93,
+        "other": 201,
+        "cutterSweep": 48,
+        "rasterSafeArea": 24,
+        "connect": 26
+      },
+      "cpuWorkloadPercent": {
+        "maskDilation": 38.99240855762595,
+        "maskCore": 12.560386473429952,
+        "maskClip": 11.525189786059352,
+        "rasterIntersection": 9.86887508626639,
+        "footprintUnion": 6.418219461697722,
+        "other": 13.871635610766045,
+        "cutterSweep": 3.3126293995859215,
+        "rasterSafeArea": 1.6563146997929608,
+        "connect": 1.7943409247757074
+      },
+      "estimatedAllocationBytes": 8157314968,
+      "estimatedAllocationBytesByWorkload": {
+        "maskCore": 1716929872,
+        "maskClip": 1421962464,
+        "maskDilation": 1323843640,
+        "footprintUnion": 1128996936,
+        "rasterIntersection": 564077104,
+        "cutterSweep": 479519304,
+        "connect": 269680904,
+        "other": 1109613424,
+        "rasterSafeArea": 142685240
+      },
+      "topCpuCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:370 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 565,
+          "events": 565
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:369 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 182,
+          "events": 182
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:408 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 167,
+          "events": 167
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 143,
+          "events": 143
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:466 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 93,
+          "events": 93
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:181",
+          "weight": 36,
+          "events": 36
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:394 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 27,
+          "events": 27
+        },
+        {
+          "site": "org.flatcam.cam.geometry.CutterSweep.stroke:26 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:443 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 26,
+          "events": 26
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 24,
+          "events": 24
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:415 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 22,
+          "events": 22
+        }
+      ],
+      "topAllocationCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:369 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1716929872,
+          "events": 684
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:408 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1421962464,
+          "events": 795
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:370 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1323843640,
+          "events": 782
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:466 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1128996936,
+          "events": 439
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 564077104,
+          "events": 584
+        },
+        {
+          "site": "org.flatcam.cam.geometry.CutterSweep.stroke:26 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:443 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 364515704,
+          "events": 167
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 238373424,
+          "events": 65
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:181",
+          "weight": 238211072,
+          "events": 108
+        }
+      ],
+      "cpuInclusiveApis": [
+        {
+          "site": "buffer",
+          "weight": 848,
+          "events": 848
+        },
+        {
+          "site": "overlayOrUnion",
+          "weight": 578,
+          "events": 578
+        },
+        {
+          "site": "arrayCopy",
+          "weight": 293,
+          "events": 293
+        },
+        {
+          "site": "geometryIntersection",
+          "weight": 152,
+          "events": 152
+        }
+      ],
+      "cpuArrayCopyOwners": [
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosSubgraphDepthLocater.findStabbedSegments",
+          "weight": 248,
+          "events": 248
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.insert",
+          "weight": 14,
+          "events": 14
+        },
+        {
+          "site": "org.locationtech.jts.geom.CoordinateList.add",
+          "weight": 12,
+          "events": 12
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.buildLevel",
+          "weight": 9,
+          "events": 9
+        },
+        {
+          "site": "org.locationtech.jts.index.hprtree.HPRtree.insert",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosBufferInputLineSimplifier.collapseLine",
+          "weight": 1,
+          "events": 1
+        },
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosOffsetSegmentString.addPt",
+          "weight": 1,
+          "events": 1
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.EdgeList.add",
+          "weight": 1,
+          "events": 1
+        }
+      ],
+      "topAllocatedClasses": [
+        {
+          "site": "org.locationtech.jts.geom.Coordinate",
+          "weight": 2028631560,
+          "events": 1262
+        },
+        {
+          "site": "org.locationtech.jts.index.kdtree.KdTree$QueryStackFrame",
+          "weight": 1382019896,
+          "events": 415
+        },
+        {
+          "site": "[Ljava.lang.Object;",
+          "weight": 1352470056,
+          "events": 782
+        },
+        {
+          "site": "[Lorg.locationtech.jts.geom.Coordinate;",
+          "weight": 429265016,
+          "events": 285
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.IntervalRTreeBranchNode",
+          "weight": 374075120,
+          "events": 239
+        },
+        {
+          "site": "[I",
+          "weight": 250118992,
+          "events": 254
+        },
+        {
+          "site": "org.locationtech.jts.geom.LineSegment",
+          "weight": 223221600,
+          "events": 164
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.IntervalRTreeLeafNode",
+          "weight": 191636656,
+          "events": 167
+        }
+      ],
+      "truncatedStacks": 0
+    },
+    {
+      "id": "breadboard-panel-three-clear-rest-standard",
+      "recordingSha256": "7bfe4c2aedbf5bf1719679db5caee8b668c0e7ee3ff297c80ffe215f85045277",
+      "instrumentedConnect": true,
+      "cpuSamples": 387,
+      "cpuSamplesWithGeneratorActive": 384,
+      "cpuThreads": [
+        {
+          "site": "main",
+          "weight": 387,
+          "events": 387
+        }
+      ],
+      "cpuWorkloadSamples": {
+        "maskDilation": 179,
+        "maskCore": 29,
+        "footprintUnion": 13,
+        "standardRefinement": 29,
+        "other": 97,
+        "cutterSweep": 20,
+        "standardOffsets": 11,
+        "maskClip": 7,
+        "connect": 2
+      },
+      "cpuWorkloadPercent": {
+        "maskDilation": 46.253229974160206,
+        "maskCore": 7.493540051679586,
+        "footprintUnion": 3.359173126614987,
+        "standardRefinement": 7.493540051679586,
+        "other": 25.064599483204134,
+        "cutterSweep": 5.167958656330749,
+        "standardOffsets": 2.842377260981912,
+        "maskClip": 1.8087855297157622,
+        "connect": 0.5167958656330749
+      },
+      "estimatedAllocationBytes": 1772177072,
+      "estimatedAllocationBytesByWorkload": {
+        "maskDilation": 547049792,
+        "standardOffsets": 251111968,
+        "maskCore": 139229192,
+        "standardRefinement": 294098184,
+        "other": 387260072,
+        "footprintUnion": 77068776,
+        "cutterSweep": 50074616,
+        "maskClip": 13623144,
+        "connect": 12655984
+      },
+      "topCpuCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:370 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 179,
+          "events": 179
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:369 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 29,
+          "events": 29
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:466 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 13,
+          "events": 13
+        },
+        {
+          "site": "org.flatcam.cam.ncc.StandardCoverageRefinement.supplement:19 <- org.flatcam.cam.ncc.NccGenerator.standardPaths:574 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:516 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 13,
+          "events": 13
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:394 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 12,
+          "events": 12
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:181",
+          "weight": 10,
+          "events": 10
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.isolationEnvelope:285 <- org.flatcam.cam.ncc.NccGenerator.lambda$generate$0:115 <- org.flatcam.cam.ncc.NccGenerator$$Lambda.0x00000000a1077700.apply:-1",
+          "weight": 10,
+          "events": 10
+        },
+        {
+          "site": "org.flatcam.cam.geometry.CutterSweep.stroke:23 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:443 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 9,
+          "events": 9
+        },
+        {
+          "site": "org.flatcam.cam.geometry.CutterSweep.stroke:26 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:443 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 9,
+          "events": 9
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.standardPaths:573 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:516 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 8,
+          "events": 8
+        }
+      ],
+      "topAllocationCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:370 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 547049792,
+          "events": 239
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.standardPaths:573 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:516 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 162163064,
+          "events": 69
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:369 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 139229192,
+          "events": 26
+        },
+        {
+          "site": "org.flatcam.cam.ncc.StandardCoverageRefinement.supplement:21 <- org.flatcam.cam.ncc.NccGenerator.standardPaths:574 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:516 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 137994248,
+          "events": 38
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71",
+          "weight": 111966056,
+          "events": 10
+        },
+        {
+          "site": "outsideApplication",
+          "weight": 104841944,
+          "events": 8
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.standardPaths:567 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:516 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 88948904,
+          "events": 18
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:466 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 77068776,
+          "events": 74
+        }
+      ],
+      "cpuInclusiveApis": [
+        {
+          "site": "buffer",
+          "weight": 272,
+          "events": 272
+        },
+        {
+          "site": "overlayOrUnion",
+          "weight": 113,
+          "events": 113
+        },
+        {
+          "site": "arrayCopy",
+          "weight": 80,
+          "events": 80
+        },
+        {
+          "site": "geometryIntersection",
+          "weight": 5,
+          "events": 5
+        }
+      ],
+      "cpuArrayCopyOwners": [
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosSubgraphDepthLocater.findStabbedSegments",
+          "weight": 68,
+          "events": 68
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.buildLevel",
+          "weight": 6,
+          "events": 6
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.EdgeList.add",
+          "weight": 2,
+          "events": 2
+        },
+        {
+          "site": "ConnectMeasurementProbe.main",
+          "weight": 1,
+          "events": 1
+        },
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosOffsetSegmentString.addPt",
+          "weight": 1,
+          "events": 1
+        },
+        {
+          "site": "org.locationtech.jts.geom.CoordinateList.add",
+          "weight": 1,
+          "events": 1
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.EdgeRing.addPoints",
+          "weight": 1,
+          "events": 1
+        }
+      ],
+      "topAllocatedClasses": [
+        {
+          "site": "[Ljava.lang.Object;",
+          "weight": 451464504,
+          "events": 205
+        },
+        {
+          "site": "org.locationtech.jts.geom.Coordinate",
+          "weight": 398163312,
+          "events": 243
+        },
+        {
+          "site": "[Lorg.locationtech.jts.geom.Coordinate;",
+          "weight": 142960688,
+          "events": 45
+        },
+        {
+          "site": "org.locationtech.jts.index.ArrayListVisitor",
+          "weight": 112558808,
+          "events": 6
+        },
+        {
+          "site": "java.util.ArrayList",
+          "weight": 110190096,
+          "events": 10
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.DirectedEdge",
+          "weight": 82788464,
+          "events": 15
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.TopologyLocation",
+          "weight": 78549416,
+          "events": 9
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.IntervalRTreeBranchNode",
+          "weight": 76885536,
+          "events": 94
+        }
+      ],
+      "truncatedStacks": 0
+    }
+  ],
+  "confirmationsWithoutAgent": [
+    {
+      "id": "audio-three-clear-rest-lines",
+      "recordingSha256": "4f80a326c4d321dfc2d6aa6d3553ecea1fb4cc29ae1579611504e08b84ba8d76",
+      "instrumentedConnect": false,
+      "cpuSamples": 2310,
+      "cpuSamplesWithGeneratorActive": 2304,
+      "cpuThreads": [
+        {
+          "site": "main",
+          "weight": 2310,
+          "events": 2310
+        }
+      ],
+      "cpuWorkloadSamples": {
+        "maskDilation": 692,
+        "maskClip": 470,
+        "maskCore": 285,
+        "rasterIntersection": 284,
+        "footprintUnion": 150,
+        "other": 245,
+        "rasterSafeArea": 51,
+        "cutterSweep": 81,
+        "connect": 52
+      },
+      "cpuWorkloadPercent": {
+        "maskDilation": 29.956709956709958,
+        "maskClip": 20.346320346320347,
+        "maskCore": 12.337662337662337,
+        "rasterIntersection": 12.294372294372295,
+        "footprintUnion": 6.4935064935064934,
+        "other": 10.606060606060606,
+        "rasterSafeArea": 2.207792207792208,
+        "cutterSweep": 3.5064935064935066,
+        "connect": 2.2510822510822512
+      },
+      "estimatedAllocationBytes": 8098405904,
+      "estimatedAllocationBytesByWorkload": {
+        "maskCore": 1636932936,
+        "maskDilation": 1593343976,
+        "maskClip": 1460653512,
+        "footprintUnion": 1131148192,
+        "rasterIntersection": 565229192,
+        "cutterSweep": 471185904,
+        "other": 939661208,
+        "rasterSafeArea": 142033984,
+        "connect": 158211232
+      },
+      "topCpuCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:370 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 692,
+          "events": 692
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:408 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 470,
+          "events": 470
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:369 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 285,
+          "events": 285
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 284,
+          "events": 284
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:466 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 150,
+          "events": 150
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:181",
+          "weight": 51,
+          "events": 51
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 51,
+          "events": 51
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:394 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 46,
+          "events": 46
+        },
+        {
+          "site": "org.flatcam.cam.geometry.CutterSweep.stroke:26 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:443 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 45,
+          "events": 45
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:415 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 35,
+          "events": 35
+        }
+      ],
+      "topAllocationCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:369 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1636932936,
+          "events": 519
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:370 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1593343976,
+          "events": 584
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:408 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1460653512,
+          "events": 737
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:466 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1131148192,
+          "events": 329
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 565229192,
+          "events": 463
+        },
+        {
+          "site": "org.flatcam.cam.geometry.CutterSweep.stroke:26 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:443 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 402355192,
+          "events": 110
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.generate:145",
+          "weight": 152911712,
+          "events": 7
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:394 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 142448576,
+          "events": 136
+        }
+      ],
+      "cpuInclusiveApis": [
+        {
+          "site": "buffer",
+          "weight": 1153,
+          "events": 1153
+        },
+        {
+          "site": "overlayOrUnion",
+          "weight": 1131,
+          "events": 1131
+        },
+        {
+          "site": "arrayCopy",
+          "weight": 403,
+          "events": 403
+        },
+        {
+          "site": "geometryIntersection",
+          "weight": 292,
+          "events": 292
+        }
+      ],
+      "cpuArrayCopyOwners": [
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosSubgraphDepthLocater.findStabbedSegments",
+          "weight": 320,
+          "events": 320
+        },
+        {
+          "site": "org.locationtech.jts.geom.CoordinateList.add",
+          "weight": 27,
+          "events": 27
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.insert",
+          "weight": 21,
+          "events": 21
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.buildLevel",
+          "weight": 20,
+          "events": 20
+        },
+        {
+          "site": "org.flatcam.cam.ncc.geosbuffer.GeosOffsetSegmentString.addPt",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SimpleMCSweepLineIntersector.addEdge",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.locationtech.jts.noding.MCIndexNoder.add",
+          "weight": 3,
+          "events": 3
+        },
+        {
+          "site": "org.locationtech.jts.index.ArrayListVisitor.visitItem",
+          "weight": 2,
+          "events": 2
+        }
+      ],
+      "topAllocatedClasses": [
+        {
+          "site": "org.locationtech.jts.geom.Coordinate",
+          "weight": 2063255616,
+          "events": 1064
+        },
+        {
+          "site": "[Ljava.lang.Object;",
+          "weight": 1698988808,
+          "events": 657
+        },
+        {
+          "site": "org.locationtech.jts.index.kdtree.KdTree$QueryStackFrame",
+          "weight": 679057792,
+          "events": 297
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.IntervalRTreeLeafNode",
+          "weight": 450636408,
+          "events": 124
+        },
+        {
+          "site": "[I",
+          "weight": 411957672,
+          "events": 180
+        },
+        {
+          "site": "[Lorg.locationtech.jts.geom.Coordinate;",
+          "weight": 379282728,
+          "events": 239
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.IntervalRTreeBranchNode",
+          "weight": 354866672,
+          "events": 146
+        },
+        {
+          "site": "java.util.ArrayDeque",
+          "weight": 209595760,
+          "events": 15
+        }
+      ],
+      "truncatedStacks": 0,
+      "outputMatchesReference": true,
+      "generationMs": 14373.2188
+    },
+    {
+      "id": "horizon-panel-2x2-lines",
+      "recordingSha256": "f10d34563696453843ed8686b50b0d550cd4cd06d82cada977d7a3e06564a038",
+      "instrumentedConnect": false,
+      "cpuSamples": 1865,
+      "cpuSamplesWithGeneratorActive": 1857,
+      "cpuThreads": [
+        {
+          "site": "main",
+          "weight": 1862,
+          "events": 1862
+        },
+        {
+          "site": "JFR Periodic Tasks",
+          "weight": 3,
+          "events": 3
+        }
+      ],
+      "cpuWorkloadSamples": {
+        "rasterIntersection": 1131,
+        "rasterSafeArea": 199,
+        "connect": 317,
+        "other": 218
+      },
+      "cpuWorkloadPercent": {
+        "rasterIntersection": 60.64343163538874,
+        "rasterSafeArea": 10.67024128686327,
+        "connect": 16.99731903485255,
+        "other": 11.689008042895443
+      },
+      "estimatedAllocationBytes": 6335571912,
+      "estimatedAllocationBytesByWorkload": {
+        "rasterIntersection": 2948476248,
+        "connect": 1348161256,
+        "rasterSafeArea": 1175463120,
+        "other": 863465304
+      },
+      "topCpuCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 1125,
+          "events": 1125
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 199,
+          "events": 199
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:779 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 100,
+          "events": 100
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 92,
+          "events": 92
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:761 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 75,
+          "events": 75
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:762 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 34,
+          "events": 34
+        },
+        {
+          "site": "org.flatcam.cam.ncc.LinesRasterRefinement.withoutContourOverlap:59 <- org.flatcam.cam.ncc.NccGenerator.linePaths:692 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 23,
+          "events": 23
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:272 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 23,
+          "events": 23
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.clearingArea:263 <- org.flatcam.cam.ncc.NccGenerator.generate:127",
+          "weight": 19,
+          "events": 19
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.union:36 <- org.flatcam.cam.ncc.NccGenerator.generate:93",
+          "weight": 18,
+          "events": 18
+        }
+      ],
+      "topAllocationCallsites": [
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.linePaths:664 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348",
+          "weight": 2925421384,
+          "events": 2051
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:780 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 1220506744,
+          "events": 866
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.preciseRoundBuffer:510 <- org.flatcam.cam.ncc.NccGenerator.linePaths:638 <- org.flatcam.cam.ncc.NccGenerator.clearPolygon:518 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:399",
+          "weight": 1175463120,
+          "events": 593
+        },
+        {
+          "site": "outsideApplication",
+          "weight": 160108280,
+          "events": 15
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths:779 <- org.flatcam.cam.ncc.NccGenerator.clearAreaImpl:437 <- org.flatcam.cam.ncc.NccGenerator.clearArea:348 <- org.flatcam.cam.ncc.NccGenerator.generate:172",
+          "weight": 127654512,
+          "events": 75
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70",
+          "weight": 102244888,
+          "events": 27
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.union:36 <- org.flatcam.cam.ncc.NccGenerator.generate:93",
+          "weight": 91103792,
+          "events": 3
+        },
+        {
+          "site": "org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:72 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:71 <- org.flatcam.cam.ncc.NccCopperUnion.binaryUnion:70",
+          "weight": 88361536,
+          "events": 28
+        }
+      ],
+      "cpuInclusiveApis": [
+        {
+          "site": "overlayOrUnion",
+          "weight": 1293,
+          "events": 1293
+        },
+        {
+          "site": "geometryIntersection",
+          "weight": 1131,
+          "events": 1131
+        },
+        {
+          "site": "buffer",
+          "weight": 314,
+          "events": 314
+        },
+        {
+          "site": "arrayCopy",
+          "weight": 127,
+          "events": 127
+        }
+      ],
+      "cpuArrayCopyOwners": [
+        {
+          "site": "org.locationtech.jts.index.ArrayListVisitor.visitItem",
+          "weight": 84,
+          "events": 84
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SimpleMCSweepLineIntersector.addEdge",
+          "weight": 16,
+          "events": 16
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.EdgeRing.addPoints",
+          "weight": 10,
+          "events": 10
+        },
+        {
+          "site": "org.locationtech.jts.index.intervalrtree.SortedPackedIntervalRTree.buildLevel",
+          "weight": 6,
+          "events": 6
+        },
+        {
+          "site": "org.locationtech.jts.index.hprtree.HPRtree.insert",
+          "weight": 2,
+          "events": 2
+        },
+        {
+          "site": "org.locationtech.jts.index.strtree.AbstractSTRtree.queryInternal",
+          "weight": 2,
+          "events": 2
+        },
+        {
+          "site": "org.locationtech.jts.index.strtree.STRtree.verticalSlices",
+          "weight": 2,
+          "events": 2
+        },
+        {
+          "site": "org.locationtech.jts.geom.util.LinearComponentExtracter.filter",
+          "weight": 1,
+          "events": 1
+        }
+      ],
+      "topAllocatedClasses": [
+        {
+          "site": "[Ljava.lang.Object;",
+          "weight": 1299467960,
+          "events": 946
+        },
+        {
+          "site": "org.locationtech.jts.geom.Coordinate",
+          "weight": 948710656,
+          "events": 637
+        },
+        {
+          "site": "org.locationtech.jts.index.kdtree.KdTree$QueryStackFrame",
+          "weight": 714528648,
+          "events": 243
+        },
+        {
+          "site": "[Lorg.locationtech.jts.geom.Coordinate;",
+          "weight": 467080584,
+          "events": 357
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.SweepLineEvent",
+          "weight": 433757928,
+          "events": 364
+        },
+        {
+          "site": "org.locationtech.jts.geom.Envelope",
+          "weight": 334215608,
+          "events": 177
+        },
+        {
+          "site": "org.locationtech.jts.geomgraph.index.MonotoneChain",
+          "weight": 327996056,
+          "events": 105
+        },
+        {
+          "site": "[I",
+          "weight": 300591840,
+          "events": 214
+        }
+      ],
+      "truncatedStacks": 0,
+      "outputMatchesReference": true,
+      "generationMs": 17380.1531
+    }
+  ],
+  "validation": {
+    "originalCpuAndAllocationTotalsMatched": 4,
+    "profilesWithBalancedExclusiveWeights": 6,
+    "recordingHashesUnchanged": 6,
+    "confirmationsWithIdenticalOutputs": 2,
+    "negativeControls": {
+      "emptyRecordingRejected": true,
+      "mismatchedReferenceRejected": true,
+      "originalsUnchanged": true
+    }
+  },
+  "notes": [
+    "Percentages are sampled CPU counts, not exact phase elapsed milliseconds.",
+    "APIs are inclusive and may overlap. Exclusive workload groups use the nearest application callsite; helpers outside classified sites remain in other.",
+    "Allocation bytes are sampled cumulative estimates, not peak or resident RAM.",
+    "All recorded threads retained; 0-4 JFR Periodic Tasks CPU samples in original panel/Audio profiles.",
+    "Original profiles used the Connect measurement agent; two new confirmation JFRs did not. JFR overhead still applies.",
+    "No production algorithm, precision, tool radius or native backend changed; no speedup claimed."
+  ],
+  "priority": [
+    "Investigate repeated raster line intersection against the same safe area in Lines.",
+    "Investigate Rest mask buffers and their internal candidate-list construction; preserve access to already-cleared stock and comparison/tie policy.",
+    "Keep Connect endpoint indexing secondary to the measured geometry costs."
+  ],
+  "artifacts": {
+    "analysis": "target/geometry-hotspots-20261118-final/summary.json",
+    "confirmations": "target/geometry-hotspots-20261118/confirmation/",
+    "guards": "target/geometry-hotspots-20261118-guards/",
+    "documentation": "GEOMETRY_HOTSPOTS_20261118.md"
+  },
+  "releaseBuilt": false,
+  "productionAlgorithmChanged": false
+}

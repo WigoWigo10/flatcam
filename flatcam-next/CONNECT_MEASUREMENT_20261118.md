@@ -101,6 +101,10 @@ Não houve nova medição de cobertura integral, CNC físico, FPS, renderer ou G
 
 ## Próximo trabalho fundamentado
 
+O detalhamento posterior está em `GEOMETRY_HOTSPOTS_20261118.md`: recortes Lines
+e preparação/aplicação da máscara Rest são os alvos identificados, com duas
+confirmações adicionais sem agente. A análise não altera os tempos desta tabela.
+
 Prioridade: aprofundar buffers e interseções da geração dos trajetos, antes de
 alterar a busca do Connect. Um índice de extremos permanece candidato secundário,
 com exigência de preservar desempates, direção e resultados brutos.

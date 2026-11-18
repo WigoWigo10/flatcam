@@ -1,5 +1,19 @@
 # QA project context — FlatCAM FX
 
+2026-11-18 items 1/2: prior Rest tests/Connect campaign committed as fe4d6655.
+Deeper JFR attribution now identifies repeated line.intersection(safeArea) at
+51.8% / 60.1% CPU samples in Horizon; confirmation without agent: 60.6% panel.
+Rest mask core+dilation buffers: 51.6% Audio, 53.7% Breadboard. Adding stock
+path clipping gives ~63% Audio in both original and agent-free confirmation.
+Array-copy stacks mainly show ArrayList growth in geometric candidate lists;
+GeosSubgraphDepthLocater accumulates segments then selects Collections.min.
+Candidate future optimization, not implemented: reduce materialization/index
+work while preserving comparison/ties and nominal cutter access.
+4 original + 2 confirmation JFRs checked, identical outputs in confirmations,
+balanced counters, unchanged recordings, 2 negative controls rejected correctly.
+See GEOMETRY_HOTSPOTS_20261118.md and validation/geometry-hotspots-20261118.json.
+No production optimization, native backend or new release in this item.
+
 2026-11-18 Connect measurements completed: 24 fresh-JVM on/off samples (three
 alternating pairs per case) plus four diagnostic agent/JFR runs. Cases: Horizon
 single/2x2 Lines, Audio Rest/3 CLEAR Lines, Breadboard 2x2 Rest/3 CLEAR Standard.

@@ -1,5 +1,19 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Gargalo geométrico detalhado — 2026-11-18
+
+Testes e campanha anterior preservados no commit `fe4d6655`. Item 2 aprofundado
+com quatro JFRs originais e duas confirmações sem agente: interseções de cada
+linha com a área segura ocupam 52–61% das amostras Horizon. No Rest, preparar
+e aplicar a máscara do estoque ocupa ~63% na Audio; os dois buffers sozinhos
+ocupam 42–54% nos controles. Pilhas de cópia apontam crescimento de listas
+internas, inclusive segmentos acumulados para depois obter `Collections.min`.
+Dois controles negativos passaram; contadores fecham e geometrias das novas
+rodadas coincidem com a referência. Não houve mudança no algoritmo ou precisão.
+Alvos para futura implementação: recortes Lines e buffers/listas da máscara
+Rest, preservando acesso ao espaço já limpo e desempates. Connect fica em
+segundo plano. Evidências: `GEOMETRY_HOTSPOTS_20261118.md`.
+
 ## Connect medido em placas densas/painéis — 2026-11-18
 
 24 rodadas sem instrumentação (três pares ligado/desligado por caso) e quatro
