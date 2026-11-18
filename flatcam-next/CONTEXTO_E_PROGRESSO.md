@@ -1,5 +1,33 @@
 # FlatCAM FX — contexto, progresso e próximos passos
 
+## Connect medido em placas densas/painéis — 2026-11-18
+
+24 rodadas sem instrumentação (três pares ligado/desligado por caso) e quatro
+perfis agente/JFR: Horizon simples/2×2 Lines, Audio Rest/3 Clear Lines e
+Breadboard 2×2 Rest/3 Clear Standard. Saídas brutas e por fresa repetíveis em
+cada variante; diagnóstico não alterou as saídas ligadas. 16 testes Java e três
+testes do comparador passaram. Sem alteração no algoritmo ou nova Beta.
+
+Connect ocupa 18,0% / 15,7% / 2,4% / 0,9% do tempo nas rodadas de diagnóstico.
+A busca de extremos equivale a 5,6–6,8% das amostras totais Horizon; gerar os
+trajetos concentra 70–80% das amostras nos quatro controles. Próxima prioridade:
+buffers/interseções/cópias de arrays, antes de reescrever o Connect. Tempos
+ligado/desligado variam e se sobrepõem; não atribuir todo delta ao conector.
+GEOS nativo via FFM e eventual camada Rust são hipóteses futuras, sem protótipo
+integrado ou promessa de ganho. Relatório: `CONNECT_MEASUREMENT_20261118.md`.
+
+## NCC Rest com várias Clear — 2026-11-18
+
+Relato do Yago ainda não reproduzido na base `7d7110a8`; versão, método e projeto
+do testador desconhecidos. Uma ISO + três Clear passaram nos seis métodos,
+MM/IN, Connect, duas placas públicas e no fluxo tabela → Geometry → projeto →
+formulário CNC. Controles independentes conferem o desconto do material removido;
+o mesmo verificador acusa a limpeza independente com Rest desligado, em dez
+repetições. Rodada relacionada: 108 aprovados, um opcional ignorado, sem falhas.
+Gerar usa apenas as linhas selecionadas; operações separadas não compartilham
+Rest. Hipótese de uso, não causa confirmada. Nenhuma alteração no algoritmo ou
+nova Beta. Detalhes: `NCC_REST_MULTI_CLEAR_REVIEW.md`.
+
 ## Revisão Evo e ensaio multitela — 2026-11-17
 
 Evo v1.09 preservado em `target/evo-review-20261117`, commit `18049df9`;

@@ -1,0 +1,172 @@
+{
+  "schema": 1,
+  "date": "2026-11-18",
+  "baseline": "7d7110a853dfd8664f8117fe2518d96022fe564c",
+  "status": "REPORT_NOT_REPRODUCED_ON_CURRENT_SOURCE",
+  "reporterKnown": {
+    "version": null,
+    "method": null,
+    "project": null,
+    "report": "Multiple CLEAR cutters allegedly act independently under Rest; ISO plus one CLEAR works"
+  },
+  "productionAlgorithmChanged": false,
+  "newTestInvocations": 29,
+  "relatedTests": {
+    "registered": 109,
+    "passed": 108,
+    "skipped": 1,
+    "failures": 0,
+    "errors": 0,
+    "log": "target/ncc-multi-rest-related.log"
+  },
+  "setup": {
+    "isoDiameterMm": 0.2,
+    "clearDiametersMm": [
+      1.2,
+      0.8,
+      0.4
+    ],
+    "syntheticUnits": [
+      "MM",
+      "IN"
+    ],
+    "connect": [
+      false,
+      true
+    ],
+    "contour": true,
+    "publicBoundary": "Itself, margin 1 mm",
+    "publicConnect": true,
+    "publicContour": true
+  },
+  "oracle": "Each next CLEAR target must exclude at least 99% of independent nominal-radius swept area removed from previous target; 1% accommodates legacy Seed arc approximation. Stock must remain nested. Does not certify complete coverage or physical CNC safety.",
+  "negativeControl": "Same handoff oracle accepts Rest enabled and rejects independent clearing with Rest disabled, ten deterministic repeats. This is an oracle validation, not reproduction of Rest-on failure.",
+  "uiScope": "Selected rows -> submitted parameters -> async Geometry publication -> native project save/reopen -> CNC form per-tool geometry. JavaFX controls fired without visible Stage, not manual clicks.",
+  "selectionFinding": "Only selected NCC rows participate; independent runs do not share Rest stock. Possible explanation, not confirmed cause.",
+  "inputs": [
+    {
+      "path": "samples/community/boards/breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "sha256": "2e3e61541788c2bd2ea55995f8b960e1b78befad8d87c4099d9086bdc63fbafa"
+    },
+    {
+      "path": "samples/community/boards/single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "sha256": "dae634e0fab8f158d2ab32e9509308cbb2122c20ff3440fdd9683f3f7c6529a8"
+    }
+  ],
+  "publicCases": [
+    {
+      "file": "single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "method": "STANDARD",
+      "targetAreasBeforeEachClearMm2": [
+        692.8603886057622,
+        33.10348555629845,
+        1.9498181427832677
+      ]
+    },
+    {
+      "file": "single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "method": "SEED",
+      "targetAreasBeforeEachClearMm2": [
+        692.8603886057622,
+        33.45371056855999,
+        8.502451997421682
+      ]
+    },
+    {
+      "file": "single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "method": "LINES",
+      "targetAreasBeforeEachClearMm2": [
+        692.8603886057622,
+        33.10338534388617,
+        1.9498104796014222
+      ]
+    },
+    {
+      "file": "single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "method": "COMBO",
+      "targetAreasBeforeEachClearMm2": [
+        692.8603886057622,
+        33.10338534388617,
+        1.9498104796014222
+      ]
+    },
+    {
+      "file": "single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "method": "REGION_LINES",
+      "targetAreasBeforeEachClearMm2": [
+        692.8603886057622,
+        33.10344252256974,
+        1.9497438976997366
+      ]
+    },
+    {
+      "file": "single-sided-5v/fabrication/Single-Sided 5V Power Supply-B_Cu.gbr",
+      "method": "SPIRAL",
+      "targetAreasBeforeEachClearMm2": [
+        692.8603886057622,
+        33.10345271937081,
+        1.949979370689332
+      ]
+    },
+    {
+      "file": "breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "method": "STANDARD",
+      "targetAreasBeforeEachClearMm2": [
+        520.9212787584603,
+        178.19901181212686,
+        87.46982040724852
+      ]
+    },
+    {
+      "file": "breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "method": "SEED",
+      "targetAreasBeforeEachClearMm2": [
+        520.9212787584603,
+        179.1345233441475,
+        94.26310052268377
+      ]
+    },
+    {
+      "file": "breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "method": "LINES",
+      "targetAreasBeforeEachClearMm2": [
+        520.9212787584603,
+        178.1989632744358,
+        87.46973908402175
+      ]
+    },
+    {
+      "file": "breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "method": "COMBO",
+      "targetAreasBeforeEachClearMm2": [
+        520.9212787584603,
+        178.1989632744358,
+        87.46973908402175
+      ]
+    },
+    {
+      "file": "breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "method": "REGION_LINES",
+      "targetAreasBeforeEachClearMm2": [
+        520.9212787584603,
+        178.19900912392657,
+        87.46966974896229
+      ]
+    },
+    {
+      "file": "breadboard-power-supply/fabrication/Gerber/BreadboardPowerSupply_v2-B.Cu.gbl",
+      "method": "SPIRAL",
+      "targetAreasBeforeEachClearMm2": [
+        520.9212787584603,
+        178.19900140189873,
+        87.46974913359239
+      ]
+    }
+  ],
+  "remaining": [
+    "Original reporter version/project/recipe not available",
+    "No physical machining test",
+    "No claim that all data-dependent Rest bugs are absent"
+  ],
+  "releaseBuilt": false
+}

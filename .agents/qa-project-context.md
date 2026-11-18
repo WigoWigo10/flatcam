@@ -1,5 +1,30 @@
 # QA project context — FlatCAM FX
 
+2026-11-18 Connect measurements completed: 24 fresh-JVM on/off samples (three
+alternating pairs per case) plus four diagnostic agent/JFR runs. Cases: Horizon
+single/2x2 Lines, Audio Rest/3 CLEAR Lines, Breadboard 2x2 Rest/3 CLEAR Standard.
+Within each variant, raw/per-tool hashes repeat; profiled ON outputs match ON.
+Exact diagnostic Connect wall fractions: 18.0%, 15.7%, 2.4%, 0.9%. Endpoint
+search is 5.6-6.8% of total CPU samples in Horizon; clearing paths 70-80% across
+the four cases. On/off distributions overlap and Rest work changes: do not
+attribute the whole latency delta to Connect or claim statistical speedup.
+No production optimization/native backend/release integrated. Prioritize deeper
+buffer/intersection/array profiling, with endpoint indexing secondary. Future
+GEOS C API via FFM prototype is an option; no C++/Rust performance comparison.
+16 Java + three comparator tests passed; final snapshot tool check passed.
+See CONNECT_MEASUREMENT_20261118.md and validation/connect-measurement-20261118.json.
+
+2026-11-18: Yago reports NCC Rest behaving independently with multiple CLEAR
+cutters; reporter version/method/project unknown. NOT REPRODUCED on 7d7110a8.
+Added 29 new test invocations: ISO + three CLEAR, six methods, MM/IN, Connect,
+independent swept-area handoff oracle, ten Rest-on/off negative-control repeats,
+two public power-supply boards and JavaFX table -> Geometry -> save/reopen -> CNC
+form. Related run: 108 passed, one optional skipped, zero failures/errors.
+No production algorithm change or new release. Only SELECTED rows
+participate in one generation; separate runs do not share Rest stock. Possible
+usage explanation, not a confirmed root cause. See NCC_REST_MULTI_CLEAR_REVIEW.md
+and validation/ncc-multi-rest-20261118.json. Keep original report open.
+
 2026-11-17: initial Evo v1.09 reference review, no features ported. Isolated
 shallow clone at flatcam-next/target/evo-review-20261117, 18049df9. See
 FLATCAM_EVO_REVIEW.md; preserve the old Python oracle separately.

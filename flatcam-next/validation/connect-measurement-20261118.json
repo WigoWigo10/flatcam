@@ -1,0 +1,777 @@
+{
+  "schema": 1,
+  "date": "2026-11-18",
+  "baseRevision": "7d7110a853dfd8664f8117fe2518d96022fe564c",
+  "status": "MEASURED_NO_PRODUCTION_OPTIMIZATION",
+  "pairedUninstrumentedRuns": 24,
+  "diagnosticJfrRuns": 4,
+  "pairsPerCase": 3,
+  "sourceUnchanged": true,
+  "deterministicWithinEachVariant": true,
+  "instrumentedOutputsMatchUninstrumentedOn": true,
+  "environment": {
+    "capturedAt": "2026-11-18T11:17:46.8608948-04:00",
+    "cpu": {
+      "Name": "Intel(R) Core(TM) Ultra 7 155H",
+      "NumberOfCores": 16,
+      "NumberOfLogicalProcessors": 22
+    },
+    "system": {
+      "Manufacturer": "Avell",
+      "Model": "Smart",
+      "TotalPhysicalMemory": 33752997888
+    },
+    "os": {
+      "Caption": "Microsoft Windows 11 Pro",
+      "Version": "10.0.26200",
+      "BuildNumber": "26200"
+    },
+    "battery": {
+      "BatteryStatus": 2,
+      "EstimatedChargeRemaining": 100
+    },
+    "activePowerScheme": "GUID do Esquema de Energia: 381b4222-f694-41f0-9685-ff5bb260df2e  (Equilibrado)"
+  },
+  "heap": "4g",
+  "warmup": "3 identical small Lines/Connect runs then explicit GC before timing; fresh JVM per sample; large-case JIT included",
+  "protocol": "NCC public copper bounding rectangle, overlap 40%, Contour on, 3 mm gaps between copies. Diagnostic setup, not a physical CNC recipe. Single and 2x2 translated Gerber copies; sources unchanged.",
+  "originalCapturedSourceSha256": {
+    "tools\\ConnectProfileAgent.java": "e56247050ff5e96148c56262900ceed38d9f1531d8d1320f82f50ea89c4691c4",
+    "tools\\ConnectMeasurementProbe.java": "66a923ceacfb3e58d749580805f8aa62aa1d4c4b210f6ea60dae3c3cf2327ea4",
+    "tools\\SummarizeConnectJfr.java": "d9823a418c23bd21d9705d7544aea6db5850b485485b2240c5aa6dee4eb6e6a7",
+    "flatcam-cam\\src\\main\\java\\org\\flatcam\\cam\\ncc\\NccGenerator.java": "e65dd788bf27ee4fc78f3ae06e18023bb4df206189144d68ae5d3aa011188459"
+  },
+  "originalRunnerSha256": "783bffd8ee38e01d94dc6a946aaf671401df33188fc57720c30c02b993dd5d70",
+  "cases": [
+    {
+      "id": "horizon-single-lines",
+      "config": {
+        "rest": false,
+        "method": "LINES",
+        "diametersMm": [
+          0.4
+        ],
+        "id": "horizon-single-lines",
+        "board": "horizon-choc"
+      },
+      "variants": {
+        "off": {
+          "generationMs": [
+            3468.9984,
+            3549.3403,
+            3515.1856
+          ],
+          "medianGenerationMs": 3515.1856,
+          "medianGenerationThreadCpuMs": 3359.375,
+          "medianThreadAllocatedBytes": 1380205168,
+          "rawPathsSha256": "35bcefe64139573454d9fdd289f58f47d18488a46d8c9ac59ce1244184820688",
+          "sourceSha256": "2f1e2d74278313afd8baf27203e496ff6f1228dba7f2f4c810d5442cebc361d5",
+          "tools": [
+            {
+              "pathsSha256": "35bcefe64139573454d9fdd289f58f47d18488a46d8c9ac59ce1244184820688",
+              "parts": 9874,
+              "stockAreaMm2": 3695.224498940182,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 16237.950567946331,
+              "points": 152342
+            }
+          ],
+          "failedPolygons": 0
+        },
+        "on": {
+          "generationMs": [
+            5296.8186,
+            4037.6434,
+            6044.0161
+          ],
+          "medianGenerationMs": 5296.8186,
+          "medianGenerationThreadCpuMs": 5125,
+          "medianThreadAllocatedBytes": 1723137488,
+          "rawPathsSha256": "841ca6cf761f4514c9d3c9c37bfea8d27bdef796ff5d7b8e28b8a6161cb04e25",
+          "sourceSha256": "2f1e2d74278313afd8baf27203e496ff6f1228dba7f2f4c810d5442cebc361d5",
+          "tools": [
+            {
+              "pathsSha256": "841ca6cf761f4514c9d3c9c37bfea8d27bdef796ff5d7b8e28b8a6161cb04e25",
+              "parts": 1754,
+              "stockAreaMm2": 3695.224498940182,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 18537.093484494566,
+              "points": 152342
+            }
+          ],
+          "failedPolygons": 0
+        }
+      },
+      "diagnostic": {
+        "generationMs": 6520.2784,
+        "connectMs": 1175.9508,
+        "connectCalls": 220,
+        "generationThreadCpuMs": 6281.25,
+        "connectThreadCpuMs": 1156.25,
+        "generationThreadAllocatedBytes": 1723865048,
+        "connectThreadAllocatedBytes": 343896752
+      },
+      "connectWallPercentInDiagnostic": 18.035285119113933,
+      "connectExecutionSamples": 77,
+      "generationExecutionSamples": 589,
+      "connectStackCategories": {
+        "safetyPredicate": 27,
+        "nearestEndpointSearch": 33,
+        "sweptBuffer": 14
+      },
+      "exclusivePhaseSamples": {
+        "other": 22,
+        "copperBoundaryPreparation": 15,
+        "sweptFootprintAndAssembly": 1,
+        "connect": 77,
+        "clearingPaths": 474
+      },
+      "topSampledMethods": [
+        {
+          "method": "org.locationtech.jts.geomgraph.index.MonotoneChainEdge.computeIntersectsForChain",
+          "samples": 66
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChain.computeOverlaps",
+          "samples": 59
+        },
+        {
+          "method": "org.locationtech.jts.index.kdtree.KdTree.query",
+          "samples": 42
+        },
+        {
+          "method": "java.util.Arrays.copyOf",
+          "samples": 36
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.RobustLineIntersector.computeIntersect",
+          "samples": 33
+        },
+        {
+          "method": "java.lang.FdLibm$Hypot.compute",
+          "samples": 31
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.LineIntersector.computeIntersection",
+          "samples": 16
+        },
+        {
+          "method": "org.locationtech.jts.noding.snapround.HotPixel.intersects",
+          "samples": 14
+        },
+        {
+          "method": "org.flatcam.cam.ncc.geosbuffer.GeosSubgraphDepthLocater.findStabbedSegments",
+          "samples": 14
+        },
+        {
+          "method": "java.lang.StrictMath.hypot",
+          "samples": 14
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChainBuilder.findChainEnd",
+          "samples": 13
+        },
+        {
+          "method": "org.locationtech.jts.index.hprtree.HPRtree.queryNode",
+          "samples": 11
+        },
+        {
+          "method": "org.locationtech.jts.index.hprtree.HPRtree.queryItems",
+          "samples": 10
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.CGAlgorithmsDD.orientationIndex",
+          "samples": 9
+        },
+        {
+          "method": "org.locationtech.jts.geom.CoordinateArrays.hasRepeatedPoints",
+          "samples": 8
+        }
+      ]
+    },
+    {
+      "id": "horizon-panel-2x2-lines",
+      "config": {
+        "rest": false,
+        "method": "LINES",
+        "columns": 2,
+        "diametersMm": [
+          0.4
+        ],
+        "id": "horizon-panel-2x2-lines",
+        "rows": 2,
+        "board": "horizon-choc"
+      },
+      "variants": {
+        "off": {
+          "generationMs": [
+            22300.2278,
+            22629.4977,
+            20770.1733
+          ],
+          "medianGenerationMs": 22300.2278,
+          "medianGenerationThreadCpuMs": 21437.5,
+          "medianThreadAllocatedBytes": 4797693152,
+          "rawPathsSha256": "18de78cfe5a0c0a3bd1a0f798dd1ed21d4ea38ae1d03ad12bdee68660f8a1d81",
+          "sourceSha256": "2f1e2d74278313afd8baf27203e496ff6f1228dba7f2f4c810d5442cebc361d5",
+          "tools": [
+            {
+              "pathsSha256": "18de78cfe5a0c0a3bd1a0f798dd1ed21d4ea38ae1d03ad12bdee68660f8a1d81",
+              "parts": 40060,
+              "stockAreaMm2": 16697.8859957607,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 72752.4408679948,
+              "points": 611269
+            }
+          ],
+          "failedPolygons": 0
+        },
+        "on": {
+          "generationMs": [
+            22122.9988,
+            16416.8463,
+            18962.7491
+          ],
+          "medianGenerationMs": 18962.7491,
+          "medianGenerationThreadCpuMs": 18500,
+          "medianThreadAllocatedBytes": 6164608936,
+          "rawPathsSha256": "cb848be3cb6d125097f075c592f320f436a59fed91c8fb9b1bb3a59f0e5d8dd6",
+          "sourceSha256": "2f1e2d74278313afd8baf27203e496ff6f1228dba7f2f4c810d5442cebc361d5",
+          "tools": [
+            {
+              "pathsSha256": "cb848be3cb6d125097f075c592f320f436a59fed91c8fb9b1bb3a59f0e5d8dd6",
+              "parts": 7021,
+              "stockAreaMm2": 16697.8859957607,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 82224.79649600727,
+              "points": 611269
+            }
+          ],
+          "failedPolygons": 0
+        }
+      },
+      "diagnostic": {
+        "generationMs": 15280.8194,
+        "connectMs": 2399.3418,
+        "connectCalls": 869,
+        "generationThreadCpuMs": 14812.5,
+        "connectThreadCpuMs": 2359.375,
+        "generationThreadAllocatedBytes": 6173069480,
+        "connectThreadAllocatedBytes": 1365138912
+      },
+      "connectWallPercentInDiagnostic": 15.701656679484087,
+      "connectExecutionSamples": 266,
+      "generationExecutionSamples": 1598,
+      "connectStackCategories": {
+        "safetyPredicate": 82,
+        "coordinateArrayAccess": 2,
+        "sweptBuffer": 74,
+        "nearestEndpointSearch": 108
+      },
+      "exclusivePhaseSamples": {
+        "other": 5,
+        "copperBoundaryPreparation": 169,
+        "connect": 266,
+        "clearingPaths": 1158
+      },
+      "topSampledMethods": [
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChain.computeOverlaps",
+          "samples": 223
+        },
+        {
+          "method": "org.locationtech.jts.geomgraph.index.MonotoneChainEdge.computeIntersectsForChain",
+          "samples": 209
+        },
+        {
+          "method": "java.util.Arrays.copyOf",
+          "samples": 126
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.RobustLineIntersector.computeIntersect",
+          "samples": 104
+        },
+        {
+          "method": "java.lang.FdLibm$Hypot.compute",
+          "samples": 83
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.LineIntersector.computeIntersection",
+          "samples": 69
+        },
+        {
+          "method": "org.locationtech.jts.index.hprtree.HPRtree.queryNode",
+          "samples": 58
+        },
+        {
+          "method": "java.util.ComparableTimSort.binarySort",
+          "samples": 49
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChainBuilder.findChainEnd",
+          "samples": 42
+        },
+        {
+          "method": "java.lang.StrictMath.hypot",
+          "samples": 40
+        },
+        {
+          "method": "org.locationtech.jts.index.kdtree.KdTree.query",
+          "samples": 37
+        },
+        {
+          "method": "org.locationtech.jts.noding.MCIndexNoder$SegmentOverlapAction.overlap",
+          "samples": 29
+        },
+        {
+          "method": "org.locationtech.jts.index.hprtree.HPRtree.queryItems",
+          "samples": 29
+        },
+        {
+          "method": "org.locationtech.jts.geom.Quadrant.quadrant",
+          "samples": 21
+        },
+        {
+          "method": "org.flatcam.cam.ncc.NccGenerator.connectSafePaths",
+          "samples": 19
+        }
+      ]
+    },
+    {
+      "id": "audio-three-clear-rest-lines",
+      "config": {
+        "rest": true,
+        "method": "LINES",
+        "iso": true,
+        "diametersMm": [
+          1.2,
+          0.8,
+          0.4
+        ],
+        "id": "audio-three-clear-rest-lines",
+        "board": "audio-watermark"
+      },
+      "variants": {
+        "off": {
+          "generationMs": [
+            12290.9909,
+            18413.0034,
+            22261.9051
+          ],
+          "medianGenerationMs": 18413.0034,
+          "medianGenerationThreadCpuMs": 17687.5,
+          "medianThreadAllocatedBytes": 7328473240,
+          "rawPathsSha256": "8c3ca5ce13c55bc347f4bb0ff5ac12773c455ebf3bb6a1cdc828cb0dacc13015",
+          "sourceSha256": "b8975122d81ed870241a0f3ab2f8159b350e1298ae7d77730b075ae118c4dd3c",
+          "tools": [
+            {
+              "pathsSha256": "781fd6dc7745f737da08f5e58120c5fa3fcb6e19e486af8feb5cd95fcd96dcae",
+              "parts": 197,
+              "stockAreaMm2": null,
+              "diameterMm": 0.2,
+              "operation": "ISO",
+              "lengthMm": 2816.9187565702146,
+              "points": 118897
+            },
+            {
+              "pathsSha256": "4a9b3bc3f5a22aac646252fb264b79c9abc239295d3c2165b801d0ae2d510769",
+              "parts": 521,
+              "stockAreaMm2": 2281.8375293646604,
+              "diameterMm": 1.2,
+              "operation": "CLEAR",
+              "lengthMm": 2741.6677768252584,
+              "points": 54183
+            },
+            {
+              "pathsSha256": "421e249680dacf5e504c28352d61e71e813861559933a815eb46ff9a6c3a3f9e",
+              "parts": 1089,
+              "stockAreaMm2": 374.5099128847567,
+              "diameterMm": 0.8,
+              "operation": "CLEAR",
+              "lengthMm": 530.051279194723,
+              "points": 30205
+            },
+            {
+              "pathsSha256": "d72f8d19dad44017dee489fdfe76c518a3f425bbc5c4ce9c0ff1814bf99ad6d7",
+              "parts": 2387,
+              "stockAreaMm2": 224.75628114065563,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 998.066942904771,
+              "points": 62075
+            }
+          ],
+          "failedPolygons": 0
+        },
+        "on": {
+          "generationMs": [
+            14622.8854,
+            13753.9404,
+            18394.8816
+          ],
+          "medianGenerationMs": 14622.8854,
+          "medianGenerationThreadCpuMs": 13968.75,
+          "medianThreadAllocatedBytes": 8011094880,
+          "rawPathsSha256": "5822d25325ee95d00d28d2b75e7a96972d88ecef2cd015529c4e6eb80359a09e",
+          "sourceSha256": "b8975122d81ed870241a0f3ab2f8159b350e1298ae7d77730b075ae118c4dd3c",
+          "tools": [
+            {
+              "pathsSha256": "781fd6dc7745f737da08f5e58120c5fa3fcb6e19e486af8feb5cd95fcd96dcae",
+              "parts": 197,
+              "stockAreaMm2": null,
+              "diameterMm": 0.2,
+              "operation": "ISO",
+              "lengthMm": 2816.9187565702146,
+              "points": 118897
+            },
+            {
+              "pathsSha256": "1be1780a765fb1545347f2f956e361f6e9be6947f1232ec6a62af88aaae7f6f5",
+              "parts": 340,
+              "stockAreaMm2": 2281.8375293646604,
+              "diameterMm": 1.2,
+              "operation": "CLEAR",
+              "lengthMm": 2900.685968878633,
+              "points": 54183
+            },
+            {
+              "pathsSha256": "e681f5fada780c4df467e72d06a84b362700c4e71bd3dd5092110c48b4b40eaa",
+              "parts": 654,
+              "stockAreaMm2": 374.50994066390444,
+              "diameterMm": 0.8,
+              "operation": "CLEAR",
+              "lengthMm": 737.2838380099331,
+              "points": 30185
+            },
+            {
+              "pathsSha256": "5180c9aa3bb779cbd937013e01f7b9c6455e1451a2e3e85f02bfc51ac9c72901",
+              "parts": 1111,
+              "stockAreaMm2": 224.75642625807765,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 1316.81722890729,
+              "points": 62075
+            }
+          ],
+          "failedPolygons": 0
+        }
+      },
+      "diagnostic": {
+        "generationMs": 20798.5409,
+        "connectMs": 503.426,
+        "connectCalls": 5,
+        "generationThreadCpuMs": 18265.625,
+        "connectThreadCpuMs": 421.875,
+        "generationThreadAllocatedBytes": 8026454080,
+        "connectThreadAllocatedBytes": 193612336
+      },
+      "connectWallPercentInDiagnostic": 2.420487102535159,
+      "connectExecutionSamples": 27,
+      "generationExecutionSamples": 1449,
+      "connectStackCategories": {
+        "safetyPredicate": 12,
+        "nearestEndpointSearch": 9,
+        "sweptBuffer": 5
+      },
+      "exclusivePhaseSamples": {
+        "other": 20,
+        "copperBoundaryPreparation": 71,
+        "restStockSubtraction": 36,
+        "sweptFootprintAndAssembly": 142,
+        "connect": 27,
+        "clearingPaths": 1153
+      },
+      "topSampledMethods": [
+        {
+          "method": "java.util.Arrays.copyOf",
+          "samples": 293
+        },
+        {
+          "method": "org.flatcam.cam.ncc.geosbuffer.GeosSubgraphDepthLocater.findStabbedSegments",
+          "samples": 92
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChain.computeOverlaps",
+          "samples": 61
+        },
+        {
+          "method": "org.locationtech.jts.index.kdtree.KdTree.query",
+          "samples": 46
+        },
+        {
+          "method": "org.locationtech.jts.geom.Coordinate.getOrdinate",
+          "samples": 44
+        },
+        {
+          "method": "java.util.ArrayList.grow",
+          "samples": 42
+        },
+        {
+          "method": "java.lang.FdLibm$Hypot.compute",
+          "samples": 38
+        },
+        {
+          "method": "org.locationtech.jts.geom.impl.CoordinateArraySequence.getOrdinate",
+          "samples": 35
+        },
+        {
+          "method": "org.locationtech.jts.index.hprtree.HPRtree.queryNode",
+          "samples": 34
+        },
+        {
+          "method": "org.locationtech.jts.operation.overlayng.RobustClipEnvelopeComputer.add",
+          "samples": 31
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.RobustLineIntersector.computeIntersect",
+          "samples": 27
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChainBuilder.findChainEnd",
+          "samples": 27
+        },
+        {
+          "method": "org.locationtech.jts.noding.OrientedCoordinateArray.compareOriented",
+          "samples": 26
+        },
+        {
+          "method": "org.locationtech.jts.geomgraph.index.MonotoneChainEdge.computeIntersectsForChain",
+          "samples": 25
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.LineIntersector.computeIntersection",
+          "samples": 23
+        }
+      ]
+    },
+    {
+      "id": "breadboard-panel-three-clear-rest-standard",
+      "config": {
+        "rest": true,
+        "method": "STANDARD",
+        "iso": true,
+        "columns": 2,
+        "diametersMm": [
+          1.2,
+          0.8,
+          0.4
+        ],
+        "id": "breadboard-panel-three-clear-rest-standard",
+        "rows": 2,
+        "board": "breadboard-power-supply"
+      },
+      "variants": {
+        "off": {
+          "generationMs": [
+            2422.7921,
+            3031.2969,
+            2689.7161
+          ],
+          "medianGenerationMs": 2689.7161,
+          "medianGenerationThreadCpuMs": 2578.125,
+          "medianThreadAllocatedBytes": 1762301328,
+          "rawPathsSha256": "879fd2186f9e86b86c73eeb4bcb04b72633c43c52e72424f13637e7da323bb60",
+          "sourceSha256": "d321296811f0e6c3cb993bdc32fb03210c5e6ad34ebc06f37eb2bfbfaae82ac2",
+          "tools": [
+            {
+              "pathsSha256": "6596c96da17dc2fb3c3633ebffa8daf7138aa5de8ef183f73e533d4f6bc2fd42",
+              "parts": 271,
+              "stockAreaMm2": null,
+              "diameterMm": 0.2,
+              "operation": "ISO",
+              "lengthMm": 2737.779048465382,
+              "points": 62651
+            },
+            {
+              "pathsSha256": "571968223d09c710700c745957bc97dbe99e7fb219ba38c9bde0a2ff0c547b41",
+              "parts": 51,
+              "stockAreaMm2": 2009.3157226376645,
+              "diameterMm": 1.2,
+              "operation": "CLEAR",
+              "lengthMm": 2230.4784798660685,
+              "points": 66174
+            },
+            {
+              "pathsSha256": "a10c2d87e40ced119804f47dc3ae2881055452eb9c3c561f955e72d314558e13",
+              "parts": 118,
+              "stockAreaMm2": 385.76865529163797,
+              "diameterMm": 0.8,
+              "operation": "CLEAR",
+              "lengthMm": 153.64772555884903,
+              "points": 4693
+            },
+            {
+              "pathsSha256": "e229e26be6db81c79c6ebdd8f0182a76c6eed3647f4a21a645e255f2cb634ac4",
+              "parts": 180,
+              "stockAreaMm2": 368.0299270391678,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 335.36174094053285,
+              "points": 20293
+            }
+          ],
+          "failedPolygons": 0
+        },
+        "on": {
+          "generationMs": [
+            2663.6023,
+            2619.0843,
+            2826.5842
+          ],
+          "medianGenerationMs": 2663.6023,
+          "medianGenerationThreadCpuMs": 2437.5,
+          "medianThreadAllocatedBytes": 1727972712,
+          "rawPathsSha256": "582568949151cbd2e6a077d35b0b0e455970abaad12385196e16730d166c7ca2",
+          "sourceSha256": "d321296811f0e6c3cb993bdc32fb03210c5e6ad34ebc06f37eb2bfbfaae82ac2",
+          "tools": [
+            {
+              "pathsSha256": "6596c96da17dc2fb3c3633ebffa8daf7138aa5de8ef183f73e533d4f6bc2fd42",
+              "parts": 271,
+              "stockAreaMm2": null,
+              "diameterMm": 0.2,
+              "operation": "ISO",
+              "lengthMm": 2737.779048465382,
+              "points": 62651
+            },
+            {
+              "pathsSha256": "8790fd6ebc4236459131a113e026a6f83cd7ce4c32eba740989fc17c06df9afd",
+              "parts": 19,
+              "stockAreaMm2": 2009.3157226376645,
+              "diameterMm": 1.2,
+              "operation": "CLEAR",
+              "lengthMm": 2277.0726517134112,
+              "points": 66174
+            },
+            {
+              "pathsSha256": "4f6d0600fce3086d03e263a96b28e32aba6dd3411db90155db235f311adf6d9c",
+              "parts": 105,
+              "stockAreaMm2": 385.76865726405333,
+              "diameterMm": 0.8,
+              "operation": "CLEAR",
+              "lengthMm": 165.40248409090717,
+              "points": 4689
+            },
+            {
+              "pathsSha256": "e825a4c84d3c9509a83d28e8f3ca0965dcf355abf25b7e27fa4979bdbcca831c",
+              "parts": 134,
+              "stockAreaMm2": 368.02992728735603,
+              "diameterMm": 0.4,
+              "operation": "CLEAR",
+              "lengthMm": 351.0009382544381,
+              "points": 20282
+            }
+          ],
+          "failedPolygons": 0
+        }
+      },
+      "diagnostic": {
+        "generationMs": 3197.1902,
+        "connectMs": 29.6066,
+        "connectCalls": 36,
+        "generationThreadCpuMs": 2984.375,
+        "connectThreadCpuMs": 31.25,
+        "generationThreadAllocatedBytes": 1731487560,
+        "connectThreadAllocatedBytes": 24940880
+      },
+      "connectWallPercentInDiagnostic": 0.9260193528680276,
+      "connectExecutionSamples": 3,
+      "generationExecutionSamples": 387,
+      "connectStackCategories": {
+        "safetyPredicate": 1
+      },
+      "exclusivePhaseSamples": {
+        "other": 9,
+        "copperBoundaryPreparation": 61,
+        "restStockSubtraction": 10,
+        "sweptFootprintAndAssembly": 33,
+        "connect": 3,
+        "clearingPaths": 271
+      },
+      "topSampledMethods": [
+        {
+          "method": "java.util.Arrays.copyOf",
+          "samples": 80
+        },
+        {
+          "method": "org.flatcam.cam.ncc.geosbuffer.GeosSubgraphDepthLocater.findStabbedSegments",
+          "samples": 38
+        },
+        {
+          "method": "java.util.ArrayList.grow",
+          "samples": 24
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChain.computeOverlaps",
+          "samples": 19
+        },
+        {
+          "method": "java.lang.StrictMath.hypot",
+          "samples": 10
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.RobustLineIntersector.computeIntersect",
+          "samples": 8
+        },
+        {
+          "method": "java.lang.FdLibm$Hypot.compute",
+          "samples": 8
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.LineIntersector.computeIntersection",
+          "samples": 7
+        },
+        {
+          "method": "org.locationtech.jts.algorithm.RobustLineIntersector.intersection",
+          "samples": 7
+        },
+        {
+          "method": "org.locationtech.jts.geomgraph.TopologyLocation.init",
+          "samples": 7
+        },
+        {
+          "method": "org.locationtech.jts.noding.OrientedCoordinateArray.compareOriented",
+          "samples": 6
+        },
+        {
+          "method": "java.util.TreeMap.put",
+          "samples": 6
+        },
+        {
+          "method": "java.util.TimSort.gallopLeft",
+          "samples": 5
+        },
+        {
+          "method": "org.locationtech.jts.index.chain.MonotoneChainBuilder.findChainEnd",
+          "samples": 5
+        },
+        {
+          "method": "org.locationtech.jts.noding.MCIndexNoder.intersectChains",
+          "samples": 5
+        }
+      ]
+    }
+  ],
+  "tests": {
+    "connectJavaPassed": 16,
+    "pythonComparatorPassed": 3,
+    "failures": 0
+  },
+  "limits": [
+    "Three samples per variant; wide ranges and overlapping timings; no statistical significance claim.",
+    "On/off differences include changed paths and Rest swept areas; subtraction is not Connect method time.",
+    "Diagnostic agent/JFR have overhead and different JIT behavior; use diagnostic fractions for localization, not speedup against uninstrumented runs.",
+    "Stack categories inside Connect can overlap; exclusive phases are sampled attribution, not exact phase times.",
+    "Allocation counters are cumulative generation-thread bytes, not peak RAM or total-process allocations.",
+    "No coverage, physical machining, final G-code cycle time, FPS or GPU benchmark in this round.",
+    "No Java versus C/C++/Rust/GEOS benchmark."
+  ],
+  "finding": "Current Connect is a minority of measured generation time. Endpoint search is relevant within it, about 5.6-6.8% of total sampled CPU in Horizon; clearing path generation accounts for 70-80%. Prioritize buffers/intersections/array costs before a broad Connect rewrite.",
+  "futureNativeOption": "Compare current Java with GEOS C API via FFM first, including conversions/results/cancellation/memory. Rust is a candidate for a justified new native layer, not an automatic speed or safety guarantee across FFI.",
+  "artifacts": "target/connect-measurement-20261118-runs/; frozen original probe sources in sources/",
+  "finalToolCheck": "target/connect-measurement-tool-final-20261118/",
+  "releaseBuilt": false,
+  "productionAlgorithmChanged": false
+}
