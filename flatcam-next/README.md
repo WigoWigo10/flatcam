@@ -1,19 +1,16 @@
 # FlatCAM FX
 
-## Beta 0.1.0-beta.8
+## Beta 0.1.0-beta.9
 
-Pacotes Windows x64 com Java incluído: instalador EXE/MSI por usuário e ZIP
-portátil. [Notas e roteiro de testes](release/BETA-0.1.0-beta.8.md),
-[geração e validação](release/BUILD_BETA.md) e
-[validação da Beta 8](release/VALIDACAO-0.1.0-beta.8.md).
-Artefatos são gerados localmente em `target/releases`; não há publicação automática.
+Pacotes Windows x64 com Java incluído, instaladores EXE/MSI e ZIP portátil.
+[Notas da Beta 9](release/BETA-0.1.0-beta.9.md) ·
+[Geração e validação](release/BUILD_BETA.md) ·
+[Histórico da Beta 8](release/VALIDACAO-0.1.0-beta.8.md).
 
-A Beta 8 reúne correções de importação Gerber, cobertura Lines/Standard e Rest,
-otimização do Connect, prévias NCC/Paint e os métodos experimentais Lines por
-regiões e Espiral adaptativa. Inclui a redução do custo de cálculo da espiral
-densa. MSI 0.1.80 mantém a família de atualização das Betas anteriores.
-Trajetos repetidos, tamanho dos programas e resultados físicos ainda exigem
-avaliação; não se promete paridade integral ou usinagem certificada.
+A Beta 9 estreia a identidade visual do FlatCAM FX e inclui a correção para
+restaurar a janela entre monitores com DPIs diferentes. O MSI 0.1.90 usa a
+mesma família de atualização da Beta 8. Os artefatos são gerados
+localmente em `target/releases`.
 
 Reimplementação gradual do FlatCAM Python/PyQt5 em Java 25 + JavaFX. O projeto
 já oferece uma fatia funcional para carregar e exibir Gerber/Excellon, executar
